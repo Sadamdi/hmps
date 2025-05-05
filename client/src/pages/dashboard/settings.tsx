@@ -71,7 +71,9 @@ export default function SettingsPage() {
   // Fetch settings
   const { data: settings, isLoading } = useQuery({
     queryKey: ['/api/settings'],
-    placeholderData: defaultSettings
+    placeholderData: defaultSettings,
+    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+    refetchOnWindowFocus: true, // Refetch when window gets focus
   });
 
   const [formData, setFormData] = useState<SiteSettings>(defaultSettings);
@@ -79,7 +81,9 @@ export default function SettingsPage() {
   // Update form data when settings are loaded
   useEffect(() => {
     if (settings) {
-      setFormData(settings);
+      // Deep copy to avoid mutation issues
+      const settingsCopy = JSON.parse(JSON.stringify(settings));
+      setFormData(settingsCopy);
     }
   }, [settings]);
 
@@ -88,9 +92,13 @@ export default function SettingsPage() {
     mutationFn: async (data: SiteSettings) => {
       return await apiRequest('PUT', '/api/settings', data);
     },
-    onSuccess: () => {
-      // Invalidate queries to refresh settings data
+    onSuccess: (data) => {
+      // Immediately update the settings data in the cache
+      queryClient.setQueryData(['/api/settings'], data);
+      
+      // Also invalidate the query to ensure data consistency
       queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      
       toast({
         title: "Settings Updated",
         description: "Your changes have been saved successfully.",
@@ -215,13 +223,22 @@ export default function SettingsPage() {
   const resetToDefault = async () => {
     setIsResetting(true);
     try {
-      await apiRequest('POST', '/api/settings/reset', {});
+      const defaultSettings = await apiRequest('POST', '/api/settings/reset', {});
       toast({
         title: "Settings Reset",
         description: "Settings have been reset to default values.",
       });
-      // Refresh the page to load default settings
-      window.location.reload();
+      
+      // Update cache with the new default settings
+      queryClient.setQueryData(['/api/settings'], defaultSettings);
+      
+      // Also make sure we refetch
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      
+      // Update formData with the new values
+      if (defaultSettings) {
+        setFormData(JSON.parse(JSON.stringify(defaultSettings)));
+      }
     } catch (error) {
       toast({
         title: "Reset Failed",
