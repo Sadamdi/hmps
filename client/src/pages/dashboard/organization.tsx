@@ -165,14 +165,24 @@ export default function DashboardOrganization() {
                         <p className="text-primary font-medium">{member.position}</p>
                         <p className="text-gray-500 text-sm">{member.period}</p>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleEditMember(member)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
+                      <div className="flex space-x-1">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0"
+                          onClick={() => handleEditMember(member)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteMember((member as any)._id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

@@ -58,8 +58,9 @@ export function UserManagement({ user, viewOnly = false, onSave, onCancel }: Use
   const userMutation = useMutation({
     mutationFn: async (userData: typeof formData) => {
       if (user) {
-        // Update existing user
-        return await apiRequest('PUT', `/api/users/${user.id}`, userData);
+        // Update existing user - use _id for MongoDB compatibility
+        const userId = (user as any)._id || user.id;
+        return await apiRequest('PUT', `/api/users/${userId}`, userData);
       } else {
         // Create new user
         return await apiRequest('POST', '/api/users', userData);
