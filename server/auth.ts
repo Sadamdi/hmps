@@ -19,7 +19,7 @@ interface UserWithRole {
 
 // Environment variables with fallbacks
 const JWT_SECRET_STRING = process.env.JWT_SECRET || 'hmti-secret-key-change-in-production';
-const JWT_SECRET = Buffer.from(JWT_SECRET_STRING, 'utf-8');
+const JWT_SECRET_KEY = JWT_SECRET_STRING; // Use string format instead of Buffer
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 
 // Generate JWT token
@@ -30,7 +30,7 @@ export function generateToken(user: UserWithRole): string {
     role: user.role
   };
   
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
+  return jwt.sign(payload, JWT_SECRET_KEY, { expiresIn: JWT_EXPIRY });
 }
 
 // Verify password

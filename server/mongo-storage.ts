@@ -83,8 +83,12 @@ async function updateUser(id: string | number, userData: any): Promise<any> {
   ).select('-password').lean();
 }
 
-async function deleteUser(id: string): Promise<void> {
-  await User.findByIdAndDelete(id);
+async function deleteUser(id: string | number): Promise<void> {
+  // Convert ID to ObjectId
+  const objectId = toObjectId(id);
+  if (!objectId) return;
+  
+  await User.findByIdAndDelete(objectId);
 }
 
 // Article functions
@@ -143,8 +147,12 @@ async function updateArticle(id: string | number, articleData: any): Promise<any
   ).lean();
 }
 
-async function deleteArticle(id: string): Promise<void> {
-  await Article.findByIdAndDelete(id);
+async function deleteArticle(id: string | number): Promise<void> {
+  // Convert ID to ObjectId
+  const objectId = toObjectId(id);
+  if (!objectId) return;
+  
+  await Article.findByIdAndDelete(objectId);
 }
 
 async function getArticlesCount(): Promise<number> {
@@ -164,10 +172,14 @@ async function getLibraryItemsByAuthorId(authorId: string): Promise<any[]> {
   return await Library.find({ authorId: toObjectId(authorId) }).sort({ createdAt: -1 }).lean();
 }
 
-async function getLibraryItemById(id: string): Promise<any | null> {
+async function getLibraryItemById(id: string | number): Promise<any | null> {
   if (!id) return null;
   try {
-    return await Library.findById(id).lean();
+    // Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+    const objectId = toObjectId(id);
+    if (!objectId) return null;
+    
+    return await Library.findById(objectId).lean();
   } catch (error) {
     console.error('Error getting library item by ID:', error);
     return null;
@@ -188,19 +200,27 @@ async function createLibraryItem(itemData: any): Promise<any> {
   return await newItem.save();
 }
 
-async function updateLibraryItem(id: string, itemData: any): Promise<any> {
+async function updateLibraryItem(id: string | number, itemData: any): Promise<any> {
   // Set updated timestamp
   itemData.updatedAt = new Date();
   
+  // Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+  const objectId = toObjectId(id);
+  if (!objectId) return null;
+  
   return await Library.findByIdAndUpdate(
-    id, 
+    objectId, 
     { $set: itemData }, 
     { new: true, runValidators: true }
   ).lean();
 }
 
-async function deleteLibraryItem(id: string): Promise<void> {
-  await Library.findByIdAndDelete(id);
+async function deleteLibraryItem(id: string | number): Promise<void> {
+  // Convert ID to ObjectId
+  const objectId = toObjectId(id);
+  if (!objectId) return;
+  
+  await Library.findByIdAndDelete(objectId);
 }
 
 async function getLibraryItemsCount(): Promise<number> {
@@ -217,10 +237,14 @@ async function getOrganizationPeriods(): Promise<string[]> {
   return periods.sort().reverse(); // Sort in descending order
 }
 
-async function getOrganizationMemberById(id: string): Promise<any | null> {
+async function getOrganizationMemberById(id: string | number): Promise<any | null> {
   if (!id) return null;
   try {
-    return await Organization.findById(id).lean();
+    // Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+    const objectId = toObjectId(id);
+    if (!objectId) return null;
+    
+    return await Organization.findById(objectId).lean();
   } catch (error) {
     console.error('Error getting organization member by ID:', error);
     return null;
@@ -236,19 +260,27 @@ async function createOrganizationMember(memberData: any): Promise<any> {
   return await newMember.save();
 }
 
-async function updateOrganizationMember(id: string, memberData: any): Promise<any> {
+async function updateOrganizationMember(id: string | number, memberData: any): Promise<any> {
   // Set updated timestamp
   memberData.updatedAt = new Date();
   
+  // Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+  const objectId = toObjectId(id);
+  if (!objectId) return null;
+  
   return await Organization.findByIdAndUpdate(
-    id, 
+    objectId, 
     { $set: memberData }, 
     { new: true, runValidators: true }
   ).lean();
 }
 
-async function deleteOrganizationMember(id: string): Promise<void> {
-  await Organization.findByIdAndDelete(id);
+async function deleteOrganizationMember(id: string | number): Promise<void> {
+  // Convert ID to ObjectId
+  const objectId = toObjectId(id);
+  if (!objectId) return;
+  
+  await Organization.findByIdAndDelete(objectId);
 }
 
 async function getOrganizationMembersCount(): Promise<number> {
