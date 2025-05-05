@@ -83,6 +83,17 @@ export default function SettingsPage() {
     if (settings) {
       // Deep copy to avoid mutation issues
       const settingsCopy = JSON.parse(JSON.stringify(settings));
+      
+      // Ensure socialLinks exists
+      if (!settingsCopy.socialLinks) {
+        settingsCopy.socialLinks = {
+          facebook: "",
+          twitter: "",
+          instagram: "",
+          youtube: ""
+        };
+      }
+      
       setFormData(settingsCopy);
     }
   }, [settings]);
@@ -373,7 +384,7 @@ export default function SettingsPage() {
                           <Input
                             id="facebook"
                             name="socialLinks.facebook"
-                            value={formData.socialLinks.facebook}
+                            value={formData.socialLinks?.facebook || ""}
                             onChange={handleInputChange}
                             placeholder="https://facebook.com/yourpage"
                           />
@@ -383,7 +394,7 @@ export default function SettingsPage() {
                           <Input
                             id="twitter"
                             name="socialLinks.twitter"
-                            value={formData.socialLinks.twitter}
+                            value={formData.socialLinks?.twitter || ""}
                             onChange={handleInputChange}
                             placeholder="https://twitter.com/yourhandle"
                           />
@@ -393,7 +404,7 @@ export default function SettingsPage() {
                           <Input
                             id="instagram"
                             name="socialLinks.instagram"
-                            value={formData.socialLinks.instagram}
+                            value={formData.socialLinks?.instagram || ""}
                             onChange={handleInputChange}
                             placeholder="https://instagram.com/yourprofile"
                           />
@@ -403,7 +414,7 @@ export default function SettingsPage() {
                           <Input
                             id="youtube"
                             name="socialLinks.youtube"
-                            value={formData.socialLinks.youtube}
+                            value={formData.socialLinks?.youtube || ""}
                             onChange={handleInputChange}
                             placeholder="https://youtube.com/yourchannel"
                           />
@@ -428,7 +439,7 @@ export default function SettingsPage() {
                           </div>
                           <Switch
                             id="enableRegistration"
-                            checked={formData.enableRegistration}
+                            checked={formData.enableRegistration || false}
                             onCheckedChange={(checked) => handleSwitchChange("enableRegistration", checked)}
                           />
                         </div>

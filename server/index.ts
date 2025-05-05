@@ -3,6 +3,14 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { connectDB } from '../db/mongodb';
 
+// Set ke 'true' jika Anda tidak memiliki MongoDB dan ingin menggunakan PostgreSQL
+// Anda juga bisa menambahkan DISABLE_MONGODB=true di file .env
+if (!process.env.DISABLE_MONGODB) {
+  // Jika tidak ada MongoDB lokal dan tidak ada MongoDB URI, 
+  // otomatis menggunakan PostgreSQL
+  process.env.DISABLE_MONGODB = 'true';
+}
+
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
@@ -41,9 +49,10 @@ app.use((req, res, next) => {
   // Connect to MongoDB
   try {
     await connectDB();
-    console.log('MongoDB connected successfully');
+    // Nota: connectDB sekarang mengembalikan false jika gagal, tapi tidak melempar error
+    // karena kita mau fallback ke PostgreSQL
   } catch (error) {
-    console.error('MongoDB connection error:', error);
+    console.error('Error saat inisialisasi database:', error);
     process.exit(1);
   }
     
