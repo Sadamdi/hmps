@@ -1,8 +1,18 @@
 import mongoose from 'mongoose';
 
+// Variabel untuk mengontrol mode database
+export let useMongoDB = true;
+
 // Konek ke MongoDB
 const connectDB = async () => {
   try {
+    // Jika DISABLE_MONGODB=true, langsung biarkan fallback ke PostgreSQL
+    if (process.env.DISABLE_MONGODB === 'true') {
+      console.log('MongoDB disabled by configuration. Using PostgreSQL instead.');
+      useMongoDB = false;
+      return false;
+    }
+    
     // Untuk produksi, gunakan MongoDB Atlas
     // Contoh URI: mongodb+srv://username:password@cluster.mongodb.net/hmti_informatika
     const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/hmti_informatika';
@@ -16,6 +26,8 @@ const connectDB = async () => {
     });
     
     console.log('MongoDB connected successfully');
+    useMongoDB = true;
+    return true;
   } catch (error) {
     console.error('MongoDB connection error:', error);
     console.error(`
@@ -34,12 +46,13 @@ const connectDB = async () => {
        - Gunakan URI connection string dari MongoDB Atlas
        - Contoh: mongodb+srv://username:password@cluster.mongodb.net/hmti_informatika
     
-    Tambahkan MONGODB_URI ke file .env Anda.
+    Tambahkan MONGODB_URI ke file .env Anda atau DISABLE_MONGODB=true untuk menggunakan PostgreSQL.
     `);
     
-    // Coba gunakan PostgreSQL sebagai fallback
-    console.log('Coba menggunakan PostgreSQL sebagai fallback');
-    process.exit(1);
+    // Set mode database ke PostgreSQL
+    console.log('Menggunakan PostgreSQL sebagai fallback');
+    useMongoDB = false;
+    return false;
   }
 };
 

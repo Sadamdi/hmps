@@ -1,4 +1,5 @@
-import { User, Article, Library, Organization, Settings } from '../db/mongodb';
+import { User, Article, Library, Organization, Settings, useMongoDB } from '../db/mongodb';
+import { storage } from './storage'; // Import PostgreSQL storage
 import { hashPassword } from './auth';
 import mongoose from 'mongoose';
 
@@ -265,8 +266,8 @@ async function resetSettings(): Promise<any> {
   return await defaultSettings.save();
 }
 
-// Export all storage functions
-export const mongoStorage = {
+// Define MongoDB-specific storage functions
+const mongoDBStorage = {
   // User functions
   getAllUsers,
   getUserById,
@@ -309,3 +310,39 @@ export const mongoStorage = {
   updateSettings,
   resetSettings
 };
+
+// Create dynamic proxy to use either MongoDB (preferred) or PostgreSQL (fallback)
+export const mongoStorage = new Proxy({} as typeof mongoDBStorage, {
+  get: function(target, prop) {
+    // Jika MongoDB aktif, gunakan MongoDB storage
+    if (useMongoDB) {
+      return (mongoDBStorage as any)[prop];
+    } 
+    // Jika MongoDB tidak aktif, gunakan PostgreSQL storage sebagai fallback
+    else {
+      // Konversi MongoDB ObjectId string (jika diperlukan)
+      const pgFunction = (storage as any)[prop];
+      
+      if (typeof pgFunction === 'function') {
+        return function(...args: any[]) {
+          console.log(`Using PostgreSQL fallback for: ${String(prop)}`);
+          // Untuk fungsi yang menerima ID, konversi string ID ke angka
+          if (String(prop).includes('ById') && args[0] && typeof args[0] === 'string') {
+            // Coba konversi MongoDB ObjectId ke angka integer untuk PostgreSQL
+            try {
+              const numId = parseInt(args[0].toString(), 10);
+              if (!isNaN(numId)) {
+                args[0] = numId;
+              }
+            } catch (e) {
+              console.error(`Error converting ID: ${args[0]}`, e);
+            }
+          }
+          return pgFunction(...args);
+        };
+      } else {
+        return pgFunction;
+      }
+    }
+  }
+});
