@@ -69,10 +69,10 @@ export default function SettingsPage() {
   };
 
   // Fetch settings
-  const { data: settings, isLoading } = useQuery({
+  const { data: settings, isLoading, refetch: refetchSettings } = useQuery({
     queryKey: ['/api/settings'],
     placeholderData: defaultSettings,
-    staleTime: 1000 * 60 * 5, // Consider data fresh for 5 minutes
+    staleTime: 1000, // Consider data fresh for only 1 second
     refetchOnWindowFocus: true, // Refetch when window gets focus
   });
 
@@ -101,7 +101,9 @@ export default function SettingsPage() {
   // Update settings mutation
   const updateSettingsMutation = useMutation({
     mutationFn: async (data: SiteSettings) => {
-      return await apiRequest('PUT', '/api/settings', data);
+      const response = await apiRequest('PUT', '/api/settings', data);
+      const responseData = await response.json();
+      return responseData;
     },
     onSuccess: (data) => {
       // Immediately update the settings data in the cache
@@ -109,6 +111,9 @@ export default function SettingsPage() {
       
       // Also invalidate the query to ensure data consistency
       queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+      
+      // Force refetch to ensure UI is updated
+      refetchSettings();
       
       toast({
         title: "Settings Updated",
