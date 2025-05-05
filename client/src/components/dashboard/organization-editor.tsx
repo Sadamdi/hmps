@@ -64,8 +64,11 @@ export default function OrganizationEditor({ member, currentPeriod, onSave, onCa
   const saveMemberMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       if (member) {
-        // Update existing member - gunakan _id jika tersedia
-        const memberId = member._id || member.id;
+        // Update existing member - Use MongoDB _id or PostgreSQL id
+        const memberId = (member as any)._id || member.id;
+        
+        console.log("Updating organization member with ID:", memberId);
+        
         if (!memberId) {
           throw new Error("Invalid member ID");
         }

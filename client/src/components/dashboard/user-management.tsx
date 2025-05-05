@@ -154,8 +154,10 @@ export function UserManagement({ user, viewOnly = false, onSave, onCancel }: Use
     if (!user) return;
     
     if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
-      // MongoDB menggunakan _id, bukan id
-      const userId = user._id || user.id;
+      // Handle both MongoDB _id and PostgreSQL id
+      const userId = (user as any)._id || user.id;
+      
+      console.log("Deleting user with ID:", userId);
       
       if (!userId) {
         toast({
