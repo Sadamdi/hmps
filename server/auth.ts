@@ -1,25 +1,25 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { db } from '@db';
 import { users, UserWithRole } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 // Environment variables with fallbacks
-const JWT_SECRET = process.env.JWT_SECRET || 'hmti-secret-key-change-in-production';
+const JWT_SECRET_STRING = process.env.JWT_SECRET || 'hmti-secret-key-change-in-production';
+const JWT_SECRET = Buffer.from(JWT_SECRET_STRING, 'utf-8');
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 
 // Generate JWT token
 export function generateToken(user: UserWithRole): string {
-  return jwt.sign(
-    { 
-      id: user.id, 
-      username: user.username,
-      role: user.role
-    },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRY }
-  );
+  const payload = { 
+    id: user.id, 
+    username: user.username,
+    role: user.role
+  };
+  
+  // @ts-ignore
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
 }
 
 // Verify password
@@ -44,6 +44,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     }
 
     // Verify token
+    // @ts-ignore
     const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
     
     // Fetch user from database
