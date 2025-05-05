@@ -297,13 +297,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Authentication required' });
       }
 
-      // Check if image was uploaded
-      if (!req.file) {
-        return res.status(400).json({ message: 'Image is required' });
+      // Check if image was uploaded - use a default image if not provided
+      let imageUrl = '/uploads/default-article-image.jpg';
+      
+      if (req.file) {
+        // Process the uploaded image if available
+        imageUrl = await uploadHandler(req.file);
       }
-
-      // Process the uploaded image
-      const imageUrl = await uploadHandler(req.file);
 
       // Create article
       const newArticle = await mongoStorage.createArticle({
@@ -326,6 +326,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put('/api/articles/:id', authenticate, uploadMiddleware.single('image'), async (req, res) => {
     try {
       const articleId = req.params.id;
+      
+      // Validate articleId - prevent 'undefined' issues
+      if (!articleId || articleId === 'undefined') {
+        return res.status(400).json({ message: 'Invalid article ID' });
+      }
+      
       const { title, excerpt, content, published } = req.body;
       
       // Get existing article
@@ -373,6 +379,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/articles/:id', authenticate, async (req, res) => {
     try {
       const articleId = req.params.id;
+      
+      // Validate articleId - prevent 'undefined' issues
+      if (!articleId || articleId === 'undefined') {
+        return res.status(400).json({ message: 'Invalid article ID' });
+      }
       
       // Get existing article
       const existingArticle = await mongoStorage.getArticleById(articleId);
@@ -456,10 +467,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(401).json({ message: 'Authentication required' });
       }
 
-      // Check if images were uploaded
+      // Check if images were uploaded - use default image if not provided
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) {
-        return res.status(400).json({ message: 'At least one image is required' });
+        console.log("No images uploaded for library item, using default image");
+        // Create with default image instead of rejecting
+        const defaultImageUrl = ['/uploads/default-library-image.jpg'];
+        
+        // Create library item with default image
+        const newItem = await mongoStorage.createLibraryItem({
+          title,
+          description,
+          fullDescription,
+          images: defaultImageUrl,
+          type: type || 'photo',
+          authorId
+        });
+        
+        return res.status(201).json(newItem);
       }
 
       // Process the uploaded images
@@ -627,13 +652,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { name, position, period } = req.body;
       
-      // Check if image was uploaded
-      if (!req.file) {
-        return res.status(400).json({ message: 'Image is required' });
+      // Check if image was uploaded - use default if not
+      let imageUrl = '/uploads/default-member-image.jpg';
+      
+      if (req.file) {
+        // Process the uploaded image
+        imageUrl = await uploadHandler(req.file);
       }
-
-      // Process the uploaded image
-      const imageUrl = await uploadHandler(req.file);
 
       // Create organization member
       const newMember = await mongoStorage.createOrganizationMember({
