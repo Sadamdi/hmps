@@ -157,6 +157,11 @@ export default function DashboardOrganization() {
                 <DialogTitle>
                   {editingMember ? "Edit Organization Member" : "Add Organization Member"}
                 </DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                  {editingMember 
+                    ? "Update the details of this organization member." 
+                    : "Add a new member to the organization structure."}
+                </p>
               </DialogHeader>
               <OrganizationEditor 
                 member={editingMember} 
