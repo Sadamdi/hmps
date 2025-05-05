@@ -40,7 +40,7 @@ export default function DashboardArticles() {
 
   // Delete article mutation
   const deleteArticleMutation = useMutation({
-    mutationFn: async (articleId: number) => {
+    mutationFn: async (articleId: string | number) => {
       await apiRequest('DELETE', `/api/articles/${articleId}`, {});
     },
     onSuccess: () => {
@@ -83,7 +83,7 @@ export default function DashboardArticles() {
     setIsEditorOpen(true);
   };
 
-  const handleDeleteArticle = async (articleId: number) => {
+  const handleDeleteArticle = async (articleId: string | number) => {
     if (window.confirm("Are you sure you want to delete this article?")) {
       await deleteArticleMutation.mutateAsync(articleId);
     }

@@ -41,8 +41,14 @@ export default function MediaUploader({ item, onSave, onCancel }: MediaUploaderP
   const saveMediaMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       if (item) {
-        // Update existing item
-        return await apiRequest('PUT', `/api/library/${item.id}`, formData);
+        // Update existing item - gunakan _id jika tersedia
+        const itemId = item._id || item.id;
+        
+        if (!itemId) {
+          throw new Error("Invalid item ID");
+        }
+        
+        return await apiRequest('PUT', `/api/library/${itemId}`, formData);
       } else {
         // Create new item
         return await apiRequest('POST', '/api/library', formData);
@@ -148,7 +154,7 @@ export default function MediaUploader({ item, onSave, onCancel }: MediaUploaderP
     
     // Append new files
     files.forEach((file, index) => {
-      formData.append(`media[${index}]`, file);
+      formData.append(`images`, file); // Ubah ke "images" agar sesuai dengan field yang diharapkan di server
     });
 
     await saveMediaMutation.mutateAsync(formData);
