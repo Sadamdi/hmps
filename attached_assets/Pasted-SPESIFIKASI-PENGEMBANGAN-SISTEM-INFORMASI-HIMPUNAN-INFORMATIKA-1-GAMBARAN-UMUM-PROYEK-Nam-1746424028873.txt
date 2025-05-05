@@ -1,0 +1,158 @@
+SPESIFIKASI PENGEMBANGAN SISTEM INFORMASI HIMPUNAN INFORMATIKA  
+
+1. GAMBARAN UMUM PROYEK  
+- Nama Proyek: Sistem Informasi Himpunan Informatika  
+- Jenis: Aplikasi Web Manajemen Komprehensif  
+- Tujuan Utama: Platform Informasi dan Komunikasi Himpunan  
+
+2. ARSITEKTUR TEKNIS  
+
+A. Frontend  
+- Framework: Next.js (React)  
+- Manajemen State: Redux  
+- Styling: Tailwind CSS  
+- Desain Responsif: Mobile-first  
+- Kompatibilitas Browser: Chrome, Firefox, Safari, Edge  
+
+B. Backend  
+- Bahasa: TypeScript  
+- Server: Node.js dengan Express.js  
+- ORM: Prisma  
+- Desain API: RESTful dengan dukungan GraphQL  
+
+C. Basis Data  
+- Basis Data Utama: PostgreSQL  
+- Basis Data Cadangan: MongoDB  
+- Caching: Redis  
+
+3. SISTEM MANAJEMEN PENGGUNA  
+
+A. Peran Pengguna (10 Akun Total)  
+1. Owner (1 akun)  
+- Kontrol PENUH sistem  
+- Dapat membuat/menghapus/memodifikasi SEMUA akun  
+- Izin administratif tertinggi  
+- Akses log sistem lengkap  
+
+2. Admin (1 akun)  
+- Dapat menambah dan mengedit akun  
+- Manajemen konten  
+- TIDAK dapat menghapus akun  
+- Akses administratif terbatas  
+
+3. Kepemimpinan Organisasi  
+- Ketua Himpunan (1 akun)  
+- Wakil Himpunan (1 akun)  
+- Hak modifikasi konten penuh  
+- Manajemen struktur organisasi  
+
+4. Pimpinan Divisi (6 akun)  
+- Manajemen konten divisi  
+- Hak edit library  
+- Hak posting artikel/konten divisi  
+- Akses sistem terbatas  
+
+B. Mekanisme Autentikasi  
+- Berbasis JWT  
+- Autentikasi multi-faktor  
+- Kontrol akses berbasis peran  
+- Enkripsi password aman  
+- Manajemen sesi  
+- Refresh token otomatis  
+
+4. MODUL STRUKTUR ORGANISASI  
+
+A. Bagan Organisasi Dinamis  
+- Representasi hierarkis gaya flowchart  
+- Dukungan periode multi-tahun  
+- Dapat diedit semua jenis akun  
+- Informasi mencakup:  
+  * Foto profil  
+  * Nama lengkap  
+  * Posisi  
+  * Tahun masa jabatan  
+
+B. Fitur Manajemen Struktur  
+- Edit bagan organisasi drag-and-drop  
+- Kontrol versi otomatis  
+- Preservasi struktur historis  
+- Ekspor/impor data organisasi  
+
+5. SISTEM MANAJEMEN KONTEN  
+
+A. Manajemen Artikel  
+- Editor WYSIWYG canggih  
+- Kemampuan pemformatan teks:  
+  * Pilihan font  
+  * Penyesuaian ukuran  
+  * Bold/Miring/Garis bawah  
+  * Perataan teks  
+  * Opsi warna  
+- Generasi metadata otomatis  
+  * Tanggal  
+  * Waktu  
+  * Penulis  
+- Pembuatan thumbnail  
+- Fungsi pencarian  
+- Sistem kategorisasi  
+- Paginasi  
+
+B. Manajemen Perpustakaan  
+- Unggah multimedia:  
+  * Gambar  
+  * Video  
+- Pratinjau thumbnail geser  
+- Dukungan deskripsi detail  
+- Modal interaktif untuk konten penuh  
+- Kategorisasi  
+- Paginasi  
+- Fungsi pencarian  
+
+6. FITUR KEAMANAN  
+- Enkripsi end-to-end  
+- Pencegahan SQL injection  
+- Perlindungan XSS  
+- Implementasi token CSRF  
+- Logging komprehensif  
+- Audit keamanan berkala  
+- Sistem cadangan otomatis  
+
+7. FITUR CHAT AI TAMBAHAN  
+A. Bubble Chat AI di Kanan Bawah  
+- Terintegrasi dengan Gemini AI  
+- Dukungan input teks  
+- Dukungan input gambar  
+- Fokus menjawab pertanyaan:  
+  * Informasi Teknik Informatika UIN Malang  
+  * Konsultasi akademik  
+  * Informasi jurusan  
+  * Panduan kemahasiswaan  
+
+8. OPTIMASI PERFORMA  
+- Rendering sisi server  
+- Pemisahan kode  
+- Pemuatan lambat  
+- Mekanisme caching  
+- Optimasi kueri basis data  
+- Integrasi CDN  
+
+9. STANDAR KEPATUHAN  
+- Aksesibilitas WCAG 2.1  
+- Kepatuhan GDPR  
+- Standar perlindungan data  
+
+INSTRUKSI PENGEMBANGAN:  
+1. Mulai dengan desain sistem komprehensif  
+2. Buat skema basis data terperinci  
+3. Kembangkan arsitektur modular dan dapat diskalakan  
+4. Implementasi protokol pengujian robust  
+5. Pastikan performa dan keamanan tinggi  
+
+KELUARAN YANG DIHARAPKAN:  
+- Dokumentasi lengkap sistem  
+- Antarmuka pengguna intuitif  
+- Kompatibilitas lintas platform  
+- Sistem terintegrasi penuh  
+
+CATATAN AKHIR:  
+Hasilkan aplikasi web fungsional, aman, dan dapat diskalakan yang memenuhi semua persyaratan yang ditentukan.
