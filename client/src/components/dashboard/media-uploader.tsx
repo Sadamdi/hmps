@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -49,6 +49,9 @@ export default function MediaUploader({ item, onSave, onCancel }: MediaUploaderP
       }
     },
     onSuccess: () => {
+      // Invalidate queries to refresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/library'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
       onSave();
     },
     onError: (error) => {
