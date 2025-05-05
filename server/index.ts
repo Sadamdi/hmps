@@ -3,13 +3,11 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { connectDB } from '../db/mongodb';
 
-// Set ke 'true' jika Anda tidak memiliki MongoDB dan ingin menggunakan PostgreSQL
-// Anda juga bisa menambahkan DISABLE_MONGODB=true di file .env
-if (!process.env.DISABLE_MONGODB) {
-  // Jika tidak ada MongoDB lokal dan tidak ada MongoDB URI, 
-  // otomatis menggunakan PostgreSQL
-  process.env.DISABLE_MONGODB = 'true';
-}
+// Set MongoDB URI yang Anda berikan
+process.env.MONGODB_URI = 'mongodb+srv://recipesDB:4434@recipesdb.pjmdt.mongodb.net/?retryWrites=true&w=majority&appName=recipesDB';
+
+// Karena kita menggunakan MongoDB, pastikan DISABLE_MONGODB dinonaktifkan
+process.env.DISABLE_MONGODB = 'false';
 
 const app = express();
 app.use(express.json());
