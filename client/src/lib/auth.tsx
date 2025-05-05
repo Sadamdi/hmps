@@ -24,16 +24,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Check if user is already logged in
     const fetchCurrentUser = async () => {
       try {
+        console.log("Checking for current user session...");
         const response = await fetch('/api/auth/me', {
-          credentials: 'include',
+          credentials: 'include', // Important for cookies
+          headers: {
+            'Cache-Control': 'no-cache'
+          }
         });
         
         if (response.ok) {
           const userData = await response.json();
+          console.log("User session found:", userData);
           setUser(userData);
+        } else {
+          console.log("No active user session found");
+          setUser(null);
         }
       } catch (error) {
         console.error('Failed to fetch current user:', error);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -45,13 +54,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     setIsLoading(true);
     try {
-      const response = await apiRequest('POST', '/api/auth/login', { username, password });
+      console.log("Attempting to login with:", username);
+      
+      // Use fetch directly with credentials to ensure cookies are handled properly
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+        credentials: 'include' // Important for cookies
+      });
+      
+      if (!response.ok) {
+        throw new Error('Login failed');
+      }
+      
       const userData = await response.json();
+      console.log("Login successful, user data:", userData);
       setUser(userData);
+      
       toast({
         title: 'Login Successful',
         description: `Welcome back, ${userData.name || userData.username}!`,
       });
+      
       setLocation('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
@@ -67,20 +94,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async () => {
     try {
-      await apiRequest('POST', '/api/auth/logout', {});
+      console.log("Attempting to logout...");
+      
+      // Use fetch directly with credentials to ensure cookies are handled properly
+      const response = await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include', // Important for cookies
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({})
+      });
+      
+      if (!response.ok) {
+        console.error("Logout response not OK:", response.status);
+      } else {
+        console.log("Logout successful");
+      }
+      
+      // Clear user data regardless of response
       setUser(null);
+      
       toast({
         title: 'Logged Out',
         description: 'You have been successfully logged out.',
       });
+      
       setLocation('/');
     } catch (error) {
       console.error('Logout error:', error);
+      
+      // Still clear user data on error
+      setUser(null);
+      
       toast({
         title: 'Logout Failed',
         description: 'Something went wrong during logout',
         variant: 'destructive',
       });
+      
+      setLocation('/');
     }
   };
 
