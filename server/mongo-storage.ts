@@ -8,17 +8,29 @@ function toObjectId(id: string | number): mongoose.Types.ObjectId | null {
   if (!id) return null;
   
   try {
-    // Jika ID adalah angka dari PostgreSQL (misalnya 1, 2, 3)
-    // Kita gunakan angka ini sebagai seed untuk ObjectId yang konsisten
+    // Handle invalid ID values
+    if (id === 'undefined' || id === 'null') {
+      console.error(`Invalid ID value: ${id}`);
+      return null;
+    }
+    
+    // If ID is a number from PostgreSQL (such as 1, 2, 3)
+    // Use this number as a seed for a consistent ObjectId
     if (typeof id === 'number' || (!isNaN(Number(id)) && Number(id) < 100)) {
-      // Buat string ID dengan padding 0, untuk ID konsisten
-      // Contoh: ID 1 → "000000000001", ID 42 → "000000000042"
+      // Create a string ID with 0 padding for consistent IDs
+      // Example: ID 1 → "000000000001", ID 42 → "000000000042"
       const paddedId = id.toString().padStart(24, '0');
       return new mongoose.Types.ObjectId(paddedId);
     }
     
-    // Jika ID sudah berformat ObjectId, gunakan langsung
-    return new mongoose.Types.ObjectId(id);
+    // Check if ID is valid MongoDB ObjectId format
+    if (!mongoose.Types.ObjectId.isValid(id.toString())) {
+      console.error(`Invalid MongoDB ObjectId format: ${id}`);
+      return null;
+    }
+    
+    // If ID is already in ObjectId format, use it directly
+    return new mongoose.Types.ObjectId(id.toString());
   } catch (error) {
     console.error(`Error converting ID: ${id}`, error);
     return null;
