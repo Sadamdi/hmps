@@ -9,6 +9,24 @@ import {
 import { eq, and, like, desc, sql } from "drizzle-orm";
 import { format } from "date-fns";
 
+// Helper function to handle date processing for database operations
+function processDataForDB(data: any): any {
+  const processed = { ...data };
+  
+  // Convert string dates to Date objects for database
+  if (processed.lastLogin && typeof processed.lastLogin === 'string') {
+    processed.lastLogin = new Date(processed.lastLogin);
+  }
+  if (processed.createdAt && typeof processed.createdAt === 'string') {
+    processed.createdAt = new Date(processed.createdAt);
+  }
+  if (processed.updatedAt && typeof processed.updatedAt === 'string') {
+    processed.updatedAt = new Date(processed.updatedAt);
+  }
+  
+  return processed;
+}
+
 // User-related functions
 async function getAllUsers(): Promise<UserWithRole[]> {
   return await db.query.users.findMany({
@@ -17,25 +35,29 @@ async function getAllUsers(): Promise<UserWithRole[]> {
 }
 
 async function getUserById(id: number): Promise<UserWithRole | null> {
-  return await db.query.users.findFirst({
+  const user = await db.query.users.findFirst({
     where: eq(users.id, id)
   });
+  return user || null;
 }
 
 async function getUserByUsername(username: string): Promise<UserWithRole | null> {
-  return await db.query.users.findFirst({
+  const user = await db.query.users.findFirst({
     where: eq(users.username, username)
   });
+  return user || null;
 }
 
 async function createUser(userData: any): Promise<UserWithRole> {
-  const [newUser] = await db.insert(users).values(userData).returning();
+  const processedData = processDataForDB(userData);
+  const [newUser] = await db.insert(users).values(processedData).returning();
   return newUser;
 }
 
 async function updateUser(id: number, userData: any): Promise<UserWithRole> {
+  const processedData = processDataForDB(userData);
   const [updatedUser] = await db.update(users)
-    .set(userData)
+    .set(processedData)
     .where(eq(users.id, id))
     .returning();
   return updatedUser;
@@ -99,7 +121,8 @@ async function getArticleById(id: number): Promise<any | null> {
 }
 
 async function createArticle(articleData: any): Promise<any> {
-  const [newArticle] = await db.insert(articles).values(articleData).returning();
+  const processedData = processDataForDB(articleData);
+  const [newArticle] = await db.insert(articles).values(processedData).returning();
   
   return {
     ...newArticle,
@@ -109,8 +132,9 @@ async function createArticle(articleData: any): Promise<any> {
 }
 
 async function updateArticle(id: number, articleData: any): Promise<any> {
+  const processedData = processDataForDB(articleData);
   const [updatedArticle] = await db.update(articles)
-    .set(articleData)
+    .set(processedData)
     .where(eq(articles.id, id))
     .returning();
   
@@ -183,7 +207,8 @@ async function getLibraryItemById(id: number): Promise<any | null> {
 }
 
 async function createLibraryItem(itemData: any): Promise<any> {
-  const [newItem] = await db.insert(library).values(itemData).returning();
+  const processedData = processDataForDB(itemData);
+  const [newItem] = await db.insert(library).values(processedData).returning();
   
   return {
     ...newItem,
@@ -193,8 +218,9 @@ async function createLibraryItem(itemData: any): Promise<any> {
 }
 
 async function updateLibraryItem(id: number, itemData: any): Promise<any> {
+  const processedData = processDataForDB(itemData);
   const [updatedItem] = await db.update(library)
-    .set(itemData)
+    .set(processedData)
     .where(eq(library.id, id))
     .returning();
   
@@ -228,19 +254,22 @@ async function getOrganizationPeriods(): Promise<string[]> {
 }
 
 async function getOrganizationMemberById(id: number): Promise<any | null> {
-  return await db.query.organization.findFirst({
+  const member = await db.query.organization.findFirst({
     where: eq(organization.id, id)
   });
+  return member || null;
 }
 
 async function createOrganizationMember(memberData: any): Promise<any> {
-  const [newMember] = await db.insert(organization).values(memberData).returning();
+  const processedData = processDataForDB(memberData);
+  const [newMember] = await db.insert(organization).values(processedData).returning();
   return newMember;
 }
 
 async function updateOrganizationMember(id: number, memberData: any): Promise<any> {
+  const processedData = processDataForDB(memberData);
   const [updatedMember] = await db.update(organization)
-    .set(memberData)
+    .set(processedData)
     .where(eq(organization.id, id))
     .returning();
   return updatedMember;
@@ -272,16 +301,18 @@ async function updateSettings(settingsData: any): Promise<any> {
   // Check if settings exist
   const existingSettings = await db.query.settings.findFirst();
   
+  const processedData = processDataForDB(settingsData);
+  
   if (existingSettings) {
     // Update existing settings
     const [updatedSettings] = await db.update(settings)
-      .set(settingsData)
+      .set(processedData)
       .where(eq(settings.id, existingSettings.id))
       .returning();
     return updatedSettings;
   } else {
     // Create new settings
-    const [newSettings] = await db.insert(settings).values(settingsData).returning();
+    const [newSettings] = await db.insert(settings).values(processedData).returning();
     return newSettings;
   }
 }
