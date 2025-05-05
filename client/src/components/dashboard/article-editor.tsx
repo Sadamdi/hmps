@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, Upload } from "lucide-react";
+import { Image, Loader2, Upload } from "lucide-react";
 
 // Note: In a real implementation, you would use a proper WYSIWYG editor like TinyMCE, CKEditor, or Quill
 // This is a simplified version for the demo
@@ -40,6 +40,7 @@ export default function ArticleEditor({ article, onSave, onCancel }: ArticleEdit
   const [isPublished, setIsPublished] = useState(article?.published || false);
   const [activeTab, setActiveTab] = useState("edit");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const contentImageInputRef = useRef<HTMLInputElement>(null);
 
   // Create or update article mutation
   const saveArticleMutation = useMutation({
@@ -129,6 +130,39 @@ export default function ArticleEditor({ article, onSave, onCancel }: ArticleEdit
     }
 
     await saveArticleMutation.mutateAsync(formData);
+  };
+
+  // Upload content image mutation
+  const uploadContentImageMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('image', file);
+      return await apiRequest('POST', '/api/upload/content-image', formData);
+    },
+    onSuccess: (data) => {
+      // Insert image tag at cursor position or at the end of content
+      const imageTag = `<img src="${data.url}" alt="Content image" class="my-4 max-w-full" />`;
+      setContent(prev => prev + '\n' + imageTag);
+      
+      toast({
+        title: "Image Uploaded",
+        description: "Image has been inserted into your content.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Upload Failed",
+        description: "Failed to upload the image. Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+  
+  const handleContentImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadContentImageMutation.mutateAsync(file);
+    }
   };
 
   // Format content
@@ -284,6 +318,28 @@ export default function ArticleEditor({ article, onSave, onCancel }: ArticleEdit
               >
                 H3
               </Button>
+              <div className="border-l mx-1 h-6"></div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => contentImageInputRef.current?.click()}
+                disabled={uploadContentImageMutation.isPending}
+              >
+                {uploadContentImageMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Image className="h-4 w-4" />
+                )}
+                <span className="ml-1">Add Image</span>
+              </Button>
+              <input
+                ref={contentImageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleContentImageUpload}
+              />
             </div>
             <Textarea
               placeholder="Write your article content here..."

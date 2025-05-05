@@ -211,6 +211,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload images for article content
+  app.post('/api/upload/content-image', authenticate, uploadMiddleware.single('image'), async (req, res) => {
+    try {
+      // Check if image was uploaded
+      if (!req.file) {
+        return res.status(400).json({ message: 'Image is required' });
+      }
+
+      // Process the uploaded image
+      const imageUrl = await uploadHandler(req.file);
+      
+      // Return the URL to be used in the article content
+      res.json({ url: imageUrl });
+    } catch (error) {
+      console.error('Upload content image error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
   // Articles routes
   app.get('/api/articles', async (req, res) => {
     try {
