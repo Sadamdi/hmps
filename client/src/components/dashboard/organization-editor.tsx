@@ -1,12 +1,12 @@
 import { useState, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, User } from "lucide-react";
+import { Loader2, User, Plus } from "lucide-react";
 
 interface OrgMember {
   id: number;
@@ -28,29 +28,35 @@ export default function OrganizationEditor({ member, currentPeriod, onSave, onCa
   const [name, setName] = useState(member?.name || "");
   const [position, setPosition] = useState(member?.position || "");
   const [period, setPeriod] = useState(member?.period || currentPeriod);
+  const [newPeriod, setNewPeriod] = useState("");
+  const [isAddingPeriod, setIsAddingPeriod] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState(member?.imageUrl || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Available positions
   const positions = [
-    "Ketua Himpunan",
-    "Wakil Ketua Himpunan",
-    "Ketua Divisi Akademik",
-    "Ketua Divisi Humas",
-    "Ketua Divisi Pengembangan",
-    "Ketua Divisi Kegiatan",
-    "Ketua Divisi Media",
-    "Ketua Divisi Dana & Usaha"
+    "Ketua Umum",
+    "Wakil Ketua",
+    "Kepala Divisi Akademik",
+    "Kepala Divisi Humas",
+    "Kepala Divisi Pengembangan",
+    "Kepala Divisi Acara",
+    "Kepala Divisi Media",
+    "Kepala Divisi Keuangan",
+    "Anggota Divisi Akademik",
+    "Anggota Divisi Humas",
+    "Anggota Divisi Pengembangan",
+    "Anggota Divisi Acara",
+    "Anggota Divisi Media",
+    "Anggota Divisi Keuangan"
   ];
 
-  // Available periods (academic years)
-  const periods = [
-    "2023-2024",
-    "2022-2023",
-    "2021-2022",
-    "2020-2021"
-  ];
+  // Fetch available periods from API
+  const { data: periods = [], isLoading: isPeriodsLoading } = useQuery({
+    queryKey: ['/api/organization/periods'],
+    placeholderData: [currentPeriod]
+  });
 
   // Save member mutation
   const saveMemberMutation = useMutation({
@@ -196,19 +202,69 @@ export default function OrganizationEditor({ member, currentPeriod, onSave, onCa
 
         <div className="space-y-2">
           <Label htmlFor="period">Period</Label>
-          <Select 
-            value={period} 
-            onValueChange={setPeriod}
-          >
-            <SelectTrigger id="period">
-              <SelectValue placeholder="Select period" />
-            </SelectTrigger>
-            <SelectContent>
-              {periods.map(p => (
-                <SelectItem key={p} value={p}>{p}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {!isAddingPeriod ? (
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <Select 
+                  value={period} 
+                  onValueChange={setPeriod}
+                >
+                  <SelectTrigger id="period">
+                    <SelectValue placeholder="Select period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {periods.map((p: string) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button 
+                type="button" 
+                variant="outline" 
+                size="icon"
+                onClick={() => setIsAddingPeriod(true)}
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Input
+                placeholder="YYYY-YYYY (e.g. 2023-2024)"
+                value={newPeriod}
+                onChange={(e) => setNewPeriod(e.target.value)}
+              />
+              <Button 
+                type="button" 
+                variant="secondary"
+                onClick={() => {
+                  if (newPeriod && /^\d{4}-\d{4}$/.test(newPeriod)) {
+                    setPeriod(newPeriod);
+                    setIsAddingPeriod(false);
+                  } else {
+                    toast({
+                      title: "Invalid Format",
+                      description: "Please use the format YYYY-YYYY (e.g. 2023-2024)",
+                      variant: "destructive"
+                    });
+                  }
+                }}
+              >
+                Add
+              </Button>
+              <Button 
+                type="button" 
+                variant="outline"
+                onClick={() => {
+                  setNewPeriod("");
+                  setIsAddingPeriod(false);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 
