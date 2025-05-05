@@ -30,6 +30,7 @@ export function generateToken(user: UserWithRole): string {
     role: user.role
   };
   
+  // @ts-ignore - Ignore typings issue with jwt.sign
   return jwt.sign(payload, JWT_SECRET_KEY, { expiresIn: JWT_EXPIRY });
 }
 
@@ -56,7 +57,7 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     // Verify token
     // @ts-ignore
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
+    const decoded = jwt.verify(token, JWT_SECRET_KEY) as { id: string };
     
     // Fetch user from database
     const user = await mongoStorage.getUserById(decoded.id);
