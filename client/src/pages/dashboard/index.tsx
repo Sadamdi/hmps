@@ -17,7 +17,13 @@ export default function Dashboard() {
       totalArticles: 0,
       totalMediaItems: 0,
       totalMembers: 0
-    }
+    },
+    // Refresh every 10 seconds in background to keep stats updated
+    refetchInterval: 10000, 
+    // Always refresh when component gets focus
+    refetchOnWindowFocus: true,
+    // Stale time set to low value to ensure fresh data
+    staleTime: 5000
   });
 
   return (
