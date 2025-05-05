@@ -64,8 +64,12 @@ export default function OrganizationEditor({ member, currentPeriod, onSave, onCa
   const saveMemberMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       if (member) {
-        // Update existing member
-        return await apiRequest('PUT', `/api/organization/members/${member.id}`, formData);
+        // Update existing member - gunakan _id jika tersedia
+        const memberId = member._id || member.id;
+        if (!memberId) {
+          throw new Error("Invalid member ID");
+        }
+        return await apiRequest('PUT', `/api/organization/members/${memberId}`, formData);
       } else {
         // Create new member
         return await apiRequest('POST', '/api/organization/members', formData);
