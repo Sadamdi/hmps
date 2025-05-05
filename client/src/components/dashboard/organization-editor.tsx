@@ -1,6 +1,6 @@
 import { useState, useRef } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -58,6 +58,8 @@ export default function OrganizationEditor({ member, currentPeriod, onSave, onCa
     placeholderData: [currentPeriod]
   });
 
+  // We already imported queryClient, so no need to get it again
+
   // Save member mutation
   const saveMemberMutation = useMutation({
     mutationFn: async (formData: FormData) => {
@@ -70,6 +72,9 @@ export default function OrganizationEditor({ member, currentPeriod, onSave, onCa
       }
     },
     onSuccess: () => {
+      // Invalidate both organization queries to ensure fresh data
+      queryClient.invalidateQueries({ queryKey: ['/api/organization/members'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/organization/periods'] });
       onSave();
     },
     onError: (error) => {
@@ -240,8 +245,25 @@ export default function OrganizationEditor({ member, currentPeriod, onSave, onCa
                 variant="secondary"
                 onClick={() => {
                   if (newPeriod && /^\d{4}-\d{4}$/.test(newPeriod)) {
-                    setPeriod(newPeriod);
-                    setIsAddingPeriod(false);
+                    // Check if this period already exists
+                    if (periods.includes(newPeriod)) {
+                      toast({
+                        title: "Period Exists",
+                        description: "This period already exists. Please use a different year range.",
+                        variant: "destructive"
+                      });
+                    } else {
+                      // Add the new period to both local state and server
+                      setPeriod(newPeriod);
+                      // The periods will be automatically updated by the server when a new member is created
+                      setIsAddingPeriod(false);
+                      
+                      // Show confirmation
+                      toast({
+                        title: "New Period Added",
+                        description: `Period ${newPeriod} has been created and selected.`,
+                      });
+                    }
                   } else {
                     toast({
                       title: "Invalid Format",
