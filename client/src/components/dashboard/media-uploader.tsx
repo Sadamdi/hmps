@@ -41,8 +41,10 @@ export default function MediaUploader({ item, onSave, onCancel }: MediaUploaderP
   const saveMediaMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       if (item) {
-        // Update existing item - gunakan _id jika tersedia
-        const itemId = item._id || item.id;
+        // Update existing item - Use MongoDB _id or PostgreSQL id
+        const itemId = (item as any)._id || item.id;
+        
+        console.log("Updating library item with ID:", itemId);
         
         if (!itemId) {
           throw new Error("Invalid item ID");

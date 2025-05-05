@@ -46,8 +46,9 @@ export default function ArticleEditor({ article, onSave, onCancel }: ArticleEdit
   const saveArticleMutation = useMutation({
     mutationFn: async (formData: FormData) => {
       if (article) {
-        // Update existing article - gunakan _id jika tersedia
-        const articleId = article._id || article.id;
+        // Update existing article - Use MongoDB _id or PostgreSQL id
+        const articleId = (article as any)._id || article.id;
+        console.log("Updating article with ID:", articleId);
         return await apiRequest('PUT', `/api/articles/${articleId}`, formData);
       } else {
         // Create new article
