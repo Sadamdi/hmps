@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { UserManagement } from "@/components/dashboard/user-management";
-import { Search, UserPlus, Shield, User, Loader2 } from "lucide-react";
+import { Search, UserPlus, Shield, User, Loader2, Edit } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { UserWithRole } from "@shared/schema";
@@ -189,10 +189,15 @@ export default function UsersPage() {
                 <DialogTitle>
                   {editingUser ? `${currentUser?.role === "owner" ? "Edit" : "View"} User` : "Add New User"}
                 </DialogTitle>
+                <p className="text-sm text-muted-foreground">
+                  {editingUser 
+                    ? "View or modify user information based on your permission level."
+                    : "Create a new user account with appropriate role and permissions."}
+                </p>
               </DialogHeader>
               <UserManagement
                 user={editingUser}
-                viewOnly={editingUser && currentUser?.role !== "owner" && (currentUser?.role === "admin" && editingUser.role === "owner")}
+                viewOnly={editingUser ? (currentUser?.role !== "owner" && (currentUser?.role === "admin" && editingUser.role === "owner")) : false}
                 onSave={closeUserDialog}
                 onCancel={closeUserDialog}
               />

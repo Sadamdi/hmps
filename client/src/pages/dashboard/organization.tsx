@@ -29,17 +29,18 @@ export default function DashboardOrganization() {
   const queryClient = useQueryClient();
 
   // Query members and periods
-  const { data: members = [], isLoading: isMembersLoading } = useQuery({
+  const { data: members = [], isLoading: isMembersLoading } = useQuery<OrgMember[]>({
     queryKey: ['/api/organization/members', selectedPeriod],
+    placeholderData: []
   });
 
-  const { data: periods = [], isLoading: isPeriodsLoading } = useQuery({
+  const { data: periods = [], isLoading: isPeriodsLoading } = useQuery<string[]>({
     queryKey: ['/api/organization/periods'],
-    placeholderData: ["2023-2024", "2022-2023"]
+    placeholderData: ["2023-2024"]
   });
 
   // Filter members based on search
-  const filteredMembers = members.filter((member: OrgMember) => 
+  const filteredMembers = members.filter((member) => 
     member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     member.position.toLowerCase().includes(searchQuery.toLowerCase())
   );
