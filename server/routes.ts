@@ -160,6 +160,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.params.id;
       const userData = req.body;
       
+      // Validate userId - prevent 'undefined' issues
+      if (!userId || userId === 'undefined') {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      console.log('Error converting ID:', userId);
+      
       // Get existing user
       const existingUser = await mongoStorage.getUserById(userId);
       if (!existingUser) {
@@ -195,6 +202,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/users/:id', authenticate, authorize(['owner']), async (req, res) => {
     try {
       const userId = req.params.id;
+      
+      // Validate userId - prevent 'undefined' issues
+      if (!userId || userId === 'undefined') {
+        return res.status(400).json({ message: 'Invalid user ID' });
+      }
+      
+      console.log('Deleting user with ID:', userId);
       
       // Check if user exists
       const existingUser = await mongoStorage.getUserById(userId);
@@ -609,6 +623,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const itemId = req.params.id;
       
+      // Validate itemId - prevent 'undefined' issues
+      if (!itemId || itemId === 'undefined') {
+        return res.status(400).json({ message: 'Invalid library item ID' });
+      }
+      
       // Get existing item
       const existingItem = await mongoStorage.getLibraryItemById(itemId);
       if (!existingItem) {
@@ -753,6 +772,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/organization/members/:id', authenticate, authorize(['owner', 'admin', 'chair', 'vice_chair']), async (req, res) => {
     try {
       const memberId = req.params.id;
+      
+      // Validate memberId - prevent 'undefined' issues
+      if (!memberId || memberId === 'undefined') {
+        return res.status(400).json({ message: 'Invalid organization member ID' });
+      }
       
       // Check if member exists
       const existingMember = await mongoStorage.getOrganizationMemberById(memberId);
