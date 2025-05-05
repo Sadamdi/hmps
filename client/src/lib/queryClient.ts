@@ -12,10 +12,15 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  // Cek apakah data adalah FormData atau object biasa
+  const isFormData = data instanceof FormData;
+  
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
-    body: data ? JSON.stringify(data) : undefined,
+    // Jangan tambahkan Content-Type untuk FormData karena browser akan otomatis menambahkan boundary
+    headers: data && !isFormData ? { "Content-Type": "application/json" } : {},
+    // Jika FormData, kirim langsung. Jika bukan, ubah ke JSON string
+    body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
     credentials: "include",
   });
 
