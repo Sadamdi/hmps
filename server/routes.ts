@@ -301,8 +301,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let imageUrl = '/uploads/default-article-image.jpg';
       
       if (req.file) {
-        // Process the uploaded image if available
-        imageUrl = await uploadHandler(req.file);
+        // Process the uploaded image if available - store in attached_assets
+        imageUrl = await uploadHandler(req.file, true);
       }
 
       // Create article
@@ -362,7 +362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process image if uploaded
       if (req.file) {
-        const imageUrl = await uploadHandler(req.file);
+        const imageUrl = await uploadHandler(req.file, true);
         updates.image = imageUrl;
       }
       
@@ -487,8 +487,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(201).json(newItem);
       }
 
-      // Process the uploaded images
-      const imageUrls = await Promise.all(files.map(file => uploadHandler(file)));
+      // Process the uploaded images - store in attached_assets
+      const imageUrls = await Promise.all(files.map(file => uploadHandler(file, true)));
 
       // Create library item
       const newItem = await mongoStorage.createLibraryItem({
