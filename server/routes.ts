@@ -1,17 +1,23 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { mongoStorage } from "./mongo-storage"; // Use mongoStorage instead of storage
 import { authenticate, authorize, generateToken, verifyPassword, hashPassword } from "./auth";
 import { uploadHandler, uploadMiddleware } from "./upload";
-import { eq, and, like, desc } from "drizzle-orm";
-import { 
-  users, UserWithRole, userInsertSchema, userUpdateSchema,
-  articles, articleInsertSchema, articleUpdateSchema,
-  library, libraryInsertSchema, libraryUpdateSchema,
-  organization, organizationInsertSchema, organizationUpdateSchema,
-  settings, settingsInsertSchema, settingsUpdateSchema
-} from "@shared/schema";
 import cookieParser from "cookie-parser";
+
+// Define user type to match MongoDB schema
+interface UserWithRole {
+  _id: string;
+  username: string;
+  name: string;
+  email: string;
+  role: string;
+  division?: string;
+  password?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  lastLogin?: Date;
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Use cookie parser for handling JWT tokens
@@ -27,7 +33,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Find user by username
-      const user = await storage.getUserByUsername(username);
+      const user = await mongoStorage.getUserByUsername(username);
       if (!user) {
         return res.status(401).json({ message: 'Invalid username or password' });
       }
@@ -39,7 +45,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update last login
-      await storage.updateUser(user.id, { lastLogin: new Date() });
+      await mongoStorage.updateUser(user._id, { lastLogin: new Date() });
 
       // Generate token and set cookie
       const token = generateToken(user);
@@ -71,14 +77,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/auth/change-password', authenticate, async (req, res) => {
     try {
       const { currentPassword, newPassword } = req.body;
-      const userId = req.user?.id;
+      const userId = (req.user as UserWithRole)?._id;
 
       if (!userId) {
         return res.status(401).json({ message: 'Authentication required' });
       }
 
       // Get user with password
-      const user = await storage.getUserById(userId);
+      const user = await mongoStorage.getUserById(userId);
       if (!user) {
         return res.status(404).json({ message: 'User not found' });
       }
@@ -93,7 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await hashPassword(newPassword);
 
       // Update password
-      await storage.updateUser(userId, { password: hashedPassword });
+      await mongoStorage.updateUser(userId, { password: hashedPassword });
 
       res.json({ message: 'Password updated successfully' });
     } catch (error) {
@@ -105,7 +111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // User management routes
   app.get('/api/users', authenticate, authorize(['owner', 'admin']), async (req, res) => {
     try {
-      const allUsers = await storage.getAllUsers();
+      const allUsers = await mongoStorage.getAllUsers();
       
       // Remove passwords from response
       const usersWithoutPasswords = allUsers.map(user => {
@@ -122,10 +128,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/users', authenticate, authorize(['owner']), async (req, res) => {
     try {
-      const userData = userInsertSchema.parse(req.body);
+      const userData = req.body;
       
       // Check if username already exists
-      const existingUser = await storage.getUserByUsername(userData.username);
+      const existingUser = await mongoStorage.getUserByUsername(userData.username);
       if (existingUser) {
         return res.status(400).json({ message: 'Username already exists' });
       }
@@ -134,7 +140,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const hashedPassword = await hashPassword(userData.password);
       
       // Create user
-      const newUser = await storage.createUser({
+      const newUser = await mongoStorage.createUser({
         ...userData,
         password: hashedPassword
       });
@@ -151,17 +157,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/users/:id', authenticate, authorize(['owner', 'admin']), async (req, res) => {
     try {
-      const userId = parseInt(req.params.id);
-      const userData = userUpdateSchema.parse(req.body);
+      const userId = req.params.id;
+      const userData = req.body;
       
       // Get existing user
-      const existingUser = await storage.getUserById(userId);
+      const existingUser = await mongoStorage.getUserById(userId);
       if (!existingUser) {
         return res.status(404).json({ message: 'User not found' });
       }
 
       // Admin can't update owner role
-      if (req.user?.role === 'admin' && existingUser.role === 'owner') {
+      if ((req.user as UserWithRole)?.role === 'admin' && existingUser.role === 'owner') {
         return res.status(403).json({ message: 'You do not have permission to update this user' });
       }
 
@@ -174,7 +180,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Update user
-      const updatedUser = await storage.updateUser(userId, updates);
+      const updatedUser = await mongoStorage.updateUser(userId, updates);
       
       // Remove password from response
       const { password, ...userWithoutPassword } = updatedUser;
@@ -188,21 +194,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/users/:id', authenticate, authorize(['owner']), async (req, res) => {
     try {
-      const userId = parseInt(req.params.id);
+      const userId = req.params.id;
       
       // Check if user exists
-      const existingUser = await storage.getUserById(userId);
+      const existingUser = await mongoStorage.getUserById(userId);
       if (!existingUser) {
         return res.status(404).json({ message: 'User not found' });
       }
 
       // Prevent deleting own account
-      if (userId === req.user?.id) {
+      if (userId === (req.user as UserWithRole)?._id) {
         return res.status(400).json({ message: 'Cannot delete your own account' });
       }
 
       // Delete user
-      await storage.deleteUser(userId);
+      await mongoStorage.deleteUser(userId);
       
       res.json({ message: 'User deleted successfully' });
     } catch (error) {
@@ -233,7 +239,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Articles routes
   app.get('/api/articles', async (req, res) => {
     try {
-      const allArticles = await storage.getPublishedArticles();
+      const allArticles = await mongoStorage.getPublishedArticles();
       res.json(allArticles);
     } catch (error) {
       console.error('Get articles error:', error);
@@ -245,12 +251,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Filter by user role
       let articles;
-      if (['owner', 'admin', 'chair', 'vice_chair'].includes(req.user?.role || '')) {
+      if (['owner', 'admin', 'chair', 'vice_chair'].includes((req.user as UserWithRole)?.role || '')) {
         // These roles can see all articles
-        articles = await storage.getAllArticles();
+        articles = await mongoStorage.getAllArticles();
       } else {
         // Division heads can only see their own articles
-        articles = await storage.getArticlesByAuthorId(req.user?.id || 0);
+        articles = await mongoStorage.getArticlesByAuthorId((req.user as UserWithRole)?._id || '');
       }
       
       res.json(articles);
@@ -262,8 +268,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get('/api/articles/:id', async (req, res) => {
     try {
-      const articleId = parseInt(req.params.id);
-      const article = await storage.getArticleById(articleId);
+      const articleId = req.params.id;
+      const article = await mongoStorage.getArticleById(articleId);
       
       if (!article) {
         return res.status(404).json({ message: 'Article not found' });
@@ -284,8 +290,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/articles', authenticate, uploadMiddleware.single('image'), async (req, res) => {
     try {
       const { title, excerpt, content, published } = req.body;
-      const authorId = req.user?.id;
-      const authorName = req.user?.name || req.user?.username;
+      const authorId = (req.user as UserWithRole)?._id;
+      const authorName = (req.user as UserWithRole)?.name || (req.user as UserWithRole)?.username;
       
       if (!authorId || !authorName) {
         return res.status(401).json({ message: 'Authentication required' });
@@ -300,16 +306,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imageUrl = await uploadHandler(req.file);
 
       // Create article
-      const newArticle = await storage.createArticle({
+      const newArticle = await mongoStorage.createArticle({
         title,
         excerpt,
         content,
         image: imageUrl,
         published: published === 'true',
         authorId,
-        author: authorName,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        author: authorName
       });
       
       res.status(201).json(newArticle);
@@ -321,21 +325,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/articles/:id', authenticate, uploadMiddleware.single('image'), async (req, res) => {
     try {
-      const articleId = parseInt(req.params.id);
+      const articleId = req.params.id;
       const { title, excerpt, content, published } = req.body;
       
       // Get existing article
-      const existingArticle = await storage.getArticleById(articleId);
+      const existingArticle = await mongoStorage.getArticleById(articleId);
       if (!existingArticle) {
         return res.status(404).json({ message: 'Article not found' });
       }
 
       // Check permissions
-      const canEdit = req.user?.role === 'owner' || 
-                      req.user?.role === 'admin' || 
-                      req.user?.role === 'chair' || 
-                      req.user?.role === 'vice_chair' ||
-                      req.user?.id === existingArticle.authorId;
+      const canEdit = (req.user as UserWithRole)?.role === 'owner' || 
+                      (req.user as UserWithRole)?.role === 'admin' || 
+                      (req.user as UserWithRole)?.role === 'chair' || 
+                      (req.user as UserWithRole)?.role === 'vice_chair' ||
+                      (req.user as UserWithRole)?._id === existingArticle.authorId.toString();
       
       if (!canEdit) {
         return res.status(403).json({ message: 'You do not have permission to edit this article' });
@@ -347,7 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         excerpt,
         content,
         published: published === 'true',
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date()
       };
 
       // Process image if uploaded
@@ -357,7 +361,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Update article
-      const updatedArticle = await storage.updateArticle(articleId, updates);
+      const updatedArticle = await mongoStorage.updateArticle(articleId, updates);
       
       res.json(updatedArticle);
     } catch (error) {
@@ -368,27 +372,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/articles/:id', authenticate, async (req, res) => {
     try {
-      const articleId = parseInt(req.params.id);
+      const articleId = req.params.id;
       
       // Get existing article
-      const existingArticle = await storage.getArticleById(articleId);
+      const existingArticle = await mongoStorage.getArticleById(articleId);
       if (!existingArticle) {
         return res.status(404).json({ message: 'Article not found' });
       }
 
       // Check permissions
-      const canDelete = req.user?.role === 'owner' || 
-                        req.user?.role === 'admin' || 
-                        req.user?.role === 'chair' || 
-                        req.user?.role === 'vice_chair' ||
-                        req.user?.id === existingArticle.authorId;
+      const canDelete = (req.user as UserWithRole)?.role === 'owner' || 
+                        (req.user as UserWithRole)?.role === 'admin' || 
+                        (req.user as UserWithRole)?.role === 'chair' || 
+                        (req.user as UserWithRole)?.role === 'vice_chair' ||
+                        (req.user as UserWithRole)?._id === existingArticle.authorId.toString();
       
       if (!canDelete) {
         return res.status(403).json({ message: 'You do not have permission to delete this article' });
       }
-      
+
       // Delete article
-      await storage.deleteArticle(articleId);
+      await mongoStorage.deleteArticle(articleId);
       
       res.json({ message: 'Article deleted successfully' });
     } catch (error) {
@@ -400,10 +404,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Library routes
   app.get('/api/library', async (req, res) => {
     try {
-      const allLibraryItems = await storage.getPublishedLibraryItems();
-      res.json(allLibraryItems);
+      const allItems = await mongoStorage.getAllLibraryItems();
+      res.json(allItems);
     } catch (error) {
-      console.error('Get library error:', error);
+      console.error('Get library items error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   });
@@ -411,109 +415,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/library/manage', authenticate, async (req, res) => {
     try {
       // Filter by user role
-      let libraryItems;
-      if (['owner', 'admin', 'chair', 'vice_chair'].includes(req.user?.role || '')) {
-        // These roles can see all library items
-        libraryItems = await storage.getAllLibraryItems();
+      let items;
+      if (['owner', 'admin', 'chair', 'vice_chair'].includes((req.user as UserWithRole)?.role || '')) {
+        // These roles can see all items
+        items = await mongoStorage.getAllLibraryItems();
       } else {
         // Division heads can only see their own items
-        libraryItems = await storage.getLibraryItemsByAuthorId(req.user?.id || 0);
+        items = await mongoStorage.getLibraryItemsByAuthorId((req.user as UserWithRole)?._id || '');
       }
       
-      res.json(libraryItems);
+      res.json(items);
     } catch (error) {
       console.error('Get library management error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   });
 
-  app.post('/api/library', authenticate, uploadMiddleware.array('media'), async (req, res) => {
+  app.get('/api/library/:id', async (req, res) => {
+    try {
+      const itemId = req.params.id;
+      const item = await mongoStorage.getLibraryItemById(itemId);
+      
+      if (!item) {
+        return res.status(404).json({ message: 'Library item not found' });
+      }
+      
+      res.json(item);
+    } catch (error) {
+      console.error('Get library item error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
+  app.post('/api/library', authenticate, uploadMiddleware.array('images', 10), async (req, res) => {
     try {
       const { title, description, fullDescription, type } = req.body;
-      const authorId = req.user?.id;
+      const authorId = (req.user as UserWithRole)?._id;
       
       if (!authorId) {
         return res.status(401).json({ message: 'Authentication required' });
       }
 
-      // Check if files were uploaded
-      if (!req.files || !Array.isArray(req.files) || req.files.length === 0) {
-        return res.status(400).json({ message: 'At least one media file is required' });
+      // Check if images were uploaded
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ message: 'At least one image is required' });
       }
 
-      // Process uploaded files
-      const filePromises = req.files.map(file => uploadHandler(file));
-      const imageUrls = await Promise.all(filePromises);
+      // Process the uploaded images
+      const imageUrls = await Promise.all(files.map(file => uploadHandler(file)));
 
       // Create library item
-      const newLibraryItem = await storage.createLibraryItem({
+      const newItem = await mongoStorage.createLibraryItem({
         title,
         description,
         fullDescription,
         images: imageUrls,
-        type,
-        authorId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        type: type || 'photo',
+        authorId
       });
       
-      res.status(201).json(newLibraryItem);
+      res.status(201).json(newItem);
     } catch (error) {
       console.error('Create library item error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   });
 
-  app.put('/api/library/:id', authenticate, uploadMiddleware.array('media'), async (req, res) => {
+  app.put('/api/library/:id', authenticate, uploadMiddleware.array('images', 10), async (req, res) => {
     try {
-      const itemId = parseInt(req.params.id);
+      const itemId = req.params.id;
       const { title, description, fullDescription, type, existingImages } = req.body;
       
-      // Get existing library item
-      const existingItem = await storage.getLibraryItemById(itemId);
+      // Get existing item
+      const existingItem = await mongoStorage.getLibraryItemById(itemId);
       if (!existingItem) {
         return res.status(404).json({ message: 'Library item not found' });
       }
 
       // Check permissions
-      const canEdit = req.user?.role === 'owner' || 
-                      req.user?.role === 'admin' || 
-                      req.user?.role === 'chair' || 
-                      req.user?.role === 'vice_chair' ||
-                      req.user?.id === existingItem.authorId;
+      const canEdit = (req.user as UserWithRole)?.role === 'owner' || 
+                      (req.user as UserWithRole)?.role === 'admin' || 
+                      (req.user as UserWithRole)?.role === 'chair' || 
+                      (req.user as UserWithRole)?.role === 'vice_chair' ||
+                      (req.user as UserWithRole)?._id === existingItem.authorId.toString();
       
       if (!canEdit) {
         return res.status(403).json({ message: 'You do not have permission to edit this item' });
       }
 
-      // Process existing images
-      let images = [];
-      if (existingImages) {
-        // If existingImages is an array (multiple values with same name in FormData)
-        if (Array.isArray(existingImages)) {
-          images = existingImages;
-        } else {
-          // If existingImages is a single value
-          images = [existingImages];
-        }
-      }
-
-      // Process new uploads if any
-      if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-        const filePromises = req.files.map(file => uploadHandler(file));
-        const newImageUrls = await Promise.all(filePromises);
-        images = [...images, ...newImageUrls];
-      }
-
-      // Update library item
-      const updatedItem = await storage.updateLibraryItem(itemId, {
+      // Process updates
+      const updates: any = {
         title,
         description,
         fullDescription,
-        images,
-        type,
-        updatedAt: new Date().toISOString()
-      });
+        type: type || 'photo',
+        updatedAt: new Date()
+      };
+
+      // Process images
+      const files = req.files as Express.Multer.File[];
+      if (files && files.length > 0) {
+        // Process new uploaded images
+        const newImageUrls = await Promise.all(files.map(file => uploadHandler(file)));
+        
+        // Combine with existing images if provided
+        const existingImagesList = existingImages ? 
+          (typeof existingImages === 'string' ? [existingImages] : existingImages) : 
+          [];
+        
+        updates.images = [...existingImagesList, ...newImageUrls];
+      } else if (existingImages) {
+        // Use only existing images if no new uploads
+        updates.images = typeof existingImages === 'string' ? [existingImages] : existingImages;
+      }
+      
+      // Update library item
+      const updatedItem = await mongoStorage.updateLibraryItem(itemId, updates);
       
       res.json(updatedItem);
     } catch (error) {
@@ -524,27 +542,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/library/:id', authenticate, async (req, res) => {
     try {
-      const itemId = parseInt(req.params.id);
+      const itemId = req.params.id;
       
-      // Get existing library item
-      const existingItem = await storage.getLibraryItemById(itemId);
+      // Get existing item
+      const existingItem = await mongoStorage.getLibraryItemById(itemId);
       if (!existingItem) {
         return res.status(404).json({ message: 'Library item not found' });
       }
 
       // Check permissions
-      const canDelete = req.user?.role === 'owner' || 
-                        req.user?.role === 'admin' || 
-                        req.user?.role === 'chair' || 
-                        req.user?.role === 'vice_chair' ||
-                        req.user?.id === existingItem.authorId;
+      const canDelete = (req.user as UserWithRole)?.role === 'owner' || 
+                        (req.user as UserWithRole)?.role === 'admin' || 
+                        (req.user as UserWithRole)?.role === 'chair' || 
+                        (req.user as UserWithRole)?.role === 'vice_chair' ||
+                        (req.user as UserWithRole)?._id === existingItem.authorId.toString();
       
       if (!canDelete) {
         return res.status(403).json({ message: 'You do not have permission to delete this item' });
       }
-      
+
       // Delete library item
-      await storage.deleteLibraryItem(itemId);
+      await mongoStorage.deleteLibraryItem(itemId);
       
       res.json({ message: 'Library item deleted successfully' });
     } catch (error) {
@@ -554,10 +572,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Organization routes
+  app.get('/api/organization/periods', async (req, res) => {
+    try {
+      const periods = await mongoStorage.getOrganizationPeriods();
+      res.json(periods);
+    } catch (error) {
+      console.error('Get organization periods error:', error);
+      res.status(500).json({ message: 'Internal server error' });
+    }
+  });
+
   app.get('/api/organization/members', async (req, res) => {
     try {
-      const period = req.query.period as string || '2023-2024';
-      const members = await storage.getOrganizationMembersByPeriod(period);
+      const { period } = req.query;
+      
+      if (!period) {
+        // Get latest period if not specified
+        const periods = await mongoStorage.getOrganizationPeriods();
+        const latestPeriod = periods.length > 0 ? periods[0] : null;
+        
+        if (!latestPeriod) {
+          return res.json([]);
+        }
+        
+        const members = await mongoStorage.getOrganizationMembersByPeriod(latestPeriod);
+        return res.json(members);
+      }
+      
+      const members = await mongoStorage.getOrganizationMembersByPeriod(period as string);
       res.json(members);
     } catch (error) {
       console.error('Get organization members error:', error);
@@ -565,12 +607,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/organization/periods', async (req, res) => {
+  app.get('/api/organization/members/:id', async (req, res) => {
     try {
-      const periods = await storage.getOrganizationPeriods();
-      res.json(periods);
+      const memberId = req.params.id;
+      const member = await mongoStorage.getOrganizationMemberById(memberId);
+      
+      if (!member) {
+        return res.status(404).json({ message: 'Organization member not found' });
+      }
+      
+      res.json(member);
     } catch (error) {
-      console.error('Get organization periods error:', error);
+      console.error('Get organization member error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   });
@@ -588,13 +636,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const imageUrl = await uploadHandler(req.file);
 
       // Create organization member
-      const newMember = await storage.createOrganizationMember({
+      const newMember = await mongoStorage.createOrganizationMember({
         name,
         position,
         period,
-        imageUrl,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        imageUrl
       });
       
       res.status(201).json(newMember);
@@ -606,11 +652,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/organization/members/:id', authenticate, authorize(['owner', 'admin', 'chair', 'vice_chair']), uploadMiddleware.single('image'), async (req, res) => {
     try {
-      const memberId = parseInt(req.params.id);
+      const memberId = req.params.id;
       const { name, position, period } = req.body;
       
       // Get existing member
-      const existingMember = await storage.getOrganizationMemberById(memberId);
+      const existingMember = await mongoStorage.getOrganizationMemberById(memberId);
       if (!existingMember) {
         return res.status(404).json({ message: 'Organization member not found' });
       }
@@ -620,7 +666,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         name,
         position,
         period,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date()
       };
 
       // Process image if uploaded
@@ -630,7 +676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Update organization member
-      const updatedMember = await storage.updateOrganizationMember(memberId, updates);
+      const updatedMember = await mongoStorage.updateOrganizationMember(memberId, updates);
       
       res.json(updatedMember);
     } catch (error) {
@@ -641,16 +687,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete('/api/organization/members/:id', authenticate, authorize(['owner', 'admin', 'chair', 'vice_chair']), async (req, res) => {
     try {
-      const memberId = parseInt(req.params.id);
+      const memberId = req.params.id;
       
-      // Get existing member
-      const existingMember = await storage.getOrganizationMemberById(memberId);
+      // Check if member exists
+      const existingMember = await mongoStorage.getOrganizationMemberById(memberId);
       if (!existingMember) {
         return res.status(404).json({ message: 'Organization member not found' });
       }
-      
+
       // Delete organization member
-      await storage.deleteOrganizationMember(memberId);
+      await mongoStorage.deleteOrganizationMember(memberId);
       
       res.json({ message: 'Organization member deleted successfully' });
     } catch (error) {
@@ -662,7 +708,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Settings routes
   app.get('/api/settings', async (req, res) => {
     try {
-      const settings = await storage.getSettings();
+      const settings = await mongoStorage.getSettings();
       res.json(settings);
     } catch (error) {
       console.error('Get settings error:', error);
@@ -672,7 +718,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put('/api/settings', authenticate, authorize(['owner', 'admin']), async (req, res) => {
     try {
-      const updatedSettings = await storage.updateSettings(req.body);
+      const updatedSettings = await mongoStorage.updateSettings(req.body);
       res.json(updatedSettings);
     } catch (error) {
       console.error('Update settings error:', error);
@@ -680,10 +726,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/settings/reset', authenticate, authorize(['owner', 'admin']), async (req, res) => {
+  app.post('/api/settings/reset', authenticate, authorize(['owner']), async (req, res) => {
     try {
-      const defaultSettings = await storage.resetSettings();
-      res.json(defaultSettings);
+      const settings = await mongoStorage.resetSettings();
+      res.json(settings);
     } catch (error) {
       console.error('Reset settings error:', error);
       res.status(500).json({ message: 'Internal server error' });
@@ -691,23 +737,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Dashboard stats
-  app.get('/api/dashboard/stats', authenticate, async (req, res) => {
+  app.get('/api/stats', authenticate, async (req, res) => {
     try {
-      const articlesCount = await storage.getArticlesCount();
-      const libraryItemsCount = await storage.getLibraryItemsCount();
-      const organizationMembersCount = await storage.getOrganizationMembersCount();
+      const articleCount = await mongoStorage.getArticlesCount();
+      const libraryCount = await mongoStorage.getLibraryItemsCount();
+      const memberCount = await mongoStorage.getOrganizationMembersCount();
       
       res.json({
-        totalArticles: articlesCount,
-        totalMediaItems: libraryItemsCount,
-        totalMembers: organizationMembersCount
+        articles: articleCount,
+        libraryItems: libraryCount,
+        organizationMembers: memberCount
       });
     } catch (error) {
-      console.error('Get dashboard stats error:', error);
+      console.error('Get stats error:', error);
       res.status(500).json({ message: 'Internal server error' });
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
+  const server = createServer(app);
+  return server;
 }

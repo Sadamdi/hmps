@@ -1,9 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
-import { db } from '@db';
-import { users, UserWithRole } from '@shared/schema';
-import { eq } from 'drizzle-orm';
+import { mongoStorage } from './mongo-storage';
+
+// Define user type for MongoDB
+interface UserWithRole {
+  _id: string;
+  username: string;
+  name: string;
+  email: string;
+  role: string;
+  division?: string;
+  password?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  lastLogin?: Date;
+}
 
 // Environment variables with fallbacks
 const JWT_SECRET_STRING = process.env.JWT_SECRET || 'hmti-secret-key-change-in-production';
@@ -13,12 +25,11 @@ const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 // Generate JWT token
 export function generateToken(user: UserWithRole): string {
   const payload = { 
-    id: user.id, 
+    id: user._id, 
     username: user.username,
     role: user.role
   };
   
-  // @ts-ignore
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
 }
 
@@ -45,12 +56,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
 
     // Verify token
     // @ts-ignore
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number };
+    const decoded = jwt.verify(token, JWT_SECRET) as { id: string };
     
     // Fetch user from database
-    const user = await db.query.users.findFirst({
-      where: eq(users.id, decoded.id)
-    });
+    const user = await mongoStorage.getUserById(decoded.id);
 
     if (!user) {
       return res.status(401).json({ message: 'User not found' });
