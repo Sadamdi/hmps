@@ -289,7 +289,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/articles', authenticate, uploadMiddleware.single('image'), async (req, res) => {
     try {
-      const { title, excerpt, content, published } = req.body;
+      console.log("Article create request body:", req.body);
+      
+      // Extract form data with proper validation
+      let title = req.body.title || '';
+      let excerpt = req.body.excerpt || '';
+      let content = req.body.content || '';
+      let published = req.body.published;
+      
+      // Validate required fields
+      if (!title || title.trim() === '') {
+        return res.status(400).json({ message: 'Title is required' });
+      }
+      
+      if (!excerpt || excerpt.trim() === '') {
+        return res.status(400).json({ message: 'Excerpt is required' });
+      }
+      
+      if (!content || content.trim() === '') {
+        return res.status(400).json({ message: 'Content is required' });
+      }
+      
       const authorId = (req.user as UserWithRole)?._id;
       const authorName = (req.user as UserWithRole)?.name || (req.user as UserWithRole)?.username;
       
@@ -307,9 +327,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create article
       const newArticle = await mongoStorage.createArticle({
-        title,
-        excerpt,
-        content,
+        title: title.trim(),
+        excerpt: excerpt.trim(),
+        content: content.trim(),
         image: imageUrl,
         published: published === 'true',
         authorId,
@@ -460,7 +480,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/library', authenticate, uploadMiddleware.array('images', 10), async (req, res) => {
     try {
-      const { title, description, fullDescription, type } = req.body;
+      console.log("Library item create request body:", req.body);
+      
+      // Extract form data with proper validation
+      let title = req.body.title || '';
+      let description = req.body.description || '';
+      let fullDescription = req.body.fullDescription || '';
+      let type = req.body.type || 'photo';
+      
+      // Validate required fields
+      if (!title || title.trim() === '') {
+        return res.status(400).json({ message: 'Title is required' });
+      }
+      
+      if (!description || description.trim() === '') {
+        return res.status(400).json({ message: 'Description is required' });
+      }
+      
+      if (!fullDescription || fullDescription.trim() === '') {
+        return res.status(400).json({ message: 'Full description is required' });
+      }
+      
       const authorId = (req.user as UserWithRole)?._id;
       
       if (!authorId) {
@@ -476,11 +516,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         // Create library item with default image
         const newItem = await mongoStorage.createLibraryItem({
-          title,
-          description,
-          fullDescription,
+          title: title.trim(),
+          description: description.trim(),
+          fullDescription: fullDescription.trim(),
           images: defaultImageUrl,
-          type: type || 'photo',
+          type: type,
           authorId
         });
         
@@ -492,11 +532,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Create library item
       const newItem = await mongoStorage.createLibraryItem({
-        title,
-        description,
-        fullDescription,
+        title: title.trim(),
+        description: description.trim(),
+        fullDescription: fullDescription.trim(),
         images: imageUrls,
-        type: type || 'photo',
+        type: type,
         authorId
       });
       
