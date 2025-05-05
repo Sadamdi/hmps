@@ -44,7 +44,7 @@ function Router() {
       </Route>
       <Route path="/dashboard/organization">
         {() => (
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["owner", "admin", "chair", "vice_chair"]}>
             <DashboardOrganization />
           </ProtectedRoute>
         )}
@@ -58,7 +58,7 @@ function Router() {
       </Route>
       <Route path="/dashboard/settings">
         {() => (
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={["owner", "admin", "chair", "vice_chair"]}>
             <DashboardSettings />
           </ProtectedRoute>
         )}
