@@ -84,7 +84,7 @@ export function UserManagement({ user, viewOnly = false, onSave, onCancel }: Use
 
   // Delete user mutation
   const deleteUserMutation = useMutation({
-    mutationFn: async (userId: number) => {
+    mutationFn: async (userId: string | number) => {
       return await apiRequest('DELETE', `/api/users/${userId}`, {});
     },
     onSuccess: () => {
@@ -154,7 +154,19 @@ export function UserManagement({ user, viewOnly = false, onSave, onCancel }: Use
     if (!user) return;
     
     if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
-      await deleteUserMutation.mutateAsync(user.id);
+      // MongoDB menggunakan _id, bukan id
+      const userId = user._id || user.id;
+      
+      if (!userId) {
+        toast({
+          title: "Error",
+          description: "Invalid user ID",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      await deleteUserMutation.mutateAsync(userId);
     }
   };
 

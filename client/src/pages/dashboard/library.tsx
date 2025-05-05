@@ -39,7 +39,7 @@ export default function DashboardLibrary() {
 
   // Delete library item mutation
   const deleteLibraryItemMutation = useMutation({
-    mutationFn: async (itemId: number) => {
+    mutationFn: async (itemId: string | number) => {
       await apiRequest('DELETE', `/api/library/${itemId}`, {});
     },
     onSuccess: () => {
@@ -82,7 +82,7 @@ export default function DashboardLibrary() {
     setIsUploaderOpen(true);
   };
 
-  const handleDeleteItem = async (itemId: number) => {
+  const handleDeleteItem = async (itemId: string | number) => {
     if (window.confirm("Are you sure you want to delete this item?")) {
       await deleteLibraryItemMutation.mutateAsync(itemId);
     }
