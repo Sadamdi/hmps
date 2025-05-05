@@ -8,10 +8,16 @@ import multer from 'multer';
 const mkdir = promisify(fs.mkdir);
 const writeFile = promisify(fs.writeFile);
 
-// Create upload directory if it doesn't exist
+// Create both upload and assets directories if they don't exist
 const uploadDir = path.join(process.cwd(), 'uploads');
+const assetsDir = path.join(process.cwd(), 'attached_assets');
+
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+if (!fs.existsSync(assetsDir)) {
+  fs.mkdirSync(assetsDir, { recursive: true });
 }
 
 // Configure multer storage
@@ -28,21 +34,27 @@ export const uploadMiddleware = multer({
 /**
  * Handles file upload by writing to disk and returning URL
  */
-export async function uploadHandler(file: Express.Multer.File): Promise<string> {
+export async function uploadHandler(file: Express.Multer.File, useAssetsDir: boolean = false): Promise<string> {
   try {
     // Generate a unique filename
-    const randomName = crypto.randomBytes(16).toString('hex');
+    const timestamp = Date.now();
+    const randomName = crypto.randomBytes(8).toString('hex');
+    const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_').substring(0, 20);
     const fileExtension = path.extname(file.originalname);
-    const fileName = `${randomName}${fileExtension}`;
+    const fileName = `${timestamp}_${safeOriginalName}_${randomName}${fileExtension}`;
+    
+    // Determine which directory to use
+    const targetDir = useAssetsDir ? assetsDir : uploadDir;
+    const targetPath = useAssetsDir ? '/attached_assets' : '/uploads';
     
     // Create file path
-    const filePath = path.join(uploadDir, fileName);
+    const filePath = path.join(targetDir, fileName);
     
     // Save the file
     await writeFile(filePath, file.buffer);
     
     // Return the URL (relative path for now)
-    return `/uploads/${fileName}`;
+    return `${targetPath}/${fileName}`;
   } catch (error) {
     console.error('Error handling file upload:', error);
     throw new Error('File upload failed');
@@ -56,7 +68,14 @@ export async function deleteFile(fileUrl: string): Promise<void> {
   try {
     // Extract filename from URL
     const fileName = path.basename(fileUrl);
-    const filePath = path.join(uploadDir, fileName);
+    
+    // Determine which directory the file is in
+    let filePath;
+    if (fileUrl.includes('/attached_assets/')) {
+      filePath = path.join(assetsDir, fileName);
+    } else {
+      filePath = path.join(uploadDir, fileName);
+    }
     
     // Check if file exists
     if (fs.existsSync(filePath)) {
