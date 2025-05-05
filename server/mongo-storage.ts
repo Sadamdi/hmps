@@ -3,12 +3,25 @@ import { storage } from './storage'; // Import PostgreSQL storage
 import { hashPassword } from './auth';
 import mongoose from 'mongoose';
 
-// Utility function to convert string ID to ObjectId
-function toObjectId(id: string): mongoose.Types.ObjectId {
+// Utility function to convert string/number ID to ObjectId
+function toObjectId(id: string | number): mongoose.Types.ObjectId | null {
+  if (!id) return null;
+  
   try {
+    // Jika ID adalah angka dari PostgreSQL (misalnya 1, 2, 3)
+    // Kita gunakan angka ini sebagai seed untuk ObjectId yang konsisten
+    if (typeof id === 'number' || (!isNaN(Number(id)) && Number(id) < 100)) {
+      // Buat string ID dengan padding 0, untuk ID konsisten
+      // Contoh: ID 1 → "000000000001", ID 42 → "000000000042"
+      const paddedId = id.toString().padStart(24, '0');
+      return new mongoose.Types.ObjectId(paddedId);
+    }
+    
+    // Jika ID sudah berformat ObjectId, gunakan langsung
     return new mongoose.Types.ObjectId(id);
   } catch (error) {
-    throw new Error(`Invalid ID: ${id}`);
+    console.error(`Error converting ID: ${id}`, error);
+    return null;
   }
 }
 
@@ -17,10 +30,14 @@ async function getAllUsers(): Promise<any[]> {
   return await User.find().select('-password').lean();
 }
 
-async function getUserById(id: string): Promise<any | null> {
+async function getUserById(id: string | number): Promise<any | null> {
   if (!id) return null;
   try {
-    return await User.findById(id).lean();
+    // Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+    const objectId = toObjectId(id);
+    if (!objectId) return null;
+    
+    return await User.findById(objectId).lean();
   } catch (error) {
     console.error('Error getting user by ID:', error);
     return null;
@@ -46,7 +63,7 @@ async function createUser(userData: any): Promise<any> {
   return await newUser.save();
 }
 
-async function updateUser(id: string, userData: any): Promise<any> {
+async function updateUser(id: string | number, userData: any): Promise<any> {
   // Hash password if provided
   if (userData.password) {
     userData.password = await hashPassword(userData.password);
@@ -55,8 +72,12 @@ async function updateUser(id: string, userData: any): Promise<any> {
   // Set updated timestamp
   userData.updatedAt = new Date();
   
+  // Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+  const objectId = toObjectId(id);
+  if (!objectId) return null;
+  
   return await User.findByIdAndUpdate(
-    id, 
+    objectId, 
     { $set: userData }, 
     { new: true, runValidators: true }
   ).select('-password').lean();
@@ -79,10 +100,14 @@ async function getArticlesByAuthorId(authorId: string): Promise<any[]> {
   return await Article.find({ authorId: toObjectId(authorId) }).sort({ createdAt: -1 }).lean();
 }
 
-async function getArticleById(id: string): Promise<any | null> {
+async function getArticleById(id: string | number): Promise<any | null> {
   if (!id) return null;
   try {
-    return await Article.findById(id).lean();
+    // Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+    const objectId = toObjectId(id);
+    if (!objectId) return null;
+    
+    return await Article.findById(objectId).lean();
   } catch (error) {
     console.error('Error getting article by ID:', error);
     return null;
@@ -103,12 +128,16 @@ async function createArticle(articleData: any): Promise<any> {
   return await newArticle.save();
 }
 
-async function updateArticle(id: string, articleData: any): Promise<any> {
+async function updateArticle(id: string | number, articleData: any): Promise<any> {
   // Set updated timestamp
   articleData.updatedAt = new Date();
   
+  // Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+  const objectId = toObjectId(id);
+  if (!objectId) return null;
+  
   return await Article.findByIdAndUpdate(
-    id, 
+    objectId, 
     { $set: articleData }, 
     { new: true, runValidators: true }
   ).lean();
