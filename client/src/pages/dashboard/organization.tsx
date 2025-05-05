@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Edit, Loader2, Search, Users } from "lucide-react";
+import { Edit, Loader2, Search, Trash2, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -58,6 +58,34 @@ export default function DashboardOrganization() {
   const closeEditor = () => {
     setIsEditorOpen(false);
     setEditingMember(null);
+  };
+
+  // Delete member mutation
+  const deleteMemberMutation = useMutation({
+    mutationFn: async (memberId: string | number) => {
+      return await apiRequest('DELETE', `/api/organization/members/${memberId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/organization/members'] });
+      toast({
+        title: "Success",
+        description: "Organization member deleted successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: "Failed to delete organization member",
+        variant: "destructive",
+      });
+      console.error("Delete error:", error);
+    },
+  });
+
+  const handleDeleteMember = async (memberId: string | number) => {
+    if (window.confirm("Are you sure you want to delete this organization member?")) {
+      await deleteMemberMutation.mutateAsync(memberId);
+    }
   };
 
   const handleMemberSaved = () => {

@@ -189,7 +189,7 @@ export default function DashboardLibrary() {
                             size="sm"
                             variant="ghost"
                             className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                            onClick={() => handleDeleteItem(item.id)}
+                            onClick={() => handleDeleteItem((item as any)._id)}
                           >
                             <Trash2 className="h-4 w-4" />
                           </Button>
