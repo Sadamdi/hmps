@@ -1,8 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Sidebar from "@/components/dashboard/sidebar";
 import Header from "@/components/dashboard/header";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,35 +50,38 @@ export default function SettingsPage() {
     confirmPassword: "",
   });
 
+  // Create default settings
+  const defaultSettings: SiteSettings = {
+    siteName: "HMTI UIN Malang",
+    siteTagline: "Salam Satu Saudara Informatika",
+    siteDescription: "Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang",
+    contactEmail: "hmti@uin-malang.ac.id",
+    address: "Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang",
+    enableRegistration: false,
+    maintenanceMode: false,
+    footerText: "© 2023 Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.",
+    socialLinks: {
+      facebook: "https://facebook.com/hmtiuinmalang",
+      twitter: "https://twitter.com/hmtiuinmalang",
+      instagram: "https://instagram.com/hmtiuinmalang",
+      youtube: "https://youtube.com/channel/hmtiuinmalang"
+    }
+  };
+
   // Fetch settings
   const { data: settings, isLoading } = useQuery({
     queryKey: ['/api/settings'],
-    placeholderData: {
-      siteName: "HMTI UIN Malang",
-      siteTagline: "Salam Satu Saudara Informatika",
-      siteDescription: "Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang",
-      contactEmail: "hmti@uin-malang.ac.id",
-      address: "Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang",
-      enableRegistration: false,
-      maintenanceMode: false,
-      footerText: "© 2023 Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.",
-      socialLinks: {
-        facebook: "https://facebook.com/hmtiuinmalang",
-        twitter: "https://twitter.com/hmtiuinmalang",
-        instagram: "https://instagram.com/hmtiuinmalang",
-        youtube: "https://youtube.com/channel/hmtiuinmalang"
-      }
-    }
+    placeholderData: defaultSettings
   });
 
-  const [formData, setFormData] = useState<SiteSettings | null>(null);
+  const [formData, setFormData] = useState<SiteSettings>(defaultSettings);
 
   // Update form data when settings are loaded
-  useState(() => {
-    if (settings && !formData) {
+  useEffect(() => {
+    if (settings) {
       setFormData(settings);
     }
-  });
+  }, [settings]);
 
   // Update settings mutation
   const updateSettingsMutation = useMutation({
@@ -86,6 +89,8 @@ export default function SettingsPage() {
       return await apiRequest('PUT', '/api/settings', data);
     },
     onSuccess: () => {
+      // Invalidate queries to refresh settings data
+      queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
       toast({
         title: "Settings Updated",
         description: "Your changes have been saved successfully.",
@@ -132,13 +137,25 @@ export default function SettingsPage() {
     const { name, value } = e.target;
     if (name.includes('.')) {
       const [parent, child] = name.split('.');
-      setFormData({
-        ...formData,
-        [parent]: {
-          ...formData[parent as keyof SiteSettings],
-          [child]: value
-        }
-      });
+      
+      if (parent === 'socialLinks') {
+        setFormData({
+          ...formData,
+          socialLinks: {
+            ...formData.socialLinks,
+            [child]: value
+          }
+        });
+      } else {
+        // Handle other nested properties if needed in the future
+        setFormData({
+          ...formData,
+          [parent]: {
+            ...(formData[parent as keyof SiteSettings] as any),
+            [child]: value
+          }
+        });
+      }
     } else {
       setFormData({
         ...formData,
