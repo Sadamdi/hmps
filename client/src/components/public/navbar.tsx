@@ -42,10 +42,8 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
             </nav>
           </div>
           <div className="flex items-center">
-            <Link href="/login">
-              <a className="hidden md:inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-[#1E40AF] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
-                Login
-              </a>
+            <Link href="/login" className="hidden md:inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-primary hover:bg-[#1E40AF] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+              Login
             </Link>
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -84,10 +82,8 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
                 {item.label}
               </button>
             ))}
-            <Link href="/login">
-              <a className="flex items-center pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-primary hover:bg-gray-50 hover:border-gray-300">
-                Login
-              </a>
+            <Link href="/login" className="flex items-center pl-3 pr-4 py-2 border-l-4 border-transparent text-base font-medium text-primary hover:bg-gray-50 hover:border-gray-300">
+              Login
             </Link>
           </div>
         </div>

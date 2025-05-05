@@ -10,6 +10,7 @@ import {
   Settings, 
   LogOut,
   ChevronDown,
+  ChevronLeft,
   ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -85,19 +86,19 @@ export default function Sidebar() {
             }
             
             return (
-              <Link key={item.href} href={item.href}>
-                <a
-                  className={`flex items-center ${
-                    expanded ? 'px-4' : 'justify-center px-2'
-                  } py-3 text-sm font-medium rounded-md ${
-                    item.active
-                      ? "bg-primary text-white"
-                      : "text-gray-700 hover:bg-gray-100"
-                  }`}
-                >
-                  {item.icon}
-                  {expanded && <span className="ml-3">{item.label}</span>}
-                </a>
+              <Link 
+                key={item.href} 
+                href={item.href}
+                className={`flex items-center ${
+                  expanded ? 'px-4' : 'justify-center px-2'
+                } py-3 text-sm font-medium rounded-md ${
+                  item.active
+                    ? "bg-primary text-white"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`}
+              >
+                {item.icon}
+                {expanded && <span className="ml-3">{item.label}</span>}
               </Link>
             );
           })}
