@@ -39,7 +39,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Update last login
-      await storage.updateUser(user.id, { lastLogin: new Date().toISOString() });
+      await storage.updateUser(user.id, { lastLogin: new Date() });
 
       // Generate token and set cookie
       const token = generateToken(user);
