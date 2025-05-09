@@ -22,6 +22,24 @@ interface Settings {
   enableRegistration: boolean;
   maintenanceMode: boolean;
   footerText: string;
+  logoUrl: string;
+  divisionLogos: {
+    akademik: string;
+    humas: string;
+    pengembangan: string;
+    media: string;
+    keuangan: string;
+    acara: string;
+  };
+  divisionColors: {
+    akademik: string;
+    humas: string;
+    pengembangan: string;
+    leadership: string;
+    media: string;
+    keuangan: string;
+    acara: string;
+  };
   socialLinks: {
     facebook: string;
     twitter: string;
