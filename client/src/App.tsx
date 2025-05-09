@@ -11,6 +11,7 @@ import DashboardLibrary from "@/pages/dashboard/library";
 import DashboardOrganization from "@/pages/dashboard/organization";
 import DashboardUsers from "@/pages/dashboard/users";
 import DashboardSettings from "@/pages/dashboard/settings";
+import DashboardContent from "@/pages/dashboard/content";
 import ProtectedRoute from "@/components/auth/protected-route";
 import LoginForm from "@/components/auth/login-form";
 
@@ -60,6 +61,13 @@ function Router() {
         {() => (
           <ProtectedRoute allowedRoles={["owner", "admin", "chair", "vice_chair"]}>
             <DashboardSettings />
+          </ProtectedRoute>
+        )}
+      </Route>
+      <Route path="/dashboard/content">
+        {() => (
+          <ProtectedRoute allowedRoles={["owner", "admin", "chair", "vice_chair"]}>
+            <DashboardContent />
           </ProtectedRoute>
         )}
       </Route>
