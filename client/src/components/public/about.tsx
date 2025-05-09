@@ -1,4 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
+
 export default function About() {
+  // Fetch settings for about us content
+  const { data: settings } = useQuery({
+    queryKey: ['/api/settings'],
+    staleTime: 1000, // Consider data fresh for only 1 second
+    refetchOnWindowFocus: true,
+  });
+  
   return (
     <section id="about" className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -45,12 +54,19 @@ export default function About() {
           </div>
         </div>
         
-        <div className="mt-12 text-center">
-          <p className="text-xl text-gray-700 max-w-3xl mx-auto">
-            Himpunan Mahasiswa Teknik Informatika UIN Malang berkomitmen untuk menciptakan lingkungan yang mendukung 
-            pengembangan akademis dan profesional bagi seluruh anggotanya, sambil membangun jejaring yang kuat 
-            dengan industri dan masyarakat.
-          </p>
+        {/* About Us Content from Database */}
+        <div className="mt-12 prose prose-lg max-w-none">
+          {settings?.aboutUs ? (
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-100" dangerouslySetInnerHTML={{ __html: settings.aboutUs }} />
+          ) : (
+            <div className="text-center">
+              <p className="text-xl text-gray-700 max-w-3xl mx-auto">
+                Himpunan Mahasiswa Teknik Informatika UIN Malang berkomitmen untuk menciptakan lingkungan yang mendukung 
+                pengembangan akademis dan profesional bagi seluruh anggotanya, sambil membangun jejaring yang kuat 
+                dengan industri dan masyarakat.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </section>
