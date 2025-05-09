@@ -59,6 +59,7 @@
     "connect-pg-simple": "^10.0.0",
     "cookie-parser": "^1.4.7",
     "date-fns": "^3.6.0",
+    "dotenv": "^16.5.0",
     "drizzle-orm": "^0.38.4",
     "drizzle-seed": "^0.3.1",
     "drizzle-zod": "^0.6.0",

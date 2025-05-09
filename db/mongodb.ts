@@ -121,6 +121,8 @@ const settingsSchema = new mongoose.Schema({
   siteName: { type: String, default: 'HMTI UIN Malang' },
   siteTagline: { type: String, default: 'Salam Satu Saudara Informatika' },
   siteDescription: { type: String, default: 'Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang' },
+  aboutUs: { type: String, default: '' },
+  visionMission: { type: String, default: '' },
   contactEmail: { type: String, default: 'hmti@uin-malang.ac.id' },
   address: { type: String, default: 'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang' },
   enableRegistration: { type: Boolean, default: false },
