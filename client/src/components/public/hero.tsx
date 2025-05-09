@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 
 interface HeroProps {
   scrollToSection: (id: string) => void;
@@ -88,18 +89,26 @@ export default function Hero({ scrollToSection }: HeroProps) {
         background: "linear-gradient(90deg, #1a237e 0%, #283593 35%, #5e35b1 100%)",
       }}
     >
-      {/* Organization Name Header - Top Left */}
-      <div className="absolute top-6 left-6 z-20">
-        <h3 className="text-yellow-500 font-bold text-xl md:text-2xl">
-          {siteName.split(' ').length > 2 ? siteName.split(' ').slice(0, 2).join(' ') : siteName}
-        </h3>
-      </div>
+      {/* Top Navigation Bar */}
+      <nav className="relative z-30 flex justify-between items-center px-8 py-4 text-white">
+        <div>
+          <span className="text-yellow-500 font-bold text-xl">HIMATIF ENCODER</span>
+        </div>
+        <div className="flex space-x-8">
+          <Link href="/" className="font-medium hover:text-yellow-300">HOME</Link>
+          <Link href="#profile" className="font-medium hover:text-yellow-300">PROFILE</Link>
+          <Link href="#kelembagaan" className="font-medium hover:text-yellow-300">KELEMBAGAAN</Link>
+          <Link href="#artikel" className="font-medium hover:text-yellow-300">ARTIKEL</Link>
+          <Link href="#gallery" className="font-medium hover:text-yellow-300">GALLERY</Link>
+          <Link href="#informatika" className="font-medium hover:text-yellow-300">INFORMATIKA</Link>
+        </div>
+      </nav>
       
       {/* Background Images (behind everything) - Colored Sections for Members */}
       <div className="absolute inset-0 z-0">
-        <div className="absolute inset-0 flex items-end">
+        <div className="absolute inset-0 flex">
           {/* Create a colored grid for division heads */}
-          <div className="flex w-full h-[45%] items-end">
+          <div className="flex w-full h-full">
             {/* Left division heads - 3 different colors */}
             <div className="w-1/7 h-full" style={{ 
               backgroundColor: settings?.divisionColors?.akademik || "rgba(233, 30, 99, 0.75)" 
@@ -129,10 +138,17 @@ export default function Hero({ scrollToSection }: HeroProps) {
           </div>
         </div>
         
+        {/* Overlay with watermark text */}
+        <div className="absolute inset-0 z-1 flex items-center justify-center">
+          <h1 className="text-white text-opacity-10 text-9xl font-bold tracking-widest transform -rotate-12">
+            ENCODER 23
+          </h1>
+        </div>
+        
         {/* Overlay with member images */}
-        <div className="absolute inset-0 flex items-end opacity-70 mix-blend-multiply">
+        <div className="absolute inset-x-0 bottom-0 flex h-64 opacity-70 mix-blend-multiply">
           {/* Person images - all in one row */}
-          <div className="flex w-full items-end">
+          <div className="flex w-full h-full">
             {/* Left division heads */}
             {divisionHeads?.slice(0, 3).map((head, index) => {
               // Determine which division logo to display
@@ -146,7 +162,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
               }
               
               return (
-                <div key={head._id || index} className="w-1/7 h-64 relative">
+                <div key={head._id || index} className="w-1/7 h-full relative">
                   <div 
                     className="absolute inset-0"
                     style={{
@@ -155,22 +171,13 @@ export default function Hero({ scrollToSection }: HeroProps) {
                       backgroundSize: "cover"
                     }}
                   />
-                  {divisionLogo && (
-                    <div className="absolute bottom-2 right-2 w-10 h-10 bg-white/80 rounded-full p-1">
-                      <img 
-                        src={divisionLogo} 
-                        alt="Logo Divisi" 
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}
             
             {/* Chair and Vice Chair */}
             {chairperson && (
-              <div className="w-1/7 h-64 relative">
+              <div className="w-1/7 h-full relative">
                 <div 
                   className="absolute inset-0"
                   style={{
@@ -179,18 +186,11 @@ export default function Hero({ scrollToSection }: HeroProps) {
                     backgroundSize: "cover"
                   }}
                 />
-                <div className="absolute bottom-2 right-2 w-10 h-10 bg-white/80 rounded-full p-1">
-                  <img 
-                    src={settings?.logoUrl || "/logo.png"} 
-                    alt="Logo Himpunan" 
-                    className="w-full h-full object-contain"
-                  />
-                </div>
               </div>
             )}
             
             {viceChairperson && (
-              <div className="w-1/7 h-64 relative">
+              <div className="w-1/7 h-full relative">
                 <div 
                   className="absolute inset-0"
                   style={{
@@ -199,13 +199,6 @@ export default function Hero({ scrollToSection }: HeroProps) {
                     backgroundSize: "cover"
                   }}
                 />
-                <div className="absolute bottom-2 right-2 w-10 h-10 bg-white/80 rounded-full p-1">
-                  <img 
-                    src={settings?.logoUrl || "/logo.png"} 
-                    alt="Logo Himpunan" 
-                    className="w-full h-full object-contain"
-                  />
-                </div>
               </div>
             )}
             
@@ -222,7 +215,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
               }
               
               return (
-                <div key={head._id || index} className="w-1/7 h-64 relative">
+                <div key={head._id || index} className="w-1/7 h-full relative">
                   <div 
                     className="absolute inset-0"
                     style={{
@@ -231,15 +224,6 @@ export default function Hero({ scrollToSection }: HeroProps) {
                       backgroundSize: "cover"
                     }}
                   />
-                  {divisionLogo && (
-                    <div className="absolute bottom-2 right-2 w-10 h-10 bg-white/80 rounded-full p-1">
-                      <img 
-                        src={divisionLogo} 
-                        alt="Logo Divisi" 
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -251,23 +235,23 @@ export default function Hero({ scrollToSection }: HeroProps) {
       </div>
       
       {/* Logo at center top - above everything */}
-      <div className="relative z-10 mx-auto pt-20 pb-4">
+      <div className="relative z-10 mx-auto pt-16 pb-4">
         <img 
           src={settings?.logoUrl || "/logo.png"} 
           alt="Logo Himpunan" 
-          className="w-32 h-32 mx-auto"
+          className="w-24 h-24 mx-auto"
         />
       </div>
       
       {/* Text content - above background with members */}
       <div className="relative z-10 container mx-auto px-8 py-10 text-white">
-        <div className="max-w-3xl">
+        <div className="max-w-3xl mt-16">
           <h1 className="text-5xl md:text-7xl font-bold mb-2">{siteTagline}</h1>
           <h2 className="text-2xl md:text-4xl font-bold mb-2">{siteName}</h2>
-          <p className="text-lg mb-6">{siteDescription}</p>
+          <p className="text-lg mb-8">{siteDescription}</p>
           <button 
             onClick={() => scrollToSection('about')} 
-            className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded-full font-semibold text-lg transition-colors"
+            className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-3 rounded-full font-semibold text-lg transition-colors"
           >
             SELENGKAPNYA
           </button>
@@ -280,7 +264,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
           <path 
             fill="#ffffff" 
             fillOpacity="1" 
-            d="M0,96L80,85.3C160,75,320,53,480,53.3C640,53,800,75,960,80C1120,85,1280,75,1360,69.3L1440,64L1440,120L1360,120C1280,120,1120,120,960,120C800,120,640,120,480,120C320,120,160,120,80,120L0,120Z">
+            d="M0,32L48,37.3C96,43,192,53,288,64C384,75,480,85,576,80C672,75,768,53,864,48C960,43,1056,53,1152,58.7C1248,64,1344,64,1392,64L1440,64L1440,120L1392,120C1344,120,1248,120,1152,120C1056,120,960,120,864,120C768,120,672,120,576,120C480,120,384,120,288,120C192,120,96,120,48,120L0,120Z">
           </path>
         </svg>
       </div>
