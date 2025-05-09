@@ -91,9 +91,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
     >
       {/* Top Navigation Bar */}
       <nav className="relative z-30 flex justify-between items-center px-8 py-4 text-white">
-        <div>
-          <span className="text-yellow-500 font-bold text-xl">HIMATIF ENCODER</span>
-        </div>
+        <div></div>
         <div className="flex space-x-8">
           <Link href="/" className="font-medium hover:text-yellow-300">HOME</Link>
           <Link href="#profile" className="font-medium hover:text-yellow-300">PROFILE</Link>
@@ -138,12 +136,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
           </div>
         </div>
         
-        {/* Overlay with watermark text */}
-        <div className="absolute inset-0 z-1 flex items-center justify-center">
-          <h1 className="text-white text-opacity-10 text-9xl font-bold tracking-widest transform -rotate-12">
-            ENCODER 23
-          </h1>
-        </div>
+        {/* Background pattern overlay */}
         
         {/* Overlay with member images */}
         <div className="absolute inset-x-0 bottom-0 flex h-64 opacity-70 mix-blend-multiply">
