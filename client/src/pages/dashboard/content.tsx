@@ -9,9 +9,30 @@ import { Button } from "@/components/ui/button";
 import ContentEditor from "@/components/dashboard/content-editor";
 import { useAuth } from "@/lib/auth";
 
+interface Settings {
+  _id?: string;
+  id?: number;
+  siteName: string;
+  siteTagline: string;
+  siteDescription: string;
+  aboutUs: string;
+  visionMission: string;
+  contactEmail: string;
+  address: string;
+  enableRegistration: boolean;
+  maintenanceMode: boolean;
+  footerText: string;
+  socialLinks: {
+    facebook: string;
+    twitter: string;
+    instagram: string;
+    youtube: string;
+  };
+}
+
 export default function Content() {
   const [isEditing, setIsEditing] = useState(false);
-  const { data: settings, isPending } = useQuery({
+  const { data: settings, isPending } = useQuery<Settings>({
     queryKey: ['/api/settings'],
     refetchOnWindowFocus: false,
   });

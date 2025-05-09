@@ -7,8 +7,29 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 
+interface Settings {
+  _id?: string;
+  id?: number;
+  siteName: string;
+  siteTagline: string;
+  siteDescription: string;
+  aboutUs: string;
+  visionMission: string;
+  contactEmail: string;
+  address: string;
+  enableRegistration: boolean;
+  maintenanceMode: boolean;
+  footerText: string;
+  socialLinks: {
+    facebook: string;
+    twitter: string;
+    instagram: string;
+    youtube: string;
+  };
+}
+
 interface ContentEditorProps {
-  settings: any;
+  settings: Settings | undefined;
   onSave: () => void;
   onCancel: () => void;
 }
@@ -22,13 +43,7 @@ export default function ContentEditor({ settings, onSave, onCancel }: ContentEdi
 
   const updateMutation = useMutation({
     mutationFn: async (updatedSettings: any) => {
-      return await apiRequest('/api/settings', {
-        method: 'PUT',
-        body: JSON.stringify(updatedSettings),
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      return await apiRequest('PUT', '/api/settings', updatedSettings);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
