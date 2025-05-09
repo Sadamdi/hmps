@@ -23,7 +23,7 @@ export default function Home() {
   // Update active section based on scroll position
   useEffect(() => {
     const handleScroll = () => {
-      const sections = ["home", "about", "structure", "articles", "library"];
+      const sections = ["home", "about", "vision-mission", "structure", "articles", "library"];
       const currentPosition = window.scrollY + 200;
 
       for (const section of sections) {
@@ -52,6 +52,7 @@ export default function Home() {
       <Navbar activeSection={activeSection} scrollToSection={scrollToSection} />
       <Hero scrollToSection={scrollToSection} />
       <About />
+      <VisionMission />
       <Structure />
       <Articles />
       <Library />

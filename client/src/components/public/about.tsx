@@ -1,8 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
 
+interface Settings {
+  siteName: string;
+  siteTagline: string;
+  siteDescription: string;
+  aboutUs: string;
+  visionMission: string;
+  contactEmail: string;
+  address: string;
+  enableRegistration: boolean;
+  maintenanceMode: boolean;
+  footerText: string;
+  socialLinks: {
+    facebook: string;
+    twitter: string;
+    instagram: string;
+    youtube: string;
+  };
+}
+
 export default function About() {
   // Fetch settings for about us content
-  const { data: settings } = useQuery({
+  const { data: settings } = useQuery<Settings>({
     queryKey: ['/api/settings'],
     staleTime: 1000, // Consider data fresh for only 1 second
     refetchOnWindowFocus: true,
