@@ -5,6 +5,14 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      width: {
+        '1/7': '14.285714%',
+        '2/7': '28.571428%',
+        '3/7': '42.857142%',
+        '4/7': '57.142857%',
+        '5/7': '71.428571%',
+        '6/7': '85.714285%',
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",

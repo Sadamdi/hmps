@@ -128,6 +128,24 @@ const settingsSchema = new mongoose.Schema({
   enableRegistration: { type: Boolean, default: false },
   maintenanceMode: { type: Boolean, default: false },
   footerText: { type: String, default: '© 2023 Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.' },
+  logoUrl: { type: String, default: '/logo.png' },
+  divisionLogos: {
+    akademik: { type: String, default: '/uploads/logo-akademik.png' },
+    humas: { type: String, default: '/uploads/logo-humas.png' },
+    pengembangan: { type: String, default: '/uploads/logo-pengembangan.png' },
+    media: { type: String, default: '/uploads/logo-media.png' },
+    keuangan: { type: String, default: '/uploads/logo-keuangan.png' },
+    acara: { type: String, default: '/uploads/logo-acara.png' }
+  },
+  divisionColors: {
+    akademik: { type: String, default: 'rgba(233, 30, 99, 0.75)' },
+    humas: { type: String, default: 'rgba(156, 39, 176, 0.75)' },
+    pengembangan: { type: String, default: 'rgba(103, 58, 183, 0.75)' },
+    leadership: { type: String, default: 'rgba(33, 150, 243, 0.75)' },
+    media: { type: String, default: 'rgba(0, 188, 212, 0.75)' },
+    keuangan: { type: String, default: 'rgba(76, 175, 80, 0.75)' },
+    acara: { type: String, default: 'rgba(255, 152, 0, 0.75)' }
+  },
   socialLinks: {
     facebook: { type: String, default: 'https://facebook.com/hmtiuinmalang' },
     twitter: { type: String, default: 'https://twitter.com/hmtiuinmalang' },

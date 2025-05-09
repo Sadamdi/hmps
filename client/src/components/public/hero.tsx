@@ -79,27 +79,31 @@ export default function Hero({ scrollToSection }: HeroProps) {
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 flex items-end">
           {/* Create a colored grid for division heads */}
-          <div className="flex w-full h-[40%] items-end">
-            {/* Left division heads */}
-            <div className="w-1/5 h-full" style={{ backgroundColor: "rgba(233, 30, 99, 0.5)" }}></div>
-            <div className="w-1/5 h-full" style={{ backgroundColor: "rgba(156, 39, 176, 0.5)" }}></div>
-            <div className="w-1/5 h-full" style={{ backgroundColor: "rgba(63, 81, 181, 0.5)" }}></div>
+          <div className="flex w-full h-[45%] items-end">
+            {/* Left division heads - 3 different colors */}
+            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(233, 30, 99, 0.75)" }}></div>
+            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(156, 39, 176, 0.75)" }}></div>
+            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(103, 58, 183, 0.75)" }}></div>
             
-            {/* Center for chair/vice */}
-            <div className="w-1/5 h-full" style={{ backgroundColor: "rgba(33, 150, 243, 0.5)" }}></div>
-            <div className="w-1/5 h-full" style={{ backgroundColor: "rgba(0, 188, 212, 0.5)" }}></div>
+            {/* Center for chair/vice - 1 color */}
+            <div className="w-2/7 h-full" style={{ backgroundColor: "rgba(33, 150, 243, 0.75)" }}></div>
+            
+            {/* Right division heads - 3 different colors */}
+            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(0, 188, 212, 0.75)" }}></div>
+            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(76, 175, 80, 0.75)" }}></div>
+            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(255, 152, 0, 0.75)" }}></div>
           </div>
         </div>
         
         {/* Overlay with member images */}
-        <div className="absolute inset-0 flex items-end opacity-60 mix-blend-overlay">
+        <div className="absolute inset-0 flex items-end opacity-70 mix-blend-multiply">
           {/* Person images - all in one row */}
           <div className="flex w-full items-end">
             {/* Left division heads */}
             {divisionHeads?.slice(0, 3).map((head, index) => (
               <div 
                 key={head._id || index} 
-                className="w-1/6 h-64"
+                className="w-1/7 h-64"
                 style={{
                   backgroundImage: `url(${head.imageUrl || "/default-user.png"})`,
                   backgroundPosition: "center top",
@@ -111,7 +115,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
             {/* Chair and Vice Chair */}
             {chairperson && (
               <div 
-                className="w-1/6 h-64"
+                className="w-1/7 h-64"
                 style={{
                   backgroundImage: `url(${chairperson.imageUrl || "/default-user.png"})`,
                   backgroundPosition: "center top",
@@ -122,7 +126,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
             
             {viceChairperson && (
               <div 
-                className="w-1/6 h-64"
+                className="w-1/7 h-64"
                 style={{
                   backgroundImage: `url(${viceChairperson.imageUrl || "/default-user.png"})`,
                   backgroundPosition: "center top",
@@ -135,7 +139,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
             {divisionHeads?.slice(3, 6).map((head, index) => (
               <div 
                 key={head._id || index} 
-                className="w-1/6 h-64"
+                className="w-1/7 h-64"
                 style={{
                   backgroundImage: `url(${head.imageUrl || "/default-user.png"})`,
                   backgroundPosition: "center top",
@@ -148,11 +152,6 @@ export default function Hero({ scrollToSection }: HeroProps) {
         
         {/* Background overlay pattern */}
         <div className="absolute inset-0 bg-[url('/pattern.svg')] bg-repeat opacity-10 mix-blend-overlay"></div>
-        
-        {/* ENCODER 23 text overlay - large text in background */}
-        <div className="absolute right-0 top-1/4 opacity-10 z-0 text-white">
-          <div className="text-[180px] font-black tracking-widest transform -rotate-12 mr-[-100px] uppercase">Encoder '23</div>
-        </div>
       </div>
       
       {/* Logo at center top - above everything */}
