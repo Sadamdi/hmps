@@ -12,6 +12,8 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 
   const navItems = [
     { id: "home", label: "Home" },
+    { id: "about", label: "Tentang Kami" },
+    { id: "vision-mission", label: "Visi & Misi" },
     { id: "structure", label: "Struktur Organisasi" },
     { id: "articles", label: "Artikel" },
     { id: "library", label: "Library" },
