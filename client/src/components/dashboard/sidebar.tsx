@@ -11,7 +11,8 @@ import {
   LogOut,
   ChevronDown,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileEdit
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -45,6 +46,13 @@ export default function Sidebar() {
       icon: <Users className="h-5 w-5" />,
       href: "/dashboard/organization",
       active: location.startsWith("/dashboard/organization"),
+    },
+    {
+      label: "Content",
+      icon: <FileEdit className="h-5 w-5" />,
+      href: "/dashboard/content",
+      active: location.startsWith("/dashboard/content"),
+      requireRoles: ["owner", "admin", "chair", "vice_chair"],
     },
     {
       label: "User Management",
