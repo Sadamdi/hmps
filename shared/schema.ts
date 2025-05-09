@@ -60,6 +60,8 @@ export const settings = pgTable('settings', {
   siteName: text('site_name').notNull(),
   siteTagline: text('site_tagline').notNull(),
   siteDescription: text('site_description').notNull(),
+  aboutUs: text('about_us').notNull().default(''),
+  visionMission: text('vision_mission').notNull().default(''),
   contactEmail: text('contact_email').notNull(),
   address: text('address').notNull(),
   enableRegistration: boolean('enable_registration').notNull().default(false),
