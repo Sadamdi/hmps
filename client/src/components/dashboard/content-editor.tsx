@@ -194,16 +194,42 @@ export default function ContentEditor({ settings, onSave, onCancel }: ContentEdi
         
         <TabsContent value="vision" className="space-y-4">
           <div>
-            <Label htmlFor="visionMission">Konten Visi & Misi (HTML)</Label>
+            <Label htmlFor="visionMission">Konten Visi & Misi</Label>
             <div className="text-sm text-gray-500 mb-2">
-              Gunakan format HTML untuk styling. Contoh: &lt;h2&gt;Judul&lt;/h2&gt;, &lt;p&gt;Paragraf&lt;/p&gt;, &lt;ol&gt;&lt;li&gt;Item&lt;/li&gt;&lt;/ol&gt;
+              Gunakan format khusus seperti contoh di bawah ini untuk struktur Visi & Misi
             </div>
+            
+            <div className="mb-4 p-4 bg-blue-50 rounded-lg">
+              <h4 className="text-sm font-semibold text-blue-700 mb-2">Petunjuk Format:</h4>
+              <p className="text-sm text-blue-700">Gunakan format berikut:</p>
+              <pre className="text-xs bg-white p-2 rounded mt-1 text-blue-900 overflow-auto">
+{`VISI MISI
+
+- VISI
+[Tuliskan visi organisasi di sini]
+
+- MISI
+* [Poin misi pertama]
+* [Poin misi kedua]
+* [Dan seterusnya...]`}
+              </pre>
+            </div>
+            
             <Textarea
               id="visionMission"
               rows={15}
               value={visionMission}
               onChange={(e) => setVisionMission(e.target.value)}
               className="font-mono text-sm"
+              placeholder={`VISI MISI
+
+- VISI
+Mewujudkan Himpunan Mahasiswa Teknik Informatika yang berintegritas, progresif, dan adaptif sebagai wadah kolaborasi yang responsif, transparan, partisipatif, menjunjung tinggi nilai kekeluargaan, menciptakan lingkungan yang harmonis, inovatif, dan berorientasi pada kemajuan berkelanjutan.
+
+- MISI
+* Meningkatkan lingkungan yang kondusif untuk dialog terbuka, penguatan solidaritas, dan pengamalan kepedulian kolektif, dengan semangat kebersamaan untuk mendukung hubungan yang harmonis dan produktif antar anggota.
+* Mengintegrasikan nilai-nilai budaya lokal, nasional, dan profesionalisme dalam setiap program kerja, menumbuhkan kesadaran akan tanggung jawab sosial, meningkatkan kompetensi akademik, soft skills, kepemimpinan, dan inovasi teknologi melalui berbagai kegiatan produktif.
+* Mengoptimalkan peran Himpunan sebagai wadah pemberdayaan anggota dengan memberikan perhatian terhadap aspirasi, memfasilitasi pengembangan diri, dan menciptakan jaringan kolaborasi yang efektif dengan berbagai pihak untuk mendorong kontribusi aktif dalam pembangunan dan pengembangan organisasi.`}
             />
           </div>
           <Button 
