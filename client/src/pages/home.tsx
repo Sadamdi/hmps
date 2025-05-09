@@ -1,6 +1,7 @@
 import Navbar from "@/components/public/navbar";
 import Hero from "@/components/public/hero";
 import About from "@/components/public/about";
+import VisionMission from "@/components/public/vision-mission";
 import Structure from "@/components/public/structure";
 import Articles from "@/components/public/articles";
 import Library from "@/components/public/library";
