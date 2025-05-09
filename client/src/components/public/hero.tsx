@@ -4,16 +4,43 @@ interface HeroProps {
   scrollToSection: (id: string) => void;
 }
 
+interface Settings {
+  siteName: string;
+  siteTagline: string;
+  siteDescription: string;
+  aboutUs: string;
+  visionMission: string;
+  contactEmail: string;
+  address: string;
+  enableRegistration: boolean;
+  maintenanceMode: boolean;
+  footerText: string;
+  socialLinks: {
+    facebook: string;
+    twitter: string;
+    instagram: string;
+    youtube: string;
+  };
+}
+
+interface Member {
+  _id: string;
+  name: string;
+  position: string;
+  period: string;
+  imageUrl: string;
+}
+
 export default function Hero({ scrollToSection }: HeroProps) {
   // Fetch settings for site name and tagline
-  const { data: settings } = useQuery({
+  const { data: settings } = useQuery<Settings>({
     queryKey: ['/api/settings'],
     staleTime: 1000,
     refetchOnWindowFocus: true,
   });
   
   // Fetch organization members to display the leaders
-  const { data: members } = useQuery({
+  const { data: members } = useQuery<Member[]>({
     queryKey: ['/api/organization/members'],
     staleTime: 1000,
   });
@@ -24,41 +51,60 @@ export default function Hero({ scrollToSection }: HeroProps) {
   const siteDescription = settings?.siteDescription || "HMPS Teknik Informatika \"Encoder\" 2023";
   
   // Filter members by position
-  const chairperson = members?.find((m: any) => 
+  const chairperson = members?.find((m) => 
     m.position === "Ketua Umum" || m.position.toLowerCase().includes("ketua umum")
   );
   
-  const viceChairperson = members?.find((m: any) => 
+  const viceChairperson = members?.find((m) => 
     m.position === "Wakil Ketua" || m.position.toLowerCase().includes("wakil ketua")
   );
   
-  const divisionHeads = members?.filter((m: any) => 
+  const divisionHeads = members?.filter((m) => 
     m.position.toLowerCase().includes("kepala divisi") || 
     m.position.toLowerCase().includes("ketua divisi")
   );
 
   return (
-    <section id="home" className="relative min-h-screen pt-16 pb-32 overflow-hidden bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900 flex flex-col justify-end">
-      {/* Overlay with pattern */}
-      <div className="absolute inset-0 opacity-20 mix-blend-overlay">
-        <div className="absolute inset-0 bg-[url('/pattern.svg')] bg-repeat"></div>
+    <section id="home" className="relative min-h-screen pt-16 pb-0 overflow-hidden flex flex-col justify-end" 
+      style={{
+        background: "linear-gradient(90deg, #1a237e 0%, #283593 35%, #5e35b1 100%)",
+        backgroundImage: "url('/pattern.svg'), linear-gradient(90deg, #1a237e 0%, #283593 35%, #5e35b1 100%)",
+        backgroundBlendMode: "overlay",
+        backgroundSize: "auto, cover",
+      }}
+    >
+      {/* Top navbar placeholder - will be actual navbar but shown here for reference */}
+      <div className="absolute top-0 left-0 right-0 z-50 p-4">
+        <div className="flex justify-center space-x-6 text-white font-medium">
+          <span className="px-4 py-2">HOME</span>
+          <span className="px-4 py-2">PROFILE</span>
+          <span className="px-4 py-2">KELEMBAGAAN</span>
+          <span className="px-4 py-2">ARTIKEL</span>
+          <span className="px-4 py-2">GALLERY</span>
+          <span className="px-4 py-2">INFORMATIKA</span>
+        </div>
+      </div>
+      
+      {/* Organization Name Header - Top Left */}
+      <div className="absolute top-6 left-6 z-20">
+        <h3 className="text-yellow-500 font-bold text-xl md:text-2xl">HIMATIF ENCODER</h3>
       </div>
       
       {/* Logo at center top */}
-      <div className="relative z-10 mx-auto mt-8 mb-12">
+      <div className="relative z-10 mx-auto mt-16 mb-6">
         <img 
           src="/logo.png" 
           alt="Logo Himpunan" 
-          className="w-32 h-32 md:w-40 md:h-40 mx-auto"
+          className="w-28 h-28 md:w-32 md:h-32 mx-auto"
         />
       </div>
       
       {/* Text content */}
-      <div className="relative z-10 container mx-auto px-6 text-white">
+      <div className="relative z-10 container mx-auto px-6 text-white mt-4">
         <div className="max-w-3xl">
-          <h1 className="text-4xl md:text-6xl font-bold mb-4">{siteTagline}</h1>
-          <h2 className="text-2xl md:text-4xl font-bold mb-6">{siteName}</h2>
-          <p className="text-lg mb-8">{siteDescription}</p>
+          <h1 className="text-4xl md:text-6xl font-bold mb-2">{siteTagline}</h1>
+          <h2 className="text-2xl md:text-4xl font-bold mb-4">{siteName}</h2>
+          <p className="text-lg mb-6">{siteDescription}</p>
           <button 
             onClick={() => scrollToSection('about')} 
             className="bg-blue-500 hover:bg-blue-600 text-white px-8 py-3 rounded-full font-semibold text-lg transition-colors"
@@ -69,63 +115,59 @@ export default function Hero({ scrollToSection }: HeroProps) {
       </div>
       
       {/* People display */}
-      <div className="relative mt-12 z-10">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-wrap justify-center">
-            {/* Division Heads (Left) */}
-            <div className="w-full md:w-1/4 flex flex-wrap">
-              {divisionHeads?.slice(0, 3).map((head: any, index: number) => (
-                <div key={head._id || index} className="w-1/3 md:w-full px-1">
-                  <img 
-                    src={head.imageUrl || "/default-user.png"} 
-                    alt={head.name} 
-                    className="w-full aspect-square object-cover object-top"
-                  />
-                </div>
-              ))}
-            </div>
+      <div className="relative mt-8 z-10 overflow-hidden w-full">
+        <div className="flex flex-row justify-center items-end">
+          {/* Division Heads (Left) */}
+          <div className="flex flex-wrap justify-end w-1/3">
+            {divisionHeads?.slice(0, 3).map((head: any, index: number) => (
+              <div 
+                key={head._id || index} 
+                className="w-1/3 h-32 md:h-40 lg:h-48 xl:h-60"
+                style={{
+                  background: `url(${head.imageUrl || "/default-user.png"}) center top / cover no-repeat`
+                }}
+              />
+            ))}
+          </div>
+          
+          {/* Chair and Vice Chair (Center) */}
+          <div className="flex justify-center w-1/3">
+            {chairperson && (
+              <div 
+                className="w-1/2 h-36 md:h-44 lg:h-56 xl:h-72"
+                style={{
+                  background: `url(${chairperson.imageUrl || "/default-user.png"}) center top / cover no-repeat`
+                }}
+              />
+            )}
             
-            {/* Chair and Vice Chair (Center) */}
-            <div className="w-full md:w-2/4 flex justify-center px-2">
-              {chairperson && (
-                <div className="w-1/2 px-1">
-                  <img 
-                    src={chairperson.imageUrl || "/default-user.png"} 
-                    alt={chairperson.name} 
-                    className="w-full aspect-square object-cover object-top"
-                  />
-                </div>
-              )}
-              
-              {viceChairperson && (
-                <div className="w-1/2 px-1">
-                  <img 
-                    src={viceChairperson.imageUrl || "/default-user.png"} 
-                    alt={viceChairperson.name} 
-                    className="w-full aspect-square object-cover object-top"
-                  />
-                </div>
-              )}
-            </div>
-            
-            {/* Division Heads (Right) */}
-            <div className="w-full md:w-1/4 flex flex-wrap">
-              {divisionHeads?.slice(3, 6).map((head: any, index: number) => (
-                <div key={head._id || index} className="w-1/3 md:w-full px-1">
-                  <img 
-                    src={head.imageUrl || "/default-user.png"} 
-                    alt={head.name} 
-                    className="w-full aspect-square object-cover object-top"
-                  />
-                </div>
-              ))}
-            </div>
+            {viceChairperson && (
+              <div 
+                className="w-1/2 h-36 md:h-44 lg:h-56 xl:h-72"
+                style={{
+                  background: `url(${viceChairperson.imageUrl || "/default-user.png"}) center top / cover no-repeat`
+                }}
+              />
+            )}
+          </div>
+          
+          {/* Division Heads (Right) */}
+          <div className="flex flex-wrap w-1/3">
+            {divisionHeads?.slice(3, 6).map((head: any, index: number) => (
+              <div 
+                key={head._id || index} 
+                className="w-1/3 h-32 md:h-40 lg:h-48 xl:h-60"
+                style={{
+                  background: `url(${head.imageUrl || "/default-user.png"}) center top / cover no-repeat`
+                }}
+              />
+            ))}
           </div>
         </div>
       </div>
       
       {/* Wave decoration at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 w-full">
+      <div className="w-full">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 120" className="w-full h-auto">
           <path 
             fill="#ffffff" 
