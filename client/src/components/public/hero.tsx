@@ -15,6 +15,24 @@ interface Settings {
   enableRegistration: boolean;
   maintenanceMode: boolean;
   footerText: string;
+  logoUrl: string;
+  divisionLogos: {
+    akademik: string;
+    humas: string;
+    pengembangan: string;
+    media: string;
+    keuangan: string;
+    acara: string;
+  };
+  divisionColors: {
+    akademik: string;
+    humas: string;
+    pengembangan: string;
+    leadership: string;
+    media: string;
+    keuangan: string;
+    acara: string;
+  };
   socialLinks: {
     facebook: string;
     twitter: string;
@@ -48,7 +66,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
   // Get site name and tagline from settings with fallbacks
   const siteName = settings?.siteName || "Himpunan Mahasiswa Teknik Informatika";
   const siteTagline = settings?.siteTagline || "Salam Satu Saudara Informatika";
-  const siteDescription = settings?.siteDescription || "HMPS Teknik Informatika \"Encoder\" 2023";
+  const siteDescription = settings?.siteDescription || "Himpunan Mahasiswa Teknik Informatika";
   
   // Filter members by position
   const chairperson = members?.find((m) => 
@@ -72,7 +90,9 @@ export default function Hero({ scrollToSection }: HeroProps) {
     >
       {/* Organization Name Header - Top Left */}
       <div className="absolute top-6 left-6 z-20">
-        <h3 className="text-yellow-500 font-bold text-xl md:text-2xl">HIMATIF ENCODER</h3>
+        <h3 className="text-yellow-500 font-bold text-xl md:text-2xl">
+          {siteName.split(' ').length > 2 ? siteName.split(' ').slice(0, 2).join(' ') : siteName}
+        </h3>
       </div>
       
       {/* Background Images (behind everything) - Colored Sections for Members */}
@@ -81,17 +101,31 @@ export default function Hero({ scrollToSection }: HeroProps) {
           {/* Create a colored grid for division heads */}
           <div className="flex w-full h-[45%] items-end">
             {/* Left division heads - 3 different colors */}
-            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(233, 30, 99, 0.75)" }}></div>
-            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(156, 39, 176, 0.75)" }}></div>
-            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(103, 58, 183, 0.75)" }}></div>
+            <div className="w-1/7 h-full" style={{ 
+              backgroundColor: settings?.divisionColors?.akademik || "rgba(233, 30, 99, 0.75)" 
+            }}></div>
+            <div className="w-1/7 h-full" style={{ 
+              backgroundColor: settings?.divisionColors?.humas || "rgba(156, 39, 176, 0.75)" 
+            }}></div>
+            <div className="w-1/7 h-full" style={{ 
+              backgroundColor: settings?.divisionColors?.pengembangan || "rgba(103, 58, 183, 0.75)" 
+            }}></div>
             
             {/* Center for chair/vice - 1 color */}
-            <div className="w-2/7 h-full" style={{ backgroundColor: "rgba(33, 150, 243, 0.75)" }}></div>
+            <div className="w-2/7 h-full" style={{ 
+              backgroundColor: settings?.divisionColors?.leadership || "rgba(33, 150, 243, 0.75)" 
+            }}></div>
             
             {/* Right division heads - 3 different colors */}
-            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(0, 188, 212, 0.75)" }}></div>
-            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(76, 175, 80, 0.75)" }}></div>
-            <div className="w-1/7 h-full" style={{ backgroundColor: "rgba(255, 152, 0, 0.75)" }}></div>
+            <div className="w-1/7 h-full" style={{ 
+              backgroundColor: settings?.divisionColors?.media || "rgba(0, 188, 212, 0.75)" 
+            }}></div>
+            <div className="w-1/7 h-full" style={{ 
+              backgroundColor: settings?.divisionColors?.keuangan || "rgba(76, 175, 80, 0.75)" 
+            }}></div>
+            <div className="w-1/7 h-full" style={{ 
+              backgroundColor: settings?.divisionColors?.acara || "rgba(255, 152, 0, 0.75)" 
+            }}></div>
           </div>
         </div>
         
@@ -100,53 +134,115 @@ export default function Hero({ scrollToSection }: HeroProps) {
           {/* Person images - all in one row */}
           <div className="flex w-full items-end">
             {/* Left division heads */}
-            {divisionHeads?.slice(0, 3).map((head, index) => (
-              <div 
-                key={head._id || index} 
-                className="w-1/7 h-64"
-                style={{
-                  backgroundImage: `url(${head.imageUrl || "/default-user.png"})`,
-                  backgroundPosition: "center top",
-                  backgroundSize: "cover"
-                }}
-              />
-            ))}
+            {divisionHeads?.slice(0, 3).map((head, index) => {
+              // Determine which division logo to display
+              let divisionLogo = null;
+              if (head.position.toLowerCase().includes("akademik")) {
+                divisionLogo = settings?.divisionLogos?.akademik;
+              } else if (head.position.toLowerCase().includes("humas")) {
+                divisionLogo = settings?.divisionLogos?.humas;
+              } else if (head.position.toLowerCase().includes("pengembangan")) {
+                divisionLogo = settings?.divisionLogos?.pengembangan;
+              }
+              
+              return (
+                <div key={head._id || index} className="w-1/7 h-64 relative">
+                  <div 
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: `url(${head.imageUrl || "/default-user.png"})`,
+                      backgroundPosition: "center top",
+                      backgroundSize: "cover"
+                    }}
+                  />
+                  {divisionLogo && (
+                    <div className="absolute bottom-2 right-2 w-10 h-10 bg-white/80 rounded-full p-1">
+                      <img 
+                        src={divisionLogo} 
+                        alt="Logo Divisi" 
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             
             {/* Chair and Vice Chair */}
             {chairperson && (
-              <div 
-                className="w-1/7 h-64"
-                style={{
-                  backgroundImage: `url(${chairperson.imageUrl || "/default-user.png"})`,
-                  backgroundPosition: "center top",
-                  backgroundSize: "cover"
-                }}
-              />
+              <div className="w-1/7 h-64 relative">
+                <div 
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: `url(${chairperson.imageUrl || "/default-user.png"})`,
+                    backgroundPosition: "center top",
+                    backgroundSize: "cover"
+                  }}
+                />
+                <div className="absolute bottom-2 right-2 w-10 h-10 bg-white/80 rounded-full p-1">
+                  <img 
+                    src={settings?.logoUrl || "/logo.png"} 
+                    alt="Logo Himpunan" 
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              </div>
             )}
             
             {viceChairperson && (
-              <div 
-                className="w-1/7 h-64"
-                style={{
-                  backgroundImage: `url(${viceChairperson.imageUrl || "/default-user.png"})`,
-                  backgroundPosition: "center top",
-                  backgroundSize: "cover"
-                }}
-              />
+              <div className="w-1/7 h-64 relative">
+                <div 
+                  className="absolute inset-0"
+                  style={{
+                    backgroundImage: `url(${viceChairperson.imageUrl || "/default-user.png"})`,
+                    backgroundPosition: "center top",
+                    backgroundSize: "cover"
+                  }}
+                />
+                <div className="absolute bottom-2 right-2 w-10 h-10 bg-white/80 rounded-full p-1">
+                  <img 
+                    src={settings?.logoUrl || "/logo.png"} 
+                    alt="Logo Himpunan" 
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              </div>
             )}
             
             {/* Right division heads */}
-            {divisionHeads?.slice(3, 6).map((head, index) => (
-              <div 
-                key={head._id || index} 
-                className="w-1/7 h-64"
-                style={{
-                  backgroundImage: `url(${head.imageUrl || "/default-user.png"})`,
-                  backgroundPosition: "center top",
-                  backgroundSize: "cover"
-                }}
-              />
-            ))}
+            {divisionHeads?.slice(3, 6).map((head, index) => {
+              // Determine which division logo to display
+              let divisionLogo = null;
+              if (head.position.toLowerCase().includes("media")) {
+                divisionLogo = settings?.divisionLogos?.media;
+              } else if (head.position.toLowerCase().includes("keuangan")) {
+                divisionLogo = settings?.divisionLogos?.keuangan;
+              } else if (head.position.toLowerCase().includes("acara")) {
+                divisionLogo = settings?.divisionLogos?.acara;
+              }
+              
+              return (
+                <div key={head._id || index} className="w-1/7 h-64 relative">
+                  <div 
+                    className="absolute inset-0"
+                    style={{
+                      backgroundImage: `url(${head.imageUrl || "/default-user.png"})`,
+                      backgroundPosition: "center top",
+                      backgroundSize: "cover"
+                    }}
+                  />
+                  {divisionLogo && (
+                    <div className="absolute bottom-2 right-2 w-10 h-10 bg-white/80 rounded-full p-1">
+                      <img 
+                        src={divisionLogo} 
+                        alt="Logo Divisi" 
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
         
@@ -157,7 +253,7 @@ export default function Hero({ scrollToSection }: HeroProps) {
       {/* Logo at center top - above everything */}
       <div className="relative z-10 mx-auto pt-20 pb-4">
         <img 
-          src="/logo.png" 
+          src={settings?.logoUrl || "/logo.png"} 
           alt="Logo Himpunan" 
           className="w-32 h-32 mx-auto"
         />
