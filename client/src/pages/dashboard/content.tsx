@@ -1,160 +1,184 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, FileEdit } from "lucide-react";
+import { useQuery } from '@tanstack/react-query';
+import { ArrowLeft, FileEdit } from 'lucide-react';
+import { useState } from 'react';
 
-import Header from "@/components/dashboard/header";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import ContentEditor from "@/components/dashboard/content-editor";
-import { useAuth } from "@/lib/auth";
+import ContentEditor from '@/components/dashboard/content-editor';
+import Header from '@/components/dashboard/header';
+import Sidebar from '@/components/dashboard/sidebar';
+import { Button } from '@/components/ui/button';
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useAuth } from '@/lib/auth';
 
 interface Settings {
-  _id?: string;
-  id?: number;
-  siteName: string;
-  siteTagline: string;
-  siteDescription: string;
-  aboutUs: string;
-  visionMission: string;
-  contactEmail: string;
-  address: string;
-  enableRegistration: boolean;
-  maintenanceMode: boolean;
-  footerText: string;
-  logoUrl: string;
-  divisionLogos: {
-    akademik: string;
-    humas: string;
-    pengembangan: string;
-    media: string;
-    keuangan: string;
-    acara: string;
-  };
-  divisionColors: {
-    akademik: string;
-    humas: string;
-    pengembangan: string;
-    leadership: string;
-    media: string;
-    keuangan: string;
-    acara: string;
-  };
-  socialLinks: {
-    facebook: string;
-    twitter: string;
-    instagram: string;
-    youtube: string;
-  };
+	_id?: string;
+	id?: number;
+	siteName: string;
+	siteTagline: string;
+	siteDescription: string;
+	aboutUs: string;
+	visionMission: string;
+	contactEmail: string;
+	address: string;
+	enableRegistration: boolean;
+	maintenanceMode: boolean;
+	footerText: string;
+	logoUrl: string;
+	divisionLogos: {
+		akademik: string;
+		humas: string;
+		pengembangan: string;
+		media: string;
+		keuangan: string;
+		acara: string;
+	};
+	divisionColors: {
+		akademik: string;
+		humas: string;
+		pengembangan: string;
+		leadership: string;
+		media: string;
+		keuangan: string;
+		acara: string;
+	};
+	socialLinks: {
+		facebook: string;
+		twitter: string;
+		instagram: string;
+		youtube: string;
+	};
 }
 
 export default function Content() {
-  const [isEditing, setIsEditing] = useState(false);
-  const { data: settings, isPending } = useQuery<Settings>({
-    queryKey: ['/api/settings'],
-    refetchOnWindowFocus: false,
-  });
-  
-  const { hasPermission } = useAuth();
-  const canEdit = hasPermission(['owner', 'admin', 'chair', 'vice_chair']);
+	const [isEditing, setIsEditing] = useState(false);
+	const { data: settings, isPending } = useQuery<Settings>({
+		queryKey: ['/api/settings'],
+		refetchOnWindowFocus: false,
+	});
 
-  const handleEdit = () => {
-    setIsEditing(true);
-  };
+	const { hasPermission } = useAuth();
+	const canEdit = hasPermission(['owner', 'admin', 'chair', 'vice_chair']);
 
-  const handleCancelEdit = () => {
-    setIsEditing(false);
-  };
+	const handleEdit = () => {
+		setIsEditing(true);
+	};
 
-  const handleSaveEdit = () => {
-    setIsEditing(false);
-  };
+	const handleCancelEdit = () => {
+		setIsEditing(false);
+	};
 
-  return (
-    <div>
-      <Header title="Konten Halaman Publik" />
-      
-      {isEditing ? (
-        <div className="mb-4">
-          <Button 
-            variant="ghost" 
-            onClick={handleCancelEdit}
-            size="sm"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Kembali
-          </Button>
-        </div>
-      ) : null}
+	const handleSaveEdit = () => {
+		setIsEditing(false);
+	};
 
-      {isPending ? (
-        <div className="text-center p-8">Memuat data...</div>
-      ) : isEditing ? (
-        <ContentEditor
-          settings={settings}
-          onSave={handleSaveEdit}
-          onCancel={handleCancelEdit}
-        />
-      ) : (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold">Konten Halaman</h2>
-            {canEdit && (
-              <Button onClick={handleEdit}>
-                <FileEdit className="mr-2 h-4 w-4" />
-                Edit Konten
-              </Button>
-            )}
-          </div>
-          
-          <Tabs defaultValue="about">
-            <TabsList>
-              <TabsTrigger value="about">Tentang Kami</TabsTrigger>
-              <TabsTrigger value="vision">Visi & Misi</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="about">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Konten Tentang Kami</CardTitle>
-                  <CardDescription>
-                    Konten ini akan ditampilkan di bagian "Tentang Kami" pada halaman publik
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {settings?.aboutUs ? (
-                    <div className="prose max-w-none border rounded-md p-4 bg-gray-50">
-                      <div dangerouslySetInnerHTML={{ __html: settings.aboutUs }} />
-                    </div>
-                  ) : (
-                    <div className="text-gray-500 italic">Belum ada konten.</div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-            
-            <TabsContent value="vision">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Konten Visi & Misi</CardTitle>
-                  <CardDescription>
-                    Konten ini akan ditampilkan di bagian "Visi & Misi" pada halaman publik
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {settings?.visionMission ? (
-                    <div className="prose max-w-none border rounded-md p-4 bg-gray-50">
-                      <div dangerouslySetInnerHTML={{ __html: settings.visionMission }} />
-                    </div>
-                  ) : (
-                    <div className="text-gray-500 italic">Belum ada konten.</div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
-        </div>
-      )}
-    </div>
-  );
+	return (
+		<div className="flex min-h-screen bg-gray-50">
+			<Sidebar />
+			<div className="flex-1 flex flex-col">
+				<Header title="Konten Halaman Publik" />
+				<main className="flex-1 p-6">
+					{isEditing ? (
+						<div className="mb-4">
+							<Button
+								variant="ghost"
+								onClick={handleCancelEdit}
+								size="sm">
+								<ArrowLeft className="mr-2 h-4 w-4" />
+								Kembali
+							</Button>
+						</div>
+					) : null}
+
+					{isPending ? (
+						<div className="text-center p-8">Memuat data...</div>
+					) : isEditing ? (
+						<ContentEditor
+							settings={settings}
+							onSave={handleSaveEdit}
+							onCancel={handleCancelEdit}
+						/>
+					) : (
+						<div className="space-y-6">
+							<div className="flex justify-between items-center">
+								<h2 className="text-2xl font-bold">Konten Halaman</h2>
+								{canEdit && (
+									<Button onClick={handleEdit}>
+										<FileEdit className="mr-2 h-4 w-4" />
+										Edit Konten
+									</Button>
+								)}
+							</div>
+
+							<Tabs defaultValue="about">
+								<TabsList>
+									<TabsTrigger value="about">Tentang Kami</TabsTrigger>
+									<TabsTrigger value="vision">Visi & Misi</TabsTrigger>
+								</TabsList>
+
+								<TabsContent value="about">
+									<Card>
+										<CardHeader>
+											<CardTitle>Konten Tentang Kami</CardTitle>
+											<CardDescription>
+												Konten ini akan ditampilkan di bagian "Tentang Kami"
+												pada halaman publik
+											</CardDescription>
+										</CardHeader>
+										<CardContent>
+											{settings?.aboutUs ? (
+												<div className="prose max-w-none border rounded-md p-4 bg-gray-50">
+													<div
+														dangerouslySetInnerHTML={{
+															__html: settings.aboutUs,
+														}}
+													/>
+												</div>
+											) : (
+												<div className="text-gray-500 italic">
+													Belum ada konten.
+												</div>
+											)}
+										</CardContent>
+									</Card>
+								</TabsContent>
+
+								<TabsContent value="vision">
+									<Card>
+										<CardHeader>
+											<CardTitle>Konten Visi & Misi</CardTitle>
+											<CardDescription>
+												Konten ini akan ditampilkan di bagian "Visi & Misi" pada
+												halaman publik
+											</CardDescription>
+										</CardHeader>
+										<CardContent>
+											{settings?.visionMission ? (
+												<div className="prose max-w-none border rounded-md p-4 bg-gray-50">
+													<div
+														dangerouslySetInnerHTML={{
+															__html: settings.visionMission,
+														}}
+													/>
+												</div>
+											) : (
+												<div className="text-gray-500 italic">
+													Belum ada konten.
+												</div>
+											)}
+										</CardContent>
+									</Card>
+								</TabsContent>
+							</Tabs>
+						</div>
+					)}
+				</main>
+			</div>
+		</div>
+	);
 }
