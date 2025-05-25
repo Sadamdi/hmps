@@ -7,6 +7,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
+import { log } from "console";
 import { useCallback, useEffect, useState } from "react";
 import ReactFlow, {
   Background,
@@ -114,6 +115,7 @@ export default function Structure() {
       const level1 = [...ketua, ...wakil];
       const level1Spacing = 350;
       const level1Offset = ((level1.length - 1) * level1Spacing) / 2;
+
       level1.forEach((member, i) => {
         nodes.push({
           id: `${member.id}`,
@@ -176,8 +178,10 @@ export default function Structure() {
           const anggotaSpacing = 180;
           const anggotaOffset = ((anggotaDiv.length - 1) * anggotaSpacing) / 2;
           anggotaDiv.forEach((member, j) => {
+            console.log(member);
+            // Tambahkan node anggota
             nodes.push({
-              id: `${member.id}`,
+              id: `${member.id}`, // harus sama dengan yang di edge.target
               type: "memberNode",
               data: { member },
               position: {
@@ -190,12 +194,13 @@ export default function Structure() {
               },
               draggable: true,
             });
-            // Garis dari ketua divisi ke anggota
+
+            // Tambahkan edge dari ketua divisi ke anggota
             edges.push({
-              id: `e-div-${ketuaDiv[0].id}-${member.id}`,
-              source: `${ketuaDiv[0].id}`,
-              target: `${member.id}`,
-              type: "smoothstep",
+              id: `e-div-${ketuaDiv[0].id}-${member.id}`, // id unik edge
+              source: `${ketuaDiv[0].id}`, // harus sama dengan node ketua.id
+              target: `${member.id}`, // harus sama dengan node anggota.id
+              type: "smoothstep", // tipe garis
             });
           });
         }
