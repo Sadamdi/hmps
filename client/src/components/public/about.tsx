@@ -20,21 +20,23 @@ interface Settings {
 }
 
 export default function About() {
-  const { data: settings } = useQuery<Settings>({ 
-    queryKey: ['/api/settings'],
+  const { data: settings } = useQuery<Settings>({
+    queryKey: ["/api/settings"],
   });
 
   return (
     <section id="about" className="py-16 bg-white">
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold text-primary mb-2">Tentang Kami</h2>
-          <div className="w-24 h-1 bg-primary mx-auto"></div>
+          <h2 className="text-3xl md:text-4xl font-bold text-primary mb-2 tracking-tight">
+            Tentang Kami
+          </h2>
+          <div className="w-24 h-1 bg-primary mx-auto rounded"></div>
         </div>
-        
-        <div className="max-w-4xl mx-auto">
+
+        <div className="max-w-3xl mx-auto text-justify">
           {settings?.aboutUs ? (
-            <div className="prose prose-lg mx-auto">
+            <div className="prose prose-lg lg:prose-xl prose-slate leading-relaxed space-y-4">
               <div dangerouslySetInnerHTML={{ __html: settings.aboutUs }} />
             </div>
           ) : (
