@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 
+// Tambahkan deklarasi global untuk window.dinoCheat
+// @ts-ignore
+declare global {
+	interface Window {
+		dinoCheat?: (command: string) => void;
+	}
+}
+
 // Komponen Dino Run sederhana
 function DinoRun() {
 	const [isJumping, setIsJumping] = useState(false);
@@ -7,10 +15,12 @@ function DinoRun() {
 	const [obstacleLeft, setObstacleLeft] = useState(400);
 	const [score, setScore] = useState(0);
 	const [gameOver, setGameOver] = useState(false);
+	const [obstacleSpeed, setObstacleSpeed] = useState(4);
+	const [obstaclesEnabled, setObstaclesEnabled] = useState(true);
+	const [isInvisible, setIsInvisible] = useState(false);
 	const gameRef = useRef<HTMLDivElement>(null);
 	const jumpHeight = 80;
 	const gravity = 4;
-	const obstacleSpeed = 4;
 
 	// Dino jump
 	const handleJump = () => {
@@ -54,14 +64,20 @@ function DinoRun() {
 			});
 		}, 20);
 		return () => clearInterval(moveObstacle);
-	}, [gameOver]);
+	}, [gameOver, obstacleSpeed]);
 
 	// Collision detection
 	useEffect(() => {
-		if (obstacleLeft > 40 && obstacleLeft < 80 && dinoBottom < 40) {
+		if (
+			!isInvisible &&
+			obstaclesEnabled &&
+			obstacleLeft > 40 &&
+			obstacleLeft < 80 &&
+			dinoBottom < 40
+		) {
 			setGameOver(true);
 		}
-	}, [obstacleLeft, dinoBottom]);
+	}, [obstacleLeft, dinoBottom, isInvisible, obstaclesEnabled]);
 
 	// Restart game
 	const handleRestart = () => {
@@ -69,6 +85,9 @@ function DinoRun() {
 		setScore(0);
 		setObstacleLeft(400);
 		setDinoBottom(0);
+		setObstacleSpeed(4);
+		setObstaclesEnabled(true);
+		setIsInvisible(false);
 	};
 
 	// Keyboard control
@@ -85,20 +104,54 @@ function DinoRun() {
 		return () => window.removeEventListener('keydown', handleKey);
 	});
 
+	// Cheat system
+	useEffect(() => {
+		function dinoCheat(command: string) {
+			if (typeof command !== 'string') return;
+			command = command.trim();
+			if (command.startsWith('/speed ')) {
+				const speed = parseInt(command.split(' ')[1]);
+				if (!isNaN(speed)) {
+					setObstacleSpeed(speed);
+					console.log(`Speed set to ${speed}`);
+				}
+			} else if (command === '/obstacle') {
+				setObstaclesEnabled((prev) => {
+					console.log(`Obstacles ${prev ? 'disabled' : 'enabled'}`);
+					return !prev;
+				});
+			} else if (command === '/invisible') {
+				setIsInvisible((prev) => {
+					console.log(`Invisible mode ${prev ? 'disabled' : 'enabled'}`);
+					return !prev;
+				});
+			}
+		}
+		// Pasang ke window agar bisa dipanggil dari console
+		window.dinoCheat = dinoCheat;
+		return () => {
+			delete window.dinoCheat;
+		};
+	}, []);
+
 	return (
 		<div
 			ref={gameRef}
 			className="relative w-[400px] h-[150px] mx-auto bg-white border rounded-lg overflow-hidden shadow-lg mt-8">
 			{/* Dino */}
 			<div
-				className="absolute left-10 w-10 h-10 bg-green-600 rounded-b-full border-b-4 border-green-800"
+				className={`absolute left-10 w-10 h-10 bg-green-600 rounded-b-full border-b-4 border-green-800 ${
+					isInvisible ? 'opacity-50' : ''
+				}`}
 				style={{ bottom: dinoBottom }}
 			/>
 			{/* Obstacle */}
-			<div
-				className="absolute bottom-0 w-8 h-16 bg-gray-700 rounded"
-				style={{ left: obstacleLeft }}
-			/>
+			{obstaclesEnabled && (
+				<div
+					className="absolute bottom-0 w-8 h-16 bg-gray-700 rounded"
+					style={{ left: obstacleLeft }}
+				/>
+			)}
 			{/* Ground */}
 			<div className="absolute bottom-0 left-0 w-full h-4 bg-yellow-400" />
 			{/* Score */}
@@ -131,6 +184,10 @@ export default function MaintenanceMode() {
 			<DinoRun />
 			<div className="mt-6 text-gray-400 text-xs">
 				Tekan <b>Spasi</b> untuk lompat, <b>Enter</b> untuk restart
+			</div>
+			<div className="mt-2 text-gray-400 text-xs">
+				Cheat: <b>/speed [angka]</b> untuk mengubah kecepatan, <b>/obstacle</b>{' '}
+				untuk toggle obstacle, <b>/invisible</b> untuk mode invisible
 			</div>
 		</div>
 	);
