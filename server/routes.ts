@@ -9,6 +9,7 @@ import {
 	verifyPassword,
 } from './auth';
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
+import chatRouter from './routes/chat';
 import { uploadHandler, uploadMiddleware } from './upload';
 
 // Define user type to match MongoDB schema
@@ -211,11 +212,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					(req.user as UserWithRole)?.role === 'admin' &&
 					existingUser.role === 'owner'
 				) {
-					return res
-						.status(403)
-						.json({
-							message: 'You do not have permission to update this user',
-						});
+					return res.status(403).json({
+						message: 'You do not have permission to update this user',
+					});
 				}
 
 				// Process password if provided
@@ -454,11 +453,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						existingArticle.authorId.toString();
 
 				if (!canEdit) {
-					return res
-						.status(403)
-						.json({
-							message: 'You do not have permission to edit this article',
-						});
+					return res.status(403).json({
+						message: 'You do not have permission to edit this article',
+					});
 				}
 
 				// Process updates
@@ -514,11 +511,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				(req.user as UserWithRole)?._id === existingArticle.authorId.toString();
 
 			if (!canDelete) {
-				return res
-					.status(403)
-					.json({
-						message: 'You do not have permission to delete this article',
-					});
+				return res.status(403).json({
+					message: 'You do not have permission to delete this article',
+				});
 			}
 
 			// Delete article
@@ -1032,6 +1027,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 		}
 	);
+
+	app.use('/api/chat', chatRouter);
 
 	const server = createServer(app);
 	return server;

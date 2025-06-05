@@ -2,6 +2,7 @@ import express, { NextFunction, type Request, Response } from 'express';
 import path from 'path';
 import { connectDB } from '../db/mongodb';
 import { registerRoutes } from './routes';
+import { ChatService } from './services/chat-service';
 import { log, serveStatic, setupVite } from './vite';
 
 // Set MongoDB URI yang Anda berikan
@@ -51,6 +52,16 @@ app.use((req, res, next) => {
 
 	next();
 });
+
+// Setup cleanup scheduler
+const cleanupInterval = 6 * 60 * 60 * 1000; // 6 jam
+setInterval(async () => {
+	try {
+		await ChatService.cleanupUnusedImages();
+	} catch (error) {
+		console.error('Error in cleanup scheduler:', error);
+	}
+}, cleanupInterval);
 
 (async () => {
 	// Connect to MongoDB
