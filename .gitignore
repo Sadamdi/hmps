@@ -5,3 +5,5 @@ server/public
 vite.config.ts.*
 *.tar.gz
 .env
+server/gen-lang-client-0095636115-aab30f032fed.json
+server/gen-lang-client-0095636115-aab30f032fed - Copy.json
