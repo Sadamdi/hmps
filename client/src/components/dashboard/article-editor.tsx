@@ -1,3 +1,5 @@
+import { GDriveLinkInput } from '@/components/GDriveLinkInput';
+import { MediaDisplay } from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,8 +10,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation } from '@tanstack/react-query';
-import { Image, Loader2, Upload } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { Image, Loader2 } from 'lucide-react';
+import { useRef, useState } from 'react';
 
 // Note: In a real implementation, you would use a proper WYSIWYG editor like TinyMCE, CKEditor, or Quill
 // This is a simplified version for the demo
@@ -39,11 +41,12 @@ export default function ArticleEditor({
 	const [title, setTitle] = useState(article?.title || '');
 	const [excerpt, setExcerpt] = useState(article?.excerpt || '');
 	const [content, setContent] = useState(article?.content || '');
-	const [imagePreview, setImagePreview] = useState(article?.image || '');
-	const [imageFile, setImageFile] = useState<File | null>(null);
+	const [imageUrl, setImageUrl] = useState(article?.image || '');
+	const [gdriveUrl, setGdriveUrl] = useState('');
+	const [isGdriveValid, setIsGdriveValid] = useState(false);
+	const [gdriveError, setGdriveError] = useState<string | undefined>();
 	const [isPublished, setIsPublished] = useState(article?.published || false);
 	const [activeTab, setActiveTab] = useState('edit');
-	const fileInputRef = useRef<HTMLInputElement>(null);
 	const contentImageInputRef = useRef<HTMLInputElement>(null);
 
 	// Create or update article mutation
@@ -76,13 +79,11 @@ export default function ArticleEditor({
 		},
 	});
 
-	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (file) {
-			setImageFile(file);
-			// Create preview URL
-			const previewUrl = URL.createObjectURL(file);
-			setImagePreview(previewUrl);
+	const handleGdriveValidation = (isValid: boolean, error?: string) => {
+		setIsGdriveValid(isValid);
+		setGdriveError(error);
+		if (isValid && gdriveUrl) {
+			setImageUrl(gdriveUrl);
 		}
 	};
 
@@ -115,25 +116,36 @@ export default function ArticleEditor({
 			return;
 		}
 
-		if (!imagePreview && !imageFile) {
+		if (!imageUrl && !gdriveUrl) {
 			toast({
 				title: 'Error',
-				description: 'Please upload a thumbnail image',
+				description:
+					'Please provide a Google Drive link for the thumbnail image',
+				variant: 'destructive',
+			});
+			return;
+		}
+
+		if (gdriveUrl && !isGdriveValid) {
+			toast({
+				title: 'Error',
+				description:
+					gdriveError || 'Google Drive link is not valid or accessible',
 				variant: 'destructive',
 			});
 			return;
 		}
 
 		try {
-			// Create FormData for file upload
+			// Create FormData for submission
 			const formData = new FormData();
 			formData.append('title', title);
 			formData.append('excerpt', excerpt);
 			formData.append('content', content);
 			formData.append('published', isPublished.toString());
 
-			if (imageFile) {
-				formData.append('image', imageFile);
+			if (gdriveUrl && isGdriveValid) {
+				formData.append('gdriveUrl', gdriveUrl);
 			}
 
 			await saveArticleMutation.mutateAsync(formData);
@@ -142,8 +154,9 @@ export default function ArticleEditor({
 			setTitle('');
 			setExcerpt('');
 			setContent('');
-			setImageFile(null);
-			setImagePreview('');
+			setImageUrl('');
+			setGdriveUrl('');
+			setIsGdriveValid(false);
 
 			toast({
 				title: 'Success',
@@ -224,15 +237,6 @@ export default function ArticleEditor({
 		setContent(formattedText);
 	};
 
-	// Cleanup image preview URL on unmount
-	useEffect(() => {
-		return () => {
-			if (imagePreview && imagePreview.startsWith('blob:')) {
-				URL.revokeObjectURL(imagePreview);
-			}
-		};
-	}, [imagePreview]);
-
 	return (
 		<div className="space-y-6">
 			<div className="space-y-4">
@@ -258,35 +262,26 @@ export default function ArticleEditor({
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor="thumbnail">Thumbnail Image</Label>
-					<div className="flex items-center space-x-4">
-						<div
-							className="w-32 h-32 border-2 border-dashed rounded-md flex items-center justify-center cursor-pointer overflow-hidden"
-							onClick={() => fileInputRef.current?.click()}>
-							{imagePreview ? (
-								<img
-									src={imagePreview}
-									alt="Thumbnail Preview"
+					<GDriveLinkInput
+						label="Thumbnail Image"
+						value={gdriveUrl}
+						onChange={setGdriveUrl}
+						onValidation={handleGdriveValidation}
+						placeholder="Paste Google Drive link for article thumbnail..."
+					/>
+
+					{imageUrl && (
+						<div className="mt-4">
+							<Label>Preview:</Label>
+							<div className="w-32 h-32 border rounded-md overflow-hidden mt-2">
+								<MediaDisplay
+									src={imageUrl}
+									alt="Article thumbnail preview"
 									className="w-full h-full object-cover"
 								/>
-							) : (
-								<Upload className="h-6 w-6 text-gray-400" />
-							)}
+							</div>
 						</div>
-						<input
-							ref={fileInputRef}
-							type="file"
-							accept="image/*"
-							className="hidden"
-							onChange={handleFileChange}
-						/>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => fileInputRef.current?.click()}>
-							Choose Image
-						</Button>
-					</div>
+					)}
 				</div>
 
 				<Tabs

@@ -1,344 +1,439 @@
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
+import { useToast } from '@/hooks/use-toast';
+import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useMutation } from '@tanstack/react-query';
 import {
-  Image as ImageIcon,
-  Loader2,
-  Plus,
-  Upload,
-  Video,
-  X,
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+	Image as ImageIcon,
+	Loader2,
+	Plus,
+	Upload,
+	Video,
+	X,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { GDriveLinkInput } from '../GDriveLinkInput';
+import { MediaDisplay } from '../MediaDisplay';
 
 interface LibraryItem {
-  id: number;
-  title: string;
-  description: string;
-  fullDescription: string;
-  images: string[];
-  date: string;
-  time: string;
-  type: "photo" | "video";
-  createdAt: string;
+	id: number;
+	title: string;
+	description: string;
+	fullDescription: string;
+	images: string[];
+	date: string;
+	time: string;
+	type: 'photo' | 'video';
+	createdAt: string;
 }
 
 interface MediaUploaderProps {
-  item: LibraryItem | null;
-  onSave: () => void;
-  onCancel: () => void;
+	item: LibraryItem | null;
+	onSave: () => void;
+	onCancel: () => void;
 }
 
 export default function MediaUploader({
-  item,
-  onSave,
-  onCancel,
+	item,
+	onSave,
+	onCancel,
 }: MediaUploaderProps) {
-  const { toast } = useToast();
-  const [title, setTitle] = useState(item?.title || "");
-  const [description, setDescription] = useState(item?.description || "");
-  const [fullDescription, setFullDescription] = useState(
-    item?.fullDescription || ""
-  );
-  const [mediaType, setMediaType] = useState<"photo" | "video">(
-    item?.type || "photo"
-  );
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>(item?.images || []);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+	const { toast } = useToast();
+	const [title, setTitle] = useState(item?.title || '');
+	const [description, setDescription] = useState(item?.description || '');
+	const [fullDescription, setFullDescription] = useState(
+		item?.fullDescription || ''
+	);
+	const [mediaType, setMediaType] = useState<'photo' | 'video'>(
+		item?.type || 'photo'
+	);
+	const [gdriveUrls, setGdriveUrls] = useState<string[]>(['']);
+	const [gdriveValidations, setGdriveValidations] = useState<{
+		[key: number]: boolean;
+	}>({});
+	const [gdriveErrors, setGdriveErrors] = useState<{ [key: number]: string }>(
+		{}
+	);
+	const [gdriveMediaTypes, setGdriveMediaTypes] = useState<{
+		[key: number]: 'image' | 'video';
+	}>({});
+	const [mediaUrls, setMediaUrls] = useState<string[]>(item?.images || []);
 
-  // Save media mutation
-  const saveMediaMutation = useMutation({
-    mutationFn: async (formData: FormData) => {
-      if (item) {
-        // Update existing item - Use MongoDB _id or PostgreSQL id
-        const itemId = (item as any)._id || item.id;
+	// Initialize form data when editing
+	useEffect(() => {
+		if (item) {
+			setTitle(item.title || '');
+			setDescription(item.description || '');
+			setFullDescription(item.fullDescription || '');
+			setMediaType(item.type || 'photo');
 
-        console.log("Updating library item with ID:", itemId);
+			// Load Google Drive URLs if they exist
+			if (item.images && item.images.length > 0) {
+				console.log('Loading existing images for edit:', item.images);
+				setGdriveUrls(item.images);
+				setMediaUrls(item.images);
 
-        if (!itemId) {
-          throw new Error("Invalid item ID");
-        }
+				// Set all as valid since they're already saved
+				const validations: { [key: number]: boolean } = {};
+				const mediaTypes: { [key: number]: 'image' | 'video' } = {};
+				item.images.forEach((url: string, index: number) => {
+					validations[index] = true;
+					// Determine media type based on item type or URL
+					mediaTypes[index] = item.type === 'video' ? 'video' : 'image';
+				});
+				setGdriveValidations(validations);
+				setGdriveMediaTypes(mediaTypes);
+			}
+		}
+	}, [item]);
 
-        return await apiRequest("PUT", `/api/library/${itemId}`, formData);
-      } else {
-        // Create new item
-        return await apiRequest("POST", "/api/library", formData);
-      }
-    },
-    onSuccess: (data) => {
-      // Invalidate queries to refresh data
-      queryClient.invalidateQueries({ queryKey: ["/api/library"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/dashboard/stats"] });
+	// Save media mutation
+	const saveMediaMutation = useMutation({
+		mutationFn: async (formData: FormData) => {
+			if (item) {
+				// Update existing item - Use MongoDB _id or PostgreSQL id
+				const itemId = (item as any)._id || item.id;
 
-      // Clear form after successful upload
-      setTitle("");
-      setDescription("");
-      setFullDescription("");
-      setFiles([]);
-      setPreviews([]);
+				console.log('Updating library item with ID:', itemId);
 
-      toast({
-        title: "Success",
-        description: "Media uploaded successfully",
-      });
+				if (!itemId) {
+					throw new Error('Invalid item ID');
+				}
 
-      onSave();
-    },
-    onError: (error: any) => {
-      const message =
-        error?.response?.data?.message || // kalau pakai axios & server kirim error message
-        error?.message || // pesan dari error JS biasa
-        "Failed to save the media item. Please try again."; // fallback
+				return await apiRequest('PUT', `/api/library/${itemId}`, formData);
+			} else {
+				// Create new item
+				return await apiRequest('POST', '/api/library', formData);
+			}
+		},
+		onSuccess: (data) => {
+			// Invalidate queries to refresh data
+			queryClient.invalidateQueries({ queryKey: ['/api/library'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 
-      toast({
-        title: "Error",
-        description: message,
-        variant: "destructive",
-      });
+			// Clear form after successful upload
+			setTitle('');
+			setDescription('');
+			setFullDescription('');
+			setGdriveUrls(['']);
+			setGdriveValidations({});
+			setGdriveErrors({});
+			setGdriveMediaTypes({});
+			setMediaUrls([]);
 
-      console.error("Save error:", error);
-    },
-  });
+			toast({
+				title: 'Success',
+				description: 'Media uploaded successfully',
+			});
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (!selectedFiles) return;
+			onSave();
+		},
+		onError: (error: any) => {
+			const message =
+				error?.response?.data?.message || // kalau pakai axios & server kirim error message
+				error?.message || // pesan dari error JS biasa
+				'Failed to save the media item. Please try again.'; // fallback
 
-    // Create array from FileList
-    const filesArray = Array.from(selectedFiles);
+			toast({
+				title: 'Error',
+				description: message,
+				variant: 'destructive',
+			});
 
-    // Add the new files to the existing files
-    setFiles((prev) => [...prev, ...filesArray]);
+			console.error('Save error:', error);
+		},
+	});
 
-    // Create preview URLs
-    const newPreviews = filesArray.map((file) => URL.createObjectURL(file));
-    setPreviews((prev) => [...prev, ...newPreviews]);
-  };
+	const handleGdriveValidation = (
+		index: number,
+		isValid: boolean,
+		error?: string
+	) => {
+		setGdriveValidations((prev) => ({ ...prev, [index]: isValid }));
+		setGdriveErrors((prev) => ({ ...prev, [index]: error || '' }));
 
-  const removeFile = (index: number) => {
-    // Remove file from files array
-    setFiles((prevFiles) => {
-      const newFiles = [...prevFiles];
-      newFiles.splice(index, 1);
-      return newFiles;
-    });
+		// Update media URLs when valid
+		if (isValid && gdriveUrls[index]) {
+			setMediaUrls((prev) => {
+				const newUrls = [...prev];
+				newUrls[index] = gdriveUrls[index];
+				return newUrls;
+			});
+		}
+	};
 
-    // If it's a new preview (blob URL), revoke it to avoid memory leaks
-    if (previews[index].startsWith("blob:")) {
-      URL.revokeObjectURL(previews[index]);
-    }
+	const handleGdriveMediaTypeChange = (
+		index: number,
+		type: 'image' | 'video'
+	) => {
+		setGdriveMediaTypes((prev) => ({ ...prev, [index]: type }));
+	};
 
-    // Remove preview
-    setPreviews((prevPreviews) => {
-      const newPreviews = [...prevPreviews];
-      newPreviews.splice(index, 1);
-      return newPreviews;
-    });
-  };
+	const addGdriveInput = () => {
+		setGdriveUrls((prev) => [...prev, '']);
+	};
 
-  const handleSave = async () => {
-    // Validation
-    if (!title.trim()) {
-      toast({
-        title: "Error",
-        description: "Title is required",
-        variant: "destructive",
-      });
-      return;
-    }
+	const removeGdriveInput = (index: number) => {
+		setGdriveUrls((prev) => prev.filter((_, i) => i !== index));
+		setGdriveValidations((prev) => {
+			const newValidations = { ...prev };
+			delete newValidations[index];
+			return newValidations;
+		});
+		setGdriveErrors((prev) => {
+			const newErrors = { ...prev };
+			delete newErrors[index];
+			return newErrors;
+		});
+		setGdriveMediaTypes((prev) => {
+			const newTypes = { ...prev };
+			delete newTypes[index];
+			return newTypes;
+		});
+		setMediaUrls((prev) => prev.filter((_, i) => i !== index));
+	};
 
-    if (!description.trim()) {
-      toast({
-        title: "Error",
-        description: "Please provide a short description",
-        variant: "destructive",
-      });
-      return;
-    }
+	const updateGdriveUrl = (index: number, url: string) => {
+		setGdriveUrls((prev) => {
+			const newUrls = [...prev];
+			newUrls[index] = url;
+			return newUrls;
+		});
+	};
 
-    if (previews.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please upload at least one media file",
-        variant: "destructive",
-      });
-      return;
-    }
+	const handleSave = async () => {
+		// Validation
+		if (!title.trim()) {
+			toast({
+				title: 'Error',
+				description: 'Title is required',
+				variant: 'destructive',
+			});
+			return;
+		}
 
-    try {
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append("title", title);
-      formData.append("description", description);
-      formData.append("fullDescription", fullDescription);
-      formData.append("type", mediaType);
+		if (!description.trim()) {
+			toast({
+				title: 'Error',
+				description: 'Please provide a short description',
+				variant: 'destructive',
+			});
+			return;
+		}
 
-      // Append existing images that aren't new uploads
-      if (item) {
-        item.images.forEach((img, index) => {
-          // Check if this image is still in previews (not removed)
-          if (previews.includes(img)) {
-            formData.append(`existingImages[${index}]`, img);
-          }
-        });
-      }
+		// Validate Google Drive URLs
+		const validUrls = gdriveUrls.filter((url) => url.trim() !== '');
+		if (validUrls.length === 0) {
+			toast({
+				title: 'Error',
+				description: 'Please provide at least one Google Drive link',
+				variant: 'destructive',
+			});
+			return;
+		}
 
-      // Append new files
-      files.forEach((file, index) => {
-        formData.append(`images`, file);
-      });
+		// Check if all provided URLs are valid
+		const hasInvalidUrls = validUrls.some(
+			(url, index) => !gdriveValidations[index]
+		);
+		if (hasInvalidUrls) {
+			toast({
+				title: 'Error',
+				description:
+					'Please make sure all Google Drive links are valid and accessible',
+				variant: 'destructive',
+			});
+			return;
+		}
 
-      await saveMediaMutation.mutateAsync(formData);
-    } catch (error) {
-      console.error("Upload error:", error);
-      toast({
-        title: "Error",
-        description: "Failed to upload media. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
+		try {
+			// Create FormData for submission
+			const formData = new FormData();
+			formData.append('title', title);
+			formData.append('description', description);
+			formData.append('fullDescription', fullDescription);
+			formData.append('type', mediaType);
 
-  // Cleanup preview URLs on unmount
-  useEffect(() => {
-    return () => {
-      previews.forEach((preview) => {
-        if (preview.startsWith("blob:")) {
-          URL.revokeObjectURL(preview);
-        }
-      });
-    };
-  }, [previews]);
+			// Add Google Drive URLs with their types
+			validUrls.forEach((url, index) => {
+				formData.append(`gdriveUrls[${index}]`, url);
+				// Add media type for each URL (use global mediaType as default)
+				const urlMediaType = gdriveMediaTypes[index] || mediaType;
+				formData.append(`gdriveMediaTypes[${index}]`, urlMediaType);
+			});
 
-  return (
-    <div className="space-y-6">
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="title">Title</Label>
-          <Input
-            id="title"
-            placeholder="Enter media title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-        </div>
+			await saveMediaMutation.mutateAsync(formData);
+		} catch (error) {
+			console.error('Upload error:', error);
+			toast({
+				title: 'Error',
+				description: 'Failed to upload media. Please try again.',
+				variant: 'destructive',
+			});
+		}
+	};
 
-        <div className="space-y-2">
-          <Label htmlFor="description">Short Description</Label>
-          <Textarea
-            id="description"
-            placeholder="Brief description (shown in previews)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-          />
-        </div>
+	return (
+		<div className="space-y-6">
+			<div className="space-y-4">
+				<div className="space-y-2">
+					<Label htmlFor="title">Title</Label>
+					<Input
+						id="title"
+						placeholder="Enter media title"
+						value={title}
+						onChange={(e) => setTitle(e.target.value)}
+					/>
+				</div>
 
-        <div className="space-y-2">
-          <Label htmlFor="fullDescription">Full Description</Label>
-          <Textarea
-            id="fullDescription"
-            placeholder="Detailed description (shown when item is opened)"
-            value={fullDescription}
-            onChange={(e) => setFullDescription(e.target.value)}
-            rows={4}
-          />
-        </div>
+				<div className="space-y-2">
+					<Label htmlFor="description">Short Description</Label>
+					<Textarea
+						id="description"
+						placeholder="Brief description (shown in previews)"
+						value={description}
+						onChange={(e) => setDescription(e.target.value)}
+						rows={2}
+					/>
+				</div>
 
-        <div className="space-y-3">
-          <Label>Media Type</Label>
-          <RadioGroup
-            value={mediaType}
-            onValueChange={(value) => setMediaType(value as "photo" | "video")}
-            className="flex space-x-4"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="photo" id="photo" />
-              <Label htmlFor="photo" className="flex items-center">
-                <ImageIcon className="h-4 w-4 mr-1" />
-                Photo
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="video" id="video" />
-              <Label htmlFor="video" className="flex items-center">
-                <Video className="h-4 w-4 mr-1" />
-                Video
-              </Label>
-            </div>
-          </RadioGroup>
-        </div>
+				<div className="space-y-2">
+					<Label htmlFor="fullDescription">Full Description</Label>
+					<Textarea
+						id="fullDescription"
+						placeholder="Detailed description (shown when item is opened)"
+						value={fullDescription}
+						onChange={(e) => setFullDescription(e.target.value)}
+						rows={4}
+					/>
+				</div>
 
-        <div className="space-y-2">
-          <Label>Media Files</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mt-2">
-            {previews.map((preview, index) => (
-              <div
-                key={index}
-                className="relative h-24 bg-gray-100 rounded-md overflow-hidden"
-              >
-                <img
-                  src={preview}
-                  alt={`Preview ${index + 1}`}
-                  className="w-full h-full object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => removeFile(index)}
-                  className="absolute top-1 right-1 bg-black bg-opacity-50 text-white rounded-full p-1 hover:bg-opacity-70"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            ))}
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="h-24 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:border-gray-400 transition-colors"
-            >
-              <Plus className="h-6 w-6 text-gray-400" />
-              <span className="text-sm text-gray-500 mt-1">Add Media</span>
-            </div>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={mediaType === "photo" ? "image/*" : "video/*"}
-            className="hidden"
-            onChange={handleFileChange}
-            multiple={mediaType === "photo"}
-          />
-          <p className="text-sm text-gray-500 mt-2">
-            {mediaType === "photo"
-              ? "You can upload multiple photos"
-              : "Please upload a single video file"}
-          </p>
-        </div>
-      </div>
+				<div className="space-y-3">
+					<Label>Media Type</Label>
+					<RadioGroup
+						value={mediaType}
+						onValueChange={(value) => setMediaType(value as 'photo' | 'video')}
+						className="flex space-x-4">
+						<div className="flex items-center space-x-2">
+							<RadioGroupItem
+								value="photo"
+								id="photo"
+							/>
+							<Label
+								htmlFor="photo"
+								className="flex items-center">
+								<ImageIcon className="h-4 w-4 mr-1" />
+								Photo
+							</Label>
+						</div>
+						<div className="flex items-center space-x-2">
+							<RadioGroupItem
+								value="video"
+								id="video"
+							/>
+							<Label
+								htmlFor="video"
+								className="flex items-center">
+								<Video className="h-4 w-4 mr-1" />
+								Video
+							</Label>
+						</div>
+					</RadioGroup>
+				</div>
 
-      <div className="flex justify-end space-x-4">
-        <Button variant="outline" onClick={onCancel}>
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={saveMediaMutation.isPending}>
-          {saveMediaMutation.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Upload className="mr-2 h-4 w-4" />
-              Save
-            </>
-          )}
-        </Button>
-      </div>
-    </div>
-  );
+				<div className="space-y-4">
+					<Label>Google Drive Media Links</Label>
+
+					{gdriveUrls.map((url, index) => (
+						<div
+							key={index}
+							className="space-y-2">
+							<div className="flex items-center space-x-2">
+								<div className="flex-1">
+									<GDriveLinkInput
+										label={`Media Link ${index + 1}`}
+										value={url}
+										onChange={(newUrl) => updateGdriveUrl(index, newUrl)}
+										onValidation={(isValid, error) =>
+											handleGdriveValidation(index, isValid, error)
+										}
+										onMediaTypeChange={(type) =>
+											handleGdriveMediaTypeChange(index, type)
+										}
+										mediaType={gdriveMediaTypes[index] || mediaType}
+										placeholder={`Paste Google Drive link for ${mediaType}...`}
+									/>
+								</div>
+								{gdriveUrls.length > 1 && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										onClick={() => removeGdriveInput(index)}
+										className="mt-6">
+										<X className="h-4 w-4" />
+									</Button>
+								)}
+							</div>
+
+							{url && gdriveValidations[index] && (
+								<div className="mt-2">
+									<Label className="text-sm">Preview:</Label>
+									<div className="w-32 h-32 border rounded-md overflow-hidden mt-1">
+										<MediaDisplay
+											src={url}
+											alt={`Media preview ${index + 1}`}
+											type={gdriveMediaTypes[index] || mediaType}
+											className="w-full h-full object-cover"
+										/>
+									</div>
+								</div>
+							)}
+						</div>
+					))}
+
+					<Button
+						type="button"
+						variant="outline"
+						onClick={addGdriveInput}
+						className="w-full mt-2">
+						<Plus className="h-4 w-4 mr-2" />
+						Add Another {mediaType === 'photo' ? 'Photo' : 'Video'} Link
+					</Button>
+
+					<p className="text-sm text-gray-500 mt-2">
+						{mediaType === 'photo'
+							? 'You can add multiple Google Drive photo links'
+							: 'You can add multiple Google Drive video links'}
+					</p>
+				</div>
+			</div>
+
+			<div className="flex justify-end space-x-4">
+				<Button
+					variant="outline"
+					onClick={onCancel}>
+					Cancel
+				</Button>
+				<Button
+					onClick={handleSave}
+					disabled={saveMediaMutation.isPending}>
+					{saveMediaMutation.isPending ? (
+						<>
+							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							Saving...
+						</>
+					) : (
+						<>
+							<Upload className="mr-2 h-4 w-4" />
+							Save
+						</>
+					)}
+				</Button>
+			</div>
+		</div>
+	);
 }
