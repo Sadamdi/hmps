@@ -1,196 +1,188 @@
-import { Button } from '@/components/ui/button';
+import { Button } from "@/components/ui/button";
 import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
-} from '@/components/ui/dialog';
-import { useQuery } from '@tanstack/react-query';
-import { Search } from 'lucide-react';
-import { useState } from 'react';
-import { MediaDisplay } from '../MediaDisplay';
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+} from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { apiRequest } from "@/lib/queryClient";
+import { useQuery } from "@tanstack/react-query";
+import { Calendar, User } from "lucide-react";
+import { useState } from "react";
+import { Link } from "wouter";
 
 interface Article {
-	id: number;
-	title: string;
-	excerpt: string;
-	content: string;
-	image: string;
-	author: string;
-	date: string;
-	time: string;
+  id?: number;
+  _id?: string;
+  title: string;
+  excerpt: string;
+  content: string;
+  image: string;
+  author: string;
+  createdAt: string;
+  published: boolean;
 }
 
 export default function Articles() {
-	const [searchQuery, setSearchQuery] = useState('');
-	const [currentArticleId, setCurrentArticleId] = useState<number | null>(null);
+  const [showAll, setShowAll] = useState(false);
 
-	const { data: articles = [], isLoading } = useQuery({
-		queryKey: ['/api/articles'],
-		placeholderData: [],
-	});
+  const { data: articles = [], isLoading } = useQuery<Article[]>({
+    queryKey: ["/api/articles"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/articles");
+      return response.json();
+    },
+    placeholderData: [],
+  });
 
-	const searchArticles = (articles: Article[]) => {
-		if (!searchQuery) return articles;
-		return articles.filter((article) =>
-			article.title.toLowerCase().includes(searchQuery.toLowerCase())
-		);
-	};
+  // Show only first 6 articles initially, or all if showAll is true
+  const displayedArticles = showAll ? articles : articles.slice(0, 6);
 
-	const filteredArticles = searchArticles(articles as Article[]);
+  // Helper function to get article ID (handles both MongoDB _id and PostgreSQL id)
+  const getArticleId = (article: Article) => {
+    return article.id || article._id;
+  };
 
-	return (
-		<section
-			id="articles"
-			className="py-16 bg-white">
-			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div className="text-center mb-12">
-					<h2 className="text-3xl font-bold text-gray-900 font-serif">
-						Artikel Terbaru
-					</h2>
-					<div className="mt-2 h-1 w-20 bg-primary mx-auto"></div>
-				</div>
+  const truncateText = (text: string, maxLength: number = 150) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength).trim() + "...";
+  };
 
-				<div className="mb-8">
-					<div className="relative max-w-lg mx-auto">
-						<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-							<Search className="h-5 w-5 text-gray-400" />
-						</div>
-						<input
-							value={searchQuery}
-							onChange={(e) => setSearchQuery(e.target.value)}
-							type="text"
-							className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
-							placeholder="Cari artikel..."
-						/>
-					</div>
-				</div>
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("id-ID", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
 
-				{isLoading ? (
-					<div className="animate-pulse space-y-8">
-						<div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
-							{[...Array(3)].map((_, i) => (
-								<div
-									key={i}
-									className="bg-white rounded-lg overflow-hidden shadow-md">
-									<div className="h-48 bg-gray-200"></div>
-									<div className="p-6 space-y-3">
-										<div className="h-4 bg-gray-200 rounded w-3/4"></div>
-										<div className="h-4 bg-gray-200 rounded"></div>
-										<div className="h-4 bg-gray-200 rounded w-5/6"></div>
-									</div>
-								</div>
-							))}
-						</div>
-					</div>
-				) : (
-					<>
-						<div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
-							{filteredArticles.map((article: Article) => (
-								<div
-									key={article.id}
-									className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow">
-									<div className="h-48 overflow-hidden">
-										<MediaDisplay
-											src={article.image}
-											alt={article.title}
-											className="w-full h-full"
-										/>
-									</div>
-									<div className="p-6">
-										<div className="flex justify-between items-center mb-3">
-											<span className="text-xs text-gray-500">{`${article.date} · ${article.time}`}</span>
-											<span className="text-xs text-gray-500">
-												{article.author}
-											</span>
-										</div>
-										<h3 className="font-bold text-xl mb-2">{article.title}</h3>
-										<p className="text-gray-600 mb-4 line-clamp-3">
-											{article.excerpt}
-										</p>
-										<Dialog>
-											<DialogTrigger asChild>
-												<Button
-													onClick={() => setCurrentArticleId(article.id)}
-													variant="link"
-													className="text-primary hover:text-[#1E40AF] p-0 h-auto font-medium">
-													Baca selengkapnya →
-												</Button>
-											</DialogTrigger>
-											<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto overflow-x-hidden">
-												<DialogHeader>
-													<DialogTitle className="text-2xl font-bold font-serif">
-														{article.title}
-													</DialogTitle>
-												</DialogHeader>
+  if (isLoading) {
+    return (
+      <section id="articles" className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <Skeleton className="h-8 w-48 mx-auto mb-4" />
+            <Skeleton className="h-1 w-20 mx-auto mb-4" />
+            <Skeleton className="h-6 w-96 mx-auto" />
+          </div>
+          <div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i} className="overflow-hidden">
+                <Skeleton className="h-48 w-full" />
+                <CardHeader>
+                  <Skeleton className="h-6 w-3/4" />
+                  <Skeleton className="h-4 w-1/2" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-4 w-full mb-2" />
+                  <Skeleton className="h-4 w-full mb-2" />
+                  <Skeleton className="h-4 w-2/3" />
+                </CardContent>
+                <CardFooter>
+                  <Skeleton className="h-10 w-32" />
+                </CardFooter>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section id="articles" className="py-16 bg-white">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Section Header */}
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-bold text-gray-900 font-serif">
+            Artikel Terbaru
+          </h2>
+          <div className="mt-2 h-1 w-20 bg-primary mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-600">
+            Berita dan informasi terkini dari HIMATIF ENCODER
+          </p>
+        </div>
 
-												{/* Photo section - compact size */}
-												<div className="mb-4 w-full">
-													<MediaDisplay
-														src={article.image}
-														alt={article.title}
-													/>
-												</div>
+        {/* Articles Grid */}
+        {articles.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="text-gray-500 text-lg">
+              Belum ada artikel yang dipublikasikan
+            </div>
+          </div>
+        ) : (
+          <>
+            <div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
+              {displayedArticles.map((article) => (
+                <Card
+                  key={getArticleId(article)}
+                  className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group"
+                >
+                  {/* Article Image */}
+                  <div className="relative h-48 overflow-hidden">
+                    <img
+                      src={article.image}
+                      alt={article.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.src = "/placeholder-article.jpg";
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  </div>
+                  {/* Article Content */}
+                  <CardHeader className="pb-3">
+                    <h3 className="font-bold text-xl leading-tight line-clamp-2 group-hover:text-primary transition-colors duration-200">
+                      {article.title}
+                    </h3>
+                    <div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
+                      <div className="flex items-center gap-1">
+                        <User className="h-4 w-4" />
+                        <span>{article.author}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        <span>{formatDate(article.createdAt)}</span>
+                      </div>
+                    </div>
+                  </CardHeader>
 
-												<div className="flex items-center justify-between text-sm text-gray-500 mb-4">
-													<div className="flex items-center">
-														<svg
-															xmlns="http://www.w3.org/2000/svg"
-															className="h-4 w-4 mr-1"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke="currentColor">
-															<path
-																strokeLinecap="round"
-																strokeLinejoin="round"
-																strokeWidth="2"
-																d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-															/>
-														</svg>
-														<span>{article.author}</span>
-													</div>
-													<div className="flex items-center">
-														<svg
-															xmlns="http://www.w3.org/2000/svg"
-															className="h-4 w-4 mr-1"
-															fill="none"
-															viewBox="0 0 24 24"
-															stroke="currentColor">
-															<path
-																strokeLinecap="round"
-																strokeLinejoin="round"
-																strokeWidth="2"
-																d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-															/>
-														</svg>
-														<span>{`${article.date} · ${article.time}`}</span>
-													</div>
-												</div>
-												<div
-													className="prose max-w-none"
-													dangerouslySetInnerHTML={{
-														__html: article.content,
-													}}></div>
-											</DialogContent>
-										</Dialog>
-									</div>
-								</div>
-							))}
-						</div>
+                  <CardContent className="pt-0">
+                    <p className="text-gray-600 leading-relaxed">
+                      {truncateText(article.excerpt)}
+                    </p>
+                  </CardContent>
 
-						<div className="text-center mt-10">
-							<a href="/artikel">
-								<Button
-									variant="outline"
-									className="btn-secondary">
-									Lihat Semua Artikel
-								</Button>
-							</a>
-						</div>
-					</>
-				)}
-			</div>
-		</section>
-	);
+                  <CardFooter className="pt-0">
+                    <Link href={`/artikel/${getArticleId(article)}`}>
+                      <Button
+                        variant="link"
+                        className="text-primary hover:text-primary/80 p-0 h-auto font-medium"
+                      >
+                        Baca selengkapnya →
+                      </Button>
+                    </Link>
+                  </CardFooter>
+                </Card>
+              ))}
+            </div>
+            {/* Show More/Less Button */}
+            {articles.length > 6 && (
+              <div className="text-center mt-12">
+                <Button
+                  onClick={() => setShowAll(!showAll)}
+                  variant="outline"
+                  className="px-8 py-2"
+                >
+                  {showAll ? "Tampilkan Lebih Sedikit" : "Lihat Semua Artikel"}
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </section>
+  );
 }
