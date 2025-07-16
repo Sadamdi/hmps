@@ -1,15 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useLocation } from "wouter";
-import {
-  ArrowLeft,
-  Calendar,
-  User,
-  Clock,
-  Share2,
-  BookOpen,
-} from "lucide-react";
+import { ArrowLeft, Calendar, User, Share2, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { apiRequest } from "@/lib/queryClient";
 import TableOfContents from "@/components/article/table-of-contents";
 
@@ -49,14 +41,6 @@ export default function ArticleDetail() {
       year: "numeric",
       month: "long",
       day: "numeric",
-    });
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("id-ID", {
-      hour: "2-digit",
-      minute: "2-digit",
     });
   };
 
