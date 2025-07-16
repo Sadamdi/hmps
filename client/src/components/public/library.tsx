@@ -9,6 +9,7 @@ import {
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useState } from 'react';
+import { MediaDisplay } from '../MediaDisplay';
 
 interface LibraryItem {
 	id: number;
@@ -129,10 +130,11 @@ export default function Library() {
 											</div>
 										)}
 
-										<img
+										<MediaDisplay
 											src={item.images[0]}
 											alt={item.title}
-											className="w-full h-full object-cover transform group-hover:scale-105 transition duration-500"
+											type={item.type === 'video' ? 'video' : 'image'}
+											className="w-full h-full"
 										/>
 
 										{/* Video Indicator */}
@@ -204,10 +206,12 @@ export default function Library() {
 													<div className="mb-6 relative">
 														<div className="relative">
 															<div className="aspect-w-16 aspect-h-9 bg-gray-100 rounded-lg overflow-hidden">
-																<img
+																<MediaDisplay
 																	src={item.images[currentImageIndex]}
-																	alt=""
-																	className="object-cover"
+																	alt={`${item.title} - Image ${
+																		currentImageIndex + 1
+																	}`}
+																	type="image"
 																/>
 															</div>
 
@@ -259,8 +263,10 @@ export default function Library() {
 																					? 'ring-2 ring-primary'
 																					: ''
 																			}`}>
-																			<img
+																			<MediaDisplay
 																				src={image}
+																				alt={`Thumbnail ${index + 1}`}
+																				type="image"
 																				className="w-full h-full object-cover"
 																			/>
 																		</button>
@@ -270,33 +276,87 @@ export default function Library() {
 														</div>
 													</div>
 												) : (
-													<div className="aspect-w-16 aspect-h-9 bg-gray-100 rounded-lg flex items-center justify-center mb-6">
-														<div className="text-center">
-															<div className="bg-primary bg-opacity-10 p-8 rounded-full mx-auto mb-4">
-																<svg
-																	xmlns="http://www.w3.org/2000/svg"
-																	className="h-16 w-16 text-primary"
-																	fill="none"
-																	viewBox="0 0 24 24"
-																	stroke="currentColor">
-																	<path
-																		strokeLinecap="round"
-																		strokeLinejoin="round"
-																		strokeWidth="2"
-																		d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
-																	/>
-																	<path
-																		strokeLinecap="round"
-																		strokeLinejoin="round"
-																		strokeWidth="2"
-																		d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-																	/>
-																</svg>
-															</div>
-															<p className="text-gray-500">
-																Video player would appear here
-															</p>
+													// Video content - use MediaDisplay for proper video rendering
+													<div className="mb-6 relative">
+														<div className="aspect-w-16 aspect-h-9 bg-gray-100 rounded-lg overflow-hidden">
+															<MediaDisplay
+																src={item.images[currentImageIndex]}
+																alt={`${item.title} - Video ${
+																	currentImageIndex + 1
+																}`}
+																type="video"
+																className="w-full h-full"
+															/>
 														</div>
+
+														{item.images.length > 1 && (
+															<div className="absolute inset-0 flex items-center justify-between px-4 pointer-events-none">
+																<Button
+																	variant="ghost"
+																	size="icon"
+																	onClick={() =>
+																		setCurrentImageIndex(
+																			Math.max(currentImageIndex - 1, 0)
+																		)
+																	}
+																	disabled={currentImageIndex === 0}
+																	className="pointer-events-auto bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-black hover:bg-opacity-60">
+																	<ChevronLeft className="h-6 w-6" />
+																</Button>
+																<Button
+																	variant="ghost"
+																	size="icon"
+																	onClick={() =>
+																		setCurrentImageIndex(
+																			Math.min(
+																				currentImageIndex + 1,
+																				item.images.length - 1
+																			)
+																		)
+																	}
+																	disabled={
+																		currentImageIndex === item.images.length - 1
+																	}
+																	className="pointer-events-auto bg-black bg-opacity-50 text-white rounded-full p-2 hover:bg-black hover:bg-opacity-60">
+																	<ChevronRight className="h-6 w-6" />
+																</Button>
+															</div>
+														)}
+
+														{item.images.length > 1 && (
+															<div className="flex space-x-2 mt-4 overflow-x-auto pb-2">
+																{item.images.map((videoUrl, index) => (
+																	<button
+																		key={index}
+																		onClick={() => setCurrentImageIndex(index)}
+																		className={`flex-shrink-0 w-20 h-20 rounded-md overflow-hidden relative ${
+																			currentImageIndex === index
+																				? 'ring-2 ring-primary'
+																				: ''
+																		}`}>
+																		<MediaDisplay
+																			src={videoUrl}
+																			alt={`Video thumbnail ${index + 1}`}
+																			type="video"
+																		/>
+																		<div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40">
+																			<svg
+																				className="h-4 w-4 text-white"
+																				fill="none"
+																				stroke="currentColor"
+																				viewBox="0 0 24 24">
+																				<path
+																					strokeLinecap="round"
+																					strokeLinejoin="round"
+																					strokeWidth="2"
+																					d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"
+																				/>
+																			</svg>
+																		</div>
+																	</button>
+																))}
+															</div>
+														)}
 													</div>
 												)}
 

@@ -1,188 +1,71 @@
-# HMPS Project
+# HMPS Website
 
-Project ini adalah aplikasi web fullstack yang dibangun untuk Himpunan Mahasiswa Program Studi (HMPS) Teknik Informatika UIN Malang Periode 2025-2026. Aplikasi ini merupakan platform informasi resmi HIMATIF ENCODER yang menyediakan berbagai informasi seputar kegiatan, prestasi, dan perkembangan Program Studi Teknik Informatika UIN Malang. Melalui platform ini, kami berupaya untuk memberikan akses informasi yang transparan dan terupdate kepada seluruh mahasiswa Teknik Informatika UIN Malang serta masyarakat umum yang ingin mengetahui lebih lanjut tentang Program Studi Teknik Informatika UIN Malang.
+## Features
 
-## 🎯 Fitur Utama
+- **Google Drive Integration**: Upload artikel dan galeri menggunakan Google Drive links
+- **User Management**: Multi-role authentication system
+- **Content Management**: Manage articles, library, dan organization structure
+- **AI Chat**: Integrated AI chat with Gemini
+- **Responsive Design**: Mobile-friendly interface
 
-### 1. Sistem Autentikasi & Autorisasi
-- Login multi-role (Admin, Pengurus, Anggota)
-- Manajemen profil pengguna
-- Sistem reset password
-- JWT-based authentication
-- Role-based access control
+## Google Drive Integration
 
-### 2. Dashboard Admin
-- Statistik dan analitik kegiatan
-- Manajemen pengguna
-- Monitoring aktivitas sistem
-- Pengaturan sistem
-- Log aktivitas
+### Setup (Optional)
+Untuk fitur lengkap Google Drive (terutama folder support), tambahkan Google Drive API key:
 
-### 3. Manajemen Keanggotaan
-- Pendaftaran anggota baru
-- Verifikasi keanggotaan
-- Riwayat keanggotaan
-- Status keanggotaan
+1. Buat project di [Google Cloud Console](https://console.developers.google.com/)
+2. Enable Google Drive API
+3. Buat credentials (API Key)
+4. Tambahkan ke environment variables:
 
-### 4. Manajemen Kegiatan
-- Pembuatan dan pengelolaan kegiatan
-- Pendaftaran peserta
-- Galeri foto kegiatan
-- Laporan kegiatan
-
-### 5. Sistem Informasi
-- Pengumuman
-- Berita kegiatan
-- Dokumentasi
-- Arsip digital
-- Kalender kegiatan
-
-### 6. Fitur Tambahan
-- Pencarian global
-- Backup otomatis
-- API documentation
-- Responsive design
-
-## 🏗️ Arsitektur Sistem
-
-### Frontend
-- React 18 dengan TypeScript
-- State management dengan React Query
-- Routing dengan Wouter
-- UI Components dari Radix UI
-- Styling dengan Tailwind CSS
-- Form handling dengan React Hook Form
-- Validasi dengan Zod
-- Real-time updates dengan WebSocket
-
-### Backend
-- Express.js dengan TypeScript
-- Database MongoDB dengan Drizzle ORM
-- JWT untuk autentikasi
-- WebSocket untuk real-time features
-- File upload dengan Multer
-- Rate limiting dan security middleware
-- API documentation dengan Swagger
-
-### Database
-- MongoDB sebagai database utama
-- Schema validation
-- Indexing untuk performa
-- Backup otomatis
-- Data encryption
-
-### Infrastruktur
-- Vite untuk development
-- ESBuild untuk production
-- Environment-based configuration
-- Logging system
-- Error handling
-- Performance monitoring
-
-## 📁 Struktur Project
-
-```
-├── client/                 # Frontend React application
-│   ├── src/
-│   │   ├── components/    # Reusable UI components
-│   │   ├── pages/        # Page components
-│   │   ├── hooks/        # Custom React hooks
-│   │   ├── utils/        # Utility functions
-│   │   ├── types/        # TypeScript types
-│   │   ├── api/          # API integration
-│   │   ├── store/        # State management
-│   │   └── assets/       # Static assets
-│   └── index.html        # Entry HTML file
-├── server/                # Backend Express application
-│   ├── controllers/      # Route controllers
-│   ├── middleware/       # Custom middleware
-│   ├── models/          # Database models
-│   ├── routes/          # API routes
-│   ├── services/        # Business logic
-│   ├── utils/           # Utility functions
-│   └── config/          # Configuration files
-├── db/                   # Database related files
-│   ├── migrations/      # Database migrations
-│   ├── seeds/          # Seed data
-│   └── schema/         # Database schema
-├── shared/              # Shared code between frontend and backend
-│   ├── types/          # Shared TypeScript types
-│   └── constants/      # Shared constants
-├── public/             # Public static files
-└── attached_assets/    # User uploaded files
+```bash
+GOOGLE_DRIVE_API_KEY="your_api_key_here"
 ```
 
-## 🔧 Scripts yang Tersedia
+### Cara Penggunaan
 
-- `npm run dev` - Menjalankan server development
-- `npm run build` - Build aplikasi untuk production
-- `npm start` - Menjalankan aplikasi production
-- `npm run check` - Type checking
-- `npm run db:push` - Menjalankan migrasi database
-- `npm run db:seed` - Menjalankan seeder database
+#### Single File
+1. Upload file ke Google Drive
+2. Set sharing ke "Anyone with the link"
+3. Copy sharing link
+4. Paste di form artikel/galeri
 
-## 🔐 Fitur Keamanan
+#### Folder (Memerlukan API Key)
+1. Buat folder di Google Drive
+2. Upload multiple files ke folder
+3. Set folder sharing ke "Anyone with the link"
+4. Copy folder link
+5. Paste di form galeri - sistem akan otomatis fetch semua foto/video
 
-- JWT Authentication dengan refresh token
-- Password Hashing dengan bcrypt
-- CORS Protection
-- Rate Limiting
-- Input Validation dengan Zod
-- XSS Protection
-- CSRF Protection
-- SQL Injection Prevention
-- File Upload Validation
-- Secure Headers
-- Audit Logging
+### Supported Formats
+- **Link Format**: 
+  - `https://drive.google.com/file/d/FILE_ID/view`
+  - `https://drive.google.com/folders/FOLDER_ID`
+  - `https://drive.google.com/drive/folders/FOLDER_ID`
+- **Media Types**: JPG, PNG, GIF, WebP, MP4, WebM, MOV
 
-## 🎨 UI Components
+### Troubleshooting
+- **File tidak muncul**: Pastikan file di-share sebagai "Anyone with the link"
+- **Folder tidak bisa diakses**: Memerlukan Google Drive API key
+- **Format tidak didukung**: Gunakan format yang supported
 
-Project ini menggunakan komponen dari Radix UI yang telah di-styling dengan Tailwind CSS, termasuk:
-- Accordion
-- Alert Dialog
-- Avatar
-- Dialog
-- Dropdown Menu
-- Navigation Menu
-- Toast Notifications
-- Data Tables
-- Forms
-- Modals
-- Cards
-- Charts
-- Calendar
-- File Upload
-- Rich Text Editor
+## Development
 
-## 📝 Lisensi
+```bash
+npm install
+npm run dev
+```
 
-MIT License
+## Environment Variables
 
-## 🤝 Kontribusi
+```bash
+# Database
+VITE_DATABASE_URL="postgresql://username:password@localhost:5432/dbname"
+DATABASE_URL="postgresql://username:password@localhost:5432/dbname"
 
-1. Fork repository
-2. Buat branch fitur (`git checkout -b feature/AmazingFeature`)
-3. Commit perubahan (`git commit -m 'Add some AmazingFeature'`)
-4. Push ke branch (`git push origin feature/AmazingFeature`)
-5. Buat Pull Request
+# Google Drive API (Optional)
+GOOGLE_DRIVE_API_KEY="your_google_drive_api_key_here"
 
-## 👥 Kontributor
-
-### Owner & Lead Developer
-- [Sulthan Adam Rahmadi](https://github.com/Sadamdi)
-  - Owner & Project Manager
-  - Backend Developer
-  - Frontend Developer
-  - Database Architect
-  - System Security Engineer
-  - API Designer
-  - DevOps Engineer
-
-### Developer
-- [Muhammad Alif Mujaddid](https://github.com/addid-cloud)
-  - Admin System Developer
-  - Frontend Developer
-  - Backend Developer
-  - UI/UX Designer
-  - Content Manager
-  - Quality Assurance Engineer 
+# AI Chat (Optional)
+VITE_GEMINI_API_KEY="your_gemini_api_key"
+``` 

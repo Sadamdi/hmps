@@ -1,0 +1,24 @@
+{
+    "enabled": true,
+    "name": "Google Drive File Upload Replacement",
+    "description": "Mengganti sistem file upload di artikel dan galeri dengan integrasi Google Drive untuk menghemat storage server. Sistem akan mendeteksi link Google Drive, fetch file dari Google Drive API, menangani file tunggal/multiple, mengelola error akses file private, dan menyimpan link Google Drive ke database sambil menampilkan konten yang di-fetch di artikel dan galeri.",
+    "version": "1",
+    "when": {
+        "type": "fileModified",
+        "patterns": [
+            "server/routes/articles.ts",
+            "server/routes/gallery.ts",
+            "client/src/components/ArticleForm.tsx",
+            "client/src/components/GalleryForm.tsx",
+            "client/src/pages/ArticleDetail.tsx",
+            "client/src/pages/Gallery.tsx",
+            "server/upload.ts",
+            "server/googleDrive.ts",
+            "shared/schema.ts"
+        ]
+    },
+    "then": {
+        "type": "askAgent",
+        "prompt": "Saya perlu mengimplementasikan penggantian sistem file upload dengan integrasi Google Drive untuk artikel dan galeri. Sistem harus:\n\n1. **Deteksi Link Google Drive**: Mengidentifikasi ketika user memasukkan link Google Drive sebagai pengganti upload file\n2. **Logic Fetch File**:\n   - Untuk file tunggal: Tampilkan file tersebut langsung\n   - Untuk folder dengan banyak file: Fetch dan tampilkan semua file satu per satu\n3. **Kontrol Akses**: Tangani file Google Drive yang private dengan menampilkan pesan error yang sesuai ketika server tidak bisa mengakses\n4. **Integrasi Database**: Simpan link Google Drive ke database sebagai pengganti path file lokal\n5. **Tampilan Frontend**: Modifikasi komponen artikel dan galeri untuk fetch dan tampilkan konten Google Drive\n6. **Integrasi API**: Gunakan Google Drive API untuk fetch metadata dan konten file\n\nArea yang perlu dimodifikasi:\n- Update middleware upload untuk handle link Google Drive\n- Modifikasi schema database untuk menyimpan URL Google Drive\n- Update komponen frontend untuk artikel dan galeri\n- Implementasi fungsi service Google Drive API\n- Tambahkan error handling untuk file private/tidak dapat diakses\n- Pastikan link Google Drive tersimpan di database\n\nTolong implementasikan sistem integrasi Google Drive ini yang menggantikan upload file tradisional sambil mempertahankan user experience yang sama untuk melihat konten di artikel dan galeri. Fokus pada penghematan storage server dengan menggunakan Google Drive sebagai sumber file."
+    }
+}

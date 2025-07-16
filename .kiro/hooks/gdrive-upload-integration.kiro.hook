@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Google Drive Upload Integration",
+  "description": "Replace file upload functionality in articles and gallery with Google Drive integration. Detect Google Drive links, fetch files from Google Drive API, handle single/multiple files, manage private file access errors, and store Google Drive links in database while displaying fetched content in articles and gallery.",
+  "version": "1",
+  "when": {
+    "type": "fileCreated",
+    "patterns": [
+      "server/upload.ts",
+      "server/googleDrive.ts",
+      "server/routes/*",
+      "client/src/components/*",
+      "client/src/pages/*",
+      "shared/schema.ts"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "I need to implement Google Drive integration to replace file uploads in articles and gallery sections. The system should:\n\n1. **Google Drive Link Detection**: Identify when a user inputs a Google Drive link instead of uploading files\n2. **File Fetching Logic**: \n   - For single files: Display that file directly\n   - For folders with multiple files: Fetch and display all files individually\n3. **Access Control**: Handle private Google Drive files by showing appropriate error messages when server cannot access\n4. **Database Integration**: Store Google Drive links in the database instead of local file paths\n5. **Frontend Display**: Modify article and gallery components to fetch and display Google Drive content\n6. **API Integration**: Use Google Drive API to fetch file metadata and content\n\nKey areas to modify:\n- Update upload middleware to handle Google Drive links\n- Modify database schema to store Google Drive URLs\n- Update frontend components for articles and gallery\n- Implement Google Drive API service functions\n- Add error handling for private/inaccessible files\n\nPlease implement this Google Drive integration system that replaces traditional file uploads while maintaining the same user experience for viewing content in articles and galleries."
+  }
+}

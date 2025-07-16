@@ -30,6 +30,255 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Use cookie parser for handling JWT tokens
 	app.use(cookieParser());
 
+	// Google Drive API routes
+	app.post('/api/gdrive/check-access', async (req, res) => {
+		try {
+			const { url } = req.body;
+
+			if (!url) {
+				return res.status(400).json({ message: 'URL is required' });
+			}
+
+			const {
+				extractFileId,
+				checkAccessibility,
+				isValidGoogleDriveUrl,
+				isFolderUrl,
+			} = await import('./googleDrive');
+
+			if (!isValidGoogleDriveUrl(url)) {
+				return res.status(400).json({
+					accessible: false,
+					message: 'Invalid Google Drive URL format',
+				});
+			}
+
+			const fileId = extractFileId(url);
+			if (!fileId) {
+				return res.status(400).json({
+					accessible: false,
+					message: 'Could not extract file ID from URL',
+				});
+			}
+
+			const accessible = await checkAccessibility(fileId);
+
+			// Use the new folder detection function
+			const isFolder = isFolderUrl(url);
+
+			res.json({
+				accessible,
+				isFolder,
+				fileId,
+				authConfigured: true, // We have auth configured
+			});
+		} catch (error) {
+			console.error('Check Google Drive access error:', error);
+			res
+				.status(500)
+				.json({ accessible: false, message: 'Internal server error' });
+		}
+	});
+
+	app.post('/api/gdrive/media-url', async (req, res) => {
+		try {
+			const { fileId, url, mediaType: userSpecifiedType } = req.body;
+
+			if (!fileId && !url) {
+				return res.status(400).json({ message: 'File ID or URL is required' });
+			}
+
+			const {
+				getMediaUrl,
+				getFileMetadata,
+				getMediaFromFolder,
+				extractFileId,
+				isSupportedMediaType,
+				getFileTypeFromExtension,
+				isFolderUrl,
+			} = await import('./googleDrive');
+
+			let actualFileId = fileId;
+			if (!actualFileId && url) {
+				actualFileId = extractFileId(url);
+			}
+
+			if (!actualFileId) {
+				return res.status(400).json({ message: 'Could not extract file ID' });
+			}
+
+			// Use the new folder detection function
+			const isFolder = url && isFolderUrl(url);
+
+			if (isFolder) {
+				// Handle folder - try simple extraction approach
+				console.log('Processing folder:', actualFileId);
+
+				try {
+					const { getSimpleFolderContents } = await import('./googleDrive');
+
+					// Try to extract file IDs from folder
+					const folderFiles = await getSimpleFolderContents(actualFileId);
+
+					if (folderFiles.length > 0) {
+						console.log(`Found ${folderFiles.length} files in folder`);
+
+						// Convert to proper format with media URLs
+						const mediaWithUrls = folderFiles.map((file, index) => {
+							// Generate proper media URL based on auto-detected or default type
+							let mediaUrl: string;
+							const detectedType = userSpecifiedType || 'image'; // Default to image
+
+							if (detectedType === 'video') {
+								mediaUrl = `https://drive.google.com/file/d/${file.id}/preview`;
+							} else {
+								mediaUrl = `https://drive.google.com/uc?export=view&id=${file.id}`;
+							}
+
+							return {
+								id: file.id,
+								name: `${detectedType === 'video' ? 'Video' : 'Image'} ${
+									index + 1
+								}`,
+								url: mediaUrl,
+								type: detectedType,
+								mimeType: detectedType === 'video' ? 'video/mp4' : 'image/jpeg',
+							};
+						});
+
+						return res.json({
+							type: 'folder',
+							files: mediaWithUrls,
+							count: mediaWithUrls.length,
+							message: `Found ${mediaWithUrls.length} media files in folder`,
+							metadata: {
+								folderId: actualFileId,
+								folderUrl: `https://drive.google.com/drive/folders/${actualFileId}`,
+							},
+						});
+					} else {
+						// No files found - return guidance
+						return res.json({
+							type: 'folder',
+							accessible: true,
+							files: [],
+							count: 0,
+							message:
+								'Folder is accessible but no media files were found. For best results, please copy individual file links.',
+							instruction:
+								'Open the folder → Right-click each file → Get link → Paste those links individually',
+							folderUrl: `https://drive.google.com/drive/folders/${actualFileId}`,
+							isFolder: true,
+						});
+					}
+				} catch (error) {
+					console.log('Folder extraction failed:', error);
+					return res.status(400).json({
+						message:
+							'Cannot extract folder contents. Please use individual file links instead.',
+						type: 'folder',
+						isFolder: true,
+						suggestion:
+							'Copy individual file share links instead of folder link',
+						instruction:
+							'Open the folder → Right-click each file → Get link → Paste those links individually',
+						error: error instanceof Error ? error.message : 'Unknown error',
+					});
+				}
+			} else {
+				// Handle single file
+				console.log('Processing single file:', actualFileId);
+				console.log('User specified media type:', userSpecifiedType);
+
+				// For single files, use user-specified type if provided, otherwise guess
+				let mediaType = userSpecifiedType || 'image'; // Use user choice or default
+				let mimeType = 'image/jpeg'; // Default
+
+				// Set appropriate mimeType based on mediaType
+				if (mediaType === 'video') {
+					mimeType = 'video/mp4';
+				}
+
+				// Try to get some basic info by testing the URL (for logging)
+				try {
+					const testUrl = `https://drive.google.com/file/d/${actualFileId}/view`;
+					const testResponse = await fetch(testUrl, {
+						method: 'HEAD',
+						headers: {
+							'User-Agent':
+								'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+						},
+					});
+
+					console.log('File access test status:', testResponse.status);
+
+					// Only auto-detect if user didn't specify type
+					if (!userSpecifiedType && url) {
+						if (
+							url.includes('video') ||
+							url.toLowerCase().includes('mp4') ||
+							url.toLowerCase().includes('mov')
+						) {
+							mediaType = 'video';
+							mimeType = 'video/mp4';
+						}
+					}
+				} catch (e) {
+					console.log('Could not test URL, using user choice or defaults');
+				}
+
+				console.log('Final media type determined:', mediaType);
+
+				// Generate appropriate URL based on media type
+				let mediaUrl: string;
+				if (mediaType === 'video') {
+					// For videos, use preview format for better compatibility
+					mediaUrl = `https://drive.google.com/file/d/${actualFileId}/preview`;
+				} else {
+					// For images, use export view format
+					mediaUrl = `https://drive.google.com/uc?export=view&id=${actualFileId}`;
+				}
+
+				if (!mediaUrl) {
+					return res
+						.status(404)
+						.json({ message: 'Could not generate media URL' });
+				}
+
+				console.log('Generated media URL:', mediaUrl, 'for type:', mediaType);
+
+				// Create basic metadata
+				const metadata = {
+					id: actualFileId,
+					name: `${mediaType === 'video' ? 'Video' : 'Image'} ${actualFileId}`,
+					mimeType: mimeType,
+					webViewLink: `https://drive.google.com/file/d/${actualFileId}/view`,
+					webContentLink: mediaUrl,
+				};
+
+				res.json({
+					type: mediaType,
+					url: mediaUrl,
+					metadata,
+					files: [
+						{
+							id: actualFileId,
+							name: `${
+								mediaType === 'video' ? 'Video' : 'Image'
+							} ${actualFileId}`,
+							url: mediaUrl,
+							type: mediaType,
+							mimeType: mimeType,
+						},
+					],
+				});
+			}
+		} catch (error) {
+			console.error('Get Google Drive media URL error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	// Authentication routes
 	app.post('/api/auth/login', async (req, res) => {
 		try {
@@ -152,31 +401,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/users',
 		authenticate,
-		authorize(['owner']),
+		authorize(['owner', 'admin']),
 		async (req, res) => {
 			try {
-				const userData = req.body;
+				const { username, password, name, email, role, division } = req.body;
+
+				// Validate required fields
+				if (!username || !password || !name || !email || !role) {
+					return res.status(400).json({
+						message: 'Username, password, name, email, and role are required',
+					});
+				}
 
 				// Check if username already exists
-				const existingUser = await mongoStorage.getUserByUsername(
-					userData.username
-				);
+				const existingUser = await mongoStorage.getUserByUsername(username);
 				if (existingUser) {
 					return res.status(400).json({ message: 'Username already exists' });
 				}
 
 				// Hash password
-				const hashedPassword = await hashPassword(userData.password);
+				const hashedPassword = await hashPassword(password);
 
 				// Create user
 				const newUser = await mongoStorage.createUser({
-					...userData,
+					username,
 					password: hashedPassword,
+					name,
+					email,
+					role,
+					division: division || undefined,
 				});
 
 				// Remove password from response
-				const { password, ...userWithoutPassword } = newUser;
-
+				const { password: _, ...userWithoutPassword } = newUser;
 				res.status(201).json(userWithoutPassword);
 			} catch (error) {
 				console.error('Create user error:', error);
@@ -188,49 +445,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.put(
 		'/api/users/:id',
 		authenticate,
-		authorize(['owner', 'admin']),
+		authorize(['owner']),
 		async (req, res) => {
 			try {
 				const userId = req.params.id;
-				const userData = req.body;
+				const { username, name, email, role, division } = req.body;
 
 				// Validate userId - prevent 'undefined' issues
 				if (!userId || userId === 'undefined') {
 					return res.status(400).json({ message: 'Invalid user ID' });
 				}
 
-				console.log('Error converting ID:', userId);
-
-				// Get existing user
+				// Check if user exists
 				const existingUser = await mongoStorage.getUserById(userId);
 				if (!existingUser) {
 					return res.status(404).json({ message: 'User not found' });
 				}
 
-				// Admin can't update owner role
-				if (
-					(req.user as UserWithRole)?.role === 'admin' &&
-					existingUser.role === 'owner'
-				) {
-					return res.status(403).json({
-						message: 'You do not have permission to update this user',
-					});
+				// Check for unique username and email (excluding current user)
+				if (username && username !== existingUser.username) {
+					const userWithSameUsername = await mongoStorage.getUserByUsername(
+						username
+					);
+					if (
+						userWithSameUsername &&
+						userWithSameUsername._id.toString() !== userId
+					) {
+						return res.status(400).json({ message: 'Username already exists' });
+					}
 				}
 
-				// Process password if provided
-				let updates: any = { ...userData };
-				if (userData.password) {
-					updates.password = await hashPassword(userData.password);
-				} else {
-					delete updates.password;
-				}
+				// Email uniqueness check disabled for now
+
+				// Prepare updates
+				const updates: any = {};
+				if (username) updates.username = username;
+				if (name) updates.name = name;
+				if (email) updates.email = email;
+				if (role) updates.role = role;
+				if (division) updates.division = division;
 
 				// Update user
 				const updatedUser = await mongoStorage.updateUser(userId, updates);
 
 				// Remove password from response
 				const { password, ...userWithoutPassword } = updatedUser;
-
 				res.json(userWithoutPassword);
 			} catch (error) {
 				console.error('Update user error:', error);
@@ -372,6 +631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				let excerpt = req.body.excerpt || '';
 				let content = req.body.content || '';
 				let published = req.body.published;
+				let gdriveUrl = req.body.gdriveUrl || '';
 
 				// Validate required fields
 				if (!title || title.trim() === '') {
@@ -395,20 +655,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(401).json({ message: 'Authentication required' });
 				}
 
-				// Check if image was uploaded - use a default image if not provided
 				let imageUrl = '/uploads/default-article-image.jpg';
+				let imageSource = 'local';
+				let gdriveFileId = null;
 
-				if (req.file) {
+				// Handle Google Drive URL if provided
+				if (gdriveUrl && gdriveUrl.trim() !== '') {
+					const { extractFileId, checkAccessibility, isValidGoogleDriveUrl } =
+						await import('./googleDrive');
+
+					if (!isValidGoogleDriveUrl(gdriveUrl)) {
+						return res
+							.status(400)
+							.json({ message: 'Invalid Google Drive URL format' });
+					}
+
+					const fileId = extractFileId(gdriveUrl);
+					if (!fileId) {
+						return res.status(400).json({
+							message: 'Could not extract file ID from Google Drive URL',
+						});
+					}
+
+					const accessible = await checkAccessibility(fileId);
+					if (!accessible) {
+						return res.status(400).json({
+							message:
+								'Google Drive file is private and cannot be accessed by the server',
+						});
+					}
+
+					imageUrl = gdriveUrl;
+					imageSource = 'gdrive';
+					gdriveFileId = fileId;
+				} else if (req.file) {
 					// Process the uploaded image if available - store in attached_assets
 					imageUrl = await uploadHandler(req.file, true);
 				}
 
-				// Create article
+				// Create article with Google Drive support
 				const newArticle = await mongoStorage.createArticle({
 					title: title.trim(),
 					excerpt: excerpt.trim(),
 					content: content.trim(),
 					image: imageUrl,
+					imageSource,
+					gdriveFileId,
 					published: published === 'true',
 					authorId,
 					author: authorName,
@@ -591,6 +883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				let description = req.body.description || '';
 				let fullDescription = req.body.fullDescription || '';
 				let type = req.body.type || 'photo';
+				let gdriveUrls = req.body.gdriveUrls || [];
 
 				// Validate required fields
 				if (!title || title.trim() === '') {
@@ -613,39 +906,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(401).json({ message: 'Authentication required' });
 				}
 
-				// Check if images were uploaded - use default image if not provided
-				const files = req.files as Express.Multer.File[];
-				if (!files || files.length === 0) {
-					console.log(
-						'No images uploaded for library item, using default image'
-					);
-					// Create with default image instead of rejecting
-					const defaultImageUrl = ['/uploads/default-library-image.jpg'];
+				let imageUrls: string[] = [];
+				let imageSources: string[] = [];
+				let gdriveFileIds: string[] = [];
 
-					// Create library item with default image
-					const newItem = await mongoStorage.createLibraryItem({
-						title: title.trim(),
-						description: description.trim(),
-						fullDescription: fullDescription.trim(),
-						images: defaultImageUrl,
-						type: type,
-						authorId,
-					});
+				// Handle Google Drive URLs if provided
+				if (gdriveUrls && gdriveUrls.length > 0) {
+					const {
+						extractFileId,
+						checkAccessibility,
+						isValidGoogleDriveUrl,
+						getSimpleFolderContents,
+						isFolderUrl,
+					} = await import('./googleDrive');
 
-					return res.status(201).json(newItem);
+					for (const url of gdriveUrls) {
+						if (!url || url.trim() === '') continue;
+
+						if (!isValidGoogleDriveUrl(url)) {
+							return res
+								.status(400)
+								.json({ message: `Invalid Google Drive URL format: ${url}` });
+						}
+
+						const fileId = extractFileId(url);
+						if (!fileId) {
+							return res.status(400).json({
+								message: `Could not extract file ID from Google Drive URL: ${url}`,
+							});
+						}
+
+						const accessible = await checkAccessibility(fileId);
+						if (!accessible) {
+							return res.status(400).json({
+								message: `Google Drive file is private and cannot be accessed: ${url}`,
+							});
+						}
+
+						// Check if it's a folder and get contents
+						const isFolder = isFolderUrl(url);
+						if (isFolder) {
+							console.log('Processing folder for library creation:', fileId);
+							try {
+								const folderFiles = await getSimpleFolderContents(fileId);
+								console.log(`Found ${folderFiles.length} files in folder`);
+
+								for (const file of folderFiles) {
+									// Store the original Google Drive file URLs
+									imageUrls.push(file.url);
+									imageSources.push('gdrive');
+									gdriveFileIds.push(file.id);
+								}
+							} catch (folderError) {
+								console.error('Error processing folder:', folderError);
+								// If folder processing fails, add the folder URL itself as fallback
+								imageUrls.push(url);
+								imageSources.push('gdrive');
+								gdriveFileIds.push(fileId);
+							}
+						} else {
+							// Single file
+							imageUrls.push(url);
+							imageSources.push('gdrive');
+							gdriveFileIds.push(fileId);
+						}
+					}
 				}
 
-				// Process the uploaded images - store in attached_assets
-				const imageUrls = await Promise.all(
-					files.map((file) => uploadHandler(file, true))
-				);
+				// Handle uploaded files if provided
+				const files = req.files as Express.Multer.File[];
+				if (files && files.length > 0) {
+					const uploadedUrls = await Promise.all(
+						files.map((file) => uploadHandler(file, true))
+					);
 
-				// Create library item
+					imageUrls.push(...uploadedUrls);
+					imageSources.push(...uploadedUrls.map(() => 'local'));
+					gdriveFileIds.push(...uploadedUrls.map(() => ''));
+				}
+
+				// Use default image if no images provided
+				if (imageUrls.length === 0) {
+					console.log(
+						'No images provided for library item, using default image'
+					);
+					imageUrls = ['/uploads/default-library-image.jpg'];
+					imageSources = ['local'];
+					gdriveFileIds = [''];
+				}
+
+				// Create library item with Google Drive support
 				const newItem = await mongoStorage.createLibraryItem({
 					title: title.trim(),
 					description: description.trim(),
 					fullDescription: fullDescription.trim(),
 					images: imageUrls,
+					imageSources,
+					gdriveFileIds,
 					type: type,
 					authorId,
 				});
@@ -665,8 +1022,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const itemId = req.params.id;
-				const { title, description, fullDescription, type, existingImages } =
-					req.body;
+				console.log('Library item update request body:', req.body);
+
+				// Extract form data with proper validation
+				let title = req.body.title || '';
+				let description = req.body.description || '';
+				let fullDescription = req.body.fullDescription || '';
+				let type = req.body.type || 'photo';
+				let gdriveUrls = req.body.gdriveUrls || [];
+				let gdriveMediaTypes = req.body.gdriveMediaTypes || [];
 
 				// Get existing item
 				const existingItem = await mongoStorage.getLibraryItemById(itemId);
@@ -690,36 +1054,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Process updates
 				const updates: any = {
-					title,
-					description,
-					fullDescription,
+					title: title.trim(),
+					description: description.trim(),
+					fullDescription: fullDescription.trim(),
 					type: type || 'photo',
 					updatedAt: new Date(),
 				};
 
-				// Process images
+				let imageUrls: string[] = [];
+				let imageSources: string[] = [];
+				let gdriveFileIds: string[] = [];
+
+				// Handle Google Drive URLs if provided
+				if (gdriveUrls && gdriveUrls.length > 0) {
+					const {
+						extractFileId,
+						checkAccessibility,
+						isValidGoogleDriveUrl,
+						getSimpleFolderContents,
+						isFolderUrl,
+					} = await import('./googleDrive');
+
+					for (let i = 0; i < gdriveUrls.length; i++) {
+						const url = gdriveUrls[i];
+						if (!url || url.trim() === '') continue;
+
+						if (!isValidGoogleDriveUrl(url)) {
+							return res
+								.status(400)
+								.json({ message: `Invalid Google Drive URL format: ${url}` });
+						}
+
+						const fileId = extractFileId(url);
+						if (!fileId) {
+							return res.status(400).json({
+								message: `Could not extract file ID from Google Drive URL: ${url}`,
+							});
+						}
+
+						// For edit, we may skip accessibility check for existing URLs
+						// to avoid breaking existing media if temporary access issues
+						try {
+							const accessible = await checkAccessibility(fileId);
+							if (!accessible) {
+								console.warn(`File may be temporarily inaccessible: ${url}`);
+								// Continue anyway for existing items
+							}
+						} catch (error) {
+							console.warn(
+								'Accessibility check failed, continuing anyway:',
+								error
+							);
+						}
+
+						// Check if it's a folder and get contents
+						const isFolder = isFolderUrl(url);
+						if (isFolder) {
+							console.log('Processing folder for library update:', fileId);
+							try {
+								const folderFiles = await getSimpleFolderContents(fileId);
+								console.log(`Found ${folderFiles.length} files in folder`);
+
+								for (const file of folderFiles) {
+									imageUrls.push(file.url);
+									imageSources.push('gdrive');
+									gdriveFileIds.push(file.id);
+								}
+							} catch (folderError) {
+								console.error('Error processing folder:', folderError);
+								// If folder processing fails, add the folder URL itself as fallback
+								imageUrls.push(url);
+								imageSources.push('gdrive');
+								gdriveFileIds.push(fileId);
+							}
+						} else {
+							// Single file
+							imageUrls.push(url);
+							imageSources.push('gdrive');
+							gdriveFileIds.push(fileId);
+						}
+					}
+				}
+
+				// Handle uploaded files if provided
 				const files = req.files as Express.Multer.File[];
 				if (files && files.length > 0) {
-					// Process new uploaded images
-					const newImageUrls = await Promise.all(
-						files.map((file) => uploadHandler(file))
+					const uploadedUrls = await Promise.all(
+						files.map((file) => uploadHandler(file, true))
 					);
 
-					// Combine with existing images if provided
-					const existingImagesList = existingImages
-						? typeof existingImages === 'string'
-							? [existingImages]
-							: existingImages
-						: [];
-
-					updates.images = [...existingImagesList, ...newImageUrls];
-				} else if (existingImages) {
-					// Use only existing images if no new uploads
-					updates.images =
-						typeof existingImages === 'string'
-							? [existingImages]
-							: existingImages;
+					imageUrls.push(...uploadedUrls);
+					imageSources.push(...uploadedUrls.map(() => 'local'));
+					gdriveFileIds.push(...uploadedUrls.map(() => ''));
 				}
+
+				// Update images, imageSources, and gdriveFileIds
+				if (imageUrls.length > 0) {
+					updates.images = imageUrls;
+					updates.imageSources = imageSources;
+					updates.gdriveFileIds = gdriveFileIds;
+				} else if (existingItem.images && existingItem.images.length > 0) {
+					// Keep existing images if no new ones provided
+					updates.images = existingItem.images;
+					updates.imageSources =
+						existingItem.imageSources || existingItem.images.map(() => 'local');
+					updates.gdriveFileIds =
+						existingItem.gdriveFileIds || existingItem.images.map(() => '');
+				}
+
+				console.log('Updating library item with:', {
+					id: itemId,
+					imageUrls: updates.images,
+					imageSources: updates.imageSources,
+					gdriveFileIds: updates.gdriveFileIds,
+				});
 
 				// Update library item
 				const updatedItem = await mongoStorage.updateLibraryItem(
@@ -1027,6 +1475,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 		}
 	);
+
+	// Folder contents endpoint - kept for potential future use
+	app.post('/api/gdrive/folder-contents', async (req, res) => {
+		try {
+			const { folderId } = req.body;
+
+			if (!folderId) {
+				return res.status(400).json({ message: 'Folder ID is required' });
+			}
+
+			const { getMediaFromFolder } = await import('./googleDrive');
+
+			try {
+				const files = await getMediaFromFolder(folderId);
+				res.json({ files });
+			} catch (error) {
+				// Return error message for folder access
+				res.status(400).json({
+					message:
+						'Folder content listing requires API setup. Please use individual file links.',
+					suggestion: 'Copy individual file share links instead of folder link',
+				});
+			}
+		} catch (error) {
+			console.error('Get Google Drive folder contents error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
 
 	app.use('/api/chat', chatRouter);
 

@@ -27,7 +27,6 @@ export default function AIChat() {
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	// Scroll to bottom when messages change
 	useEffect(() => {
 		if (messagesEndRef.current) {
 			messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -37,7 +36,6 @@ export default function AIChat() {
 	const handleSendMessage = async () => {
 		if (!inputMessage.trim() && !imageFile) return;
 
-		// Add user message
 		const userMessage: Message = {
 			id: Date.now().toString(),
 			isBot: false,
