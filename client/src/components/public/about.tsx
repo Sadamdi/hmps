@@ -27,14 +27,18 @@ export default function About() {
   return (
     <section id="about" className="py-16 bg-white">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-12">
+        <div className="text-center mb-12" data-aos="fade-up">
           <h2 className="text-3xl md:text-4xl font-bold text-primary mb-2 tracking-tight">
             Tentang Kami
           </h2>
           <div className="w-24 h-1 bg-primary mx-auto rounded"></div>
         </div>
 
-        <div className="max-w-3xl mx-auto text-justify">
+        <div
+          className="max-w-3xl mx-auto text-justify"
+          data-aos="fade-up"
+          data-aos-delay="200"
+        >
           {settings?.aboutUs ? (
             <div className="prose prose-lg lg:prose-xl prose-slate leading-relaxed space-y-4">
               <div dangerouslySetInnerHTML={{ __html: settings.aboutUs }} />

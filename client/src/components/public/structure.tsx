@@ -226,7 +226,7 @@ export default function Structure() {
   return (
     <section id="structure" className="py-16 bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-8">
+        <div className="text-center mb-8" data-aos="fade-up">
           <h2 className="text-3xl font-bold text-gray-900 font-serif">
             Struktur Organisasi
           </h2>
@@ -237,7 +237,11 @@ export default function Structure() {
         </div>
 
         {/* Period Selector */}
-        <div className="flex justify-center mb-8">
+        <div
+          className="flex justify-center mb-8"
+          data-aos="fade-up"
+          data-aos-delay="100"
+        >
           <div className="w-full max-w-xs">
             <Select value={currentPeriod} onValueChange={setCurrentPeriod}>
               <SelectTrigger>
@@ -280,6 +284,8 @@ export default function Structure() {
             value={activeView}
             onValueChange={setActiveView}
             className="mb-8"
+            data-aos="fade-up"
+            data-aos-delay="200"
           >
             <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
               <TabsTrigger value="flow">Struktur Organisasi</TabsTrigger>
@@ -288,7 +294,11 @@ export default function Structure() {
 
             <TabsContent value="flow" className="mt-0">
               {members.length > 0 ? (
-                <div className="w-full h-[600px] border rounded-lg bg-white shadow-sm">
+                <div
+                  className="w-full h-[600px] border rounded-lg bg-white shadow-sm"
+                  data-aos="zoom-in"
+                  data-aos-delay="300"
+                >
                   <ReactFlowProvider>
                     <ReactFlow
                       nodes={nodes}
@@ -315,10 +325,12 @@ export default function Structure() {
             <TabsContent value="grid" className="mt-0">
               <div className="grid md:grid-cols-4 sm:grid-cols-2 gap-6 mt-6">
                 {members.length > 0 ? (
-                  members.map((member: OrgMember) => (
+                  members.map((member: OrgMember, index) => (
                     <div
                       key={member.id}
                       className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+                      data-aos="fade-up"
+                      data-aos-delay={300 + index * 50}
                     >
                       <div className="w-full aspect-square overflow-hidden rounded-lg mb-4">
                         <img
