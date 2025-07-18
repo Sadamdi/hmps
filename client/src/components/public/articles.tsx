@@ -94,7 +94,7 @@ export default function Articles() {
     <section id="articles" className="py-16 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-12" data-aos="fade-up">
           <h2 className="text-3xl font-bold text-gray-900 font-serif">
             Artikel Terbaru
           </h2>
@@ -114,10 +114,12 @@ export default function Articles() {
         ) : (
           <>
             <div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
-              {displayedArticles.map((article) => (
+              {displayedArticles.map((article, index) => (
                 <Card
                   key={getArticleId(article)}
                   className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group"
+                  data-aos="fade-up"
+                  data-aos-delay={index * 100}
                 >
                   {/* Article Image */}
                   <div className="relative h-48 overflow-hidden">
@@ -170,7 +172,11 @@ export default function Articles() {
             </div>
             {/* Show More/Less Button */}
             {articles.length > 6 && (
-              <div className="text-center mt-12">
+              <div
+                className="text-center mt-12"
+                data-aos="fade-up"
+                data-aos-delay="200"
+              >
                 <Button
                   onClick={() => setShowAll(!showAll)}
                   variant="outline"
