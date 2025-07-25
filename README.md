@@ -362,7 +362,7 @@ Kami sangat menghargai kontribusi dari komunitas! Berikut cara untuk berkontribu
 <sub>⚡ <strong>Core Developer</strong></sub>
 <br />
 <sub>
-💻 Admin System Developer
+💻 Admin System Developer<br/>
 🎨 Frontend Developer<br/>
 ⚙️ Backend Developer<br/>
 🎯 UI/UX Designer<br/>
