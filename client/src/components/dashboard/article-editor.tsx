@@ -5,6 +5,7 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation } from '@tanstack/react-query';
@@ -69,10 +70,42 @@ export default function ArticleEditor({
 				? apiRequest('PUT', `/api/articles/${articleId}`, formData)
 				: apiRequest('POST', '/api/articles', formData);
 		},
-		onSuccess: () => {
+		onSuccess: async (response) => {
+			// Invalidate queries
 			queryClient.invalidateQueries({ queryKey: ['/api/articles'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/articles/manage'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+
+			// Log activity
+			try {
+				const isEdit = !!(article as any)?._id || !!article?.id;
+				let responseData;
+
+				// Handle response safely
+				if (response && typeof response === 'object' && 'json' in response) {
+					responseData = await response.json();
+				} else {
+					responseData = response; // Already parsed
+				}
+
+				const articleId = responseData?._id || responseData?.id || 'unknown';
+
+				if (isEdit) {
+					await logActivity(ActivityTemplates.articleUpdated(title, articleId));
+				} else {
+					await logActivity(ActivityTemplates.articleCreated(title, articleId));
+				}
+
+				// Log publish activity if published
+				if (isPublished) {
+					await logActivity(
+						ActivityTemplates.articlePublished(title, articleId)
+					);
+				}
+			} catch (error) {
+				console.warn('Failed to log activity:', error);
+			}
+
 			onSave();
 		},
 		onError: () => {

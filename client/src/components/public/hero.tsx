@@ -49,6 +49,30 @@ export default function Hero({ scrollToSection }: HeroProps) {
 		refetchOnWindowFocus: true,
 	});
 
+	// Get real-time stats for mobile stats section
+	const { data: stats } = useQuery({
+		queryKey: ['/api/stats'],
+		queryFn: async () => {
+			const response = await fetch('/api/stats');
+			if (!response.ok) throw new Error('Failed to fetch stats');
+			return response.json() as Promise<{
+				articles: number;
+				libraryItems: number;
+				organizationMembers: number;
+			}>;
+		},
+		// Refresh every 30 seconds for public stats
+		refetchInterval: 30000,
+		refetchOnWindowFocus: true,
+		staleTime: 10000,
+		// Default fallback data
+		placeholderData: {
+			articles: 50,
+			libraryItems: 100,
+			organizationMembers: 500,
+		},
+	});
+
 	// Mobile banner images from benner folder
 	const mobileBanners = [
 		'/attached_assets/benner/ketua.jpg',
@@ -246,23 +270,25 @@ export default function Hero({ scrollToSection }: HeroProps) {
 								</button>
 							</div>
 
-							{/* Mobile Stats */}
+							{/* Mobile Stats - Real-time data */}
 							<div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
 								<div className="text-center p-3 bg-white/20 backdrop-blur-sm rounded-lg shadow-lg border border-white/30">
 									<div className="text-xl font-bold text-blue-300 mb-1">
-										500+
+										{stats?.organizationMembers || 500}+
 									</div>
-									<div className="text-xs text-white/80">Mahasiswa</div>
+									<div className="text-xs text-white/80">Anggota</div>
 								</div>
 								<div className="text-center p-3 bg-white/20 backdrop-blur-sm rounded-lg shadow-lg border border-white/30">
 									<div className="text-xl font-bold text-purple-300 mb-1">
-										50+
+										{stats?.articles || 50}+
 									</div>
-									<div className="text-xs text-white/80">Kegiatan</div>
+									<div className="text-xs text-white/80">Artikel</div>
 								</div>
 								<div className="text-center p-3 bg-white/20 backdrop-blur-sm rounded-lg shadow-lg border border-white/30">
-									<div className="text-xl font-bold text-green-300 mb-1">7</div>
-									<div className="text-xs text-white/80">Divisi</div>
+									<div className="text-xl font-bold text-green-300 mb-1">
+										{stats?.libraryItems || 100}+
+									</div>
+									<div className="text-xs text-white/80">Media</div>
 								</div>
 							</div>
 						</div>

@@ -5,9 +5,11 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import RichTextEditor from './rich-text-editor';
 
 interface Settings {
 	_id?: string;
@@ -87,8 +89,26 @@ export default function ContentEditor({
 		mutationFn: async (updatedSettings: any) => {
 			return await apiRequest('PUT', '/api/settings', updatedSettings);
 		},
-		onSuccess: () => {
+		onSuccess: async () => {
 			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+
+			// Log activity based on which tab was being edited
+			try {
+				if (selectedTab === 'about') {
+					await logActivity(ActivityTemplates.contentUpdated('Tentang Kami'));
+				} else if (selectedTab === 'vision') {
+					await logActivity(ActivityTemplates.contentUpdated('Visi & Misi'));
+				} else if (selectedTab === 'hero') {
+					await logActivity(ActivityTemplates.contentUpdated('Hero Section'));
+				} else if (selectedTab === 'colors') {
+					await logActivity(ActivityTemplates.contentUpdated('Warna Divisi'));
+				} else {
+					await logActivity(ActivityTemplates.contentUpdated('Konten Halaman'));
+				}
+			} catch (error) {
+				console.warn('Failed to log activity:', error);
+			}
+
 			toast({
 				title: 'Konten berhasil diperbarui',
 				description: 'Perubahan telah disimpan.',
@@ -403,18 +423,17 @@ export default function ContentEditor({
 					value="about"
 					className="space-y-4">
 					<div>
-						<Label htmlFor="aboutUs">Konten Tentang Kami (HTML)</Label>
+						<Label htmlFor="aboutUs">Konten Tentang Kami</Label>
 						<div className="text-sm text-gray-500 mb-2">
-							Gunakan format HTML untuk styling. Contoh:
-							&lt;h2&gt;Judul&lt;/h2&gt;, &lt;p&gt;Paragraf&lt;/p&gt;,
-							&lt;ul&gt;&lt;li&gt;Item&lt;/li&gt;&lt;/ul&gt;
+							Gunakan editor rich text untuk membuat konten yang menarik. Anda
+							dapat menambahkan formatting, link, dan gambar.
 						</div>
-						<Textarea
-							id="aboutUs"
-							rows={15}
+						<RichTextEditor
 							value={aboutUs}
-							onChange={(e) => setAboutUs(e.target.value)}
-							className="font-mono text-sm"
+							onChange={setAboutUs}
+							placeholder="Tulis konten tentang kami di sini..."
+							height={400}
+							articleId="about-us-content"
 						/>
 					</div>
 					<Button
