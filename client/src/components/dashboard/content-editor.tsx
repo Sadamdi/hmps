@@ -129,6 +129,12 @@ export default function ContentEditor({
 		try {
 			const formData = new FormData();
 			formData.append('file', file);
+			formData.append('category', 'organization'); // Kategori untuk logo himpunan
+
+			// Kirim URL logo lama untuk dihapus
+			if (logoUrl && logoUrl !== '') {
+				formData.append('oldFileUrl', logoUrl);
+			}
 
 			const response = await fetch('/api/upload', {
 				method: 'POST',
@@ -245,6 +251,14 @@ export default function ContentEditor({
 		try {
 			const formData = new FormData();
 			formData.append('file', file);
+			formData.append('category', 'content'); // Kategori untuk konten halaman
+
+			// Kirim URL gambar lama untuk dihapus
+			const oldImageUrl = hero[field as keyof typeof hero] as string;
+			if (oldImageUrl && oldImageUrl !== '') {
+				formData.append('oldFileUrl', oldImageUrl);
+			}
+
 			const response = await fetch('/api/upload', {
 				method: 'POST',
 				body: formData,
@@ -274,6 +288,14 @@ export default function ContentEditor({
 			try {
 				const formData = new FormData();
 				formData.append('file', value);
+				formData.append('category', 'organization'); // Kategori untuk foto kepala divisi
+
+				// Kirim URL foto lama untuk dihapus
+				const oldPhotoUrl = hero.divisionHeads?.[divKey]?.photo;
+				if (oldPhotoUrl && oldPhotoUrl !== '') {
+					formData.append('oldFileUrl', oldPhotoUrl);
+				}
+
 				const response = await fetch('/api/upload', {
 					method: 'POST',
 					body: formData,
@@ -322,6 +344,14 @@ export default function ContentEditor({
 		try {
 			const formData = new FormData();
 			formData.append('file', file);
+			formData.append('category', 'organization'); // Kategori untuk logo divisi
+
+			// Kirim URL logo lama untuk dihapus
+			const oldLogoUrl = hero.divisionLogos?.[divKey];
+			if (oldLogoUrl && oldLogoUrl !== '') {
+				formData.append('oldFileUrl', oldLogoUrl);
+			}
+
 			const response = await fetch('/api/upload', {
 				method: 'POST',
 				body: formData,

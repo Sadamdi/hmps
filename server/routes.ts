@@ -10,7 +10,12 @@ import {
 } from './auth';
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
 import chatRouter from './routes/chat';
-import { uploadHandler, uploadMiddleware } from './upload';
+import {
+	cleanupArticleImages,
+	extractImageUrlsFromContent,
+	uploadHandler,
+	uploadMiddleware,
+} from './upload';
 
 // Define user type to match MongoDB schema
 interface UserWithRole {
@@ -549,10 +554,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Image is required' });
 				}
 
-				// Process the uploaded image
-				const imageUrl = await uploadHandler(req.file);
+				// Get articleId from request body untuk folder organization
+				const articleId = req.body.articleId;
+
+				if (!articleId) {
+					return res.status(400).json({ message: 'Article ID is required' });
+				}
+
+				// Process the uploaded image - use articles category with articleId subfolder
+				const imageUrl = await uploadHandler(
+					req.file,
+					false,
+					'articles',
+					undefined,
+					articleId
+				);
 
 				// Return the URL to be used in the article content
+				console.log('📸 Content image uploaded:', { articleId, imageUrl });
 				res.json({ url: imageUrl });
 			} catch (error) {
 				console.error('Upload content image error:', error);
@@ -689,8 +708,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					imageSource = 'gdrive';
 					gdriveFileId = fileId;
 				} else if (req.file) {
-					// Process the uploaded image if available - store in attached_assets
-					imageUrl = await uploadHandler(req.file, true);
+					// Process the uploaded image if available - store in attached_assets/articles
+					imageUrl = await uploadHandler(req.file, true, 'articles');
 				}
 
 				// Create article with Google Drive support
@@ -705,6 +724,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					authorId,
 					author: authorName,
 				});
+
+				// Cleanup unused images in article folder
+				const articleId = newArticle._id || newArticle.id;
+				if (articleId) {
+					const usedImageUrls = extractImageUrlsFromContent(content);
+					console.log('🧹 Cleaning up article images:', {
+						articleId,
+						usedImageUrls,
+					});
+					await cleanupArticleImages(articleId.toString(), usedImageUrls);
+				}
 
 				res.status(201).json(newArticle);
 			} catch (error) {
@@ -761,7 +791,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Process image if uploaded
 				if (req.file) {
-					const imageUrl = await uploadHandler(req.file, true);
+					// Hapus gambar lama jika ada dan berbeda dari default
+					const oldImageUrl =
+						existingArticle.image !== '/uploads/default-article-image.jpg'
+							? existingArticle.image
+							: undefined;
+
+					const imageUrl = await uploadHandler(
+						req.file,
+						true,
+						'articles',
+						oldImageUrl
+					);
 					updates.image = imageUrl;
 				}
 
@@ -770,6 +811,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					articleId,
 					updates
 				);
+
+				// Cleanup unused images in article folder after update
+				if (content) {
+					const usedImageUrls = extractImageUrlsFromContent(content);
+					console.log('🧹 Cleaning up article images (update):', {
+						articleId,
+						usedImageUrls,
+					});
+					await cleanupArticleImages(articleId, usedImageUrls);
+				}
 
 				res.json(updatedArticle);
 			} catch (error) {
@@ -810,6 +861,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Delete article
 			await mongoStorage.deleteArticle(articleId);
+
+			// Cleanup entire article folder
+			console.log('🗑️ Deleting article folder:', articleId);
+			await cleanupArticleImages(articleId, []); // Empty array means delete all
 
 			res.json({ message: 'Article deleted successfully' });
 		} catch (error) {
@@ -1466,8 +1521,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (!req.file) {
 					return res.status(400).json({ message: 'File is required' });
 				}
-				// Simpan di attached_assets agar konsisten
-				const imageUrl = await uploadHandler(req.file, true);
+
+				// Ambil URL file lama untuk dihapus jika ada
+				const oldFileUrl = req.body.oldFileUrl;
+
+				// Tentukan kategori berdasarkan context (default organization untuk logo)
+				const category = req.body.category || 'organization';
+
+				// Simpan di attached_assets dengan kategori yang sesuai
+				const imageUrl = await uploadHandler(
+					req.file,
+					true,
+					category,
+					oldFileUrl
+				);
 				res.json({ url: imageUrl });
 			} catch (error) {
 				console.error('Upload logo error:', error);
