@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![HMPS Logo](public/logo.png)
+![HMPS Logo](attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.png)
 
 **Platform Informasi Resmi Himpunan Mahasiswa Teknik Informatika UIN Malang**
 *Periode 2025-2026*
@@ -32,7 +32,7 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 <td width="50%">
 
 ### 🔐 **Sistem Autentikasi & Autorisasi**
-- 👤 Login multi-role (Owner, Admin, Chair, Vice Chair, Division Head)
+- 👤 Login multi-role
 - 🛡️ Manajemen profil pengguna lengkap
 - 🔑 Sistem reset password terintegrasi
 - 🎫 JWT-based authentication dengan refresh token
@@ -58,12 +58,10 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 - 📝 Editor artikel dengan TinyMCE WYSIWYG
 - 📸 Upload dan manajemen media library
 - 🔍 Pencarian konten yang powerful
-- 📅 Kalender kegiatan interaktif
 - 🗃️ Arsip digital terorganisir
 
 ### 🎨 **User Experience Modern**
 - 📱 Responsive design untuk semua device
-- 🌙 Dark/Light mode (coming soon)
 - ⚡ Loading yang cepat dengan caching
 - 🔔 Notifikasi real-time
 - 🎯 Navigation yang intuitif
@@ -215,6 +213,7 @@ NODE_ENV=development
 # External Services
 GOOGLE_DRIVE_API_KEY=your-gdrive-api-key
 GEMINI_API_KEY=your-gemini-api-key
+VITE_TINYMCE_API_KEY=your-tiny-api-key
 ```
 
 ---
@@ -348,6 +347,7 @@ Kami sangat menghargai kontribusi dari komunitas! Berikut cara untuk berkontribu
 <sub>
 📋 Project Manager<br/>
 💻 Full-stack Developer<br/>
+⚙️ Backend Developer<br/>
 🏗️ System Architect<br/>
 🔐 Security Engineer<br/>
 </sub>
@@ -362,6 +362,7 @@ Kami sangat menghargai kontribusi dari komunitas! Berikut cara untuk berkontribu
 <sub>⚡ <strong>Core Developer</strong></sub>
 <br />
 <sub>
+💻 Admin System Developer
 🎨 Frontend Developer<br/>
 ⚙️ Backend Developer<br/>
 🎯 UI/UX Designer<br/>
@@ -389,9 +390,9 @@ Project ini dilisensikan di bawah MIT License - lihat file [LICENSE](LICENSE) un
 
 ### 📞 **Contact & Support**
 
-🌐 **Website**: [hmti.uin-malang.ac.id](https://hmti.uin-malang.ac.id)  
-📧 **Email**: hmti@uin-malang.ac.id  
-📱 **Instagram**: [@hmti_uinmalang](https://instagram.com/hmti_uinmalang)  
+🌐 **Website**: [himatif.encoder.com](https://himatif.encoder.com)  
+📧 **Email**: ti@uin-malang.ac.id  
+📱 **Instagram**: [@himatif.encoder](https://www.instagram.com/himatif.encoder/)  
 
 ---
 
