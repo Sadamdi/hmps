@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -109,10 +110,29 @@ export default function MediaUploader({
 				return await apiRequest('POST', '/api/library', formData);
 			}
 		},
-		onSuccess: (data) => {
+		onSuccess: async (data) => {
 			// Invalidate queries to refresh data
 			queryClient.invalidateQueries({ queryKey: ['/api/library'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+
+			// Log activity
+			try {
+				const isEdit = !!item;
+				const responseData = await data.json();
+				const itemId = responseData._id || responseData.id || 'unknown';
+
+				if (isEdit) {
+					await logActivity(
+						ActivityTemplates.libraryItemUpdated(title, String(itemId))
+					);
+				} else {
+					await logActivity(
+						ActivityTemplates.libraryItemCreated(title, String(itemId))
+					);
+				}
+			} catch (error) {
+				console.warn('Failed to log library activity:', error);
+			}
 
 			// Clear form after successful upload
 			setTitle('');

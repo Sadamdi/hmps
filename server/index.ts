@@ -5,6 +5,9 @@ import { registerRoutes } from './routes';
 import { ChatService } from './services/chat-service';
 import { log, serveStatic, setupVite } from './vite';
 
+// Import models to ensure they are registered
+import './models/activity';
+
 // Set MongoDB URI yang Anda berikan
 process.env.MONGODB_URI =
 	'mongodb+srv://recipesDB:4434@recipesdb.pjmdt.mongodb.net/?retryWrites=true&w=majority&appName=recipesDB';

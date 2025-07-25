@@ -12,6 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Edit, Loader2, Plus, Search, Trash2 } from 'lucide-react';
@@ -56,8 +57,29 @@ export default function DashboardArticles() {
 		mutationFn: async (articleId: string | number) => {
 			await apiRequest('DELETE', `/api/articles/${articleId}`, {});
 		},
-		onSuccess: () => {
+		onSuccess: async (_, articleId) => {
+			// Find the deleted article for logging
+			const deletedArticle = articles.find(
+				(article) => ((article as any)._id || article.id) === articleId
+			);
+
 			queryClient.invalidateQueries({ queryKey: ['/api/articles/manage'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+
+			// Log activity
+			if (deletedArticle) {
+				try {
+					await logActivity(
+						ActivityTemplates.articleDeleted(
+							deletedArticle.title,
+							String(articleId)
+						)
+					);
+				} catch (error) {
+					console.warn('Failed to log delete activity:', error);
+				}
+			}
+
 			toast({
 				title: 'Success',
 				description: 'Article deleted successfully',

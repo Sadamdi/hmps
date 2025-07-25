@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
+import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -59,8 +60,29 @@ export default function DashboardLibrary() {
 		mutationFn: async (itemId: string | number) => {
 			await apiRequest('DELETE', `/api/library/${itemId}`, {});
 		},
-		onSuccess: () => {
+		onSuccess: async (_, itemId) => {
+			// Find the deleted item for logging
+			const deletedItem = libraryItems.find(
+				(item) => (item._id || item.id) === itemId
+			);
+
 			queryClient.invalidateQueries({ queryKey: ['/api/library/manage'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+
+			// Log activity
+			if (deletedItem) {
+				try {
+					await logActivity(
+						ActivityTemplates.libraryItemDeleted(
+							deletedItem.title,
+							String(itemId)
+						)
+					);
+				} catch (error) {
+					console.warn('Failed to log delete activity:', error);
+				}
+			}
+
 			toast({
 				title: 'Success',
 				description: 'Item deleted successfully',

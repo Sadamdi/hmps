@@ -1493,8 +1493,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	);
 
-	// Dashboard stats
-	app.get('/api/stats', authenticate, async (req, res) => {
+	// Public stats (no auth required for public home page)
+	app.get('/api/stats', async (req, res) => {
 		try {
 			const articleCount = await mongoStorage.getArticlesCount();
 			const libraryCount = await mongoStorage.getLibraryItemsCount();
@@ -1508,6 +1508,127 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		} catch (error) {
 			console.error('Get stats error:', error);
 			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Real-time dashboard stats
+	app.get('/api/dashboard/stats', authenticate, async (req, res) => {
+		try {
+			const [articleCount, libraryCount, memberCount] = await Promise.all([
+				mongoStorage.getArticlesCount(),
+				mongoStorage.getLibraryItemsCount(),
+				mongoStorage.getOrganizationMembersCount(),
+			]);
+
+			res.json({
+				totalArticles: articleCount,
+				totalMediaItems: libraryCount,
+				totalMembers: memberCount,
+			});
+		} catch (error) {
+			console.error('Get dashboard stats error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Debug endpoint for testing
+	app.get('/api/debug/test', authenticate, async (req, res) => {
+		try {
+			res.json({
+				message: 'Authentication working',
+				user: {
+					id: (req.user as any)?._id,
+					name: (req.user as any)?.name || (req.user as any)?.username,
+					role: (req.user as any)?.role,
+				},
+			});
+		} catch (error) {
+			console.error('Debug test error:', error);
+			res
+				.status(500)
+				.json({ message: 'Debug test failed', error: String(error) });
+		}
+	});
+
+	// Test activity creation endpoint
+	app.post(
+		'/api/debug/create-test-activity',
+		authenticate,
+		async (req, res) => {
+			try {
+				const { logActivity } = await import('./models/activity');
+
+				const testActivity = await logActivity({
+					type: 'article',
+					action: 'create',
+					title: 'Test activity - ' + new Date().toLocaleString('id-ID'),
+					description: 'Test activity created from debug endpoint',
+					userId: (req.user as any)?._id,
+					userName: (req.user as any)?.name || (req.user as any)?.username,
+					userRole: (req.user as any)?.role,
+					entityId: 'debug-test',
+					entityTitle: 'Debug Test Article',
+				});
+
+				console.log('✅ Test activity created:', testActivity._id);
+				res.json({
+					success: true,
+					activity: testActivity,
+					message: 'Test activity created successfully',
+				});
+			} catch (error) {
+				console.error('❌ Test activity creation failed:', error);
+				res.status(500).json({
+					success: false,
+					message: 'Failed to create test activity',
+					error: String(error),
+				});
+			}
+		}
+	);
+
+	// Recent activities
+	app.get('/api/dashboard/activities', authenticate, async (req, res) => {
+		try {
+			// Import Activity functions
+			const { getRecentActivities } = await import('./models/activity');
+			const limit = parseInt(req.query.limit as string) || 10;
+			const type = req.query.type as string;
+
+			console.log(`Getting recent activities: limit=${limit}, type=${type}`);
+			const activities = await getRecentActivities(limit, type);
+			console.log(`Found ${activities?.length || 0} activities`);
+
+			res.json(activities || []);
+		} catch (error) {
+			console.error('Get activities error:', error);
+			res
+				.status(500)
+				.json({ message: 'Internal server error', error: String(error) });
+		}
+	});
+
+	// Activity logging endpoint (internal use)
+	app.post('/api/dashboard/log-activity', authenticate, async (req, res) => {
+		try {
+			const { logActivity } = await import('./models/activity');
+			const activityData = {
+				...req.body,
+				userId: (req.user as any)?._id,
+				userName: (req.user as any)?.name || (req.user as any)?.username,
+				userRole: (req.user as any)?.role,
+			};
+
+			console.log('Logging activity:', activityData.title);
+			const activity = await logActivity(activityData);
+			console.log('Activity logged successfully:', activity._id);
+
+			res.json(activity);
+		} catch (error) {
+			console.error('Log activity error:', error);
+			res
+				.status(500)
+				.json({ message: 'Internal server error', error: String(error) });
 		}
 	});
 
