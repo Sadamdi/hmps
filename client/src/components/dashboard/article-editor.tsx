@@ -23,6 +23,7 @@ interface Article {
 	published: boolean;
 	author: string;
 	createdAt: string;
+	tags?: string[];
 }
 
 interface ArticleEditorProps {
@@ -43,6 +44,9 @@ export default function ArticleEditor({
 	const [excerpt, setExcerpt] = useState(article?.excerpt || '');
 	const [content, setContent] = useState(article?.content || '');
 	const [imageUrl, setImageUrl] = useState(article?.image || '');
+	const [tags, setTags] = useState<string[]>(article?.tags || []);
+	const [newTag, setNewTag] = useState('');
+	const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
 	const [gdriveUrl, setGdriveUrl] = useState('');
 	const [isGdriveValid, setIsGdriveValid] = useState(false);
 	const [gdriveError, setGdriveError] = useState<string | undefined>();
@@ -60,6 +64,50 @@ export default function ArticleEditor({
 			setImagePreview(imageUrl);
 			setImageUrl(imageUrl);
 			setSelectedFile(file); // Simpan file untuk dikirim saat save
+		}
+	};
+
+	const addTag = () => {
+		if (newTag.trim() && !tags.includes(newTag.trim())) {
+			setTags([...tags, newTag.trim()]);
+			setNewTag('');
+		}
+	};
+
+	const removeTag = (tagToRemove: string) => {
+		setTags(tags.filter((tag) => tag !== tagToRemove));
+	};
+
+	const handleTagKeyPress = (e: React.KeyboardEvent) => {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			addTag();
+		}
+	};
+
+	const fetchAllTags = async () => {
+		try {
+			const response = await fetch('/api/articles');
+			const articles = await response.json();
+			const tags = new Set<string>();
+			articles.forEach((article: any) => {
+				if (article.tags) {
+					article.tags.forEach((tag: string) => tags.add(tag));
+				}
+			});
+			setAllExistingTags(Array.from(tags).sort());
+		} catch (error) {
+			console.error('Error fetching tags:', error);
+		}
+	};
+
+	const selectExistingTag = (tag: string) => {
+		if (tags.includes(tag)) {
+			// If tag is already selected, remove it
+			setTags(tags.filter((t) => t !== tag));
+		} else {
+			// If tag is not selected, add it
+			setTags([...tags, tag]);
 		}
 	};
 
@@ -379,6 +427,7 @@ export default function ArticleEditor({
 		formData.append('excerpt', excerpt);
 		formData.append('content', content);
 		formData.append('published', isPublished.toString());
+		formData.append('tags', JSON.stringify(tags));
 
 		// Kirim Google Drive URL jika ada dan valid
 		if (gdriveUrl && isGdriveValid) {
@@ -406,6 +455,7 @@ export default function ArticleEditor({
 			setExcerpt(article.excerpt || '');
 			setContent(article.content || '');
 			setImageUrl(article.image || '');
+			setTags(article.tags || []);
 			setIsPublished(article.published || false);
 
 			// Set image preview untuk edit mode
@@ -414,6 +464,11 @@ export default function ArticleEditor({
 			}
 		}
 	}, [article]);
+
+	// Fetch all existing tags when component mounts
+	useEffect(() => {
+		fetchAllTags();
+	}, []);
 
 	useEffect(() => {
 		return () => {
@@ -443,6 +498,73 @@ export default function ArticleEditor({
 						onChange={(e) => setExcerpt(e.target.value)}
 						rows={2}
 					/>
+				</div>
+
+				<div className="space-y-2">
+					<Label htmlFor="tags">Tags</Label>
+					<div className="space-y-2">
+						<div className="flex gap-2">
+							<Input
+								id="tags"
+								placeholder="Add a tag and press Enter"
+								value={newTag}
+								onChange={(e) => setNewTag(e.target.value)}
+								onKeyPress={handleTagKeyPress}
+								className="flex-1"
+							/>
+							<Button
+								type="button"
+								variant="outline"
+								onClick={addTag}
+								disabled={!newTag.trim()}>
+								Add
+							</Button>
+						</div>
+
+						{/* Existing Tags */}
+						{allExistingTags.length > 0 && (
+							<div className="space-y-2">
+								<p className="text-sm text-gray-600">Existing tags:</p>
+								<div className="flex flex-wrap gap-2">
+									{allExistingTags.map((tag) => (
+										<button
+											key={tag}
+											type="button"
+											onClick={() => selectExistingTag(tag)}
+											className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+												tags.includes(tag)
+													? 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600'
+													: 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+											}`}>
+											{tag}
+										</button>
+									))}
+								</div>
+							</div>
+						)}
+
+						{/* Selected Tags */}
+						{tags.length > 0 && (
+							<div className="space-y-2">
+								<p className="text-sm text-gray-600">Selected tags:</p>
+								<div className="flex flex-wrap gap-2">
+									{tags.map((tag, index) => (
+										<div
+											key={index}
+											className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm flex items-center gap-2">
+											<span>{tag}</span>
+											<button
+												type="button"
+												onClick={() => removeTag(tag)}
+												className="text-blue-600 hover:text-blue-800">
+												×
+											</button>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+					</div>
 				</div>
 
 				<div className="space-y-2">

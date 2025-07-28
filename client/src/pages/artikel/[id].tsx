@@ -1,9 +1,10 @@
 import TableOfContents from '@/components/article/table-of-contents';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
 import { formatContentForDisplay } from '@/utils/formatContent';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, BookOpen, Calendar, Share2, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, Calendar, Share2, Tag, User } from 'lucide-react';
 import { useLocation, useParams } from 'wouter';
 
 interface Article {
@@ -17,6 +18,7 @@ interface Article {
 	createdAt: string;
 	updatedAt?: string;
 	published: boolean;
+	tags?: string[];
 }
 
 export default function ArticleDetail() {
@@ -64,6 +66,10 @@ export default function ArticleDetail() {
 			navigator.clipboard.writeText(window.location.href);
 			// You could add a toast notification here
 		}
+	};
+
+	const navigateToTaggedArticles = (tag: string) => {
+		setLocation(`/artikel?tag=${encodeURIComponent(tag)}`);
 	};
 
 	if (isLoading) {
@@ -216,6 +222,30 @@ export default function ArticleDetail() {
 								</div>
 							</div>
 						</div>
+
+						{/* Tags Section */}
+						{article.tags && article.tags.length > 0 && (
+							<div
+								className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6"
+								data-aos="fade-up"
+								data-aos-delay="350">
+								<div className="flex items-center gap-2 mb-4">
+									<Tag className="w-5 h-5 text-primary" />
+									<h3 className="text-lg font-semibold text-gray-900">Tags:</h3>
+								</div>
+								<div className="flex flex-wrap gap-2">
+									{article.tags.map((tag, index) => (
+										<Badge
+											key={index}
+											variant="secondary"
+											className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+											onClick={() => navigateToTaggedArticles(tag)}>
+											{tag}
+										</Badge>
+									))}
+								</div>
+							</div>
+						)}
 
 						{/* Article Footer */}
 						<div
