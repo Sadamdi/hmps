@@ -651,6 +651,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				let content = req.body.content || '';
 				let published = req.body.published;
 				let gdriveUrl = req.body.gdriveUrl || '';
+				let tags = [];
+
+				// Parse tags from JSON string
+				if (req.body.tags) {
+					try {
+						tags = JSON.parse(req.body.tags);
+					} catch (error) {
+						console.error('Error parsing tags:', error);
+						tags = [];
+					}
+				}
 
 				// Validate required fields
 				if (!title || title.trim() === '') {
@@ -720,6 +731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					image: imageUrl,
 					imageSource,
 					gdriveFileId,
+					tags,
 					published: published === 'true',
 					authorId,
 					author: authorName,
