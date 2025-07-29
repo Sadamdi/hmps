@@ -6,12 +6,12 @@ export default {
   theme: {
     extend: {
       width: {
-        '1/7': '14.285714%',
-        '2/7': '28.571428%',
-        '3/7': '42.857142%',
-        '4/7': '57.142857%',
-        '5/7': '71.428571%',
-        '6/7': '85.714285%',
+        "1/7": "14.285714%",
+        "2/7": "28.571428%",
+        "3/7": "42.857142%",
+        "4/7": "57.142857%",
+        "5/7": "71.428571%",
+        "6/7": "85.714285%",
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -87,10 +87,52 @@ export default {
             height: "0",
           },
         },
+        "float-up": {
+          "0%, 100%": {
+            transform: "translateY(0px) rotate(0deg) scale(1)",
+          },
+          "25%": {
+            transform: "translateY(-8px) rotate(1deg) scale(1.02)",
+          },
+          "50%": {
+            transform: "translateY(-15px) rotate(-1deg) scale(0.98)",
+          },
+          "75%": {
+            transform: "translateY(-8px) rotate(0.5deg) scale(1.01)",
+          },
+        },
+        "float-down": {
+          "0%, 100%": {
+            transform: "translateY(0px) rotate(0deg) scale(1)",
+          },
+          "25%": {
+            transform: "translateY(8px) rotate(-1deg) scale(1.01)",
+          },
+          "50%": {
+            transform: "translateY(15px) rotate(1deg) scale(0.99)",
+          },
+          "75%": {
+            transform: "translateY(8px) rotate(-0.5deg) scale(1.02)",
+          },
+        },
+        "gentle-sway": {
+          "0%, 100%": {
+            transform: "translateX(0px) translateY(0px) rotate(0deg)",
+          },
+          "33%": {
+            transform: "translateX(3px) translateY(-5px) rotate(1deg)",
+          },
+          "66%": {
+            transform: "translateX(-3px) translateY(5px) rotate(-1deg)",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "float-up": "float-up 6s ease-in-out infinite",
+        "float-down": "float-down 6s ease-in-out infinite",
+        "gentle-sway": "gentle-sway 8s ease-in-out infinite",
       },
     },
   },
