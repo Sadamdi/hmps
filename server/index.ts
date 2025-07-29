@@ -5,6 +5,14 @@ import { registerRoutes } from './routes';
 import { ChatService } from './services/chat-service';
 import { log, serveStatic, setupVite } from './vite';
 
+// Import security middleware
+import { ddosProtectionMiddleware } from './middleware/ddos-protection';
+import {
+	noSqlInjectionProtectionMiddleware,
+	sqlInjectionProtectionMiddleware,
+} from './middleware/sql-injection-protection';
+import { sanitizeInput, securityLogger, securityMiddleware } from './security';
+
 // Import models to ensure they are registered
 import './models/activity';
 
@@ -16,8 +24,28 @@ process.env.MONGODB_URI =
 process.env.DISABLE_MONGODB = 'false';
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// ==================== SECURITY MIDDLEWARE SETUP ====================
+// Apply security headers and basic protection
+app.use(securityMiddleware.helmet);
+app.use(securityMiddleware.hpp);
+
+// Apply DDoS protection
+app.use(ddosProtectionMiddleware);
+
+// Apply SQL/NoSQL injection protection
+app.use(sqlInjectionProtectionMiddleware);
+app.use(noSqlInjectionProtectionMiddleware);
+
+// Apply input sanitization
+app.use(sanitizeInput);
+
+// Apply security logging
+app.use(securityLogger);
+
+// ==================== BASIC MIDDLEWARE ====================
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Tambahkan middleware static agar file upload bisa diakses publik
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
@@ -26,6 +54,7 @@ app.use(
 	express.static(path.join(process.cwd(), 'attached_assets'))
 );
 
+// ==================== REQUEST LOGGING MIDDLEWARE ====================
 app.use((req, res, next) => {
 	const start = Date.now();
 	const path = req.path;
@@ -56,7 +85,7 @@ app.use((req, res, next) => {
 	next();
 });
 
-// Setup cleanup scheduler
+// ==================== CLEANUP SCHEDULER ====================
 const cleanupInterval = 6 * 60 * 60 * 1000; // 6 jam
 setInterval(async () => {
 	try {
@@ -65,6 +94,18 @@ setInterval(async () => {
 		console.error('Error in cleanup scheduler:', error);
 	}
 }, cleanupInterval);
+
+// ==================== SECURITY MONITORING ====================
+// Log security status every 5 minutes
+setInterval(() => {
+	console.log('🛡️ Security System Status: Active');
+	console.log('   - DDoS Protection: ✅ Enabled');
+	console.log('   - SQL Injection Protection: ✅ Enabled');
+	console.log('   - NoSQL Injection Protection: ✅ Enabled');
+	console.log('   - XSS Protection: ✅ Enabled');
+	console.log('   - Rate Limiting: ✅ Enabled');
+	console.log('   - Security Headers: ✅ Enabled');
+}, 5 * 60 * 1000);
 
 (async () => {
 	// Connect to MongoDB
@@ -79,9 +120,15 @@ setInterval(async () => {
 
 	const server = await registerRoutes(app);
 
+	// ==================== ERROR HANDLING ====================
 	app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
 		const status = err.status || err.statusCode || 500;
 		const message = err.message || 'Internal Server Error';
+
+		// Log security-related errors
+		if (status === 403 || status === 429 || status === 503) {
+			console.log(`🚨 Security Error: ${status} - ${message}`);
+		}
 
 		res.status(status).json({ message });
 		throw err;
@@ -107,7 +154,14 @@ setInterval(async () => {
 			reusePort: true,
 		},
 		() => {
-			log(`serving on port ${port}`);
+			log(`🛡️ Secure server running on port ${port}`);
+			console.log('🛡️ Security Features Activated:');
+			console.log('   ✅ DDoS Protection');
+			console.log('   ✅ SQL Injection Protection');
+			console.log('   ✅ NoSQL Injection Protection');
+			console.log('   ✅ XSS Protection');
+			console.log('   ✅ Rate Limiting');
+			console.log('   ✅ Security Headers');
 		}
 	);
 })();

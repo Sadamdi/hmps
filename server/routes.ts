@@ -17,6 +17,15 @@ import {
 	uploadMiddleware,
 } from './upload';
 
+// Import security middleware
+import {
+	loginLimiter,
+	loginSchema,
+	uploadLimiter,
+	validateFileUpload,
+	validateInput,
+} from './security';
+
 // Define user type to match MongoDB schema
 interface UserWithRole {
 	_id: string;
@@ -285,51 +294,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Authentication routes
-	app.post('/api/auth/login', async (req, res) => {
-		try {
-			const { username, password } = req.body;
+	app.post(
+		'/api/auth/login',
+		loginLimiter,
+		validateInput(loginSchema),
+		async (req, res) => {
+			try {
+				const { username, password } = req.body;
 
-			if (!username || !password) {
-				return res
-					.status(400)
-					.json({ message: 'Username and password are required' });
+				if (!username || !password) {
+					return res
+						.status(400)
+						.json({ message: 'Username and password are required' });
+				}
+
+				// Find user by username
+				const user = await mongoStorage.getUserByUsername(username);
+				if (!user) {
+					return res
+						.status(401)
+						.json({ message: 'Invalid username or password' });
+				}
+
+				// Verify password
+				const isPasswordValid = await verifyPassword(password, user.password);
+				if (!isPasswordValid) {
+					return res
+						.status(401)
+						.json({ message: 'Invalid username or password' });
+				}
+
+				// Update last login
+				await mongoStorage.updateUser(user._id, { lastLogin: new Date() });
+
+				// Generate token and set cookie
+				const token = generateToken(user);
+				res.cookie('authToken', token, {
+					httpOnly: true,
+					secure: process.env.NODE_ENV === 'production',
+					maxAge: 24 * 60 * 60 * 1000, // 24 hours
+				});
+
+				// Return user info (without password)
+				const { password: _, ...userWithoutPassword } = user;
+				res.json(userWithoutPassword);
+			} catch (error) {
+				console.error('Login error:', error);
+				res.status(500).json({ message: 'Internal server error' });
 			}
-
-			// Find user by username
-			const user = await mongoStorage.getUserByUsername(username);
-			if (!user) {
-				return res
-					.status(401)
-					.json({ message: 'Invalid username or password' });
-			}
-
-			// Verify password
-			const isPasswordValid = await verifyPassword(password, user.password);
-			if (!isPasswordValid) {
-				return res
-					.status(401)
-					.json({ message: 'Invalid username or password' });
-			}
-
-			// Update last login
-			await mongoStorage.updateUser(user._id, { lastLogin: new Date() });
-
-			// Generate token and set cookie
-			const token = generateToken(user);
-			res.cookie('authToken', token, {
-				httpOnly: true,
-				secure: process.env.NODE_ENV === 'production',
-				maxAge: 24 * 60 * 60 * 1000, // 24 hours
-			});
-
-			// Return user info (without password)
-			const { password: _, ...userWithoutPassword } = user;
-			res.json(userWithoutPassword);
-		} catch (error) {
-			console.error('Login error:', error);
-			res.status(500).json({ message: 'Internal server error' });
 		}
-	});
+	);
 
 	app.post('/api/auth/logout', (req, res) => {
 		res.clearCookie('authToken');
@@ -1648,7 +1662,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/upload',
 		authenticate,
+		uploadLimiter,
 		uploadMiddleware.single('file'),
+		validateFileUpload,
 		async (req, res) => {
 			try {
 				if (!req.file) {
