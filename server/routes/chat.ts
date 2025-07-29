@@ -19,7 +19,7 @@ const upload = multer({
 	}),
 });
 
-// Inisialisasi API keys saat server pertama kali dijalankan
+// Initialize API key usage tracking
 const apiKeys = [
 	process.env.GEMINI_API_KEY_1,
 	process.env.GEMINI_API_KEY_2,
@@ -31,7 +31,7 @@ const apiKeys = [
 ].filter(Boolean) as string[];
 
 ChatService.initializeApiKeys(apiKeys).then(() => {
-	console.log('ApiKeyUsage initialized:', apiKeys);
+	// API keys initialized successfully
 });
 
 // Get all chats for user

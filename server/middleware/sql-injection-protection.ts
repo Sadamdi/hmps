@@ -19,7 +19,34 @@ function sendBeautifulError(
 		},
 	};
 
-	res.status(statusCode).json(errorResponse);
+	// Untuk API requests, return JSON
+	if (
+		res.req?.headers['content-type']?.includes('application/json') ||
+		res.req?.path?.startsWith('/api/')
+	) {
+		return res.status(statusCode).json(errorResponse);
+	}
+
+	// Cek apakah sudah di error page atau static files untuk mencegah redirect loop
+	if (
+		res.req?.path?.startsWith('/error') ||
+		res.req?.path?.startsWith('/src/') ||
+		res.req?.path?.startsWith('/@') ||
+		res.req?.path?.startsWith('/node_modules/') ||
+		res.req?.path?.endsWith('.tsx') ||
+		res.req?.path?.endsWith('.ts') ||
+		res.req?.path?.endsWith('.js') ||
+		res.req?.path?.endsWith('.css') ||
+		res.req?.path?.endsWith('.mjs')
+	) {
+		return res.status(statusCode).json(errorResponse);
+	}
+
+	// Untuk browser requests, redirect ke error page
+	const errorParam = encodeURIComponent(JSON.stringify(errorResponse.error));
+	const redirectUrl = `/error?error=${errorParam}`;
+
+	res.redirect(redirectUrl);
 }
 
 // ==================== SQL INJECTION PATTERNS ====================
@@ -33,8 +60,8 @@ const sqlInjectionPatterns = [
 	// Comment patterns (hanya untuk body/query, bukan URL)
 	/(--|#|\/\*|\*\/)/,
 
-	// String concatenation (hanya untuk body/query)
-	/(%27|%22|\'|\")/,
+	// String concatenation (hanya untuk body/query, bukan URL path)
+	// /(%27|%22|\'|\")/, // Commented out karena terlalu sensitif untuk URL path
 
 	// Boolean logic
 	/\b(and|or)\s+\d+\s*=\s*\d+/i,
@@ -169,9 +196,11 @@ export const sqlInjectionProtectionMiddleware = (
 		req.path === '/library' ||
 		req.path === '/about' ||
 		req.path === '/ai-chat' ||
+		req.path === '/error' ||
 		req.path.startsWith('/artikel/') ||
 		req.path.startsWith('/dashboard/') ||
 		req.path.startsWith('/login') ||
+		req.path.startsWith('/error') ||
 		// Skip untuk semua API routes
 		req.path.startsWith('/api/') ||
 		req.path.startsWith('/.well-known/')
@@ -227,36 +256,42 @@ export const sqlInjectionProtectionMiddleware = (
 	if (!isInjectionDetected && req.query) {
 		const queryString = JSON.stringify(req.query);
 
-		// Check SQL injection
-		for (const pattern of sqlInjectionPatterns) {
-			if (pattern.test(queryString)) {
-				isInjectionDetected = true;
-				injectionType = 'SQL Injection';
-				detectedPattern = pattern.source;
-				break;
-			}
-		}
-
-		// Check NoSQL injection
-		if (!isInjectionDetected) {
-			for (const pattern of noSqlInjectionPatterns) {
+		// Skip detection untuk error page parameters
+		if (req.path.startsWith('/error') && req.query.error) {
+			// Untuk error page, kita skip pattern detection pada query parameters
+			// karena error parameter berisi JSON yang mungkin memiliki karakter khusus
+		} else {
+			// Check SQL injection
+			for (const pattern of sqlInjectionPatterns) {
 				if (pattern.test(queryString)) {
 					isInjectionDetected = true;
-					injectionType = 'NoSQL Injection';
+					injectionType = 'SQL Injection';
 					detectedPattern = pattern.source;
 					break;
 				}
 			}
-		}
 
-		// Check XSS
-		if (!isInjectionDetected) {
-			for (const pattern of xssPatterns) {
-				if (pattern.test(queryString)) {
-					isInjectionDetected = true;
-					injectionType = 'XSS';
-					detectedPattern = pattern.source;
-					break;
+			// Check NoSQL injection
+			if (!isInjectionDetected) {
+				for (const pattern of noSqlInjectionPatterns) {
+					if (pattern.test(queryString)) {
+						isInjectionDetected = true;
+						injectionType = 'NoSQL Injection';
+						detectedPattern = pattern.source;
+						break;
+					}
+				}
+			}
+
+			// Check XSS
+			if (!isInjectionDetected) {
+				for (const pattern of xssPatterns) {
+					if (pattern.test(queryString)) {
+						isInjectionDetected = true;
+						injectionType = 'XSS';
+						detectedPattern = pattern.source;
+						break;
+					}
 				}
 			}
 		}
@@ -388,16 +423,43 @@ export const noSqlInjectionProtectionMiddleware = (
 	res: Response,
 	next: NextFunction
 ) => {
-	// Skip protection untuk frontend files
+	// Skip protection untuk frontend files dan error page
 	if (
 		req.path.includes('/src/') ||
 		req.path.includes('/@') ||
 		req.path.includes('/node_modules/') ||
+		req.path.includes('/uploads/') ||
+		req.path.includes('/attached_assets/') ||
 		req.path.endsWith('.tsx') ||
 		req.path.endsWith('.ts') ||
 		req.path.endsWith('.js') ||
 		req.path.endsWith('.css') ||
-		req.path.endsWith('.mjs')
+		req.path.endsWith('.mjs') ||
+		req.path.endsWith('.png') ||
+		req.path.endsWith('.jpg') ||
+		req.path.endsWith('.jpeg') ||
+		req.path.endsWith('.gif') ||
+		req.path.endsWith('.svg') ||
+		req.path.endsWith('.ico') ||
+		req.path.endsWith('.woff') ||
+		req.path.endsWith('.woff2') ||
+		req.path.endsWith('.ttf') ||
+		req.path.endsWith('.eot') ||
+		req.path === '/' ||
+		req.path === '/login' ||
+		req.path === '/dashboard' ||
+		req.path === '/artikel' ||
+		req.path === '/library' ||
+		req.path === '/about' ||
+		req.path === '/ai-chat' ||
+		req.path === '/error' ||
+		req.path.startsWith('/artikel/') ||
+		req.path.startsWith('/dashboard/') ||
+		req.path.startsWith('/login') ||
+		req.path.startsWith('/error') ||
+		// Skip untuk semua API routes
+		req.path.startsWith('/api/') ||
+		req.path.startsWith('/.well-known/')
 	) {
 		return next();
 	}

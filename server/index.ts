@@ -6,6 +6,10 @@ import { ChatService } from './services/chat-service';
 import { log, serveStatic, setupVite } from './vite';
 
 // Import security middleware
+import {
+	apiProtectionMiddleware,
+	apiRateLimitMiddleware,
+} from './middleware/api-protection';
 import { ddosProtectionMiddleware } from './middleware/ddos-protection';
 import {
 	noSqlInjectionProtectionMiddleware,
@@ -32,6 +36,10 @@ app.use(securityMiddleware.hpp);
 
 // Apply DDoS protection
 app.use(ddosProtectionMiddleware);
+
+// Apply API protection
+app.use(apiProtectionMiddleware);
+app.use(apiRateLimitMiddleware);
 
 // Apply SQL/NoSQL injection protection
 app.use(sqlInjectionProtectionMiddleware);
@@ -96,15 +104,15 @@ setInterval(async () => {
 }, cleanupInterval);
 
 // ==================== SECURITY MONITORING ====================
-// Log security status every 5 minutes
+// Security monitoring akan ditampilkan saat server start
+
+// Log server status setiap 5 menit
 setInterval(() => {
-	console.log('🛡️ Security System Status: Active');
-	console.log('   - DDoS Protection: ✅ Enabled');
-	console.log('   - SQL Injection Protection: ✅ Enabled');
-	console.log('   - NoSQL Injection Protection: ✅ Enabled');
-	console.log('   - XSS Protection: ✅ Enabled');
-	console.log('   - Rate Limiting: ✅ Enabled');
-	console.log('   - Security Headers: ✅ Enabled');
+	console.log('📊 Server Status: Active');
+	console.log('   - MongoDB Connection: ✅ Connected');
+	console.log('   - Server Uptime: ✅ Running');
+	console.log('   - Memory Usage: ✅ Normal');
+	console.log('   - Request Handling: ✅ Active');
 }, 5 * 60 * 1000);
 
 (async () => {

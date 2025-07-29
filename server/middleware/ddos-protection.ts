@@ -5,18 +5,17 @@ import { NextFunction, Request, Response } from 'express';
 const WINDOW_MS = 60 * 1000; // 1 menit
 
 // Rate limits per IP
-const MAX_REQUESTS_PER_IP = 1000; // 1000 request per IP per menit
+const MAX_REQUESTS_PER_IP = 500; // 500 request per IP per menit
 const MAX_CONCURRENT_CONNECTIONS_PER_IP = 100; // 100 koneksi bersamaan per IP
 
 // Rate limits per device (lebih ketat)
-const MAX_REQUESTS_PER_DEVICE = 500; // 500 request per device per menit
-const MAX_CONCURRENT_CONNECTIONS_PER_DEVICE = 10; // 10 koneksi bersamaan per device
+const MAX_REQUESTS_PER_DEVICE = 20; // 20 request per device per menit
+const MAX_CONCURRENT_CONNECTIONS_PER_DEVICE = 5; // 5 koneksi bersamaan per device
 
 // Special rate limits untuk sensitive endpoints
 const MAX_LOGIN_ATTEMPTS_PER_IP = 10; // 10 login attempts per IP per menit
-const MAX_UPLOAD_REQUESTS_PER_IP = 100; // 100 upload requests per IP per menit
+const MAX_UPLOAD_REQUESTS_PER_IP = 50; // 100 upload requests per IP per menit
 
-// Store untuk tracking request per IP dan device
 const requestCountsByIP = new Map<
 	string,
 	{ count: number; resetTime: number }
@@ -38,14 +37,41 @@ const uploadRequestsByIP = new Map<
 	{ count: number; resetTime: number }
 >();
 
-// Suspicious patterns untuk detection (dihapus /admin karena memang tidak ada)
+// Suspicious patterns untuk detection
 const suspiciousPatterns = [
 	/upload/i,
+	/admin/i,
 	/\.\.\//, // Directory traversal
 	/union\s+select/i, // SQL injection
 	/script/i, // XSS
 	/eval\s*\(/i, // Code injection
 	/exec\s*\(/i, // Command injection
+	/etc\/passwd/i, // System files
+	/etc\/shadow/i, // System files
+	/proc\//i, // System files
+	/var\/log/i, // System files
+	/config/i, // Configuration files
+	/\.env/i, // Environment files
+	/\.git/i, // Git files
+	/\.svn/i, // SVN files
+	/\.htaccess/i, // Apache files
+	/\.htpasswd/i, // Apache files
+	/\.ini/i, // Configuration files
+	/\.conf/i, // Configuration files
+	/\.xml/i, // XML files
+	/\.json/i, // JSON files
+	/\.sql/i, // SQL files
+	/\.bak/i, // Backup files
+	/\.old/i, // Old files
+	/\.tmp/i, // Temporary files
+	/\.log/i, // Log files
+	/\.cache/i, // Cache files
+	/\.temp/i, // Temporary files
+	/\.swp/i, // Swap files
+	/\.swo/i, // Swap files
+	/\.DS_Store/i, // macOS files
+	/Thumbs\.db/i, // Windows files
+	/desktop\.ini/i, // Windows files
 ];
 
 // Bot/Crawler detection patterns
@@ -58,7 +84,7 @@ const botUserAgents = [
 	/wget/i,
 	/python/i,
 	/requests/i,
-	/axios/i,
+	// /axios/i, // Commented out untuk testing
 	/postman/i,
 	/insomnia/i,
 	/thunder\s*client/i,
@@ -103,7 +129,34 @@ function sendBeautifulError(
 		},
 	};
 
-	res.status(statusCode).json(errorResponse);
+	// Untuk API requests, return JSON
+	if (
+		res.req?.headers['content-type']?.includes('application/json') ||
+		res.req?.path?.startsWith('/api/')
+	) {
+		return res.status(statusCode).json(errorResponse);
+	}
+
+	// Cek apakah sudah di error page atau static files untuk mencegah redirect loop
+	if (
+		res.req?.path?.startsWith('/error') ||
+		res.req?.path?.startsWith('/src/') ||
+		res.req?.path?.startsWith('/@') ||
+		res.req?.path?.startsWith('/node_modules/') ||
+		res.req?.path?.endsWith('.tsx') ||
+		res.req?.path?.endsWith('.ts') ||
+		res.req?.path?.endsWith('.js') ||
+		res.req?.path?.endsWith('.css') ||
+		res.req?.path?.endsWith('.mjs')
+	) {
+		return res.status(statusCode).json(errorResponse);
+	}
+
+	// Untuk browser requests, redirect ke error page
+	const errorParam = encodeURIComponent(JSON.stringify(errorResponse.error));
+	const redirectUrl = `/error?error=${errorParam}`;
+
+	res.redirect(redirectUrl);
 }
 
 // ==================== DDoS PROTECTION MIDDLEWARE ====================
@@ -118,7 +171,7 @@ export const ddosProtectionMiddleware = (
 	const method = req.method;
 	const deviceId = generateDeviceId(req);
 
-	// Skip protection untuk frontend files dan static routes
+	// Skip protection hanya untuk static files dan error page
 	if (
 		path.includes('/src/') ||
 		path.includes('/@') ||
@@ -140,19 +193,9 @@ export const ddosProtectionMiddleware = (
 		path.endsWith('.woff2') ||
 		path.endsWith('.ttf') ||
 		path.endsWith('.eot') ||
-		path === '/' ||
-		path === '/login' ||
-		path === '/dashboard' ||
-		path === '/artikel' ||
-		path === '/library' ||
-		path === '/about' ||
-		path === '/ai-chat' ||
-		path.startsWith('/artikel/') ||
-		path.startsWith('/dashboard/') ||
-		path.startsWith('/login') ||
-		// Skip untuk semua API routes
-		path.startsWith('/api/') ||
-		path.startsWith('/.well-known/')
+		path.startsWith('/error') ||
+		path.startsWith('/.well-known/') ||
+		path.startsWith('/api/') // Skip API routes untuk rate limit global
 	) {
 		return next();
 	}
@@ -196,7 +239,10 @@ export const ddosProtectionMiddleware = (
 
 		// Check IP rate limit
 		if (ipData.count > MAX_REQUESTS_PER_IP) {
-			console.log(`🚨 DDoS Protection: IP rate limit exceeded for ${clientIP}`);
+			const retryAfter = Math.ceil((ipData.resetTime - now) / 1000);
+			console.log(
+				`🚨 DDoS Protection: IP rate limit exceeded for ${clientIP}, retry in ${retryAfter}s`
+			);
 			return sendBeautifulError(
 				res,
 				429,
@@ -205,7 +251,7 @@ export const ddosProtectionMiddleware = (
 				{
 					limit: MAX_REQUESTS_PER_IP,
 					window: '1 minute',
-					retryAfter: Math.ceil((ipData.resetTime - now) / 1000),
+					retryAfter: retryAfter,
 				}
 			);
 		}
@@ -225,8 +271,9 @@ export const ddosProtectionMiddleware = (
 
 		// Check device rate limit
 		if (deviceData.count > MAX_REQUESTS_PER_DEVICE) {
+			const retryAfter = Math.ceil((deviceData.resetTime - now) / 1000);
 			console.log(
-				`🚨 DDoS Protection: Device rate limit exceeded for ${deviceId}`
+				`🚨 DDoS Protection: Device rate limit exceeded for ${deviceId}, retry in ${retryAfter}s`
 			);
 			return sendBeautifulError(
 				res,
@@ -236,7 +283,7 @@ export const ddosProtectionMiddleware = (
 				{
 					limit: MAX_REQUESTS_PER_DEVICE,
 					window: '1 minute',
-					retryAfter: Math.ceil((deviceData.resetTime - now) / 1000),
+					retryAfter: retryAfter,
 				}
 			);
 		}
@@ -295,8 +342,9 @@ export const ddosProtectionMiddleware = (
 			loginAttemptsByIP.set(clientIP, loginData);
 
 			if (loginData.count > MAX_LOGIN_ATTEMPTS_PER_IP) {
+				const retryAfter = Math.ceil((loginData.resetTime - now) / 1000);
 				console.log(
-					`🚨 DDoS Protection: Too many login attempts from IP ${clientIP}`
+					`🚨 DDoS Protection: Too many login attempts from IP ${clientIP}, retry in ${retryAfter}s`
 				);
 				return sendBeautifulError(
 					res,
@@ -306,7 +354,7 @@ export const ddosProtectionMiddleware = (
 					{
 						maxAttempts: MAX_LOGIN_ATTEMPTS_PER_IP,
 						window: '1 minute',
-						retryAfter: Math.ceil((loginData.resetTime - now) / 1000),
+						retryAfter: retryAfter,
 					}
 				);
 			}
@@ -327,8 +375,9 @@ export const ddosProtectionMiddleware = (
 			uploadRequestsByIP.set(clientIP, uploadData);
 
 			if (uploadData.count > MAX_UPLOAD_REQUESTS_PER_IP) {
+				const retryAfter = Math.ceil((uploadData.resetTime - now) / 1000);
 				console.log(
-					`🚨 DDoS Protection: Too many upload requests from IP ${clientIP}`
+					`🚨 DDoS Protection: Too many upload requests from IP ${clientIP}, retry in ${retryAfter}s`
 				);
 				return sendBeautifulError(
 					res,
@@ -338,7 +387,7 @@ export const ddosProtectionMiddleware = (
 					{
 						maxUploads: MAX_UPLOAD_REQUESTS_PER_IP,
 						window: '1 minute',
-						retryAfter: Math.ceil((uploadData.resetTime - now) / 1000),
+						retryAfter: retryAfter,
 					}
 				);
 			}
