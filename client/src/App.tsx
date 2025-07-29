@@ -11,6 +11,7 @@ import DashboardLibrary from '@/pages/dashboard/library';
 import DashboardOrganization from '@/pages/dashboard/organization';
 import DashboardSettings from '@/pages/dashboard/settings';
 import DashboardUsers from '@/pages/dashboard/users';
+import Error from '@/pages/error';
 import Home from '@/pages/index';
 import NotFound from '@/pages/not-found';
 import { QueryClientProvider } from '@tanstack/react-query';
@@ -38,6 +39,10 @@ function Router() {
 			<Route
 				path="/login"
 				component={LoginForm}
+			/>
+			<Route
+				path="/error"
+				component={Error}
 			/>
 
 			{/* Dashboard Routes - Protected */}

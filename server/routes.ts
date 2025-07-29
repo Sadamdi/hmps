@@ -1557,62 +1557,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// Debug endpoint for testing
-	app.get('/api/debug/test', authenticate, async (req, res) => {
-		try {
-			res.json({
-				message: 'Authentication working',
-				user: {
-					id: (req.user as any)?._id,
-					name: (req.user as any)?.name || (req.user as any)?.username,
-					role: (req.user as any)?.role,
-				},
-			});
-		} catch (error) {
-			console.error('Debug test error:', error);
-			res
-				.status(500)
-				.json({ message: 'Debug test failed', error: String(error) });
-		}
-	});
-
-	// Test activity creation endpoint
-	app.post(
-		'/api/debug/create-test-activity',
-		authenticate,
-		async (req, res) => {
-			try {
-				const { logActivity } = await import('./models/activity');
-
-				const testActivity = await logActivity({
-					type: 'article',
-					action: 'create',
-					title: 'Test activity - ' + new Date().toLocaleString('id-ID'),
-					description: 'Test activity created from debug endpoint',
-					userId: (req.user as any)?._id,
-					userName: (req.user as any)?.name || (req.user as any)?.username,
-					userRole: (req.user as any)?.role,
-					entityId: 'debug-test',
-					entityTitle: 'Debug Test Article',
-				});
-
-				console.log('✅ Test activity created:', testActivity._id);
-				res.json({
-					success: true,
-					activity: testActivity,
-					message: 'Test activity created successfully',
-				});
-			} catch (error) {
-				console.error('❌ Test activity creation failed:', error);
-				res.status(500).json({
-					success: false,
-					message: 'Failed to create test activity',
-					error: String(error),
-				});
-			}
-		}
-	);
-
 	// Recent activities
 	app.get('/api/dashboard/activities', authenticate, async (req, res) => {
 		try {
@@ -1695,29 +1639,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Folder contents endpoint - kept for potential future use
 	app.post('/api/gdrive/folder-contents', async (req, res) => {
 		try {
-			const { folderId } = req.body;
+			const { folderId, url } = req.body;
 
-			if (!folderId) {
-				return res.status(400).json({ message: 'Folder ID is required' });
-			}
-
-			const { getMediaFromFolder } = await import('./googleDrive');
-
-			try {
-				const files = await getMediaFromFolder(folderId);
-				res.json({ files });
-			} catch (error) {
-				// Return error message for folder access
-				res.status(400).json({
-					message:
-						'Folder content listing requires API setup. Please use individual file links.',
-					suggestion: 'Copy individual file share links instead of folder link',
+			if (!folderId && !url) {
+				return res.status(400).json({
+					message: 'Either folderId or url is required',
 				});
 			}
+
+			const {
+				extractFileId,
+				getFolderContents,
+				isValidGoogleDriveUrl,
+				isFolderUrl,
+			} = await import('./googleDrive');
+
+			let targetFolderId = folderId;
+
+			if (url && !folderId) {
+				if (!isValidGoogleDriveUrl(url)) {
+					return res.status(400).json({
+						message: 'Invalid Google Drive URL format',
+					});
+				}
+
+				if (!isFolderUrl(url)) {
+					return res.status(400).json({
+						message: 'URL must be a folder URL',
+					});
+				}
+
+				targetFolderId = extractFileId(url);
+				if (!targetFolderId) {
+					return res.status(400).json({
+						message: 'Could not extract folder ID from URL',
+					});
+				}
+			}
+
+			const contents = await getFolderContents(targetFolderId);
+
+			res.json({
+				contents,
+				folderId: targetFolderId,
+			});
 		} catch (error) {
-			console.error('Get Google Drive folder contents error:', error);
-			res.status(500).json({ message: 'Internal server error' });
+			console.error('Get folder contents error:', error);
+			res.status(500).json({
+				message: 'Internal server error',
+			});
 		}
+	});
+
+	// Test route untuk API protection
+	app.get('/api/test/protection', (req, res) => {
+		res.json({
+			message: 'This route should be protected by API protection middleware',
+		});
 	});
 
 	app.use('/api/chat', chatRouter);
