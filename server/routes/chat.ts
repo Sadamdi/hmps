@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { ApiKeyUsage, Chat } from '../models/chat';
+import { chatLimiter } from '../security';
 import { ChatService } from '../services/chat-service';
 dotenv.config();
 
@@ -97,39 +98,44 @@ router.get('/history', async (req, res) => {
 });
 
 // Mengirim pesan baru
-router.post('/message', upload.single('image'), async (req, res) => {
-	try {
-		const userId = req.cookies.userId || uuidv4();
-		if (!req.cookies.userId) {
-			res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
-		}
-
-		const { message, chatId } = req.body;
-		const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
-
-		let chat;
-		if (chatId) {
-			chat = await Chat.findOne({ _id: chatId, userId });
-			if (!chat) {
-				// fallback: create new chat
-				chat = await ChatService.getOrCreateChat(userId, true);
+router.post(
+	'/message',
+	chatLimiter,
+	upload.single('image'),
+	async (req, res) => {
+		try {
+			const userId = req.cookies.userId || uuidv4();
+			if (!req.cookies.userId) {
+				res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 			}
-		} else {
-			chat = await ChatService.getOrCreateChat(userId);
-		}
 
-		const updatedChat = await ChatService.addMessage(
-			userId,
-			message,
-			imageUrl,
-			chat._id.toString()
-		);
-		res.json({ chat: updatedChat });
-	} catch (error) {
-		console.error('Error sending message:', error);
-		res.status(500).json({ error: 'Internal server error' });
+			const { message, chatId } = req.body;
+			const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+
+			let chat;
+			if (chatId) {
+				chat = await Chat.findOne({ _id: chatId, userId });
+				if (!chat) {
+					// fallback: create new chat
+					chat = await ChatService.getOrCreateChat(userId, true);
+				}
+			} else {
+				chat = await ChatService.getOrCreateChat(userId);
+			}
+
+			const updatedChat = await ChatService.addMessage(
+				userId,
+				message,
+				imageUrl,
+				chat._id.toString()
+			);
+			res.json({ chat: updatedChat });
+		} catch (error) {
+			console.error('Error sending message:', error);
+			res.status(500).json({ error: 'Internal server error' });
+		}
 	}
-});
+);
 
 // Menghapus semua chat user (opsional)
 router.delete('/', async (req, res) => {
