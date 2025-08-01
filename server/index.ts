@@ -10,7 +10,7 @@ import {
 	apiProtectionMiddleware,
 	apiRateLimitMiddleware,
 } from './middleware/api-protection';
-import { ddosProtectionMiddleware } from './middleware/ddos-protection';
+import { ddosProtectionMiddleware, cleanupDdosData } from './middleware/ddos-protection';
 import {
 	noSqlInjectionProtectionMiddleware,
 	sqlInjectionProtectionMiddleware,
@@ -103,6 +103,9 @@ setInterval(async () => {
 	}
 }, cleanupInterval);
 
+// DDoS Protection Cleanup (every hour)
+setInterval(cleanupDdosData, 60 * 60 * 1000);
+
 // ==================== SECURITY MONITORING ====================
 // Security monitoring akan ditampilkan saat server start
 
@@ -164,7 +167,7 @@ setInterval(() => {
 		() => {
 			log(`🛡️ Secure server running on port ${port}`);
 			console.log('🛡️ Security Features Activated:');
-			console.log('   ✅ DDoS Protection');
+			console.log('   ✅ DDoS Protection (Multi-Tier System)');
 			console.log('   ✅ SQL Injection Protection');
 			console.log('   ✅ NoSQL Injection Protection');
 			console.log('   ✅ XSS Protection');
