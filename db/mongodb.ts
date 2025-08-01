@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 // Variabel untuk mengontrol mode database
-export let useMongoDB = true;
+let useMongoDB = true;
 
 // Konek ke MongoDB
 const connectDB = async () => {
@@ -218,6 +218,19 @@ const settingsSchema = new mongoose.Schema({
 	},
 });
 
+// Position Schema - untuk mengelola position per tahun
+const positionSchema = new mongoose.Schema({
+	period: { type: String, required: true },
+	positions: [
+		{
+			name: { type: String, required: true },
+			order: { type: Number, required: true },
+		},
+	],
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now },
+});
+
 // Create models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Article =
@@ -230,4 +243,8 @@ const Organization =
 const Settings =
 	mongoose.models.Settings || mongoose.model('Settings', settingsSchema);
 
-export { Article, Library, Organization, Settings, User, connectDB };
+// Create Position model
+export const Position =
+	mongoose.models.Position || mongoose.model('Position', positionSchema);
+
+export { Article, connectDB, Library, Organization, Settings, User, useMongoDB };
