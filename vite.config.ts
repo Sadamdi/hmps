@@ -2,14 +2,17 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { defineConfig } from 'vite';
 
+// Get root directory for cross-platform compatibility
+const rootDir = process.cwd();
+
 export default defineConfig({
 	plugins: [react()],
 	resolve: {
 		alias: {
-			'@db': path.resolve(import.meta.dirname, 'db'),
-			'@': path.resolve(import.meta.dirname, 'client', 'src'),
-			'@shared': path.resolve(import.meta.dirname, 'shared'),
-			'@assets': path.resolve(import.meta.dirname, 'attached_assets'),
+			'@db': path.resolve(rootDir, 'db'),
+			'@': path.resolve(rootDir, 'client', 'src'),
+			'@shared': path.resolve(rootDir, 'shared'),
+			'@assets': path.resolve(rootDir, 'attached_assets'),
 		},
 	},
 	server: {
@@ -17,9 +20,9 @@ export default defineConfig({
 			'/api': 'http://localhost:5000',
 		},
 	},
-	root: path.resolve(import.meta.dirname, 'client'),
+	root: path.resolve(rootDir, 'client'),
 	build: {
-		outDir: path.resolve(import.meta.dirname, 'dist/public'),
+		outDir: path.resolve(rootDir, 'dist/public'),
 		emptyOutDir: true,
 	},
 	// Expose environment variables starting with VITE_
