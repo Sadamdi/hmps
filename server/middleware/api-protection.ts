@@ -17,6 +17,7 @@ const ALLOWED_API_ROUTES = [
 	'/api/library',
 	'/api/organization/members',
 	'/api/organization/periods',
+	'/api/organization/periods/', // For POST requests
 ];
 
 // ==================== BEAUTIFUL API ERROR RESPONSE ====================
@@ -90,9 +91,16 @@ export const apiProtectionMiddleware = (
 		userAgent.includes('Edge') ||
 		userAgent.includes('Opera');
 
-	// Cek apakah request dari frontend (ada referer dari localhost)
+	// Cek apakah request dari frontend (production dan development)
 	const isFromFrontend =
-		referer.includes('localhost:5000') || origin.includes('localhost:5000');
+		referer.includes('localhost:5000') ||
+		origin.includes('localhost:5000') ||
+		referer.includes('43.157.211.134') ||
+		origin.includes('43.157.211.134') ||
+		referer.includes('https://43.157.211.134') ||
+		origin.includes('https://43.157.211.134') ||
+		referer.includes('http://43.157.211.134') ||
+		origin.includes('http://43.157.211.134');
 
 	// Cek apakah ada authentication header atau session
 	const hasAuth =
@@ -101,8 +109,20 @@ export const apiProtectionMiddleware = (
 		(req as any).session?.user ||
 		(req as any).cookies?.token;
 
-	// BLOCK SEMUA BROWSER ACCESS TANPA REFERER (direct access)
-	if (isBrowserRequest && !referer && !hasAuth) {
+	// Cek apakah ini request dengan proper headers (AJAX/fetch)
+	const hasProperHeaders =
+		req.headers['accept']?.includes('application/json') ||
+		req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+		req.headers['content-type']?.includes('application/json');
+
+	// ALLOW FRONTEND REQUESTS (relaxed protection for production)
+	if (isBrowserRequest && (isFromFrontend || hasProperHeaders || hasAuth)) {
+		console.log(`✅ API Protection: Allowing frontend request to ${path}`);
+		return next();
+	}
+
+	// BLOCK ONLY DIRECT BROWSER ACCESS TANPA REFERER DAN HEADERS
+	if (isBrowserRequest && !referer && !hasProperHeaders && !hasAuth) {
 		console.log(`🚫 API Protection: Direct browser access blocked to ${path}`);
 
 		return sendBeautifulApiError(
@@ -121,28 +141,8 @@ export const apiProtectionMiddleware = (
 		);
 	}
 
-	// BLOCK SEMUA DIRECT BROWSER ACCESS KE API (kecuali dari frontend dengan referer)
-	if (isBrowserRequest && !isFromFrontend && !hasAuth) {
-		console.log(`🚫 API Protection: Direct browser access blocked to ${path}`);
-
-		return sendBeautifulApiError(
-			res,
-			403,
-			'API Access Forbidden',
-			'Direct browser access to API endpoints is not allowed.',
-			{
-				path: path,
-				method: method,
-				reason:
-					'API endpoints require proper authentication or server-to-server communication',
-				userAgent: userAgent,
-				referer: referer,
-				origin: origin,
-			}
-		);
-	}
-
-	// Allow semua request yang lain (frontend, server-to-server, authenticated)
+	// Allow semua request yang lain (server-to-server, authenticated, proper headers)
+	console.log(`✅ API Protection: Allowing request to ${path}`);
 	next();
 };
 

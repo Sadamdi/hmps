@@ -18,7 +18,7 @@ export const users = pgTable('users', {
 	password: text('password').notNull(),
 	name: text('name'),
 	email: text('email'),
-	role: text('role').notNull().default('division_head'), // owner, admin, chair, vice_chair, division_head
+	role: text('role').notNull().default('division_head'), // owner, admin, ketua, wakil_ketua, division_head
 	lastLogin: timestamp('last_login'),
 	createdAt: timestamp('created_at').defaultNow().notNull(),
 	updatedAt: timestamp('updated_at').defaultNow().notNull(),
@@ -115,7 +115,7 @@ export const userInsertSchema = createInsertSchema(users, {
 	role: (schema) =>
 		schema.refine(
 			(val: string) =>
-				['owner', 'admin', 'chair', 'vice_chair', 'division_head'].includes(
+				['owner', 'admin', 'ketua', 'wakil_ketua', 'division_head'].includes(
 					val
 				),
 			{
@@ -134,7 +134,7 @@ export const userUpdateSchema = createInsertSchema(users, {
 		schema
 			.refine(
 				(val: string) =>
-					['owner', 'admin', 'chair', 'vice_chair', 'division_head'].includes(
+					['owner', 'admin', 'ketua', 'wakil_ketua', 'division_head'].includes(
 						val
 					),
 				{

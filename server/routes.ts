@@ -381,11 +381,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.json({ message: 'Current password is incorrect' });
 			}
 
-			// Hash new password
-			const hashedPassword = await hashPassword(newPassword);
-
-			// Update password
-			await mongoStorage.updateUser(userId, { password: hashedPassword });
+			// Update password (password akan di-hash di updateUser function)
+			await mongoStorage.updateUser(userId, { password: newPassword });
 
 			res.json({ message: 'Password updated successfully' });
 		} catch (error) {
@@ -393,6 +390,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
+
+	// Edit user profile route
+	app.put('/api/auth/profile', authenticate, async (req, res) => {
+		try {
+			const userId = (req.user as UserWithRole)?._id;
+			const { username, name, email } = req.body;
+
+			if (!userId) {
+				return res.status(401).json({ message: 'Authentication required' });
+			}
+
+			// Get current user
+			const currentUser = await mongoStorage.getUserById(userId);
+			if (!currentUser) {
+				return res.status(404).json({ message: 'User not found' });
+			}
+
+			// Check for unique username (excluding current user)
+			if (username && username !== currentUser.username) {
+				const userWithSameUsername = await mongoStorage.getUserByUsername(
+					username
+				);
+				if (
+					userWithSameUsername &&
+					userWithSameUsername._id.toString() !== userId
+				) {
+					return res.status(400).json({ message: 'Username already exists' });
+				}
+			}
+
+			// Check for unique email (excluding current user)
+			if (email && email !== currentUser.email) {
+				const userWithSameEmail = await mongoStorage
+					.getAllUsers()
+					.then((users) =>
+						users.find(
+							(user) => user.email === email && user._id.toString() !== userId
+						)
+					);
+				if (userWithSameEmail) {
+					return res.status(400).json({ message: 'Email already exists' });
+				}
+			}
+
+			// Update user profile
+			const updateData: any = {};
+			if (username) updateData.username = username;
+			if (name) updateData.name = name;
+			if (email) updateData.email = email;
+
+			const updatedUser = await mongoStorage.updateUser(userId, updateData);
+
+			// Return user info without password
+			const { password: _, ...userWithoutPassword } = updatedUser;
+			res.json(userWithoutPassword);
+		} catch (error) {
+			console.error('Profile update error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Edit user role and division (admin only)
+	app.put(
+		'/api/users/:id/role',
+		authenticate,
+		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
+		async (req, res) => {
+			try {
+				const userId = req.params.id;
+				const { role, division } = req.body;
+
+				if (!userId || userId === 'undefined') {
+					return res.status(400).json({ message: 'Invalid user ID' });
+				}
+
+				// Check if user exists
+				const existingUser = await mongoStorage.getUserById(userId);
+				if (!existingUser) {
+					return res.status(404).json({ message: 'User not found' });
+				}
+
+				// Update role and division
+				const updateData: any = {};
+				if (role) updateData.role = role;
+				if (division !== undefined) updateData.division = division;
+
+				const updatedUser = await mongoStorage.updateUser(userId, updateData);
+
+				// Return user info without password
+				const { password: _, ...userWithoutPassword } = updatedUser;
+				res.json(userWithoutPassword);
+			} catch (error) {
+				console.error('Role update error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
 
 	// User management routes
 	app.get(
@@ -1314,6 +1408,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	app.post(
+		'/api/organization/periods',
+		authenticate,
+		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
+		async (req, res) => {
+			try {
+				const { period } = req.body;
+
+				if (!period || !/^\d{4}-\d{4}$/.test(period)) {
+					return res.status(400).json({
+						message:
+							'Invalid period format. Please use YYYY-YYYY format (e.g., 2025-2026)',
+					});
+				}
+
+				// Check if period already exists
+				const existingPeriods = await mongoStorage.getOrganizationPeriods();
+				if (existingPeriods.includes(period)) {
+					return res.status(400).json({
+						message: `Period "${period}" already exists`,
+					});
+				}
+
+				// Create period in dedicated collection
+				await mongoStorage.createOrganizationPeriod(period);
+
+				res
+					.status(201)
+					.json({ message: `Period "${period}" created successfully` });
+			} catch (error) {
+				console.error('Create organization period error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.delete(
+		'/api/organization/periods/:period',
+		authenticate,
+		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
+		async (req, res) => {
+			try {
+				const period = decodeURIComponent(req.params.period);
+
+				// Check if period has any members
+				const membersInPeriod =
+					await mongoStorage.getOrganizationMembersByPeriod(period);
+				if (membersInPeriod.length > 0) {
+					return res.status(400).json({
+						message: `Cannot delete period "${period}" because it has ${membersInPeriod.length} member(s). Please remove all members first.`,
+					});
+				}
+
+				// Delete the period from dedicated collection
+				await mongoStorage.deleteOrganizationPeriod(period);
+
+				res.json({ message: `Period "${period}" deleted successfully` });
+			} catch (error) {
+				console.error('Delete organization period error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	// Position management endpoints
+	app.get('/api/organization/positions/:period', async (req, res) => {
+		try {
+			const { period } = req.params;
+			const positions = await mongoStorage.getPositionsByPeriod(period);
+			res.json(positions);
+		} catch (error) {
+			console.error('Get positions error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.get('/api/organization/positions', async (req, res) => {
+		try {
+			const positions = await mongoStorage.getAllPositions();
+			res.json(positions);
+		} catch (error) {
+			console.error('Get all positions error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.post(
+		'/api/organization/positions',
+		authenticate,
+		authorize(['owner', 'admin']),
+		async (req, res) => {
+			try {
+				const { period, positions } = req.body;
+				const result = await mongoStorage.createPositionsForPeriod(
+					period,
+					positions
+				);
+				res.status(201).json(result);
+			} catch (error) {
+				console.error('Create positions error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.post(
+		'/api/organization/positions/copy',
+		authenticate,
+		authorize(['owner', 'admin']),
+		async (req, res) => {
+			try {
+				const { sourcePeriod, targetPeriod } = req.body;
+				const result = await mongoStorage.copyPositionsFromPeriod(
+					sourcePeriod,
+					targetPeriod
+				);
+				res.status(201).json(result);
+			} catch (error) {
+				console.error('Copy positions error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.delete(
+		'/api/organization/positions/:period',
+		authenticate,
+		authorize(['owner', 'admin']),
+		async (req, res) => {
+			try {
+				const { period } = req.params;
+				await mongoStorage.deletePositionsForPeriod(period);
+				res.status(204).send();
+			} catch (error) {
+				console.error('Delete positions error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
 	app.get('/api/organization/members', async (req, res) => {
 		try {
 			const { period } = req.query;
@@ -1364,7 +1598,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/organization/members',
 		authenticate,
-		authorize(['owner', 'admin', 'chair', 'vice_chair']),
+		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
 		uploadMiddleware.single('image'),
 		async (req, res) => {
 			try {
@@ -1397,7 +1631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.put(
 		'/api/organization/members/:id',
 		authenticate,
-		authorize(['owner', 'admin', 'chair', 'vice_chair']),
+		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
 		uploadMiddleware.single('image'),
 		async (req, res) => {
 			try {
@@ -1445,7 +1679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.delete(
 		'/api/organization/members/:id',
 		authenticate,
-		authorize(['owner', 'admin', 'chair', 'vice_chair']),
+		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
 		async (req, res) => {
 			try {
 				const memberId = req.params.id;

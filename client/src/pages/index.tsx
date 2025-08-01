@@ -1,3 +1,4 @@
+import { LoadingScreen } from '@/components/LoadingScreen';
 import MaintenanceMode from '@/components/maintenance-mode';
 import About from '@/components/public/about';
 import AIChat from '@/components/public/ai-chat';
@@ -8,6 +9,7 @@ import Library from '@/components/public/library';
 import Navbar from '@/components/public/navbar';
 import Structure from '@/components/public/structure';
 import VisionMission from '@/components/public/vision-mission';
+import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
@@ -33,6 +35,9 @@ interface Settings {
 }
 
 export default function Home() {
+	const { isLoading, completeLoading, forceComplete, assetsLoaded } =
+		useAppLoading();
+
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
 		queryFn: async () => {
@@ -85,13 +90,26 @@ export default function Home() {
 		return <MaintenanceMode />;
 	}
 
+	if (isLoading) {
+		return (
+			<LoadingScreen
+				onLoadingComplete={completeLoading}
+				forceComplete={forceComplete}
+				assetsLoaded={assetsLoaded}
+			/>
+		);
+	}
+
 	return (
 		<div>
 			<Navbar
 				activeSection={activeSection}
 				scrollToSection={scrollToSection}
 			/>
-			<Hero scrollToSection={scrollToSection} />
+			<Hero
+				scrollToSection={scrollToSection}
+				assetsLoaded={assetsLoaded}
+			/>
 			<About />
 			<VisionMission />
 			<Structure />

@@ -241,15 +241,21 @@ export function UserManagement({
 			return [
 				{ value: 'owner', label: 'Owner' },
 				{ value: 'admin', label: 'Admin' },
-				{ value: 'chair', label: 'Chair' },
-				{ value: 'vice_chair', label: 'Vice Chair' },
+				{ value: 'ketua', label: 'Ketua Himpunan' },
+				{ value: 'wakil_ketua', label: 'Wakil Ketua Himpunan' },
 				{ value: 'division_head', label: 'Division Head' },
 			];
 		} else if (currentUser?.role === 'admin') {
 			return [
 				{ value: 'admin', label: 'Admin' },
-				{ value: 'chair', label: 'Chair' },
-				{ value: 'vice_chair', label: 'Vice Chair' },
+				{ value: 'ketua', label: 'Ketua Himpunan' },
+				{ value: 'wakil_ketua', label: 'Wakil Ketua Himpunan' },
+				{ value: 'division_head', label: 'Division Head' },
+			];
+		} else if (currentUser?.role === 'ketua' || currentUser?.role === 'wakil_ketua') {
+			return [
+				{ value: 'ketua', label: 'Ketua Himpunan' },
+				{ value: 'wakil_ketua', label: 'Wakil Ketua Himpunan' },
 				{ value: 'division_head', label: 'Division Head' },
 			];
 		}
