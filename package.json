@@ -9,7 +9,9 @@
     "start": "NODE_ENV=production node dist/index.js",
     "check": "tsc",
     "db:push": "drizzle-kit push --force --config=./drizzle.config.ts",
-    "db:seed": "tsx db/seed.ts"
+    "db:seed": "tsx db/seed.ts",
+    "seed:org-mongo": "tsx scripts/seed-organization-2025-2026.ts",
+    "seed:org-pg": "tsx scripts/seed-organization-pg-2025-2026.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

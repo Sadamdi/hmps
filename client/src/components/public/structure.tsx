@@ -12,11 +12,11 @@ import ReactFlow, {
 	Background,
 	Controls,
 	Edge,
-	MiniMap,
 	Node,
 	ReactFlowProvider,
 	useEdgesState,
 	useNodesState,
+	useReactFlow,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 
@@ -57,6 +57,76 @@ const MemberNode = ({ data }: { data: { member: OrgMember } }) => {
 // Node types declaration
 const nodeTypes = {
 	memberNode: MemberNode,
+};
+
+// Wrapper component untuk ReactFlow
+const OrgChartFlow = ({
+	nodes,
+	edges,
+	onNodesChange,
+	onEdgesChange,
+	nodeTypes,
+}: {
+	nodes: Node[];
+	edges: Edge[];
+	onNodesChange: any;
+	onEdgesChange: any;
+	nodeTypes: any;
+}) => {
+	const { fitView } = useReactFlow();
+
+	// Auto-fit view setelah component mount
+	useEffect(() => {
+		if (nodes.length > 0) {
+			setTimeout(() => {
+				fitView({
+					padding: 0.1,
+					includeHiddenNodes: false,
+					minZoom: 0.1,
+					maxZoom: 1.5,
+				});
+			}, 100);
+		}
+	}, [nodes, fitView]);
+
+	return (
+		<ReactFlow
+			nodes={nodes}
+			edges={edges}
+			onNodesChange={onNodesChange}
+			onEdgesChange={onEdgesChange}
+			nodeTypes={nodeTypes}
+			fitView
+			fitViewOptions={{
+				padding: 0.1,
+				includeHiddenNodes: false,
+				minZoom: 0.1,
+				maxZoom: 2,
+			}}
+			minZoom={0.1}
+			maxZoom={2}
+			defaultViewport={{ x: 0, y: 0, zoom: 0.8 }}
+			attributionPosition="bottom-right"
+			panOnDrag={false} // Mengunci pan/drag
+			zoomOnScroll={false} // Mengunci zoom dengan scroll
+			zoomOnPinch={false} // Mengunci zoom dengan pinch
+			panOnScroll={false} // Mengunci pan dengan scroll
+			selectionOnDrag={false} // Mengunci selection
+			multiSelectionKeyCode={null} // Mengunci multi selection
+			preventScrolling={false} // Mengizinkan scrolling halaman
+		>
+			<Controls
+				showZoom={true}
+				showFitView={true}
+				showInteractive={false} // Menyembunyikan tombol lock/unlock
+			/>
+			{/* MiniMap dihapus untuk menghilangkan text "React Flow" */}
+			<Background
+				color="#f1f5f9"
+				gap={20}
+			/>
+		</ReactFlow>
+	);
 };
 
 // Helper function to get division from position
@@ -213,12 +283,12 @@ export default function Structure() {
 
 	const createOrgChart = useCallback(
 		(members: OrgMember[]) => {
-			// 1. Tambah node root (invisible)
+			// 1. Tambah node root (invisible) - posisi tengah
 			const rootNode: Node = {
 				id: 'root',
 				type: 'input',
 				data: { label: '' },
-				position: { x: 0, y: 0 },
+				position: { x: 0, y: -100 },
 				style: { opacity: 0, pointerEvents: 'none' },
 				draggable: false,
 			};
@@ -236,35 +306,20 @@ export default function Structure() {
 			const nodes: Node[] = [rootNode];
 			const edges: Edge[] = [];
 
-			// Level 1: Ketua, Wakil, Sekretaris, Bendahara (horizontal, lebih lebar)
+			// Level 1: Ketua dan Wakil (sejajar)
 			const ketua = positionMembers['Ketua Himpunan'] || [];
 			const wakil = positionMembers['Wakil Ketua Himpunan'] || [];
-			const sekretaris = positionMembers['Sekretaris Himpunan'] || [];
-			const sekretaris1 = positionMembers['Sekretaris Himpunan 1'] || [];
-			const sekretaris2 = positionMembers['Sekretaris Himpunan 2'] || [];
-			const bendahara1 = positionMembers['Bendahara Himpunan 1'] || [];
-			const bendahara2 = positionMembers['Bendahara Himpunan 2'] || [];
-			const level1 = [
-				...ketua,
-				...wakil,
-				...sekretaris,
-				...sekretaris1,
-				...sekretaris2,
-				...bendahara1,
-				...bendahara2,
-			];
-			const level1Spacing = 350;
-			const level1Offset = ((level1.length - 1) * level1Spacing) / 2;
+			const level1Spacing = 400;
 
-			level1.forEach((member, i) => {
+			// Ketua di kiri, Wakil di kanan - dikeatasin
+			ketua.forEach((member, i) => {
 				nodes.push({
 					id: `${member.id}`,
 					type: 'memberNode',
 					data: { member },
-					position: { x: i * level1Spacing - level1Offset, y: 100 },
+					position: { x: -level1Spacing / 2, y: 0 }, // Dikeatasin dari y: 100 ke y: 0
 					draggable: true,
 				});
-				// Garis dari root ke ketua/wakil
 				if (member.id) {
 					edges.push({
 						id: `e-root-${member.id}`,
@@ -275,7 +330,106 @@ export default function Structure() {
 				}
 			});
 
-			// Level 2: Ketua Divisi (bercabang dari root, horizontal)
+			wakil.forEach((member, i) => {
+				nodes.push({
+					id: `${member.id}`,
+					type: 'memberNode',
+					data: { member },
+					position: { x: level1Spacing / 2, y: 0 }, // Dikeatasin dari y: 100 ke y: 0
+					draggable: true,
+				});
+				if (member.id) {
+					edges.push({
+						id: `e-root-${member.id}`,
+						source: 'root',
+						target: `${member.id}`,
+						type: 'smoothstep',
+					});
+				}
+			});
+
+			// Level 2: Sekretaris dan Bendahara (di tengah antara ketua dan wakil)
+			const sekretaris1 = positionMembers['Sekretaris Himpunan 1'] || [];
+			const sekretaris2 = positionMembers['Sekretaris Himpunan 2'] || [];
+			const bendahara1 = positionMembers['Bendahara Himpunan 1'] || [];
+			const bendahara2 = positionMembers['Bendahara Himpunan 2'] || [];
+			const bphSpacing = 300; // Ditingkatkan dari 200 ke 300 untuk jarak yang lebih lebar
+
+			// Sekretaris 1 di bawah ketua, Bendahara 1 di bawah wakil
+			sekretaris1.forEach((member, i) => {
+				nodes.push({
+					id: `${member.id}`,
+					type: 'memberNode',
+					data: { member },
+					position: { x: -level1Spacing / 2, y: 200 }, // Di bawah ketua
+					draggable: true,
+				});
+				if (member.id) {
+					edges.push({
+						id: `e-root-${member.id}`,
+						source: 'root',
+						target: `${member.id}`,
+						type: 'smoothstep',
+					});
+				}
+			});
+
+			bendahara1.forEach((member, i) => {
+				nodes.push({
+					id: `${member.id}`,
+					type: 'memberNode',
+					data: { member },
+					position: { x: level1Spacing / 2, y: 200 }, // Di bawah wakil
+					draggable: true,
+				});
+				if (member.id) {
+					edges.push({
+						id: `e-root-${member.id}`,
+						source: 'root',
+						target: `${member.id}`,
+						type: 'smoothstep',
+					});
+				}
+			});
+
+			// Sekretaris 2 di kiri sekretaris 1, Bendahara 2 di kanan bendahara 1
+			sekretaris2.forEach((member, i) => {
+				nodes.push({
+					id: `${member.id}`,
+					type: 'memberNode',
+					data: { member },
+					position: { x: -level1Spacing / 2 - bphSpacing, y: 200 }, // Di kiri sekretaris 1
+					draggable: true,
+				});
+				if (member.id) {
+					edges.push({
+						id: `e-root-${member.id}`,
+						source: 'root',
+						target: `${member.id}`,
+						type: 'smoothstep',
+					});
+				}
+			});
+
+			bendahara2.forEach((member, i) => {
+				nodes.push({
+					id: `${member.id}`,
+					type: 'memberNode',
+					data: { member },
+					position: { x: level1Spacing / 2 + bphSpacing, y: 200 }, // Di kanan bendahara 1
+					draggable: true,
+				});
+				if (member.id) {
+					edges.push({
+						id: `e-root-${member.id}`,
+						source: 'root',
+						target: `${member.id}`,
+						type: 'smoothstep',
+					});
+				}
+			});
+
+			// Level 3: Ketua Divisi (dijarak lebih lebar untuk muat 2 anggota sejajar)
 			const divisiList = [
 				'Senor',
 				'Public Relation',
@@ -284,20 +438,20 @@ export default function Structure() {
 				'Medinfo',
 				'Intelektual',
 			];
-			const level2Spacing = 250;
-			const level2Offset = ((divisiList.length - 1) * level2Spacing) / 2;
+			const ketuaDivisiSpacing = 600; // Ditingkatkan dari 500 ke 700 untuk jarak yang lebih lebar
+			const ketuaDivisiOffset =
+				((divisiList.length - 1) * ketuaDivisiSpacing) / 2;
 			divisiList.forEach((div, i) => {
 				const ketuaDiv = positionMembers[`Ketua Divisi ${div}`];
 				if (ketuaDiv) {
 					ketuaDiv.forEach((member, k) => {
-						// Jika ada lebih dari satu ketua divisi (jarang), beri jarak horizontal
 						nodes.push({
 							id: `${member.id}`,
 							type: 'memberNode',
 							data: { member },
 							position: {
-								x: i * level2Spacing - level2Offset + k * 60,
-								y: 300,
+								x: i * ketuaDivisiSpacing - ketuaDivisiOffset + k * 60,
+								y: 400, // Jarak 200px dari sekretaris/bendahara (y: 200)
 							},
 							draggable: true,
 						});
@@ -314,27 +468,31 @@ export default function Structure() {
 				}
 			});
 
-			// Level 3: Anggota Divisi (bercabang dari ketua divisi, horizontal di bawah ketua divisi)
+			// Level 4: Anggota Divisi (2 orang sejajar ke bawah dengan jarak 200px dari ketua divisi)
 			divisiList.forEach((div, i) => {
 				const anggotaDiv = positionMembers[`Anggota Divisi ${div}`];
 				const ketuaDiv = positionMembers[`Ketua Divisi ${div}`];
 				if (anggotaDiv && ketuaDiv && ketuaDiv.length > 0) {
-					const anggotaSpacing = 180;
-					const anggotaOffset = ((anggotaDiv.length - 1) * anggotaSpacing) / 2;
+					// Layout 2 orang sejajar ke bawah dengan jarak 200px dari ketua divisi
+					const anggotaSpacing = 300; // Dideketin dari 360 ke 300 (180px → 150px)
+					const rowSpacing = 200; // Jarak antar baris
+
 					anggotaDiv.forEach((member, j) => {
-						console.log(member);
-						// Tambahkan node anggota
+						const row = Math.floor(j / 2); // 2 orang per baris
+						const col = j % 2; // 0 = kiri, 1 = kanan
+
+						// Posisi relatif terhadap ketua divisi
+						const ketuaX = i * ketuaDivisiSpacing - ketuaDivisiOffset;
+						const anggotaX =
+							ketuaX + (col === 0 ? -anggotaSpacing / 2 : anggotaSpacing / 2);
+
 						nodes.push({
-							id: `${member.id}`, // harus sama dengan yang di edge.target
+							id: `${member.id}`,
 							type: 'memberNode',
 							data: { member },
 							position: {
-								x:
-									i * level2Spacing -
-									level2Offset +
-									j * anggotaSpacing -
-									anggotaOffset,
-								y: 500,
+								x: anggotaX,
+								y: 600 + row * rowSpacing, // Mulai dari y=600 (200px dari ketua divisi y: 400), setiap baris +200
 							},
 							draggable: true,
 						});
@@ -342,10 +500,10 @@ export default function Structure() {
 						// Tambahkan edge dari ketua divisi ke anggota
 						if (ketuaDiv[0].id && member.id) {
 							edges.push({
-								id: `e-div-${ketuaDiv[0].id}-${member.id}`, // id unik edge
-								source: `${ketuaDiv[0].id}`, // harus sama dengan node ketua.id
-								target: `${member.id}`, // harus sama dengan node anggota.id
-								type: 'smoothstep', // tipe garis
+								id: `e-div-${ketuaDiv[0].id}-${member.id}`,
+								source: `${ketuaDiv[0].id}`,
+								target: `${member.id}`,
+								type: 'smoothstep',
 							});
 						}
 					});
@@ -474,22 +632,17 @@ export default function Structure() {
 							className="mt-0">
 							{sortedFilteredMembers.length > 0 ? (
 								<div
-									className="w-full h-[600px] border rounded-lg bg-white shadow-sm"
+									className="w-full h-[700px] border rounded-lg bg-white shadow-sm"
 									data-aos="zoom-in"
 									data-aos-delay="300">
 									<ReactFlowProvider>
-										<ReactFlow
+										<OrgChartFlow
 											nodes={nodes}
 											edges={edges}
 											onNodesChange={onNodesChange}
 											onEdgesChange={onEdgesChange}
 											nodeTypes={nodeTypes}
-											fitView
-											attributionPosition="bottom-right">
-											<Controls />
-											<MiniMap />
-											<Background />
-										</ReactFlow>
+										/>
 									</ReactFlowProvider>
 								</div>
 							) : (
