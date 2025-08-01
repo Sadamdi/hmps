@@ -1,8 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { LocalBannerFull, LocalOrang } from '../LocalAssets';
 
 interface HeroProps {
 	scrollToSection: (id: string) => void;
+	assetsLoaded?: boolean;
 }
 
 interface Settings {
@@ -35,8 +37,12 @@ interface Settings {
 	};
 }
 
-export default function Hero({ scrollToSection }: HeroProps) {
+export default function Hero({
+	scrollToSection,
+	assetsLoaded = false,
+}: HeroProps) {
 	const [scrollY, setScrollY] = useState(0);
+	const [smoothScrollY, setSmoothScrollY] = useState(0);
 	const [showText, setShowText] = useState(false);
 	const [textMoveUp, setTextMoveUp] = useState(false);
 	const [showBanner, setShowBanner] = useState(false);
@@ -86,10 +92,39 @@ export default function Hero({ scrollToSection }: HeroProps) {
 	];
 
 	useEffect(() => {
-		const handleScroll = () => setScrollY(window.scrollY);
-		window.addEventListener('scroll', handleScroll);
-		return () => window.removeEventListener('scroll', handleScroll);
-	}, []);
+		let ticking = false;
+		let lastScrollY = 0;
+
+		const handleScroll = () => {
+			lastScrollY = window.scrollY;
+
+			if (!ticking) {
+				requestAnimationFrame(() => {
+					setScrollY(lastScrollY);
+					ticking = false;
+				});
+				ticking = true;
+			}
+		};
+
+		// Smooth scroll update dengan delay untuk 144fps
+		const smoothScrollUpdate = () => {
+			setSmoothScrollY((prev) => {
+				const diff = scrollY - prev;
+				const step = diff * 0.15; // Smoothing factor lebih agresif untuk 144fps
+				return prev + step;
+			});
+		};
+
+		const smoothTimer = setInterval(smoothScrollUpdate, 7); // ~144fps (1000ms / 144 ≈ 7ms)
+
+		window.addEventListener('scroll', handleScroll, { passive: true });
+
+		return () => {
+			window.removeEventListener('scroll', handleScroll);
+			clearInterval(smoothTimer);
+		};
+	}, [scrollY]);
 
 	// Mobile banner rotation
 	useEffect(() => {
@@ -101,44 +136,30 @@ export default function Hero({ scrollToSection }: HeroProps) {
 	}, [mobileBanners.length]);
 
 	useEffect(() => {
-		// 1. Show text first di tengah
-		const textTimer = setTimeout(() => {
+		// Trigger semua animasi langsung saat assets loaded (tanpa delay)
+		if (assetsLoaded) {
 			setShowText(true);
-		}, 300);
-
-		// 2. Move text up setelah muncul
-		const moveUpTimer = setTimeout(() => {
-			setTextMoveUp(true);
-		}, 1200);
-
-		// 3. Show banner setelah text naik
-		const bannerTimer = setTimeout(() => {
 			setShowBanner(true);
-		}, 2000);
-
-		// 4. Show person setelah banner
-		const personTimer = setTimeout(() => {
 			setShowPerson(true);
-		}, 2500);
-
-		return () => {
-			clearTimeout(textTimer);
-			clearTimeout(moveUpTimer);
-			clearTimeout(bannerTimer);
-			clearTimeout(personTimer);
-		};
-	}, []);
+			setTextMoveUp(true);
+		}
+	}, [assetsLoaded]);
 
 	const getParallaxStyle = (ratio: number) => ({
-		transform: `translate3d(0, ${scrollY * ratio}px, 0)`,
+		transform: `translate3d(0, ${smoothScrollY * ratio}px, 0)`,
 		willChange: 'transform',
+		backfaceVisibility: 'hidden' as const,
+		perspective: 1000,
 	});
 
 	// Scroll limit where we start hiding banner - lebih besar agar teks bertahan lebih lama
 	const fadeOutThreshold = 800;
 	const textFadeOutThreshold = 1000; // Teks hilang lebih lambat dari gambar
-	const opacityValue = Math.max(0, 1 - scrollY / fadeOutThreshold);
-	const textOpacityValue = Math.max(0, 1 - scrollY / textFadeOutThreshold);
+	const opacityValue = Math.max(0, 1 - smoothScrollY / fadeOutThreshold);
+	const textOpacityValue = Math.max(
+		0,
+		1 - smoothScrollY / textFadeOutThreshold
+	);
 
 	return (
 		<div
@@ -148,12 +169,14 @@ export default function Hero({ scrollToSection }: HeroProps) {
 			<div className="hidden lg:block relative w-full h-[200vh]">
 				{/* Fixed Banner inside Hero */}
 				<div
-					className={`fixed top-0 left-0 w-full h-[400px] z-0 pointer-events-none transition-all duration-1000 ease-out ${
+					className={`fixed top-0 left-0 w-full h-[400px] z-0 pointer-events-none transition-opacity duration-800 ease-out hardware-accelerated ${
 						showBanner ? 'opacity-100' : 'opacity-0'
 					}`}
-					style={{ opacity: showBanner ? opacityValue : 0 }}>
-					<img
-						src="/attached_assets/general/bennerfull.png"
+					style={{
+						opacity: showBanner ? opacityValue : 0,
+						willChange: 'opacity',
+					}}>
+					<LocalBannerFull
 						alt="Banner"
 						className="w-full h-full object-cover"
 					/>
@@ -162,18 +185,23 @@ export default function Hero({ scrollToSection }: HeroProps) {
 
 				{/* Teks tengah */}
 				<div
-					className={`absolute left-1/2 z-[5] text-center bg-white/80 backdrop-blur-sm px-6 py-8 rounded-lg shadow-lg transition-all duration-1000 ease-out ${
+					className={`absolute left-1/2 z-[5] text-center bg-white/80 backdrop-blur-sm px-6 py-8 rounded-lg shadow-lg transition-opacity duration-800 ease-out scroll-optimized ${
 						showText ? 'opacity-100' : 'opacity-0'
 					}`}
 					style={{
 						...getParallaxStyle(-0.6),
 						transform: `translate3d(-50%, ${
-							textMoveUp ? -100 + scrollY * -0.6 : -50 + scrollY * -0.6
+							textMoveUp
+								? -100 + smoothScrollY * -0.6
+								: -50 + smoothScrollY * -0.6
 						}%, 0)`,
 						left: '50%',
 						top: textMoveUp ? '35%' : '50%',
 						opacity: showText ? textOpacityValue : 0,
-						transition: 'all 1s ease-out',
+						transition: 'opacity 0.8s ease-out',
+						willChange: 'opacity, transform',
+						backfaceVisibility: 'hidden' as const,
+						perspective: 1000,
 					}}>
 					<h1 className="text-5xl font-bold mb-3 text-gray-800">
 						{settings?.siteName}
@@ -186,19 +214,19 @@ export default function Hero({ scrollToSection }: HeroProps) {
 
 				{/* Gambar orang */}
 				<div
-					className={`fixed top-0 left-0 w-full h-full z-10 pointer-events-none transition-all duration-1000 ease-out ${
+					className={`fixed top-0 left-0 w-full h-full z-10 pointer-events-none transition-opacity duration-800 ease-out hardware-accelerated ${
 						showPerson ? 'opacity-100' : 'opacity-0'
 					}`}
 					style={{
 						...getParallaxStyle(0.4),
 						opacity: showPerson ? opacityValue : 0,
+						willChange: 'opacity, transform',
+						backfaceVisibility: 'hidden' as const,
+						perspective: 1000,
 					}}>
-					<img
-						src="/attached_assets/general/orang.png"
+					<LocalOrang
 						alt="Orang"
-						className={`w-full h-full object-contain transition-all duration-1000 ease-out ${
-							showPerson ? 'scale-100' : 'scale-95'
-						}`}
+						className="w-full h-full object-contain"
 					/>
 					<div className="absolute bottom-0 left-0 w-full h-1/2 bg-[linear-gradient(to_top,_rgba(255,255,255,1)_0%,_rgba(255,255,255,1)_30%,_rgba(255,255,255,0)_100%)]" />
 				</div>

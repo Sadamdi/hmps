@@ -133,6 +133,13 @@ export const ActivityTemplates = {
 		entityTitle: name,
 	}),
 
+	organizationPeriodDeleted: (period: string) => ({
+		type: 'organization' as const,
+		action: 'delete' as const,
+		title: 'Periode organisasi dihapus',
+		entityTitle: period,
+	}),
+
 	// Content activities
 	contentUpdated: (section: string) => ({
 		type: 'content' as const,

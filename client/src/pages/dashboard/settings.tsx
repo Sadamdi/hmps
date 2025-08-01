@@ -20,6 +20,7 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Loader2, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
 
 interface SiteSettings {
 	siteName: string;
@@ -179,11 +180,16 @@ export default function SettingsPage() {
 				title: 'Password Changed',
 				description: 'Your password has been updated successfully.',
 			});
+			
+			// Reset password form
 			setPasswordData({
 				currentPassword: '',
 				newPassword: '',
 				confirmPassword: '',
 			});
+
+			// Refresh user data to ensure cache is updated
+			queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
 		},
 		onError: (error: any) => {
 			toast({
@@ -348,6 +354,7 @@ export default function SettingsPage() {
 							<TabsTrigger value="appearance">Appearance</TabsTrigger>
 							<TabsTrigger value="contact">Contact</TabsTrigger>
 							<TabsTrigger value="security">Security</TabsTrigger>
+							<TabsTrigger value="profile">Profile</TabsTrigger>
 						</TabsList>
 
 						{isLoading || !formData ? (
@@ -652,6 +659,16 @@ export default function SettingsPage() {
 											</Card>
 										)}
 									</div>
+								</TabsContent>
+
+								<TabsContent value="profile">
+									<UserProfileEditor 
+										user={user} 
+										onUpdate={() => {
+											// Refresh user data
+											queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+										}}
+									/>
 								</TabsContent>
 							</>
 						)}

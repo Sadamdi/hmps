@@ -15,7 +15,7 @@ import { getCroppedImg } from '@/lib/cropImage'; // kita buat fungsi ini sendiri
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, User } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Area } from 'react-easy-crop';
 import Cropper from 'react-easy-crop';
 
@@ -28,53 +28,115 @@ interface OrgMember {
 }
 
 interface OrganizationEditorProps {
+	isOpen: boolean;
+	onClose: () => void;
 	member: OrgMember | null;
-	currentPeriod: string;
-	onSave: () => void;
-	onCancel: () => void;
+	onSaved: () => void;
 }
 
 export default function OrganizationEditor({
+	isOpen,
+	onClose,
 	member,
-	currentPeriod,
-	onSave,
-	onCancel,
+	onSaved,
 }: OrganizationEditorProps) {
 	const { toast } = useToast();
 	const [name, setName] = useState(member?.name || '');
 	const [position, setPosition] = useState(member?.position || '');
-	const [period, setPeriod] = useState(member?.period || currentPeriod);
+	const [period, setPeriod] = useState(member?.period || '');
 	const [newPeriod, setNewPeriod] = useState('');
 	const [isAddingPeriod, setIsAddingPeriod] = useState(false);
 	const [imageFile, setImageFile] = useState<File | null>(null);
 	const [imagePreview, setImagePreview] = useState(member?.imageUrl || '');
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
-	// Available positions
-	const positions = [
-		'Ketua Himpunan',
-		'Wakil Ketua Himpunan',
-		'Ketua Divisi Senor',
-		'Ketua Divisi Public Relation',
-		'Ketua Divisi Religius',
-		'Ketua Divisi Technopreneurship',
-		'Ketua Divisi Medinfo',
-		'Ketua Divisi Intelektual',
-		'Anggota Divisi Senor',
-		'Anggota Divisi Public Relation',
-		'Anggota Divisi Religius',
-		'Anggota Divisi Technopreneurship',
-		'Anggota Divisi Medinfo',
-		'Anggota Divisi Intelektual',
+	// Reset form when member changes
+	useEffect(() => {
+		if (member) {
+			setName(member.name);
+			setPosition(member.position);
+			setPeriod(member.period);
+			setImagePreview(member.imageUrl);
+		} else {
+			setName('');
+			setPosition('');
+			setPeriod('');
+			setImagePreview('');
+		}
+		setImageFile(null);
+	}, [member]);
+
+	// Query positions for the selected period
+	const { data: positions = [], isLoading: isPositionsLoading } = useQuery({
+		queryKey: ['/api/organization/positions', period],
+		queryFn: async () => {
+			if (!period) return [];
+			const response = await fetch(`/api/organization/positions/${period}`);
+			const data = await response.json();
+			return data;
+		},
+		enabled: !!period,
+		placeholderData: [],
+	});
+
+	// Fallback positions if none found in database
+	const fallbackPositions = [
+		{ name: 'Ketua Himpunan', order: 1 },
+		{ name: 'Wakil Ketua Himpunan', order: 2 },
+		{ name: 'Sekretaris Himpunan', order: 3 },
+		{ name: 'Sekretaris Himpunan 1', order: 4 },
+		{ name: 'Sekretaris Himpunan 2', order: 5 },
+		{ name: 'Bendahara Himpunan 1', order: 6 },
+		{ name: 'Bendahara Himpunan 2', order: 7 },
+		{ name: 'Ketua Divisi Senor', order: 8 },
+		{ name: 'Anggota Divisi Senor', order: 9 },
+		{ name: 'Ketua Divisi Public Relation', order: 10 },
+		{ name: 'Anggota Divisi Public Relation', order: 11 },
+		{ name: 'Ketua Divisi Religius', order: 12 },
+		{ name: 'Anggota Divisi Religius', order: 13 },
+		{ name: 'Ketua Divisi Technopreneurship', order: 14 },
+		{ name: 'Anggota Divisi Technopreneurship', order: 15 },
+		{ name: 'Ketua Divisi Medinfo', order: 16 },
+		{ name: 'Anggota Divisi Medinfo', order: 17 },
+		{ name: 'Ketua Divisi Intelektual', order: 18 },
+		{ name: 'Anggota Divisi Intelektual', order: 19 },
 	];
+
+	// Use positions from database or fallback, sort by order
+	const availablePositions =
+		positions.length > 0
+			? positions.sort((a, b) => a.order - b.order).map((p) => p.name)
+			: fallbackPositions.sort((a, b) => a.order - b.order).map((p) => p.name);
 
 	// Fetch available periods from API
 	const { data: periods = [], isLoading: isPeriodsLoading } = useQuery({
 		queryKey: ['/api/organization/periods'],
-		placeholderData: [currentPeriod],
+		placeholderData: [period], // Use currentPeriod from props
+	});
+
+	// Sort periods chronologically (newest first)
+	const sortedPeriods = periods.sort((a, b) => {
+		const yearA = parseInt(a.split('-')[0]);
+		const yearB = parseInt(b.split('-')[0]);
+		return yearB - yearA; // Descending order (newest first)
 	});
 
 	// We already imported queryClient, so no need to get it again
+
+	// Create period mutation
+	const createPeriodMutation = useMutation({
+		mutationFn: async (period: string) => {
+			return await apiRequest('POST', '/api/organization/periods', { period });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ['/api/organization/periods'],
+			});
+		},
+		onError: (error: any) => {
+			console.error('Create period error:', error);
+		},
+	});
 
 	// Save member mutation
 	const saveMemberMutation = useMutation({
@@ -135,7 +197,7 @@ export default function OrganizationEditor({
 				console.warn('Failed to log organization activity:', error);
 			}
 
-			onSave();
+			onSaved();
 		},
 		onError: (error) => {
 			toast({
@@ -253,7 +315,7 @@ export default function OrganizationEditor({
 	};
 
 	return (
-		<div className="space-y-6">
+		<>
 			<Dialog
 				open={cropModalOpen}
 				onOpenChange={setCropModalOpen}>
@@ -285,169 +347,186 @@ export default function OrganizationEditor({
 				</DialogContent>
 			</Dialog>
 
-			<div className="space-y-4">
-				<div className="flex justify-center mb-4">
-					<div
-						onClick={() => fileInputRef.current?.click()}
-						className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-gray-300 cursor-pointer hover:border-gray-400 flex items-center justify-center bg-gray-50">
-						{imagePreview ? (
-							<img
-								src={imagePreview}
-								alt="Profile Preview"
-								className="w-full h-full object-cover"
+			<Dialog
+				open={isOpen}
+				onOpenChange={onClose}>
+				<DialogContent className="max-w-md">
+					<div className="space-y-4">
+						<div className="flex justify-center mb-4">
+							<div
+								onClick={() => fileInputRef.current?.click()}
+								className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-gray-300 cursor-pointer hover:border-gray-400 flex items-center justify-center bg-gray-50">
+								{imagePreview ? (
+									<img
+										src={imagePreview}
+										alt="Profile Preview"
+										className="w-full h-full object-cover"
+									/>
+								) : (
+									<User className="h-12 w-12 text-gray-400" />
+								)}
+								<div className="absolute bottom-0 inset-x-0 bg-black bg-opacity-50 text-white text-xs text-center py-1">
+									{imagePreview ? 'Change' : 'Upload'}
+								</div>
+							</div>
+							<input
+								ref={fileInputRef}
+								type="file"
+								accept="image/*"
+								className="hidden"
+								onChange={handleFileChange}
 							/>
-						) : (
-							<User className="h-12 w-12 text-gray-400" />
-						)}
-						<div className="absolute bottom-0 inset-x-0 bg-black bg-opacity-50 text-white text-xs text-center py-1">
-							{imagePreview ? 'Change' : 'Upload'}
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="name">Full Name</Label>
+							<Input
+								id="name"
+								placeholder="Enter full name"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="position">Position</Label>
+							<Select
+								value={position}
+								onValueChange={setPosition}>
+								<SelectTrigger id="position">
+									<SelectValue placeholder="Select position" />
+								</SelectTrigger>
+								<SelectContent>
+									{availablePositions.map((pos) => (
+										<SelectItem
+											key={pos}
+											value={pos}>
+											{pos}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="period">Period</Label>
+							{!isAddingPeriod ? (
+								<div className="flex gap-2">
+									<div className="flex-1">
+										<Select
+											value={period}
+											onValueChange={setPeriod}>
+											<SelectTrigger id="period">
+												<SelectValue placeholder="Select period" />
+											</SelectTrigger>
+											<SelectContent>
+												{sortedPeriods.map((p: string) => (
+													<SelectItem
+														key={p}
+														value={p}>
+														{p}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+									</div>
+									<Button
+										type="button"
+										variant="outline"
+										size="icon"
+										onClick={() => setIsAddingPeriod(true)}>
+										<Plus className="h-4 w-4" />
+									</Button>
+								</div>
+							) : (
+								<div className="flex gap-2">
+									<Input
+										placeholder="YYYY-YYYY (e.g. 2023-2024)"
+										value={newPeriod}
+										onChange={(e) => setNewPeriod(e.target.value)}
+									/>
+									<Button
+										type="button"
+										variant="secondary"
+										onClick={async () => {
+											if (newPeriod && /^\d{4}-\d{4}$/.test(newPeriod)) {
+												try {
+													await createPeriodMutation.mutateAsync(newPeriod);
+
+													// Add the new period to local state
+													setPeriod(newPeriod);
+													setIsAddingPeriod(false);
+
+													// Show confirmation
+													toast({
+														title: 'New Period Added',
+														description: `Period ${newPeriod} has been created and selected.`,
+													});
+												} catch (error: any) {
+													// Error handling is done in mutation
+													if (error?.message?.includes('already exists')) {
+														toast({
+															title: 'Period Exists',
+															description:
+																'This period already exists. Please use a different year range.',
+															variant: 'destructive',
+														});
+													}
+												}
+											} else {
+												toast({
+													title: 'Invalid Format',
+													description:
+														'Please use the format YYYY-YYYY (e.g. 2023-2024)',
+													variant: 'destructive',
+												});
+											}
+										}}
+										disabled={createPeriodMutation.isPending}>
+										{createPeriodMutation.isPending ? (
+											<>
+												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+												Creating...
+											</>
+										) : (
+											'Add'
+										)}
+									</Button>
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => {
+											setNewPeriod('');
+											setIsAddingPeriod(false);
+										}}>
+										Cancel
+									</Button>
+								</div>
+							)}
 						</div>
 					</div>
-					<input
-						ref={fileInputRef}
-						type="file"
-						accept="image/*"
-						className="hidden"
-						onChange={handleFileChange}
-					/>
-				</div>
 
-				<div className="space-y-2">
-					<Label htmlFor="name">Full Name</Label>
-					<Input
-						id="name"
-						placeholder="Enter full name"
-						value={name}
-						onChange={(e) => setName(e.target.value)}
-					/>
-				</div>
-
-				<div className="space-y-2">
-					<Label htmlFor="position">Position</Label>
-					<Select
-						value={position}
-						onValueChange={setPosition}>
-						<SelectTrigger id="position">
-							<SelectValue placeholder="Select position" />
-						</SelectTrigger>
-						<SelectContent>
-							{positions.map((pos) => (
-								<SelectItem
-									key={pos}
-									value={pos}>
-									{pos}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-				</div>
-
-				<div className="space-y-2">
-					<Label htmlFor="period">Period</Label>
-					{!isAddingPeriod ? (
-						<div className="flex gap-2">
-							<div className="flex-1">
-								<Select
-									value={period}
-									onValueChange={setPeriod}>
-									<SelectTrigger id="period">
-										<SelectValue placeholder="Select period" />
-									</SelectTrigger>
-									<SelectContent>
-										{periods.map((p: string) => (
-											<SelectItem
-												key={p}
-												value={p}>
-												{p}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-							<Button
-								type="button"
-								variant="outline"
-								size="icon"
-								onClick={() => setIsAddingPeriod(true)}>
-								<Plus className="h-4 w-4" />
-							</Button>
-						</div>
-					) : (
-						<div className="flex gap-2">
-							<Input
-								placeholder="YYYY-YYYY (e.g. 2023-2024)"
-								value={newPeriod}
-								onChange={(e) => setNewPeriod(e.target.value)}
-							/>
-							<Button
-								type="button"
-								variant="secondary"
-								onClick={() => {
-									if (newPeriod && /^\d{4}-\d{4}$/.test(newPeriod)) {
-										// Check if this period already exists
-										if (periods.includes(newPeriod)) {
-											toast({
-												title: 'Period Exists',
-												description:
-													'This period already exists. Please use a different year range.',
-												variant: 'destructive',
-											});
-										} else {
-											// Add the new period to both local state and server
-											setPeriod(newPeriod);
-											// The periods will be automatically updated by the server when a new member is created
-											setIsAddingPeriod(false);
-
-											// Show confirmation
-											toast({
-												title: 'New Period Added',
-												description: `Period ${newPeriod} has been created and selected.`,
-											});
-										}
-									} else {
-										toast({
-											title: 'Invalid Format',
-											description:
-												'Please use the format YYYY-YYYY (e.g. 2023-2024)',
-											variant: 'destructive',
-										});
-									}
-								}}>
-								Add
-							</Button>
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => {
-									setNewPeriod('');
-									setIsAddingPeriod(false);
-								}}>
-								Cancel
-							</Button>
-						</div>
-					)}
-				</div>
-			</div>
-
-			<div className="flex justify-end space-x-4">
-				<Button
-					variant="outline"
-					onClick={onCancel}>
-					Cancel
-				</Button>
-				<Button
-					onClick={handleSave}
-					disabled={saveMemberMutation.isPending}>
-					{saveMemberMutation.isPending ? (
-						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-							Saving...
-						</>
-					) : (
-						'Save'
-					)}
-				</Button>
-			</div>
-		</div>
+					<div className="flex justify-end space-x-4 mt-6">
+						<Button
+							variant="outline"
+							onClick={onClose}>
+							Cancel
+						</Button>
+						<Button
+							onClick={handleSave}
+							disabled={saveMemberMutation.isPending}>
+							{saveMemberMutation.isPending ? (
+								<>
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									Saving...
+								</>
+							) : (
+								'Save'
+							)}
+						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+		</>
 	);
 }
