@@ -47,7 +47,6 @@ export default function Header({ title }: HeaderProps) {
 			queryKey: ['/api/dashboard/activities', { limit: 5, notification: true }],
 			queryFn: async () => {
 				try {
-					console.log('🔔 Fetching notifications...');
 					const response = await fetch('/api/dashboard/activities?limit=5', {
 						credentials: 'include',
 						headers: {
@@ -60,7 +59,6 @@ export default function Header({ title }: HeaderProps) {
 					}
 
 					const data = await response.json();
-					console.log('🔔 Notifications loaded:', data);
 					return data;
 				} catch (error) {
 					console.error('❌ Failed to fetch notifications:', error);
@@ -82,7 +80,6 @@ export default function Header({ title }: HeaderProps) {
 			],
 			queryFn: async () => {
 				try {
-					console.log('🔔 Fetching all notifications...');
 					const response = await fetch('/api/dashboard/activities?limit=100', {
 						credentials: 'include',
 						headers: {
@@ -95,7 +92,6 @@ export default function Header({ title }: HeaderProps) {
 					}
 
 					const data = await response.json();
-					console.log('🔔 All notifications loaded:', data);
 					return data;
 				} catch (error) {
 					console.error('❌ Failed to fetch all notifications:', error);

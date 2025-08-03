@@ -13,7 +13,19 @@ import {
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAuth } from '@/lib/auth';
-import { UserWithRole } from '@shared/schema';
+// Define user type to match MongoDB schema
+interface UserWithRole {
+	_id: string;
+	username: string;
+	name: string;
+	email: string;
+	role: string;
+	division?: string;
+	password?: string;
+	createdAt?: Date;
+	updatedAt?: Date;
+	lastLogin?: Date;
+}
 import { useQuery } from '@tanstack/react-query';
 import { Edit, Loader2, Search, Shield, User, UserPlus } from 'lucide-react';
 import { useState } from 'react';
@@ -181,7 +193,7 @@ export default function UsersPage() {
 								<tbody className="divide-y divide-gray-200">
 									{filteredUsers.map((user: UserWithRole) => (
 										<tr
-											key={user.id}
+											key={user._id}
 											className="hover:bg-gray-50">
 											<td className="px-6 py-4">
 												<div className="flex items-center">
@@ -230,7 +242,7 @@ export default function UsersPage() {
 													disabled={
 														(currentUser?.role === 'admin' &&
 															user.role === 'owner') ||
-														(currentUser?.id === user.id &&
+														(currentUser?._id === user._id &&
 															currentUser?.role !== 'owner')
 													}>
 													{currentUser?.role === 'owner' ||

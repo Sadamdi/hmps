@@ -7,6 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
+import { useQuery } from '@tanstack/react-query';
 import { LogOut, Menu, Settings, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'wouter';
@@ -22,6 +23,14 @@ export default function Navbar({
 }: NavbarProps) {
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const { user, logout } = useAuth();
+
+	// Fetch settings for navbar brand
+	const { data: settings } = useQuery({
+		queryKey: ['/api/settings'],
+		staleTime: 0, // Always fetch fresh data
+		refetchOnWindowFocus: true,
+		refetchOnMount: true,
+	});
 
 	const navItems = [
 		{ id: 'about', label: 'Tentang Kami' },
@@ -43,8 +52,8 @@ export default function Navbar({
 						<div className="flex-shrink-0 flex items-center">
 							<button
 								onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-								className="text-xl font-bold text-primary">
-								HMTI
+								className="text-xl font-bold bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
+								{settings?.navbarBrand || 'HMTI'}
 							</button>
 						</div>
 						<nav className="hidden sm:ml-6 sm:flex sm:space-x-8">

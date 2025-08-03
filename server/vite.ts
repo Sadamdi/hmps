@@ -44,12 +44,28 @@ export async function setupVite(app: Express, server: Server) {
 	app.use('*', async (req, res, next) => {
 		const url = req.originalUrl;
 
+		// Skip API routes
+		if (url.startsWith('/api/')) {
+			return next();
+		}
+
+		// Skip static files (but allow .tsx files for Vite)
+		if (url.includes('.') && !url.includes('.tsx') && !url.includes('.ts') && !url.includes('.jsx') && !url.includes('.js')) {
+			return next();
+		}
+
 		try {
 			const clientTemplate = path.resolve(
 				process.cwd(),
 				'client',
 				'index.html'
 			);
+
+			// Check if template file exists
+			if (!fs.existsSync(clientTemplate)) {
+				console.error(`Template file not found: ${clientTemplate}`);
+				return res.status(404).json({ error: 'Template not found' });
+			}
 
 			// always reload the index.html file from disk incase it changes
 			let template = await fs.promises.readFile(clientTemplate, 'utf-8');
@@ -60,6 +76,7 @@ export async function setupVite(app: Express, server: Server) {
 			const page = await vite.transformIndexHtml(url, template);
 			res.status(200).set({ 'Content-Type': 'text/html' }).end(page);
 		} catch (e) {
+			console.error('Vite middleware error:', e);
 			vite.ssrFixStacktrace(e as Error);
 			next(e);
 		}
