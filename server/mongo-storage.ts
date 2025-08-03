@@ -5,11 +5,9 @@ import {
 	Organization,
 	Position,
 	Settings,
-	useMongoDB,
 	User,
 } from '../db/mongodb';
 import { hashPassword } from './auth';
-import { storage } from './storage'; // Import PostgreSQL storage
 
 // Utility function to convert string/number ID to ObjectId
 function toObjectId(id: string | number): mongoose.Types.ObjectId | null {
@@ -554,42 +552,5 @@ const mongoDBStorage = {
 	resetSettings,
 };
 
-// Create dynamic proxy to use either MongoDB (preferred) or PostgreSQL (fallback)
-export const mongoStorage = new Proxy({} as typeof mongoDBStorage, {
-	get: function (target, prop) {
-		// Jika MongoDB aktif, gunakan MongoDB storage
-		if (useMongoDB) {
-			return (mongoDBStorage as any)[prop];
-		}
-		// Jika MongoDB tidak aktif, gunakan PostgreSQL storage sebagai fallback
-		else {
-			// Konversi MongoDB ObjectId string (jika diperlukan)
-			const pgFunction = (storage as any)[prop];
-
-			if (typeof pgFunction === 'function') {
-				return function (...args: any[]) {
-					console.log(`Using PostgreSQL fallback for: ${String(prop)}`);
-					// Untuk fungsi yang menerima ID, konversi string ID ke angka
-					if (
-						String(prop).includes('ById') &&
-						args[0] &&
-						typeof args[0] === 'string'
-					) {
-						// Coba konversi MongoDB ObjectId ke angka integer untuk PostgreSQL
-						try {
-							const numId = parseInt(args[0].toString(), 10);
-							if (!isNaN(numId)) {
-								args[0] = numId;
-							}
-						} catch (e) {
-							console.error(`Error converting ID: ${args[0]}`, e);
-						}
-					}
-					return pgFunction(...args);
-				};
-			} else {
-				return pgFunction;
-			}
-		}
-	},
-});
+// Export MongoDB storage directly (no more PostgreSQL fallback)
+export const mongoStorage = mongoDBStorage;

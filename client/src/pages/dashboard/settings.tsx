@@ -1,5 +1,6 @@
 import Header from '@/components/dashboard/header';
 import Sidebar from '@/components/dashboard/sidebar';
+import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
 import { Button } from '@/components/ui/button';
 import {
 	Card,
@@ -20,12 +21,12 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Loader2, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
 
 interface SiteSettings {
 	siteName: string;
 	siteTagline: string;
 	siteDescription: string;
+	navbarBrand: string;
 	contactEmail: string;
 	address: string;
 	enableRegistration: boolean;
@@ -64,6 +65,7 @@ export default function SettingsPage() {
 		siteTagline: 'Salam Satu Saudara Informatika',
 		siteDescription:
 			'Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang',
+		navbarBrand: 'HMTI',
 		contactEmail: 'hmti@uin-malang.ac.id',
 		address:
 			'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang',
@@ -87,8 +89,9 @@ export default function SettingsPage() {
 	} = useQuery({
 		queryKey: ['/api/settings'],
 		placeholderData: defaultSettings,
-		staleTime: 1000, // Consider data fresh for only 1 second
+		staleTime: 0, // Always fetch fresh data
 		refetchOnWindowFocus: true, // Refetch when window gets focus
+		refetchOnMount: true,
 	});
 
 	const [formData, setFormData] = useState<SiteSettings>(defaultSettings);
@@ -130,6 +133,9 @@ export default function SettingsPage() {
 
 			// Force refetch to ensure UI is updated
 			refetchSettings();
+			
+			// Force refresh all settings queries across the app
+			queryClient.refetchQueries({ queryKey: ['/api/settings'] });
 
 			// Log activity
 			try {
@@ -180,7 +186,7 @@ export default function SettingsPage() {
 				title: 'Password Changed',
 				description: 'Your password has been updated successfully.',
 			});
-			
+
 			// Reset password form
 			setPasswordData({
 				currentPassword: '',
@@ -381,6 +387,19 @@ export default function SettingsPage() {
 													onChange={handleInputChange}
 												/>
 											</div>
+											<div className="space-y-2">
+												<Label htmlFor="navbarBrand">Navbar Brand</Label>
+												<Input
+													id="navbarBrand"
+													name="navbarBrand"
+													value={formData.navbarBrand}
+													onChange={handleInputChange}
+												/>
+												<p className="text-sm text-gray-500">
+													Text displayed in the navigation bar
+												</p>
+											</div>
+
 											<div className="space-y-2">
 												<Label htmlFor="siteTagline">Tagline</Label>
 												<Input
@@ -662,11 +681,13 @@ export default function SettingsPage() {
 								</TabsContent>
 
 								<TabsContent value="profile">
-									<UserProfileEditor 
-										user={user} 
+									<UserProfileEditor
+										user={user}
 										onUpdate={() => {
 											// Refresh user data
-											queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+											queryClient.invalidateQueries({
+												queryKey: ['/api/auth/me'],
+											});
 										}}
 									/>
 								</TabsContent>

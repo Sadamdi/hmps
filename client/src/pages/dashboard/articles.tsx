@@ -20,20 +20,19 @@ import { useState } from 'react';
 
 // Compatible Article interface with ArticleEditor
 interface Article {
-	id?: number;
-	_id?: string;
+	_id: string;
 	title: string;
 	excerpt: string;
 	content: string;
 	image: string;
 	published: boolean;
 	author: string;
+	authorId: string;
 	createdAt: string;
+	updatedAt: string;
 	// Optional fields for compatibility
-	authorId?: number;
 	date?: string;
 	time?: string;
-	updatedAt?: string;
 }
 
 export default function DashboardArticles() {
@@ -192,7 +191,7 @@ export default function DashboardArticles() {
 						<div className="grid gap-6">
 							{filteredArticles.map((article: Article) => (
 								<Card
-									key={article.id}
+									key={article._id}
 									className="overflow-hidden">
 									<div className="flex flex-col md:flex-row">
 										<div className="w-full md:w-64 h-48 md:h-auto">
@@ -242,7 +241,7 @@ export default function DashboardArticles() {
 														variant="outline"
 														className="text-red-600 border-red-200 hover:bg-red-50"
 														onClick={() =>
-															handleDeleteArticle((article as any)._id)
+															handleDeleteArticle(article._id)
 														}>
 														<Trash2 className="h-4 w-4" />
 													</Button>

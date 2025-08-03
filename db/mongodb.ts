@@ -1,20 +1,8 @@
 import mongoose from 'mongoose';
 
-// Variabel untuk mengontrol mode database
-let useMongoDB = true;
-
 // Konek ke MongoDB
 const connectDB = async () => {
 	try {
-		// Jika DISABLE_MONGODB=true, langsung biarkan fallback ke PostgreSQL
-		if (process.env.DISABLE_MONGODB === 'true') {
-			console.log(
-				'MongoDB disabled by configuration. Using PostgreSQL instead.'
-			);
-			useMongoDB = false;
-			return false;
-		}
-
 		// Untuk produksi, gunakan MongoDB Atlas
 		// Contoh URI: mongodb+srv://username:password@cluster.mongodb.net/hmti_informatika
 		const MONGODB_URI = process.env.MONGODB_URI;
@@ -32,7 +20,6 @@ const connectDB = async () => {
 		});
 
 		console.log('Connected to MongoDB');
-		useMongoDB = true;
 		return true;
 	} catch (error) {
 		console.error('MongoDB connection error:', error);
@@ -52,13 +39,10 @@ const connectDB = async () => {
        - Gunakan URI connection string dari MongoDB Atlas
        - Contoh: mongodb+srv://username:password@cluster.mongodb.net/hmti_informatika
     
-    Tambahkan MONGODB_URI ke file .env Anda atau DISABLE_MONGODB=true untuk menggunakan PostgreSQL.
+    Tambahkan MONGODB_URI ke file .env Anda.
     `);
 
-		// Set mode database ke PostgreSQL
-		console.log('Menggunakan PostgreSQL sebagai fallback');
-		useMongoDB = false;
-		return false;
+		throw error; // Re-throw error instead of falling back to PostgreSQL
 	}
 };
 
@@ -134,6 +118,7 @@ const settingsSchema = new mongoose.Schema({
 		default:
 			'Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang',
 	},
+	navbarBrand: { type: String, default: 'HMTI' },
 	aboutUs: { type: String, default: '' },
 	visionMission: { type: String, default: '' },
 	contactEmail: { type: String, default: 'hmti@uin-malang.ac.id' },
@@ -247,4 +232,5 @@ const Settings =
 export const Position =
 	mongoose.models.Position || mongoose.model('Position', positionSchema);
 
-export { Article, connectDB, Library, Organization, Settings, User, useMongoDB };
+export { Article, connectDB, Library, Organization, Settings, User };
+

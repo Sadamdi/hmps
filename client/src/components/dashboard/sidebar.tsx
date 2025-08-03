@@ -1,6 +1,7 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { useQuery } from '@tanstack/react-query';
 import {
 	ChevronLeft,
 	ChevronRight,
@@ -20,6 +21,14 @@ export default function Sidebar() {
 	const [location] = useLocation();
 	const { user, logout, hasPermission } = useAuth();
 	const [expanded, setExpanded] = useState(true);
+
+	// Fetch settings for sidebar brand
+	const { data: settings } = useQuery({
+		queryKey: ['/api/settings'],
+		staleTime: 0, // Always fetch fresh data
+		refetchOnWindowFocus: true,
+		refetchOnMount: true,
+	});
 
 	const navItems = [
 		{
@@ -78,10 +87,14 @@ export default function Sidebar() {
 				<div className="p-6 flex items-center justify-between border-b">
 					<div className="flex items-center space-x-2">
 						{expanded && (
-							<span className="font-bold text-xl text-primary">HMTI</span>
+							<span className="font-bold text-xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
+								{settings?.navbarBrand || 'HMTI'}
+							</span>
 						)}
 						{!expanded && (
-							<span className="font-bold text-xl text-primary">H</span>
+							<span className="font-bold text-xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
+								{(settings?.navbarBrand || 'HMTI').charAt(0)}
+							</span>
 						)}
 					</div>
 					<Button

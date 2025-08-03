@@ -1934,6 +1934,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.use('/api/chat', chatRouter);
 
+	// SPA Routing - Handle all frontend routes
+	// This ensures that routes like /dashboard, /articles, etc. work correctly
+	app.get('*', (req, res, next) => {
+		// Skip API routes
+		if (req.path.startsWith('/api/')) {
+			return next();
+		}
+
+		// Skip static files
+		if (req.path.includes('.')) {
+			return next();
+		}
+
+		// For all other routes, serve the main app
+		// This will be handled by Vite middleware in development
+		// or static file serving in production
+		next();
+	});
+
 	const server = createServer(app);
 	return server;
 }
