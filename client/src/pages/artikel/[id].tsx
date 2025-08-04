@@ -22,20 +22,25 @@ interface Article {
 }
 
 export default function ArticleDetail() {
-	const { id } = useParams();
+	const { id, slug } = useParams();
 	const [, setLocation] = useLocation();
+
+	// Determine if we're using ID or slug
+	const isSlugRoute = !!slug;
+	const identifier = isSlugRoute ? slug : id;
+	const apiEndpoint = isSlugRoute ? `/api/articles/slug/${identifier}` : `/api/articles/${identifier}`;
 
 	const {
 		data: article,
 		isLoading,
 		error,
 	} = useQuery<Article>({
-		queryKey: [`/api/articles/${id}`],
+		queryKey: [apiEndpoint],
 		queryFn: async () => {
-			const response = await apiRequest('GET', `/api/articles/${id}`);
+			const response = await apiRequest('GET', apiEndpoint);
 			return response.json();
 		},
-		enabled: !!id,
+		enabled: !!identifier,
 	});
 
 	const formatDate = (dateString: string) => {

@@ -38,6 +38,10 @@ function Router() {
 				component={ArticleDetail}
 			/>
 			<Route
+				path="/artikel/slug/:slug"
+				component={ArticleDetail}
+			/>
+			<Route
 				path="/login"
 				component={LoginForm}
 			/>

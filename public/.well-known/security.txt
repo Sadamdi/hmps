@@ -1,0 +1,6 @@
+Contact: mailto:admin@himatif-encoder.com
+Expires: 2026-12-31T23:59:59.000Z
+Preferred-Languages: id, en
+Canonical: https://himatif-encoder.com/.well-known/security.txt
+Policy: https://himatif-encoder.com/security-policy
+Hiring: https://himatif-encoder.com/careers 

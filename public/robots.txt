@@ -1,0 +1,23 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://himatif-encoder.com/sitemap.xml
+
+# Disallow admin areas
+Disallow: /admin/
+Disallow: /api/
+Disallow: /private/
+Disallow: /uploads/admin/
+Disallow: /_next/
+Disallow: /node_modules/
+
+# Allow important directories
+Allow: /artikel/
+Allow: /organisasi/
+Allow: /perpus/
+Allow: /uploads/articles/
+Allow: /attached_assets/
+
+# Crawl delay
+Crawl-delay: 1 

@@ -114,7 +114,7 @@ export interface Settings {
 	};
 	socialLinks: {
 		facebook: string;
-		twitter: string;
+		tiktok: string;
 		instagram: string;
 		youtube: string;
 	};

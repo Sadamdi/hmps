@@ -145,6 +145,16 @@ async function getArticleById(id: string | number): Promise<any | null> {
 	}
 }
 
+async function getArticleBySlug(slug: string): Promise<any | null> {
+	if (!slug) return null;
+	try {
+		return await Article.findOne({ slug }).lean();
+	} catch (error) {
+		console.error('Error getting article by slug:', error);
+		return null;
+	}
+}
+
 async function createArticle(articleData: any): Promise<any> {
 	// Convert authorId to ObjectId if it's a string or number
 	if (articleData.authorId) {
@@ -513,6 +523,7 @@ const mongoDBStorage = {
 	getPublishedArticles,
 	getArticlesByAuthorId,
 	getArticleById,
+	getArticleBySlug,
 	createArticle,
 	updateArticle,
 	deleteArticle,

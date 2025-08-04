@@ -16,6 +16,7 @@ import { Link } from 'wouter';
 interface Article {
 	id?: number;
 	_id?: string;
+	slug?: string;
 	title: string;
 	excerpt: string;
 	content: string;
@@ -43,9 +44,12 @@ export default function Articles() {
 		? articles.slice(0, 12)
 		: articles.slice(0, 6);
 
-	// Helper function to get article ID (handles both MongoDB _id and PostgreSQL id)
-	const getArticleId = (article: Article) => {
-		return article.id || article._id;
+	// Helper function to get article URL (prefer slug, fallback to ID)
+	const getArticleUrl = (article: Article) => {
+		if (article.slug) {
+			return `/artikel/slug/${article.slug}`;
+		}
+		return `/artikel/${article.id || article._id}`;
 	};
 
 	const truncateText = (text: string, maxLength: number = 150) => {
@@ -125,12 +129,12 @@ export default function Articles() {
 						<div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
 							{displayedArticles.map((article, index) => (
 								<Card
-									key={getArticleId(article)}
+									key={article.id || article._id}
 									className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group"
 									data-aos="fade-up"
 									data-aos-delay={index * 100}>
 									{/* Article Image */}
-									<Link href={`/artikel/${getArticleId(article)}`}>
+									<Link href={getArticleUrl(article)}>
 										<div className="relative h-48 overflow-hidden cursor-pointer">
 											<img
 												src={article.image}
@@ -146,7 +150,7 @@ export default function Articles() {
 									</Link>
 									{/* Article Content */}
 									<CardHeader className="pb-3">
-										<Link href={`/artikel/${getArticleId(article)}`}>
+										<Link href={getArticleUrl(article)}>
 											<h3 className="font-bold text-xl leading-tight line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">
 												{article.title}
 											</h3>
@@ -191,7 +195,7 @@ export default function Articles() {
 									</CardContent>
 
 									<CardFooter className="pt-0">
-										<Link href={`/artikel/${getArticleId(article)}`}>
+										<Link href={getArticleUrl(article)}>
 											<Button
 												variant="link"
 												className="text-primary hover:text-primary/80 p-0 h-auto font-medium">

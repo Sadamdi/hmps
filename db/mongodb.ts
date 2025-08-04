@@ -66,6 +66,7 @@ const userSchema = new mongoose.Schema({
 // Model Article
 const articleSchema = new mongoose.Schema({
 	title: { type: String, required: true },
+	slug: { type: String, required: true, unique: true }, // SEO-friendly URL
 	excerpt: { type: String, required: true },
 	content: { type: String, required: true },
 	image: { type: String, required: true },
@@ -82,6 +83,9 @@ const articleSchema = new mongoose.Schema({
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
 });
+
+// Index untuk slug
+articleSchema.index({ slug: 1 });
 
 // Model Library
 const librarySchema = new mongoose.Schema({
@@ -193,12 +197,12 @@ const settingsSchema = new mongoose.Schema({
 		leadership: { type: String, default: 'rgba(33, 150, 243, 0.75)' },
 	},
 	socialLinks: {
-		facebook: { type: String, default: 'https://facebook.com/hmtiuinmalang' },
-		twitter: { type: String, default: 'https://twitter.com/hmtiuinmalang' },
-		instagram: { type: String, default: 'https://instagram.com/hmtiuinmalang' },
+		facebook: { type: String, default: 'https://www.facebook.com/himatif.encoder/' },
+		tiktok: { type: String, default: 'https://www.tiktok.com/@himatif.encoder' },
+		instagram: { type: String, default: 'https://www.instagram.com/himatif.encoder/' },
 		youtube: {
 			type: String,
-			default: 'https://youtube.com/channel/hmtiuinmalang',
+			default: 'https://www.youtube.com/@himatifencoder',
 		},
 	},
 });
