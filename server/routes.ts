@@ -724,6 +724,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	// Get article by slug for SEO-friendly URLs (MUST BE BEFORE /:id route)
+	app.get('/api/articles/slug/:slug', async (req, res) => {
+		try {
+			const slug = req.params.slug;
+			const article = await mongoStorage.getArticleBySlug(slug);
+
+			if (!article) {
+				return res.status(404).json({ message: 'Article not found' });
+			}
+
+			// If article is not published, only authenticated users can view it
+			if (!article.published && !req.user) {
+				return res.status(404).json({ message: 'Article not found' });
+			}
+
+			res.json(article);
+		} catch (error) {
+			console.error('Get article by slug error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	app.get('/api/articles/:id', async (req, res) => {
 		try {
 			const articleId = req.params.id;
@@ -831,9 +853,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					imageUrl = await uploadHandler(req.file, true, 'articles');
 				}
 
-				// Create article with Google Drive support
+				// Generate unique slug from title
+				const { generateUniqueSlug } = await import('../shared/utils');
+				const existingArticles = await mongoStorage.getPublishedArticles();
+				const existingSlugs = existingArticles.map(
+					(article: any) => article.slug || ''
+				);
+				const slug = generateUniqueSlug(title.trim(), existingSlugs);
+
+				// Create article with Google Drive support and slug
 				const newArticle = await mongoStorage.createArticle({
 					title: title.trim(),
+					slug,
 					excerpt: excerpt.trim(),
 					content: content.trim(),
 					image: imageUrl,

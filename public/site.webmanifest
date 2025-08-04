@@ -1,0 +1,28 @@
+{
+    "name": "Himatif Encoder TI UIN Malang",
+    "short_name": "Himatif Encoder",
+    "description": "Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#1e40af",
+    "theme_color": "#1e40af",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "/favicon.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "/favicon.ico",
+            "sizes": "48x48",
+            "type": "image/x-icon"
+        }
+    ],
+    "categories": [
+        "education",
+        "organization"
+    ],
+    "lang": "id",
+    "dir": "ltr"
+}

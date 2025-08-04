@@ -34,7 +34,7 @@ interface SiteSettings {
 	footerText: string;
 	socialLinks: {
 		facebook: string;
-		twitter: string;
+		tiktok: string;
 		instagram: string;
 		youtube: string;
 	};
@@ -74,10 +74,10 @@ export default function SettingsPage() {
 		footerText:
 			'© 2023 Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.',
 		socialLinks: {
-			facebook: 'https://facebook.com/hmtiuinmalang',
-			twitter: 'https://twitter.com/hmtiuinmalang',
-			instagram: 'https://instagram.com/hmtiuinmalang',
-			youtube: 'https://youtube.com/channel/hmtiuinmalang',
+			facebook: 'https://www.facebook.com/himatif.encoder/',
+			tiktok: 'https://www.tiktok.com/@himatif.encoder',
+			instagram: 'https://www.instagram.com/himatif.encoder/',
+			youtube: 'https://www.youtube.com/@himatifencoder',
 		},
 	};
 
@@ -106,7 +106,7 @@ export default function SettingsPage() {
 			if (!settingsCopy.socialLinks) {
 				settingsCopy.socialLinks = {
 					facebook: '',
-					twitter: '',
+					tiktok: '',
 					instagram: '',
 					youtube: '',
 				};
@@ -133,7 +133,7 @@ export default function SettingsPage() {
 
 			// Force refetch to ensure UI is updated
 			refetchSettings();
-			
+
 			// Force refresh all settings queries across the app
 			queryClient.refetchQueries({ queryKey: ['/api/settings'] });
 
@@ -499,13 +499,13 @@ export default function SettingsPage() {
 													/>
 												</div>
 												<div className="space-y-2">
-													<Label htmlFor="twitter">Twitter</Label>
+													<Label htmlFor="tiktok">TikTok</Label>
 													<Input
-														id="twitter"
-														name="socialLinks.twitter"
-														value={formData.socialLinks?.twitter || ''}
+														id="tiktok"
+														name="socialLinks.tiktok"
+														value={formData.socialLinks?.tiktok || ''}
 														onChange={handleInputChange}
-														placeholder="https://twitter.com/yourhandle"
+														placeholder="https://www.tiktok.com/@yourhandle"
 													/>
 												</div>
 												<div className="space-y-2">
