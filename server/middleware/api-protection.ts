@@ -100,7 +100,13 @@ export const apiProtectionMiddleware = (
 		referer.includes('https://43.157.211.134') ||
 		origin.includes('https://43.157.211.134') ||
 		referer.includes('http://43.157.211.134') ||
-		origin.includes('http://43.157.211.134');
+		origin.includes('http://43.157.211.134') ||
+		referer.includes('himatif-encoder.com') ||
+		origin.includes('himatif-encoder.com') ||
+		referer.includes('https://himatif-encoder.com') ||
+		origin.includes('https://himatif-encoder.com') ||
+		referer.includes('www.himatif-encoder.com') ||
+		origin.includes('www.himatif-encoder.com');
 
 	// Cek apakah ada authentication header atau session
 	const hasAuth =
