@@ -6,6 +6,7 @@ const ALLOWED_API_ROUTES = [
 	'/api/auth/register',
 	'/api/auth/me',
 	'/api/articles',
+	'/api/articles/slug/',
 	'/api/upload',
 	'/api/chat',
 	'/api/activities',

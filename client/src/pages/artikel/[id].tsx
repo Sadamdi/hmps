@@ -25,10 +25,27 @@ export default function ArticleDetail() {
 	const { id, slug } = useParams();
 	const [, setLocation] = useLocation();
 
-	// Determine if we're using ID or slug
-	const isSlugRoute = !!slug;
-	const identifier = isSlugRoute ? slug : id;
-	const apiEndpoint = isSlugRoute ? `/api/articles/slug/${identifier}` : `/api/articles/${identifier}`;
+	// Debug logging
+	console.log('🔍 ArticleDetail Debug:', { id, slug });
+
+	// Determine route type and construct API endpoint
+	let apiEndpoint: string;
+	let isHybridRoute = false;
+
+	if (id && slug) {
+		// Hybrid route: /artikel/:id/:slug
+		apiEndpoint = `/api/articles/${id}/${slug}`;
+		isHybridRoute = true;
+		console.log('🔍 Hybrid route detected:', apiEndpoint);
+	} else if (slug && !id) {
+		// Slug-only route: /artikel/slug/:slug
+		apiEndpoint = `/api/articles/slug/${slug}`;
+		console.log('🔍 Slug-only route detected:', apiEndpoint);
+	} else {
+		// ID-only route: /artikel/:id (legacy)
+		apiEndpoint = `/api/articles/${id}`;
+		console.log('🔍 ID-only route detected:', apiEndpoint);
+	}
 
 	const {
 		data: article,
@@ -40,7 +57,7 @@ export default function ArticleDetail() {
 			const response = await apiRequest('GET', apiEndpoint);
 			return response.json();
 		},
-		enabled: !!identifier,
+		enabled: !!apiEndpoint,
 	});
 
 	const formatDate = (dateString: string) => {

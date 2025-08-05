@@ -10,7 +10,10 @@ import {
 	apiProtectionMiddleware,
 	apiRateLimitMiddleware,
 } from './middleware/api-protection';
-import { ddosProtectionMiddleware, cleanupDdosData } from './middleware/ddos-protection';
+import {
+	cleanupDdosData,
+	ddosProtectionMiddleware,
+} from './middleware/ddos-protection';
 import {
 	noSqlInjectionProtectionMiddleware,
 	sqlInjectionProtectionMiddleware,
@@ -61,6 +64,9 @@ app.use(
 	'/attached_assets',
 	express.static(path.join(process.cwd(), 'attached_assets'))
 );
+
+// Serve static files from public folder (SEO files, favicon, etc.)
+app.use(express.static(path.join(process.cwd(), 'public')));
 
 // ==================== REQUEST LOGGING MIDDLEWARE ====================
 app.use((req, res, next) => {
