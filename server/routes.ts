@@ -724,6 +724,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	// Hybrid route: /artikel/:id/:slug (for SEO-friendly URLs)
+	app.get('/api/articles/:id/:slug', async (req, res) => {
+		try {
+			const articleId = req.params.id;
+			const slug = req.params.slug;
+			
+			const article = await mongoStorage.getArticleById(articleId);
+
+			if (!article) {
+				return res.status(404).json({ message: 'Article not found' });
+			}
+
+			// If article is not published, only authenticated users can view it
+			if (!article.published && !req.user) {
+				return res.status(404).json({ message: 'Article not found' });
+			}
+
+			// Verify slug matches (optional validation)
+			if (article.slug && article.slug !== slug) {
+				// Redirect to correct slug if different
+				return res.redirect(`/artikel/${articleId}/${article.slug}`);
+			}
+
+			res.json(article);
+		} catch (error) {
+			console.error('Get article by ID and slug error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	// Get article by slug for SEO-friendly URLs (MUST BE BEFORE /:id route)
 	app.get('/api/articles/slug/:slug', async (req, res) => {
 		try {

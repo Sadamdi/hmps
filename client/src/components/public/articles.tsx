@@ -44,12 +44,15 @@ export default function Articles() {
 		? articles.slice(0, 12)
 		: articles.slice(0, 6);
 
-	// Helper function to get article URL (prefer slug, fallback to ID)
+	// Helper function to get article URL (hybrid: ID + slug for SEO)
 	const getArticleUrl = (article: Article) => {
-		if (article.slug) {
-			return `/artikel/slug/${article.slug}`;
+		const articleId = article.id || article._id;
+		if (article.slug && articleId) {
+			// Hybrid URL: /artikel/:id/:slug (SEO-friendly + unique)
+			return `/artikel/${articleId}/${article.slug}`;
 		}
-		return `/artikel/${article.id || article._id}`;
+		// Fallback to ID-only if no slug
+		return `/artikel/${articleId}`;
 	};
 
 	const truncateText = (text: string, maxLength: number = 150) => {

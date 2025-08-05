@@ -282,7 +282,12 @@ export default function AllArticles() {
 								data-aos="fade-up"
 								data-aos-delay={200 + index * 50}>
 								<CardHeader className="p-0">
-									<Link href={article.slug ? `/artikel/slug/${article.slug}` : `/artikel/${article._id}`}>
+									<Link
+										href={
+											article.slug
+												? `/artikel/${article._id}/${article.slug}`
+												: `/artikel/${article._id}`
+										}>
 										<div className="relative h-48 overflow-hidden">
 											<img
 												src={article.image}
@@ -298,7 +303,12 @@ export default function AllArticles() {
 									</Link>
 								</CardHeader>
 								<CardContent className="p-4">
-									<Link href={article.slug ? `/artikel/slug/${article.slug}` : `/artikel/${article._id}`}>
+									<Link
+										href={
+											article.slug
+												? `/artikel/${article._id}/${article.slug}`
+												: `/artikel/${article._id}`
+										}>
 										<CardTitle className="text-lg mb-2 hover:text-blue-600 transition-colors line-clamp-2">
 											{article.title}
 										</CardTitle>
@@ -341,7 +351,12 @@ export default function AllArticles() {
 									</div>
 
 									{/* Read More Button */}
-									<Link href={article.slug ? `/artikel/slug/${article.slug}` : `/artikel/${article._id}`}>
+									<Link
+										href={
+											article.slug
+												? `/artikel/${article._id}/${article.slug}`
+												: `/artikel/${article._id}`
+										}>
 										<Button
 											variant="link"
 											className="text-primary hover:text-primary/80 p-0 h-auto font-medium text-sm">

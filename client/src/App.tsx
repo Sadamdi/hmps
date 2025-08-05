@@ -34,11 +34,15 @@ function Router() {
 				component={AllArticles}
 			/>
 			<Route
-				path="/artikel/:id"
+				path="/artikel/:id/:slug"
 				component={ArticleDetail}
 			/>
 			<Route
 				path="/artikel/slug/:slug"
+				component={ArticleDetail}
+			/>
+			<Route
+				path="/artikel/:id"
 				component={ArticleDetail}
 			/>
 			<Route
