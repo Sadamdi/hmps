@@ -23,7 +23,12 @@ export async function setupVite(app: Express, server: Server) {
 	const serverOptions = {
 		middlewareMode: true,
 		hmr: { server },
-		allowedHosts: ['localhost'],
+		allowedHosts: [
+			'localhost',
+			'himatif-encoder.com',
+			'www.himatif-encoder.com',
+			'43.157.211.134',
+		],
 	};
 
 	const vite = await createViteServer({
@@ -50,7 +55,13 @@ export async function setupVite(app: Express, server: Server) {
 		}
 
 		// Skip static files (but allow .tsx files for Vite)
-		if (url.includes('.') && !url.includes('.tsx') && !url.includes('.ts') && !url.includes('.jsx') && !url.includes('.js')) {
+		if (
+			url.includes('.') &&
+			!url.includes('.tsx') &&
+			!url.includes('.ts') &&
+			!url.includes('.jsx') &&
+			!url.includes('.js')
+		) {
 			return next();
 		}
 
