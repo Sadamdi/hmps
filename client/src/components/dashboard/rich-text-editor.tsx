@@ -34,9 +34,6 @@ export default function RichTextEditor({
 				};
 
 				script.onerror = () => {
-					console.error(
-						'❌ Failed to load TinyMCE. Please check your API key.'
-					);
 					createFallbackEditor();
 				};
 			} else {
@@ -129,25 +126,18 @@ export default function RichTextEditor({
 
 					// Fix z-index dan positioning issues
 					inline: false,
-					fixed_toolbar_container: false,
+					// fixed_toolbar_container: false, // Removed - causing error
 
 					// Custom image upload handler
 					images_upload_handler: async (blobInfo: any, progress: any) => {
 						return new Promise(async (resolve, reject) => {
 							try {
-								console.log(
-									'🖼️ TinyMCE Image Upload Started:',
-									blobInfo.filename()
-								);
-
 								const formData = new FormData();
 								formData.append('image', blobInfo.blob(), blobInfo.filename());
 
 								// Use articleId if available
 								const targetArticleId = articleId || 'temp-' + Date.now();
 								formData.append('articleId', targetArticleId.toString());
-
-								console.log('📤 Uploading to article:', targetArticleId);
 
 								const response = await fetch('/api/upload/content-image', {
 									method: 'POST',
@@ -159,12 +149,8 @@ export default function RichTextEditor({
 								}
 
 								const data = await response.json();
-								console.log('✅ Image uploaded:', data.url);
-
-								// Return the URL for TinyMCE to use
 								resolve(data.url);
 							} catch (error) {
-								console.error('❌ Image upload failed:', error);
 								reject(error);
 							}
 						});
@@ -214,8 +200,6 @@ export default function RichTextEditor({
 
 					// Ensure proper event handling
 					init_instance_callback: (editor: any) => {
-						console.log('✅ TinyMCE initialized successfully');
-
 						// ENHANCED: Force fix all dialogs immediately after init
 						const setupDialogFixes = () => {
 							// Create comprehensive dialog fix function
@@ -392,12 +376,10 @@ export default function RichTextEditor({
 														eventType === 'click' ||
 														eventType === 'mousedown'
 													) {
-														console.log(`🖱️ Input ${index + 1} ${eventType}`);
 														setTimeout(() => newInput.focus(), 10);
 													}
 
 													if (eventType === 'focus') {
-														console.log(`✅ Input ${index + 1} focused`);
 														newInput.style.setProperty(
 															'border-color',
 															'#3b82f6',
@@ -427,10 +409,6 @@ export default function RichTextEditor({
 														eventType === 'keydown' ||
 														eventType === 'input'
 													) {
-														console.log(
-															`⌨️ Input ${index + 1} ${eventType}:`,
-															(e as any).key || 'input'
-														);
 													}
 												},
 												{ passive: false }
@@ -507,7 +485,6 @@ export default function RichTextEditor({
 					setup: (editor: any) => {
 						editor.on('init', () => {
 							editor.setContent(value || '');
-							console.log('✅ TinyMCE loaded successfully with API key');
 						});
 
 						editor.on('Change KeyUp', () => {
@@ -635,62 +612,31 @@ export default function RichTextEditor({
 								'.tox-dialog input, .tox-textfield'
 							);
 
-							console.clear();
-							console.log('🔍 TinyMCE Debug Test:');
-							console.log('- Toolbar exists:', !!toolbar);
-							console.log('- Button count:', buttons.length);
-							console.log('- Active dialogs:', dialogs.length);
-							console.log('- Dialog inputs:', inputs.length);
+							// Debug info removed for cleaner console
 
 							if (toolbar) {
-								console.log(
-									'- Toolbar z-index:',
-									getComputedStyle(toolbar).zIndex
-								);
-								console.log(
-									'- Toolbar position:',
-									getComputedStyle(toolbar).position
-								);
+								// Toolbar debug info removed
 							}
 
 							buttons.forEach((btn, i) => {
-								const style = getComputedStyle(btn);
-								console.log(
-									`- Button ${i + 1}: pointer-events=${
-										style.pointerEvents
-									}, cursor=${style.cursor}`
-								);
+								// Button debug info removed
 							});
 
 							// Test dialog inputs if any exist
 							if (inputs.length > 0) {
-								console.log('📝 Dialog Input Tests:');
+								// Input debug info removed
 								inputs.forEach((input: any, i) => {
-									const style = getComputedStyle(input);
-									console.log(
-										`- Input ${i + 1}: pointer-events=${
-											style.pointerEvents
-										}, z-index=${style.zIndex}`
-									);
-									console.log(
-										`  cursor=${style.cursor}, background=${style.background}`
-									);
-									console.log(
-										`  readonly=${input.readOnly}, disabled=${input.disabled}`
-									);
-
 									// Try to focus the input
 									try {
 										input.focus();
-										console.log(`  ✅ Input ${i + 1} can be focused`);
 									} catch (e) {
-										console.log(`  ❌ Input ${i + 1} focus failed:`, e);
+										// Focus failed silently
 									}
 								});
 							}
 
 							alert(
-								'Debug info logged to console! Check browser console (F12). If you see dialogs open, test the inputs now.'
+								'Debug completed! Check if dialogs are working properly now.'
 							);
 						}}
 						className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 mr-2">
@@ -715,7 +661,7 @@ export default function RichTextEditor({
 								'.tox-dialog .tox-button'
 							);
 
-							console.log('🔧 Applying comprehensive dialog fixes...');
+							// Applying comprehensive dialog fixes...
 
 							// Fix input fields
 							inputs.forEach((input: any, index) => {
