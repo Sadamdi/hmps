@@ -71,7 +71,7 @@ export const securityMiddleware = {
 				connectSrc: ["'self'", 'https://cdn.tiny.cloud'],
 				fontSrc: ["'self'", 'https://fonts.gstatic.com'],
 				objectSrc: ["'none'"],
-				mediaSrc: ["'self'"],
+				mediaSrc: ["'self'", 'data:', 'blob:'],
 				frameSrc: ["'none'"],
 			},
 		},
