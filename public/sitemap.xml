@@ -3,103 +3,20 @@
         xmlns:news="http://www.google.com/schemas/sitemap-news/0.9"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 
-    <!-- / -->
+    <!-- Root -->
     <url>
         <loc>https://himatif-encoder.com/</loc>
-        <lastmod>2025-08-05</lastmod>
+        <lastmod>2025-08-21</lastmod>
         <changefreq>daily</changefreq>
         <priority>1.0</priority>
     </url>
 
-    <!-- /artikel -->
+    <!-- Halaman daftar artikel -->
     <url>
         <loc>https://himatif-encoder.com/artikel</loc>
-        <lastmod>2025-08-05</lastmod>
+        <lastmod>2025-08-21</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.9</priority>
-    </url>
-
-    <!-- /organisasi -->
-    <url>
-        <loc>https://himatif-encoder.com/organisasi</loc>
-        <lastmod>2025-08-05</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-
-    <!-- /perpus -->
-    <url>
-        <loc>https://himatif-encoder.com/perpus</loc>
-        <lastmod>2025-08-05</lastmod>
-        <changefreq>weekly</changefreq>
-        <priority>0.8</priority>
-    </url>
-
-    <!-- /tentang -->
-    <url>
-        <loc>https://himatif-encoder.com/tentang</loc>
-        <lastmod>2025-08-05</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.7</priority>
-    </url>
-
-    <!-- /kontak -->
-    <url>
-        <loc>https://himatif-encoder.com/kontak</loc>
-        <lastmod>2025-08-05</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.7</priority>
-    </url>
-
-    <!-- Kajian Islami 2024 -->
-    <url>
-        <loc>https://himatif-encoder.com/artikel/6887dbd9d3389babf29a8494/kajian-islami-2024-peringatan-maulid-nabi-muhammad-saw-sebagai-sarana-meningkatkan-literasi-untuk-menyongsong-era-digital</loc>
-        <lastmod>2025-08-05</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.8</priority>
-        <news:news>
-            <news:publication>
-                <news:name>Himatif Encoder</news:name>
-                <news:language>id</news:language>
-            </news:publication>
-            <news:publication_date>2025-08-05T00:00:00+07:00</news:publication_date>
-            <news:title>Kajian Islami 2024</news:title>
-            <news:keywords>himatif, encoder, artikel, kajian, islami, 2024</news:keywords>
-        </news:news>
-    </url>
-
-    <!-- Spartival 2024 -->
-    <url>
-        <loc>https://himatif-encoder.com/artikel/6887dbd9d3389babf29a8495/spartival-2024-igniting-unlimited-creativity-in-arts-and-sport-activities</loc>
-        <lastmod>2025-08-05</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.8</priority>
-        <news:news>
-            <news:publication>
-                <news:name>Himatif Encoder</news:name>
-                <news:language>id</news:language>
-            </news:publication>
-            <news:publication_date>2025-08-05T00:00:00+07:00</news:publication_date>
-            <news:title>Spartival 2024</news:title>
-            <news:keywords>himatif, encoder, artikel, spartival, 2024, igniting</news:keywords>
-        </news:news>
-    </url>
-
-    <!-- STATIK 2023 -->
-    <url>
-        <loc>https://himatif-encoder.com/artikel/6887dbd9d3389babf29a8496/statik-2023</loc>
-        <lastmod>2025-08-05</lastmod>
-        <changefreq>monthly</changefreq>
-        <priority>0.8</priority>
-        <news:news>
-            <news:publication>
-                <news:name>Himatif Encoder</news:name>
-                <news:language>id</news:language>
-            </news:publication>
-            <news:publication_date>2025-08-05T00:00:00+07:00</news:publication_date>
-            <news:title>STATIK 2023</news:title>
-            <news:keywords>himatif, encoder, artikel, statik, 2023</news:keywords>
-        </news:news>
     </url>
 
 </urlset>

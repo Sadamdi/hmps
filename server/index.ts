@@ -66,6 +66,64 @@ app.use(
 );
 
 // Serve static files from public folder (SEO files, favicon, etc.)
+// Serve sitemap dynamically before static to ensure fresh URLs
+app.get('/sitemap.xml', async (_req, res) => {
+	try {
+		// Attempt to load articles for dynamic URLs
+		const { Article } = await import('../db/mongodb');
+		const articles = await Article.find({ published: true })
+			.select('_id slug updatedAt createdAt')
+			.sort({ updatedAt: -1 })
+			.limit(5000)
+			.lean();
+
+		const host = 'https://himatif-encoder.com';
+		const now = new Date().toISOString().slice(0, 10);
+
+		const baseUrls = [
+			{ loc: `${host}/`, changefreq: 'daily', priority: '1.0', lastmod: now },
+			{
+				loc: `${host}/artikel`,
+				changefreq: 'daily',
+				priority: '0.9',
+				lastmod: now,
+			},
+		];
+
+		const articleUrls = articles.map((a: any) => ({
+			loc: `${host}/artikel/${a._id}/${a.slug}`,
+			lastmod:
+				(a.updatedAt || a.createdAt)?.toISOString?.().slice(0, 10) || now,
+			changefreq: 'monthly',
+			priority: '0.8',
+		}));
+
+		const urls = [...baseUrls, ...articleUrls];
+
+		const xml =
+			`<?xml version="1.0" encoding="UTF-8"?>\n` +
+			`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
+			urls
+				.map(
+					(u) =>
+						`  <url>\n    <loc>${u.loc}</loc>\n    <lastmod>${
+							u.lastmod || now
+						}</lastmod>\n    <changefreq>${
+							u.changefreq
+						}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+				)
+				.join('\n') +
+			`\n</urlset>`;
+
+		res.set('Content-Type', 'application/xml');
+		return res.status(200).send(xml);
+	} catch (e) {
+		// Fallback to static file if dynamic generation fails
+		console.error('Failed to generate sitemap dynamically:', e);
+		return res.sendFile(path.join(process.cwd(), 'public', 'sitemap.xml'));
+	}
+});
+
 app.use(express.static(path.join(process.cwd(), 'public')));
 
 // ==================== REQUEST LOGGING MIDDLEWARE ====================

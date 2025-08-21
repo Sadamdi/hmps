@@ -48,7 +48,9 @@ export function LocalBannerFull({
 			style={{ willChange: 'opacity' }}
 			onLoad={handleImageLoad}
 			onError={handleImageError}
-			loading="lazy"
+			loading="eager"
+			decoding="async"
+			fetchpriority="high"
 		/>
 	);
 }

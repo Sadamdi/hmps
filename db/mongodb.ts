@@ -197,9 +197,18 @@ const settingsSchema = new mongoose.Schema({
 		leadership: { type: String, default: 'rgba(33, 150, 243, 0.75)' },
 	},
 	socialLinks: {
-		facebook: { type: String, default: 'https://www.facebook.com/himatif.encoder/' },
-		tiktok: { type: String, default: 'https://www.tiktok.com/@himatif.encoder' },
-		instagram: { type: String, default: 'https://www.instagram.com/himatif.encoder/' },
+		facebook: {
+			type: String,
+			default: 'https://www.facebook.com/himatif.encoder/',
+		},
+		tiktok: {
+			type: String,
+			default: 'https://www.tiktok.com/@himatif.encoder',
+		},
+		instagram: {
+			type: String,
+			default: 'https://www.instagram.com/himatif.encoder/',
+		},
 		youtube: {
 			type: String,
 			default: 'https://www.youtube.com/@himatifencoder',
@@ -237,4 +246,3 @@ export const Position =
 	mongoose.models.Position || mongoose.model('Position', positionSchema);
 
 export { Article, connectDB, Library, Organization, Settings, User };
-

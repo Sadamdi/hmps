@@ -129,6 +129,20 @@ const botUserAgents = [
 	/xmlhttprequest/i,
 ];
 
+// Allowlisted search engine bots (allowed for non-API routes)
+const allowlistedSearchBots = [
+	/googlebot/i,
+	/bingbot/i,
+	/duckduckbot/i,
+	/slurp/i, // Yahoo
+	/yandexbot/i,
+	/baiduspider/i,
+	/facebot/i,
+	/facebookexternalhit/i,
+	/twitterbot/i,
+	/linkedinbot/i,
+];
+
 // ==================== DEVICE ID GENERATION ====================
 function generateDeviceId(req: Request): string {
 	const userAgent = req.get('User-Agent') || '';
@@ -296,6 +310,24 @@ export const ddosProtectionMiddleware = (
 				isBot = true;
 				break;
 			}
+		}
+
+		// Whitelist well-known search bots for non-API and SEO-critical routes
+		const isAllowlistedSearchBot = allowlistedSearchBots.some((p) =>
+			p.test(userAgent)
+		);
+		const isSeoPath =
+			path === '/' ||
+			path === '/sitemap.xml' ||
+			path === '/robots.txt' ||
+			path.startsWith('/artikel');
+
+		if (
+			isAllowlistedSearchBot &&
+			!path.startsWith('/api/') &&
+			!path.startsWith('/dashboard')
+		) {
+			return next();
 		}
 
 		if (isBot) {
