@@ -29,6 +29,10 @@ export function formatContentForDisplay(content: string): string {
 	);
 }
 
+// Backward-compat: beberapa bundle lama mungkin masih memanggil nama lama
+// Ekspor alias agar tidak reference error saat transisi/deploy
+export const formatContentDisplay = formatContentForDisplay;
+
 /**
  * Strip HTML tags untuk preview text
  */
