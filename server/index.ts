@@ -69,6 +69,7 @@ app.use(
 // Serve sitemap dynamically before static to ensure fresh URLs
 app.get('/sitemap.xml', async (_req, res) => {
 	try {
+		console.log('🔍 Generating dynamic sitemap...');
 		// Attempt to load articles and library items for dynamic URLs
 		const { Article, Library } = await import('../db/mongodb');
 		const articles = await Article.find({ published: true })
@@ -76,6 +77,8 @@ app.get('/sitemap.xml', async (_req, res) => {
 			.sort({ updatedAt: -1 })
 			.limit(5000)
 			.lean();
+
+		console.log(`📄 Found ${articles.length} published articles`);
 
 		const libraryItems = await Library.find({})
 			.select('_id title updatedAt createdAt')
@@ -115,6 +118,8 @@ app.get('/sitemap.xml', async (_req, res) => {
 
 		const urls = [...baseUrls, ...articleUrls];
 
+		console.log(`🌐 Generated ${urls.length} total URLs for sitemap`);
+
 		const xml =
 			`<?xml version="1.0" encoding="UTF-8"?>\n` +
 			`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
@@ -130,11 +135,13 @@ app.get('/sitemap.xml', async (_req, res) => {
 				.join('\n') +
 			`\n</urlset>`;
 
+		console.log('✅ Dynamic sitemap generated successfully');
 		res.set('Content-Type', 'application/xml');
 		return res.status(200).send(xml);
 	} catch (e) {
 		// Fallback to static file if dynamic generation fails
-		console.error('Failed to generate sitemap dynamically:', e);
+		console.error('❌ Failed to generate sitemap dynamically:', e);
+		console.log('🔄 Falling back to static sitemap file');
 		return res.sendFile(path.join(process.cwd(), 'public', 'sitemap.xml'));
 	}
 });
