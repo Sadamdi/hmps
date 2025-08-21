@@ -6,7 +6,7 @@
     <!-- Root -->
     <url>
         <loc>https://himatif-encoder.com/</loc>
-        <lastmod>2025-08-21</lastmod>
+        <lastmod>2025-01-21</lastmod>
         <changefreq>daily</changefreq>
         <priority>1.0</priority>
     </url>
@@ -14,9 +14,19 @@
     <!-- Halaman daftar artikel -->
     <url>
         <loc>https://himatif-encoder.com/artikel</loc>
-        <lastmod>2025-08-21</lastmod>
+        <lastmod>2025-01-21</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.9</priority>
     </url>
+
+    <!-- Artikel contoh (akan diganti dengan artikel yang benar-benar ada) -->
+    <!-- 
+    <url>
+        <loc>https://himatif-encoder.com/artikel/{id}/{slug}</loc>
+        <lastmod>2025-01-21</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.8</priority>
+    </url>
+    -->
 
 </urlset>

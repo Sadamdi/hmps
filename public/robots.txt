@@ -15,8 +15,6 @@ Disallow: /node_modules/
 
 # Allow important directories
 Allow: /artikel/
-Allow: /organisasi/
-Allow: /perpus/
 Allow: /uploads/articles/
 Allow: /attached_assets/
 

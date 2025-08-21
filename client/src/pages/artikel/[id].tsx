@@ -7,7 +7,7 @@ import {
 } from '@/utils/formatContent';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BookOpen, Calendar, Share2, Tag, User } from 'lucide-react';
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, useEffect } from 'react';
 import { useLocation, useParams } from 'wouter';
 
 const TableOfContents = lazy(
@@ -26,6 +26,7 @@ interface Article {
 	updatedAt?: string;
 	published: boolean;
 	tags?: string[];
+	slug?: string;
 }
 
 export default function ArticleDetail() {
@@ -66,6 +67,186 @@ export default function ArticleDetail() {
 		},
 		enabled: !!apiEndpoint,
 	});
+
+	// SEO Meta Tags dan Structured Data
+	useEffect(() => {
+		if (article) {
+			// Update document title
+			document.title = `${article.title} | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang`;
+
+			// Update meta description
+			const metaDescription = document.querySelector(
+				'meta[name="description"]'
+			);
+			if (metaDescription) {
+				metaDescription.setAttribute(
+					'content',
+					article.excerpt ||
+						`${
+							article.title
+						} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang. Baca artikel lengkap tentang ${article.title.toLowerCase()}.`
+				);
+			} else {
+				const newMeta = document.createElement('meta');
+				newMeta.name = 'description';
+				newMeta.content =
+					article.excerpt ||
+					`${
+						article.title
+					} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang. Baca artikel lengkap tentang ${article.title.toLowerCase()}.`;
+				document.head.appendChild(newMeta);
+			}
+
+			// Add canonical URL
+			const canonical = document.querySelector('link[rel="canonical"]');
+			const canonicalUrl = `https://himatif-encoder.com/artikel/${
+				article._id || article.id
+			}/${article.slug || slug || ''}`;
+			if (canonical) {
+				canonical.setAttribute('href', canonicalUrl);
+			} else {
+				const newCanonical = document.createElement('link');
+				newCanonical.rel = 'canonical';
+				newCanonical.href = canonicalUrl;
+				document.head.appendChild(newCanonical);
+			}
+
+			// Add Open Graph tags
+			const ogTags = [
+				{ property: 'og:title', content: article.title },
+				{
+					property: 'og:description',
+					content:
+						article.excerpt ||
+						`${article.title} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang`,
+				},
+				{ property: 'og:type', content: 'article' },
+				{ property: 'og:url', content: canonicalUrl },
+				{ property: 'og:image', content: article.image },
+				{ property: 'og:site_name', content: 'Himatif Encoder' },
+				{ property: 'article:published_time', content: article.createdAt },
+				{ property: 'article:author', content: article.author },
+			];
+
+			ogTags.forEach(({ property, content }) => {
+				let meta = document.querySelector(`meta[property="${property}"]`);
+				if (meta) {
+					meta.setAttribute('content', content);
+				} else {
+					meta = document.createElement('meta');
+					meta.setAttribute('property', property);
+					meta.setAttribute('content', content);
+					document.head.appendChild(meta);
+				}
+			});
+
+			// Add Twitter Card tags
+			const twitterTags = [
+				{ name: 'twitter:card', content: 'summary_large_image' },
+				{ name: 'twitter:title', content: article.title },
+				{
+					name: 'twitter:description',
+					content:
+						article.excerpt ||
+						`${article.title} - Artikel dari Himatif Encoder`,
+				},
+				{ name: 'twitter:image', content: article.image },
+			];
+
+			twitterTags.forEach(({ name, content }) => {
+				let meta = document.querySelector(`meta[name="${name}"]`);
+				if (meta) {
+					meta.setAttribute('content', content);
+				} else {
+					meta = document.createElement('meta');
+					meta.setAttribute('name', name);
+					meta.setAttribute('content', content);
+					document.head.appendChild(meta);
+				}
+			});
+
+			// Add structured data (JSON-LD)
+			const structuredData = {
+				'@context': 'https://schema.org',
+				'@type': 'Article',
+				headline: article.title,
+				description:
+					article.excerpt ||
+					`${article.title} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang`,
+				image: article.image,
+				author: {
+					'@type': 'Person',
+					name: article.author,
+				},
+				publisher: {
+					'@type': 'Organization',
+					name: 'Himatif Encoder',
+					alternateName: 'Himpunan Mahasiswa Teknik Informatika UIN Malang',
+					url: 'https://himatif-encoder.com',
+					logo: {
+						'@type': 'ImageObject',
+						url: 'https://himatif-encoder.com/attached_assets/general/logo.png',
+					},
+				},
+				datePublished: article.createdAt,
+				dateModified: article.updatedAt || article.createdAt,
+				mainEntityOfPage: {
+					'@type': 'WebPage',
+					'@id': canonicalUrl,
+				},
+				keywords: article.tags
+					? article.tags.join(', ')
+					: 'himatif encoder, himpunan mahasiswa teknik informatika, uin malang, artikel teknologi, fakultas sains dan teknologi',
+				articleSection: 'Artikel',
+				inLanguage: 'id-ID',
+			};
+
+			// Remove existing structured data
+			const existingScript = document.querySelector(
+				'script[type="application/ld+json"]'
+			);
+			if (existingScript) {
+				existingScript.remove();
+			}
+
+			// Add new structured data
+			const script = document.createElement('script');
+			script.type = 'application/ld+json';
+			script.textContent = JSON.stringify(structuredData);
+			document.head.appendChild(script);
+
+			// Add breadcrumb structured data
+			const breadcrumbData = {
+				'@context': 'https://schema.org',
+				'@type': 'BreadcrumbList',
+				itemListElement: [
+					{
+						'@type': 'ListItem',
+						position: 1,
+						name: 'Beranda',
+						item: 'https://himatif-encoder.com',
+					},
+					{
+						'@type': 'ListItem',
+						position: 2,
+						name: 'Artikel',
+						item: 'https://himatif-encoder.com/artikel',
+					},
+					{
+						'@type': 'ListItem',
+						position: 3,
+						name: article.title,
+						item: canonicalUrl,
+					},
+				],
+			};
+
+			const breadcrumbScript = document.createElement('script');
+			breadcrumbScript.type = 'application/ld+json';
+			breadcrumbScript.textContent = JSON.stringify(breadcrumbData);
+			document.head.appendChild(breadcrumbScript);
+		}
+	}, [article, id, slug]);
 
 	const formatDate = (dateString: string) => {
 		const date = new Date(dateString);
@@ -176,9 +357,30 @@ export default function ArticleDetail() {
 
 	return (
 		<div className="min-h-screen bg-gray-50">
-			{/* Navigation Bar */}
+			{/* Navigation Bar with Breadcrumbs */}
 			<div className="bg-white border-b border-gray-200">
 				<div className="max-w-7xl mx-auto px-4 py-4">
+					<div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+						<Button
+							onClick={() => setLocation('/')}
+							variant="ghost"
+							size="sm"
+							className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors p-1 h-auto">
+							Beranda
+						</Button>
+						<span>/</span>
+						<Button
+							onClick={() => setLocation('/artikel')}
+							variant="ghost"
+							size="sm"
+							className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors p-1 h-auto">
+							Artikel
+						</Button>
+						<span>/</span>
+						<span className="text-gray-900 font-medium truncate max-w-xs">
+							{article.title}
+						</span>
+					</div>
 					<Button
 						onClick={() => setLocation('/')}
 						variant="ghost"
@@ -326,17 +528,59 @@ export default function ArticleDetail() {
 							</div>
 						</div>
 
-						{/* Back to Articles */}
+						{/* Related Articles Section */}
 						<div
-							className="mt-12 text-center"
+							className="mt-12 bg-white rounded-xl shadow-sm border border-gray-100 p-8"
 							data-aos="fade-up"
 							data-aos-delay="500">
+							<h3 className="text-2xl font-bold text-gray-900 mb-6">
+								Artikel Terkait Himatif Encoder
+							</h3>
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+								<div className="bg-gray-50 rounded-lg p-6">
+									<h4 className="text-lg font-semibold text-gray-900 mb-2">
+										Artikel Himatif Encoder
+									</h4>
+									<p className="text-gray-600 mb-4">
+										Temukan artikel menarik lainnya dari Himpunan Mahasiswa
+										Teknik Informatika UIN Malang
+									</p>
+									<Button
+										onClick={() => setLocation('/artikel')}
+										variant="outline"
+										className="w-full">
+										Lihat Semua Artikel
+									</Button>
+								</div>
+								<div className="bg-gray-50 rounded-lg p-6">
+									<h4 className="text-lg font-semibold text-gray-900 mb-2">
+										Beranda Himatif Encoder
+									</h4>
+									<p className="text-gray-600 mb-4">
+										Kembali ke halaman utama untuk melihat informasi lengkap
+										tentang Himpunan Mahasiswa Teknik Informatika UIN Malang
+									</p>
+									<Button
+										onClick={() => setLocation('/')}
+										variant="outline"
+										className="w-full">
+										Kembali ke Beranda
+									</Button>
+								</div>
+							</div>
+						</div>
+
+						{/* Back to Articles */}
+						<div
+							className="mt-8 text-center"
+							data-aos="fade-up"
+							data-aos-delay="600">
 							<Button
 								onClick={() => setLocation('/')}
 								variant="outline"
 								className="px-8 py-3 bg-white hover:bg-gray-50 border-2 border-primary text-primary hover:text-primary font-semibold">
 								<ArrowLeft className="w-4 h-4 mr-2" />
-								Lihat Artikel Lainnya
+								Kembali ke Beranda
 							</Button>
 						</div>
 					</div>
