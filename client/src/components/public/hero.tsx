@@ -47,11 +47,15 @@ export default function Hero({
 	const [showBanner, setShowBanner] = useState(false);
 	const [showPerson, setShowPerson] = useState(false);
 	const [currentMobileBanner, setCurrentMobileBanner] = useState(0);
+	const [isHeroVisible, setIsHeroVisible] = useState(true);
+	const [isScrolling, setIsScrolling] = useState(false);
 
 	// Refs untuk direct DOM manipulation
+	const heroRef = useRef<HTMLDivElement>(null);
 	const bannerRef = useRef<HTMLDivElement>(null);
 	const textRef = useRef<HTMLDivElement>(null);
 	const personRef = useRef<HTMLDivElement>(null);
+	const scrollTimeoutRef = useRef<number | null>(null);
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
 		staleTime: 0, // Always fetch fresh data
@@ -95,12 +99,35 @@ export default function Hero({
 		'/attached_assets/benner/religius.jpg',
 	];
 
+	// Observe visibility of hero section to pause effects when out of view
+	useEffect(() => {
+		const node = heroRef.current;
+		if (!node) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const entry = entries[0];
+				setIsHeroVisible(entry?.isIntersecting ?? true);
+			},
+			{ root: null, threshold: 0, rootMargin: '200px' }
+		);
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, []);
+
 	// Optimized parallax dengan special handling untuk gambar
 	useEffect(() => {
 		let ticking = false;
 
 		const handleScroll = () => {
+			if (!isHeroVisible) return;
 			if (!ticking) {
+				setIsScrolling(true);
+				if (scrollTimeoutRef.current !== null) {
+					window.clearTimeout(scrollTimeoutRef.current);
+				}
+				scrollTimeoutRef.current = window.setTimeout(() => {
+					setIsScrolling(false);
+				}, 120);
 				requestAnimationFrame(() => {
 					const scrollY = window.scrollY;
 
@@ -110,6 +137,7 @@ export default function Hero({
 							0,
 							1 - scrollY / 1000
 						).toString();
+						bannerRef.current.style.willChange = 'opacity';
 					}
 
 					// Text - smooth parallax (ini yang smooth)
@@ -121,17 +149,17 @@ export default function Hero({
 							0,
 							1 - scrollY / 1200
 						).toString();
+						textRef.current.style.willChange = 'opacity, transform';
 					}
 
 					// Person - DISABLE parallax movement, cuma fade out aja
 					if (personRef.current && showPerson) {
 						// Cuma fade out tanpa movement untuk avoid choppy
-						personRef.current.style.opacity = Math.max(
-							0,
-							1 - scrollY / 1000
-						).toString();
+						const o = Math.max(0, 1 - scrollY / 1000);
+						personRef.current.style.opacity = o.toString();
 						// Keep static position
 						personRef.current.style.transform = `translate3d(0, 0, 0)`;
+						personRef.current.style.willChange = 'transform';
 					}
 
 					ticking = false;
@@ -140,9 +168,16 @@ export default function Hero({
 			}
 		};
 
-		window.addEventListener('scroll', handleScroll, { passive: true });
-		return () => window.removeEventListener('scroll', handleScroll);
-	}, [showBanner, showText, showPerson]);
+		if (isHeroVisible) {
+			window.addEventListener('scroll', handleScroll, { passive: true });
+		}
+		return () => {
+			window.removeEventListener('scroll', handleScroll);
+			if (scrollTimeoutRef.current !== null) {
+				window.clearTimeout(scrollTimeoutRef.current);
+			}
+		};
+	}, [showBanner, showText, showPerson, isHeroVisible]);
 
 	// Mobile banner rotation
 	useEffect(() => {
@@ -166,7 +201,8 @@ export default function Hero({
 	return (
 		<div
 			id="home"
-			className="relative w-full overflow-hidden">
+			className="relative w-full overflow-hidden"
+			ref={heroRef}>
 			{/* Desktop Version - JavaScript Parallax */}
 			<div className="hidden lg:block relative w-full h-[200vh]">
 				{/* Fixed Banner inside Hero */}
@@ -176,7 +212,7 @@ export default function Hero({
 					style={{
 						opacity: showBanner ? 1 : 0,
 						transform: 'translate3d(0, 0, 0)',
-						willChange: 'opacity',
+						willChange: isScrolling ? 'opacity' : 'auto',
 						backfaceVisibility: 'hidden',
 					}}>
 					<LocalBannerFull
@@ -189,13 +225,15 @@ export default function Hero({
 				{/* Teks tengah */}
 				<div
 					ref={textRef}
-					className="absolute z-[5] text-center bg-white/80 backdrop-blur-sm px-6 py-8 rounded-lg shadow-lg"
+					className={`absolute z-[5] text-center bg-white/80 ${
+						isScrolling ? '' : 'backdrop-blur-sm'
+					} px-6 py-8 rounded-lg shadow-lg`}
 					style={{
 						left: '50%',
 						top: textMoveUp ? '35%' : '50%',
 						transform: 'translate3d(-50%, -50%, 0)',
 						opacity: showText ? 1 : 0,
-						willChange: 'opacity, transform',
+						willChange: isScrolling ? 'opacity, transform' : 'auto',
 						backfaceVisibility: 'hidden',
 					}}>
 					<h1 className="text-5xl font-bold mb-3 text-gray-800">
@@ -214,7 +252,7 @@ export default function Hero({
 					style={{
 						transform: 'translate3d(0, 0, 0)',
 						opacity: showPerson ? 1 : 0,
-						willChange: 'transform', // Hanya transform, bukan opacity
+						willChange: isScrolling ? 'transform' : 'auto', // Dinamis
 						backfaceVisibility: 'hidden',
 						imageRendering: 'pixelated' as any, // Force type untuk optimization
 						contain: 'layout style paint' as any, // CSS containment untuk performa
@@ -232,11 +270,11 @@ export default function Hero({
 							alt="Orang"
 							className="w-full h-full object-contain"
 							loading="eager" // Preload untuk parallax
-							decoding="sync" // Synchronous decoding untuk smooth parallax
+							decoding="async" // Async decoding untuk menghindari block rendering
 							style={{
 								imageRendering: 'pixelated' as any,
 								transform: 'translateZ(0)',
-								willChange: 'transform', // Optimize untuk parallax
+								willChange: isScrolling ? 'transform' : 'auto', // Dinamis
 							}}
 						/>
 					</div>
@@ -255,7 +293,12 @@ export default function Hero({
 								index === currentMobileBanner
 									? 'opacity-100 scale-100'
 									: 'opacity-0 scale-105'
-							}`}>
+							}`}
+							style={{
+								willChange:
+									index === currentMobileBanner ? 'opacity, transform' : 'auto',
+								transform: 'translateZ(0)',
+							}}>
 							<img
 								src={banner}
 								alt={`Banner ${index + 1}`}
@@ -300,12 +343,16 @@ export default function Hero({
 							<div className="flex flex-col gap-3 mb-8">
 								<button
 									onClick={() => scrollToSection('about')}
-									className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 backdrop-blur-sm">
+									className={`bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ${
+										isScrolling ? '' : 'backdrop-blur-sm'
+									}`}>
 									Tentang Kami
 								</button>
 								<button
 									onClick={() => scrollToSection('articles')}
-									className="border-2 border-white/80 text-white hover:bg-white hover:text-gray-800 px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 backdrop-blur-sm">
+									className={`border-2 border-white/80 text-white hover:bg-white hover:text-gray-800 px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ${
+										isScrolling ? '' : 'backdrop-blur-sm'
+									}`}>
 									Artikel Terbaru
 								</button>
 							</div>
