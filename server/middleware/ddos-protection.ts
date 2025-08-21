@@ -115,7 +115,7 @@ const botUserAgents = [
 	/crawler/i,
 	/spider/i,
 	/scraper/i,
-	/curl/i,
+	// /curl/i, // DISABLED untuk development
 	/wget/i,
 	/python/i,
 	/requests/i,

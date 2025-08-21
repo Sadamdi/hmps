@@ -97,10 +97,9 @@ app.get('/sitemap.xml', async (_req, res) => {
 				const { Article } = await import('../db/mongodb');
 
 				if (Article) {
+					// Ambil semua artikel yang published (tanpa sort, tanpa limit)
 					const articles = await Article.find({ published: true })
 						.select('_id slug updatedAt createdAt')
-						.sort({ updatedAt: -1 })
-						.limit(5000)
 						.lean();
 
 					console.log(`📄 Found ${articles.length} published articles`);
@@ -265,12 +264,23 @@ setInterval(() => {
 		throw err;
 	});
 
+	// Debug environment
+	console.log('🔍 Environment Check:');
+	console.log('   - NODE_ENV:', process.env.NODE_ENV);
+	console.log('   - app.get("env"):', app.get('env'));
+	console.log(
+		'   - process.env.NODE_ENV === "production":',
+		process.env.NODE_ENV === 'production'
+	);
+
 	// importantly only setup vite in development and after
 	// setting up all the other routes so the catch-all route
 	// doesn't interfere with the other routes
 	if (app.get('env') === 'development') {
+		console.log('🚀 Setting up Vite (development mode)');
 		await setupVite(app, server);
 	} else {
+		console.log('📦 Setting up static files (production mode)');
 		serveStatic(app);
 	}
 
