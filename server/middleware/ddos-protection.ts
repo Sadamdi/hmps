@@ -93,7 +93,7 @@ const suspiciousPatterns = [
 	/\.htpasswd/i, // Apache files
 	/\.ini/i, // Configuration files
 	/\.conf/i, // Configuration files
-	/\.xml/i, // XML files
+	// /\.xml/i, // XML files - DISABLED untuk sitemap.xml
 	/\.json/i, // JSON files
 	/\.sql/i, // SQL files
 	/\.bak/i, // Backup files
@@ -527,11 +527,20 @@ export const ddosProtectionMiddleware = (
 		let isSuspicious = false;
 		let suspiciousReason = '';
 
-		for (const pattern of suspiciousPatterns) {
-			if (pattern.test(path) || pattern.test(req.url)) {
-				isSuspicious = true;
-				suspiciousReason = `Suspicious URL pattern: ${pattern}`;
-				break;
+		// Whitelist untuk SEO-critical paths sebelum suspicious pattern check
+		const isSeoCriticalPath =
+			path === '/' ||
+			path === '/sitemap.xml' ||
+			path === '/robots.txt' ||
+			path.startsWith('/artikel');
+
+		if (!isSeoCriticalPath) {
+			for (const pattern of suspiciousPatterns) {
+				if (pattern.test(path) || pattern.test(req.url)) {
+					isSuspicious = true;
+					suspiciousReason = `Suspicious URL pattern: ${pattern}`;
+					break;
+				}
 			}
 		}
 
