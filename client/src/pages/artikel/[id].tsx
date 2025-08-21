@@ -1,7 +1,10 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
-import { formatContentForDisplay } from '@/utils/formatContent';
+import {
+	formatContentDisplay as formatContentDisplayFn,
+	formatContentForDisplay as formatContentForDisplayFn,
+} from '@/utils/formatContent';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BookOpen, Calendar, Share2, Tag, User } from 'lucide-react';
 import { Suspense, lazy } from 'react';
@@ -96,6 +99,21 @@ export default function ArticleDetail() {
 
 	const navigateToTaggedArticles = (tag: string) => {
 		setLocation(`/artikel?tag=${encodeURIComponent(tag)}`);
+	};
+
+	// Wrapper aman untuk kompatibilitas bundel lama/baru
+	const formatForDisplay = (html: string) => {
+		try {
+			if (typeof formatContentForDisplayFn === 'function') {
+				return formatContentForDisplayFn(html);
+			}
+			if (typeof formatContentDisplayFn === 'function') {
+				return formatContentDisplayFn(html as any);
+			}
+			return html || '';
+		} catch (_e) {
+			return html || '';
+		}
 	};
 
 	if (isLoading) {
@@ -249,7 +267,7 @@ export default function ArticleDetail() {
 									<div
 										className="text-gray-800 leading-relaxed"
 										dangerouslySetInnerHTML={{
-											__html: formatContentForDisplay(article.content),
+											__html: formatForDisplay(article.content),
 										}}
 									/>
 								</div>
