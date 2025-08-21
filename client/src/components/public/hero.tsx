@@ -58,9 +58,9 @@ export default function Hero({
 	const scrollTimeoutRef = useRef<number | null>(null);
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
-		staleTime: 0, // Always fetch fresh data
-		refetchOnWindowFocus: true,
-		refetchOnMount: true,
+		staleTime: 5 * 60 * 1000,
+		refetchOnWindowFocus: false,
+		refetchOnMount: false,
 	});
 
 	// Get real-time stats for mobile stats section
@@ -77,8 +77,8 @@ export default function Hero({
 		},
 		// Refresh every 30 seconds for public stats
 		refetchInterval: 30000,
-		refetchOnWindowFocus: true,
-		staleTime: 10000,
+		refetchOnWindowFocus: false,
+		staleTime: 60 * 1000,
 		// Default fallback data
 		placeholderData: {
 			articles: 50,

@@ -6,6 +6,7 @@ Sitemap: https://himatif-encoder.com/sitemap.xml
 
 # Disallow admin areas
 Disallow: /admin/
+Disallow: /dashboard/
 Disallow: /api/
 Disallow: /private/
 Disallow: /uploads/admin/

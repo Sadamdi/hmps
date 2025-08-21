@@ -1,11 +1,15 @@
-import TableOfContents from '@/components/article/table-of-contents';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
 import { formatContentForDisplay } from '@/utils/formatContent';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BookOpen, Calendar, Share2, Tag, User } from 'lucide-react';
+import { Suspense, lazy } from 'react';
 import { useLocation, useParams } from 'wouter';
+
+const TableOfContents = lazy(
+	() => import('@/components/article/table-of-contents')
+);
 
 interface Article {
 	id?: number;
@@ -174,7 +178,14 @@ export default function ArticleDetail() {
 					<div
 						className="hidden lg:block w-80 flex-shrink-0"
 						data-aos="fade-right">
-						<TableOfContents content={article.content} />
+						<Suspense
+							fallback={
+								<div className="bg-white rounded-lg border border-gray-200 p-6">
+									Memuat daftar isi...
+								</div>
+							}>
+							<TableOfContents content={article.content} />
+						</Suspense>
 					</div>
 
 					{/* Main Content */}
@@ -315,7 +326,16 @@ export default function ArticleDetail() {
 
 				{/* Table of Contents - Mobile */}
 				<div className="lg:hidden">
-					<TableOfContents content={article.content} />
+					<Suspense
+						fallback={
+							<div className="fixed bottom-4 right-4 z-50">
+								<button className="bg-primary text-white p-3 rounded-full shadow-lg">
+									TOC
+								</button>
+							</div>
+						}>
+						<TableOfContents content={article.content} />
+					</Suspense>
 				</div>
 			</div>
 		</div>
