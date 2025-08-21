@@ -70,25 +70,11 @@ app.use(
 app.get('/sitemap.xml', async (_req, res) => {
 	try {
 		console.log('🔍 Generating dynamic sitemap...');
-		// Attempt to load articles and library items for dynamic URLs
-		const { Article, Library } = await import('../db/mongodb');
-		const articles = await Article.find({ published: true })
-			.select('_id slug updatedAt createdAt')
-			.sort({ updatedAt: -1 })
-			.limit(5000)
-			.lean();
-
-		console.log(`📄 Found ${articles.length} published articles`);
-
-		const libraryItems = await Library.find({})
-			.select('_id title updatedAt createdAt')
-			.sort({ updatedAt: -1 })
-			.limit(1000)
-			.lean();
 
 		const host = 'https://himatif-encoder.com';
 		const now = new Date().toISOString().slice(0, 10);
 
+		// Always include base URLs
 		const baseUrls = [
 			{ loc: `${host}/`, changefreq: 'daily', priority: '1.0', lastmod: now },
 			{
@@ -99,13 +85,54 @@ app.get('/sitemap.xml', async (_req, res) => {
 			},
 		];
 
-		const articleUrls = articles.map((a: any) => ({
-			loc: `${host}/artikel/${a._id}/${a.slug}`,
-			lastmod:
-				(a.updatedAt || a.createdAt)?.toISOString?.().slice(0, 10) || now,
-			changefreq: 'monthly',
-			priority: '0.8',
-		}));
+		let articleUrls: any[] = [];
+
+		try {
+			// Check database connection first
+			const { connectDB } = await import('../db/mongodb');
+			const isConnected = await connectDB();
+
+			if (isConnected) {
+				// Attempt to load articles
+				const { Article } = await import('../db/mongodb');
+
+				if (Article) {
+					const articles = await Article.find({ published: true })
+						.select('_id slug updatedAt createdAt')
+						.sort({ updatedAt: -1 })
+						.limit(5000)
+						.lean();
+
+					console.log(`📄 Found ${articles.length} published articles`);
+
+					articleUrls = articles.map((a: any) => {
+						const url = `${host}/artikel/${a._id}/${a.slug}`;
+						console.log(`📝 Adding article URL: ${url}`);
+						return {
+							loc: url,
+							lastmod:
+								(a.updatedAt || a.createdAt)?.toISOString?.().slice(0, 10) ||
+								now,
+							changefreq: 'monthly',
+							priority: '0.8',
+						};
+					});
+				} else {
+					console.log(
+						'⚠️ Article model not found, continuing with base URLs only'
+					);
+				}
+			} else {
+				console.log(
+					'⚠️ Database not connected, continuing with base URLs only'
+				);
+			}
+		} catch (dbError: any) {
+			console.log(
+				'⚠️ Database error, continuing with base URLs only:',
+				dbError?.message || 'Unknown error'
+			);
+		}
 
 		// Library items tidak ada halaman terpisah, hanya section di beranda
 		// const libraryUrls = libraryItems.map((l: any) => ({
@@ -119,6 +146,10 @@ app.get('/sitemap.xml', async (_req, res) => {
 		const urls = [...baseUrls, ...articleUrls];
 
 		console.log(`🌐 Generated ${urls.length} total URLs for sitemap`);
+		console.log(
+			'📋 URLs:',
+			urls.map((u) => u.loc)
+		);
 
 		const xml =
 			`<?xml version="1.0" encoding="UTF-8"?>\n` +
@@ -136,12 +167,15 @@ app.get('/sitemap.xml', async (_req, res) => {
 			`\n</urlset>`;
 
 		console.log('✅ Dynamic sitemap generated successfully');
+		console.log('📄 XML Preview:', xml.substring(0, 500) + '...');
 		res.set('Content-Type', 'application/xml');
 		return res.status(200).send(xml);
-	} catch (e) {
+	} catch (e: any) {
 		// Fallback to static file if dynamic generation fails
 		console.error('❌ Failed to generate sitemap dynamically:', e);
 		console.log('🔄 Falling back to static sitemap file');
+		console.log('🔍 Error details:', e?.message || 'Unknown error');
+		console.log('🔍 Error stack:', e?.stack || 'No stack trace');
 		return res.sendFile(path.join(process.cwd(), 'public', 'sitemap.xml'));
 	}
 });
