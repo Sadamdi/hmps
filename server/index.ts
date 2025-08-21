@@ -69,12 +69,18 @@ app.use(
 // Serve sitemap dynamically before static to ensure fresh URLs
 app.get('/sitemap.xml', async (_req, res) => {
 	try {
-		// Attempt to load articles for dynamic URLs
-		const { Article } = await import('../db/mongodb');
+		// Attempt to load articles and library items for dynamic URLs
+		const { Article, Library } = await import('../db/mongodb');
 		const articles = await Article.find({ published: true })
 			.select('_id slug updatedAt createdAt')
 			.sort({ updatedAt: -1 })
 			.limit(5000)
+			.lean();
+
+		const libraryItems = await Library.find({})
+			.select('_id title updatedAt createdAt')
+			.sort({ updatedAt: -1 })
+			.limit(1000)
 			.lean();
 
 		const host = 'https://himatif-encoder.com';
@@ -97,6 +103,15 @@ app.get('/sitemap.xml', async (_req, res) => {
 			changefreq: 'monthly',
 			priority: '0.8',
 		}));
+
+		// Library items tidak ada halaman terpisah, hanya section di beranda
+		// const libraryUrls = libraryItems.map((l: any) => ({
+		// 	loc: `${host}/perpus/${l._id}`,
+		// 	lastmod:
+		// 		(l.updatedAt || l.createdAt)?.toISOString?.().slice(0, 10) || now,
+		// 	changefreq: 'monthly',
+		// 	priority: '0.7',
+		// }));
 
 		const urls = [...baseUrls, ...articleUrls];
 
