@@ -12,6 +12,7 @@ import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of s
 import chatRouter from './routes/chat';
 import {
 	cleanupArticleImages,
+	deleteFile,
 	extractImageUrlsFromContent,
 	uploadHandler,
 	uploadMiddleware,
@@ -146,7 +147,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							if (detectedType === 'video') {
 								mediaUrl = `https://drive.google.com/file/d/${file.id}/preview`;
 							} else {
-								mediaUrl = `https://drive.google.com/uc?export=view&id=${file.id}`;
+								mediaUrl = `https://lh3.googleusercontent.com/d/${file.id}=s2000`;
 							}
 
 							return {
@@ -201,8 +202,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 			} else {
 				// Handle single file
-				console.log('Processing single file:', actualFileId);
-				console.log('User specified media type:', userSpecifiedType);
 
 				// For single files, use user-specified type if provided, otherwise guess
 				let mediaType = userSpecifiedType || 'image'; // Use user choice or default
@@ -224,8 +223,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						},
 					});
 
-					console.log('File access test status:', testResponse.status);
-
 					// Only auto-detect if user didn't specify type
 					if (!userSpecifiedType && url) {
 						if (
@@ -241,16 +238,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					console.log('Could not test URL, using user choice or defaults');
 				}
 
-				console.log('Final media type determined:', mediaType);
-
 				// Generate appropriate URL based on media type
 				let mediaUrl: string;
 				if (mediaType === 'video') {
 					// For videos, use preview format for better compatibility
 					mediaUrl = `https://drive.google.com/file/d/${actualFileId}/preview`;
 				} else {
-					// For images, use export view format
-					mediaUrl = `https://drive.google.com/uc?export=view&id=${actualFileId}`;
+					// For images, use lh3.googleusercontent.com which is more reliable
+					mediaUrl = `https://lh3.googleusercontent.com/d/${actualFileId}=s2000`;
 				}
 
 				if (!mediaUrl) {
@@ -258,8 +253,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						.status(404)
 						.json({ message: 'Could not generate media URL' });
 				}
-
-				console.log('Generated media URL:', mediaUrl, 'for type:', mediaType);
 
 				// Create basic metadata
 				const metadata = {
@@ -624,8 +617,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Invalid user ID' });
 				}
 
-				console.log('Deleting user with ID:', userId);
-
 				// Check if user exists
 				const existingUser = await mongoStorage.getUserById(userId);
 				if (!existingUser) {
@@ -679,7 +670,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				);
 
 				// Return the URL to be used in the article content
-				console.log('📸 Content image uploaded:', { articleId, imageUrl });
 				res.json({ url: imageUrl });
 			} catch (error) {
 				console.error('Upload content image error:', error);
@@ -729,7 +719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const articleId = req.params.id;
 			const slug = req.params.slug;
-			
+
 			const article = await mongoStorage.getArticleById(articleId);
 
 			if (!article) {
@@ -803,8 +793,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		uploadMiddleware.single('image'),
 		async (req, res) => {
 			try {
-				console.log('Article create request body:', req.body);
-
 				// Extract form data with proper validation
 				let title = req.body.title || '';
 				let excerpt = req.body.excerpt || '';
@@ -910,10 +898,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const articleId = newArticle._id || newArticle.id;
 				if (articleId) {
 					const usedImageUrls = extractImageUrlsFromContent(content);
-					console.log('🧹 Cleaning up article images:', {
-						articleId,
-						usedImageUrls,
-					});
 					await cleanupArticleImages(articleId.toString(), usedImageUrls);
 				}
 
@@ -996,10 +980,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Cleanup unused images in article folder after update
 				if (content) {
 					const usedImageUrls = extractImageUrlsFromContent(content);
-					console.log('🧹 Cleaning up article images (update):', {
-						articleId,
-						usedImageUrls,
-					});
 					await cleanupArticleImages(articleId, usedImageUrls);
 				}
 
@@ -1044,7 +1024,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			await mongoStorage.deleteArticle(articleId);
 
 			// Cleanup entire article folder
-			console.log('🗑️ Deleting article folder:', articleId);
 			await cleanupArticleImages(articleId, []); // Empty array means delete all
 
 			res.json({ message: 'Article deleted successfully' });
@@ -1112,8 +1091,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		uploadMiddleware.array('images', 10),
 		async (req, res) => {
 			try {
-				console.log('Library item create request body:', req.body);
-
 				// Extract form data with proper validation
 				let title = req.body.title || '';
 				let description = req.body.description || '';
@@ -1223,9 +1200,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Use default image if no images provided
 				if (imageUrls.length === 0) {
-					console.log(
-						'No images provided for library item, using default image'
-					);
 					imageUrls = ['/uploads/default-library-image.jpg'];
 					imageSources = ['local'];
 					gdriveFileIds = [''];
@@ -1258,7 +1232,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const itemId = req.params.id;
-				console.log('Library item update request body:', req.body);
 
 				// Extract form data with proper validation
 				let title = req.body.title || '';
@@ -1397,13 +1370,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updates.gdriveFileIds =
 						existingItem.gdriveFileIds || existingItem.images.map(() => '');
 				}
-
-				console.log('Updating library item with:', {
-					id: itemId,
-					imageUrls: updates.images,
-					imageSources: updates.imageSources,
-					gdriveFileIds: updates.gdriveFileIds,
-				});
 
 				// Update library item
 				const updatedItem = await mongoStorage.updateLibraryItem(
@@ -1664,11 +1630,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const { name, position, period } = req.body;
+				const gdriveUrl = (req.body.gdriveUrl || '').toString();
 
-				// Check if image was uploaded - use default if not
+				// Determine image source: prefer valid gdriveUrl, else uploaded file, else default
 				let imageUrl = '/uploads/default-member-image.jpg';
 
-				if (req.file) {
+				if (gdriveUrl && gdriveUrl.trim() !== '') {
+					const { extractFileId, checkAccessibility, isValidGoogleDriveUrl } =
+						await import('./googleDrive');
+
+					if (!isValidGoogleDriveUrl(gdriveUrl)) {
+						return res
+							.status(400)
+							.json({ message: 'Invalid Google Drive URL format' });
+					}
+
+					const fileId = extractFileId(gdriveUrl);
+					if (!fileId) {
+						return res.status(400).json({
+							message: 'Could not extract file ID from Google Drive URL',
+						});
+					}
+
+					const accessible = await checkAccessibility(fileId);
+					if (!accessible) {
+						return res.status(400).json({
+							message:
+								'Google Drive file is private and cannot be accessed by the server',
+						});
+					}
+
+					imageUrl = gdriveUrl;
+				} else if (req.file) {
 					// Process the uploaded image
 					imageUrl = await uploadHandler(req.file);
 				}
@@ -1698,6 +1691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const memberId = req.params.id;
 				const { name, position, period } = req.body;
+				const gdriveUrl = (req.body.gdriveUrl || '').toString();
 
 				// Get existing member
 				const existingMember = await mongoStorage.getOrganizationMemberById(
@@ -1717,10 +1711,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updatedAt: new Date(),
 				};
 
-				// Process image if uploaded
-				if (req.file) {
-					const imageUrl = await uploadHandler(req.file);
+				// Track old image for cleanup
+				let oldImageUrl: string | null = null;
+				const currentImageUrl = existingMember.imageUrl;
+
+				// Only cleanup if it's a local server file (not GDrive or default)
+				if (
+					currentImageUrl &&
+					!currentImageUrl.includes('drive.google.com') &&
+					!currentImageUrl.includes('default-member-image.jpg') &&
+					(currentImageUrl.startsWith('/uploads/') ||
+						currentImageUrl.startsWith('/attached_assets/'))
+				) {
+					oldImageUrl = currentImageUrl;
+				}
+
+				// Prefer Google Drive URL if provided and valid; otherwise process uploaded image
+				if (gdriveUrl && gdriveUrl.trim() !== '') {
+					const { extractFileId, checkAccessibility, isValidGoogleDriveUrl } =
+						await import('./googleDrive');
+
+					if (!isValidGoogleDriveUrl(gdriveUrl)) {
+						return res
+							.status(400)
+							.json({ message: 'Invalid Google Drive URL format' });
+					}
+
+					const fileId = extractFileId(gdriveUrl);
+					if (!fileId) {
+						return res.status(400).json({
+							message: 'Could not extract file ID from Google Drive URL',
+						});
+					}
+
+					try {
+						const accessible = await checkAccessibility(fileId);
+						if (!accessible) {
+							console.warn('GDrive file may be inaccessible during update');
+						}
+					} catch (e) {
+						console.warn(
+							'GDrive accessibility check failed, continuing update'
+						);
+					}
+
+					updates.imageUrl = gdriveUrl;
+				} else if (req.file) {
+					// Process the uploaded image with cleanup of old file
+					const imageUrl = await uploadHandler(
+						req.file,
+						false,
+						'general',
+						oldImageUrl
+					);
 					updates.imageUrl = imageUrl;
+					oldImageUrl = null; // uploadHandler already handled cleanup
+				}
+
+				// Manual cleanup of old image if switching to GDrive
+				if (oldImageUrl && gdriveUrl && gdriveUrl.trim() !== '') {
+					try {
+						await deleteFile(oldImageUrl);
+					} catch (cleanupError) {
+						console.warn('Failed to cleanup old image file:', cleanupError);
+					}
 				}
 
 				// Update organization member
@@ -1760,6 +1814,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res
 						.status(404)
 						.json({ message: 'Organization member not found' });
+				}
+
+				// Cleanup member's image file if it's a local server file
+				if (
+					existingMember.imageUrl &&
+					!existingMember.imageUrl.includes('drive.google.com') &&
+					!existingMember.imageUrl.includes('default-member-image.jpg') &&
+					(existingMember.imageUrl.startsWith('/uploads/') ||
+						existingMember.imageUrl.startsWith('/attached_assets/'))
+				) {
+					try {
+						await deleteFile(existingMember.imageUrl);
+					} catch (cleanupError) {
+						console.warn('Failed to cleanup member image file:', cleanupError);
+					}
 				}
 
 				// Delete organization member
@@ -1860,9 +1929,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const limit = parseInt(req.query.limit as string) || 10;
 			const type = req.query.type as string;
 
-			console.log(`Getting recent activities: limit=${limit}, type=${type}`);
 			const activities = await getRecentActivities(limit, type);
-			console.log(`Found ${activities?.length || 0} activities`);
 
 			res.json(activities || []);
 		} catch (error) {
@@ -1884,9 +1951,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				userRole: (req.user as any)?.role,
 			};
 
-			console.log('Logging activity:', activityData.title);
 			const activity = await logActivity(activityData);
-			console.log('Activity logged successfully:', activity._id);
 
 			res.json(activity);
 		} catch (error) {

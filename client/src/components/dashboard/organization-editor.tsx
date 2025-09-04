@@ -1,5 +1,7 @@
+import { GDriveLinkInput } from '@/components/GDriveLinkInput';
+import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog'; // asumsi kamu pakai komponen modal/dialog
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -11,7 +13,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
-import { getCroppedImg } from '@/lib/cropImage'; // kita buat fungsi ini sendiri di langkah berikutnya
+import { getCroppedImg } from '@/lib/cropImage';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, User } from 'lucide-react';
@@ -48,6 +50,9 @@ export default function OrganizationEditor({
 	const [isAddingPeriod, setIsAddingPeriod] = useState(false);
 	const [imageFile, setImageFile] = useState<File | null>(null);
 	const [imagePreview, setImagePreview] = useState(member?.imageUrl || '');
+	const [useGdrive, setUseGdrive] = useState(false);
+	const [gdriveUrl, setGdriveUrl] = useState('');
+	const [isGdriveValid, setIsGdriveValid] = useState(false);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	// Reset form when member changes
@@ -57,14 +62,37 @@ export default function OrganizationEditor({
 			setPosition(member.position);
 			setPeriod(member.period);
 			setImagePreview(member.imageUrl);
+
+			// Check if member has GDrive URL
+			if (member.imageUrl && member.imageUrl.includes('drive.google.com')) {
+				setUseGdrive(true);
+				setGdriveUrl(member.imageUrl);
+				setIsGdriveValid(true);
+			} else {
+				setUseGdrive(false);
+				setGdriveUrl('');
+				setIsGdriveValid(false);
+			}
 		} else {
 			setName('');
 			setPosition('');
 			setPeriod('');
 			setImagePreview('');
+			setUseGdrive(false);
+			setGdriveUrl('');
+			setIsGdriveValid(false);
 		}
 		setImageFile(null);
 	}, [member]);
+
+	// Update preview when GDrive URL changes and is valid
+	useEffect(() => {
+		if (useGdrive && isGdriveValid && gdriveUrl) {
+			setImagePreview(gdriveUrl);
+		} else if (useGdrive && !isGdriveValid) {
+			setImagePreview('');
+		}
+	}, [useGdrive, isGdriveValid, gdriveUrl]);
 
 	// Query positions for the selected period
 	const { data: positions = [], isLoading: isPositionsLoading } = useQuery({
@@ -105,23 +133,25 @@ export default function OrganizationEditor({
 	// Use positions from database or fallback, sort by order
 	const availablePositions =
 		positions.length > 0
-			? positions.sort((a, b) => a.order - b.order).map((p) => p.name)
-			: fallbackPositions.sort((a, b) => a.order - b.order).map((p) => p.name);
+			? positions
+					.sort((a: any, b: any) => a.order - b.order)
+					.map((p: any) => p.name)
+			: fallbackPositions
+					.sort((a: any, b: any) => a.order - b.order)
+					.map((p: any) => p.name);
 
 	// Fetch available periods from API
 	const { data: periods = [], isLoading: isPeriodsLoading } = useQuery({
 		queryKey: ['/api/organization/periods'],
-		placeholderData: [period], // Use currentPeriod from props
+		placeholderData: [period],
 	});
 
 	// Sort periods chronologically (newest first)
-	const sortedPeriods = periods.sort((a, b) => {
+	const sortedPeriods = periods.sort((a: string, b: string) => {
 		const yearA = parseInt(a.split('-')[0]);
 		const yearB = parseInt(b.split('-')[0]);
-		return yearB - yearA; // Descending order (newest first)
+		return yearB - yearA;
 	});
-
-	// We already imported queryClient, so no need to get it again
 
 	// Create period mutation
 	const createPeriodMutation = useMutation({
@@ -142,11 +172,7 @@ export default function OrganizationEditor({
 	const saveMemberMutation = useMutation({
 		mutationFn: async (formData: FormData) => {
 			if (member) {
-				// Update existing member - Use MongoDB _id or PostgreSQL id
 				const memberId = (member as any)._id || member.id;
-
-				console.log('Updating organization member with ID:', memberId);
-
 				if (!memberId) {
 					throw new Error('Invalid member ID');
 				}
@@ -156,12 +182,10 @@ export default function OrganizationEditor({
 					formData
 				);
 			} else {
-				// Create new member
 				return await apiRequest('POST', '/api/organization/members', formData);
 			}
 		},
 		onSuccess: async (data) => {
-			// Invalidate both organization queries to ensure fresh data
 			queryClient.invalidateQueries({
 				queryKey: ['/api/organization/members'],
 			});
@@ -170,12 +194,10 @@ export default function OrganizationEditor({
 			});
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 
-			// Log activity
 			try {
 				const isEdit = !!member;
 				let responseData;
 
-				// Handle response safely
 				if (data && typeof data === 'object' && 'json' in data) {
 					responseData = await data.json();
 				} else {
@@ -211,7 +233,6 @@ export default function OrganizationEditor({
 	});
 
 	const handleSave = async () => {
-		// Validation
 		if (!name.trim()) {
 			toast({
 				title: 'Error',
@@ -239,34 +260,43 @@ export default function OrganizationEditor({
 			return;
 		}
 
-		if (!imagePreview && !imageFile) {
+		if (
+			!imagePreview &&
+			!imageFile &&
+			!(useGdrive && isGdriveValid && gdriveUrl)
+		) {
 			toast({
 				title: 'Error',
-				description: 'Please upload a profile image',
+				description:
+					'Please upload a profile image or provide a valid Google Drive link',
 				variant: 'destructive',
 			});
 			return;
 		}
 
 		try {
-			// Create FormData for file upload
 			const formData = new FormData();
 			formData.append('name', name);
 			formData.append('position', position);
 			formData.append('period', period);
 
-			if (imageFile) {
+			if (useGdrive && isGdriveValid && gdriveUrl) {
+				formData.append('gdriveUrl', gdriveUrl);
+			} else if (imageFile) {
 				formData.append('image', imageFile);
 			}
 
 			await saveMemberMutation.mutateAsync(formData);
 
-			// Clear form after successful upload
+			// Clear form after successful save
 			setName('');
 			setPosition('');
 			setPeriod('');
 			setImageFile(null);
 			setImagePreview('');
+			setUseGdrive(false);
+			setGdriveUrl('');
+			setIsGdriveValid(false);
 
 			toast({
 				title: 'Success',
@@ -357,10 +387,11 @@ export default function OrganizationEditor({
 								onClick={() => fileInputRef.current?.click()}
 								className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-gray-300 cursor-pointer hover:border-gray-400 flex items-center justify-center bg-gray-50">
 								{imagePreview ? (
-									<img
+									<MediaDisplay
 										src={imagePreview}
 										alt="Profile Preview"
 										className="w-full h-full object-cover"
+										type="image"
 									/>
 								) : (
 									<User className="h-12 w-12 text-gray-400" />
@@ -377,6 +408,46 @@ export default function OrganizationEditor({
 								onChange={handleFileChange}
 							/>
 						</div>
+
+						{/* Toggle sumber gambar */}
+						<div className="space-y-2">
+							<Label>Sumber Foto</Label>
+							<div className="flex gap-2">
+								<button
+									type="button"
+									className={`px-3 py-1 rounded border ${
+										!useGdrive
+											? 'bg-primary text-white border-primary'
+											: 'border-gray-300'
+									}`}
+									onClick={() => setUseGdrive(false)}>
+									Upload File
+								</button>
+								<button
+									type="button"
+									className={`px-3 py-1 rounded border ${
+										useGdrive
+											? 'bg-primary text-white border-primary'
+											: 'border-gray-300'
+									}`}
+									onClick={() => setUseGdrive(true)}>
+									Google Drive Link
+								</button>
+							</div>
+						</div>
+
+						{/* Input Link GDrive (single) */}
+						{useGdrive && (
+							<div className="space-y-2">
+								<GDriveLinkInput
+									label="Google Drive Link (foto tunggal)"
+									value={gdriveUrl}
+									onChange={(val) => setGdriveUrl(val)}
+									onValidation={(ok) => setIsGdriveValid(!!ok)}
+									mediaType="image"
+								/>
+							</div>
+						)}
 
 						<div className="space-y-2">
 							<Label htmlFor="name">Full Name</Label>
@@ -397,7 +468,7 @@ export default function OrganizationEditor({
 									<SelectValue placeholder="Select position" />
 								</SelectTrigger>
 								<SelectContent>
-									{availablePositions.map((pos) => (
+									{availablePositions.map((pos: string) => (
 										<SelectItem
 											key={pos}
 											value={pos}>
@@ -452,18 +523,13 @@ export default function OrganizationEditor({
 											if (newPeriod && /^\d{4}-\d{4}$/.test(newPeriod)) {
 												try {
 													await createPeriodMutation.mutateAsync(newPeriod);
-
-													// Add the new period to local state
 													setPeriod(newPeriod);
 													setIsAddingPeriod(false);
-
-													// Show confirmation
 													toast({
 														title: 'New Period Added',
 														description: `Period ${newPeriod} has been created and selected.`,
 													});
 												} catch (error: any) {
-													// Error handling is done in mutation
 													if (error?.message?.includes('already exists')) {
 														toast({
 															title: 'Period Exists',
