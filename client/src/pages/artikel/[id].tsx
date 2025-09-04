@@ -34,7 +34,6 @@ export default function ArticleDetail() {
 	const [, setLocation] = useLocation();
 
 	// Debug logging
-	console.log('🔍 ArticleDetail Debug:', { id, slug });
 
 	// Determine route type and construct API endpoint
 	let apiEndpoint: string;
@@ -44,15 +43,12 @@ export default function ArticleDetail() {
 		// Hybrid route: /artikel/:id/:slug
 		apiEndpoint = `/api/articles/${id}/${slug}`;
 		isHybridRoute = true;
-		console.log('🔍 Hybrid route detected:', apiEndpoint);
 	} else if (slug && !id) {
 		// Slug-only route: /artikel/slug/:slug
 		apiEndpoint = `/api/articles/slug/${slug}`;
-		console.log('🔍 Slug-only route detected:', apiEndpoint);
 	} else {
 		// ID-only route: /artikel/:id (legacy)
 		apiEndpoint = `/api/articles/${id}`;
-		console.log('🔍 ID-only route detected:', apiEndpoint);
 	}
 
 	const {

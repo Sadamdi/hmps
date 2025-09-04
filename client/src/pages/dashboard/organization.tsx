@@ -1,6 +1,7 @@
 import Header from '@/components/dashboard/header';
 import OrganizationEditor from '@/components/dashboard/organization-editor';
 import Sidebar from '@/components/dashboard/sidebar';
+import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -78,7 +79,10 @@ const getAvailableDivisions = (members: OrgMember[]): string[] => {
 };
 
 // Helper function to sort members by position order
-const sortMembersByPosition = (members: OrgMember[], positions: { name: string; order: number }[]): OrgMember[] => {
+const sortMembersByPosition = (
+	members: OrgMember[],
+	positions: { name: string; order: number }[]
+): OrgMember[] => {
 	if (!Array.isArray(positions) || positions.length === 0) {
 		return members;
 	}
@@ -195,7 +199,10 @@ export default function DashboardOrganization() {
 	);
 
 	// Sort filtered members by position order
-	const sortedFilteredMembers = sortMembersByPosition(filteredMembers, positions);
+	const sortedFilteredMembers = sortMembersByPosition(
+		filteredMembers,
+		positions
+	);
 
 	const handleEditMember = (member: OrgMember) => {
 		setEditingMember(member);
@@ -604,10 +611,11 @@ export default function DashboardOrganization() {
 													<div className="flex items-center justify-between">
 														<div className="flex items-center space-x-4">
 															<div className="w-12 h-12 rounded-full overflow-hidden">
-																<img
+																<MediaDisplay
 																	src={member.imageUrl}
 																	alt={member.name}
 																	className="w-full h-full object-cover"
+																	type="image"
 																/>
 															</div>
 															<div>

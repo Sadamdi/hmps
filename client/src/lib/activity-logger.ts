@@ -40,7 +40,6 @@ export async function logActivity(activityData: ActivityLog) {
 		}
 
 		const result = await response.json();
-		console.log('✅ Activity logged successfully:', result._id);
 		return true;
 	} catch (error) {
 		console.error('❌ Error logging activity:', error);

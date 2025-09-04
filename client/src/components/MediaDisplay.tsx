@@ -114,13 +114,31 @@ const LazyThumbnail = ({
 	);
 };
 
-export function MediaDisplay({
+export default function MediaDisplay({
 	src,
 	alt,
 	className = '',
 	fallback,
 	type = 'auto',
 }: MediaDisplayProps) {
+	// Simple single image display for organization members (only for non-GDrive URLs)
+	if (type === 'image' && src && !src.includes('drive.google.com')) {
+		return (
+			<img
+				src={src}
+				alt={alt}
+				className={className}
+				onError={(e) => {
+					console.error('MediaDisplay: Local image failed to load:', src);
+					// Fallback to default image or placeholder
+					const target = e.target as HTMLImageElement;
+					target.style.display = 'none';
+				}}
+			/>
+		);
+	}
+
+	// Original complex logic for library/media gallery
 	const [mediaState, setMediaState] = useState<MediaState>({
 		loading: true,
 		error: false,
@@ -138,7 +156,6 @@ export function MediaDisplay({
 
 			try {
 				const source = detectMediaSource(src);
-				console.log('MediaDisplay: Loading media source:', { src, source });
 
 				if (source.type === 'gdrive' && source.fileId) {
 					// Prepare request body with media type hint
@@ -150,7 +167,6 @@ export function MediaDisplay({
 					// Add media type hint if provided and not auto
 					if (type !== 'auto') {
 						requestBody.mediaType = type;
-						console.log('MediaDisplay: Using specified media type:', type);
 					}
 
 					// Fetch Google Drive media URL from server
@@ -169,7 +185,6 @@ export function MediaDisplay({
 					}
 
 					const data = await response.json();
-					console.log('MediaDisplay: API response:', data);
 
 					setMediaState({
 						loading: false,
@@ -285,11 +300,11 @@ export function MediaDisplay({
 		}
 
 		return [
+			`https://lh3.googleusercontent.com/d/${fileId}=s2000`, // High resolution - most reliable
+			`https://lh3.googleusercontent.com/d/${fileId}=w2000-h2000`, // Specific dimensions
 			originalUrl,
 			`https://drive.google.com/uc?export=view&id=${fileId}`,
 			`https://drive.google.com/uc?id=${fileId}&export=download`,
-			`https://lh3.googleusercontent.com/d/${fileId}=s2000`, // High resolution
-			`https://lh3.googleusercontent.com/d/${fileId}=w2000-h2000`, // Specific dimensions
 			`https://drive.google.com/thumbnail?id=${fileId}&sz=w2000`,
 			`https://docs.google.com/uc?export=view&id=${fileId}`, // Alternative docs URL
 		];
@@ -299,10 +314,6 @@ export function MediaDisplay({
 		const isVideo = currentFile?.type === 'video';
 		const urls = getAlternativeUrls(currentFile?.url || '', isVideo);
 		if (currentUrlIndex < urls.length - 1) {
-			console.log(
-				`MediaDisplay: Trying alternative URL ${currentUrlIndex + 1}:`,
-				urls[currentUrlIndex + 1]
-			);
 			setCurrentUrlIndex((prev) => prev + 1);
 			setImageError(false);
 		} else {
@@ -459,10 +470,6 @@ export function MediaDisplay({
 							title={alt}
 							onClick={toggleFullscreen}
 							onLoad={() => {
-								console.log(
-									'MediaDisplay: Video iframe loaded successfully:',
-									currentUrl
-								);
 								setImageError(false);
 							}}
 						/>
@@ -555,7 +562,6 @@ export function MediaDisplay({
 					onError={handleImageError}
 					onClick={toggleFullscreen}
 					onLoad={() => {
-						console.log('MediaDisplay: Image loaded successfully:', currentUrl);
 						setImageError(false);
 					}}
 					loading="lazy"

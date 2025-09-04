@@ -64,7 +64,6 @@ export default function Dashboard() {
 		queryKey: ['/api/dashboard/stats'],
 		queryFn: async () => {
 			try {
-				console.log('🔄 Fetching dashboard stats...');
 				const response = await fetch('/api/dashboard/stats', {
 					credentials: 'include',
 					headers: {
@@ -77,7 +76,6 @@ export default function Dashboard() {
 				}
 
 				const data = await response.json();
-				console.log('✅ Dashboard stats loaded:', data);
 				return data;
 			} catch (error) {
 				console.error('❌ Failed to fetch dashboard stats:', error);
@@ -98,7 +96,6 @@ export default function Dashboard() {
 			queryKey: ['/api/dashboard/activities', { limit: 3 }],
 			queryFn: async () => {
 				try {
-					console.log('🔄 Fetching recent activities (limit 3)...');
 					const response = await fetch('/api/dashboard/activities?limit=3', {
 						credentials: 'include',
 						headers: {
@@ -111,7 +108,6 @@ export default function Dashboard() {
 					}
 
 					const data = await response.json();
-					console.log('✅ Recent activities loaded:', data);
 					return data;
 				} catch (error) {
 					console.error('❌ Failed to fetch recent activities:', error);
@@ -131,7 +127,6 @@ export default function Dashboard() {
 			queryKey: ['/api/dashboard/activities', { limit: 50 }],
 			queryFn: async () => {
 				try {
-					console.log('🔄 Fetching all activities...');
 					const response = await fetch('/api/dashboard/activities?limit=50', {
 						credentials: 'include',
 						headers: {
@@ -144,7 +139,6 @@ export default function Dashboard() {
 					}
 
 					const data = await response.json();
-					console.log('✅ All activities loaded:', data);
 					return data;
 				} catch (error) {
 					console.error('❌ Failed to fetch all activities:', error);

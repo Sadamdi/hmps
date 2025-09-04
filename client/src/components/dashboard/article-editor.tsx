@@ -175,8 +175,6 @@ export default function ArticleEditor({
 				(article as any)?._id || article?.id || 'temp-' + Date.now();
 			formData.append('articleId', articleId.toString());
 
-			console.log('📤 Uploading image for article:', articleId);
-
 			const response = await apiRequest(
 				'POST',
 				'/api/upload/content-image',
@@ -184,12 +182,9 @@ export default function ArticleEditor({
 			);
 			const data = await response.json(); // 🔥 PERBAIKAN: Parse JSON response
 
-			console.log('📥 Server response:', data);
 			return data;
 		},
 		onSuccess: (data) => {
-			console.log('📸 Upload success response:', data);
-
 			// Validasi response
 			if (!data || !data.url) {
 				toast({

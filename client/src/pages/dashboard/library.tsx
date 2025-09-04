@@ -1,7 +1,7 @@
 import Header from '@/components/dashboard/header';
 import MediaUploader from '@/components/dashboard/media-uploader';
 import Sidebar from '@/components/dashboard/sidebar';
-import { MediaDisplay } from '@/components/MediaDisplay';
+import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {

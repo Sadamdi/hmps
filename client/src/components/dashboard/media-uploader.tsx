@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { GDriveLinkInput } from '../GDriveLinkInput';
-import { MediaDisplay } from '../MediaDisplay';
+import MediaDisplay from '../MediaDisplay';
 
 interface LibraryItem {
 	id: number;

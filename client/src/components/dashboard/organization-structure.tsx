@@ -1,3 +1,4 @@
+import MediaDisplay from '@/components/MediaDisplay';
 import { Card } from '@/components/ui/card';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
@@ -98,10 +99,11 @@ export default function OrganizationStructure() {
 						<Card className="p-4 w-48 text-center">
 							<div className="w-24 h-24 mx-auto mb-2 rounded-full overflow-hidden">
 								{structure.ketua.imageUrl ? (
-									<img
+									<MediaDisplay
 										src={structure.ketua.imageUrl}
 										alt={structure.ketua.name}
 										className="w-full h-full object-cover"
+										type="image"
 									/>
 								) : (
 									<User className="w-full h-full p-4 text-gray-400" />
@@ -121,10 +123,11 @@ export default function OrganizationStructure() {
 						<Card className="p-4 w-48 text-center">
 							<div className="w-24 h-24 mx-auto mb-2 rounded-full overflow-hidden">
 								{structure.wakil.imageUrl ? (
-									<img
+									<MediaDisplay
 										src={structure.wakil.imageUrl}
 										alt={structure.wakil.name}
 										className="w-full h-full object-cover"
+										type="image"
 									/>
 								) : (
 									<User className="w-full h-full p-4 text-gray-400" />
@@ -153,10 +156,11 @@ export default function OrganizationStructure() {
 								<Card className="p-4 w-48 text-center">
 									<div className="w-24 h-24 mx-auto mb-2 rounded-full overflow-hidden">
 										{division.members[0].imageUrl ? (
-											<img
+											<MediaDisplay
 												src={division.members[0].imageUrl}
 												alt={division.members[0].name}
 												className="w-full h-full object-cover"
+												type="image"
 											/>
 										) : (
 											<User className="w-full h-full p-4 text-gray-400" />
@@ -187,10 +191,11 @@ export default function OrganizationStructure() {
 										className="p-4 w-40 text-center">
 										<div className="w-20 h-20 mx-auto mb-2 rounded-full overflow-hidden">
 											{member.imageUrl ? (
-												<img
+												<MediaDisplay
 													src={member.imageUrl}
 													alt={member.name}
 													className="w-full h-full object-cover"
+													type="image"
 												/>
 											) : (
 												<User className="w-full h-full p-3 text-gray-400" />
