@@ -159,11 +159,11 @@ export const validateFileUpload = (req: any, res: any, next: any) => {
 		});
 	}
 
-	// Validate file size (5MB max)
-	const maxSize = 5 * 1024 * 1024; // 5MB
+	// Validate file size (10MB max)
+	const maxSize = 10 * 1024 * 1024; // 10MB (sesuai dengan Express body parser dan Multer limit)
 	if (req.file.size > maxSize) {
 		return res.status(400).json({
-			error: 'File too large. Maximum size is 5MB.',
+			error: 'File too large. Maximum size is 10MB.',
 		});
 	}
 
