@@ -16,7 +16,7 @@ export default function AIChat() {
 		{
 			id: 'initial',
 			isBot: true,
-			text: 'Halo! Saya adalah asisten AI HMTI. Ada yang bisa saya bantu terkait informasi Teknik Informatika UIN Malang?',
+			text: 'Halo! Saya adalah Spyro AI. Ada yang bisa saya bantu terkait informasi Teknik Informatika UIN Malang?',
 			timestamp: new Date(),
 		},
 	]);
@@ -146,8 +146,8 @@ export default function AIChat() {
 							</svg>
 						</div>
 						<div>
-							<h3 className="font-medium">AI Assistant HMTI</h3>
-							<p className="text-xs text-blue-100">Powered by Gemini AI</p>
+							<h3 className="font-medium">Spyro AI</h3>
+							<p className="text-xs text-blue-100">Powered by Spyro</p>
 						</div>
 					</div>
 					<div className="px-4 py-4 h-96 overflow-y-auto bg-gray-50">
@@ -276,7 +276,7 @@ export default function AIChat() {
 								</button>
 							</div>
 						)}
-						<span>Powered by Gemini AI</span>
+						<span>Powered by Spyro</span>
 					</div>
 				</div>
 			)}
