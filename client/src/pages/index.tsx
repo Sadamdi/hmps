@@ -32,6 +32,12 @@ interface Settings {
 		instagram: string;
 		youtube: string;
 	};
+	links: {
+		uinMalang: string;
+		fakultasSainsTeknologi: string;
+		jurusanTeknikInformatika: string;
+		perpustakaan: string;
+	};
 }
 
 export default function Home() {

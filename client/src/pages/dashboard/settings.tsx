@@ -86,9 +86,9 @@ export default function SettingsPage() {
 			youtube: 'https://www.youtube.com/@himatifencoder',
 		},
 		links: {
-			uinMalang: 'https://www.uin-malang.ac.id/',
-			fakultasSainsTeknologi: 'https://fst.uin-malang.ac.id/',
-			jurusanTeknikInformatika: 'https://ti.uin-malang.ac.id/',
+			uinMalang: 'https://uin-malang.ac.id/',
+			fakultasSainsTeknologi: 'https://saintek.uin-malang.ac.id/',
+			jurusanTeknikInformatika: 'https://informatika.uin-malang.ac.id/',
 			perpustakaan: 'https://library.uin-malang.ac.id/',
 		},
 	};
@@ -127,10 +127,10 @@ export default function SettingsPage() {
 			// Ensure links exists
 			if (!settingsCopy.links) {
 				settingsCopy.links = {
-					uinMalang: '',
-					fakultasSainsTeknologi: '',
-					jurusanTeknikInformatika: '',
-					perpustakaan: '',
+					uinMalang: 'https://uin-malang.ac.id/',
+					fakultasSainsTeknologi: 'https://saintek.uin-malang.ac.id/',
+					jurusanTeknikInformatika: 'https://informatika.uin-malang.ac.id/',
+					perpustakaan: 'https://library.uin-malang.ac.id/',
 				};
 			}
 
@@ -586,7 +586,7 @@ export default function SettingsPage() {
 													name="links.uinMalang"
 													value={formData.links?.uinMalang || ''}
 													onChange={handleInputChange}
-													placeholder="https://www.uin-malang.ac.id/"
+													placeholder="https://uin-malang.ac.id/"
 												/>
 											</div>
 											<div className="space-y-2">
@@ -598,7 +598,7 @@ export default function SettingsPage() {
 													name="links.fakultasSainsTeknologi"
 													value={formData.links?.fakultasSainsTeknologi || ''}
 													onChange={handleInputChange}
-													placeholder="https://fst.uin-malang.ac.id/"
+													placeholder="https://saintek.uin-malang.ac.id/"
 												/>
 											</div>
 											<div className="space-y-2">
@@ -610,7 +610,7 @@ export default function SettingsPage() {
 													name="links.jurusanTeknikInformatika"
 													value={formData.links?.jurusanTeknikInformatika || ''}
 													onChange={handleInputChange}
-													placeholder="https://ti.uin-malang.ac.id/"
+													placeholder="https://informatika.uin-malang.ac.id/"
 												/>
 											</div>
 											<div className="space-y-2">

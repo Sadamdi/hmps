@@ -214,6 +214,24 @@ const settingsSchema = new mongoose.Schema({
 			default: 'https://www.youtube.com/@himatifencoder',
 		},
 	},
+	links: {
+		uinMalang: {
+			type: String,
+			default: 'https://uin-malang.ac.id/',
+		},
+		fakultasSainsTeknologi: {
+			type: String,
+			default: 'https://saintek.uin-malang.ac.id/',
+		},
+		jurusanTeknikInformatika: {
+			type: String,
+			default: 'https://informatika.uin-malang.ac.id/',
+		},
+		perpustakaan: {
+			type: String,
+			default: 'https://library.uin-malang.ac.id/',
+		},
+	},
 });
 
 // Position Schema - untuk mengelola position per tahun
