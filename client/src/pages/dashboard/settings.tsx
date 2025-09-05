@@ -38,6 +38,12 @@ interface SiteSettings {
 		instagram: string;
 		youtube: string;
 	};
+	links: {
+		uinMalang: string;
+		fakultasSainsTeknologi: string;
+		jurusanTeknikInformatika: string;
+		perpustakaan: string;
+	};
 }
 
 interface PasswordChangeData {
@@ -79,6 +85,12 @@ export default function SettingsPage() {
 			instagram: 'https://www.instagram.com/himatif.encoder/',
 			youtube: 'https://www.youtube.com/@himatifencoder',
 		},
+		links: {
+			uinMalang: 'https://www.uin-malang.ac.id/',
+			fakultasSainsTeknologi: 'https://fst.uin-malang.ac.id/',
+			jurusanTeknikInformatika: 'https://ti.uin-malang.ac.id/',
+			perpustakaan: 'https://library.uin-malang.ac.id/',
+		},
 	};
 
 	// Fetch settings
@@ -112,6 +124,16 @@ export default function SettingsPage() {
 				};
 			}
 
+			// Ensure links exists
+			if (!settingsCopy.links) {
+				settingsCopy.links = {
+					uinMalang: '',
+					fakultasSainsTeknologi: '',
+					jurusanTeknikInformatika: '',
+					perpustakaan: '',
+				};
+			}
+
 			setFormData(settingsCopy);
 		}
 	}, [settings]);
@@ -142,8 +164,14 @@ export default function SettingsPage() {
 				const settingSection =
 					activeTab === 'general'
 						? 'General'
-						: activeTab === 'social'
-						? 'Social Media'
+						: activeTab === 'contact'
+						? 'Contact & Social Media'
+						: activeTab === 'links'
+						? 'Links'
+						: activeTab === 'security'
+						? 'Security'
+						: activeTab === 'profile'
+						? 'Profile'
 						: 'Settings';
 				await logActivity(ActivityTemplates.settingsUpdated(settingSection));
 			} catch (error) {
@@ -222,6 +250,14 @@ export default function SettingsPage() {
 					...formData,
 					socialLinks: {
 						...formData.socialLinks,
+						[child]: value,
+					},
+				});
+			} else if (parent === 'links') {
+				setFormData({
+					...formData,
+					links: {
+						...formData.links,
 						[child]: value,
 					},
 				});
@@ -359,6 +395,7 @@ export default function SettingsPage() {
 							<TabsTrigger value="general">General</TabsTrigger>
 							<TabsTrigger value="appearance">Appearance</TabsTrigger>
 							<TabsTrigger value="contact">Contact</TabsTrigger>
+							<TabsTrigger value="links">Links</TabsTrigger>
 							<TabsTrigger value="security">Security</TabsTrigger>
 							<TabsTrigger value="profile">Profile</TabsTrigger>
 						</TabsList>
@@ -528,6 +565,63 @@ export default function SettingsPage() {
 														placeholder="https://youtube.com/yourchannel"
 													/>
 												</div>
+											</div>
+										</CardContent>
+									</Card>
+								</TabsContent>
+
+								<TabsContent value="links">
+									<Card>
+										<CardHeader>
+											<CardTitle>Quick Links</CardTitle>
+											<CardDescription>
+												Manage important links displayed in the footer
+											</CardDescription>
+										</CardHeader>
+										<CardContent className="space-y-4">
+											<div className="space-y-2">
+												<Label htmlFor="uinMalang">UIN Malang</Label>
+												<Input
+													id="uinMalang"
+													name="links.uinMalang"
+													value={formData.links?.uinMalang || ''}
+													onChange={handleInputChange}
+													placeholder="https://www.uin-malang.ac.id/"
+												/>
+											</div>
+											<div className="space-y-2">
+												<Label htmlFor="fakultasSainsTeknologi">
+													Fakultas Sains dan Teknologi
+												</Label>
+												<Input
+													id="fakultasSainsTeknologi"
+													name="links.fakultasSainsTeknologi"
+													value={formData.links?.fakultasSainsTeknologi || ''}
+													onChange={handleInputChange}
+													placeholder="https://fst.uin-malang.ac.id/"
+												/>
+											</div>
+											<div className="space-y-2">
+												<Label htmlFor="jurusanTeknikInformatika">
+													Jurusan Teknik Informatika
+												</Label>
+												<Input
+													id="jurusanTeknikInformatika"
+													name="links.jurusanTeknikInformatika"
+													value={formData.links?.jurusanTeknikInformatika || ''}
+													onChange={handleInputChange}
+													placeholder="https://ti.uin-malang.ac.id/"
+												/>
+											</div>
+											<div className="space-y-2">
+												<Label htmlFor="perpustakaan">Perpustakaan</Label>
+												<Input
+													id="perpustakaan"
+													name="links.perpustakaan"
+													value={formData.links?.perpustakaan || ''}
+													onChange={handleInputChange}
+													placeholder="https://library.uin-malang.ac.id/"
+												/>
 											</div>
 										</CardContent>
 									</Card>
