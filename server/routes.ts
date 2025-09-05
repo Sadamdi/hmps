@@ -16,6 +16,7 @@ import {
 	extractImageUrlsFromContent,
 	uploadHandler,
 	uploadMiddleware,
+	uploadOrganizationMemberImage,
 } from './upload';
 
 // Import security middleware
@@ -1662,8 +1663,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 					imageUrl = gdriveUrl;
 				} else if (req.file) {
-					// Process the uploaded image
-					imageUrl = await uploadHandler(req.file);
+					// Process the uploaded image with WebP conversion and compression
+					imageUrl = await uploadOrganizationMemberImage(req.file);
 				}
 
 				// Create organization member
@@ -1757,15 +1758,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 					updates.imageUrl = gdriveUrl;
 				} else if (req.file) {
-					// Process the uploaded image with cleanup of old file
-					const imageUrl = await uploadHandler(
+					// Process the uploaded image with WebP conversion, compression and cleanup of old file
+					const imageUrl = await uploadOrganizationMemberImage(
 						req.file,
-						false,
-						'general',
-						oldImageUrl
+						oldImageUrl || undefined
 					);
 					updates.imageUrl = imageUrl;
-					oldImageUrl = null; // uploadHandler already handled cleanup
+					oldImageUrl = null; // uploadOrganizationMemberImage already handled cleanup
 				}
 
 				// Manual cleanup of old image if switching to GDrive
