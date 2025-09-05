@@ -3,6 +3,7 @@ import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
 import { promisify } from 'util';
+import { isProcessableImage, processImage } from './image-processor';
 
 // Promisify fs functions
 const mkdir = promisify(fs.mkdir);
@@ -110,6 +111,59 @@ export async function uploadHandler(
 	} catch (error) {
 		console.error('Error handling file upload:', error);
 		throw new Error('File upload failed');
+	}
+}
+
+/**
+ * Handles organization member image upload with automatic processing
+ * Converts PNG/JPEG to WebP with compression while maintaining resolution
+ */
+export async function uploadOrganizationMemberImage(
+	file: Express.Multer.File,
+	oldFileUrl?: string // URL file lama yang akan dihapus
+): Promise<string> {
+	try {
+		// Hapus file lama jika ada
+		if (oldFileUrl) {
+			await deleteFile(oldFileUrl);
+		}
+
+		// Generate a unique filename dengan ekstensi WebP
+		const timestamp = Date.now();
+		const randomName = crypto.randomBytes(8).toString('hex');
+		const safeOriginalName = file.originalname
+			.replace(/[^a-zA-Z0-9.]/g, '_')
+			.substring(0, 20);
+		// Ganti ekstensi dengan .webp karena akan dikonversi
+		const fileName = `${timestamp}_${safeOriginalName}_${randomName}.webp`;
+
+		// Ensure organization directory exists
+		const categoryDir = await ensureUploadDirectory('organization', false);
+		const filePath = path.join(categoryDir, fileName);
+
+		// Cek apakah file bisa diproses
+		if (!isProcessableImage(file.mimetype)) {
+			throw new Error(`File type ${file.mimetype} is not processable`);
+		}
+
+		// Proses gambar: konversi ke WebP dengan kompresi
+		const processedBuffer = await processImage(file.buffer, {
+			quality: 80, // Kualitas 80% untuk balance antara ukuran dan kualitas
+			maxWidth: 1920, // Batas maksimal lebar
+			maxHeight: 1080, // Batas maksimal tinggi
+			format: 'webp', // Konversi ke WebP
+		});
+
+		// Simpan file yang sudah diproses
+		await writeFile(filePath, processedBuffer);
+
+		// Return the URL (relative path)
+		const imageUrl = `/uploads/organization/${fileName}`;
+
+		return imageUrl;
+	} catch (error) {
+		console.error('Error processing organization member image:', error);
+		throw new Error('Failed to process organization member image');
 	}
 }
 
