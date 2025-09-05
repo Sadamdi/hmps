@@ -1,7 +1,12 @@
 import { GDriveLinkInput } from '@/components/GDriveLinkInput';
 import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -350,6 +355,12 @@ export default function OrganizationEditor({
 				open={cropModalOpen}
 				onOpenChange={setCropModalOpen}>
 				<DialogContent className="w-full max-w-lg p-4">
+					<DialogHeader className="mb-4">
+						<DialogTitle>Crop Gambar</DialogTitle>
+						<p className="text-sm text-muted-foreground">
+							Sesuaikan ukuran dan posisi gambar sebelum menyimpan
+						</p>
+					</DialogHeader>
 					<div className="relative w-full h-96 bg-black">
 						{selectedImage && (
 							<Cropper
@@ -381,6 +392,16 @@ export default function OrganizationEditor({
 				open={isOpen}
 				onOpenChange={onClose}>
 				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>
+							{member ? 'Edit Anggota Organisasi' : 'Tambah Anggota Organisasi'}
+						</DialogTitle>
+						<p className="text-sm text-muted-foreground">
+							{member
+								? 'Ubah informasi anggota organisasi'
+								: 'Tambahkan anggota baru ke organisasi'}
+						</p>
+					</DialogHeader>
 					<div className="space-y-4">
 						<div className="flex justify-center mb-4">
 							<div
