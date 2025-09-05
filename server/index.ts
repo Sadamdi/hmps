@@ -55,8 +55,8 @@ app.use(sanitizeInput);
 app.use(securityLogger);
 
 // ==================== BASIC MIDDLEWARE ====================
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: false, limit: '100mb' }));
 
 // Tambahkan middleware static agar file upload bisa diakses publik
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
