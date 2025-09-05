@@ -51,7 +51,7 @@ const storage = multer.memoryStorage();
 export const uploadMiddleware = multer({
 	storage,
 	limits: {
-		fileSize: 10 * 1024 * 1024, // 10MB (sesuai dengan Express body parser limit)
+		fileSize: 100 * 1024 * 1024, // 100MB (sesuai dengan Nginx dan Express body parser limit)
 	},
 });
 
