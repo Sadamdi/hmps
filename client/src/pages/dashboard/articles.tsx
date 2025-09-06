@@ -9,13 +9,15 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePagination } from '@/hooks/use-pagination';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Edit, Loader2, Plus, Search, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Compatible Article interface with ArticleEditor
 interface Article {
@@ -39,6 +41,7 @@ export default function DashboardArticles() {
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
 	const [editingArticle, setEditingArticle] = useState<Article | null>(null);
 	const [activeTab, setActiveTab] = useState('all');
+	const articlesContainerRef = useRef<HTMLDivElement>(null);
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
@@ -50,6 +53,32 @@ export default function DashboardArticles() {
 	// Type assertion for articles array
 	const articles = articlesData as Article[];
 
+	// Filter articles based on search and tab
+	const filteredArticles = articles
+		.filter(
+			(article: Article) =>
+				article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				article.excerpt.toLowerCase().includes(searchQuery.toLowerCase())
+		)
+		.filter((article: Article) => {
+			if (activeTab === 'all') return true;
+			if (activeTab === 'published') return article.published;
+			if (activeTab === 'drafts') return !article.published;
+			return true;
+		});
+
+	// Pagination for articles
+	const {
+		currentPage,
+		totalPages,
+		paginatedData: paginatedArticles,
+		setCurrentPage,
+	} = usePagination({
+		data: filteredArticles,
+		itemsPerPageDesktop: 9,
+		itemsPerPageMobile: 6,
+	});
+
 	// Delete article mutation
 	const deleteArticleMutation = useMutation({
 		mutationFn: async (articleId: string | number) => {
@@ -58,7 +87,7 @@ export default function DashboardArticles() {
 		onSuccess: async (_, articleId) => {
 			// Find the deleted article for logging
 			const deletedArticle = articles.find(
-				(article) => ((article as any)._id || article.id) === articleId
+				(article) => (article as any)._id === articleId
 			);
 
 			queryClient.invalidateQueries({ queryKey: ['/api/articles/manage'] });
@@ -93,19 +122,15 @@ export default function DashboardArticles() {
 		},
 	});
 
-	// Filter articles based on search and tab
-	const filteredArticles = articles
-		.filter(
-			(article: Article) =>
-				article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				article.excerpt.toLowerCase().includes(searchQuery.toLowerCase())
-		)
-		.filter((article: Article) => {
-			if (activeTab === 'all') return true;
-			if (activeTab === 'published') return article.published;
-			if (activeTab === 'drafts') return !article.published;
-			return true;
-		});
+	// Auto-scroll to articles container when page changes
+	useEffect(() => {
+		if (articlesContainerRef.current) {
+			articlesContainerRef.current.scrollIntoView({
+				behavior: 'smooth',
+				block: 'start',
+			});
+		}
+	}, [currentPage]);
 
 	const handleNewArticle = () => {
 		setEditingArticle(null);
@@ -183,11 +208,15 @@ export default function DashboardArticles() {
 					</CardContent>
 				</Card>
 			) : (
-				<div className="grid gap-6">
-					{filteredArticles.map((article: Article) => (
+				<div
+					ref={articlesContainerRef}
+					key={`page-${currentPage}`}
+					className="grid gap-6 animate-page-transition">
+					{paginatedArticles.map((article: Article, index: number) => (
 						<Card
 							key={article._id}
-							className="overflow-hidden">
+							className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02] animate-fade-in-up"
+							style={{ animationDelay: `${index * 50}ms` }}>
 							<div className="flex flex-col md:flex-row">
 								<div className="w-full md:w-64 h-48 md:h-auto">
 									<img
@@ -246,6 +275,14 @@ export default function DashboardArticles() {
 					))}
 				</div>
 			)}
+
+			{/* Pagination */}
+			<Pagination
+				currentPage={currentPage}
+				totalPages={totalPages}
+				onPageChange={setCurrentPage}
+				className="mt-8"
+			/>
 
 			<Dialog
 				open={isEditorOpen}

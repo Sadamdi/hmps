@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, User } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 
 interface Article {
@@ -29,6 +29,7 @@ interface Article {
 
 export default function Articles() {
 	const [showAll, setShowAll] = useState(false);
+	const [isMobile, setIsMobile] = useState(false);
 
 	const { data: articles = [], isLoading } = useQuery<Article[]>({
 		queryKey: ['/api/articles'],
@@ -39,10 +40,26 @@ export default function Articles() {
 		placeholderData: [],
 	});
 
-	// Show only first 6 articles initially, or up to 12 if showAll is true
+	// Check if screen is mobile
+	useEffect(() => {
+		const checkIsMobile = () => {
+			setIsMobile(window.innerWidth < 768);
+		};
+
+		checkIsMobile();
+		window.addEventListener('resize', checkIsMobile);
+
+		return () => window.removeEventListener('resize', checkIsMobile);
+	}, []);
+
+	// Show only first 3 articles on mobile initially, or up to 6 if showAll is true
+	// Show only first 6 articles on desktop initially, or up to 12 if showAll is true
+	const initialCount = isMobile ? 3 : 6;
+	const maxCount = isMobile ? 6 : 12;
+
 	const displayedArticles = showAll
-		? articles.slice(0, 12)
-		: articles.slice(0, 6);
+		? articles.slice(0, maxCount)
+		: articles.slice(0, initialCount);
 
 	// Helper function to get article URL (hybrid: ID + slug for SEO)
 	const getArticleUrl = (article: Article) => {

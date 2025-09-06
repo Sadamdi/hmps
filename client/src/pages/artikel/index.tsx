@@ -2,10 +2,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
+import { usePagination } from '@/hooks/use-pagination';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { ArrowLeft, Calendar, Search, Tag, User } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'wouter';
 
 interface Article {
@@ -27,8 +29,19 @@ export default function AllArticles() {
 	const [searchTerm, setSearchTerm] = useState('');
 	const [selectedTags, setSelectedTags] = useState<string[]>([]);
 	const [allTags, setAllTags] = useState<string[]>([]);
-	const [currentPage, setCurrentPage] = useState(1);
-	const articlesPerPage = 15;
+	const articlesContainerRef = useRef<HTMLDivElement>(null);
+
+	// Pagination for articles
+	const {
+		currentPage,
+		totalPages,
+		paginatedData: paginatedArticles,
+		setCurrentPage,
+	} = usePagination({
+		data: filteredArticles,
+		itemsPerPageDesktop: 9,
+		itemsPerPageMobile: 6,
+	});
 	// Removed useLocation since we're using window.location.search directly
 
 	useEffect(() => {
@@ -119,14 +132,17 @@ export default function AllArticles() {
 		setSelectedTags([]);
 	};
 
-	// Pagination
-	const indexOfLastArticle = currentPage * articlesPerPage;
-	const indexOfFirstArticle = indexOfLastArticle - articlesPerPage;
-	const currentArticles = filteredArticles.slice(
-		indexOfFirstArticle,
-		indexOfLastArticle
-	);
-	const totalPages = Math.ceil(filteredArticles.length / articlesPerPage);
+	// Pagination is now handled by usePagination hook
+
+	// Auto-scroll to articles container when page changes
+	useEffect(() => {
+		if (articlesContainerRef.current) {
+			articlesContainerRef.current.scrollIntoView({
+				behavior: 'smooth',
+				block: 'start',
+			});
+		}
+	}, [currentPage]);
 
 	const formatDate = (dateString: string) => {
 		const date = new Date(dateString);
@@ -247,13 +263,10 @@ export default function AllArticles() {
 				</div>
 
 				{/* Results Count */}
-				<div
-					className="mb-6"
-					data-aos="fade-up"
-					data-aos-delay="150">
+				<div className="mb-6">
 					<p className="text-gray-600">
-						Menampilkan {currentArticles.length} dari {filteredArticles.length}{' '}
-						artikel
+						Menampilkan {paginatedArticles.length} dari{' '}
+						{filteredArticles.length} artikel
 						{searchTerm && ` untuk "${searchTerm}"`}
 						{selectedTags.length > 0 &&
 							` dengan tags: ${selectedTags.join(', ')}`}
@@ -261,11 +274,8 @@ export default function AllArticles() {
 				</div>
 
 				{/* Articles Grid */}
-				{currentArticles.length === 0 ? (
-					<div
-						className="text-center py-12 bg-white rounded-lg shadow-sm"
-						data-aos="fade-up"
-						data-aos-delay="200">
+				{paginatedArticles.length === 0 ? (
+					<div className="text-center py-12 bg-white rounded-lg shadow-sm">
 						<p className="text-gray-500 text-lg mb-2">
 							Tidak ada artikel ditemukan
 						</p>
@@ -274,13 +284,15 @@ export default function AllArticles() {
 						</p>
 					</div>
 				) : (
-					<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-						{currentArticles.map((article, index) => (
+					<div
+						ref={articlesContainerRef}
+						key={`page-${currentPage}`}
+						className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 animate-page-transition">
+						{paginatedArticles.map((article, index) => (
 							<Card
 								key={article._id}
-								className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group"
-								data-aos="fade-up"
-								data-aos-delay={200 + index * 50}>
+								className="overflow-hidden hover:shadow-lg transition-all duration-300 group hover:scale-105 animate-fade-in-up"
+								style={{ animationDelay: `${index * 50}ms` }}>
 								<CardHeader className="p-0">
 									<Link
 										href={
@@ -320,7 +332,7 @@ export default function AllArticles() {
 									{/* Tags */}
 									{article.tags && article.tags.length > 0 && (
 										<div className="flex flex-wrap gap-1 mb-3">
-											{article.tags.slice(0, 3).map((tag) => (
+											{article.tags.slice(0, 3).map((tag: string) => (
 												<Badge
 													key={tag}
 													variant="secondary"
@@ -370,37 +382,12 @@ export default function AllArticles() {
 				)}
 
 				{/* Pagination */}
-				{totalPages > 1 && (
-					<div
-						className="flex justify-center gap-2"
-						data-aos="fade-up"
-						data-aos-delay="300">
-						<Button
-							variant="outline"
-							onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-							disabled={currentPage === 1}>
-							Sebelumnya
-						</Button>
-
-						{Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-							<Button
-								key={page}
-								variant={currentPage === page ? 'default' : 'outline'}
-								onClick={() => setCurrentPage(page)}>
-								{page}
-							</Button>
-						))}
-
-						<Button
-							variant="outline"
-							onClick={() =>
-								setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-							}
-							disabled={currentPage === totalPages}>
-							Selanjutnya
-						</Button>
-					</div>
-				)}
+				<Pagination
+					currentPage={currentPage}
+					totalPages={totalPages}
+					onPageChange={setCurrentPage}
+					className="mt-8"
+				/>
 			</div>
 		</div>
 	);

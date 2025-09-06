@@ -974,7 +974,8 @@ body:has(.tox-dialog-wrap) .tox-dialog-wrap {
 
 /* Pagination animation classes */
 .animate-fade-in-up {
-	animation: fadeInUp 0.6s ease-out forwards;
+	animation: fadeInUp 0.5s ease-out forwards;
+	opacity: 0;
 }
 
 .animate-slide-in-bottom {
@@ -982,7 +983,7 @@ body:has(.tox-dialog-wrap) .tox-dialog-wrap {
 }
 
 .animate-page-transition {
-	animation: pageTransition 0.4s ease-out forwards;
+	animation: pageTransition 0.3s ease-out forwards;
 }
 
 /* Smooth transitions for pagination buttons */
