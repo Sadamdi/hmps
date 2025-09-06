@@ -1,4 +1,5 @@
 import MediaDisplay from '@/components/MediaDisplay';
+import { Pagination } from '@/components/ui/pagination';
 import {
 	Select,
 	SelectContent,
@@ -7,6 +8,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePagination } from '@/hooks/use-pagination';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import ReactFlow, {
@@ -295,6 +297,18 @@ export default function Structure() {
 		filteredMembers,
 		positions
 	);
+
+	// Pagination for grid view
+	const {
+		currentPage,
+		totalPages,
+		paginatedData: paginatedMembers,
+		setCurrentPage,
+	} = usePagination({
+		data: sortedFilteredMembers,
+		itemsPerPageDesktop: 8,
+		itemsPerPageMobile: 4,
+	});
 
 	// Set up organization chart nodes and edges based on members data
 	// Normalize members data, dari backend _id jadi id
@@ -679,21 +693,26 @@ export default function Structure() {
 						<TabsContent
 							value="grid"
 							className="mt-0">
-							<div className="grid md:grid-cols-4 sm:grid-cols-2 gap-6 mt-6">
-								{sortedFilteredMembers.length > 0 ? (
-									sortedFilteredMembers.map(
-										(member: OrgMember, index: number) => (
+							<div className="space-y-6">
+								<div
+									key={`page-${currentPage}`}
+									className="grid md:grid-cols-4 sm:grid-cols-2 gap-6 animate-page-transition">
+									{paginatedMembers.length > 0 ? (
+										paginatedMembers.map((member: OrgMember, index: number) => (
 											<div
 												key={member.id}
-												className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow"
+												className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 animate-fade-in-up"
 												data-aos="fade-up"
-												data-aos-delay={300 + index * 50}>
-												<div className="w-full aspect-square overflow-hidden rounded-lg mb-4">
+												data-aos-delay={300 + index * 50}
+												style={{
+													animationDelay: `${index * 100}ms`,
+												}}>
+												<div className="w-full aspect-square overflow-hidden rounded-lg mb-4 group">
 													{member.imageUrl ? (
 														<MediaDisplay
 															src={member.imageUrl}
 															alt={member.name}
-															className="w-full h-full object-cover"
+															className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
 															type="image"
 														/>
 													) : (
@@ -704,7 +723,9 @@ export default function Structure() {
 														</div>
 													)}
 												</div>
-												<h3 className="font-bold text-lg">{member.name}</h3>
+												<h3 className="font-bold text-lg transition-colors duration-200 group-hover:text-primary">
+													{member.name}
+												</h3>
 												<p className="text-primary font-medium">
 													{member.position}
 												</p>
@@ -715,14 +736,24 @@ export default function Structure() {
 													{getDivisionFromPosition(member.position)}
 												</p>
 											</div>
-										)
-									)
-								) : (
-									<div className="col-span-4 py-20 text-center text-gray-500">
-										{selectedDivision === 'all'
-											? `Tidak ada data pengurus untuk periode ${currentPeriod}`
-											: `Tidak ada data pengurus untuk divisi ${selectedDivision} pada periode ${currentPeriod}`}
-									</div>
+										))
+									) : (
+										<div className="col-span-4 py-20 text-center text-gray-500 animate-in fade-in-0 duration-500">
+											{selectedDivision === 'all'
+												? `Tidak ada data pengurus untuk periode ${currentPeriod}`
+												: `Tidak ada data pengurus untuk divisi ${selectedDivision} pada periode ${currentPeriod}`}
+										</div>
+									)}
+								</div>
+
+								{/* Pagination */}
+								{sortedFilteredMembers.length > 0 && (
+									<Pagination
+										currentPage={currentPage}
+										totalPages={totalPages}
+										onPageChange={setCurrentPage}
+										className="mt-8"
+									/>
 								)}
 							</div>
 						</TabsContent>

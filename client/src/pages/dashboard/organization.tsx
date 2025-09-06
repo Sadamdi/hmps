@@ -5,6 +5,7 @@ import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Pagination } from '@/components/ui/pagination';
 import {
 	Select,
 	SelectContent,
@@ -13,6 +14,7 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePagination } from '@/hooks/use-pagination';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest } from '@/lib/queryClient';
@@ -203,6 +205,18 @@ export default function DashboardOrganization() {
 		filteredMembers,
 		positions
 	);
+
+	// Pagination for members
+	const {
+		currentPage,
+		totalPages,
+		paginatedData: paginatedMembers,
+		setCurrentPage,
+	} = usePagination({
+		data: sortedFilteredMembers,
+		itemsPerPageDesktop: 8,
+		itemsPerPageMobile: 4,
+	});
 
 	const handleEditMember = (member: OrgMember) => {
 		setEditingMember(member);
@@ -593,65 +607,87 @@ export default function DashboardOrganization() {
 									<Loader2 className="h-8 w-8 animate-spin" />
 								</div>
 							) : (
-								<div className="grid gap-4">
-									{sortedFilteredMembers.length === 0 ? (
-										<Card>
-											<CardContent className="p-8 text-center">
-												<p className="text-gray-500">
-													{selectedDivision === 'all'
-														? `No members found for period ${selectedPeriod}`
-														: `No members found for division ${selectedDivision} in period ${selectedPeriod}`}
-												</p>
-											</CardContent>
-										</Card>
-									) : (
-										sortedFilteredMembers.map((member) => (
-											<Card key={(member as any)._id || member.id}>
-												<CardContent className="p-4">
-													<div className="flex items-center justify-between">
-														<div className="flex items-center space-x-4">
-															<div className="w-12 h-12 rounded-full overflow-hidden">
-																<MediaDisplay
-																	src={member.imageUrl}
-																	alt={member.name}
-																	className="w-full h-full object-cover"
-																	type="image"
-																/>
-															</div>
-															<div>
-																<h3 className="font-semibold">{member.name}</h3>
-																<p className="text-sm text-gray-600">
-																	{member.position}
-																</p>
-																<p className="text-xs text-gray-400">
-																	{member.period} •{' '}
-																	{getDivisionFromPosition(member.position)}
-																</p>
-															</div>
-														</div>
-														<div className="flex space-x-2">
-															<Button
-																variant="outline"
-																size="sm"
-																onClick={() => handleEditMember(member)}>
-																<Edit className="h-4 w-4" />
-															</Button>
-															<Button
-																variant="outline"
-																size="sm"
-																onClick={() =>
-																	handleDeleteMember(
-																		(member as any)._id || member.id
-																	)
-																}
-																className="text-red-600 hover:text-red-700 hover:bg-red-50">
-																<Trash2 className="h-4 w-4" />
-															</Button>
-														</div>
-													</div>
+								<div className="space-y-6">
+									<div
+										key={`page-${currentPage}`}
+										className="grid gap-4 animate-page-transition">
+										{sortedFilteredMembers.length === 0 ? (
+											<Card>
+												<CardContent className="p-8 text-center">
+													<p className="text-gray-500">
+														{selectedDivision === 'all'
+															? `No members found for period ${selectedPeriod}`
+															: `No members found for division ${selectedDivision} in period ${selectedPeriod}`}
+													</p>
 												</CardContent>
 											</Card>
-										))
+										) : (
+											paginatedMembers.map((member, index) => (
+												<Card
+													key={(member as any)._id || member.id}
+													className="animate-fade-in-up"
+													style={{
+														animationDelay: `${index * 100}ms`,
+													}}>
+													<CardContent className="p-4">
+														<div className="flex items-center justify-between">
+															<div className="flex items-center space-x-4">
+																<div className="w-12 h-12 rounded-full overflow-hidden group">
+																	<MediaDisplay
+																		src={member.imageUrl}
+																		alt={member.name}
+																		className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+																		type="image"
+																	/>
+																</div>
+																<div>
+																	<h3 className="font-semibold transition-colors duration-200 group-hover:text-primary">
+																		{member.name}
+																	</h3>
+																	<p className="text-sm text-gray-600">
+																		{member.position}
+																	</p>
+																	<p className="text-xs text-gray-400">
+																		{member.period} •{' '}
+																		{getDivisionFromPosition(member.position)}
+																	</p>
+																</div>
+															</div>
+															<div className="flex space-x-2">
+																<Button
+																	variant="outline"
+																	size="sm"
+																	onClick={() => handleEditMember(member)}
+																	className="transition-all duration-200 hover:scale-105">
+																	<Edit className="h-4 w-4" />
+																</Button>
+																<Button
+																	variant="outline"
+																	size="sm"
+																	onClick={() =>
+																		handleDeleteMember(
+																			(member as any)._id || member.id
+																		)
+																	}
+																	className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200 hover:scale-105">
+																	<Trash2 className="h-4 w-4" />
+																</Button>
+															</div>
+														</div>
+													</CardContent>
+												</Card>
+											))
+										)}
+									</div>
+
+									{/* Pagination */}
+									{sortedFilteredMembers.length > 0 && (
+										<Pagination
+											currentPage={currentPage}
+											totalPages={totalPages}
+											onPageChange={setCurrentPage}
+											className="mt-6"
+										/>
 									)}
 								</div>
 							)}
