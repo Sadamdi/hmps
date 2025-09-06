@@ -35,9 +35,10 @@ import { Link } from 'wouter';
 
 interface HeaderProps {
 	title: string;
+	onMobileMenuToggle?: () => void;
 }
 
-export default function Header({ title }: HeaderProps) {
+export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 	const { logout } = useAuth();
 	const [showAllNotifications, setShowAllNotifications] = useState(false);
 
@@ -171,16 +172,17 @@ export default function Header({ title }: HeaderProps) {
 					<Button
 						variant="ghost"
 						size="icon"
-						className="md:hidden mr-2">
+						className="lg:hidden mr-2"
+						onClick={onMobileMenuToggle}>
 						<Menu className="h-5 w-5" />
 					</Button>
-					<h1 className="text-xl font-semibold">{title}</h1>
+					<h1 className="text-lg lg:text-xl font-semibold truncate">{title}</h1>
 				</div>
 
-				<div className="flex items-center space-x-4">
+				<div className="flex items-center space-x-2 lg:space-x-4">
 					<Link
 						href="/"
-						className="text-gray-500 hover:text-gray-700 p-2">
+						className="text-gray-500 hover:text-gray-700 p-2 hidden sm:block">
 						<Home className="h-5 w-5" />
 					</Link>
 
@@ -198,7 +200,7 @@ export default function Header({ title }: HeaderProps) {
 						</DropdownMenuTrigger>
 						<DropdownMenuContent
 							align="end"
-							className="w-96">
+							className="w-80 sm:w-96">
 							<DropdownMenuLabel className="flex items-center justify-between">
 								<span>Notifications</span>
 								{notifications.length > 0 && (

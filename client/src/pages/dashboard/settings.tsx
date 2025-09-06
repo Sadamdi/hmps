@@ -1,5 +1,4 @@
-import Header from '@/components/dashboard/header';
-import Sidebar from '@/components/dashboard/sidebar';
+import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
 import { Button } from '@/components/ui/button';
 import {
@@ -376,442 +375,428 @@ export default function SettingsPage() {
 	};
 
 	return (
-		<div className="flex min-h-screen bg-gray-50">
-			<Sidebar />
-			<div className="flex-1 flex flex-col">
-				<Header title="Settings" />
-				<main className="flex-1 p-6">
-					<div className="mb-6">
-						<h1 className="text-2xl font-bold">Site Settings</h1>
-						<p className="text-gray-600 mt-1">
-							Manage your website configuration
-						</p>
+		<DashboardLayout title="Settings">
+			<div className="mb-6">
+				<h1 className="text-2xl font-bold">Site Settings</h1>
+				<p className="text-gray-600 mt-1">Manage your website configuration</p>
+			</div>
+
+			<Tabs
+				value={activeTab}
+				onValueChange={setActiveTab}>
+				<TabsList className="mb-6">
+					<TabsTrigger value="general">General</TabsTrigger>
+					<TabsTrigger value="appearance">Appearance</TabsTrigger>
+					<TabsTrigger value="contact">Contact</TabsTrigger>
+					<TabsTrigger value="links">Links</TabsTrigger>
+					<TabsTrigger value="security">Security</TabsTrigger>
+					<TabsTrigger value="profile">Profile</TabsTrigger>
+				</TabsList>
+
+				{isLoading || !formData ? (
+					<div className="flex justify-center items-center h-64">
+						<Loader2 className="h-8 w-8 animate-spin text-primary" />
 					</div>
+				) : (
+					<>
+						<TabsContent value="general">
+							<Card>
+								<CardHeader>
+									<CardTitle>General Settings</CardTitle>
+									<CardDescription>
+										Basic information about your website
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<div className="space-y-2">
+										<Label htmlFor="siteName">Site Name</Label>
+										<Input
+											id="siteName"
+											name="siteName"
+											value={formData.siteName}
+											onChange={handleInputChange}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="navbarBrand">Navbar Brand</Label>
+										<Input
+											id="navbarBrand"
+											name="navbarBrand"
+											value={formData.navbarBrand}
+											onChange={handleInputChange}
+										/>
+										<p className="text-sm text-gray-500">
+											Text displayed in the navigation bar
+										</p>
+									</div>
 
-					<Tabs
-						value={activeTab}
-						onValueChange={setActiveTab}>
-						<TabsList className="mb-6">
-							<TabsTrigger value="general">General</TabsTrigger>
-							<TabsTrigger value="appearance">Appearance</TabsTrigger>
-							<TabsTrigger value="contact">Contact</TabsTrigger>
-							<TabsTrigger value="links">Links</TabsTrigger>
-							<TabsTrigger value="security">Security</TabsTrigger>
-							<TabsTrigger value="profile">Profile</TabsTrigger>
-						</TabsList>
+									<div className="space-y-2">
+										<Label htmlFor="siteTagline">Tagline</Label>
+										<Input
+											id="siteTagline"
+											name="siteTagline"
+											value={formData.siteTagline}
+											onChange={handleInputChange}
+										/>
+										<p className="text-sm text-gray-500">
+											Displayed on the homepage hero section
+										</p>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="siteDescription">Site Description</Label>
+										<Textarea
+											id="siteDescription"
+											name="siteDescription"
+											value={formData.siteDescription}
+											onChange={handleInputChange}
+											rows={3}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="footerText">Footer Text</Label>
+										<Input
+											id="footerText"
+											name="footerText"
+											value={formData.footerText}
+											onChange={handleInputChange}
+										/>
+									</div>
+								</CardContent>
+							</Card>
+						</TabsContent>
 
-						{isLoading || !formData ? (
-							<div className="flex justify-center items-center h-64">
-								<Loader2 className="h-8 w-8 animate-spin text-primary" />
-							</div>
-						) : (
-							<>
-								<TabsContent value="general">
-									<Card>
-										<CardHeader>
-											<CardTitle>General Settings</CardTitle>
-											<CardDescription>
-												Basic information about your website
-											</CardDescription>
-										</CardHeader>
-										<CardContent className="space-y-4">
-											<div className="space-y-2">
-												<Label htmlFor="siteName">Site Name</Label>
-												<Input
-													id="siteName"
-													name="siteName"
-													value={formData.siteName}
-													onChange={handleInputChange}
-												/>
-											</div>
-											<div className="space-y-2">
-												<Label htmlFor="navbarBrand">Navbar Brand</Label>
-												<Input
-													id="navbarBrand"
-													name="navbarBrand"
-													value={formData.navbarBrand}
-													onChange={handleInputChange}
-												/>
+						<TabsContent value="appearance">
+							<Card>
+								<CardHeader>
+									<CardTitle>Appearance Settings</CardTitle>
+									<CardDescription>
+										Customize how your website looks
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<p className="text-sm text-gray-500">
+										These settings control the visual appearance of your
+										website. Additional appearance settings can be configured by
+										the administrator.
+									</p>
+								</CardContent>
+							</Card>
+						</TabsContent>
+
+						<TabsContent value="contact">
+							<Card>
+								<CardHeader>
+									<CardTitle>Contact Information</CardTitle>
+									<CardDescription>How visitors can reach you</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<div className="space-y-2">
+										<Label htmlFor="contactEmail">Contact Email</Label>
+										<Input
+											id="contactEmail"
+											name="contactEmail"
+											type="email"
+											value={formData.contactEmail}
+											onChange={handleInputChange}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="address">Address</Label>
+										<Textarea
+											id="address"
+											name="address"
+											value={formData.address}
+											onChange={handleInputChange}
+											rows={3}
+										/>
+									</div>
+									<h3 className="text-lg font-medium mt-6 mb-3">
+										Social Media Links
+									</h3>
+									<div className="space-y-4">
+										<div className="space-y-2">
+											<Label htmlFor="facebook">Facebook</Label>
+											<Input
+												id="facebook"
+												name="socialLinks.facebook"
+												value={formData.socialLinks?.facebook || ''}
+												onChange={handleInputChange}
+												placeholder="https://facebook.com/yourpage"
+											/>
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="tiktok">TikTok</Label>
+											<Input
+												id="tiktok"
+												name="socialLinks.tiktok"
+												value={formData.socialLinks?.tiktok || ''}
+												onChange={handleInputChange}
+												placeholder="https://www.tiktok.com/@yourhandle"
+											/>
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="instagram">Instagram</Label>
+											<Input
+												id="instagram"
+												name="socialLinks.instagram"
+												value={formData.socialLinks?.instagram || ''}
+												onChange={handleInputChange}
+												placeholder="https://instagram.com/yourprofile"
+											/>
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="youtube">YouTube</Label>
+											<Input
+												id="youtube"
+												name="socialLinks.youtube"
+												value={formData.socialLinks?.youtube || ''}
+												onChange={handleInputChange}
+												placeholder="https://youtube.com/yourchannel"
+											/>
+										</div>
+									</div>
+								</CardContent>
+							</Card>
+						</TabsContent>
+
+						<TabsContent value="links">
+							<Card>
+								<CardHeader>
+									<CardTitle>Quick Links</CardTitle>
+									<CardDescription>
+										Manage important links displayed in the footer
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<div className="space-y-2">
+										<Label htmlFor="uinMalang">UIN Malang</Label>
+										<Input
+											id="uinMalang"
+											name="links.uinMalang"
+											value={formData.links?.uinMalang || ''}
+											onChange={handleInputChange}
+											placeholder="https://uin-malang.ac.id/"
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="fakultasSainsTeknologi">
+											Fakultas Sains dan Teknologi
+										</Label>
+										<Input
+											id="fakultasSainsTeknologi"
+											name="links.fakultasSainsTeknologi"
+											value={formData.links?.fakultasSainsTeknologi || ''}
+											onChange={handleInputChange}
+											placeholder="https://saintek.uin-malang.ac.id/"
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="jurusanTeknikInformatika">
+											Jurusan Teknik Informatika
+										</Label>
+										<Input
+											id="jurusanTeknikInformatika"
+											name="links.jurusanTeknikInformatika"
+											value={formData.links?.jurusanTeknikInformatika || ''}
+											onChange={handleInputChange}
+											placeholder="https://informatika.uin-malang.ac.id/"
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="perpustakaan">Perpustakaan</Label>
+										<Input
+											id="perpustakaan"
+											name="links.perpustakaan"
+											value={formData.links?.perpustakaan || ''}
+											onChange={handleInputChange}
+											placeholder="https://library.uin-malang.ac.id/"
+										/>
+									</div>
+								</CardContent>
+							</Card>
+						</TabsContent>
+
+						<TabsContent value="security">
+							<div className="grid gap-6">
+								<Card>
+									<CardHeader>
+										<CardTitle>System Settings</CardTitle>
+										<CardDescription>
+											Configure system-wide settings
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-4">
+										<div className="flex items-center justify-between">
+											<div>
+												<Label htmlFor="enableRegistration">
+													Enable Registration
+												</Label>
 												<p className="text-sm text-gray-500">
-													Text displayed in the navigation bar
+													Allow new users to register
 												</p>
 											</div>
-
-											<div className="space-y-2">
-												<Label htmlFor="siteTagline">Tagline</Label>
-												<Input
-													id="siteTagline"
-													name="siteTagline"
-													value={formData.siteTagline}
-													onChange={handleInputChange}
-												/>
+											<Switch
+												id="enableRegistration"
+												checked={formData.enableRegistration || false}
+												onCheckedChange={(checked) =>
+													handleSwitchChange('enableRegistration', checked)
+												}
+											/>
+										</div>
+										<div className="flex items-center justify-between">
+											<div>
+												<Label htmlFor="maintenanceMode">
+													Maintenance Mode
+												</Label>
 												<p className="text-sm text-gray-500">
-													Displayed on the homepage hero section
+													Put the site in maintenance mode
 												</p>
 											</div>
-											<div className="space-y-2">
-												<Label htmlFor="siteDescription">
-													Site Description
-												</Label>
-												<Textarea
-													id="siteDescription"
-													name="siteDescription"
-													value={formData.siteDescription}
-													onChange={handleInputChange}
-													rows={3}
-												/>
-											</div>
-											<div className="space-y-2">
-												<Label htmlFor="footerText">Footer Text</Label>
-												<Input
-													id="footerText"
-													name="footerText"
-													value={formData.footerText}
-													onChange={handleInputChange}
-												/>
-											</div>
-										</CardContent>
-									</Card>
-								</TabsContent>
+											<Switch
+												id="maintenanceMode"
+												checked={formData.maintenanceMode}
+												onCheckedChange={(checked) =>
+													handleSwitchChange('maintenanceMode', checked)
+												}
+											/>
+										</div>
+									</CardContent>
+								</Card>
 
-								<TabsContent value="appearance">
+								<Card>
+									<CardHeader>
+										<CardTitle>Change Password</CardTitle>
+										<CardDescription>
+											Update your account password
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-4">
+										<div className="space-y-2">
+											<Label htmlFor="currentPassword">Current Password</Label>
+											<Input
+												id="currentPassword"
+												name="currentPassword"
+												type="password"
+												value={passwordData.currentPassword}
+												onChange={handlePasswordChange}
+											/>
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="newPassword">New Password</Label>
+											<Input
+												id="newPassword"
+												name="newPassword"
+												type="password"
+												value={passwordData.newPassword}
+												onChange={handlePasswordChange}
+											/>
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="confirmPassword">
+												Confirm New Password
+											</Label>
+											<Input
+												id="confirmPassword"
+												name="confirmPassword"
+												type="password"
+												value={passwordData.confirmPassword}
+												onChange={handlePasswordChange}
+											/>
+										</div>
+										<Button
+											onClick={changePassword}
+											disabled={changePasswordMutation.isPending}
+											className="mt-2">
+											{changePasswordMutation.isPending ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Changing...
+												</>
+											) : (
+												'Change Password'
+											)}
+										</Button>
+									</CardContent>
+								</Card>
+
+								{(user?.role === 'owner' || user?.role === 'admin') && (
 									<Card>
 										<CardHeader>
-											<CardTitle>Appearance Settings</CardTitle>
+											<CardTitle>Advanced</CardTitle>
 											<CardDescription>
-												Customize how your website looks
+												Advanced system operations
 											</CardDescription>
 										</CardHeader>
-										<CardContent className="space-y-4">
-											<p className="text-sm text-gray-500">
-												These settings control the visual appearance of your
-												website. Additional appearance settings can be
-												configured by the administrator.
-											</p>
-										</CardContent>
-									</Card>
-								</TabsContent>
-
-								<TabsContent value="contact">
-									<Card>
-										<CardHeader>
-											<CardTitle>Contact Information</CardTitle>
-											<CardDescription>
-												How visitors can reach you
-											</CardDescription>
-										</CardHeader>
-										<CardContent className="space-y-4">
+										<CardContent>
 											<div className="space-y-2">
-												<Label htmlFor="contactEmail">Contact Email</Label>
-												<Input
-													id="contactEmail"
-													name="contactEmail"
-													type="email"
-													value={formData.contactEmail}
-													onChange={handleInputChange}
-												/>
-											</div>
-											<div className="space-y-2">
-												<Label htmlFor="address">Address</Label>
-												<Textarea
-													id="address"
-													name="address"
-													value={formData.address}
-													onChange={handleInputChange}
-													rows={3}
-												/>
-											</div>
-											<h3 className="text-lg font-medium mt-6 mb-3">
-												Social Media Links
-											</h3>
-											<div className="space-y-4">
-												<div className="space-y-2">
-													<Label htmlFor="facebook">Facebook</Label>
-													<Input
-														id="facebook"
-														name="socialLinks.facebook"
-														value={formData.socialLinks?.facebook || ''}
-														onChange={handleInputChange}
-														placeholder="https://facebook.com/yourpage"
-													/>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="tiktok">TikTok</Label>
-													<Input
-														id="tiktok"
-														name="socialLinks.tiktok"
-														value={formData.socialLinks?.tiktok || ''}
-														onChange={handleInputChange}
-														placeholder="https://www.tiktok.com/@yourhandle"
-													/>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="instagram">Instagram</Label>
-													<Input
-														id="instagram"
-														name="socialLinks.instagram"
-														value={formData.socialLinks?.instagram || ''}
-														onChange={handleInputChange}
-														placeholder="https://instagram.com/yourprofile"
-													/>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="youtube">YouTube</Label>
-													<Input
-														id="youtube"
-														name="socialLinks.youtube"
-														value={formData.socialLinks?.youtube || ''}
-														onChange={handleInputChange}
-														placeholder="https://youtube.com/yourchannel"
-													/>
-												</div>
-											</div>
-										</CardContent>
-									</Card>
-								</TabsContent>
-
-								<TabsContent value="links">
-									<Card>
-										<CardHeader>
-											<CardTitle>Quick Links</CardTitle>
-											<CardDescription>
-												Manage important links displayed in the footer
-											</CardDescription>
-										</CardHeader>
-										<CardContent className="space-y-4">
-											<div className="space-y-2">
-												<Label htmlFor="uinMalang">UIN Malang</Label>
-												<Input
-													id="uinMalang"
-													name="links.uinMalang"
-													value={formData.links?.uinMalang || ''}
-													onChange={handleInputChange}
-													placeholder="https://uin-malang.ac.id/"
-												/>
-											</div>
-											<div className="space-y-2">
-												<Label htmlFor="fakultasSainsTeknologi">
-													Fakultas Sains dan Teknologi
-												</Label>
-												<Input
-													id="fakultasSainsTeknologi"
-													name="links.fakultasSainsTeknologi"
-													value={formData.links?.fakultasSainsTeknologi || ''}
-													onChange={handleInputChange}
-													placeholder="https://saintek.uin-malang.ac.id/"
-												/>
-											</div>
-											<div className="space-y-2">
-												<Label htmlFor="jurusanTeknikInformatika">
-													Jurusan Teknik Informatika
-												</Label>
-												<Input
-													id="jurusanTeknikInformatika"
-													name="links.jurusanTeknikInformatika"
-													value={formData.links?.jurusanTeknikInformatika || ''}
-													onChange={handleInputChange}
-													placeholder="https://informatika.uin-malang.ac.id/"
-												/>
-											</div>
-											<div className="space-y-2">
-												<Label htmlFor="perpustakaan">Perpustakaan</Label>
-												<Input
-													id="perpustakaan"
-													name="links.perpustakaan"
-													value={formData.links?.perpustakaan || ''}
-													onChange={handleInputChange}
-													placeholder="https://library.uin-malang.ac.id/"
-												/>
-											</div>
-										</CardContent>
-									</Card>
-								</TabsContent>
-
-								<TabsContent value="security">
-									<div className="grid gap-6">
-										<Card>
-											<CardHeader>
-												<CardTitle>System Settings</CardTitle>
-												<CardDescription>
-													Configure system-wide settings
-												</CardDescription>
-											</CardHeader>
-											<CardContent className="space-y-4">
-												<div className="flex items-center justify-between">
-													<div>
-														<Label htmlFor="enableRegistration">
-															Enable Registration
-														</Label>
-														<p className="text-sm text-gray-500">
-															Allow new users to register
-														</p>
-													</div>
-													<Switch
-														id="enableRegistration"
-														checked={formData.enableRegistration || false}
-														onCheckedChange={(checked) =>
-															handleSwitchChange('enableRegistration', checked)
-														}
-													/>
-												</div>
-												<div className="flex items-center justify-between">
-													<div>
-														<Label htmlFor="maintenanceMode">
-															Maintenance Mode
-														</Label>
-														<p className="text-sm text-gray-500">
-															Put the site in maintenance mode
-														</p>
-													</div>
-													<Switch
-														id="maintenanceMode"
-														checked={formData.maintenanceMode}
-														onCheckedChange={(checked) =>
-															handleSwitchChange('maintenanceMode', checked)
-														}
-													/>
-												</div>
-											</CardContent>
-										</Card>
-
-										<Card>
-											<CardHeader>
-												<CardTitle>Change Password</CardTitle>
-												<CardDescription>
-													Update your account password
-												</CardDescription>
-											</CardHeader>
-											<CardContent className="space-y-4">
-												<div className="space-y-2">
-													<Label htmlFor="currentPassword">
-														Current Password
-													</Label>
-													<Input
-														id="currentPassword"
-														name="currentPassword"
-														type="password"
-														value={passwordData.currentPassword}
-														onChange={handlePasswordChange}
-													/>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="newPassword">New Password</Label>
-													<Input
-														id="newPassword"
-														name="newPassword"
-														type="password"
-														value={passwordData.newPassword}
-														onChange={handlePasswordChange}
-													/>
-												</div>
-												<div className="space-y-2">
-													<Label htmlFor="confirmPassword">
-														Confirm New Password
-													</Label>
-													<Input
-														id="confirmPassword"
-														name="confirmPassword"
-														type="password"
-														value={passwordData.confirmPassword}
-														onChange={handlePasswordChange}
-													/>
-												</div>
+												<p className="text-sm text-gray-500">
+													Reset all settings to their default values. This
+													action cannot be undone.
+												</p>
 												<Button
-													onClick={changePassword}
-													disabled={changePasswordMutation.isPending}
-													className="mt-2">
-													{changePasswordMutation.isPending ? (
+													variant="destructive"
+													onClick={() => {
+														if (
+															window.confirm(
+																'Are you sure you want to reset all settings to their default values? This action cannot be undone.'
+															)
+														) {
+															resetToDefault();
+														}
+													}}
+													disabled={isResetting}>
+													{isResetting ? (
 														<>
 															<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-															Changing...
+															Resetting...
 														</>
 													) : (
-														'Change Password'
+														'Reset to Default'
 													)}
 												</Button>
-											</CardContent>
-										</Card>
+											</div>
+										</CardContent>
+									</Card>
+								)}
+							</div>
+						</TabsContent>
 
-										{(user?.role === 'owner' || user?.role === 'admin') && (
-											<Card>
-												<CardHeader>
-													<CardTitle>Advanced</CardTitle>
-													<CardDescription>
-														Advanced system operations
-													</CardDescription>
-												</CardHeader>
-												<CardContent>
-													<div className="space-y-2">
-														<p className="text-sm text-gray-500">
-															Reset all settings to their default values. This
-															action cannot be undone.
-														</p>
-														<Button
-															variant="destructive"
-															onClick={() => {
-																if (
-																	window.confirm(
-																		'Are you sure you want to reset all settings to their default values? This action cannot be undone.'
-																	)
-																) {
-																	resetToDefault();
-																}
-															}}
-															disabled={isResetting}>
-															{isResetting ? (
-																<>
-																	<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-																	Resetting...
-																</>
-															) : (
-																'Reset to Default'
-															)}
-														</Button>
-													</div>
-												</CardContent>
-											</Card>
-										)}
-									</div>
-								</TabsContent>
+						<TabsContent value="profile">
+							<UserProfileEditor
+								user={user}
+								onUpdate={() => {
+									// Refresh user data
+									queryClient.invalidateQueries({
+										queryKey: ['/api/auth/me'],
+									});
+								}}
+							/>
+						</TabsContent>
+					</>
+				)}
+			</Tabs>
 
-								<TabsContent value="profile">
-									<UserProfileEditor
-										user={user}
-										onUpdate={() => {
-											// Refresh user data
-											queryClient.invalidateQueries({
-												queryKey: ['/api/auth/me'],
-											});
-										}}
-									/>
-								</TabsContent>
+			{activeTab !== 'security' && (
+				<div className="mt-6 flex justify-end">
+					<Button
+						onClick={saveSettings}
+						disabled={
+							updateSettingsMutation.isPending || isLoading || !formData
+						}>
+						{updateSettingsMutation.isPending ? (
+							<>
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								Saving...
+							</>
+						) : (
+							<>
+								<Save className="mr-2 h-4 w-4" />
+								Save Changes
 							</>
 						)}
-					</Tabs>
-
-					{activeTab !== 'security' && (
-						<div className="mt-6 flex justify-end">
-							<Button
-								onClick={saveSettings}
-								disabled={
-									updateSettingsMutation.isPending || isLoading || !formData
-								}>
-								{updateSettingsMutation.isPending ? (
-									<>
-										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-										Saving...
-									</>
-								) : (
-									<>
-										<Save className="mr-2 h-4 w-4" />
-										Save Changes
-									</>
-								)}
-							</Button>
-						</div>
-					)}
-				</main>
-			</div>
-		</div>
+					</Button>
+				</div>
+			)}
+		</DashboardLayout>
 	);
 }

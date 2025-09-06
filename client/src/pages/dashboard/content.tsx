@@ -3,8 +3,7 @@ import { ArrowLeft, FileEdit } from 'lucide-react';
 import { useState } from 'react';
 
 import ContentEditor from '@/components/dashboard/content-editor';
-import Header from '@/components/dashboard/header';
-import Sidebar from '@/components/dashboard/sidebar';
+import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import {
 	Card,
@@ -78,107 +77,101 @@ export default function Content() {
 	};
 
 	return (
-		<div className="flex min-h-screen bg-gray-50">
-			<Sidebar />
-			<div className="flex-1 flex flex-col">
-				<Header title="Konten Halaman Publik" />
-				<main className="flex-1 p-6">
-					{isEditing ? (
-						<div className="mb-4">
-							<Button
-								variant="ghost"
-								onClick={handleCancelEdit}
-								size="sm">
-								<ArrowLeft className="mr-2 h-4 w-4" />
-								Kembali
+		<DashboardLayout title="Konten Halaman Publik">
+			{isEditing ? (
+				<div className="mb-4">
+					<Button
+						variant="ghost"
+						onClick={handleCancelEdit}
+						size="sm">
+						<ArrowLeft className="mr-2 h-4 w-4" />
+						Kembali
+					</Button>
+				</div>
+			) : null}
+
+			{isPending ? (
+				<div className="text-center p-8">Memuat data...</div>
+			) : isEditing ? (
+				<ContentEditor
+					settings={settings}
+					onSave={handleSaveEdit}
+					onCancel={handleCancelEdit}
+				/>
+			) : (
+				<div className="space-y-6">
+					<div className="flex justify-between items-center">
+						<h2 className="text-2xl font-bold">Konten Halaman</h2>
+						{canEdit && (
+							<Button onClick={handleEdit}>
+								<FileEdit className="mr-2 h-4 w-4" />
+								Edit Konten
 							</Button>
-						</div>
-					) : null}
+						)}
+					</div>
 
-					{isPending ? (
-						<div className="text-center p-8">Memuat data...</div>
-					) : isEditing ? (
-						<ContentEditor
-							settings={settings}
-							onSave={handleSaveEdit}
-							onCancel={handleCancelEdit}
-						/>
-					) : (
-						<div className="space-y-6">
-							<div className="flex justify-between items-center">
-								<h2 className="text-2xl font-bold">Konten Halaman</h2>
-								{canEdit && (
-									<Button onClick={handleEdit}>
-										<FileEdit className="mr-2 h-4 w-4" />
-										Edit Konten
-									</Button>
-								)}
-							</div>
+					<Tabs defaultValue="about">
+						<TabsList>
+							<TabsTrigger value="about">Tentang Kami</TabsTrigger>
+							<TabsTrigger value="vision">Visi & Misi</TabsTrigger>
+						</TabsList>
 
-							<Tabs defaultValue="about">
-								<TabsList>
-									<TabsTrigger value="about">Tentang Kami</TabsTrigger>
-									<TabsTrigger value="vision">Visi & Misi</TabsTrigger>
-								</TabsList>
+						<TabsContent value="about">
+							<Card>
+								<CardHeader>
+									<CardTitle>Konten Tentang Kami</CardTitle>
+									<CardDescription>
+										Konten ini akan ditampilkan di bagian "Tentang Kami" pada
+										halaman publik
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									{settings?.aboutUs ? (
+										<div className="prose max-w-none border rounded-md p-4 bg-gray-50">
+											<div
+												dangerouslySetInnerHTML={{
+													__html: settings.aboutUs,
+												}}
+											/>
+										</div>
+									) : (
+										<div className="text-gray-500 italic">
+											Belum ada konten.
+										</div>
+									)}
+								</CardContent>
+							</Card>
+						</TabsContent>
 
-								<TabsContent value="about">
-									<Card>
-										<CardHeader>
-											<CardTitle>Konten Tentang Kami</CardTitle>
-											<CardDescription>
-												Konten ini akan ditampilkan di bagian "Tentang Kami"
-												pada halaman publik
-											</CardDescription>
-										</CardHeader>
-										<CardContent>
-											{settings?.aboutUs ? (
-												<div className="prose max-w-none border rounded-md p-4 bg-gray-50">
-													<div
-														dangerouslySetInnerHTML={{
-															__html: settings.aboutUs,
-														}}
-													/>
-												</div>
-											) : (
-												<div className="text-gray-500 italic">
-													Belum ada konten.
-												</div>
-											)}
-										</CardContent>
-									</Card>
-								</TabsContent>
-
-								<TabsContent value="vision">
-									<Card>
-										<CardHeader>
-											<CardTitle>Konten Visi & Misi</CardTitle>
-											<CardDescription>
-												Konten ini akan ditampilkan di bagian "Visi & Misi" pada
-												halaman publik
-											</CardDescription>
-										</CardHeader>
-										<CardContent>
-											{settings?.visionMission ? (
-												<div className="prose max-w-none border rounded-md p-4 bg-gray-50">
-													<div
-														dangerouslySetInnerHTML={{
-															__html: settings.visionMission,
-														}}
-													/>
-												</div>
-											) : (
-												<div className="text-gray-500 italic">
-													Belum ada konten.
-												</div>
-											)}
-										</CardContent>
-									</Card>
-								</TabsContent>
-							</Tabs>
-						</div>
-					)}
-				</main>
-			</div>
-		</div>
+						<TabsContent value="vision">
+							<Card>
+								<CardHeader>
+									<CardTitle>Konten Visi & Misi</CardTitle>
+									<CardDescription>
+										Konten ini akan ditampilkan di bagian "Visi & Misi" pada
+										halaman publik
+									</CardDescription>
+								</CardHeader>
+								<CardContent>
+									{settings?.visionMission ? (
+										<div className="prose max-w-none border rounded-md p-4 bg-gray-50">
+											<div
+												dangerouslySetInnerHTML={{
+													__html: settings.visionMission,
+												}}
+											/>
+										</div>
+									) : (
+										<div className="text-gray-500 italic">
+											Belum ada konten.
+										</div>
+									)}
+								</CardContent>
+							</Card>
+						</TabsContent>
+					</Tabs>
+				</div>
+			)}
+		</DashboardLayout>
 	);
 }

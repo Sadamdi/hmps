@@ -1,6 +1,5 @@
-import Header from '@/components/dashboard/header';
+import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import MediaUploader from '@/components/dashboard/media-uploader';
-import Sidebar from '@/components/dashboard/sidebar';
 import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -145,145 +144,137 @@ export default function DashboardLibrary() {
 	};
 
 	return (
-		<div className="flex min-h-screen bg-gray-50">
-			<Sidebar />
-			<div className="flex-1 flex flex-col">
-				<Header title="Library" />
-				<main className="flex-1 p-6">
-					<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-						<h1 className="text-2xl font-bold">Media Library</h1>
-						<Button onClick={handleNewItem}>
-							<Plus className="h-4 w-4 mr-2" />
-							Upload Media
-						</Button>
-					</div>
+		<DashboardLayout title="Library">
+			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+				<h1 className="text-2xl font-bold">Media Library</h1>
+				<Button onClick={handleNewItem}>
+					<Plus className="h-4 w-4 mr-2" />
+					Upload Media
+				</Button>
+			</div>
 
-					<div className="mb-6 flex flex-col sm:flex-row gap-4">
-						<div className="relative flex-1">
-							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-							<Input
-								placeholder="Search library..."
-								className="pl-10"
-								value={searchQuery}
-								onChange={(e) => setSearchQuery(e.target.value)}
-							/>
-						</div>
-						<Tabs
-							value={activeTab}
-							onValueChange={setActiveTab}
-							className="w-full sm:w-auto">
-							<TabsList>
-								<TabsTrigger value="all">All</TabsTrigger>
-								<TabsTrigger value="photos">Photos</TabsTrigger>
-								<TabsTrigger value="videos">Videos</TabsTrigger>
-							</TabsList>
-						</Tabs>
-					</div>
+			<div className="mb-6 flex flex-col sm:flex-row gap-4">
+				<div className="relative flex-1">
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+					<Input
+						placeholder="Search library..."
+						className="pl-10"
+						value={searchQuery}
+						onChange={(e) => setSearchQuery(e.target.value)}
+					/>
+				</div>
+				<Tabs
+					value={activeTab}
+					onValueChange={setActiveTab}
+					className="w-full sm:w-auto">
+					<TabsList>
+						<TabsTrigger value="all">All</TabsTrigger>
+						<TabsTrigger value="photos">Photos</TabsTrigger>
+						<TabsTrigger value="videos">Videos</TabsTrigger>
+					</TabsList>
+				</Tabs>
+			</div>
 
-					{isLoading ? (
-						<div className="flex justify-center items-center h-64">
-							<Loader2 className="h-8 w-8 animate-spin text-primary" />
-						</div>
-					) : filteredItems.length === 0 ? (
-						<Card>
-							<CardContent className="p-8 text-center">
-								<p className="text-gray-500 mb-4">No media items found.</p>
-								<Button onClick={handleNewItem}>Upload Media</Button>
-							</CardContent>
-						</Card>
-					) : (
-						<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-							{filteredItems.map((item) => (
-								<Card
-									key={item._id || item.id}
-									className="overflow-hidden">
-									<div className="h-48 relative overflow-hidden group">
-										<MediaDisplay
-											src={item.images[0]}
-											alt={item.title}
-											type={item.type === 'video' ? 'video' : 'image'}
-											className="w-full h-full"
-										/>
+			{isLoading ? (
+				<div className="flex justify-center items-center h-64">
+					<Loader2 className="h-8 w-8 animate-spin text-primary" />
+				</div>
+			) : filteredItems.length === 0 ? (
+				<Card>
+					<CardContent className="p-8 text-center">
+						<p className="text-gray-500 mb-4">No media items found.</p>
+						<Button onClick={handleNewItem}>Upload Media</Button>
+					</CardContent>
+				</Card>
+			) : (
+				<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+					{filteredItems.map((item) => (
+						<Card
+							key={item._id || item.id}
+							className="overflow-hidden">
+							<div className="h-48 relative overflow-hidden group">
+								<MediaDisplay
+									src={item.images[0]}
+									alt={item.title}
+									type={item.type === 'video' ? 'video' : 'image'}
+									className="w-full h-full"
+								/>
 
-										{/* Type indicator */}
-										<div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs rounded px-2 py-1 flex items-center">
-											{item.type === 'photo' ? (
-												<>
-													<ImageIcon className="h-3 w-3 mr-1" />
-													<span>
-														Photo
-														{item.images.length > 1
-															? ` (${item.images.length})`
-															: ''}
-													</span>
-												</>
-											) : (
-												<>
-													<VideoIcon className="h-3 w-3 mr-1" />
-													<span>
-														Video
-														{item.images.length > 1
-															? ` (${item.images.length})`
-															: ''}
-													</span>
-												</>
-											)}
+								{/* Type indicator */}
+								<div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs rounded px-2 py-1 flex items-center">
+									{item.type === 'photo' ? (
+										<>
+											<ImageIcon className="h-3 w-3 mr-1" />
+											<span>
+												Photo
+												{item.images.length > 1
+													? ` (${item.images.length})`
+													: ''}
+											</span>
+										</>
+									) : (
+										<>
+											<VideoIcon className="h-3 w-3 mr-1" />
+											<span>
+												Video
+												{item.images.length > 1
+													? ` (${item.images.length})`
+													: ''}
+											</span>
+										</>
+									)}
+								</div>
+							</div>
+							<CardContent className="p-4">
+								<div className="flex flex-col space-y-2">
+									<div className="flex justify-between items-start">
+										<h3 className="font-bold truncate">{item.title}</h3>
+										<div className="flex space-x-1">
+											<Button
+												size="sm"
+												variant="ghost"
+												className="h-8 w-8 p-0"
+												onClick={() => handleEditItem(item)}>
+												<Edit className="h-4 w-4" />
+											</Button>
+											<Button
+												size="sm"
+												variant="ghost"
+												className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+												onClick={() => handleDeleteItem(item._id || item.id!)}>
+												<Trash2 className="h-4 w-4" />
+											</Button>
 										</div>
 									</div>
-									<CardContent className="p-4">
-										<div className="flex flex-col space-y-2">
-											<div className="flex justify-between items-start">
-												<h3 className="font-bold truncate">{item.title}</h3>
-												<div className="flex space-x-1">
-													<Button
-														size="sm"
-														variant="ghost"
-														className="h-8 w-8 p-0"
-														onClick={() => handleEditItem(item)}>
-														<Edit className="h-4 w-4" />
-													</Button>
-													<Button
-														size="sm"
-														variant="ghost"
-														className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-														onClick={() =>
-															handleDeleteItem(item._id || item.id!)
-														}>
-														<Trash2 className="h-4 w-4" />
-													</Button>
-												</div>
-											</div>
-											<p className="text-sm text-gray-600 line-clamp-2">
-												{item.description}
-											</p>
-											<div className="text-xs text-gray-500">
-												{item.date} · {item.time}
-											</div>
-										</div>
-									</CardContent>
-								</Card>
-							))}
-						</div>
-					)}
+									<p className="text-sm text-gray-600 line-clamp-2">
+										{item.description}
+									</p>
+									<div className="text-xs text-gray-500">
+										{item.date} · {item.time}
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			)}
 
-					<Dialog
-						open={isUploaderOpen}
-						onOpenChange={setIsUploaderOpen}>
-						<DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-							<DialogHeader>
-								<DialogTitle>
-									{editingItem ? 'Edit Media Item' : 'Upload New Media'}
-								</DialogTitle>
-							</DialogHeader>
-							<MediaUploader
-								item={editingItem}
-								onSave={handleItemSaved}
-								onCancel={closeUploader}
-							/>
-						</DialogContent>
-					</Dialog>
-				</main>
-			</div>
-		</div>
+			<Dialog
+				open={isUploaderOpen}
+				onOpenChange={setIsUploaderOpen}>
+				<DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle>
+							{editingItem ? 'Edit Media Item' : 'Upload New Media'}
+						</DialogTitle>
+					</DialogHeader>
+					<MediaUploader
+						item={editingItem}
+						onSave={handleItemSaved}
+						onCancel={closeUploader}
+					/>
+				</DialogContent>
+			</Dialog>
+		</DashboardLayout>
 	);
 }

@@ -17,10 +17,26 @@ import {
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
-export default function Sidebar() {
+interface SidebarProps {
+	mobileOpen?: boolean;
+	onMobileToggle?: () => void;
+	expanded?: boolean;
+	onExpandedChange?: (expanded: boolean) => void;
+}
+
+export default function Sidebar({
+	mobileOpen = false,
+	onMobileToggle,
+	expanded = true,
+	onExpandedChange,
+}: SidebarProps) {
 	const [location] = useLocation();
 	const { user, logout, hasPermission } = useAuth();
-	const [expanded, setExpanded] = useState(true);
+	const [internalExpanded, setInternalExpanded] = useState(true);
+
+	// Use external expanded state if provided, otherwise use internal state
+	const isExpanded = onExpandedChange ? expanded : internalExpanded;
+	const setExpanded = onExpandedChange ? onExpandedChange : setInternalExpanded;
 
 	// Fetch settings for sidebar brand
 	const { data: settings } = useQuery({
@@ -79,92 +95,112 @@ export default function Sidebar() {
 	];
 
 	return (
-		<aside
-			className={`bg-white border-r border-gray-200 transition-all ${
-				expanded ? 'w-64' : 'w-20'
-			}`}>
-			<div className="h-full flex flex-col">
-				<div className="p-6 flex items-center justify-between border-b">
-					<div className="flex items-center space-x-2">
-						{expanded && (
-							<span className="font-bold text-xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
-								{settings?.navbarBrand || 'HMTI'}
-							</span>
-						)}
-						{!expanded && (
-							<span className="font-bold text-xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
-								{(settings?.navbarBrand || 'HMTI').charAt(0)}
-							</span>
-						)}
-					</div>
-					<Button
-						variant="ghost"
-						size="icon"
-						onClick={() => setExpanded(!expanded)}
-						className="h-8 w-8">
-						{expanded ? (
-							<ChevronLeft className="h-5 w-5" />
-						) : (
-							<ChevronRight className="h-5 w-5" />
-						)}
-					</Button>
-				</div>
+		<>
+			{/* Mobile Overlay */}
+			{mobileOpen && (
+				<div
+					className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+					onClick={onMobileToggle}
+				/>
+			)}
 
-				<nav className="flex-1 p-4 space-y-1">
-					{navItems.map((item) => {
-						if (item.requireRoles && !hasPermission(item.requireRoles)) {
-							return null;
-						}
-
-						return (
-							<Link
-								key={item.href}
-								href={item.href}
-								className={`flex items-center ${
-									expanded ? 'px-4' : 'justify-center px-2'
-								} py-3 text-sm font-medium rounded-md ${
-									item.active
-										? 'bg-primary text-white'
-										: 'text-gray-700 hover:bg-gray-100'
-								}`}>
-								{item.icon}
-								{expanded && <span className="ml-3">{item.label}</span>}
-							</Link>
-						);
-					})}
-				</nav>
-
-				<div className="p-4 border-t">
-					<div
-						className={`flex ${
-							expanded ? 'items-center' : 'flex-col items-center'
-						} space-x-3`}>
-						<Avatar>
-							<AvatarFallback className="bg-primary text-white">
-								{user?.name?.charAt(0) || user?.username?.charAt(0) || 'U'}
-							</AvatarFallback>
-						</Avatar>
-						{expanded && (
-							<div className="min-w-0 flex-1">
-								<p className="text-sm font-medium text-gray-900 truncate">
-									{user?.name || user?.username}
-								</p>
-								<p className="text-xs text-gray-500 capitalize">{user?.role}</p>
-							</div>
-						)}
+			{/* Sidebar */}
+			<aside
+				className={`bg-white border-r border-gray-200 transition-all fixed h-screen z-50 ${
+					isExpanded ? 'w-64' : 'w-20'
+				} ${
+					mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+				}`}>
+				<div className="h-full flex flex-col">
+					{/* Header */}
+					<div className="p-6 flex items-center justify-between border-b flex-shrink-0">
+						<div className="flex items-center space-x-2">
+							{isExpanded && (
+								<span className="font-bold text-xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
+									{(settings as any)?.navbarBrand || 'HMTI'}
+								</span>
+							)}
+							{!isExpanded && (
+								<span className="font-bold text-xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
+									{((settings as any)?.navbarBrand || 'HMTI').charAt(0)}
+								</span>
+							)}
+						</div>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={() => setExpanded(!isExpanded)}
+							className="h-8 w-8">
+							{isExpanded ? (
+								<ChevronLeft className="h-5 w-5" />
+							) : (
+								<ChevronRight className="h-5 w-5" />
+							)}
+						</Button>
 					</div>
 
-					<Button
-						variant="ghost"
-						className={`mt-4 text-gray-700 ${
-							expanded ? 'w-full justify-start' : 'w-full justify-center px-0'
-						}`}
-						onClick={logout}>
-						<LogOut className="h-5 w-5" />
-						{expanded && <span className="ml-2">Logout</span>}
-					</Button>
+					{/* Navigation - takes up remaining space */}
+					<nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+						{navItems.map((item) => {
+							if (item.requireRoles && !hasPermission(item.requireRoles)) {
+								return null;
+							}
+
+							return (
+								<Link
+									key={item.href}
+									href={item.href}
+									className={`flex items-center ${
+										isExpanded ? 'px-4' : 'justify-center px-2'
+									} py-3 text-sm font-medium rounded-md ${
+										item.active
+											? 'bg-primary text-white'
+											: 'text-gray-700 hover:bg-gray-100'
+									}`}>
+									{item.icon}
+									{isExpanded && <span className="ml-3">{item.label}</span>}
+								</Link>
+							);
+						})}
+					</nav>
+
+					{/* User Profile - always at bottom */}
+					<div className="p-4 border-t bg-white flex-shrink-0">
+						<div
+							className={`flex ${
+								isExpanded ? 'items-center' : 'flex-col items-center'
+							} space-x-3`}>
+							<Avatar>
+								<AvatarFallback className="bg-primary text-white">
+									{user?.name?.charAt(0) || user?.username?.charAt(0) || 'U'}
+								</AvatarFallback>
+							</Avatar>
+							{isExpanded && (
+								<div className="min-w-0 flex-1">
+									<p className="text-sm font-medium text-gray-900 truncate">
+										{user?.name || user?.username}
+									</p>
+									<p className="text-xs text-gray-500 capitalize">
+										{user?.role}
+									</p>
+								</div>
+							)}
+						</div>
+
+						<Button
+							variant="ghost"
+							className={`mt-4 text-gray-700 ${
+								isExpanded
+									? 'w-full justify-start'
+									: 'w-full justify-center px-0'
+							}`}
+							onClick={logout}>
+							<LogOut className="h-5 w-5" />
+							{isExpanded && <span className="ml-2">Logout</span>}
+						</Button>
+					</div>
 				</div>
-			</div>
-		</aside>
+			</aside>
+		</>
 	);
 }

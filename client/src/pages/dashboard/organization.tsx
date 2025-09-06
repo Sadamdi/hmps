@@ -1,6 +1,5 @@
-import Header from '@/components/dashboard/header';
+import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import OrganizationEditor from '@/components/dashboard/organization-editor';
-import Sidebar from '@/components/dashboard/sidebar';
 import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -517,349 +516,338 @@ export default function DashboardOrganization() {
 	};
 
 	return (
-		<div className="flex min-h-screen bg-gray-50">
-			<Sidebar />
-			<div className="flex-1 flex flex-col">
-				<Header title="Organization Structure" />
-				<main className="flex-1 p-6">
-					<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-						<h1 className="text-2xl font-bold">
-							Organization Structure Management
-						</h1>
-						{activeTab === 'members' && (
-							<Button onClick={handleNewMember}>
-								<Users className="h-4 w-4 mr-2" />
-								Add Member
-							</Button>
-						)}
+		<DashboardLayout title="Organization Structure">
+			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
+				<h1 className="text-xl lg:text-2xl font-bold">
+					Organization Structure Management
+				</h1>
+				{activeTab === 'members' && (
+					<Button onClick={handleNewMember}>
+						<Users className="h-4 w-4 mr-2" />
+						Add Member
+					</Button>
+				)}
+			</div>
+
+			<Tabs
+				value={activeTab}
+				onValueChange={setActiveTab}
+				className="space-y-6">
+				<TabsList className="grid w-full grid-cols-2">
+					<TabsTrigger value="members">Members</TabsTrigger>
+					<TabsTrigger value="positions">Positions</TabsTrigger>
+				</TabsList>
+
+				<TabsContent
+					value="members"
+					className="space-y-6">
+					<div className="mb-6 flex flex-col gap-4">
+						<div className="relative flex-1">
+							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+							<Input
+								placeholder="Search members..."
+								className="pl-10"
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+							/>
+						</div>
+						<div className="flex flex-col sm:flex-row gap-2">
+							<Select
+								value={selectedPeriod}
+								onValueChange={setSelectedPeriod}>
+								<SelectTrigger className="w-full sm:w-[200px]">
+									<SelectValue placeholder="Select period" />
+								</SelectTrigger>
+								<SelectContent>
+									{sortedPeriods.map((period: string) => (
+										<SelectItem
+											key={period}
+											value={period}>
+											{period}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<Select
+								value={selectedDivision}
+								onValueChange={setSelectedDivision}>
+								<SelectTrigger className="w-full sm:w-[200px]">
+									<SelectValue placeholder="Filter division" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="all">All Divisions</SelectItem>
+									{availableDivisions.map((division) => (
+										<SelectItem
+											key={division}
+											value={division}>
+											{division}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							{sortedPeriods.length > 1 && (
+								<Button
+									variant="outline"
+									size="icon"
+									onClick={() => handleDeletePeriod(selectedPeriod)}
+									className="text-red-600 hover:text-red-700 hover:bg-red-50 self-start sm:self-auto">
+									<Trash2 className="h-4 w-4" />
+								</Button>
+							)}
+						</div>
 					</div>
 
-					<Tabs
-						value={activeTab}
-						onValueChange={setActiveTab}
-						className="space-y-6">
-						<TabsList className="grid w-full grid-cols-2">
-							<TabsTrigger value="members">Members</TabsTrigger>
-							<TabsTrigger value="positions">Positions</TabsTrigger>
-						</TabsList>
-
-						<TabsContent
-							value="members"
-							className="space-y-6">
-							<div className="mb-6 flex flex-col sm:flex-row gap-4">
-								<div className="relative flex-1">
-									<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-									<Input
-										placeholder="Search members..."
-										className="pl-10"
-										value={searchQuery}
-										onChange={(e) => setSearchQuery(e.target.value)}
-									/>
-								</div>
-								<div className="flex gap-2">
-									<Select
-										value={selectedPeriod}
-										onValueChange={setSelectedPeriod}>
-										<SelectTrigger className="w-full sm:w-[200px]">
-											<SelectValue placeholder="Select period" />
-										</SelectTrigger>
-										<SelectContent>
-											{sortedPeriods.map((period: string) => (
-												<SelectItem
-													key={period}
-													value={period}>
-													{period}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									<Select
-										value={selectedDivision}
-										onValueChange={setSelectedDivision}>
-										<SelectTrigger className="w-full sm:w-[200px]">
-											<SelectValue placeholder="Filter division" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">All Divisions</SelectItem>
-											{availableDivisions.map((division) => (
-												<SelectItem
-													key={division}
-													value={division}>
-													{division}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
-									{sortedPeriods.length > 1 && (
-										<Button
-											variant="outline"
-											size="icon"
-											onClick={() => handleDeletePeriod(selectedPeriod)}
-											className="text-red-600 hover:text-red-700 hover:bg-red-50">
-											<Trash2 className="h-4 w-4" />
-										</Button>
-									)}
-								</div>
-							</div>
-
-							{isMembersLoading || isPeriodsLoading ? (
-								<div className="flex justify-center items-center h-64">
-									<Loader2 className="h-8 w-8 animate-spin" />
-								</div>
-							) : (
-								<div className="space-y-6">
-									<div
-										key={`page-${currentPage}`}
-										className="grid gap-4 animate-page-transition">
-										{sortedFilteredMembers.length === 0 ? (
-											<Card>
-												<CardContent className="p-8 text-center">
-													<p className="text-gray-500">
-														{selectedDivision === 'all'
-															? `No members found for period ${selectedPeriod}`
-															: `No members found for division ${selectedDivision} in period ${selectedPeriod}`}
-													</p>
-												</CardContent>
-											</Card>
-										) : (
-											paginatedMembers.map((member, index) => (
-												<Card
-													key={(member as any)._id || member.id}
-													className="animate-fade-in-up"
-													style={{
-														animationDelay: `${index * 100}ms`,
-													}}>
-													<CardContent className="p-4">
-														<div className="flex items-center justify-between">
-															<div className="flex items-center space-x-4">
-																<div className="w-12 h-12 rounded-full overflow-hidden group">
-																	<MediaDisplay
-																		src={member.imageUrl}
-																		alt={member.name}
-																		className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
-																		type="image"
-																	/>
-																</div>
-																<div>
-																	<h3 className="font-semibold transition-colors duration-200 group-hover:text-primary">
-																		{member.name}
-																	</h3>
-																	<p className="text-sm text-gray-600">
-																		{member.position}
-																	</p>
-																	<p className="text-xs text-gray-400">
-																		{member.period} •{' '}
-																		{getDivisionFromPosition(member.position)}
-																	</p>
-																</div>
-															</div>
-															<div className="flex space-x-2">
-																<Button
-																	variant="outline"
-																	size="sm"
-																	onClick={() => handleEditMember(member)}
-																	className="transition-all duration-200 hover:scale-105">
-																	<Edit className="h-4 w-4" />
-																</Button>
-																<Button
-																	variant="outline"
-																	size="sm"
-																	onClick={() =>
-																		handleDeleteMember(
-																			(member as any)._id || member.id
-																		)
-																	}
-																	className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200 hover:scale-105">
-																	<Trash2 className="h-4 w-4" />
-																</Button>
-															</div>
-														</div>
-													</CardContent>
-												</Card>
-											))
-										)}
-									</div>
-
-									{/* Pagination */}
-									{sortedFilteredMembers.length > 0 && (
-										<Pagination
-											currentPage={currentPage}
-											totalPages={totalPages}
-											onPageChange={setCurrentPage}
-											className="mt-6"
-										/>
-									)}
-								</div>
-							)}
-						</TabsContent>
-
-						<TabsContent
-							value="positions"
-							className="space-y-6">
-							<div className="mb-6 flex flex-col sm:flex-row gap-4">
-								<Select
-									value={selectedPeriod}
-									onValueChange={setSelectedPeriod}>
-									<SelectTrigger className="w-full sm:w-[200px]">
-										<SelectValue placeholder="Select period" />
-									</SelectTrigger>
-									<SelectContent>
-										{sortedPeriods.map((period: string) => (
-											<SelectItem
-												key={period}
-												value={period}>
-												{period}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-
-							{isPositionsLoading ? (
-								<div className="flex justify-center items-center h-64">
-									<Loader2 className="h-8 w-8 animate-spin" />
-								</div>
-							) : (
-								<div className="space-y-6">
-									{/* Add new position */}
+					{isMembersLoading || isPeriodsLoading ? (
+						<div className="flex justify-center items-center h-64">
+							<Loader2 className="h-8 w-8 animate-spin" />
+						</div>
+					) : (
+						<div className="space-y-6">
+							<div
+								key={`page-${currentPage}`}
+								className="grid gap-4 animate-page-transition">
+								{sortedFilteredMembers.length === 0 ? (
 									<Card>
-										<CardContent className="p-6">
-											<h3 className="text-lg font-semibold mb-4">
-												Add New Position
-											</h3>
-											<div className="flex gap-2">
-												<Input
-													placeholder="Enter position name..."
-													value={newPosition}
-													onChange={(e) => setNewPosition(e.target.value)}
-													onKeyPress={(e) =>
-														e.key === 'Enter' && handleAddPosition()
-													}
-												/>
-												<Button
-													onClick={handleAddPosition}
-													disabled={
-														!newPosition.trim() ||
-														updatePositionsMutation.isPending
-													}>
-													{updatePositionsMutation.isPending ? (
-														<Loader2 className="h-4 w-4 animate-spin" />
-													) : (
-														<Plus className="h-4 w-4" />
-													)}
-												</Button>
-											</div>
+										<CardContent className="p-8 text-center">
+											<p className="text-gray-500">
+												{selectedDivision === 'all'
+													? `No members found for period ${selectedPeriod}`
+													: `No members found for division ${selectedDivision} in period ${selectedPeriod}`}
+											</p>
 										</CardContent>
 									</Card>
-
-									{/* Current positions */}
-									<Card>
-										<CardContent className="p-6">
-											<h3 className="text-lg font-semibold mb-4">
-												Current Positions for {selectedPeriod}
-											</h3>
-											{positions.length === 0 ? (
-												<p className="text-gray-500">
-													No positions defined for this period.
-												</p>
-											) : (
-												<div className="space-y-2">
-													{positions.map((position) => (
-														<div
-															key={position.name}
-															className="flex items-center justify-between p-3 border rounded bg-gray-50">
-															<span className="font-medium">
-																{position.name}
-															</span>
-															<div className="flex items-center gap-2">
-																<span className="text-sm text-gray-500">
-																	Order: {position.order}
-																</span>
-																<div className="flex items-center gap-1">
-																	<Button
-																		variant="ghost"
-																		size="sm"
-																		onClick={() =>
-																			handleMovePosition(position.name, 'up')
-																		}
-																		disabled={position.order === 1}
-																		className="h-auto p-1 text-gray-600 hover:text-gray-800">
-																		<ChevronUp className="h-4 w-4" />
-																	</Button>
-																	<Button
-																		variant="ghost"
-																		size="sm"
-																		onClick={() =>
-																			handleMovePosition(position.name, 'down')
-																		}
-																		disabled={
-																			position.order === positions.length
-																		}
-																		className="h-auto p-1 text-gray-600 hover:text-gray-800">
-																		<ChevronDown className="h-4 w-4" />
-																	</Button>
-																	<Button
-																		variant="ghost"
-																		size="sm"
-																		onClick={() =>
-																			handleRemovePosition(position.name)
-																		}
-																		className="h-auto p-1 text-red-600 hover:text-red-700">
-																		<X className="h-4 w-4" />
-																	</Button>
-																</div>
-															</div>
+								) : (
+									paginatedMembers.map((member, index) => (
+										<Card
+											key={(member as any)._id || member.id}
+											className="animate-fade-in-up"
+											style={{
+												animationDelay: `${index * 100}ms`,
+											}}>
+											<CardContent className="p-4">
+												<div className="flex items-center justify-between">
+													<div className="flex items-center space-x-4">
+														<div className="w-12 h-12 rounded-full overflow-hidden group">
+															<MediaDisplay
+																src={member.imageUrl}
+																alt={member.name}
+																className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+																type="image"
+															/>
 														</div>
-													))}
+														<div>
+															<h3 className="font-semibold transition-colors duration-200 group-hover:text-primary">
+																{member.name}
+															</h3>
+															<p className="text-sm text-gray-600">
+																{member.position}
+															</p>
+															<p className="text-xs text-gray-400">
+																{member.period} •{' '}
+																{getDivisionFromPosition(member.position)}
+															</p>
+														</div>
+													</div>
+													<div className="flex space-x-2">
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => handleEditMember(member)}
+															className="transition-all duration-200 hover:scale-105">
+															<Edit className="h-4 w-4" />
+														</Button>
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() =>
+																handleDeleteMember(
+																	(member as any)._id || member.id
+																)
+															}
+															className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200 hover:scale-105">
+															<Trash2 className="h-4 w-4" />
+														</Button>
+													</div>
 												</div>
-											)}
-										</CardContent>
-									</Card>
+											</CardContent>
+										</Card>
+									))
+								)}
+							</div>
 
-									{/* Copy positions to other periods */}
-									<Card>
-										<CardContent className="p-6">
-											<h3 className="text-lg font-semibold mb-4">
-												Copy Positions to Other Periods
-											</h3>
-											<div className="grid gap-2">
-												{sortedPeriods
-													.filter((period) => period !== selectedPeriod)
-													.map((period) => (
-														<div
-															key={period}
-															className="flex items-center justify-between p-3 border rounded">
-															<span>{period}</span>
+							{/* Pagination */}
+							{sortedFilteredMembers.length > 0 && (
+								<Pagination
+									currentPage={currentPage}
+									totalPages={totalPages}
+									onPageChange={setCurrentPage}
+									className="mt-6"
+								/>
+							)}
+						</div>
+					)}
+				</TabsContent>
+
+				<TabsContent
+					value="positions"
+					className="space-y-6">
+					<div className="mb-6 flex flex-col sm:flex-row gap-4">
+						<Select
+							value={selectedPeriod}
+							onValueChange={setSelectedPeriod}>
+							<SelectTrigger className="w-full sm:w-[200px]">
+								<SelectValue placeholder="Select period" />
+							</SelectTrigger>
+							<SelectContent>
+								{sortedPeriods.map((period: string) => (
+									<SelectItem
+										key={period}
+										value={period}>
+										{period}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					</div>
+
+					{isPositionsLoading ? (
+						<div className="flex justify-center items-center h-64">
+							<Loader2 className="h-8 w-8 animate-spin" />
+						</div>
+					) : (
+						<div className="space-y-6">
+							{/* Add new position */}
+							<Card>
+								<CardContent className="p-6">
+									<h3 className="text-lg font-semibold mb-4">
+										Add New Position
+									</h3>
+									<div className="flex gap-2">
+										<Input
+											placeholder="Enter position name..."
+											value={newPosition}
+											onChange={(e) => setNewPosition(e.target.value)}
+											onKeyPress={(e) =>
+												e.key === 'Enter' && handleAddPosition()
+											}
+										/>
+										<Button
+											onClick={handleAddPosition}
+											disabled={
+												!newPosition.trim() || updatePositionsMutation.isPending
+											}>
+											{updatePositionsMutation.isPending ? (
+												<Loader2 className="h-4 w-4 animate-spin" />
+											) : (
+												<Plus className="h-4 w-4" />
+											)}
+										</Button>
+									</div>
+								</CardContent>
+							</Card>
+
+							{/* Current positions */}
+							<Card>
+								<CardContent className="p-6">
+									<h3 className="text-lg font-semibold mb-4">
+										Current Positions for {selectedPeriod}
+									</h3>
+									{positions.length === 0 ? (
+										<p className="text-gray-500">
+											No positions defined for this period.
+										</p>
+									) : (
+										<div className="space-y-2">
+											{positions.map((position) => (
+												<div
+													key={position.name}
+													className="flex items-center justify-between p-3 border rounded bg-gray-50">
+													<span className="font-medium">{position.name}</span>
+													<div className="flex items-center gap-2">
+														<span className="text-sm text-gray-500">
+															Order: {position.order}
+														</span>
+														<div className="flex items-center gap-1">
 															<Button
-																variant="outline"
+																variant="ghost"
 																size="sm"
-																onClick={() => handleCopyPositions(period)}
-																disabled={copyPositionsMutation.isPending}>
-																{copyPositionsMutation.isPending ? (
-																	<Loader2 className="h-4 w-4 animate-spin" />
-																) : (
-																	<Copy className="h-4 w-4" />
-																)}
-																Copy
+																onClick={() =>
+																	handleMovePosition(position.name, 'up')
+																}
+																disabled={position.order === 1}
+																className="h-auto p-1 text-gray-600 hover:text-gray-800">
+																<ChevronUp className="h-4 w-4" />
+															</Button>
+															<Button
+																variant="ghost"
+																size="sm"
+																onClick={() =>
+																	handleMovePosition(position.name, 'down')
+																}
+																disabled={position.order === positions.length}
+																className="h-auto p-1 text-gray-600 hover:text-gray-800">
+																<ChevronDown className="h-4 w-4" />
+															</Button>
+															<Button
+																variant="ghost"
+																size="sm"
+																onClick={() =>
+																	handleRemovePosition(position.name)
+																}
+																className="h-auto p-1 text-red-600 hover:text-red-700">
+																<X className="h-4 w-4" />
 															</Button>
 														</div>
-													))}
-											</div>
-										</CardContent>
-									</Card>
-								</div>
-							)}
-						</TabsContent>
-					</Tabs>
+													</div>
+												</div>
+											))}
+										</div>
+									)}
+								</CardContent>
+							</Card>
 
-					<OrganizationEditor
-						isOpen={isEditorOpen}
-						onClose={closeEditor}
-						member={editingMember}
-						onSaved={handleMemberSaved}
-					/>
-				</main>
-			</div>
-		</div>
+							{/* Copy positions to other periods */}
+							<Card>
+								<CardContent className="p-6">
+									<h3 className="text-lg font-semibold mb-4">
+										Copy Positions to Other Periods
+									</h3>
+									<div className="grid gap-2">
+										{sortedPeriods
+											.filter((period) => period !== selectedPeriod)
+											.map((period) => (
+												<div
+													key={period}
+													className="flex items-center justify-between p-3 border rounded">
+													<span>{period}</span>
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={() => handleCopyPositions(period)}
+														disabled={copyPositionsMutation.isPending}>
+														{copyPositionsMutation.isPending ? (
+															<Loader2 className="h-4 w-4 animate-spin" />
+														) : (
+															<Copy className="h-4 w-4" />
+														)}
+														Copy
+													</Button>
+												</div>
+											))}
+									</div>
+								</CardContent>
+							</Card>
+						</div>
+					)}
+				</TabsContent>
+			</Tabs>
+
+			<OrganizationEditor
+				isOpen={isEditorOpen}
+				onClose={closeEditor}
+				member={editingMember}
+				onSaved={handleMemberSaved}
+			/>
+		</DashboardLayout>
 	);
 }
