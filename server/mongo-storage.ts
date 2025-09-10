@@ -1,9 +1,12 @@
 import mongoose from 'mongoose';
 import {
 	Article,
+	Division,
 	Library,
 	Organization,
+	Permission,
 	Position,
+	Role,
 	Settings,
 	User,
 } from '../db/mongodb';
@@ -561,7 +564,303 @@ const mongoDBStorage = {
 	getSettings,
 	updateSettings,
 	resetSettings,
+
+	// Role and Permission functions
+	getAllRoles,
+	getRoleByName,
+	createRole,
+	updateRole,
+	deleteRole,
+	getAllPermissions,
+	getPermissionByName,
+	createPermission,
+	updatePermission,
+	deletePermission,
+	getUserPermissions,
+
+	// Division functions
+	getAllDivisions,
+	getDivisionByName,
+	getDivisionById,
+	createDivision,
+	updateDivision,
+	deleteDivision,
+	initializeDefaultDivisions,
 };
+
+// Role and Permission Management Functions
+async function getAllRoles() {
+	try {
+		return await Role.find({ isActive: true }).sort({ level: 1 });
+	} catch (error) {
+		console.error('Error getting all roles:', error);
+		throw error;
+	}
+}
+
+async function getRoleByName(roleName: string) {
+	try {
+		return await Role.findOne({ name: roleName, isActive: true });
+	} catch (error) {
+		console.error('Error getting role by name:', error);
+		throw error;
+	}
+}
+
+async function createRole(roleData: any) {
+	try {
+		const role = new Role(roleData);
+		return await role.save();
+	} catch (error) {
+		console.error('Error creating role:', error);
+		throw error;
+	}
+}
+
+async function updateRole(roleId: string, updateData: any) {
+	try {
+		return await Role.findByIdAndUpdate(roleId, updateData, { new: true });
+	} catch (error) {
+		console.error('Error updating role:', error);
+		throw error;
+	}
+}
+
+async function deleteRole(roleId: string) {
+	try {
+		return await Role.findByIdAndUpdate(
+			roleId,
+			{ isActive: false },
+			{ new: true }
+		);
+	} catch (error) {
+		console.error('Error deleting role:', error);
+		throw error;
+	}
+}
+
+async function getAllPermissions() {
+	try {
+		return await Permission.find({ isActive: true }).sort({
+			category: 1,
+			name: 1,
+		});
+	} catch (error) {
+		console.error('Error getting all permissions:', error);
+		throw error;
+	}
+}
+
+async function getPermissionByName(permissionName: string) {
+	try {
+		return await Permission.findOne({ name: permissionName, isActive: true });
+	} catch (error) {
+		console.error('Error getting permission by name:', error);
+		throw error;
+	}
+}
+
+async function createPermission(permissionData: any) {
+	try {
+		const permission = new Permission(permissionData);
+		return await permission.save();
+	} catch (error) {
+		console.error('Error creating permission:', error);
+		throw error;
+	}
+}
+
+async function updatePermission(permissionId: string, updateData: any) {
+	try {
+		return await Permission.findByIdAndUpdate(permissionId, updateData, {
+			new: true,
+		});
+	} catch (error) {
+		console.error('Error updating permission:', error);
+		throw error;
+	}
+}
+
+async function deletePermission(permissionId: string) {
+	try {
+		return await Permission.findByIdAndUpdate(
+			permissionId,
+			{ isActive: false },
+			{ new: true }
+		);
+	} catch (error) {
+		console.error('Error deleting permission:', error);
+		throw error;
+	}
+}
+
+async function getUserPermissions(userId: string) {
+	try {
+		const user = await User.findById(userId);
+		if (!user) return [];
+
+		const role = await getRoleByName(user.role);
+		return role ? role.permissions : [];
+	} catch (error) {
+		console.error('Error getting user permissions:', error);
+		throw error;
+	}
+}
+
+// Division management functions
+async function getAllDivisions() {
+	try {
+		return await Division.find({ isActive: true }).sort({ name: 1 });
+	} catch (error) {
+		console.error('Error getting all divisions:', error);
+		throw error;
+	}
+}
+
+async function getDivisionByName(name: string) {
+	try {
+		return await Division.findOne({ name, isActive: true });
+	} catch (error) {
+		console.error('Error getting division by name:', error);
+		throw error;
+	}
+}
+
+async function getDivisionById(id: string) {
+	try {
+		return await Division.findById(id);
+	} catch (error) {
+		console.error('Error getting division by id:', error);
+		throw error;
+	}
+}
+
+async function createDivision(divisionData: any) {
+	try {
+		const division = new Division(divisionData);
+		return await division.save();
+	} catch (error) {
+		console.error('Error creating division:', error);
+		throw error;
+	}
+}
+
+async function updateDivision(id: string, updateData: any) {
+	try {
+		updateData.updatedAt = new Date();
+		return await Division.findByIdAndUpdate(id, updateData, { new: true });
+	} catch (error) {
+		console.error('Error updating division:', error);
+		throw error;
+	}
+}
+
+async function deleteDivision(id: string) {
+	try {
+		return await Division.findByIdAndUpdate(
+			id,
+			{ isActive: false },
+			{ new: true }
+		);
+	} catch (error) {
+		console.error('Error deleting division:', error);
+		throw error;
+	}
+}
+
+// Initialize default divisions
+async function initializeDefaultDivisions() {
+	try {
+		const existingDivisions = await Division.countDocuments();
+		if (existingDivisions > 0) {
+			console.log('Divisions already exist, skipping initialization');
+			return;
+		}
+
+		const defaultDivisions = [
+			{
+				name: 'bph',
+				displayName: 'BPH',
+				description: 'Badan Pengurus Harian - Sekretaris dan Bendahara',
+				positions: [
+					'Sekretaris Himpunan',
+					'Sekretaris Himpunan 1',
+					'Sekretaris Himpunan 2',
+					'Bendahara Himpunan 1',
+					'Bendahara Himpunan 2',
+				],
+				color: '#8B5CF6',
+				logo: '',
+				isActive: true,
+			},
+			{
+				name: 'senor',
+				displayName: 'Senor',
+				description: 'Divisi Seni dan Olahraga',
+				positions: ['Ketua Divisi Senor', 'Anggota Divisi Senor'],
+				color: '#F59E0B',
+				logo: '',
+				isActive: true,
+			},
+			{
+				name: 'public_relation',
+				displayName: 'Public Relation',
+				description: 'Divisi Hubungan Masyarakat',
+				positions: [
+					'Ketua Divisi Public Relation',
+					'Anggota Divisi Public Relation',
+				],
+				color: '#8B5CF6',
+				logo: '',
+				isActive: true,
+			},
+			{
+				name: 'religius',
+				displayName: 'Religius',
+				description: 'Divisi Keagamaan dan Spiritual',
+				positions: ['Ketua Divisi Religius', 'Anggota Divisi Religius'],
+				color: '#10B981',
+				logo: '',
+				isActive: true,
+			},
+			{
+				name: 'technopreneurship',
+				displayName: 'Technopreneurship',
+				description: 'Divisi Teknologi dan Kewirausahaan',
+				positions: [
+					'Ketua Divisi Technopreneurship',
+					'Anggota Divisi Technopreneurship',
+				],
+				color: '#3B82F6',
+				logo: '',
+				isActive: true,
+			},
+			{
+				name: 'medinfo',
+				displayName: 'Medinfo',
+				description: 'Divisi Media dan Informasi',
+				positions: ['Ketua Divisi Medinfo', 'Anggota Divisi Medinfo'],
+				color: '#06B6D4',
+				logo: '',
+				isActive: true,
+			},
+			{
+				name: 'intelektual',
+				displayName: 'Intelektual',
+				description: 'Divisi Akademik dan Penelitian',
+				positions: ['Ketua Divisi Intelektual', 'Anggota Divisi Intelektual'],
+				color: '#6B7280',
+				logo: '',
+				isActive: true,
+			},
+		];
+
+		await Division.insertMany(defaultDivisions);
+		console.log('✅ Initialized default divisions');
+	} catch (error) {
+		console.error('Error initializing default divisions:', error);
+	}
+}
 
 // Export MongoDB storage directly (no more PostgreSQL fallback)
 export const mongoStorage = mongoDBStorage;

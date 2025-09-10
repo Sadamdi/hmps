@@ -54,13 +54,40 @@ const userSchema = new mongoose.Schema({
 	email: { type: String, required: true },
 	role: {
 		type: String,
-		enum: ['owner', 'admin', 'chair', 'vice_chair', 'division_head'],
+		enum: ['owner', 'admin', 'chair', 'vice_chair', 'bph', 'division_head'],
 		default: 'division_head',
 	},
 	division: { type: String, default: '' },
 	lastLogin: { type: Date, default: Date.now },
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
+});
+
+// Model Role (untuk custom roles)
+const roleSchema = new mongoose.Schema({
+	name: { type: String, required: true, unique: true },
+	displayName: { type: String, required: true },
+	description: { type: String, default: '' },
+	level: { type: Number, required: true }, // 1 = owner, 2 = admin, 3 = chair, etc.
+	permissions: [{ type: String }], // Array of permission strings
+	isActive: { type: Boolean, default: true },
+	createdBy: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'User',
+		required: true,
+	},
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now },
+});
+
+// Model Permission (untuk mendefinisikan semua permissions yang tersedia)
+const permissionSchema = new mongoose.Schema({
+	name: { type: String, required: true, unique: true },
+	displayName: { type: String, required: true },
+	description: { type: String, default: '' },
+	category: { type: String, required: true }, // 'dashboard', 'articles', 'users', etc.
+	isActive: { type: Boolean, default: true },
+	createdAt: { type: Date, default: Date.now },
 });
 
 // Model Article
@@ -247,6 +274,19 @@ const positionSchema = new mongoose.Schema({
 	updatedAt: { type: Date, default: Date.now },
 });
 
+// Division Schema - untuk mengelola divisions dan posisi di dalamnya
+const divisionSchema = new mongoose.Schema({
+	name: { type: String, required: true, unique: true },
+	displayName: { type: String, required: true },
+	description: { type: String, default: '' },
+	positions: [{ type: String }], // Array of position names in this division
+	color: { type: String, default: '#3B82F6' },
+	logo: { type: String, default: '' },
+	isActive: { type: Boolean, default: true },
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now },
+});
+
 // Create models
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Article =
@@ -258,9 +298,25 @@ const Organization =
 	mongoose.model('Organization', organizationSchema);
 const Settings =
 	mongoose.models.Settings || mongoose.model('Settings', settingsSchema);
+const Role = mongoose.models.Role || mongoose.model('Role', roleSchema);
+const Permission =
+	mongoose.models.Permission || mongoose.model('Permission', permissionSchema);
 
 // Create Position model
 export const Position =
 	mongoose.models.Position || mongoose.model('Position', positionSchema);
 
-export { Article, connectDB, Library, Organization, Settings, User };
+// Create Division model
+export const Division =
+	mongoose.models.Division || mongoose.model('Division', divisionSchema);
+
+export {
+	Article,
+	connectDB,
+	Library,
+	Organization,
+	Permission,
+	Role,
+	Settings,
+	User,
+};

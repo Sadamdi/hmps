@@ -4,6 +4,7 @@ import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Pagination } from '@/components/ui/pagination';
 import {
 	Select,
@@ -13,16 +14,35 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import { usePagination } from '@/hooks/use-pagination';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest } from '@/lib/queryClient';
+import {
+	closestCenter,
+	DndContext,
+	DragEndEvent,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+} from '@dnd-kit/core';
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 	ChevronDown,
 	ChevronUp,
 	Copy,
 	Edit,
+	GripVertical,
 	Loader2,
 	Plus,
 	Search,
@@ -38,6 +58,87 @@ interface OrgMember {
 	position: string;
 	period: string;
 	imageUrl: string;
+}
+
+interface Position {
+	name: string;
+	order: number;
+}
+
+// Sortable Position Item Component
+function SortablePositionItem({
+	position,
+	onMoveUp,
+	onMoveDown,
+	onRemove,
+	totalPositions,
+}: {
+	position: Position;
+	onMoveUp: () => void;
+	onMoveDown: () => void;
+	onRemove: () => void;
+	totalPositions: number;
+}) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: position.name });
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+	};
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className={`flex items-center justify-between p-3 border rounded bg-gray-50 ${
+				isDragging ? 'shadow-lg opacity-50' : ''
+			}`}>
+			<div className="flex items-center gap-3">
+				<div
+					{...attributes}
+					{...listeners}
+					className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded">
+					<GripVertical className="h-4 w-4 text-gray-400" />
+				</div>
+				<span className="font-medium">{position.name}</span>
+			</div>
+			<div className="flex items-center gap-2">
+				<span className="text-sm text-gray-500">Order: {position.order}</span>
+				<div className="flex items-center gap-1">
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={onMoveUp}
+						disabled={position.order === 1}
+						className="h-auto p-1 text-gray-600 hover:text-gray-800">
+						<ChevronUp className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={onMoveDown}
+						disabled={position.order === totalPositions}
+						className="h-auto p-1 text-gray-600 hover:text-gray-800">
+						<ChevronDown className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={onRemove}
+						className="h-auto p-1 text-red-600 hover:text-red-700">
+						<X className="h-4 w-4" />
+					</Button>
+				</div>
+			</div>
+		</div>
+	);
 }
 
 // Helper function to get division from position
@@ -112,6 +213,9 @@ export default function DashboardOrganization() {
 	const [positions, setPositions] = useState<{ name: string; order: number }[]>(
 		[]
 	);
+	const [newDivision, setNewDivision] = useState('');
+	const [editingDivision, setEditingDivision] = useState<any>(null);
+	const [isDivisionEditorOpen, setIsDivisionEditorOpen] = useState(false);
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
@@ -368,11 +472,35 @@ export default function DashboardOrganization() {
 		placeholderData: [],
 	});
 
+	// Query divisions
+	const { data: divisions = [], isLoading: isDivisionsLoading } = useQuery({
+		queryKey: ['/api/divisions'],
+		queryFn: async () => {
+			const response = await fetch('/api/divisions');
+			const data = await response.json();
+			return data;
+		},
+		placeholderData: [],
+	});
+
+	// Query available positions
+	const { data: availablePositions = [] } = useQuery({
+		queryKey: ['/api/divisions/available-positions'],
+		queryFn: async () => {
+			const response = await fetch('/api/divisions/available-positions');
+			const data = await response.json();
+			return data;
+		},
+		placeholderData: [],
+	});
+
 	// Update local positions when data changes
 	useEffect(() => {
 		if (Array.isArray(positionData)) {
 			// Sort by order
-			const sortedPositions = positionData.sort((a, b) => a.order - b.order);
+			const sortedPositions = positionData.sort(
+				(a: any, b: any) => a.order - b.order
+			);
 			setPositions(sortedPositions);
 		}
 	}, [positionData]);
@@ -445,6 +573,73 @@ export default function DashboardOrganization() {
 		},
 	});
 
+	// Division mutations
+	const createDivisionMutation = useMutation({
+		mutationFn: async (divisionData: any) => {
+			return await apiRequest('POST', '/api/divisions', divisionData);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			toast({
+				title: 'Success',
+				description: 'Division created successfully',
+			});
+		},
+		onError: (error) => {
+			console.error('Create division error:', error);
+			toast({
+				title: 'Error',
+				description: 'Failed to create division',
+				variant: 'destructive',
+			});
+		},
+	});
+
+	const updateDivisionMutation = useMutation({
+		mutationFn: async ({ id, data }: { id: string; data: any }) => {
+			return await apiRequest('PUT', `/api/divisions/${id}`, data);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			toast({
+				title: 'Success',
+				description: 'Division updated successfully',
+			});
+		},
+		onError: (error) => {
+			console.error('Update division error:', error);
+			toast({
+				title: 'Error',
+				description: 'Failed to update division',
+				variant: 'destructive',
+			});
+		},
+	});
+
+	const deleteDivisionMutation = useMutation({
+		mutationFn: async (id: string) => {
+			return await apiRequest('DELETE', `/api/divisions/${id}`);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			toast({
+				title: 'Success',
+				description: 'Division deleted successfully',
+			});
+		},
+		onError: (error) => {
+			console.error('Delete division error:', error);
+			toast({
+				title: 'Error',
+				description: 'Failed to delete division',
+				variant: 'destructive',
+			});
+		},
+	});
+
 	// Position management handlers
 	const handleAddPosition = () => {
 		if (
@@ -480,6 +675,81 @@ export default function DashboardOrganization() {
 			sourcePeriod: selectedPeriod,
 			targetPeriod,
 		});
+	};
+
+	// Division management handlers
+	const handleAddDivision = () => {
+		if (newDivision.trim()) {
+			createDivisionMutation.mutate({
+				name: newDivision.toLowerCase().replace(/\s+/g, '_'),
+				displayName: newDivision,
+				description: '',
+				positions: [],
+				color: '#3B82F6',
+			});
+			setNewDivision('');
+		}
+	};
+
+	const handleEditDivision = (division: any) => {
+		setEditingDivision(division);
+		setIsDivisionEditorOpen(true);
+	};
+
+	const handleUpdateDivision = (id: string, data: any) => {
+		updateDivisionMutation.mutate({ id, data });
+		setEditingDivision(null);
+		setIsDivisionEditorOpen(false);
+	};
+
+	const closeDivisionEditor = () => {
+		setEditingDivision(null);
+		setIsDivisionEditorOpen(false);
+	};
+
+	const handleDeleteDivision = (id: string) => {
+		if (confirm('Are you sure you want to delete this division?')) {
+			deleteDivisionMutation.mutate(id);
+		}
+	};
+
+	// Drag and drop sensors
+	const sensors = useSensors(
+		useSensor(PointerSensor),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		})
+	);
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+
+		if (over && active.id !== over.id) {
+			const oldIndex = positions.findIndex((pos) => pos.name === active.id);
+			const newIndex = positions.findIndex((pos) => pos.name === over.id);
+
+			if (oldIndex !== -1 && newIndex !== -1) {
+				// Use arrayMove to reorder positions
+				const newPositions = arrayMove(positions, oldIndex, newIndex);
+
+				// Update order numbers
+				newPositions.forEach((pos: Position, index: number) => {
+					pos.order = index + 1;
+				});
+
+				// Update local state immediately for real-time UI
+				queryClient.setQueryData(
+					['/api/organization/positions', selectedPeriod],
+					newPositions
+				);
+
+				// Then update backend
+				updatePositionsMutation.mutate({
+					period: selectedPeriod,
+					positions: newPositions,
+				});
+			}
+		}
 	};
 
 	const handleMovePosition = (
@@ -533,9 +803,10 @@ export default function DashboardOrganization() {
 				value={activeTab}
 				onValueChange={setActiveTab}
 				className="space-y-6">
-				<TabsList className="grid w-full grid-cols-2">
+				<TabsList className="grid w-full grid-cols-3">
 					<TabsTrigger value="members">Members</TabsTrigger>
 					<TabsTrigger value="positions">Positions</TabsTrigger>
+					<TabsTrigger value="divisions">Divisions</TabsTrigger>
 				</TabsList>
 
 				<TabsContent
@@ -757,51 +1028,33 @@ export default function DashboardOrganization() {
 											No positions defined for this period.
 										</p>
 									) : (
-										<div className="space-y-2">
-											{positions.map((position) => (
-												<div
-													key={position.name}
-													className="flex items-center justify-between p-3 border rounded bg-gray-50">
-													<span className="font-medium">{position.name}</span>
-													<div className="flex items-center gap-2">
-														<span className="text-sm text-gray-500">
-															Order: {position.order}
-														</span>
-														<div className="flex items-center gap-1">
-															<Button
-																variant="ghost"
-																size="sm"
-																onClick={() =>
-																	handleMovePosition(position.name, 'up')
-																}
-																disabled={position.order === 1}
-																className="h-auto p-1 text-gray-600 hover:text-gray-800">
-																<ChevronUp className="h-4 w-4" />
-															</Button>
-															<Button
-																variant="ghost"
-																size="sm"
-																onClick={() =>
-																	handleMovePosition(position.name, 'down')
-																}
-																disabled={position.order === positions.length}
-																className="h-auto p-1 text-gray-600 hover:text-gray-800">
-																<ChevronDown className="h-4 w-4" />
-															</Button>
-															<Button
-																variant="ghost"
-																size="sm"
-																onClick={() =>
-																	handleRemovePosition(position.name)
-																}
-																className="h-auto p-1 text-red-600 hover:text-red-700">
-																<X className="h-4 w-4" />
-															</Button>
-														</div>
-													</div>
+										<DndContext
+											sensors={sensors}
+											collisionDetection={closestCenter}
+											onDragEnd={handleDragEnd}>
+											<SortableContext
+												items={positions.map((pos) => pos.name)}
+												strategy={verticalListSortingStrategy}>
+												<div className="space-y-2">
+													{positions.map((position) => (
+														<SortablePositionItem
+															key={position.name}
+															position={position}
+															totalPositions={positions.length}
+															onMoveUp={() =>
+																handleMovePosition(position.name, 'up')
+															}
+															onMoveDown={() =>
+																handleMovePosition(position.name, 'down')
+															}
+															onRemove={() =>
+																handleRemovePosition(position.name)
+															}
+														/>
+													))}
 												</div>
-											))}
-										</div>
+											</SortableContext>
+										</DndContext>
 									)}
 								</CardContent>
 							</Card>
@@ -840,6 +1093,95 @@ export default function DashboardOrganization() {
 						</div>
 					)}
 				</TabsContent>
+
+				<TabsContent
+					value="divisions"
+					className="space-y-6">
+					<div className="mb-6 flex flex-col gap-4">
+						{/* Add new division */}
+						<Card>
+							<CardContent className="p-6">
+								<h3 className="text-lg font-semibold mb-4">Add New Division</h3>
+								<div className="flex gap-2">
+									<Input
+										placeholder="Enter division name..."
+										value={newDivision}
+										onChange={(e) => setNewDivision(e.target.value)}
+										onKeyPress={(e) => e.key === 'Enter' && handleAddDivision()}
+									/>
+									<Button
+										onClick={handleAddDivision}
+										disabled={
+											!newDivision.trim() || createDivisionMutation.isPending
+										}>
+										{createDivisionMutation.isPending ? (
+											<Loader2 className="h-4 w-4 animate-spin" />
+										) : (
+											<Plus className="h-4 w-4" />
+										)}
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+
+						{/* Current divisions */}
+						<Card>
+							<CardContent className="p-6">
+								<h3 className="text-lg font-semibold mb-4">
+									Current Divisions
+								</h3>
+								{isDivisionsLoading ? (
+									<div className="flex justify-center items-center h-32">
+										<Loader2 className="h-8 w-8 animate-spin" />
+									</div>
+								) : divisions.length === 0 ? (
+									<p className="text-gray-500">No divisions defined.</p>
+								) : (
+									<div className="space-y-4">
+										{divisions.map((division: any) => (
+											<div
+												key={division._id}
+												className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
+												<div className="flex items-center gap-4">
+													<div
+														className="w-4 h-4 rounded-full"
+														style={{ backgroundColor: division.color }}
+													/>
+													<div>
+														<h4 className="font-semibold">
+															{division.displayName}
+														</h4>
+														<p className="text-sm text-gray-600">
+															{division.description || 'No description'}
+														</p>
+														<div className="text-xs text-gray-500 mt-1">
+															Positions: {division.positions?.length || 0}
+														</div>
+													</div>
+												</div>
+												<div className="flex items-center gap-2">
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={() => handleEditDivision(division)}>
+														<Edit className="h-4 w-4" />
+													</Button>
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={() => handleDeleteDivision(division._id)}
+														className="text-red-600 hover:text-red-700">
+														<Trash2 className="h-4 w-4" />
+													</Button>
+												</div>
+											</div>
+										))}
+									</div>
+								)}
+							</CardContent>
+						</Card>
+					</div>
+				</TabsContent>
 			</Tabs>
 
 			<OrganizationEditor
@@ -848,6 +1190,292 @@ export default function DashboardOrganization() {
 				member={editingMember}
 				onSaved={handleMemberSaved}
 			/>
+
+			<DivisionEditor
+				isOpen={isDivisionEditorOpen}
+				onClose={closeDivisionEditor}
+				division={editingDivision}
+				onSaved={handleUpdateDivision}
+				availablePositions={availablePositions}
+			/>
 		</DashboardLayout>
+	);
+}
+
+// Division Editor Component
+interface DivisionEditorProps {
+	isOpen: boolean;
+	onClose: () => void;
+	division: any;
+	onSaved: (id: string, data: any) => void;
+	availablePositions: string[];
+}
+
+function DivisionEditor({
+	isOpen,
+	onClose,
+	division,
+	onSaved,
+	availablePositions,
+}: DivisionEditorProps) {
+	const [formData, setFormData] = useState({
+		displayName: '',
+		description: '',
+		positions: [] as string[],
+		color: '#3B82F6',
+		logo: '',
+	});
+	const [newPosition, setNewPosition] = useState('');
+	const queryClient = useQueryClient();
+
+	// DnD Kit hooks - must be called unconditionally
+	const sensors = useSensors(
+		useSensor(PointerSensor),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		})
+	);
+
+	useEffect(() => {
+		if (division) {
+			setFormData({
+				displayName: division.displayName || '',
+				description: division.description || '',
+				positions: division.positions || [],
+				color: division.color || '#3B82F6',
+				logo: division.logo || '',
+			});
+		}
+	}, [division]);
+
+	const handleSubmit = (e: React.FormEvent) => {
+		e.preventDefault();
+		if (division) {
+			onSaved(division._id, formData);
+		}
+	};
+
+	const handleAddPosition = () => {
+		if (
+			newPosition.trim() &&
+			!formData.positions.includes(newPosition.trim())
+		) {
+			setFormData((prev) => ({
+				...prev,
+				positions: [...prev.positions, newPosition.trim()],
+			}));
+			setNewPosition('');
+			// Invalidate available positions to refresh the dropdown
+			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+		}
+	};
+
+	const handleRemovePosition = (positionToRemove: string) => {
+		setFormData((prev) => ({
+			...prev,
+			positions: prev.positions.filter((pos) => pos !== positionToRemove),
+		}));
+		// Invalidate available positions to refresh the dropdown
+		queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+	};
+
+	const handleDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+		if (over && active.id !== over.id) {
+			const oldIndex = formData.positions.findIndex((pos) => pos === active.id);
+			const newIndex = formData.positions.findIndex((pos) => pos === over.id);
+
+			if (oldIndex !== -1 && newIndex !== -1) {
+				const newPositions = arrayMove(formData.positions, oldIndex, newIndex);
+				setFormData((prev) => ({
+					...prev,
+					positions: newPositions,
+				}));
+			}
+		}
+	};
+
+	if (!isOpen) return null;
+
+	return (
+		<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+			<div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+				<div className="flex justify-between items-center mb-6">
+					<h2 className="text-xl font-semibold">Edit Division</h2>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={onClose}>
+						<X className="h-4 w-4" />
+					</Button>
+				</div>
+
+				<form
+					onSubmit={handleSubmit}
+					className="space-y-4">
+					<div>
+						<Label htmlFor="displayName">Display Name</Label>
+						<Input
+							id="displayName"
+							value={formData.displayName}
+							onChange={(e) =>
+								setFormData((prev) => ({
+									...prev,
+									displayName: e.target.value,
+								}))
+							}
+							required
+						/>
+					</div>
+
+					<div>
+						<Label htmlFor="description">Description</Label>
+						<Textarea
+							id="description"
+							value={formData.description}
+							onChange={(e) =>
+								setFormData((prev) => ({
+									...prev,
+									description: e.target.value,
+								}))
+							}
+							rows={3}
+						/>
+					</div>
+
+					<div>
+						<Label htmlFor="color">Color</Label>
+						<div className="flex items-center gap-2">
+							<input
+								type="color"
+								id="color"
+								value={formData.color}
+								onChange={(e) =>
+									setFormData((prev) => ({ ...prev, color: e.target.value }))
+								}
+								className="w-12 h-10 border rounded"
+							/>
+							<Input
+								value={formData.color}
+								onChange={(e) =>
+									setFormData((prev) => ({ ...prev, color: e.target.value }))
+								}
+								placeholder="#3B82F6"
+							/>
+						</div>
+					</div>
+
+					<div>
+						<Label>Positions</Label>
+						<div className="space-y-2">
+							<div className="flex gap-2">
+								<Select
+									value={newPosition}
+									onValueChange={setNewPosition}>
+									<SelectTrigger>
+										<SelectValue placeholder="Select available position..." />
+									</SelectTrigger>
+									<SelectContent>
+										{availablePositions.map((position) => (
+											<SelectItem
+												key={position}
+												value={position}>
+												{position}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<Button
+									type="button"
+									onClick={handleAddPosition}
+									disabled={!newPosition.trim()}>
+									<Plus className="h-4 w-4" />
+								</Button>
+							</div>
+							<div className="space-y-1">
+								<DndContext
+									sensors={sensors}
+									collisionDetection={closestCenter}
+									onDragEnd={handleDragEnd}>
+									<SortableContext
+										items={formData.positions}
+										strategy={verticalListSortingStrategy}>
+										{formData.positions.map((position, index) => (
+											<SortableDivisionPositionItem
+												key={position}
+												position={position}
+												onRemove={() => handleRemovePosition(position)}
+											/>
+										))}
+									</SortableContext>
+								</DndContext>
+							</div>
+						</div>
+					</div>
+
+					<div className="flex justify-end gap-2 pt-4">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={onClose}>
+							Cancel
+						</Button>
+						<Button type="submit">Save Changes</Button>
+					</div>
+				</form>
+			</div>
+		</div>
+	);
+}
+
+// Sortable Division Position Item Component
+interface SortableDivisionPositionItemProps {
+	position: string;
+	onRemove: () => void;
+}
+
+function SortableDivisionPositionItem({
+	position,
+	onRemove,
+}: SortableDivisionPositionItemProps) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: position });
+
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+	};
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className={`flex items-center justify-between p-2 bg-gray-50 rounded ${
+				isDragging ? 'shadow-lg opacity-50' : ''
+			}`}>
+			<div className="flex items-center gap-2">
+				<div
+					{...attributes}
+					{...listeners}
+					className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded">
+					<GripVertical className="h-4 w-4 text-gray-400" />
+				</div>
+				<span>{position}</span>
+			</div>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				onClick={onRemove}
+				className="text-red-600 hover:text-red-700">
+				<X className="h-4 w-4" />
+			</Button>
+		</div>
 	);
 }

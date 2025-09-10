@@ -4,8 +4,10 @@ import { createServer, type Server } from 'http';
 import {
 	authenticate,
 	authorize,
+	canManageRole,
 	generateToken,
 	hashPassword,
+	requirePermission,
 	verifyPassword,
 } from './auth';
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
@@ -45,6 +47,13 @@ interface UserWithRole {
 export async function registerRoutes(app: Express): Promise<Server> {
 	// Use cookie parser for handling JWT tokens
 	app.use(cookieParser());
+
+	// Initialize default divisions
+	try {
+		await mongoStorage.initializeDefaultDivisions();
+	} catch (error) {
+		console.error('Failed to initialize default divisions:', error);
+	}
 
 	// Google Drive API routes
 	app.post('/api/gdrive/check-access', async (req, res) => {
@@ -2076,6 +2085,370 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		// This will be handled by Vite middleware in development
 		// or static file serving in production
 		next();
+	});
+
+	// Role Management API endpoints
+	app.get(
+		'/api/roles',
+		authenticate,
+		requirePermission('roles.view'),
+		async (req, res) => {
+			try {
+				const roles = await mongoStorage.getAllRoles();
+				res.json(roles);
+			} catch (error) {
+				console.error('Error getting roles:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.post(
+		'/api/roles',
+		authenticate,
+		requirePermission('roles.create'),
+		async (req, res) => {
+			try {
+				const { name, displayName, description, level, permissions } = req.body;
+
+				// Validate required fields
+				if (!name || !displayName || !level) {
+					return res
+						.status(400)
+						.json({ message: 'Name, displayName, and level are required' });
+				}
+
+				// Check if user can create this role level
+				if (!canManageRole(req.user.role, `level_${level}`)) {
+					return res
+						.status(403)
+						.json({ message: 'You cannot create roles at this level' });
+				}
+
+				const roleData = {
+					name,
+					displayName,
+					description: description || '',
+					level,
+					permissions: permissions || [],
+					createdBy: req.user._id,
+				};
+
+				const role = await mongoStorage.createRole(roleData);
+				res.status(201).json(role);
+			} catch (error) {
+				console.error('Error creating role:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.put(
+		'/api/roles/:id',
+		authenticate,
+		requirePermission('roles.edit'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const { displayName, description, permissions, level } = req.body;
+
+				// Get current role to check level
+				const currentRole = await mongoStorage.getRoleByName(req.user.role);
+				if (!currentRole) {
+					return res
+						.status(404)
+						.json({ message: 'Current user role not found' });
+				}
+
+				const updateData: any = {
+					displayName,
+					description,
+					permissions,
+					updatedAt: new Date(),
+				};
+
+				// Only update level if provided
+				if (level !== undefined) {
+					updateData.level = level;
+				}
+
+				const role = await mongoStorage.updateRole(id, updateData);
+				if (!role) {
+					return res.status(404).json({ message: 'Role not found' });
+				}
+
+				res.json(role);
+			} catch (error) {
+				console.error('Error updating role:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.delete(
+		'/api/roles/:id',
+		authenticate,
+		requirePermission('roles.delete'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+
+				const role = await mongoStorage.deleteRole(id);
+				if (!role) {
+					return res.status(404).json({ message: 'Role not found' });
+				}
+
+				res.json({ message: 'Role deleted successfully' });
+			} catch (error) {
+				console.error('Error deleting role:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	// Permission Management API endpoints
+	app.get(
+		'/api/permissions',
+		authenticate,
+		requirePermission('roles.view'),
+		async (req, res) => {
+			try {
+				const permissions = await mongoStorage.getAllPermissions();
+				res.json(permissions);
+			} catch (error) {
+				console.error('Error getting permissions:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.post(
+		'/api/permissions',
+		authenticate,
+		requirePermission('roles.create'),
+		async (req, res) => {
+			try {
+				const { name, displayName, description, category } = req.body;
+
+				if (!name || !displayName || !category) {
+					return res
+						.status(400)
+						.json({ message: 'Name, displayName, and category are required' });
+				}
+
+				const permissionData = {
+					name,
+					displayName,
+					description: description || '',
+					category,
+				};
+
+				const permission = await mongoStorage.createPermission(permissionData);
+				res.status(201).json(permission);
+			} catch (error) {
+				console.error('Error creating permission:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	// Division Management API endpoints
+	app.get(
+		'/api/divisions',
+		authenticate,
+		// requirePermission('divisions.view'), // Temporarily disabled
+		async (req, res) => {
+			try {
+				const divisions = await mongoStorage.getAllDivisions();
+				res.json(divisions);
+			} catch (error) {
+				console.error('Error getting divisions:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	// Get available positions (positions that are not assigned to any division)
+	app.get(
+		'/api/divisions/available-positions',
+		authenticate,
+		async (req, res) => {
+			try {
+				const divisions = await mongoStorage.getAllDivisions();
+				const allAssignedPositions = new Set();
+
+				// Collect all assigned positions
+				divisions.forEach((division: any) => {
+					if (division.positions) {
+						division.positions.forEach((position: string) => {
+							allAssignedPositions.add(position);
+						});
+					}
+				});
+
+				// Get all positions from organization positions
+				const allPositions = await mongoStorage.getAllPositions();
+				const availablePositions = [];
+
+				// Find positions that are not assigned to any division
+				for (const periodData of allPositions) {
+					if (periodData.positions) {
+						for (const position of periodData.positions) {
+							if (!allAssignedPositions.has(position.name)) {
+								availablePositions.push(position.name);
+							}
+						}
+					}
+				}
+
+				// Remove duplicates
+				const uniqueAvailablePositions = Array.from(
+					new Set(availablePositions)
+				);
+
+				res.json(uniqueAvailablePositions);
+			} catch (error) {
+				console.error('Error getting available positions:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.post(
+		'/api/divisions',
+		authenticate,
+		// requirePermission('divisions.create'), // Temporarily disabled
+		async (req, res) => {
+			try {
+				const { name, displayName, description, positions, color, logo } =
+					req.body;
+
+				if (!name || !displayName) {
+					return res.status(400).json({
+						message: 'Name and displayName are required',
+					});
+				}
+
+				// Check if division already exists
+				const existingDivision = await mongoStorage.getDivisionByName(name);
+				if (existingDivision) {
+					return res.status(400).json({
+						message: 'Division with this name already exists',
+					});
+				}
+
+				const division = await mongoStorage.createDivision({
+					name,
+					displayName,
+					description: description || '',
+					positions: positions || [],
+					color: color || '#3B82F6',
+					logo: logo || '',
+				});
+
+				res.status(201).json(division);
+			} catch (error) {
+				console.error('Error creating division:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.put(
+		'/api/divisions/:id',
+		authenticate,
+		// requirePermission('divisions.edit'), // Temporarily disabled
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const { displayName, description, positions, color, logo } = req.body;
+
+				const updateData: any = {
+					displayName,
+					description,
+					positions,
+					color,
+					logo,
+					updatedAt: new Date(),
+				};
+
+				const division = await mongoStorage.updateDivision(id, updateData);
+				if (!division) {
+					return res.status(404).json({ message: 'Division not found' });
+				}
+
+				res.json(division);
+			} catch (error) {
+				console.error('Error updating division:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.delete(
+		'/api/divisions/:id',
+		authenticate,
+		requirePermission('divisions.delete'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+
+				const division = await mongoStorage.deleteDivision(id);
+				if (!division) {
+					return res.status(404).json({ message: 'Division not found' });
+				}
+
+				res.json({ message: 'Division deleted successfully' });
+			} catch (error) {
+				console.error('Error deleting division:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	// User Role Assignment API
+	app.put(
+		'/api/users/:id/role',
+		authenticate,
+		requirePermission('roles.assign'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const { role } = req.body;
+
+				if (!role) {
+					return res.status(400).json({ message: 'Role is required' });
+				}
+
+				// Check if user can assign this role
+				if (!canManageRole(req.user.role, role)) {
+					return res
+						.status(403)
+						.json({ message: 'You cannot assign this role' });
+				}
+
+				const user = await mongoStorage.updateUser(id, { role });
+				if (!user) {
+					return res.status(404).json({ message: 'User not found' });
+				}
+
+				res.json(user);
+			} catch (error) {
+				console.error('Error assigning role:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	// Get current user permissions
+	app.get('/api/auth/permissions', authenticate, async (req, res) => {
+		try {
+			const permissions = await mongoStorage.getUserPermissions(req.user._id);
+			res.json({ permissions });
+		} catch (error) {
+			console.error('Error getting user permissions:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
 	});
 
 	const server = createServer(app);

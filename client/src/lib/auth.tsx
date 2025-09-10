@@ -12,9 +12,11 @@ import { useLocation } from 'wouter';
 interface AuthContextType {
 	user: UserWithRole | null;
 	isLoading: boolean;
+	permissions: string[];
 	login: (username: string, password: string) => Promise<void>;
 	logout: () => Promise<void>;
 	hasPermission: (roles: string[]) => boolean;
+	hasSpecificPermission: (permission: string) => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -22,6 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
 	const [user, setUser] = useState<UserWithRole | null>(null);
 	const [isLoading, setIsLoading] = useState(true);
+	const [permissions, setPermissions] = useState<string[]>([]);
 	const { toast } = useToast();
 	const [, setLocation] = useLocation();
 
@@ -41,9 +44,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 					const userData = await response.json();
 					console.log('User session found:', userData);
 					setUser(userData);
+					// Fetch user permissions
+					await fetchUserPermissions();
 				} else {
 					console.log('No active user session found');
 					setUser(null);
+					setPermissions([]);
 				}
 			} catch (error) {
 				console.error('Failed to fetch current user:', error);
@@ -55,6 +61,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 		fetchCurrentUser();
 	}, []);
+
+	const fetchUserPermissions = async () => {
+		try {
+			const response = await fetch('/api/auth/permissions', {
+				credentials: 'include',
+			});
+			if (response.ok) {
+				const data = await response.json();
+				setPermissions(data.permissions || []);
+			}
+		} catch (error) {
+			console.error('Failed to fetch user permissions:', error);
+			setPermissions([]);
+		}
+	};
 
 	const login = async (username: string, password: string) => {
 		setIsLoading(true);
@@ -96,6 +117,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			const userData = await response.json();
 			console.log('Login successful, user data:', userData);
 			setUser(userData);
+
+			// Fetch user permissions after successful login
+			await fetchUserPermissions();
 
 			toast({
 				title: 'Login Berhasil',
@@ -152,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 			// Clear user data regardless of response
 			setUser(null);
+			setPermissions([]);
 
 			toast({
 				title: 'Logged Out',
@@ -164,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 			// Still clear user data on error
 			setUser(null);
+			setPermissions([]);
 
 			toast({
 				title: 'Logout Failed',
@@ -181,9 +207,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		return roles.includes(user.role);
 	};
 
+	const hasSpecificPermission = (permission: string) => {
+		if (!user) return false;
+		return permissions.includes(permission);
+	};
+
 	return (
 		<AuthContext.Provider
-			value={{ user, isLoading, login, logout, hasPermission }}>
+			value={{
+				user,
+				isLoading,
+				permissions,
+				login,
+				logout,
+				hasPermission,
+				hasSpecificPermission,
+			}}>
 			{children}
 		</AuthContext.Provider>
 	);

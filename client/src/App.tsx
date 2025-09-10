@@ -9,7 +9,7 @@ import DashboardContent from '@/pages/dashboard/content';
 import Dashboard from '@/pages/dashboard/index';
 import DashboardLibrary from '@/pages/dashboard/library';
 import DashboardOrganization from '@/pages/dashboard/organization';
-
+import DashboardRoles from '@/pages/dashboard/roles';
 import DashboardSettings from '@/pages/dashboard/settings';
 import DashboardUsers from '@/pages/dashboard/users';
 import Error from '@/pages/error';
@@ -89,6 +89,13 @@ function Router() {
 				{() => (
 					<ProtectedRoute allowedRoles={['owner', 'admin']}>
 						<DashboardUsers />
+					</ProtectedRoute>
+				)}
+			</Route>
+			<Route path="/dashboard/roles">
+				{() => (
+					<ProtectedRoute allowedRoles={['owner', 'admin']}>
+						<DashboardRoles />
 					</ProtectedRoute>
 				)}
 			</Route>

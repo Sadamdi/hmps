@@ -11,6 +11,7 @@ import {
 	LayoutDashboard,
 	LogOut,
 	Settings,
+	Shield,
 	UserCog,
 	Users,
 } from 'lucide-react';
@@ -31,7 +32,7 @@ export default function Sidebar({
 	onExpandedChange,
 }: SidebarProps) {
 	const [location] = useLocation();
-	const { user, logout, hasPermission } = useAuth();
+	const { user, logout, hasPermission, hasSpecificPermission } = useAuth();
 	const [internalExpanded, setInternalExpanded] = useState(true);
 
 	// Use external expanded state if provided, otherwise use internal state
@@ -52,45 +53,56 @@ export default function Sidebar({
 			icon: <LayoutDashboard className="h-5 w-5" />,
 			href: '/dashboard',
 			active: location === '/dashboard',
+			requirePermission: 'dashboard.view',
 		},
 		{
 			label: 'Articles',
 			icon: <FileText className="h-5 w-5" />,
 			href: '/dashboard/articles',
 			active: location.startsWith('/dashboard/articles'),
+			requirePermission: 'articles.view',
 		},
 		{
 			label: 'Library',
 			icon: <Image className="h-5 w-5" />,
 			href: '/dashboard/library',
 			active: location.startsWith('/dashboard/library'),
+			requirePermission: 'library.view',
 		},
 		{
 			label: 'Organization',
 			icon: <Users className="h-5 w-5" />,
 			href: '/dashboard/organization',
 			active: location.startsWith('/dashboard/organization'),
+			requirePermission: 'organization.view',
 		},
-
 		{
 			label: 'Content',
 			icon: <FileEdit className="h-5 w-5" />,
 			href: '/dashboard/content',
 			active: location.startsWith('/dashboard/content'),
-			requireRoles: ['owner', 'admin', 'chair', 'vice_chair'],
+			requirePermission: 'articles.create',
 		},
 		{
 			label: 'User Management',
 			icon: <UserCog className="h-5 w-5" />,
 			href: '/dashboard/users',
 			active: location.startsWith('/dashboard/users'),
-			requireRoles: ['owner', 'admin'],
+			requirePermission: 'users.view',
+		},
+		{
+			label: 'Role Management',
+			icon: <Shield className="h-5 w-5" />,
+			href: '/dashboard/roles',
+			active: location.startsWith('/dashboard/roles'),
+			requirePermission: 'roles.view',
 		},
 		{
 			label: 'Settings',
 			icon: <Settings className="h-5 w-5" />,
 			href: '/dashboard/settings',
 			active: location.startsWith('/dashboard/settings'),
+			requirePermission: 'settings.view',
 		},
 	];
 
@@ -142,7 +154,11 @@ export default function Sidebar({
 					{/* Navigation - takes up remaining space */}
 					<nav className="flex-1 p-4 space-y-1 overflow-y-auto">
 						{navItems.map((item) => {
-							if (item.requireRoles && !hasPermission(item.requireRoles)) {
+							// Check permission-based access
+							if (
+								item.requirePermission &&
+								!hasSpecificPermission(item.requirePermission)
+							) {
 								return null;
 							}
 

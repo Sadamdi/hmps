@@ -10,7 +10,13 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { Edit, Loader2, Search, Shield, User, UserPlus } from 'lucide-react';
@@ -34,7 +40,7 @@ export default function UsersPage() {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
 	const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
-	const [activeTab, setActiveTab] = useState('all');
+	const [selectedRole, setSelectedRole] = useState('all');
 
 	// Fetch users
 	const { data: users = [], isLoading } = useQuery({
@@ -42,22 +48,16 @@ export default function UsersPage() {
 		placeholderData: [],
 	});
 
-	// Role hierarchy for sorting
+	// Fetch roles to get current hierarchy
+	const { data: roles = [] } = useQuery({
+		queryKey: ['/api/roles'],
+		placeholderData: [],
+	});
+
+	// Role hierarchy for sorting based on current roles
 	const getRoleOrder = (role: string) => {
-		switch (role) {
-			case 'owner':
-				return 1;
-			case 'admin':
-				return 2;
-			case 'ketua':
-				return 3;
-			case 'wakil_ketua':
-				return 4;
-			case 'division_head':
-				return 5;
-			default:
-				return 6;
-		}
+		const roleData = roles.find((r: any) => r.name === role);
+		return roleData ? roleData.level : 999;
 	};
 
 	// Filter users based on search and role tab
@@ -70,8 +70,8 @@ export default function UsersPage() {
 				user.role.toLowerCase().includes(searchQuery.toLowerCase())
 		)
 		.filter((user: UserWithRole) => {
-			if (activeTab === 'all') return true;
-			return user.role === activeTab;
+			if (selectedRole === 'all') return true;
+			return user.role === selectedRole;
 		})
 		.sort((a: UserWithRole, b: UserWithRole) => {
 			// Sort by role hierarchy first
@@ -138,19 +138,25 @@ export default function UsersPage() {
 						onChange={(e) => setSearchQuery(e.target.value)}
 					/>
 				</div>
-				<Tabs
-					value={activeTab}
-					onValueChange={setActiveTab}
-					className="w-full sm:w-auto">
-					<TabsList>
-						<TabsTrigger value="all">All</TabsTrigger>
-						<TabsTrigger value="owner">Owner</TabsTrigger>
-						<TabsTrigger value="admin">Admin</TabsTrigger>
-						<TabsTrigger value="ketua">Ketua</TabsTrigger>
-						<TabsTrigger value="wakil_ketua">Wakil Ketua</TabsTrigger>
-						<TabsTrigger value="division_head">Division Heads</TabsTrigger>
-					</TabsList>
-				</Tabs>
+				<Select
+					value={selectedRole}
+					onValueChange={setSelectedRole}>
+					<SelectTrigger className="w-full sm:w-[200px]">
+						<SelectValue placeholder="Filter by role" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="all">All Roles</SelectItem>
+						{roles
+							.sort((a: any, b: any) => a.level - b.level)
+							.map((role: any) => (
+								<SelectItem
+									key={role._id}
+									value={role.name}>
+									{role.displayName}
+								</SelectItem>
+							))}
+					</SelectContent>
+				</Select>
 			</div>
 
 			{isLoading ? (
