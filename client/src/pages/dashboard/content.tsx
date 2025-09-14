@@ -61,8 +61,8 @@ export default function Content() {
 		refetchOnWindowFocus: false,
 	});
 
-	const { hasPermission } = useAuth();
-	const canEdit = hasPermission(['owner', 'admin', 'chair', 'vice_chair']);
+	const { hasSpecificPermission } = useAuth();
+	const canEdit = hasSpecificPermission('content.edit');
 
 	const handleEdit = () => {
 		setIsEditing(true);

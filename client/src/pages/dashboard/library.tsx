@@ -170,10 +170,12 @@ export default function DashboardLibrary() {
 		<DashboardLayout title="Library">
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 				<h1 className="text-2xl font-bold">Media Library</h1>
-				<Button onClick={handleNewItem}>
-					<Plus className="h-4 w-4 mr-2" />
-					Upload Media
-				</Button>
+				{hasSpecificPermission('library.create') && (
+					<Button onClick={handleNewItem}>
+						<Plus className="h-4 w-4 mr-2" />
+						Upload Media
+					</Button>
+				)}
 			</div>
 
 			<div className="mb-6 flex flex-col sm:flex-row gap-4">
@@ -206,7 +208,9 @@ export default function DashboardLibrary() {
 				<Card>
 					<CardContent className="p-8 text-center">
 						<p className="text-gray-500 mb-4">No media items found.</p>
-						<Button onClick={handleNewItem}>Upload Media</Button>
+						{hasSpecificPermission('library.create') && (
+							<Button onClick={handleNewItem}>Upload Media</Button>
+						)}
 					</CardContent>
 				</Card>
 			) : (

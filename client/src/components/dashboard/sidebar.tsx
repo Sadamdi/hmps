@@ -85,7 +85,7 @@ export default function Sidebar({
 			icon: <FileEdit className="h-5 w-5" />,
 			href: '/dashboard/content',
 			active: location.startsWith('/dashboard/content'),
-			requirePermission: 'articles.create',
+			requirePermission: 'content.view',
 		},
 		{
 			label: 'User Management',

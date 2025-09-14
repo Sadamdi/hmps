@@ -297,7 +297,7 @@ async function getOrganizationPeriods(): Promise<string[]> {
 		const Periods = getPeriodsModel();
 		const periods = await Periods.find().sort({ period: -1 }).lean();
 		if (periods.length > 0) {
-			return periods.map((p) => p.period);
+			return periods.map((p: any) => p.period);
 		}
 	} catch (error) {
 		console.log('Periods collection not found, falling back to distinct query');
@@ -408,14 +408,20 @@ async function getOrganizationMembersCount(): Promise<number> {
 async function getPositionsByPeriod(
 	period: string
 ): Promise<{ name: string; order: number }[]> {
-	const positionRecord = await Position.findOne({ period }).lean();
-	return positionRecord ? positionRecord.positions : [];
+	const positionRecord = (await Position.findOne({ period }).lean()) as any;
+	return positionRecord && positionRecord.positions
+		? positionRecord.positions
+		: [];
 }
 
 async function getAllPositions(): Promise<
 	{ period: string; positions: { name: string; order: number }[] }[]
 > {
-	return await Position.find().sort({ period: -1 }).lean();
+	const positions = await Position.find().sort({ period: -1 }).lean();
+	return positions.map((pos: any) => ({
+		period: pos.period,
+		positions: pos.positions || [],
+	}));
 }
 
 async function createPositionsForPeriod(
@@ -457,9 +463,9 @@ async function copyPositionsFromPeriod(
 	sourcePeriod: string,
 	targetPeriod: string
 ): Promise<any> {
-	const sourcePositions = await Position.findOne({
+	const sourcePositions = (await Position.findOne({
 		period: sourcePeriod,
-	}).lean();
+	}).lean()) as any;
 
 	if (!sourcePositions) {
 		throw new Error(`No positions found for period ${sourcePeriod}`);
@@ -467,7 +473,7 @@ async function copyPositionsFromPeriod(
 
 	return await createPositionsForPeriod(
 		targetPeriod,
-		sourcePositions.positions
+		(sourcePositions as any).positions || []
 	);
 }
 
@@ -820,6 +826,12 @@ async function initializeDefaultPermissions() {
 				description: 'Melihat aktivitas dashboard',
 				category: 'dashboard',
 			},
+			{
+				name: 'dashboard.stats',
+				displayName: 'View Dashboard Statistics',
+				description: 'Melihat statistik dashboard',
+				category: 'dashboard',
+			},
 
 			// User management permissions
 			{
@@ -1053,6 +1065,12 @@ async function initializeDefaultPermissions() {
 
 			// Content permissions
 			{
+				name: 'content.view',
+				displayName: 'View Content',
+				description: 'Melihat konten umum',
+				category: 'content',
+			},
+			{
 				name: 'content.edit',
 				displayName: 'Edit Content',
 				description: 'Mengedit konten umum',
@@ -1072,7 +1090,7 @@ async function initializeDefaultPermissions() {
 		);
 
 		// Force update owner role with all permissions
-		const allPermissionNames = defaultPermissions.map((p) => p.name);
+		const allPermissionNames = defaultPermissions.map((p: any) => p.name);
 		await Role.updateOne(
 			{ name: 'owner' },
 			{
@@ -1138,6 +1156,7 @@ async function initializeDefaultRoles() {
 				permissions: [
 					'dashboard.view',
 					'dashboard.activities',
+					'dashboard.stats',
 					'users.view',
 					'users.view_others',
 					'articles.view',
@@ -1157,6 +1176,7 @@ async function initializeDefaultRoles() {
 					'divisions.view',
 					'divisions.edit',
 					'settings.view',
+					'content.view',
 					'content.edit',
 					'content.view_others',
 				],
@@ -1171,6 +1191,7 @@ async function initializeDefaultRoles() {
 				permissions: [
 					'dashboard.view',
 					'dashboard.activities',
+					'dashboard.stats',
 					'users.view',
 					'users.view_others',
 					'articles.view',
@@ -1184,6 +1205,7 @@ async function initializeDefaultRoles() {
 					'organization.view',
 					'divisions.view',
 					'settings.view',
+					'content.view',
 					'content.view_others',
 				],
 				isActive: true,
@@ -1197,6 +1219,7 @@ async function initializeDefaultRoles() {
 				permissions: [
 					'dashboard.view',
 					'dashboard.activities',
+					'dashboard.stats',
 					'users.view',
 					'users.view_others',
 					'articles.view',
@@ -1210,6 +1233,7 @@ async function initializeDefaultRoles() {
 					'organization.view',
 					'divisions.view',
 					'settings.view',
+					'content.view',
 					'content.view_others',
 				],
 				isActive: true,
@@ -1223,6 +1247,7 @@ async function initializeDefaultRoles() {
 				permissions: [
 					'dashboard.view',
 					'dashboard.activities',
+					'dashboard.stats',
 					'users.view_others',
 					'articles.view',
 					'articles.create',
@@ -1235,6 +1260,7 @@ async function initializeDefaultRoles() {
 					'organization.view',
 					'divisions.view',
 					'settings.view',
+					'content.view',
 					'content.view_others',
 				],
 				isActive: true,

@@ -191,10 +191,12 @@ export default function DashboardArticles() {
 		<DashboardLayout title="Articles">
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 				<h1 className="text-2xl font-bold">Articles Management</h1>
-				<Button onClick={handleNewArticle}>
-					<Plus className="h-4 w-4 mr-2" />
-					New Article
-				</Button>
+				{hasSpecificPermission('articles.create') && (
+					<Button onClick={handleNewArticle}>
+						<Plus className="h-4 w-4 mr-2" />
+						New Article
+					</Button>
+				)}
 			</div>
 
 			<div className="mb-6 flex flex-col sm:flex-row gap-4">
