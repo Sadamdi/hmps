@@ -15,6 +15,7 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -51,8 +52,11 @@ interface Activity {
 }
 
 export default function Dashboard() {
-	const { user } = useAuth();
+	const { user, hasSpecificPermission } = useAuth();
 	const [, setLocation] = useLocation();
+
+	// Auto-refresh permissions every 30 seconds to catch role changes
+	usePermissionRefresh();
 
 	// Dashboard stats
 	const {
@@ -220,7 +224,18 @@ export default function Dashboard() {
 			</div>
 
 			{/* Stats Cards */}
-			{statsLoading ? (
+			{!hasSpecificPermission('dashboard.stats') ? (
+				<div className="flex justify-center items-center h-64">
+					<div className="text-center">
+						<p className="text-gray-500 text-lg">
+							You do not have permission to view dashboard statistics
+						</p>
+						<p className="text-gray-400 text-sm mt-2">
+							Contact your administrator for access
+						</p>
+					</div>
+				</div>
+			) : statsLoading ? (
 				<div className="flex justify-center items-center h-64">
 					<Loader2 className="h-8 w-8 animate-spin text-primary" />
 				</div>
@@ -342,87 +357,95 @@ export default function Dashboard() {
 					</CardHeader>
 					<CardContent>
 						<div className="grid grid-cols-2 gap-4">
-							<button
-								onClick={() => setLocation('/dashboard/articles')}
-								className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5 text-primary mb-2"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-									/>
-								</svg>
-								<p className="font-medium text-sm">New Article</p>
-							</button>
+							{hasSpecificPermission('articles.create') && (
+								<button
+									onClick={() => setLocation('/dashboard/articles')}
+									className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										className="h-5 w-5 text-primary mb-2"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor">
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth="2"
+											d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+										/>
+									</svg>
+									<p className="font-medium text-sm">New Article</p>
+								</button>
+							)}
 
-							<button
-								onClick={() => setLocation('/dashboard/library')}
-								className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5 text-primary mb-2"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
-									/>
-								</svg>
-								<p className="font-medium text-sm">Upload Media</p>
-							</button>
+							{hasSpecificPermission('library.create') && (
+								<button
+									onClick={() => setLocation('/dashboard/library')}
+									className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										className="h-5 w-5 text-primary mb-2"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor">
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth="2"
+											d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+										/>
+									</svg>
+									<p className="font-medium text-sm">Upload Media</p>
+								</button>
+							)}
 
-							<button
-								onClick={() => setLocation('/dashboard/organization')}
-								className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5 text-primary mb-2"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
-									/>
-								</svg>
-								<p className="font-medium text-sm">Edit Structure</p>
-							</button>
+							{hasSpecificPermission('organization.view') && (
+								<button
+									onClick={() => setLocation('/dashboard/organization')}
+									className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										className="h-5 w-5 text-primary mb-2"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor">
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth="2"
+											d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+										/>
+									</svg>
+									<p className="font-medium text-sm">Edit Structure</p>
+								</button>
+							)}
 
-							<button
-								onClick={() => setLocation('/dashboard/settings')}
-								className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
-								<svg
-									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5 text-primary mb-2"
-									fill="none"
-									viewBox="0 0 24 24"
-									stroke="currentColor">
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
-									/>
-									<path
-										strokeLinecap="round"
-										strokeLinejoin="round"
-										strokeWidth="2"
-										d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-									/>
-								</svg>
-								<p className="font-medium text-sm">Settings</p>
-							</button>
+							{hasSpecificPermission('settings.view') && (
+								<button
+									onClick={() => setLocation('/dashboard/settings')}
+									className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
+									<svg
+										xmlns="http://www.w3.org/2000/svg"
+										className="h-5 w-5 text-primary mb-2"
+										fill="none"
+										viewBox="0 0 24 24"
+										stroke="currentColor">
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth="2"
+											d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"
+										/>
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth="2"
+											d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+										/>
+									</svg>
+									<p className="font-medium text-sm">Settings</p>
+								</button>
+							)}
 						</div>
 					</CardContent>
 				</Card>

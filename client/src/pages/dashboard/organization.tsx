@@ -16,8 +16,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { usePagination } from '@/hooks/use-pagination';
+import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
+import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import {
 	closestCenter,
@@ -213,11 +215,15 @@ export default function DashboardOrganization() {
 	const [positions, setPositions] = useState<{ name: string; order: number }[]>(
 		[]
 	);
+	const { hasSpecificPermission } = useAuth();
 	const [newDivision, setNewDivision] = useState('');
 	const [editingDivision, setEditingDivision] = useState<any>(null);
 	const [isDivisionEditorOpen, setIsDivisionEditorOpen] = useState(false);
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
+
+	// Auto-refresh permissions every 30 seconds to catch role changes
+	usePermissionRefresh();
 
 	// Query members and periods
 	const { data: membersData, isLoading: isMembersLoading } = useQuery({
@@ -797,7 +803,7 @@ export default function DashboardOrganization() {
 				<h1 className="text-xl lg:text-2xl font-bold">
 					Organization Structure Management
 				</h1>
-				{activeTab === 'members' && (
+				{activeTab === 'members' && hasSpecificPermission('users.create') && (
 					<Button onClick={handleNewMember}>
 						<Users className="h-4 w-4 mr-2" />
 						Add Member
@@ -926,24 +932,28 @@ export default function DashboardOrganization() {
 														</div>
 													</div>
 													<div className="flex space-x-2">
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={() => handleEditMember(member)}
-															className="transition-all duration-200 hover:scale-105">
-															<Edit className="h-4 w-4" />
-														</Button>
-														<Button
-															variant="outline"
-															size="sm"
-															onClick={() =>
-																handleDeleteMember(
-																	(member as any)._id || member.id
-																)
-															}
-															className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200 hover:scale-105">
-															<Trash2 className="h-4 w-4" />
-														</Button>
+														{hasSpecificPermission('users.edit') && (
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={() => handleEditMember(member)}
+																className="transition-all duration-200 hover:scale-105">
+																<Edit className="h-4 w-4" />
+															</Button>
+														)}
+														{hasSpecificPermission('users.delete') && (
+															<Button
+																variant="outline"
+																size="sm"
+																onClick={() =>
+																	handleDeleteMember(
+																		(member as any)._id || member.id
+																	)
+																}
+																className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200 hover:scale-105">
+																<Trash2 className="h-4 w-4" />
+															</Button>
+														)}
 													</div>
 												</div>
 											</CardContent>
@@ -1105,30 +1115,36 @@ export default function DashboardOrganization() {
 					className="space-y-6">
 					<div className="mb-6 flex flex-col gap-4">
 						{/* Add new division */}
-						<Card>
-							<CardContent className="p-6">
-								<h3 className="text-lg font-semibold mb-4">Add New Division</h3>
-								<div className="flex gap-2">
-									<Input
-										placeholder="Enter division name..."
-										value={newDivision}
-										onChange={(e) => setNewDivision(e.target.value)}
-										onKeyPress={(e) => e.key === 'Enter' && handleAddDivision()}
-									/>
-									<Button
-										onClick={handleAddDivision}
-										disabled={
-											!newDivision.trim() || createDivisionMutation.isPending
-										}>
-										{createDivisionMutation.isPending ? (
-											<Loader2 className="h-4 w-4 animate-spin" />
-										) : (
-											<Plus className="h-4 w-4" />
-										)}
-									</Button>
-								</div>
-							</CardContent>
-						</Card>
+						{hasSpecificPermission('divisions.create') && (
+							<Card>
+								<CardContent className="p-6">
+									<h3 className="text-lg font-semibold mb-4">
+										Add New Division
+									</h3>
+									<div className="flex gap-2">
+										<Input
+											placeholder="Enter division name..."
+											value={newDivision}
+											onChange={(e) => setNewDivision(e.target.value)}
+											onKeyPress={(e) =>
+												e.key === 'Enter' && handleAddDivision()
+											}
+										/>
+										<Button
+											onClick={handleAddDivision}
+											disabled={
+												!newDivision.trim() || createDivisionMutation.isPending
+											}>
+											{createDivisionMutation.isPending ? (
+												<Loader2 className="h-4 w-4 animate-spin" />
+											) : (
+												<Plus className="h-4 w-4" />
+											)}
+										</Button>
+									</div>
+								</CardContent>
+							</Card>
+						)}
 
 						{/* Current divisions */}
 						<Card>
@@ -1166,19 +1182,23 @@ export default function DashboardOrganization() {
 													</div>
 												</div>
 												<div className="flex items-center gap-2">
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => handleEditDivision(division)}>
-														<Edit className="h-4 w-4" />
-													</Button>
-													<Button
-														variant="outline"
-														size="sm"
-														onClick={() => handleDeleteDivision(division._id)}
-														className="text-red-600 hover:text-red-700">
-														<Trash2 className="h-4 w-4" />
-													</Button>
+													{hasSpecificPermission('divisions.edit') && (
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => handleEditDivision(division)}>
+															<Edit className="h-4 w-4" />
+														</Button>
+													)}
+													{hasSpecificPermission('divisions.delete') && (
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => handleDeleteDivision(division._id)}
+															className="text-red-600 hover:text-red-700">
+															<Trash2 className="h-4 w-4" />
+														</Button>
+													)}
 												</div>
 											</div>
 										))}

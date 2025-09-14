@@ -12,8 +12,10 @@ import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
+import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
+import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Edit, Loader2, Plus, Search, Trash2 } from 'lucide-react';
@@ -44,6 +46,27 @@ export default function DashboardArticles() {
 	const articlesContainerRef = useRef<HTMLDivElement>(null);
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
+	const { user, hasSpecificPermission } = useAuth();
+
+	// Auto-refresh permissions every 30 seconds to catch role changes
+	usePermissionRefresh();
+
+	// Helper function to check if user can edit/delete article
+	const canEditArticle = (article: Article) => {
+		const isOwner = user?._id === article.authorId;
+		return (
+			(hasSpecificPermission('articles.edit') && isOwner) ||
+			hasSpecificPermission('articles.edit_others')
+		);
+	};
+
+	const canDeleteArticle = (article: Article) => {
+		const isOwner = user?._id === article.authorId;
+		return (
+			(hasSpecificPermission('articles.delete') && isOwner) ||
+			hasSpecificPermission('articles.delete_others')
+		);
+	};
 
 	// Query articles with proper typing
 	const { data: articlesData = [], isLoading } = useQuery({
@@ -253,20 +276,24 @@ export default function DashboardArticles() {
 											</div>
 										</div>
 										<div className="flex space-x-2">
-											<Button
-												size="sm"
-												variant="outline"
-												onClick={() => handleEditArticle(article)}>
-												<Edit className="h-4 w-4 mr-1" />
-												Edit
-											</Button>
-											<Button
-												size="sm"
-												variant="outline"
-												className="text-red-600 border-red-200 hover:bg-red-50"
-												onClick={() => handleDeleteArticle(article._id)}>
-												<Trash2 className="h-4 w-4" />
-											</Button>
+											{canEditArticle(article) && (
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() => handleEditArticle(article)}>
+													<Edit className="h-4 w-4 mr-1" />
+													Edit
+												</Button>
+											)}
+											{canDeleteArticle(article) && (
+												<Button
+													size="sm"
+													variant="outline"
+													className="text-red-600 border-red-200 hover:bg-red-50"
+													onClick={() => handleDeleteArticle(article._id)}>
+													<Trash2 className="h-4 w-4" />
+												</Button>
+											)}
 										</div>
 									</div>
 								</CardContent>

@@ -1,5 +1,6 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -34,6 +35,9 @@ export default function Sidebar({
 	const [location] = useLocation();
 	const { user, logout, hasPermission, hasSpecificPermission } = useAuth();
 	const [internalExpanded, setInternalExpanded] = useState(true);
+
+	// Auto-refresh permissions every 30 seconds to catch role changes
+	usePermissionRefresh();
 
 	// Use external expanded state if provided, otherwise use internal state
 	const isExpanded = onExpandedChange ? expanded : internalExpanded;

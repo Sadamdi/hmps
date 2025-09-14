@@ -108,6 +108,58 @@ async function checkArticlePermission(
 	}
 }
 
+// Helper function to check library permissions
+async function checkLibraryPermission(
+	user: UserWithRole,
+	libraryItem: any,
+	action: 'edit' | 'delete'
+): Promise<boolean> {
+	try {
+		console.log(
+			`🔍 Checking library ${action} permission for user:`,
+			user.role,
+			user._id
+		);
+		console.log(`📚 Library item author:`, libraryItem.authorId);
+
+		const userRole = await mongoStorage.getRoleByName(user.role);
+		if (!userRole) {
+			console.log('❌ User role not found:', user.role);
+			return false;
+		}
+
+		const permissions = userRole.permissions;
+		const isOwner = user._id.toString() === libraryItem.authorId.toString();
+
+		console.log(`👤 User permissions:`, permissions);
+		console.log(`🔐 Is owner:`, isOwner);
+		console.log(`🔍 User ID:`, user._id.toString());
+		console.log(`🔍 Library Author ID:`, libraryItem.authorId.toString());
+
+		switch (action) {
+			case 'edit':
+				const canEdit =
+					(permissions.includes('library.edit') && isOwner) ||
+					permissions.includes('library.edit_others');
+				console.log(`✏️ Can edit library:`, canEdit);
+				return canEdit;
+
+			case 'delete':
+				const canDelete =
+					(permissions.includes('library.delete') && isOwner) ||
+					permissions.includes('library.delete_others');
+				console.log(`🗑️ Can delete library:`, canDelete);
+				return canDelete;
+
+			default:
+				return false;
+		}
+	} catch (error) {
+		console.error('Error checking library permission:', error);
+		return false;
+	}
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
 	// Use cookie parser for handling JWT tokens
 	app.use(cookieParser());
@@ -767,20 +819,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.get('/api/articles/manage', authenticate, async (req, res) => {
 		try {
-			// Filter by user role
+			// Get user permissions
+			const userRole = await mongoStorage.getRoleByName(
+				(req.user as UserWithRole)?.role || ''
+			);
+			const permissions = userRole?.permissions || [];
+
+			// Filter by permissions
 			let articles;
-			if (
-				['owner', 'admin', 'chair', 'vice_chair'].includes(
-					(req.user as UserWithRole)?.role || ''
-				)
-			) {
-				// These roles can see all articles
+			if (permissions.includes('articles.view_others')) {
+				// Can see all articles
 				articles = await mongoStorage.getAllArticles();
-			} else {
-				// Division heads can only see their own articles
+			} else if (permissions.includes('articles.view')) {
+				// Can only see their own articles
 				articles = await mongoStorage.getArticlesByAuthorId(
 					(req.user as UserWithRole)?._id || ''
 				);
+			} else {
+				// No articles view permission
+				return res
+					.status(403)
+					.json({ message: 'You do not have permission to view articles' });
 			}
 
 			res.json(articles);
@@ -888,7 +947,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Check create permission
-				const userRole = await mongoStorage.getRoleByName(req.user.role);
+				const userRole = await mongoStorage.getRoleByName(
+					(req.user as UserWithRole)?.role || ''
+				);
 				if (!userRole || !userRole.permissions.includes('articles.create')) {
 					return res.status(403).json({
 						message: 'You do not have permission to create articles',
@@ -1151,20 +1212,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.get('/api/library/manage', authenticate, async (req, res) => {
 		try {
-			// Filter by user role
+			// Get user permissions
+			const userRole = await mongoStorage.getRoleByName(
+				(req.user as UserWithRole)?.role || ''
+			);
+			const permissions = userRole?.permissions || [];
+
+			// Filter by permissions
 			let items;
-			if (
-				['owner', 'admin', 'chair', 'vice_chair'].includes(
-					(req.user as UserWithRole)?.role || ''
-				)
-			) {
-				// These roles can see all items
+			if (permissions.includes('library.view_others')) {
+				// Can see all items
 				items = await mongoStorage.getAllLibraryItems();
-			} else {
-				// Division heads can only see their own items
+			} else if (permissions.includes('library.view')) {
+				// Can only see their own items
 				items = await mongoStorage.getLibraryItemsByAuthorId(
 					(req.user as UserWithRole)?._id || ''
 				);
+			} else {
+				// No library view permission
+				return res.status(403).json({
+					message: 'You do not have permission to view library items',
+				});
 			}
 
 			res.json(items);
@@ -1352,13 +1420,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(404).json({ message: 'Library item not found' });
 				}
 
-				// Check permissions
-				const canEdit =
-					(req.user as UserWithRole)?.role === 'owner' ||
-					(req.user as UserWithRole)?.role === 'admin' ||
-					(req.user as UserWithRole)?.role === 'chair' ||
-					(req.user as UserWithRole)?.role === 'vice_chair' ||
-					(req.user as UserWithRole)?._id === existingItem.authorId.toString();
+				// Check permissions using permission system
+				const canEdit = await checkLibraryPermission(
+					req.user as UserWithRole,
+					existingItem,
+					'edit'
+				);
 
 				if (!canEdit) {
 					return res
@@ -1505,13 +1572,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: 'Library item not found' });
 			}
 
-			// Check permissions
-			const canDelete =
-				(req.user as UserWithRole)?.role === 'owner' ||
-				(req.user as UserWithRole)?.role === 'admin' ||
-				(req.user as UserWithRole)?.role === 'chair' ||
-				(req.user as UserWithRole)?.role === 'vice_chair' ||
-				(req.user as UserWithRole)?._id === existingItem.authorId.toString();
+			// Check permissions using permission system
+			const canDelete = await checkLibraryPermission(
+				req.user as UserWithRole,
+				existingItem,
+				'delete'
+			);
 
 			if (!canDelete) {
 				return res
@@ -2007,6 +2073,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Real-time dashboard stats
 	app.get('/api/dashboard/stats', authenticate, async (req, res) => {
 		try {
+			// Check if user has dashboard stats permission
+			const userRole = await mongoStorage.getRoleByName(
+				(req.user as UserWithRole)?.role || ''
+			);
+			const permissions = userRole?.permissions || [];
+
+			if (!permissions.includes('dashboard.stats')) {
+				return res.status(403).json({
+					message: 'You do not have permission to view dashboard statistics',
+				});
+			}
+
 			const [articleCount, libraryCount, memberCount] = await Promise.all([
 				mongoStorage.getArticlesCount(),
 				mongoStorage.getLibraryItemsCount(),
@@ -2214,7 +2292,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Check if user can create this role level
-				if (!canManageRole(req.user.role, `level_${level}`)) {
+				if (
+					!canManageRole(
+						(req.user as UserWithRole)?.role || '',
+						`level_${level}`
+					)
+				) {
 					return res
 						.status(403)
 						.json({ message: 'You cannot create roles at this level' });
@@ -2226,7 +2309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					description: description || '',
 					level,
 					permissions: permissions || [],
-					createdBy: req.user._id,
+					createdBy: (req.user as UserWithRole)?._id || '',
 				};
 
 				const role = await mongoStorage.createRole(roleData);
@@ -2248,7 +2331,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { displayName, description, permissions, level } = req.body;
 
 				// Get current role to check level
-				const currentRole = await mongoStorage.getRoleByName(req.user.role);
+				const currentRole = await mongoStorage.getRoleByName(
+					(req.user as UserWithRole)?.role || ''
+				);
 				if (!currentRole) {
 					return res
 						.status(404)
@@ -2516,7 +2601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Check if user can assign this role
-				if (!canManageRole(req.user.role, role)) {
+				if (!canManageRole((req.user as UserWithRole)?.role || '', role)) {
 					return res
 						.status(403)
 						.json({ message: 'You cannot assign this role' });
@@ -2538,7 +2623,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Get current user permissions
 	app.get('/api/auth/permissions', authenticate, async (req, res) => {
 		try {
-			const permissions = await mongoStorage.getUserPermissions(req.user._id);
+			const permissions = await mongoStorage.getUserPermissions(
+				(req.user as UserWithRole)?._id || ''
+			);
 			res.json({ permissions });
 		} catch (error) {
 			console.error('Error getting user permissions:', error);
@@ -2549,90 +2636,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Refresh user permissions (for after role changes)
 	app.post('/api/auth/refresh-permissions', authenticate, async (req, res) => {
 		try {
-			const permissions = await mongoStorage.getUserPermissions(req.user._id);
+			const permissions = await mongoStorage.getUserPermissions(
+				(req.user as UserWithRole)?._id || ''
+			);
 			res.json({ permissions });
 		} catch (error) {
 			console.error('Error refreshing user permissions:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
-	});
-
-	// Force update owner role with all permissions (temporary endpoint)
-	app.post('/api/admin/force-update-owner', authenticate, async (req, res) => {
-		try {
-			if (req.user.role !== 'owner') {
-				return res
-					.status(403)
-					.json({ message: 'Only owner can access this endpoint' });
-			}
-
-			console.log('🔧 Force updating owner role...');
-
-			// Get all permissions
-			const allPermissions = await mongoStorage.getAllPermissions();
-			const allPermissionNames = allPermissions.map((p) => p.name);
-
-			console.log(`📋 Found ${allPermissionNames.length} permissions`);
-
-			// Force update owner role
-			const updateResult = await mongoStorage.updateRole('owner', {
-				permissions: allPermissionNames,
-				updatedAt: new Date(),
-			});
-
-			console.log(
-				`✅ Owner role updated with ${allPermissionNames.length} permissions`
-			);
-			console.log(
-				`🔍 Owner has articles.delete_others: ${allPermissionNames.includes(
-					'articles.delete_others'
-				)}`
-			);
-
-			res.json({
-				message: 'Owner role force updated successfully',
-				permissionsCount: allPermissionNames.length,
-				hasDeleteOthers: allPermissionNames.includes('articles.delete_others'),
-			});
-		} catch (error) {
-			console.error('Error force updating owner role:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
-	});
-
-	// Simple GET endpoint for testing (temporary)
-	app.get('/api/admin/force-update-owner', async (req, res) => {
-		try {
-			console.log('🔧 Force updating owner role via GET...');
-
-			// Get all permissions
-			const allPermissions = await mongoStorage.getAllPermissions();
-			const allPermissionNames = allPermissions.map((p) => p.name);
-
-			console.log(`📋 Found ${allPermissionNames.length} permissions`);
-
-			// Force update owner role
-			const updateResult = await mongoStorage.updateRole('owner', {
-				permissions: allPermissionNames,
-				updatedAt: new Date(),
-			});
-
-			console.log(
-				`✅ Owner role updated with ${allPermissionNames.length} permissions`
-			);
-			console.log(
-				`🔍 Owner has articles.delete_others: ${allPermissionNames.includes(
-					'articles.delete_others'
-				)}`
-			);
-
-			res.json({
-				message: 'Owner role force updated successfully',
-				permissionsCount: allPermissionNames.length,
-				hasDeleteOthers: allPermissionNames.includes('articles.delete_others'),
-			});
-		} catch (error) {
-			console.error('Error force updating owner role:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});

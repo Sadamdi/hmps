@@ -11,8 +11,10 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
+import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -48,6 +50,27 @@ export default function DashboardLibrary() {
 	const [activeTab, setActiveTab] = useState('all');
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
+	const { user, hasSpecificPermission } = useAuth();
+
+	// Auto-refresh permissions every 30 seconds to catch role changes
+	usePermissionRefresh();
+
+	// Helper function to check if user can edit/delete library item
+	const canEditLibraryItem = (item: LibraryItem) => {
+		const isOwner = user?._id === item.authorId;
+		return (
+			(hasSpecificPermission('library.edit') && isOwner) ||
+			hasSpecificPermission('library.edit_others')
+		);
+	};
+
+	const canDeleteLibraryItem = (item: LibraryItem) => {
+		const isOwner = user?._id === item.authorId;
+		return (
+			(hasSpecificPermission('library.delete') && isOwner) ||
+			hasSpecificPermission('library.delete_others')
+		);
+	};
 
 	// Query library items
 	const { data: libraryItems = [], isLoading } = useQuery<LibraryItem[]>({
@@ -230,20 +253,26 @@ export default function DashboardLibrary() {
 									<div className="flex justify-between items-start">
 										<h3 className="font-bold truncate">{item.title}</h3>
 										<div className="flex space-x-1">
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-8 w-8 p-0"
-												onClick={() => handleEditItem(item)}>
-												<Edit className="h-4 w-4" />
-											</Button>
-											<Button
-												size="sm"
-												variant="ghost"
-												className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-												onClick={() => handleDeleteItem(item._id || item.id!)}>
-												<Trash2 className="h-4 w-4" />
-											</Button>
+											{canEditLibraryItem(item) && (
+												<Button
+													size="sm"
+													variant="ghost"
+													className="h-8 w-8 p-0"
+													onClick={() => handleEditItem(item)}>
+													<Edit className="h-4 w-4" />
+												</Button>
+											)}
+											{canDeleteLibraryItem(item) && (
+												<Button
+													size="sm"
+													variant="ghost"
+													className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+													onClick={() =>
+														handleDeleteItem(item._id || item.id!)
+													}>
+													<Trash2 className="h-4 w-4" />
+												</Button>
+											)}
 										</div>
 									</div>
 									<p className="text-sm text-gray-600 line-clamp-2">
