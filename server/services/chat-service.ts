@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import {
 	GEMINI_MODEL,
+	GEMINI_MODELS,
 	GEMINI_PERSONALIZATION,
 	getLeastUsedApiKey,
 	initGeminiClient,
@@ -128,14 +129,39 @@ export class ChatService {
 			},
 		];
 
-		// Dapatkan respons dari Gemini
+		// Dapatkan respons dari Gemini dengan fallback
 		const gemini = initGeminiClient(chat.apiKey);
-		const model = gemini.getGenerativeModel({ model: GEMINI_MODEL });
+		let currentModel = GEMINI_MODEL;
+		let responseText = '';
+		let lastError: Error | null = null;
 
-		// Generate respons dengan history yang sudah termasuk personalisasi
-		const result = await model.generateContent({ contents: history });
-		const response = await result.response;
-		const responseText = response.text();
+		// Coba dengan model utama dan fallback jika error
+		for (const modelName of GEMINI_MODELS) {
+			try {
+				const model = gemini.getGenerativeModel({ model: modelName });
+				const result = await model.generateContent({ contents: history });
+				const response = await result.response;
+				responseText = response.text();
+				currentModel = modelName; // Update model yang berhasil
+				break; // Berhasil, keluar dari loop
+			} catch (error) {
+				lastError = error as Error;
+				console.warn(`Model ${modelName} failed, trying fallback...`, error);
+				continue; // Coba model berikutnya
+			}
+		}
+
+		// Jika semua model gagal
+		if (!responseText) {
+			throw new Error(
+				`All models failed. Last error: ${
+					lastError?.message || 'Unknown error'
+				}`
+			);
+		}
+
+		// Log model yang berhasil digunakan
+		console.log(`Successfully used model: ${currentModel} for user: ${userId}`);
 
 		// Tambahkan respons assistant ke chat (tanpa personalisasi)
 		chat.messages.push({
