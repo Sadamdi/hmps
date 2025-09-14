@@ -51,34 +51,53 @@ async function checkArticlePermission(
 	action: 'edit' | 'delete' | 'publish'
 ): Promise<boolean> {
 	try {
+		console.log(
+			`🔍 Checking ${action} permission for user:`,
+			user.role,
+			user._id
+		);
+		console.log(`📄 Article author:`, article.authorId);
+
 		// Get user's role and permissions
 		const userRole = await mongoStorage.getRoleByName(user.role);
-		if (!userRole) return false;
+		if (!userRole) {
+			console.log('❌ User role not found:', user.role);
+			return false;
+		}
 
 		const permissions = userRole.permissions;
-		const isOwner = user._id === article.authorId.toString();
+		const isOwner = user._id.toString() === article.authorId.toString();
+
+		console.log(`👤 User permissions:`, permissions);
+		console.log(`🔐 Is owner:`, isOwner);
+		console.log(`🔍 User ID:`, user._id.toString());
+		console.log(`🔍 Article Author ID:`, article.authorId.toString());
 
 		// Check specific permissions
 		switch (action) {
 			case 'edit':
 				// Can edit if has articles.edit permission and it's their own article
 				// OR has articles.edit_others permission
-				return (
+				const canEdit =
 					(permissions.includes('articles.edit') && isOwner) ||
-					permissions.includes('articles.edit_others')
-				);
+					permissions.includes('articles.edit_others');
+				console.log(`✏️ Can edit:`, canEdit);
+				return canEdit;
 
 			case 'delete':
 				// Can delete if has articles.delete permission and it's their own article
 				// OR has articles.delete_others permission
-				return (
+				const canDelete =
 					(permissions.includes('articles.delete') && isOwner) ||
-					permissions.includes('articles.delete_others')
-				);
+					permissions.includes('articles.delete_others');
+				console.log(`🗑️ Can delete:`, canDelete);
+				return canDelete;
 
 			case 'publish':
 				// Can publish if has articles.publish permission
-				return permissions.includes('articles.publish');
+				const canPublish = permissions.includes('articles.publish');
+				console.log(`📢 Can publish:`, canPublish);
+				return canPublish;
 
 			default:
 				return false;
@@ -2534,6 +2553,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.json({ permissions });
 		} catch (error) {
 			console.error('Error refreshing user permissions:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Force update owner role with all permissions (temporary endpoint)
+	app.post('/api/admin/force-update-owner', authenticate, async (req, res) => {
+		try {
+			if (req.user.role !== 'owner') {
+				return res
+					.status(403)
+					.json({ message: 'Only owner can access this endpoint' });
+			}
+
+			console.log('🔧 Force updating owner role...');
+
+			// Get all permissions
+			const allPermissions = await mongoStorage.getAllPermissions();
+			const allPermissionNames = allPermissions.map((p) => p.name);
+
+			console.log(`📋 Found ${allPermissionNames.length} permissions`);
+
+			// Force update owner role
+			const updateResult = await mongoStorage.updateRole('owner', {
+				permissions: allPermissionNames,
+				updatedAt: new Date(),
+			});
+
+			console.log(
+				`✅ Owner role updated with ${allPermissionNames.length} permissions`
+			);
+			console.log(
+				`🔍 Owner has articles.delete_others: ${allPermissionNames.includes(
+					'articles.delete_others'
+				)}`
+			);
+
+			res.json({
+				message: 'Owner role force updated successfully',
+				permissionsCount: allPermissionNames.length,
+				hasDeleteOthers: allPermissionNames.includes('articles.delete_others'),
+			});
+		} catch (error) {
+			console.error('Error force updating owner role:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Simple GET endpoint for testing (temporary)
+	app.get('/api/admin/force-update-owner', async (req, res) => {
+		try {
+			console.log('🔧 Force updating owner role via GET...');
+
+			// Get all permissions
+			const allPermissions = await mongoStorage.getAllPermissions();
+			const allPermissionNames = allPermissions.map((p) => p.name);
+
+			console.log(`📋 Found ${allPermissionNames.length} permissions`);
+
+			// Force update owner role
+			const updateResult = await mongoStorage.updateRole('owner', {
+				permissions: allPermissionNames,
+				updatedAt: new Date(),
+			});
+
+			console.log(
+				`✅ Owner role updated with ${allPermissionNames.length} permissions`
+			);
+			console.log(
+				`🔍 Owner has articles.delete_others: ${allPermissionNames.includes(
+					'articles.delete_others'
+				)}`
+			);
+
+			res.json({
+				message: 'Owner role force updated successfully',
+				permissionsCount: allPermissionNames.length,
+				hasDeleteOthers: allPermissionNames.includes('articles.delete_others'),
+			});
+		} catch (error) {
+			console.error('Error force updating owner role:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});

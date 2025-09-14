@@ -623,7 +623,16 @@ async function createRole(roleData: any) {
 
 async function updateRole(roleId: string, updateData: any) {
 	try {
-		return await Role.findByIdAndUpdate(roleId, updateData, { new: true });
+		// Check if roleId is a valid ObjectId, if not, treat it as name
+		if (roleId.match(/^[0-9a-fA-F]{24}$/)) {
+			// It's an ObjectId
+			return await Role.findByIdAndUpdate(roleId, updateData, { new: true });
+		} else {
+			// It's a role name
+			return await Role.findOneAndUpdate({ name: roleId }, updateData, {
+				new: true,
+			});
+		}
 	} catch (error) {
 		console.error('Error updating role:', error);
 		throw error;
@@ -777,8 +786,24 @@ async function initializeDefaultPermissions() {
 	try {
 		const existingPermissions = await Permission.countDocuments();
 		if (existingPermissions > 0) {
-			console.log('Permissions already exist, skipping initialization');
-			return;
+			console.log(
+				'Permissions already exist, checking if articles.delete_others exists...'
+			);
+			const deleteOthersExists = await Permission.findOne({
+				name: 'articles.delete_others',
+			});
+			if (deleteOthersExists) {
+				console.log(
+					'articles.delete_others permission exists, skipping initialization'
+				);
+				return;
+			} else {
+				console.log(
+					'articles.delete_others permission missing, re-initializing...'
+				);
+				// Clear existing permissions and re-initialize
+				await Permission.deleteMany({});
+			}
 		}
 
 		const defaultPermissions = [
@@ -1044,6 +1069,24 @@ async function initializeDefaultPermissions() {
 		await Permission.insertMany(defaultPermissions);
 		console.log(
 			`✅ Initialized ${defaultPermissions.length} default permissions`
+		);
+
+		// Force update owner role with all permissions
+		const allPermissionNames = defaultPermissions.map((p) => p.name);
+		await Role.updateOne(
+			{ name: 'owner' },
+			{
+				permissions: allPermissionNames,
+				updatedAt: new Date(),
+			}
+		);
+		console.log(
+			`🔧 Updated owner role with ${allPermissionNames.length} permissions`
+		);
+		console.log(
+			`🔍 Owner has articles.delete_others: ${allPermissionNames.includes(
+				'articles.delete_others'
+			)}`
 		);
 	} catch (error) {
 		console.error('Error initializing default permissions:', error);

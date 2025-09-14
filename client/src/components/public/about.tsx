@@ -298,45 +298,6 @@ export default function About() {
 							</p>
 						</div>
 					)}
-
-					{/* SEO Content untuk kata kunci target */}
-					<div className="mt-8 prose prose-lg lg:prose-xl prose-slate leading-relaxed space-y-4 bg-white/90 backdrop-blur-sm rounded-lg p-8 shadow-sm mx-auto">
-						<h2 className="text-2xl font-bold text-gray-900 mb-4">
-							Himatif Encoder - Wadah Pengembangan Mahasiswa TI UIN Malang
-						</h2>
-						<p className="text-justify text-gray-700">
-							<strong>Himatif Encoder</strong> adalah{' '}
-							<strong>Himpunan Mahasiswa Teknik Informatika</strong> yang berada
-							di bawah naungan{' '}
-							<strong>
-								Fakultas Sains dan Teknologi UIN Maulana Malik Ibrahim Malang
-							</strong>
-							. Sebagai organisasi mahasiswa yang aktif, Himatif Encoder
-							berkomitmen untuk mengembangkan potensi akademik, kepemimpinan,
-							dan kreativitas mahasiswa program studi Teknik Informatika.
-						</p>
-						<p className="text-justify text-gray-700">
-							Berlokasi di <strong>UIN Malang</strong>, tepatnya di{' '}
-							<strong>Fakultas Sains dan Teknologi</strong>, Himatif Encoder
-							menjadi wadah utama bagi mahasiswa Teknik Informatika untuk
-							mengembangkan diri melalui berbagai kegiatan akademik, organisasi,
-							dan pengembangan teknologi. Sebagai bagian dari{' '}
-							<strong>himpunan mahasiswa UIN Malang</strong>, kami berperan
-							aktif dalam menciptakan lingkungan belajar yang kondusif dan
-							mendukung pengembangan kompetensi mahasiswa di bidang teknologi
-							informasi.
-						</p>
-						<p className="text-justify text-gray-700">
-							Melalui berbagai program dan kegiatan yang diselenggarakan,{' '}
-							<strong>Himatif Encoder</strong> berupaya untuk mempersiapkan
-							mahasiswa Teknik Informatika menjadi profesional yang kompeten dan
-							siap menghadapi tantangan di era digital. Sebagai{' '}
-							<strong>himpunan teknik informatika</strong> yang terkemuka di{' '}
-							<strong>UIN Malang</strong>, kami terus berinovasi dalam
-							mengembangkan program-program yang relevan dengan kebutuhan
-							industri teknologi.
-						</p>
-					</div>
 				</div>
 			</div>
 		</section>
