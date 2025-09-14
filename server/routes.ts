@@ -44,6 +44,51 @@ interface UserWithRole {
 	lastLogin?: Date;
 }
 
+// Helper function to check article permissions
+async function checkArticlePermission(
+	user: UserWithRole,
+	article: any,
+	action: 'edit' | 'delete' | 'publish'
+): Promise<boolean> {
+	try {
+		// Get user's role and permissions
+		const userRole = await mongoStorage.getRoleByName(user.role);
+		if (!userRole) return false;
+
+		const permissions = userRole.permissions;
+		const isOwner = user._id === article.authorId.toString();
+
+		// Check specific permissions
+		switch (action) {
+			case 'edit':
+				// Can edit if has articles.edit permission and it's their own article
+				// OR has articles.edit_others permission
+				return (
+					(permissions.includes('articles.edit') && isOwner) ||
+					permissions.includes('articles.edit_others')
+				);
+
+			case 'delete':
+				// Can delete if has articles.delete permission and it's their own article
+				// OR has articles.delete_others permission
+				return (
+					(permissions.includes('articles.delete') && isOwner) ||
+					permissions.includes('articles.delete_others')
+				);
+
+			case 'publish':
+				// Can publish if has articles.publish permission
+				return permissions.includes('articles.publish');
+
+			default:
+				return false;
+		}
+	} catch (error) {
+		console.error('Error checking article permission:', error);
+		return false;
+	}
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
 	// Use cookie parser for handling JWT tokens
 	app.use(cookieParser());
@@ -823,6 +868,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
+				// Check create permission
+				const userRole = await mongoStorage.getRoleByName(req.user.role);
+				if (!userRole || !userRole.permissions.includes('articles.create')) {
+					return res.status(403).json({
+						message: 'You do not have permission to create articles',
+					});
+				}
+
+				// Check publish permission if trying to publish
+				if (published === 'true') {
+					if (!userRole.permissions.includes('articles.publish')) {
+						return res.status(403).json({
+							message: 'You do not have permission to publish articles',
+						});
+					}
+				}
+
 				// Validate required fields
 				if (!title || title.trim() === '') {
 					return res.status(400).json({ message: 'Title is required' });
@@ -942,19 +1004,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(404).json({ message: 'Article not found' });
 				}
 
-				// Check permissions
-				const canEdit =
-					(req.user as UserWithRole)?.role === 'owner' ||
-					(req.user as UserWithRole)?.role === 'admin' ||
-					(req.user as UserWithRole)?.role === 'chair' ||
-					(req.user as UserWithRole)?.role === 'vice_chair' ||
-					(req.user as UserWithRole)?._id ===
-						existingArticle.authorId.toString();
+				// Check permissions using new permission system
+				const canEdit = await checkArticlePermission(
+					req.user as UserWithRole,
+					existingArticle,
+					'edit'
+				);
 
 				if (!canEdit) {
 					return res.status(403).json({
 						message: 'You do not have permission to edit this article',
 					});
+				}
+
+				// Check publish permission if trying to publish
+				if (published === 'true') {
+					const canPublish = await checkArticlePermission(
+						req.user as UserWithRole,
+						existingArticle,
+						'publish'
+					);
+
+					if (!canPublish) {
+						return res.status(403).json({
+							message: 'You do not have permission to publish articles',
+						});
+					}
 				}
 
 				// Process updates
@@ -1018,13 +1093,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: 'Article not found' });
 			}
 
-			// Check permissions
-			const canDelete =
-				(req.user as UserWithRole)?.role === 'owner' ||
-				(req.user as UserWithRole)?.role === 'admin' ||
-				(req.user as UserWithRole)?.role === 'chair' ||
-				(req.user as UserWithRole)?.role === 'vice_chair' ||
-				(req.user as UserWithRole)?._id === existingArticle.authorId.toString();
+			// Check permissions using new permission system
+			const canDelete = await checkArticlePermission(
+				req.user as UserWithRole,
+				existingArticle,
+				'delete'
+			);
 
 			if (!canDelete) {
 				return res.status(403).json({
