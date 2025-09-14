@@ -10,7 +10,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import ReactFlow, {
 	Background,
 	Controls,
@@ -206,6 +206,7 @@ export default function Structure() {
 	const [selectedDivision, setSelectedDivision] = useState<string>('all');
 	const [nodes, setNodes, onNodesChange] = useNodesState([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+	const membersContainerRef = useRef<HTMLDivElement>(null);
 
 	// Fetch organization members - always enabled with fallback
 	const {
@@ -309,6 +310,16 @@ export default function Structure() {
 		itemsPerPageDesktop: 8,
 		itemsPerPageMobile: 4,
 	});
+
+	// Auto-scroll to members container when page changes
+	useEffect(() => {
+		if (membersContainerRef.current && activeView === 'grid') {
+			membersContainerRef.current.scrollIntoView({
+				behavior: 'smooth',
+				block: 'start',
+			});
+		}
+	}, [currentPage, activeView]);
 
 	// Set up organization chart nodes and edges based on members data
 	// Normalize members data, dari backend _id jadi id
@@ -693,7 +704,9 @@ export default function Structure() {
 						<TabsContent
 							value="grid"
 							className="mt-0">
-							<div className="space-y-6">
+							<div
+								className="space-y-6"
+								ref={membersContainerRef}>
 								<div
 									key={`page-${currentPage}`}
 									className="grid md:grid-cols-4 sm:grid-cols-2 gap-6 animate-page-transition">
