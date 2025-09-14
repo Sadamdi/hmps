@@ -18,6 +18,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { Edit, GripVertical, Plus, Shield, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/use-toast';
+import { useAuth } from '../../lib/auth';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -237,6 +238,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 		permissions: [] as string[],
 	});
 	const { toast } = useToast();
+	const { refreshPermissions } = useAuth();
 
 	// Drag and drop sensors
 	const sensors = useSensors(
@@ -335,6 +337,8 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 					permissions: [],
 				});
 				fetchRoles();
+				// Refresh permissions after role creation
+				await refreshPermissions();
 			} else {
 				const error = await response.json();
 				toast({
@@ -378,6 +382,8 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 				setIsEditDialogOpen(false);
 				setEditingRole(null);
 				fetchRoles();
+				// Refresh permissions after role update
+				await refreshPermissions();
 			} else {
 				const error = await response.json();
 				toast({
@@ -409,6 +415,8 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 					description: 'Role berhasil dihapus',
 				});
 				fetchRoles();
+				// Refresh permissions after role deletion
+				await refreshPermissions();
 			} else {
 				const error = await response.json();
 				toast({

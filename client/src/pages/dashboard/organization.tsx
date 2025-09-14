@@ -580,7 +580,9 @@ export default function DashboardOrganization() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({
+				queryKey: ['/api/divisions/available-positions'],
+			});
 			toast({
 				title: 'Success',
 				description: 'Division created successfully',
@@ -602,7 +604,9 @@ export default function DashboardOrganization() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({
+				queryKey: ['/api/divisions/available-positions'],
+			});
 			toast({
 				title: 'Success',
 				description: 'Division updated successfully',
@@ -624,7 +628,9 @@ export default function DashboardOrganization() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({
+				queryKey: ['/api/divisions/available-positions'],
+			});
 			toast({
 				title: 'Success',
 				description: 'Division deleted successfully',
@@ -1266,7 +1272,9 @@ function DivisionEditor({
 			}));
 			setNewPosition('');
 			// Invalidate available positions to refresh the dropdown
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({
+				queryKey: ['/api/divisions/available-positions'],
+			});
 		}
 	};
 
@@ -1276,7 +1284,9 @@ function DivisionEditor({
 			positions: prev.positions.filter((pos) => pos !== positionToRemove),
 		}));
 		// Invalidate available positions to refresh the dropdown
-		queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+		queryClient.invalidateQueries({
+			queryKey: ['/api/divisions/available-positions'],
+		});
 	};
 
 	const handleDragEnd = (event: DragEndEvent) => {

@@ -17,6 +17,7 @@ interface AuthContextType {
 	logout: () => Promise<void>;
 	hasPermission: (roles: string[]) => boolean;
 	hasSpecificPermission: (permission: string) => boolean;
+	refreshPermissions: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,6 +75,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		} catch (error) {
 			console.error('Failed to fetch user permissions:', error);
 			setPermissions([]);
+		}
+	};
+
+	const refreshPermissions = async () => {
+		try {
+			const response = await fetch('/api/auth/refresh-permissions', {
+				method: 'POST',
+				credentials: 'include',
+			});
+			if (response.ok) {
+				const data = await response.json();
+				setPermissions(data.permissions || []);
+			}
+		} catch (error) {
+			console.error('Failed to refresh user permissions:', error);
 		}
 	};
 
@@ -222,6 +238,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				logout,
 				hasPermission,
 				hasSpecificPermission,
+				refreshPermissions,
 			}}>
 			{children}
 		</AuthContext.Provider>

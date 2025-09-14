@@ -586,6 +586,10 @@ const mongoDBStorage = {
 	updateDivision,
 	deleteDivision,
 	initializeDefaultDivisions,
+
+	// Initialization functions
+	initializeDefaultPermissions,
+	initializeDefaultRoles,
 };
 
 // Role and Permission Management Functions
@@ -765,6 +769,440 @@ async function deleteDivision(id: string) {
 	} catch (error) {
 		console.error('Error deleting division:', error);
 		throw error;
+	}
+}
+
+// Initialize default permissions
+async function initializeDefaultPermissions() {
+	try {
+		const existingPermissions = await Permission.countDocuments();
+		if (existingPermissions > 0) {
+			console.log('Permissions already exist, skipping initialization');
+			return;
+		}
+
+		const defaultPermissions = [
+			// Dashboard permissions
+			{
+				name: 'dashboard.view',
+				displayName: 'View Dashboard',
+				description: 'Akses ke halaman dashboard',
+				category: 'dashboard',
+			},
+			{
+				name: 'dashboard.activities',
+				displayName: 'View Activities',
+				description: 'Melihat aktivitas dashboard',
+				category: 'dashboard',
+			},
+
+			// User management permissions
+			{
+				name: 'users.view',
+				displayName: 'View Users',
+				description: 'Melihat daftar user',
+				category: 'users',
+			},
+			{
+				name: 'users.create',
+				displayName: 'Create Users',
+				description: 'Membuat user baru',
+				category: 'users',
+			},
+			{
+				name: 'users.edit',
+				displayName: 'Edit Users',
+				description: 'Mengedit data user',
+				category: 'users',
+			},
+			{
+				name: 'users.delete',
+				displayName: 'Delete Users',
+				description: 'Menghapus user',
+				category: 'users',
+			},
+			{
+				name: 'users.view_others',
+				displayName: 'View Other Users',
+				description: 'Melihat profil user lain',
+				category: 'users',
+			},
+
+			// Role management permissions
+			{
+				name: 'roles.view',
+				displayName: 'View Roles',
+				description: 'Melihat daftar roles',
+				category: 'roles',
+			},
+			{
+				name: 'roles.create',
+				displayName: 'Create Roles',
+				description: 'Membuat role baru',
+				category: 'roles',
+			},
+			{
+				name: 'roles.edit',
+				displayName: 'Edit Roles',
+				description: 'Mengedit role',
+				category: 'roles',
+			},
+			{
+				name: 'roles.delete',
+				displayName: 'Delete Roles',
+				description: 'Menghapus role',
+				category: 'roles',
+			},
+			{
+				name: 'roles.assign',
+				displayName: 'Assign Roles',
+				description: 'Menetapkan role ke user',
+				category: 'roles',
+			},
+
+			// Article permissions
+			{
+				name: 'articles.view',
+				displayName: 'View Articles',
+				description: 'Melihat artikel',
+				category: 'articles',
+			},
+			{
+				name: 'articles.create',
+				displayName: 'Create Articles',
+				description: 'Membuat artikel baru',
+				category: 'articles',
+			},
+			{
+				name: 'articles.edit',
+				displayName: 'Edit Articles',
+				description: 'Mengedit artikel',
+				category: 'articles',
+			},
+			{
+				name: 'articles.delete',
+				displayName: 'Delete Articles',
+				description: 'Menghapus artikel',
+				category: 'articles',
+			},
+			{
+				name: 'articles.publish',
+				displayName: 'Publish Articles',
+				description: 'Mempublikasikan artikel',
+				category: 'articles',
+			},
+			{
+				name: 'articles.view_others',
+				displayName: 'View Others Articles',
+				description: 'Melihat artikel dari user lain',
+				category: 'articles',
+			},
+			{
+				name: 'articles.edit_others',
+				displayName: 'Edit Others Articles',
+				description: 'Mengedit artikel dari user lain',
+				category: 'articles',
+			},
+			{
+				name: 'articles.delete_others',
+				displayName: 'Delete Others Articles',
+				description: 'Menghapus artikel dari user lain',
+				category: 'articles',
+			},
+
+			// Library permissions
+			{
+				name: 'library.view',
+				displayName: 'View Library',
+				description: 'Melihat library',
+				category: 'library',
+			},
+			{
+				name: 'library.create',
+				displayName: 'Create Library Items',
+				description: 'Membuat item library baru',
+				category: 'library',
+			},
+			{
+				name: 'library.edit',
+				displayName: 'Edit Library Items',
+				description: 'Mengedit item library',
+				category: 'library',
+			},
+			{
+				name: 'library.delete',
+				displayName: 'Delete Library Items',
+				description: 'Menghapus item library',
+				category: 'library',
+			},
+			{
+				name: 'library.view_others',
+				displayName: 'View Others Library',
+				description: 'Melihat library dari user lain',
+				category: 'library',
+			},
+			{
+				name: 'library.edit_others',
+				displayName: 'Edit Others Library',
+				description: 'Mengedit library dari user lain',
+				category: 'library',
+			},
+			{
+				name: 'library.delete_others',
+				displayName: 'Delete Others Library',
+				description: 'Menghapus library dari user lain',
+				category: 'library',
+			},
+
+			// Organization permissions
+			{
+				name: 'organization.view',
+				displayName: 'View Organization',
+				description: 'Melihat struktur organisasi',
+				category: 'organization',
+			},
+			{
+				name: 'organization.edit',
+				displayName: 'Edit Organization',
+				description: 'Mengedit struktur organisasi',
+				category: 'organization',
+			},
+			{
+				name: 'organization.manage_periods',
+				displayName: 'Manage Periods',
+				description: 'Mengelola periode organisasi',
+				category: 'organization',
+			},
+			{
+				name: 'organization.manage_positions',
+				displayName: 'Manage Positions',
+				description: 'Mengelola posisi organisasi',
+				category: 'organization',
+			},
+			{
+				name: 'organization.manage_members',
+				displayName: 'Manage Members',
+				description: 'Mengelola anggota organisasi',
+				category: 'organization',
+			},
+
+			// Division permissions
+			{
+				name: 'divisions.view',
+				displayName: 'View Divisions',
+				description: 'Melihat divisi',
+				category: 'divisions',
+			},
+			{
+				name: 'divisions.create',
+				displayName: 'Create Divisions',
+				description: 'Membuat divisi baru',
+				category: 'divisions',
+			},
+			{
+				name: 'divisions.edit',
+				displayName: 'Edit Divisions',
+				description: 'Mengedit divisi',
+				category: 'divisions',
+			},
+			{
+				name: 'divisions.delete',
+				displayName: 'Delete Divisions',
+				description: 'Menghapus divisi',
+				category: 'divisions',
+			},
+
+			// Settings permissions
+			{
+				name: 'settings.view',
+				displayName: 'View Settings',
+				description: 'Melihat pengaturan',
+				category: 'settings',
+			},
+			{
+				name: 'settings.edit',
+				displayName: 'Edit Settings',
+				description: 'Mengedit pengaturan',
+				category: 'settings',
+			},
+
+			// Content permissions
+			{
+				name: 'content.edit',
+				displayName: 'Edit Content',
+				description: 'Mengedit konten umum',
+				category: 'content',
+			},
+			{
+				name: 'content.view_others',
+				displayName: 'View Others Content',
+				description: 'Melihat konten dari user lain',
+				category: 'content',
+			},
+		];
+
+		await Permission.insertMany(defaultPermissions);
+		console.log(
+			`✅ Initialized ${defaultPermissions.length} default permissions`
+		);
+	} catch (error) {
+		console.error('Error initializing default permissions:', error);
+	}
+}
+
+// Initialize default roles
+async function initializeDefaultRoles() {
+	try {
+		const existingRoles = await Role.countDocuments();
+		if (existingRoles > 0) {
+			console.log('Roles already exist, skipping initialization');
+			return;
+		}
+
+		// Get all permissions for owner role
+		const allPermissions = await Permission.find({ isActive: true });
+		const allPermissionNames = allPermissions.map((p) => p.name);
+
+		const defaultRoles = [
+			{
+				name: 'owner',
+				displayName: 'Owner',
+				description: 'System owner with full access',
+				level: 1,
+				permissions: allPermissionNames, // All permissions
+				isActive: true,
+				createdBy: null, // Will be set later
+			},
+			{
+				name: 'admin',
+				displayName: 'Administrator',
+				description: 'System administrator with most access',
+				level: 2,
+				permissions: allPermissionNames.filter(
+					(p) =>
+						!p.includes('roles.delete') &&
+						!p.includes('users.delete') &&
+						!p.includes('settings.edit')
+				),
+				isActive: true,
+				createdBy: null,
+			},
+			{
+				name: 'chair',
+				displayName: 'Chair',
+				description: 'Chairperson with management access',
+				level: 3,
+				permissions: [
+					'dashboard.view',
+					'dashboard.activities',
+					'users.view',
+					'users.view_others',
+					'articles.view',
+					'articles.create',
+					'articles.edit',
+					'articles.publish',
+					'articles.view_others',
+					'library.view',
+					'library.create',
+					'library.edit',
+					'library.view_others',
+					'organization.view',
+					'organization.edit',
+					'organization.manage_periods',
+					'organization.manage_positions',
+					'organization.manage_members',
+					'divisions.view',
+					'divisions.edit',
+					'settings.view',
+					'content.edit',
+					'content.view_others',
+				],
+				isActive: true,
+				createdBy: null,
+			},
+			{
+				name: 'vice_chair',
+				displayName: 'Vice Chair',
+				description: 'Vice chairperson with limited management access',
+				level: 4,
+				permissions: [
+					'dashboard.view',
+					'dashboard.activities',
+					'users.view',
+					'users.view_others',
+					'articles.view',
+					'articles.create',
+					'articles.edit',
+					'articles.view_others',
+					'library.view',
+					'library.create',
+					'library.edit',
+					'library.view_others',
+					'organization.view',
+					'divisions.view',
+					'settings.view',
+					'content.view_others',
+				],
+				isActive: true,
+				createdBy: null,
+			},
+			{
+				name: 'bph',
+				displayName: 'BPH',
+				description: 'Badan Pengurus Harian',
+				level: 5,
+				permissions: [
+					'dashboard.view',
+					'dashboard.activities',
+					'users.view',
+					'users.view_others',
+					'articles.view',
+					'articles.create',
+					'articles.edit',
+					'articles.view_others',
+					'library.view',
+					'library.create',
+					'library.edit',
+					'library.view_others',
+					'organization.view',
+					'divisions.view',
+					'settings.view',
+					'content.view_others',
+				],
+				isActive: true,
+				createdBy: null,
+			},
+			{
+				name: 'division_head',
+				displayName: 'Division Head',
+				description: 'Division head with basic access',
+				level: 6,
+				permissions: [
+					'dashboard.view',
+					'dashboard.activities',
+					'users.view_others',
+					'articles.view',
+					'articles.create',
+					'articles.edit',
+					'articles.view_others',
+					'library.view',
+					'library.create',
+					'library.edit',
+					'library.view_others',
+					'organization.view',
+					'divisions.view',
+					'settings.view',
+					'content.view_others',
+				],
+				isActive: true,
+				createdBy: null,
+			},
+		];
+
+		await Role.insertMany(defaultRoles);
+		console.log(`✅ Initialized ${defaultRoles.length} default roles`);
+	} catch (error) {
+		console.error('Error initializing default roles:', error);
 	}
 }
 

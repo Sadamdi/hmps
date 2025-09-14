@@ -48,11 +48,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Use cookie parser for handling JWT tokens
 	app.use(cookieParser());
 
-	// Initialize default divisions
+	// Initialize default data
 	try {
+		await mongoStorage.initializeDefaultPermissions();
+		await mongoStorage.initializeDefaultRoles();
 		await mongoStorage.initializeDefaultDivisions();
 	} catch (error) {
-		console.error('Failed to initialize default divisions:', error);
+		console.error('Failed to initialize default data:', error);
 	}
 
 	// Google Drive API routes
@@ -2447,6 +2449,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.json({ permissions });
 		} catch (error) {
 			console.error('Error getting user permissions:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Refresh user permissions (for after role changes)
+	app.post('/api/auth/refresh-permissions', authenticate, async (req, res) => {
+		try {
+			const permissions = await mongoStorage.getUserPermissions(req.user._id);
+			res.json({ permissions });
+		} catch (error) {
+			console.error('Error refreshing user permissions:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
