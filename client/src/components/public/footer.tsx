@@ -54,7 +54,9 @@ export default function Footer() {
 					<div
 						data-aos="fade-up"
 						data-aos-delay="100">
-						<h3 className="text-lg font-semibold mb-4">Tentang HMTI</h3>
+						<h3 className="text-lg font-semibold mb-4">
+							Tentang Himatif Encoder Teknik Informatika
+						</h3>
 						<p className="text-gray-400">
 							Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim
 							Malang
