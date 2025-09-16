@@ -291,6 +291,19 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 	// Drag & drop reordering is privileged, gate behind edit permission
 	const allowDnD = allowEdit;
 
+	// Helper function to get user level (moved up for early use)
+	function getUserLevel(userRole: string) {
+		const userLevels: { [key: string]: number } = {
+			owner: 1,
+			admin: 2,
+			chair: 3,
+			vice_chair: 4,
+			bph: 5,
+			division_head: 6,
+		};
+		return userLevels[userRole] || 999;
+	}
+
 	useEffect(() => {
 		fetchRoles();
 		fetchPermissions();
@@ -333,6 +346,51 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 
 	const handleCreateRole = async () => {
 		try {
+			// Validasi level yang dipilih harus di bawah (angka lebih besar) dari level user
+			if (newRole.level <= getUserLevel(userRole)) {
+				toast({
+					title: 'Tidak diizinkan',
+					description:
+						'Anda hanya dapat membuat role dengan level lebih rendah dari level Anda',
+					variant: 'destructive',
+				});
+				return;
+			}
+
+			// Siapkan pergeseran level bila level target sudah terisi
+			// Geser semua role dengan level >= level baru ke +1 (mulai dari level terbesar agar tidak konflik)
+			const desiredLevel = newRole.level;
+			const rolesToShift = roles
+				.filter((r) => r.level >= desiredLevel)
+				.sort((a, b) => b.level - a.level);
+
+			for (const r of rolesToShift) {
+				// Skip jika pergeseran akan menaikkan role ke level di atas user (bukan masalah, semakin besar angkanya artinya lebih rendah, aman)
+				const resp = await fetch(`/api/roles/${r._id}`, {
+					method: 'PUT',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					credentials: 'include',
+					body: JSON.stringify({
+						level: r.level + 1,
+						displayName: r.displayName,
+						description: r.description,
+						permissions: r.permissions,
+					}),
+				});
+				if (!resp.ok) {
+					const err = await resp.json().catch(() => ({}));
+					toast({
+						title: 'Error',
+						description: err.message || 'Gagal menggeser level role yang ada',
+						variant: 'destructive',
+					});
+					return;
+				}
+			}
+
+			// Setelah ruang tersedia, buat role baru
 			const response = await fetch('/api/roles', {
 				method: 'POST',
 				headers: {
@@ -352,11 +410,10 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 					name: '',
 					displayName: '',
 					description: '',
-					level: 6,
+					level: Math.max(getUserLevel(userRole) + 1, 6),
 					permissions: [],
 				});
-				fetchRoles();
-				// Refresh permissions after role creation
+				await fetchRoles();
 				await refreshPermissions();
 			} else {
 				const error = await response.json();
@@ -577,19 +634,6 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 		}
 	};
 
-	// Helper function to get user level
-	const getUserLevel = (userRole: string) => {
-		const userLevels: { [key: string]: number } = {
-			owner: 1,
-			admin: 2,
-			chair: 3,
-			vice_chair: 4,
-			bph: 5,
-			division_head: 6,
-		};
-		return userLevels[userRole] || 999;
-	};
-
 	const togglePermission = (
 		permissionName: string,
 		rolePermissions: string[]
@@ -712,13 +756,15 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											{roleLevels.map((level) => (
-												<SelectItem
-													key={level.value}
-													value={level.value.toString()}>
-													{level.label}
-												</SelectItem>
-											))}
+											{roleLevels
+												.filter((level) => level.value > getUserLevel(userRole))
+												.map((level) => (
+													<SelectItem
+														key={level.value}
+														value={level.value.toString()}>
+														{level.label}
+													</SelectItem>
+												))}
 										</SelectContent>
 									</Select>
 								</div>
