@@ -1625,7 +1625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/organization/periods',
 		authenticate,
-		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
+		requirePermission('organization.manage_periods'),
 		async (req, res) => {
 			try {
 				const { period } = req.body;
@@ -1661,7 +1661,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.delete(
 		'/api/organization/periods/:period',
 		authenticate,
-		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
+		requirePermission('organization.manage_periods'),
 		async (req, res) => {
 			try {
 				const period = decodeURIComponent(req.params.period);
@@ -1711,7 +1711,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/organization/positions',
 		authenticate,
-		authorize(['owner', 'admin']),
+		requirePermission('organization.manage_positions'),
 		async (req, res) => {
 			try {
 				const { period, positions } = req.body;
@@ -1730,7 +1730,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/organization/positions/copy',
 		authenticate,
-		authorize(['owner', 'admin']),
+		requirePermission('organization.manage_positions'),
 		async (req, res) => {
 			try {
 				const { sourcePeriod, targetPeriod } = req.body;
@@ -1749,7 +1749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.delete(
 		'/api/organization/positions/:period',
 		authenticate,
-		authorize(['owner', 'admin']),
+		requirePermission('organization.manage_positions'),
 		async (req, res) => {
 			try {
 				const { period } = req.params;
@@ -1812,7 +1812,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/organization/members',
 		authenticate,
-		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
+		requirePermission('organization.manage_members'),
 		uploadMiddleware.single('image'),
 		async (req, res) => {
 			try {
@@ -1872,7 +1872,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.put(
 		'/api/organization/members/:id',
 		authenticate,
-		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
+		requirePermission('organization.manage_members'),
 		uploadMiddleware.single('image'),
 		async (req, res) => {
 			try {
@@ -1979,7 +1979,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.delete(
 		'/api/organization/members/:id',
 		authenticate,
-		authorize(['owner', 'admin', 'ketua', 'wakil_ketua']),
+		requirePermission('organization.manage_members'),
 		async (req, res) => {
 			try {
 				const memberId = req.params.id;
