@@ -15,6 +15,7 @@ export default defineConfig({
 			'@assets': path.resolve(rootDir, 'attached_assets'),
 		},
 	},
+	envDir: rootDir,
 	server: {
 		proxy: {
 			'/api': 'http://localhost:5000',
@@ -24,11 +25,5 @@ export default defineConfig({
 	build: {
 		outDir: path.resolve(rootDir, 'dist/public'),
 		emptyOutDir: true,
-	},
-	// Expose environment variables starting with VITE_
-	define: {
-		'import.meta.env.VITE_TINYMCE_API_KEY': JSON.stringify(
-			process.env.VITE_TINYMCE_API_KEY
-		),
 	},
 });
