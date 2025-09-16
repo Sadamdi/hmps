@@ -291,6 +291,28 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 	// Drag & drop reordering is privileged, gate behind edit permission
 	const allowDnD = allowEdit;
 
+	const userLevelVal = getUserLevel(userRole);
+
+	// Hitung level maksimum saat ini untuk membuat opsi level dinamis
+	const maxExistingLevel =
+		roles.length > 0 ? Math.max(...roles.map((r) => r.level)) : userLevelVal;
+	// Batas atas opsi level yang ditawarkan (beri buffer 5 tingkat agar tidak mentok di level 6)
+	const upperLevelLimit = Math.max(maxExistingLevel + 5, userLevelVal + 1);
+	// Buat daftar level yang dapat dipilih: hanya yang > level user
+	const selectableLevels = Array.from(
+		{ length: Math.max(0, upperLevelLimit - (userLevelVal + 1) + 1) },
+		(_, i) => userLevelVal + 1 + i
+	);
+
+	// Set default level newRole bila belum valid (mis. halaman baru dibuka)
+	useEffect(() => {
+		setNewRole((prev) => ({
+			...prev,
+			level: Math.max(prev.level, userLevelVal + 1),
+		}));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [userLevelVal]);
+
 	// Helper function to get user level (moved up for early use)
 	function getUserLevel(userRole: string) {
 		const userLevels: { [key: string]: number } = {
@@ -410,7 +432,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 					name: '',
 					displayName: '',
 					description: '',
-					level: Math.max(getUserLevel(userRole) + 1, 6),
+					level: Math.max(userLevelVal + 1, maxExistingLevel + 1),
 					permissions: [],
 				});
 				await fetchRoles();
@@ -756,15 +778,13 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
-											{roleLevels
-												.filter((level) => level.value > getUserLevel(userRole))
-												.map((level) => (
-													<SelectItem
-														key={level.value}
-														value={level.value.toString()}>
-														{level.label}
-													</SelectItem>
-												))}
+											{selectableLevels.map((lvl) => (
+												<SelectItem
+													key={lvl}
+													value={lvl.toString()}>
+													Level {lvl}
+												</SelectItem>
+											))}
 										</SelectContent>
 									</Select>
 								</div>
