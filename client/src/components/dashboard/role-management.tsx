@@ -245,7 +245,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 		name: '',
 		displayName: '',
 		description: '',
-		level: 6,
+		level: getUserLevel(userRole) + 1,
 		permissions: [] as string[],
 	});
 	const { toast } = useToast();
@@ -296,11 +296,11 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 	// Hitung level maksimum saat ini untuk membuat opsi level dinamis
 	const maxExistingLevel =
 		roles.length > 0 ? Math.max(...roles.map((r) => r.level)) : userLevelVal;
-	// Batas atas opsi level yang ditawarkan (beri buffer 5 tingkat agar tidak mentok di level 6)
-	const upperLevelLimit = Math.max(maxExistingLevel + 5, userLevelVal + 1);
-	// Buat daftar level yang dapat dipilih: hanya yang > level user
+	// Batas atas opsi level yang ditawarkan: ambil max antara level tertinggi yang ada dan buffer di bawah
+	const upperLevelLimit = Math.max(maxExistingLevel + 3, userLevelVal + 3);
+	// Buat daftar level mulai dari userLevel+1 sampai upperLevelLimit (termasuk level yang sudah terpakai)
 	const selectableLevels = Array.from(
-		{ length: Math.max(0, upperLevelLimit - (userLevelVal + 1) + 1) },
+		{ length: upperLevelLimit - (userLevelVal + 1) + 1 },
 		(_, i) => userLevelVal + 1 + i
 	);
 
@@ -719,7 +719,15 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 				{allowCreate && (
 					<Dialog
 						open={isCreateDialogOpen}
-						onOpenChange={setIsCreateDialogOpen}>
+						onOpenChange={(open) => {
+							setIsCreateDialogOpen(open);
+							if (open) {
+								setNewRole((prev) => ({
+									...prev,
+									level: userLevelVal + 1,
+								}));
+							}
+						}}>
 						<DialogTrigger asChild>
 							<Button>
 								<Plus className="h-4 w-4 mr-2" />
