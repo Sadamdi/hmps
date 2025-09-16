@@ -2337,10 +2337,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Get current user level
-				const currentUserRole = await mongoStorage.getRoleByName(
-					(req.user as any)?.role || ''
+				// Cari role user secara akurat berdasarkan nama role di user
+				const currentUserRoleName = (req.user as any)?.role || '';
+				const allRolesForLevel = await mongoStorage.getAllRoles();
+				const foundUserRole = allRolesForLevel.find(
+					(r: any) =>
+						(r?.name || '').toString() === currentUserRoleName.toString()
 				);
-				const userLevel = currentUserRole?.level ?? 999;
+				const userLevel =
+					typeof foundUserRole?.level === 'number' ? foundUserRole.level : 999;
 
 				// Only allow creating roles below the user's level (higher numeric)
 				if (typeof level !== 'number' || level <= userLevel) {
@@ -2357,7 +2362,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.sort((a: any, b: any) => (b.level || 0) - (a.level || 0));
 
 				for (const r of toShift) {
-					await mongoStorage.updateRole(r._id, {
+					await mongoStorage.updateRole(String(r._id), {
 						level: (r.level as number) + 1,
 					});
 				}
