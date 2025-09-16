@@ -17,6 +17,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
+import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import { Edit, Loader2, Search, Shield, User, UserPlus } from 'lucide-react';
@@ -27,7 +29,7 @@ interface UserWithRole {
 	username: string;
 	name: string;
 	email: string;
-	role: string;
+	role: 'owner' | 'admin' | 'chair' | 'vice_chair' | 'division_head' | string;
 	division?: string;
 	password?: string;
 	createdAt?: Date;
@@ -37,6 +39,13 @@ interface UserWithRole {
 
 export default function UsersPage() {
 	const { user: currentUser } = useAuth();
+
+	// Auto-refresh permissions every 5 seconds to catch role changes
+	usePermissionRefresh();
+
+	// Guard permission - redirect jika tidak ada akses
+	const { hasPermission: hasUserAccess, isLoading: isPermissionLoading } =
+		usePermissionGuardAny(['users.view', 'users.view_others']);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
 	const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
@@ -56,8 +65,10 @@ export default function UsersPage() {
 
 	// Role hierarchy for sorting based on current roles
 	const getRoleOrder = (role: string) => {
-		const roleData = roles.find((r: any) => r.name === role);
-		return roleData ? roleData.level : 999;
+		const roleData = roles.find((r: any) => r && r.name === role);
+		return roleData && typeof (roleData as any).level === 'number'
+			? (roleData as any).level
+			: 999;
 	};
 
 	// Filter users based on search and role tab
@@ -115,6 +126,26 @@ export default function UsersPage() {
 		setIsUserDialogOpen(false);
 		setEditingUser(null);
 	};
+
+	// Show loading jika permission masih loading
+	if (isPermissionLoading) {
+		return (
+			<DashboardLayout title="User Management">
+				<div className="flex items-center justify-center h-64">
+					<div className="flex items-center space-x-2">
+						<Loader2 className="h-6 w-6 animate-spin" />
+						<span>Loading permissions...</span>
+					</div>
+				</div>
+			</DashboardLayout>
+		);
+	}
+
+	// Redirect sudah dihandle di usePermissionGuardAny
+	// Tapi tetap return early untuk safety
+	if (!hasUserAccess) {
+		return null;
+	}
 
 	return (
 		<DashboardLayout title="User Management">
@@ -283,7 +314,7 @@ export default function UsersPage() {
 						</p>
 					</DialogHeader>
 					<UserManagement
-						user={editingUser}
+						user={editingUser as any}
 						viewOnly={
 							editingUser
 								? currentUser?.role !== 'owner' &&

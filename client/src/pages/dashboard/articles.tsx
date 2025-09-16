@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
+import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
@@ -48,8 +49,12 @@ export default function DashboardArticles() {
 	const queryClient = useQueryClient();
 	const { user, hasSpecificPermission } = useAuth();
 
-	// Auto-refresh permissions every 30 seconds to catch role changes
+	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
+
+	// Guard permission - redirect jika tidak ada akses
+	const { hasPermission: hasArticleAccess, isLoading: isPermissionLoading } =
+		usePermissionGuardAny(['articles.view', 'articles.view_others']);
 
 	// Helper function to check if user can edit/delete article
 	const canEditArticle = (article: Article) => {
@@ -186,6 +191,26 @@ export default function DashboardArticles() {
 			} successfully`,
 		});
 	};
+
+	// Show loading jika permission masih loading
+	if (isPermissionLoading) {
+		return (
+			<DashboardLayout title="Articles">
+				<div className="flex items-center justify-center h-64">
+					<div className="flex items-center space-x-2">
+						<Loader2 className="h-6 w-6 animate-spin" />
+						<span>Loading permissions...</span>
+					</div>
+				</div>
+			</DashboardLayout>
+		);
+	}
+
+	// Redirect sudah dihandle di usePermissionGuardAny
+	// Tapi tetap return early untuk safety
+	if (!hasArticleAccess) {
+		return null;
+	}
 
 	return (
 		<DashboardLayout title="Articles">

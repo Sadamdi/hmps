@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, FileEdit } from 'lucide-react';
+import { ArrowLeft, FileEdit, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 
 import ContentEditor from '@/components/dashboard/content-editor';
@@ -13,6 +13,8 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePermissionGuard } from '@/hooks/use-permission-guard';
+import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 
 interface Settings {
@@ -64,6 +66,13 @@ export default function Content() {
 	const { hasSpecificPermission } = useAuth();
 	const canEdit = hasSpecificPermission('content.edit');
 
+	// Auto-refresh permissions every 5 seconds to catch role changes
+	usePermissionRefresh();
+
+	// Guard permission - redirect jika tidak ada akses
+	const { hasPermission: hasContentAccess, isLoading: isPermissionLoading } =
+		usePermissionGuard('content.view');
+
 	const handleEdit = () => {
 		setIsEditing(true);
 	};
@@ -75,6 +84,26 @@ export default function Content() {
 	const handleSaveEdit = () => {
 		setIsEditing(false);
 	};
+
+	// Show loading jika permission masih loading
+	if (isPermissionLoading) {
+		return (
+			<DashboardLayout title="Konten Halaman Publik">
+				<div className="flex items-center justify-center h-64">
+					<div className="flex items-center space-x-2">
+						<Loader2 className="h-6 w-6 animate-spin" />
+						<span>Loading permissions...</span>
+					</div>
+				</div>
+			</DashboardLayout>
+		);
+	}
+
+	// Redirect sudah dihandle di usePermissionGuard
+	// Tapi tetap return early untuk safety
+	if (!hasContentAccess) {
+		return null;
+	}
 
 	return (
 		<DashboardLayout title="Konten Halaman Publik">

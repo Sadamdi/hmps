@@ -11,7 +11,7 @@ export function usePermissionRefresh() {
 	useEffect(() => {
 		const interval = setInterval(() => {
 			refreshPermissions();
-		}, 30000); // 30 seconds
+		}, 5000); // 5 seconds
 
 		return () => clearInterval(interval);
 	}, [refreshPermissions]);

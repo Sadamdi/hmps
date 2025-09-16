@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
@@ -41,6 +42,7 @@ interface LibraryItem {
 	time: string;
 	type: 'photo' | 'video';
 	createdAt: string;
+	authorId?: string;
 }
 
 export default function DashboardLibrary() {
@@ -52,8 +54,12 @@ export default function DashboardLibrary() {
 	const queryClient = useQueryClient();
 	const { user, hasSpecificPermission } = useAuth();
 
-	// Auto-refresh permissions every 30 seconds to catch role changes
+	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
+
+	// Guard permission - redirect jika tidak ada akses
+	const { hasPermission: hasLibraryAccess, isLoading: isPermissionLoading } =
+		usePermissionGuardAny(['library.view', 'library.view_others']);
 
 	// Helper function to check if user can edit/delete library item
 	const canEditLibraryItem = (item: LibraryItem) => {
@@ -165,6 +171,26 @@ export default function DashboardLibrary() {
 			} successfully`,
 		});
 	};
+
+	// Show loading jika permission masih loading
+	if (isPermissionLoading) {
+		return (
+			<DashboardLayout title="Library">
+				<div className="flex items-center justify-center h-64">
+					<div className="flex items-center space-x-2">
+						<Loader2 className="h-6 w-6 animate-spin" />
+						<span>Loading permissions...</span>
+					</div>
+				</div>
+			</DashboardLayout>
+		);
+	}
+
+	// Redirect sudah dihandle di usePermissionGuardAny
+	// Tapi tetap return early untuk safety
+	if (!hasLibraryAccess) {
+		return null;
+	}
 
 	return (
 		<DashboardLayout title="Library">
@@ -302,7 +328,7 @@ export default function DashboardLibrary() {
 						</DialogTitle>
 					</DialogHeader>
 					<MediaUploader
-						item={editingItem}
+						item={editingItem as any}
 						onSave={handleItemSaved}
 						onCancel={closeUploader}
 					/>

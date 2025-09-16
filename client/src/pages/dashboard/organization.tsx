@@ -16,6 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { usePagination } from '@/hooks/use-pagination';
+import { usePermissionGuard } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
@@ -222,8 +223,14 @@ export default function DashboardOrganization() {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
-	// Auto-refresh permissions every 30 seconds to catch role changes
+	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
+
+	// Guard permission - redirect jika tidak ada akses
+	const {
+		hasPermission: hasOrganizationAccess,
+		isLoading: isPermissionLoading,
+	} = usePermissionGuard('organization.view');
 
 	// Query members and periods
 	const { data: membersData, isLoading: isMembersLoading } = useQuery({
@@ -796,6 +803,26 @@ export default function DashboardOrganization() {
 			positions: newPositions,
 		});
 	};
+
+	// Show loading jika permission masih loading
+	if (isPermissionLoading) {
+		return (
+			<DashboardLayout title="Organization Structure">
+				<div className="flex items-center justify-center h-64">
+					<div className="flex items-center space-x-2">
+						<Loader2 className="h-6 w-6 animate-spin" />
+						<span>Loading permissions...</span>
+					</div>
+				</div>
+			</DashboardLayout>
+		);
+	}
+
+	// Redirect sudah dihandle di usePermissionGuard
+	// Tapi tetap return early untuk safety
+	if (!hasOrganizationAccess) {
+		return null;
+	}
 
 	return (
 		<DashboardLayout title="Organization Structure">
