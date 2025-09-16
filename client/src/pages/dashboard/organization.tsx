@@ -830,12 +830,13 @@ export default function DashboardOrganization() {
 				<h1 className="text-xl lg:text-2xl font-bold">
 					Organization Structure Management
 				</h1>
-				{activeTab === 'members' && hasSpecificPermission('users.create') && (
-					<Button onClick={handleNewMember}>
-						<Users className="h-4 w-4 mr-2" />
-						Add Member
-					</Button>
-				)}
+				{activeTab === 'members' &&
+					hasSpecificPermission('organization.manage_members') && (
+						<Button onClick={handleNewMember}>
+							<Users className="h-4 w-4 mr-2" />
+							Add Member
+						</Button>
+					)}
 			</div>
 
 			<Tabs
@@ -959,7 +960,9 @@ export default function DashboardOrganization() {
 														</div>
 													</div>
 													<div className="flex space-x-2">
-														{hasSpecificPermission('users.edit') && (
+														{hasSpecificPermission(
+															'organization.manage_members'
+														) && (
 															<Button
 																variant="outline"
 																size="sm"
@@ -968,7 +971,9 @@ export default function DashboardOrganization() {
 																<Edit className="h-4 w-4" />
 															</Button>
 														)}
-														{hasSpecificPermission('users.delete') && (
+														{hasSpecificPermission(
+															'organization.manage_members'
+														) && (
 															<Button
 																variant="outline"
 																size="sm"
