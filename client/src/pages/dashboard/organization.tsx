@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import OrganizationEditor from '@/components/dashboard/organization-editor';
 import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -236,7 +237,7 @@ export default function DashboardOrganization() {
 	const {
 		hasPermission: hasOrganizationAccess,
 		isLoading: isPermissionLoading,
-	} = usePermissionGuardAny(['organization.view']);
+	} = usePermissionGuardAny(['organization.view', 'organization.edit']);
 
 	// Query members and periods
 	const { data: membersData, isLoading: isMembersLoading } = useQuery({
@@ -1251,7 +1252,12 @@ export default function DashboardOrganization() {
 				</TabsContent>
 			</Tabs>
 
-			{/* Removed OrganizationEditor since organization.edit is deprecated */}
+			<OrganizationEditor
+				isOpen={isEditorOpen}
+				onClose={closeEditor}
+				member={editingMember}
+				onSaved={handleMemberSaved}
+			/>
 
 			<DivisionEditor
 				isOpen={isDivisionEditorOpen}
