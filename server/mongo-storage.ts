@@ -998,12 +998,7 @@ async function initializeDefaultPermissions() {
 				description: 'Melihat struktur organisasi',
 				category: 'organization',
 			},
-			{
-				name: 'organization.edit',
-				displayName: 'Edit Organization',
-				description: 'Mengedit struktur organisasi',
-				category: 'organization',
-			},
+			// Deprecated: 'organization.edit' removed in favor of granular permissions
 			{
 				name: 'organization.manage_periods',
 				displayName: 'Manage Periods',

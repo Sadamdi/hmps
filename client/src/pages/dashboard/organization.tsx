@@ -1,5 +1,4 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
-import OrganizationEditor from '@/components/dashboard/organization-editor';
 import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -75,12 +74,14 @@ function SortablePositionItem({
 	onMoveDown,
 	onRemove,
 	totalPositions,
+	canEdit,
 }: {
 	position: Position;
 	onMoveUp: () => void;
 	onMoveDown: () => void;
 	onRemove: () => void;
 	totalPositions: number;
+	canEdit: boolean;
 }) {
 	const {
 		attributes,
@@ -105,40 +106,45 @@ function SortablePositionItem({
 			}`}>
 			<div className="flex items-center gap-3">
 				<div
-					{...attributes}
-					{...listeners}
-					className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded">
+					{...(canEdit ? { ...attributes, ...listeners } : {})}
+					className={`p-1 rounded ${
+						canEdit
+							? 'cursor-grab active:cursor-grabbing hover:bg-gray-200'
+							: ''
+					}`}>
 					<GripVertical className="h-4 w-4 text-gray-400" />
 				</div>
 				<span className="font-medium">{position.name}</span>
 			</div>
 			<div className="flex items-center gap-2">
 				<span className="text-sm text-gray-500">Order: {position.order}</span>
-				<div className="flex items-center gap-1">
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={onMoveUp}
-						disabled={position.order === 1}
-						className="h-auto p-1 text-gray-600 hover:text-gray-800">
-						<ChevronUp className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={onMoveDown}
-						disabled={position.order === totalPositions}
-						className="h-auto p-1 text-gray-600 hover:text-gray-800">
-						<ChevronDown className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={onRemove}
-						className="h-auto p-1 text-red-600 hover:text-red-700">
-						<X className="h-4 w-4" />
-					</Button>
-				</div>
+				{canEdit && (
+					<div className="flex items-center gap-1">
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onMoveUp}
+							disabled={position.order === 1}
+							className="h-auto p-1 text-gray-600 hover:text-gray-800">
+							<ChevronUp className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onMoveDown}
+							disabled={position.order === totalPositions}
+							className="h-auto p-1 text-gray-600 hover:text-gray-800">
+							<ChevronDown className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onRemove}
+							className="h-auto p-1 text-red-600 hover:text-red-700">
+							<X className="h-4 w-4" />
+						</Button>
+					</div>
+				)}
 			</div>
 		</div>
 	);
@@ -230,7 +236,7 @@ export default function DashboardOrganization() {
 	const {
 		hasPermission: hasOrganizationAccess,
 		isLoading: isPermissionLoading,
-	} = usePermissionGuardAny(['organization.view', 'organization.edit']);
+	} = usePermissionGuardAny(['organization.view']);
 
 	// Query members and periods
 	const { data: membersData, isLoading: isMembersLoading } = useQuery({
@@ -1098,6 +1104,9 @@ export default function DashboardOrganization() {
 															onRemove={() =>
 																handleRemovePosition(position.name)
 															}
+															canEdit={hasSpecificPermission(
+																'organization.manage_positions'
+															)}
 														/>
 													))}
 												</div>
@@ -1242,12 +1251,7 @@ export default function DashboardOrganization() {
 				</TabsContent>
 			</Tabs>
 
-			<OrganizationEditor
-				isOpen={isEditorOpen}
-				onClose={closeEditor}
-				member={editingMember}
-				onSaved={handleMemberSaved}
-			/>
+			{/* Removed OrganizationEditor since organization.edit is deprecated */}
 
 			<DivisionEditor
 				isOpen={isDivisionEditorOpen}
