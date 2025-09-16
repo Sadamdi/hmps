@@ -20,7 +20,7 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Loader2, Save } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Save } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface SiteSettings {
@@ -87,6 +87,9 @@ export default function SettingsPage() {
 		newPassword: '',
 		confirmPassword: '',
 	});
+	const [showCurrent, setShowCurrent] = useState(false);
+	const [showNew, setShowNew] = useState(false);
+	const [showConfirm, setShowConfirm] = useState(false);
 
 	// Create default settings
 	const defaultSettings: SiteSettings = {
@@ -813,35 +816,80 @@ export default function SettingsPage() {
 									<CardContent className="space-y-4">
 										<div className="space-y-2">
 											<Label htmlFor="currentPassword">Current Password</Label>
-											<Input
-												id="currentPassword"
-												name="currentPassword"
-												type="password"
-												value={passwordData.currentPassword}
-												onChange={handlePasswordChange}
-											/>
+											<div className="relative">
+												<Input
+													id="currentPassword"
+													name="currentPassword"
+													type={showCurrent ? 'text' : 'password'}
+													value={passwordData.currentPassword}
+													onChange={handlePasswordChange}
+												/>
+												<button
+													type="button"
+													className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+													onClick={() => setShowCurrent((v) => !v)}
+													aria-label={
+														showCurrent ? 'Hide password' : 'Show password'
+													}>
+													{showCurrent ? (
+														<EyeOff className="h-4 w-4" />
+													) : (
+														<Eye className="h-4 w-4" />
+													)}
+												</button>
+											</div>
 										</div>
 										<div className="space-y-2">
 											<Label htmlFor="newPassword">New Password</Label>
-											<Input
-												id="newPassword"
-												name="newPassword"
-												type="password"
-												value={passwordData.newPassword}
-												onChange={handlePasswordChange}
-											/>
+											<div className="relative">
+												<Input
+													id="newPassword"
+													name="newPassword"
+													type={showNew ? 'text' : 'password'}
+													value={passwordData.newPassword}
+													onChange={handlePasswordChange}
+												/>
+												<button
+													type="button"
+													className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+													onClick={() => setShowNew((v) => !v)}
+													aria-label={
+														showNew ? 'Hide password' : 'Show password'
+													}>
+													{showNew ? (
+														<EyeOff className="h-4 w-4" />
+													) : (
+														<Eye className="h-4 w-4" />
+													)}
+												</button>
+											</div>
 										</div>
 										<div className="space-y-2">
 											<Label htmlFor="confirmPassword">
 												Confirm New Password
 											</Label>
-											<Input
-												id="confirmPassword"
-												name="confirmPassword"
-												type="password"
-												value={passwordData.confirmPassword}
-												onChange={handlePasswordChange}
-											/>
+											<div className="relative">
+												<Input
+													id="confirmPassword"
+													name="confirmPassword"
+													type={showConfirm ? 'text' : 'password'}
+													value={passwordData.confirmPassword}
+													onChange={handlePasswordChange}
+												/>
+												<button
+													type="button"
+													className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+													onClick={() => setShowConfirm((v) => !v)}
+													aria-label={
+														showConfirm ? 'Hide password' : 'Show password'
+													}>
+													{showConfirm ? (
+														<EyeOff className="h-4 w-4" />
+													) : (
+														<Eye className="h-4 w-4" />
+													)}
+												</button>
+											</div>
 										</div>
 										<Button
 											onClick={changePassword}

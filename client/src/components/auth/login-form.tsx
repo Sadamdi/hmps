@@ -19,6 +19,7 @@ export default function LoginForm() {
 	const { user, login, isLoading } = useAuth();
 	const { handleError } = useErrorHandler();
 	const [, navigate] = useLocation();
+	const [showPassword, setShowPassword] = useState(false);
 
 	// Redirect ke dashboard jika sudah login
 	useEffect(() => {
@@ -140,15 +141,26 @@ export default function LoginForm() {
 
 						<div className="space-y-2">
 							<Label htmlFor="password">Password</Label>
-							<Input
-								id="password"
-								type="password"
-								value={password}
-								onChange={(e) => setPassword(e.target.value)}
-								required
-								autoComplete="current-password"
-								disabled={isRateLimited}
-							/>
+							<div className="relative">
+								<Input
+									id="password"
+									type={showPassword ? 'text' : 'password'}
+									value={password}
+									onChange={(e) => setPassword(e.target.value)}
+									required
+									autoComplete="current-password"
+									disabled={isRateLimited}
+								/>
+								<button
+									type="button"
+									className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+									onClick={() => setShowPassword((v: boolean) => !v)}
+									disabled={isRateLimited}
+									aria-label={showPassword ? 'Hide password' : 'Show password'}>
+									{/* Replace emoji placeholders with icons if available */}
+									<span className="h-4 w-4">{showPassword ? '🙈' : '👁️'}</span>
+								</button>
+							</div>
 						</div>
 
 						<div className="flex items-center justify-between">
