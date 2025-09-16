@@ -2292,6 +2292,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	);
 
+	// Public (authenticated) role levels: expose minimal info for UI hierarchy and filtering
+	app.get('/api/roles/levels', authenticate, async (req, res) => {
+		try {
+			const roles = await mongoStorage.getAllRoles();
+			const minimal = roles
+				.filter((r: any) => typeof r?.level === 'number')
+				.map((r: any) => ({
+					_id: r._id,
+					name: r.name,
+					displayName: r.displayName,
+					level: r.level,
+				}));
+			res.json(minimal);
+		} catch (error) {
+			console.error('Error getting role levels:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	// Roles that current user is allowed to assign (no need roles.view)
 	// Returned with requesterLevel to support consistent client-side logic
 	app.get('/api/roles/assignable', authenticate, async (req, res) => {

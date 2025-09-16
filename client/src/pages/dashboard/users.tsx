@@ -80,9 +80,9 @@ export default function UsersPage() {
 		placeholderData: [],
 	});
 
-	// Fetch roles to get current hierarchy
+	// Fetch role levels for hierarchy (no roles.view required)
 	const { data: roles = [] } = useQuery({
-		queryKey: ['/api/roles'],
+		queryKey: ['/api/roles/levels'],
 		placeholderData: [],
 	});
 
