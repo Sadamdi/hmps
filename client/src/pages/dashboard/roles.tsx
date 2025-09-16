@@ -1,8 +1,7 @@
 import { Loader2 } from 'lucide-react';
-import ProtectedRoute from '../../components/auth/protected-route';
 import DashboardLayout from '../../components/dashboard/dashboard-layout';
 import RoleManagement from '../../components/dashboard/role-management';
-import { usePermissionGuard } from '../../hooks/use-permission-guard';
+import { usePermissionGuardAny } from '../../hooks/use-permission-guard';
 import { usePermissionRefresh } from '../../hooks/use-permission-refresh';
 import { useAuth } from '../../lib/auth';
 
@@ -14,7 +13,7 @@ export default function RolesPage() {
 
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasRoleAccess, isLoading: isPermissionLoading } =
-		usePermissionGuard('roles.view');
+		usePermissionGuardAny(['roles.view', 'roles.edit', 'roles.create']);
 
 	if (!user) {
 		return null;
@@ -41,10 +40,8 @@ export default function RolesPage() {
 	}
 
 	return (
-		<ProtectedRoute allowedRoles={['owner', 'admin']}>
-			<DashboardLayout title="Role Management">
-				<RoleManagement userRole={user.role} />
-			</DashboardLayout>
-		</ProtectedRoute>
+		<DashboardLayout title="Role Management">
+			<RoleManagement userRole={user.role} />
+		</DashboardLayout>
 	);
 }

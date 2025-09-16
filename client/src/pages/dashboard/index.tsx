@@ -15,6 +15,7 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { usePermissionGuard } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
@@ -55,8 +56,12 @@ export default function Dashboard() {
 	const { user, hasSpecificPermission } = useAuth();
 	const [, setLocation] = useLocation();
 
-	// Auto-refresh permissions every 30 seconds to catch role changes
+	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
+
+	// Guard permission - redirect jika tidak ada akses
+	const { hasPermission: hasDashboardAccess, isLoading: isPermissionLoading } =
+		usePermissionGuard('dashboard.view');
 
 	// Dashboard stats
 	const {
@@ -91,6 +96,7 @@ export default function Dashboard() {
 		retry: 3,
 		retryDelay: 2000,
 		placeholderData: { totalArticles: 0, totalMediaItems: 0, totalMembers: 0 },
+		enabled: hasSpecificPermission('dashboard.stats'), // Only fetch if user has permission
 	});
 
 	// Recent activities (limited to 3 for dashboard)
@@ -121,6 +127,7 @@ export default function Dashboard() {
 			staleTime: 2000, // 2 seconds
 			retry: 2,
 			retryDelay: 1000,
+			enabled: hasSpecificPermission('dashboard.activities'), // Only fetch if user has permission
 		});
 
 	// All activities for modal
@@ -148,7 +155,8 @@ export default function Dashboard() {
 					return [];
 				}
 			},
-			enabled: showAllActivities, // Only fetch when modal is opened
+			enabled:
+				showAllActivities && hasSpecificPermission('dashboard.activities'), // Only fetch when modal is opened and user has permission
 			refetchInterval: 5000,
 			staleTime: 2000,
 			retry: 2,
@@ -213,6 +221,26 @@ export default function Dashboard() {
 			return `${Math.floor(diffInMinutes / 60)} jam lalu`;
 		return `${Math.floor(diffInMinutes / 1440)} hari lalu`;
 	};
+
+	// Show loading jika permission masih loading
+	if (isPermissionLoading) {
+		return (
+			<DashboardLayout title="Dashboard">
+				<div className="flex items-center justify-center h-64">
+					<div className="flex items-center space-x-2">
+						<Loader2 className="h-6 w-6 animate-spin" />
+						<span>Loading permissions...</span>
+					</div>
+				</div>
+			</DashboardLayout>
+		);
+	}
+
+	// Redirect sudah dihandle di usePermissionGuard
+	// Tapi tetap return early untuk safety
+	if (!hasDashboardAccess) {
+		return null;
+	}
 
 	return (
 		<DashboardLayout title="Dashboard">
@@ -296,18 +324,28 @@ export default function Dashboard() {
 								Latest actions in the system
 							</p>
 						</div>
-						{recentActivities.length > 0 && (
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={() => setShowAllActivities(true)}>
-								<Eye className="h-4 w-4 mr-1" />
-								Lihat Selengkapnya
-							</Button>
-						)}
+						{recentActivities.length > 0 &&
+							hasSpecificPermission('dashboard.activities') && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setShowAllActivities(true)}>
+									<Eye className="h-4 w-4 mr-1" />
+									Lihat Selengkapnya
+								</Button>
+							)}
 					</CardHeader>
 					<CardContent>
-						{activitiesLoading ? (
+						{!hasSpecificPermission('dashboard.activities') ? (
+							<div className="text-center py-8">
+								<div className="text-gray-400 text-sm">
+									You do not have permission to view activities
+									<div className="text-xs text-gray-300 mt-1">
+										Contact your administrator for access
+									</div>
+								</div>
+							</div>
+						) : activitiesLoading ? (
 							<div className="flex items-center justify-center py-8">
 								<Loader2 className="h-6 w-6 animate-spin text-gray-400" />
 							</div>
@@ -453,7 +491,9 @@ export default function Dashboard() {
 
 			{/* All Activities Modal */}
 			<Dialog
-				open={showAllActivities}
+				open={
+					showAllActivities && hasSpecificPermission('dashboard.activities')
+				}
 				onOpenChange={setShowAllActivities}>
 				<DialogContent className="max-w-2xl max-h-[80vh]">
 					<DialogHeader>

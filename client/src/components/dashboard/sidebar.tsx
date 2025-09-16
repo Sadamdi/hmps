@@ -87,6 +87,7 @@ export default function Sidebar({
 			active: location.startsWith('/dashboard/content'),
 			requirePermission: 'content.view',
 		},
+
 		{
 			label: 'User Management',
 			icon: <UserCog className="h-5 w-5" />,
@@ -159,11 +160,71 @@ export default function Sidebar({
 					<nav className="flex-1 p-4 space-y-1 overflow-y-auto">
 						{navItems.map((item) => {
 							// Check permission-based access
-							if (
-								item.requirePermission &&
-								!hasSpecificPermission(item.requirePermission)
-							) {
-								return null;
+							if (item.requirePermission) {
+								// Handle multiple permissions for some items
+								if (item.requirePermission === 'content.view') {
+									if (
+										!hasSpecificPermission('content.view') &&
+										!hasSpecificPermission('content.edit')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'organization.view') {
+									if (
+										!hasSpecificPermission('organization.view') &&
+										!hasSpecificPermission('organization.edit')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'settings.view') {
+									if (
+										!hasSpecificPermission('settings.view') &&
+										!hasSpecificPermission('settings.edit')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'users.view') {
+									if (
+										!hasSpecificPermission('users.view') &&
+										!hasSpecificPermission('users.view_others') &&
+										!hasSpecificPermission('users.edit') &&
+										!hasSpecificPermission('users.create')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'roles.view') {
+									if (
+										!hasSpecificPermission('roles.view') &&
+										!hasSpecificPermission('roles.edit') &&
+										!hasSpecificPermission('roles.create')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'articles.view') {
+									if (
+										!hasSpecificPermission('articles.view') &&
+										!hasSpecificPermission('articles.view_others') &&
+										!hasSpecificPermission('articles.edit') &&
+										!hasSpecificPermission('articles.create')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'library.view') {
+									if (
+										!hasSpecificPermission('library.view') &&
+										!hasSpecificPermission('library.view_others') &&
+										!hasSpecificPermission('library.edit') &&
+										!hasSpecificPermission('library.create')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'dashboard.view') {
+									if (!hasSpecificPermission('dashboard.view')) {
+										return null;
+									}
+								} else if (!hasSpecificPermission(item.requirePermission)) {
+									return null;
+								}
 							}
 
 							return (

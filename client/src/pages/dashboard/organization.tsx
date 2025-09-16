@@ -16,7 +16,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { usePagination } from '@/hooks/use-pagination';
-import { usePermissionGuard } from '@/hooks/use-permission-guard';
+import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
@@ -230,7 +230,7 @@ export default function DashboardOrganization() {
 	const {
 		hasPermission: hasOrganizationAccess,
 		isLoading: isPermissionLoading,
-	} = usePermissionGuard('organization.view');
+	} = usePermissionGuardAny(['organization.view', 'organization.edit']);
 
 	// Query members and periods
 	const { data: membersData, isLoading: isMembersLoading } = useQuery({

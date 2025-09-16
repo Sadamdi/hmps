@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { usePermissionGuard } from '@/hooks/use-permission-guard';
+import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
@@ -61,7 +61,7 @@ export default function SettingsPage() {
 
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasSettingsAccess, isLoading: isPermissionLoading } =
-		usePermissionGuard('settings.view');
+		usePermissionGuardAny(['settings.view', 'settings.edit']);
 	const { toast } = useToast();
 	const [activeTab, setActiveTab] = useState('general');
 	const [isResetting, setIsResetting] = useState(false);

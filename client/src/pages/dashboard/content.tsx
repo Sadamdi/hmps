@@ -13,7 +13,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { usePermissionGuard } from '@/hooks/use-permission-guard';
+import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 
@@ -71,7 +71,7 @@ export default function Content() {
 
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasContentAccess, isLoading: isPermissionLoading } =
-		usePermissionGuard('content.view');
+		usePermissionGuardAny(['content.view', 'content.edit']);
 
 	const handleEdit = () => {
 		setIsEditing(true);

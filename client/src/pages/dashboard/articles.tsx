@@ -54,7 +54,12 @@ export default function DashboardArticles() {
 
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasArticleAccess, isLoading: isPermissionLoading } =
-		usePermissionGuardAny(['articles.view', 'articles.view_others']);
+		usePermissionGuardAny([
+			'articles.view',
+			'articles.view_others',
+			'articles.edit',
+			'articles.create',
+		]);
 
 	// Helper function to check if user can edit/delete article
 	const canEditArticle = (article: Article) => {
@@ -76,6 +81,9 @@ export default function DashboardArticles() {
 	// Query articles with proper typing
 	const { data: articlesData = [], isLoading } = useQuery({
 		queryKey: ['/api/articles/manage'],
+		refetchOnWindowFocus: true,
+		refetchOnMount: true,
+		staleTime: 0, // Always fetch fresh data
 	});
 
 	// Type assertion for articles array

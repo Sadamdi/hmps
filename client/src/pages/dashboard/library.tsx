@@ -59,7 +59,12 @@ export default function DashboardLibrary() {
 
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasLibraryAccess, isLoading: isPermissionLoading } =
-		usePermissionGuardAny(['library.view', 'library.view_others']);
+		usePermissionGuardAny([
+			'library.view',
+			'library.view_others',
+			'library.edit',
+			'library.create',
+		]);
 
 	// Helper function to check if user can edit/delete library item
 	const canEditLibraryItem = (item: LibraryItem) => {
@@ -81,6 +86,9 @@ export default function DashboardLibrary() {
 	// Query library items
 	const { data: libraryItems = [], isLoading } = useQuery<LibraryItem[]>({
 		queryKey: ['/api/library/manage'],
+		refetchOnWindowFocus: true,
+		refetchOnMount: true,
+		staleTime: 0, // Always fetch fresh data
 	});
 
 	// Delete library item mutation

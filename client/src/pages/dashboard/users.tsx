@@ -45,7 +45,12 @@ export default function UsersPage() {
 
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasUserAccess, isLoading: isPermissionLoading } =
-		usePermissionGuardAny(['users.view', 'users.view_others']);
+		usePermissionGuardAny([
+			'users.view',
+			'users.view_others',
+			'users.edit',
+			'users.create',
+		]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
 	const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
