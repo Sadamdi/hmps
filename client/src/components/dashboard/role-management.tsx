@@ -369,7 +369,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 	const handleCreateRole = async () => {
 		try {
 			// Validasi level yang dipilih harus di bawah (angka lebih besar) dari level user
-			if (newRole.level <= getUserLevel(userRole)) {
+			if (newRole.level <= userLevelVal) {
 				toast({
 					title: 'Tidak diizinkan',
 					description:
@@ -379,41 +379,8 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 				return;
 			}
 
-			// Siapkan pergeseran level bila level target sudah terisi
-			// Geser semua role dengan level >= level baru ke +1 (mulai dari level terbesar agar tidak konflik)
-			const desiredLevel = newRole.level;
-			const rolesToShift = roles
-				.filter((r) => r.level >= desiredLevel)
-				.sort((a, b) => b.level - a.level);
-
-			for (const r of rolesToShift) {
-				// Skip jika pergeseran akan menaikkan role ke level di atas user (bukan masalah, semakin besar angkanya artinya lebih rendah, aman)
-				const resp = await fetch(`/api/roles/${r._id}`, {
-					method: 'PUT',
-					headers: {
-						'Content-Type': 'application/json',
-					},
-					credentials: 'include',
-					body: JSON.stringify({
-						level: r.level + 1,
-						displayName: r.displayName,
-						description: r.description,
-						permissions: r.permissions,
-					}),
-				});
-				if (!resp.ok) {
-					const err = await resp.json().catch(() => ({}));
-					toast({
-						title: 'Error',
-						description: err.message || 'Gagal menggeser level role yang ada',
-						variant: 'destructive',
-					});
-					return;
-				}
-			}
-
-			// Setelah ruang tersedia, buat role baru
-			const response = await fetch('/api/roles', {
+			// Delegasikan shifting ke server
+			const response = await fetch('/api/roles/create-with-shift', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -432,7 +399,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 					name: '',
 					displayName: '',
 					description: '',
-					level: Math.max(userLevelVal + 1, maxExistingLevel + 1),
+					level: userLevelVal + 1,
 					permissions: [],
 				});
 				await fetchRoles();

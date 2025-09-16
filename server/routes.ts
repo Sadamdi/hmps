@@ -2321,6 +2321,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	);
 
+	// Create role with automatic level shifting (requires only roles.create)
+	app.post(
+		'/api/roles/create-with-shift',
+		authenticate,
+		requirePermission('roles.create'),
+		async (req, res) => {
+			try {
+				const { name, displayName, description, level, permissions } = req.body;
+
+				if (!name || !displayName || !level) {
+					return res
+						.status(400)
+						.json({ message: 'Name, displayName, and level are required' });
+				}
+
+				// Get current user level
+				const currentUserRole = await mongoStorage.getRoleByName(
+					(req.user as any)?.role || ''
+				);
+				const userLevel = currentUserRole?.level ?? 999;
+
+				// Only allow creating roles below the user's level (higher numeric)
+				if (typeof level !== 'number' || level <= userLevel) {
+					return res.status(403).json({
+						message:
+							'You can only create roles with a lower privilege (greater level number) than your own',
+					});
+				}
+
+				// Shift roles at and below the desired level: level >= desired -> level + 1 (descending order to avoid conflicts)
+				const allRoles = await mongoStorage.getAllRoles();
+				const toShift = allRoles
+					.filter((r: any) => typeof r.level === 'number' && r.level >= level)
+					.sort((a: any, b: any) => (b.level || 0) - (a.level || 0));
+
+				for (const r of toShift) {
+					await mongoStorage.updateRole(r._id, {
+						level: (r.level as number) + 1,
+					});
+				}
+
+				// Finally, create the new role at desired level
+				const roleData = {
+					name,
+					displayName,
+					description: description || '',
+					level,
+					permissions: permissions || [],
+					createdBy: (req.user as any)?._id || '',
+				};
+
+				const role = await mongoStorage.createRole(roleData);
+				res.status(201).json(role);
+			} catch (error) {
+				console.error('Create role with shift error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
 	app.put(
 		'/api/roles/:id',
 		authenticate,
