@@ -610,53 +610,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	);
 
 	// User management routes
-	app.get(
-		'/api/users',
-		authenticate,
-		authorize(['owner', 'admin']),
-		async (req, res) => {
-			try {
-				const allUsers = await mongoStorage.getAllUsers();
+	app.get('/api/users', authenticate, async (req, res) => {
+		try {
+			const requesterRole = await mongoStorage.getRoleByName(
+				(req.user as any)?.role || ''
+			);
+			const permissions: string[] = requesterRole?.permissions || [];
 
-				// Remove passwords from response
-				const usersWithoutPasswords = allUsers.map((user) => {
-					const { password, ...userWithoutPassword } = user;
-					return userWithoutPassword;
-				});
-
-				res.json(usersWithoutPasswords);
-			} catch (error) {
-				console.error('Get users error:', error);
-				res.status(500).json({ message: 'Internal server error' });
+			if (
+				!permissions.includes('users.view') &&
+				!permissions.includes('users.view_others')
+			) {
+				return res
+					.status(403)
+					.json({ message: 'You do not have permission to view users' });
 			}
+
+			let users = await mongoStorage.getAllUsers();
+			if (
+				permissions.includes('users.view') &&
+				!permissions.includes('users.view_others')
+			) {
+				const myId = (req.user as any)?._id?.toString();
+				users = users.filter((u: any) => u._id?.toString() === myId);
+			}
+
+			// Remove passwords from response
+			const usersWithoutPasswords = users.map((user: any) => {
+				const { password, ...userWithoutPassword } = user;
+				return userWithoutPassword;
+			});
+
+			res.json(usersWithoutPasswords);
+		} catch (error) {
+			console.error('Get users error:', error);
+			res.status(500).json({ message: 'Internal server error' });
 		}
-	);
+	});
 
 	app.post(
 		'/api/users',
 		authenticate,
-		authorize(['owner', 'admin']),
+		requirePermission('users.create'),
 		async (req, res) => {
 			try {
 				const { username, password, name, email, role, division } = req.body;
-
-				// Validate required fields
 				if (!username || !password || !name || !email || !role) {
 					return res.status(400).json({
 						message: 'Username, password, name, email, and role are required',
 					});
 				}
-
-				// Check if username already exists
 				const existingUser = await mongoStorage.getUserByUsername(username);
 				if (existingUser) {
 					return res.status(400).json({ message: 'Username already exists' });
 				}
-
-				// Hash password
 				const hashedPassword = await hashPassword(password);
-
-				// Create user
 				const newUser = await mongoStorage.createUser({
 					username,
 					password: hashedPassword,
@@ -665,8 +673,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					role,
 					division: division || undefined,
 				});
-
-				// Remove password from response
 				const { password: _, ...userWithoutPassword } = newUser;
 				res.status(201).json(userWithoutPassword);
 			} catch (error) {
@@ -679,51 +685,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.put(
 		'/api/users/:id',
 		authenticate,
-		authorize(['owner']),
+		requirePermission('users.edit'),
 		async (req, res) => {
 			try {
 				const userId = req.params.id;
 				const { username, name, email, role, division } = req.body;
-
-				// Validate userId - prevent 'undefined' issues
 				if (!userId || userId === 'undefined') {
 					return res.status(400).json({ message: 'Invalid user ID' });
 				}
-
-				// Check if user exists
 				const existingUser = await mongoStorage.getUserById(userId);
 				if (!existingUser) {
 					return res.status(404).json({ message: 'User not found' });
 				}
-
-				// Check for unique username and email (excluding current user)
-				if (username && username !== existingUser.username) {
-					const userWithSameUsername = await mongoStorage.getUserByUsername(
-						username
-					);
-					if (
-						userWithSameUsername &&
-						userWithSameUsername._id.toString() !== userId
-					) {
-						return res.status(400).json({ message: 'Username already exists' });
-					}
-				}
-
-				// Email uniqueness check disabled for now
-
-				// Prepare updates
 				const updates: any = {};
 				if (username) updates.username = username;
 				if (name) updates.name = name;
 				if (email) updates.email = email;
 				if (role) updates.role = role;
-				if (division) updates.division = division;
-
-				// Update user
+				if (division !== undefined) updates.division = division;
 				const updatedUser = await mongoStorage.updateUser(userId, updates);
-
-				// Remove password from response
-				const { password, ...userWithoutPassword } = updatedUser;
+				const { password: _, ...userWithoutPassword } = updatedUser;
 				res.json(userWithoutPassword);
 			} catch (error) {
 				console.error('Update user error:', error);
@@ -735,32 +716,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.delete(
 		'/api/users/:id',
 		authenticate,
-		authorize(['owner']),
+		requirePermission('users.delete'),
 		async (req, res) => {
 			try {
 				const userId = req.params.id;
-
-				// Validate userId - prevent 'undefined' issues
 				if (!userId || userId === 'undefined') {
 					return res.status(400).json({ message: 'Invalid user ID' });
 				}
-
-				// Check if user exists
 				const existingUser = await mongoStorage.getUserById(userId);
 				if (!existingUser) {
 					return res.status(404).json({ message: 'User not found' });
 				}
-
-				// Prevent deleting own account
-				if (userId === (req.user as UserWithRole)?._id) {
-					return res
-						.status(400)
-						.json({ message: 'Cannot delete your own account' });
-				}
-
-				// Delete user
 				await mongoStorage.deleteUser(userId);
-
 				res.json({ message: 'User deleted successfully' });
 			} catch (error) {
 				console.error('Delete user error:', error);
