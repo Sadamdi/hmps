@@ -13,9 +13,9 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import { UserWithRole } from '@shared/schema';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface UserManagementProps {
 	user: UserWithRole | null;
@@ -37,10 +37,44 @@ export function UserManagement({
 		username: user?.username || '',
 		name: user?.name || '',
 		email: user?.email || '',
-		role: user?.role || 'division_head',
+		role: (user?.role as string) || 'division_head',
 		password: '',
 		confirmPassword: '',
 	});
+
+	// Fetch roles (dinamis)
+	const { data: roles = [] as any[] } = useQuery({
+		queryKey: ['/api/roles'],
+		placeholderData: [],
+	});
+
+	const getRoleLevel = (roleName: string) => {
+		const r = roles.find((x: any) => x?.name === roleName);
+		return typeof r?.level === 'number' ? r.level : 999;
+	};
+
+	const currentUserLevel = useMemo(
+		() => (currentUser ? getRoleLevel(currentUser.role as string) : 999),
+		[currentUser, roles]
+	);
+
+	// Role yang boleh di-assign: level lebih rendah dari current user (angka level lebih besar)
+	const assignableRoles = useMemo(() => {
+		return roles
+			.filter((r: any) => typeof r?.level === 'number')
+			.filter((r: any) => r.level > currentUserLevel)
+			.sort((a: any, b: any) => a.level - b.level);
+	}, [roles, currentUserLevel]);
+
+	// Set default role saat membuat user baru
+	useEffect(() => {
+		if (!user && assignableRoles.length > 0) {
+			setFormData((prev) => ({
+				...prev,
+				role: assignableRoles[0].name as string,
+			}));
+		}
+	}, [user, assignableRoles]);
 
 	// Update local state if user prop changes
 	useEffect(() => {
@@ -49,53 +83,45 @@ export function UserManagement({
 				username: user.username || '',
 				name: user.name || '',
 				email: user.email || '',
-				role: user.role || 'division_head',
+				role: (user.role as string) || formData.role,
 				password: '',
 				confirmPassword: '',
 			});
-		} else {
-			// Reset form for new user
+		} else if (assignableRoles.length > 0) {
 			setFormData({
 				username: '',
 				name: '',
 				email: '',
-				role: 'division_head',
+				role: assignableRoles[0].name as string,
 				password: '',
 				confirmPassword: '',
 			});
 		}
-	}, [user]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [user, assignableRoles]);
 
 	// Create/update user mutation
 	const userMutation = useMutation({
 		mutationFn: async (userData: typeof formData) => {
 			if (user) {
-				// Update existing user - use _id for MongoDB compatibility
-				const userId = (user as any)._id || user.id;
+				const userId = (user as any)._id;
 				return await apiRequest('PUT', `/api/users/${userId}`, userData);
 			} else {
-				// Create new user
 				return await apiRequest('POST', '/api/users', userData);
 			}
 		},
 		onSuccess: async (data) => {
 			queryClient.invalidateQueries({ queryKey: ['/api/users'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
-
-			// Log activity
 			try {
 				const isEdit = !!user;
 				let responseData;
-
-				// Handle response safely
 				if (data && typeof data === 'object' && 'json' in data) {
-					responseData = await data.json();
+					responseData = await (data as any).json();
 				} else {
 					responseData = data;
 				}
-
 				const userId = responseData?._id || responseData?.id || 'unknown';
-
 				if (isEdit) {
 					await logActivity(
 						ActivityTemplates.userUpdated(formData.username, String(userId))
@@ -108,7 +134,6 @@ export function UserManagement({
 			} catch (error) {
 				console.warn('Failed to log user activity:', error);
 			}
-
 			toast({
 				title: 'Success',
 				description: `User ${user ? 'updated' : 'created'} successfully`,
@@ -125,7 +150,7 @@ export function UserManagement({
 		},
 	});
 
-	// Delete user mutation
+	// Delete user mutation (unchanged)
 	const deleteUserMutation = useMutation({
 		mutationFn: async (userId: string | number) => {
 			return await apiRequest('DELETE', `/api/users/${userId}`, {});
@@ -133,25 +158,19 @@ export function UserManagement({
 		onSuccess: async () => {
 			queryClient.invalidateQueries({ queryKey: ['/api/users'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
-
-			// Log activity
 			if (user) {
 				try {
 					await logActivity(
 						ActivityTemplates.userDeleted(
 							user.username,
-							String((user as any)._id || user.id)
+							String((user as any)._id)
 						)
 					);
 				} catch (error) {
 					console.warn('Failed to log delete activity:', error);
 				}
 			}
-
-			toast({
-				title: 'Success',
-				description: 'User deleted successfully',
-			});
+			toast({ title: 'Success', description: 'User deleted successfully' });
 			onSave();
 		},
 		onError: (error: any) => {
@@ -174,8 +193,6 @@ export function UserManagement({
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-
-		// Validation
 		if (!formData.username) {
 			toast({
 				title: 'Error',
@@ -184,8 +201,6 @@ export function UserManagement({
 			});
 			return;
 		}
-
-		// Password validation for new user or if password is being changed
 		if (!user || (formData.password && formData.password.length > 0)) {
 			if (formData.password.length < 6) {
 				toast({
@@ -195,7 +210,6 @@ export function UserManagement({
 				});
 				return;
 			}
-
 			if (formData.password !== formData.confirmPassword) {
 				toast({
 					title: 'Error',
@@ -205,63 +219,10 @@ export function UserManagement({
 				return;
 			}
 		}
-
 		await userMutation.mutateAsync(formData);
 	};
 
-	const handleDelete = async () => {
-		if (!user) return;
-
-		if (
-			window.confirm(
-				'Are you sure you want to delete this user? This action cannot be undone.'
-			)
-		) {
-			// Handle both MongoDB _id and PostgreSQL id
-			const userId = (user as any)._id || user.id;
-
-			console.log('Deleting user with ID:', userId);
-
-			if (!userId) {
-				toast({
-					title: 'Error',
-					description: 'Invalid user ID',
-					variant: 'destructive',
-				});
-				return;
-			}
-
-			await deleteUserMutation.mutateAsync(userId);
-		}
-	};
-
-	// Available roles based on current user's role
-	const availableRoles = () => {
-		if (currentUser?.role === 'owner') {
-			return [
-				{ value: 'owner', label: 'Owner' },
-				{ value: 'admin', label: 'Admin' },
-				{ value: 'ketua', label: 'Ketua Himpunan' },
-				{ value: 'wakil_ketua', label: 'Wakil Ketua Himpunan' },
-				{ value: 'division_head', label: 'Division Head' },
-			];
-		} else if (currentUser?.role === 'admin') {
-			return [
-				{ value: 'admin', label: 'Admin' },
-				{ value: 'ketua', label: 'Ketua Himpunan' },
-				{ value: 'wakil_ketua', label: 'Wakil Ketua Himpunan' },
-				{ value: 'division_head', label: 'Division Head' },
-			];
-		} else if (currentUser?.role === 'ketua' || currentUser?.role === 'wakil_ketua') {
-			return [
-				{ value: 'ketua', label: 'Ketua Himpunan' },
-				{ value: 'wakil_ketua', label: 'Wakil Ketua Himpunan' },
-				{ value: 'division_head', label: 'Division Head' },
-			];
-		}
-		return [];
-	};
-
+	// Render
 	return (
 		<form
 			onSubmit={handleSubmit}
@@ -279,7 +240,6 @@ export function UserManagement({
 						required
 					/>
 				</div>
-
 				<div className="space-y-2">
 					<Label htmlFor="name">Full Name</Label>
 					<Input
@@ -291,7 +251,6 @@ export function UserManagement({
 						disabled={viewOnly}
 					/>
 				</div>
-
 				<div className="space-y-2">
 					<Label htmlFor="email">Email</Label>
 					<Input
@@ -304,7 +263,6 @@ export function UserManagement({
 						disabled={viewOnly}
 					/>
 				</div>
-
 				<div className="space-y-2">
 					<Label htmlFor="role">Role</Label>
 					<Select
@@ -315,17 +273,16 @@ export function UserManagement({
 							<SelectValue placeholder="Select role" />
 						</SelectTrigger>
 						<SelectContent>
-							{availableRoles().map((role) => (
+							{assignableRoles.map((role: any) => (
 								<SelectItem
-									key={role.value}
-									value={role.value}>
-									{role.label}
+									key={role._id}
+									value={role.name}>
+									{role.displayName} (Level {role.level})
 								</SelectItem>
 							))}
 						</SelectContent>
 					</Select>
 				</div>
-
 				{!viewOnly && (
 					<>
 						<div className="space-y-2">
@@ -344,7 +301,6 @@ export function UserManagement({
 								required={!user}
 							/>
 						</div>
-
 						<div className="space-y-2">
 							<Label htmlFor="confirmPassword">Confirm Password</Label>
 							<Input
@@ -360,27 +316,8 @@ export function UserManagement({
 					</>
 				)}
 			</div>
-
 			<div className="flex justify-between">
-				{user && currentUser?.role === 'owner' && !viewOnly ? (
-					<Button
-						type="button"
-						variant="destructive"
-						onClick={handleDelete}
-						disabled={deleteUserMutation.isPending}>
-						{deleteUserMutation.isPending ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Deleting...
-							</>
-						) : (
-							'Delete User'
-						)}
-					</Button>
-				) : (
-					<div></div>
-				)}
-
+				<div></div>
 				<div className="flex space-x-4">
 					<Button
 						type="button"
@@ -388,7 +325,6 @@ export function UserManagement({
 						onClick={onCancel}>
 						{viewOnly ? 'Close' : 'Cancel'}
 					</Button>
-
 					{!viewOnly && (
 						<Button
 							type="submit"
