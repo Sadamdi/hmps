@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
+// import { usePermissionGuardAny } from '@/hooks/use-permission-guard'; // Tidak digunakan lagi
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
@@ -59,9 +59,9 @@ export default function SettingsPage() {
 	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
 
-	// Guard permission - redirect jika tidak ada akses
-	const { hasPermission: hasSettingsAccess, isLoading: isPermissionLoading } =
-		usePermissionGuardAny(['settings.view', 'settings.edit']);
+	// Semua user yang sudah login bisa akses settings (minimal untuk profile)
+	const hasSettingsAccess = true; // Tidak perlu permission guard karena semua user bisa akses profile
+	const isPermissionLoading = false;
 
 	// Check if user can edit settings
 	const canEditSettings = hasSpecificPermission('settings.edit');
