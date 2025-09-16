@@ -54,7 +54,7 @@ interface PasswordChangeData {
 }
 
 export default function SettingsPage() {
-	const { user } = useAuth();
+	const { user, hasSpecificPermission } = useAuth();
 
 	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
@@ -62,9 +62,24 @@ export default function SettingsPage() {
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasSettingsAccess, isLoading: isPermissionLoading } =
 		usePermissionGuardAny(['settings.view', 'settings.edit']);
+
+	// Check if user can edit settings
+	const canEditSettings = hasSpecificPermission('settings.edit');
+
+	// Check if user can view settings (not just profile)
+	const canViewSettings = hasSpecificPermission('settings.view');
 	const { toast } = useToast();
-	const [activeTab, setActiveTab] = useState('general');
+	const [activeTab, setActiveTab] = useState(
+		canViewSettings ? 'general' : 'profile'
+	);
 	const [isResetting, setIsResetting] = useState(false);
+
+	// Update activeTab when permissions change
+	useEffect(() => {
+		if (!canViewSettings && activeTab !== 'profile') {
+			setActiveTab('profile');
+		}
+	}, [canViewSettings, activeTab]);
 
 	// Password change form
 	const [passwordData, setPasswordData] = useState<PasswordChangeData>({
@@ -406,19 +421,43 @@ export default function SettingsPage() {
 	return (
 		<DashboardLayout title="Settings">
 			<div className="mb-6">
-				<h1 className="text-2xl font-bold">Site Settings</h1>
-				<p className="text-gray-600 mt-1">Manage your website configuration</p>
+				<h1 className="text-2xl font-bold">
+					{canViewSettings ? 'Site Settings' : 'Account Settings'}
+				</h1>
+				<p className="text-gray-600 mt-1">
+					{canViewSettings
+						? canEditSettings
+							? 'Manage your website configuration'
+							: 'View website configuration (read-only mode)'
+						: 'Manage your account'}
+				</p>
+				{!canEditSettings && canViewSettings && (
+					<div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+						<p className="text-sm text-yellow-800">
+							<strong>Read-only mode:</strong> You can view settings but cannot
+							make changes. Contact your administrator for edit permissions.
+						</p>
+					</div>
+				)}
 			</div>
 
 			<Tabs
 				value={activeTab}
 				onValueChange={setActiveTab}>
 				<TabsList className="mb-6">
-					<TabsTrigger value="general">General</TabsTrigger>
-					<TabsTrigger value="appearance">Appearance</TabsTrigger>
-					<TabsTrigger value="contact">Contact</TabsTrigger>
-					<TabsTrigger value="links">Links</TabsTrigger>
-					<TabsTrigger value="security">Security</TabsTrigger>
+					{canViewSettings && (
+						<TabsTrigger value="general">General</TabsTrigger>
+					)}
+					{canViewSettings && (
+						<TabsTrigger value="appearance">Appearance</TabsTrigger>
+					)}
+					{canViewSettings && (
+						<TabsTrigger value="contact">Contact</TabsTrigger>
+					)}
+					{canViewSettings && <TabsTrigger value="links">Links</TabsTrigger>}
+					{canViewSettings && (
+						<TabsTrigger value="security">Security</TabsTrigger>
+					)}
 					<TabsTrigger value="profile">Profile</TabsTrigger>
 				</TabsList>
 
@@ -444,6 +483,7 @@ export default function SettingsPage() {
 											name="siteName"
 											value={formData.siteName}
 											onChange={handleInputChange}
+											disabled={!canEditSettings}
 										/>
 									</div>
 									<div className="space-y-2">
@@ -453,6 +493,7 @@ export default function SettingsPage() {
 											name="navbarBrand"
 											value={formData.navbarBrand}
 											onChange={handleInputChange}
+											disabled={!canEditSettings}
 										/>
 										<p className="text-sm text-gray-500">
 											Text displayed in the navigation bar
@@ -466,6 +507,7 @@ export default function SettingsPage() {
 											name="siteTagline"
 											value={formData.siteTagline}
 											onChange={handleInputChange}
+											disabled={!canEditSettings}
 										/>
 										<p className="text-sm text-gray-500">
 											Displayed on the homepage hero section
@@ -479,6 +521,7 @@ export default function SettingsPage() {
 											value={formData.siteDescription}
 											onChange={handleInputChange}
 											rows={3}
+											disabled={!canEditSettings}
 										/>
 									</div>
 									<div className="space-y-2">
@@ -488,6 +531,7 @@ export default function SettingsPage() {
 											name="footerText"
 											value={formData.footerText}
 											onChange={handleInputChange}
+											disabled={!canEditSettings}
 										/>
 									</div>
 								</CardContent>
@@ -527,6 +571,7 @@ export default function SettingsPage() {
 											type="email"
 											value={formData.contactEmail}
 											onChange={handleInputChange}
+											disabled={!canEditSettings}
 										/>
 									</div>
 									<div className="space-y-2">
@@ -537,6 +582,7 @@ export default function SettingsPage() {
 											value={formData.address}
 											onChange={handleInputChange}
 											rows={3}
+											disabled={!canEditSettings}
 										/>
 									</div>
 									<h3 className="text-lg font-medium mt-6 mb-3">
@@ -551,6 +597,7 @@ export default function SettingsPage() {
 												value={formData.socialLinks?.facebook || ''}
 												onChange={handleInputChange}
 												placeholder="https://facebook.com/yourpage"
+												disabled={!canEditSettings}
 											/>
 										</div>
 										<div className="space-y-2">
@@ -561,6 +608,7 @@ export default function SettingsPage() {
 												value={formData.socialLinks?.tiktok || ''}
 												onChange={handleInputChange}
 												placeholder="https://www.tiktok.com/@yourhandle"
+												disabled={!canEditSettings}
 											/>
 										</div>
 										<div className="space-y-2">
@@ -571,6 +619,7 @@ export default function SettingsPage() {
 												value={formData.socialLinks?.instagram || ''}
 												onChange={handleInputChange}
 												placeholder="https://instagram.com/yourprofile"
+												disabled={!canEditSettings}
 											/>
 										</div>
 										<div className="space-y-2">
@@ -581,6 +630,7 @@ export default function SettingsPage() {
 												value={formData.socialLinks?.youtube || ''}
 												onChange={handleInputChange}
 												placeholder="https://youtube.com/yourchannel"
+												disabled={!canEditSettings}
 											/>
 										</div>
 									</div>
@@ -605,6 +655,7 @@ export default function SettingsPage() {
 											value={formData.links?.uinMalang || ''}
 											onChange={handleInputChange}
 											placeholder="https://uin-malang.ac.id/"
+											disabled={!canEditSettings}
 										/>
 									</div>
 									<div className="space-y-2">
@@ -617,6 +668,7 @@ export default function SettingsPage() {
 											value={formData.links?.fakultasSainsTeknologi || ''}
 											onChange={handleInputChange}
 											placeholder="https://saintek.uin-malang.ac.id/"
+											disabled={!canEditSettings}
 										/>
 									</div>
 									<div className="space-y-2">
@@ -629,6 +681,7 @@ export default function SettingsPage() {
 											value={formData.links?.jurusanTeknikInformatika || ''}
 											onChange={handleInputChange}
 											placeholder="https://informatika.uin-malang.ac.id/"
+											disabled={!canEditSettings}
 										/>
 									</div>
 									<div className="space-y-2">
@@ -639,6 +692,7 @@ export default function SettingsPage() {
 											value={formData.links?.perpustakaan || ''}
 											onChange={handleInputChange}
 											placeholder="https://library.uin-malang.ac.id/"
+											disabled={!canEditSettings}
 										/>
 									</div>
 								</CardContent>
@@ -670,6 +724,7 @@ export default function SettingsPage() {
 												onCheckedChange={(checked) =>
 													handleSwitchChange('enableRegistration', checked)
 												}
+												disabled={!canEditSettings}
 											/>
 										</div>
 										<div className="flex items-center justify-between">
@@ -687,64 +742,9 @@ export default function SettingsPage() {
 												onCheckedChange={(checked) =>
 													handleSwitchChange('maintenanceMode', checked)
 												}
+												disabled={!canEditSettings}
 											/>
 										</div>
-									</CardContent>
-								</Card>
-
-								<Card>
-									<CardHeader>
-										<CardTitle>Change Password</CardTitle>
-										<CardDescription>
-											Update your account password
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										<div className="space-y-2">
-											<Label htmlFor="currentPassword">Current Password</Label>
-											<Input
-												id="currentPassword"
-												name="currentPassword"
-												type="password"
-												value={passwordData.currentPassword}
-												onChange={handlePasswordChange}
-											/>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="newPassword">New Password</Label>
-											<Input
-												id="newPassword"
-												name="newPassword"
-												type="password"
-												value={passwordData.newPassword}
-												onChange={handlePasswordChange}
-											/>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="confirmPassword">
-												Confirm New Password
-											</Label>
-											<Input
-												id="confirmPassword"
-												name="confirmPassword"
-												type="password"
-												value={passwordData.confirmPassword}
-												onChange={handlePasswordChange}
-											/>
-										</div>
-										<Button
-											onClick={changePassword}
-											disabled={changePasswordMutation.isPending}
-											className="mt-2">
-											{changePasswordMutation.isPending ? (
-												<>
-													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-													Changing...
-												</>
-											) : (
-												'Change Password'
-											)}
-										</Button>
 									</CardContent>
 								</Card>
 
@@ -773,7 +773,7 @@ export default function SettingsPage() {
 															resetToDefault();
 														}
 													}}
-													disabled={isResetting}>
+													disabled={isResetting || !canEditSettings}>
 													{isResetting ? (
 														<>
 															<Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -791,41 +791,107 @@ export default function SettingsPage() {
 						</TabsContent>
 
 						<TabsContent value="profile">
-							<UserProfileEditor
-								user={user}
-								onUpdate={() => {
-									// Refresh user data
-									queryClient.invalidateQueries({
-										queryKey: ['/api/auth/me'],
-									});
-								}}
-							/>
+							<div className="space-y-6">
+								<UserProfileEditor
+									user={user}
+									onUpdate={() => {
+										// Refresh user data
+										queryClient.invalidateQueries({
+											queryKey: ['/api/auth/me'],
+										});
+									}}
+								/>
+
+								{/* Change Password Section */}
+								<Card>
+									<CardHeader>
+										<CardTitle>Change Password</CardTitle>
+										<CardDescription>
+											Update your account password
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-4">
+										<div className="space-y-2">
+											<Label htmlFor="currentPassword">Current Password</Label>
+											<Input
+												id="currentPassword"
+												name="currentPassword"
+												type="password"
+												value={passwordData.currentPassword}
+												onChange={handlePasswordChange}
+												disabled={!canEditSettings}
+											/>
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="newPassword">New Password</Label>
+											<Input
+												id="newPassword"
+												name="newPassword"
+												type="password"
+												value={passwordData.newPassword}
+												onChange={handlePasswordChange}
+												disabled={!canEditSettings}
+											/>
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="confirmPassword">
+												Confirm New Password
+											</Label>
+											<Input
+												id="confirmPassword"
+												name="confirmPassword"
+												type="password"
+												value={passwordData.confirmPassword}
+												onChange={handlePasswordChange}
+												disabled={!canEditSettings}
+											/>
+										</div>
+										<Button
+											onClick={changePassword}
+											disabled={
+												changePasswordMutation.isPending || !canEditSettings
+											}
+											className="mt-2">
+											{changePasswordMutation.isPending ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Changing...
+												</>
+											) : (
+												'Change Password'
+											)}
+										</Button>
+									</CardContent>
+								</Card>
+							</div>
 						</TabsContent>
 					</>
 				)}
 			</Tabs>
 
-			{activeTab !== 'security' && (
-				<div className="mt-6 flex justify-end">
-					<Button
-						onClick={saveSettings}
-						disabled={
-							updateSettingsMutation.isPending || isLoading || !formData
-						}>
-						{updateSettingsMutation.isPending ? (
-							<>
-								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								Saving...
-							</>
-						) : (
-							<>
-								<Save className="mr-2 h-4 w-4" />
-								Save Changes
-							</>
-						)}
-					</Button>
-				</div>
-			)}
+			{activeTab !== 'security' &&
+				activeTab !== 'profile' &&
+				canEditSettings && (
+					<div className="mt-6 flex justify-end">
+						<Button
+							onClick={saveSettings}
+							disabled={
+								updateSettingsMutation.isPending || isLoading || !formData
+							}>
+							{updateSettingsMutation.isPending ? (
+								<>
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									Saving...
+								</>
+							) : (
+								<>
+									<Save className="mr-2 h-4 w-4" />
+									Save Changes
+								</>
+							)}
+						</Button>
+					</div>
+				)}
 		</DashboardLayout>
 	);
 }
