@@ -94,6 +94,9 @@ function SortableRoleItem({
 	onDelete,
 	getRoleBadgeColor,
 	userRole,
+	allowEdit,
+	allowDelete,
+	allowDnD,
 }: {
 	role: Role;
 	permissions: Permission[];
@@ -102,6 +105,9 @@ function SortableRoleItem({
 	onDelete: (roleId: string) => void;
 	getRoleBadgeColor: (level: number) => string;
 	userRole: string;
+	allowEdit: boolean;
+	allowDelete: boolean;
+	allowDnD: boolean;
 }) {
 	// Helper function to get user level
 	const getUserLevel = (userRole: string) => {
@@ -138,7 +144,8 @@ function SortableRoleItem({
 			<CardHeader>
 				<div className="flex justify-between items-start">
 					<div className="flex items-center gap-3">
-						{canManageRole(role.level) &&
+						{allowDnD &&
+							canManageRole(role.level) &&
 							getUserLevel(userRole) < role.level && (
 								<div
 									{...attributes}
@@ -161,37 +168,41 @@ function SortableRoleItem({
 					<div className="flex gap-2">
 						{canManageRole(role.level) && (
 							<>
-								<Button
-									variant="outline"
-									size="sm"
-									onClick={() => onEdit(role)}>
-									<Edit className="h-4 w-4" />
-								</Button>
-								<AlertDialog>
-									<AlertDialogTrigger asChild>
-										<Button
-											variant="outline"
-											size="sm">
-											<Trash2 className="h-4 w-4" />
-										</Button>
-									</AlertDialogTrigger>
-									<AlertDialogContent>
-										<AlertDialogHeader>
-											<AlertDialogTitle>Hapus Role</AlertDialogTitle>
-											<AlertDialogDescription>
-												Apakah Anda yakin ingin menghapus role "
-												{role.displayName}"? Tindakan ini tidak dapat
-												dibatalkan.
-											</AlertDialogDescription>
-										</AlertDialogHeader>
-										<AlertDialogFooter>
-											<AlertDialogCancel>Batal</AlertDialogCancel>
-											<AlertDialogAction onClick={() => onDelete(role._id)}>
-												Hapus
-											</AlertDialogAction>
-										</AlertDialogFooter>
-									</AlertDialogContent>
-								</AlertDialog>
+								{allowEdit && (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => onEdit(role)}>
+										<Edit className="h-4 w-4" />
+									</Button>
+								)}
+								{allowDelete && (
+									<AlertDialog>
+										<AlertDialogTrigger asChild>
+											<Button
+												variant="outline"
+												size="sm">
+												<Trash2 className="h-4 w-4" />
+											</Button>
+										</AlertDialogTrigger>
+										<AlertDialogContent>
+											<AlertDialogHeader>
+												<AlertDialogTitle>Hapus Role</AlertDialogTitle>
+												<AlertDialogDescription>
+													Apakah Anda yakin ingin menghapus role "
+													{role.displayName}"? Tindakan ini tidak dapat
+													dibatalkan.
+												</AlertDialogDescription>
+											</AlertDialogHeader>
+											<AlertDialogFooter>
+												<AlertDialogCancel>Batal</AlertDialogCancel>
+												<AlertDialogAction onClick={() => onDelete(role._id)}>
+													Hapus
+												</AlertDialogAction>
+											</AlertDialogFooter>
+										</AlertDialogContent>
+									</AlertDialog>
+								)}
 							</>
 						)}
 					</div>
@@ -238,7 +249,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 		permissions: [] as string[],
 	});
 	const { toast } = useToast();
-	const { refreshPermissions } = useAuth();
+	const { refreshPermissions, hasSpecificPermission } = useAuth();
 
 	// Drag and drop sensors
 	const sensors = useSensors(
@@ -271,6 +282,14 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 		const userLevel = userLevels[userRole] || 999;
 		return userLevel < targetLevel;
 	};
+
+	// Permission flags for UI controls
+	const allowCreate = hasSpecificPermission('roles.create');
+	const allowEdit = hasSpecificPermission('roles.edit');
+	const allowDelete = hasSpecificPermission('roles.delete');
+	const allowAssign = hasSpecificPermission('roles.assign');
+	// Drag & drop reordering is privileged, gate behind edit permission
+	const allowDnD = allowEdit;
 
 	useEffect(() => {
 		fetchRoles();
@@ -631,128 +650,130 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 						Kelola roles dan permissions untuk user
 					</p>
 				</div>
-				<Dialog
-					open={isCreateDialogOpen}
-					onOpenChange={setIsCreateDialogOpen}>
-					<DialogTrigger asChild>
-						<Button>
-							<Plus className="h-4 w-4 mr-2" />
-							Tambah Role
-						</Button>
-					</DialogTrigger>
-					<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
-						<DialogHeader>
-							<DialogTitle>Tambah Role Baru</DialogTitle>
-							<DialogDescription>
-								Buat role baru dengan permissions yang sesuai
-							</DialogDescription>
-						</DialogHeader>
-						<div className="space-y-4">
-							<div>
-								<Label htmlFor="name">Nama Role (Unique)</Label>
-								<Input
-									id="name"
-									value={newRole.name}
-									onChange={(e) =>
-										setNewRole({ ...newRole, name: e.target.value })
-									}
-									placeholder="contoh: custom_role"
-								/>
-							</div>
-							<div>
-								<Label htmlFor="displayName">Nama Tampilan</Label>
-								<Input
-									id="displayName"
-									value={newRole.displayName}
-									onChange={(e) =>
-										setNewRole({ ...newRole, displayName: e.target.value })
-									}
-									placeholder="contoh: Custom Role"
-								/>
-							</div>
-							<div>
-								<Label htmlFor="description">Deskripsi</Label>
-								<Textarea
-									id="description"
-									value={newRole.description}
-									onChange={(e) =>
-										setNewRole({ ...newRole, description: e.target.value })
-									}
-									placeholder="Deskripsi role ini..."
-								/>
-							</div>
-							<div>
-								<Label htmlFor="level">Level Role</Label>
-								<Select
-									value={newRole.level.toString()}
-									onValueChange={(value) =>
-										setNewRole({ ...newRole, level: parseInt(value) })
-									}>
-									<SelectTrigger>
-										<SelectValue />
-									</SelectTrigger>
-									<SelectContent>
-										{roleLevels.map((level) => (
-											<SelectItem
-												key={level.value}
-												value={level.value.toString()}>
-												{level.label}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							</div>
-							<div>
-								<Label>Permissions</Label>
-								<div className="space-y-2 max-h-40 overflow-y-auto border rounded p-3">
-									{Object.entries(getPermissionsByCategory()).map(
-										([category, categoryPermissions]) => (
-											<div key={category}>
-												<h4 className="font-medium text-sm text-gray-700 mb-2">
-													{category.toUpperCase()}
-												</h4>
-												{categoryPermissions.map((permission) => (
-													<div
-														key={permission._id}
-														className="flex items-center space-x-2 ml-4">
-														<Checkbox
-															id={`new-${permission.name}`}
-															checked={newRole.permissions.includes(
-																permission.name
-															)}
-															onCheckedChange={() =>
-																setNewRole({
-																	...newRole,
-																	permissions: togglePermission(
-																		permission.name,
-																		newRole.permissions
-																	),
-																})
-															}
-														/>
-														<Label
-															htmlFor={`new-${permission.name}`}
-															className="text-sm">
-															{permission.displayName}
-														</Label>
-													</div>
-												))}
-											</div>
-										)
-									)}
+				{allowCreate && (
+					<Dialog
+						open={isCreateDialogOpen}
+						onOpenChange={setIsCreateDialogOpen}>
+						<DialogTrigger asChild>
+							<Button>
+								<Plus className="h-4 w-4 mr-2" />
+								Tambah Role
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+							<DialogHeader>
+								<DialogTitle>Tambah Role Baru</DialogTitle>
+								<DialogDescription>
+									Buat role baru dengan permissions yang sesuai
+								</DialogDescription>
+							</DialogHeader>
+							<div className="space-y-4">
+								<div>
+									<Label htmlFor="name">Nama Role (Unique)</Label>
+									<Input
+										id="name"
+										value={newRole.name}
+										onChange={(e) =>
+											setNewRole({ ...newRole, name: e.target.value })
+										}
+										placeholder="contoh: custom_role"
+									/>
+								</div>
+								<div>
+									<Label htmlFor="displayName">Nama Tampilan</Label>
+									<Input
+										id="displayName"
+										value={newRole.displayName}
+										onChange={(e) =>
+											setNewRole({ ...newRole, displayName: e.target.value })
+										}
+										placeholder="contoh: Custom Role"
+									/>
+								</div>
+								<div>
+									<Label htmlFor="description">Deskripsi</Label>
+									<Textarea
+										id="description"
+										value={newRole.description}
+										onChange={(e) =>
+											setNewRole({ ...newRole, description: e.target.value })
+										}
+										placeholder="Deskripsi role ini..."
+									/>
+								</div>
+								<div>
+									<Label htmlFor="level">Level Role</Label>
+									<Select
+										value={newRole.level.toString()}
+										onValueChange={(value) =>
+											setNewRole({ ...newRole, level: parseInt(value) })
+										}>
+										<SelectTrigger>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{roleLevels.map((level) => (
+												<SelectItem
+													key={level.value}
+													value={level.value.toString()}>
+													{level.label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+								<div>
+									<Label>Permissions</Label>
+									<div className="space-y-2 max-h-40 overflow-y-auto border rounded p-3">
+										{Object.entries(getPermissionsByCategory()).map(
+											([category, categoryPermissions]) => (
+												<div key={category}>
+													<h4 className="font-medium text-sm text-gray-700 mb-2">
+														{category.toUpperCase()}
+													</h4>
+													{categoryPermissions.map((permission) => (
+														<div
+															key={permission._id}
+															className="flex items-center space-x-2 ml-4">
+															<Checkbox
+																id={`new-${permission.name}`}
+																checked={newRole.permissions.includes(
+																	permission.name
+																)}
+																onCheckedChange={() =>
+																	setNewRole({
+																		...newRole,
+																		permissions: togglePermission(
+																			permission.name,
+																			newRole.permissions
+																		),
+																	})
+																}
+															/>
+															<Label
+																htmlFor={`new-${permission.name}`}
+																className="text-sm">
+																{permission.displayName}
+															</Label>
+														</div>
+													))}
+												</div>
+											)
+										)}
+									</div>
 								</div>
 							</div>
-						</div>
-						<DialogFooter>
-							<Button
-								variant="outline"
-								onClick={() => setIsCreateDialogOpen(false)}>
-								Batal
-							</Button>
-							<Button onClick={handleCreateRole}>Buat Role</Button>
-						</DialogFooter>
-					</DialogContent>
-				</Dialog>
+							<DialogFooter>
+								<Button
+									variant="outline"
+									onClick={() => setIsCreateDialogOpen(false)}>
+									Batal
+								</Button>
+								<Button onClick={handleCreateRole}>Buat Role</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				)}
 			</div>
 
 			<DndContext
@@ -776,6 +797,9 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 								onDelete={handleDeleteRole}
 								getRoleBadgeColor={getRoleBadgeColor}
 								userRole={userRole}
+								allowEdit={allowEdit}
+								allowDelete={allowDelete}
+								allowDnD={allowDnD}
 							/>
 						))}
 					</div>
