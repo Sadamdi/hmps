@@ -19,9 +19,19 @@ import {
 } from '@/components/ui/select';
 import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
+import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { Edit, Loader2, Search, Shield, User, UserPlus } from 'lucide-react';
+import {
+	Edit,
+	Loader2,
+	Search,
+	Shield,
+	Trash2,
+	User,
+	UserPlus,
+} from 'lucide-react';
 import { useState } from 'react';
 // Define user type to match MongoDB schema
 interface UserWithRole {
@@ -38,7 +48,8 @@ interface UserWithRole {
 }
 
 export default function UsersPage() {
-	const { user: currentUser } = useAuth();
+	const { user: currentUser, hasSpecificPermission } = useAuth();
+	const { toast } = useToast();
 
 	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
@@ -50,11 +61,18 @@ export default function UsersPage() {
 			'users.view_others',
 			'users.edit',
 			'users.create',
+			'users.delete',
 		]);
 	const [searchQuery, setSearchQuery] = useState('');
 	const [isUserDialogOpen, setIsUserDialogOpen] = useState(false);
 	const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
 	const [selectedRole, setSelectedRole] = useState('all');
+
+	// Permission flags
+	const canCreate = hasSpecificPermission('users.create');
+	const canEdit = hasSpecificPermission('users.edit');
+	const canDelete = hasSpecificPermission('users.delete');
+	const canViewOthers = hasSpecificPermission('users.view_others');
 
 	// Fetch users
 	const { data: users = [], isLoading } = useQuery({
@@ -75,6 +93,8 @@ export default function UsersPage() {
 			? (roleData as any).level
 			: 999;
 	};
+
+	const currentUserLevel = currentUser ? getRoleOrder(currentUser.role) : 999;
 
 	// Filter users based on search and role tab
 	const filteredUsers = users
@@ -127,6 +147,39 @@ export default function UsersPage() {
 		setIsUserDialogOpen(true);
 	};
 
+	const handleDeleteUser = async (user: UserWithRole) => {
+		if (!canDelete) return;
+		if (user.role === 'owner') {
+			toast({
+				title: 'Tidak diizinkan',
+				description: 'Tidak dapat menghapus owner.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (currentUser?._id === user._id) {
+			toast({
+				title: 'Tidak diizinkan',
+				description: 'Tidak dapat menghapus akun sendiri.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (!confirm(`Hapus user "${user.name || user.username}"?`)) return;
+		try {
+			await apiRequest('DELETE', `/api/users/${user._id}`, {});
+			toast({ title: 'Berhasil', description: 'User dihapus.' });
+			queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
+		} catch (e: any) {
+			toast({
+				title: 'Gagal',
+				description: e?.message || 'Gagal menghapus user.',
+				variant: 'destructive',
+			});
+		}
+	};
+
 	const closeUserDialog = () => {
 		setIsUserDialogOpen(false);
 		setEditingUser(null);
@@ -156,7 +209,7 @@ export default function UsersPage() {
 		<DashboardLayout title="User Management">
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 				<h1 className="text-2xl font-bold">User Management</h1>
-				{currentUser?.role === 'owner' && (
+				{canCreate && (
 					<Button onClick={handleAddUser}>
 						<UserPlus className="h-4 w-4 mr-2" />
 						Add User
@@ -203,9 +256,7 @@ export default function UsersPage() {
 				<Card>
 					<CardContent className="p-8 text-center">
 						<p className="text-gray-500 mb-4">No users found.</p>
-						{currentUser?.role === 'owner' && (
-							<Button onClick={handleAddUser}>Add User</Button>
-						)}
+						{canCreate && <Button onClick={handleAddUser}>Add User</Button>}
 					</CardContent>
 				</Card>
 			) : (
@@ -228,75 +279,88 @@ export default function UsersPage() {
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-gray-200">
-							{filteredUsers.map((user: UserWithRole) => (
-								<tr
-									key={user._id}
-									className="hover:bg-gray-50">
-									<td className="px-6 py-4">
-										<div className="flex items-center">
-											<div className="h-10 w-10 flex-shrink-0 rounded-full bg-gray-100 flex items-center justify-center">
-												{user.name ? (
-													<span className="text-lg font-medium text-gray-700">
-														{user.name.charAt(0)}
-													</span>
-												) : (
-													<User className="h-5 w-5 text-gray-500" />
+							{filteredUsers.map((user: UserWithRole) => {
+								const targetLevel = getRoleOrder(user.role);
+								const canEditThis =
+									canEdit &&
+									targetLevel > currentUserLevel &&
+									!(user.role === 'owner' && currentUser?.role !== 'owner');
+								const canDeleteThis =
+									canDelete &&
+									targetLevel > currentUserLevel &&
+									user._id !== currentUser?._id &&
+									user.role !== 'owner';
+								return (
+									<tr
+										key={user._id}
+										className="hover:bg-gray-50">
+										<td className="px-6 py-4">
+											<div className="flex items-center">
+												<div className="h-10 w-10 flex-shrink-0 rounded-full bg-gray-100 flex items-center justify-center">
+													{user.name ? (
+														<span className="text-lg font-medium text-gray-700">
+															{user.name.charAt(0)}
+														</span>
+													) : (
+														<User className="h-5 w-5 text-gray-500" />
+													)}
+												</div>
+												<div className="ml-4">
+													<div className="font-medium text-gray-900">
+														{user.name || user.username}
+													</div>
+													<div className="text-sm text-gray-500">
+														{user.username}
+													</div>
+												</div>
+											</div>
+										</td>
+										<td className="px-6 py-4">
+											<Badge
+												variant={getRoleBadgeVariant(user.role)}
+												className="capitalize">
+												{user.role === 'wakil_ketua'
+													? 'Wakil Ketua'
+													: user.role === 'ketua'
+													? 'Ketua Himpunan'
+													: user.role === 'division_head'
+													? 'Division Head'
+													: user.role}
+											</Badge>
+										</td>
+										<td className="px-6 py-4 text-sm text-gray-500">
+											{user.lastLogin
+												? new Date(user.lastLogin).toLocaleString()
+												: 'Never'}
+										</td>
+										<td className="px-6 py-4">
+											<div className="flex items-center gap-2">
+												<Button
+													variant="ghost"
+													size="sm"
+													onClick={() => handleEditUser(user)}
+													disabled={!canEditThis}>
+													{canEditThis ? (
+														<Edit className="h-4 w-4 mr-1" />
+													) : (
+														<Shield className="h-4 w-4 mr-1" />
+													)}
+													{canEditThis ? 'Edit' : 'View'}
+												</Button>
+												{canDeleteThis && (
+													<Button
+														variant="ghost"
+														size="sm"
+														className="text-red-600 hover:text-red-700 hover:bg-red-50"
+														onClick={() => handleDeleteUser(user)}>
+														<Trash2 className="h-4 w-4" />
+													</Button>
 												)}
 											</div>
-											<div className="ml-4">
-												<div className="font-medium text-gray-900">
-													{user.name || user.username}
-												</div>
-												<div className="text-sm text-gray-500">
-													{user.username}
-												</div>
-											</div>
-										</div>
-									</td>
-									<td className="px-6 py-4">
-										<Badge
-											variant={getRoleBadgeVariant(user.role)}
-											className="capitalize">
-											{user.role === 'wakil_ketua'
-												? 'Wakil Ketua'
-												: user.role === 'ketua'
-												? 'Ketua Himpunan'
-												: user.role === 'division_head'
-												? 'Division Head'
-												: user.role}
-										</Badge>
-									</td>
-									<td className="px-6 py-4 text-sm text-gray-500">
-										{user.lastLogin
-											? new Date(user.lastLogin).toLocaleString()
-											: 'Never'}
-									</td>
-									<td className="px-6 py-4">
-										<Button
-											variant="ghost"
-											size="sm"
-											onClick={() => handleEditUser(user)}
-											disabled={
-												(currentUser?.role === 'admin' &&
-													user.role === 'owner') ||
-												(currentUser?._id === user._id &&
-													currentUser?.role !== 'owner')
-											}>
-											{currentUser?.role === 'owner' ||
-											(currentUser?.role === 'admin' &&
-												user.role !== 'owner') ? (
-												<Edit className="h-4 w-4 mr-1" />
-											) : (
-												<Shield className="h-4 w-4 mr-1" />
-											)}
-											{currentUser?.role === 'owner' ||
-											(currentUser?.role === 'admin' && user.role !== 'owner')
-												? 'Edit'
-												: 'View'}
-										</Button>
-									</td>
-								</tr>
-							))}
+										</td>
+									</tr>
+								);
+							})}
 						</tbody>
 					</table>
 				</div>
@@ -309,7 +373,9 @@ export default function UsersPage() {
 					<DialogHeader>
 						<DialogTitle>
 							{editingUser
-								? `${currentUser?.role === 'owner' ? 'Edit' : 'View'} User`
+								? canEdit
+									? 'Edit User'
+									: 'View User'
 								: 'Add New User'}
 						</DialogTitle>
 						<p className="text-sm text-muted-foreground">
@@ -320,13 +386,7 @@ export default function UsersPage() {
 					</DialogHeader>
 					<UserManagement
 						user={editingUser as any}
-						viewOnly={
-							editingUser
-								? currentUser?.role !== 'owner' &&
-								  currentUser?.role === 'admin' &&
-								  editingUser.role === 'owner'
-								: false
-						}
+						viewOnly={Boolean(editingUser && !canEdit)}
 						onSave={closeUserDialog}
 						onCancel={closeUserDialog}
 					/>

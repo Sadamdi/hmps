@@ -697,6 +697,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (!existingUser) {
 					return res.status(404).json({ message: 'User not found' });
 				}
+				// Hierarchy guard: requester may only modify users with strictly lower level
+				const requesterRoleName = (req.user as any)?.role || '';
+				const allRoles = await mongoStorage.getAllRoles();
+				const requesterRole = allRoles.find(
+					(r: any) =>
+						(r?.name || '').toString() === requesterRoleName.toString()
+				);
+				const requesterLevel =
+					typeof requesterRole?.level === 'number' ? requesterRole.level : 999;
+				const targetRoleObj = allRoles.find(
+					(r: any) =>
+						(r?.name || '').toString() === (existingUser.role || '').toString()
+				);
+				const targetLevel =
+					typeof targetRoleObj?.level === 'number' ? targetRoleObj.level : 999;
+				if (!(targetLevel > requesterLevel)) {
+					return res.status(403).json({
+						message: 'You cannot modify a user at the same or higher level',
+					});
+				}
+
 				const updates: any = {};
 				if (username) updates.username = username;
 				if (name) updates.name = name;
@@ -726,6 +747,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const existingUser = await mongoStorage.getUserById(userId);
 				if (!existingUser) {
 					return res.status(404).json({ message: 'User not found' });
+				}
+
+				// Hierarchy guard and self-protection
+				const requesterRoleName = (req.user as any)?.role || '';
+				const allRoles = await mongoStorage.getAllRoles();
+				const requesterRole = allRoles.find(
+					(r: any) =>
+						(r?.name || '').toString() === requesterRoleName.toString()
+				);
+				const requesterLevel =
+					typeof requesterRole?.level === 'number' ? requesterRole.level : 999;
+				const targetRoleObj = allRoles.find(
+					(r: any) =>
+						(r?.name || '').toString() === (existingUser.role || '').toString()
+				);
+				const targetLevel =
+					typeof targetRoleObj?.level === 'number' ? targetRoleObj.level : 999;
+				if (!(targetLevel > requesterLevel)) {
+					return res.status(403).json({
+						message: 'You cannot delete a user at the same or higher level',
+					});
+				}
+				if (
+					(req.user as any)?._id?.toString() === existingUser._id?.toString()
+				) {
+					return res
+						.status(400)
+						.json({ message: 'Cannot delete your own account' });
 				}
 				await mongoStorage.deleteUser(userId);
 				res.json({ message: 'User deleted successfully' });
