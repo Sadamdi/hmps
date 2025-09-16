@@ -177,12 +177,8 @@ export default function Sidebar({
 										return null;
 									}
 								} else if (item.requirePermission === 'settings.view') {
-									if (
-										!hasSpecificPermission('settings.view') &&
-										!hasSpecificPermission('settings.edit')
-									) {
-										return null;
-									}
+									// Settings selalu bisa diakses (minimal untuk profile)
+									// Tidak perlu permission check karena semua user bisa akses profile
 								} else if (item.requirePermission === 'users.view') {
 									if (
 										!hasSpecificPermission('users.view') &&
