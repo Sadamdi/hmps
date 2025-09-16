@@ -29,6 +29,18 @@ interface Article {
 	slug?: string;
 }
 
+interface RelatedArticle {
+	_id?: string;
+	id?: number;
+	title: string;
+	excerpt: string;
+	image: string;
+	author: string;
+	createdAt: string;
+	slug?: string;
+	tags?: string[];
+}
+
 export default function ArticleDetail() {
 	const { id, slug } = useParams();
 	const [, setLocation] = useLocation();
@@ -62,6 +74,24 @@ export default function ArticleDetail() {
 			return response.json();
 		},
 		enabled: !!apiEndpoint,
+	});
+
+	// Fetch related articles (2 items)
+	let relatedEndpoint: string | null = null;
+	if (id) {
+		relatedEndpoint = `/api/articles/${id}/related?limit=2`;
+	} else if (slug && !id) {
+		relatedEndpoint = `/api/articles/slug/${slug}/related?limit=2`;
+	}
+
+	const { data: related = [] } = useQuery<RelatedArticle[]>({
+		queryKey: [relatedEndpoint || ''],
+		queryFn: async () => {
+			const response = await apiRequest('GET', relatedEndpoint as string);
+			return response.json();
+		},
+		enabled: !!relatedEndpoint,
+		placeholderData: [],
 	});
 
 	// SEO Meta Tags dan Structured Data
@@ -530,40 +560,59 @@ export default function ArticleDetail() {
 							data-aos="fade-up"
 							data-aos-delay="500">
 							<h3 className="text-2xl font-bold text-gray-900 mb-6">
-								Artikel Terkait Himatif Encoder
+								Artikel Terkait
 							</h3>
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-								<div className="bg-gray-50 rounded-lg p-6">
-									<h4 className="text-lg font-semibold text-gray-900 mb-2">
-										Artikel Himatif Encoder
-									</h4>
-									<p className="text-gray-600 mb-4">
-										Temukan artikel menarik lainnya dari Himpunan Mahasiswa
-										Teknik Informatika UIN Malang
-									</p>
-									<Button
-										onClick={() => setLocation('/artikel')}
-										variant="outline"
-										className="w-full">
-										Lihat Semua Artikel
-									</Button>
+							{related && related.length > 0 ? (
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+									{related.slice(0, 2).map((r, idx) => {
+										const rid = (r._id || r.id) as string | number;
+										const href =
+											r.slug && rid
+												? `/artikel/${rid}/${r.slug}`
+												: `/artikel/${rid}`;
+										return (
+											<div
+												key={String(rid) + '-' + idx}
+												className="group cursor-pointer bg-gray-50 rounded-lg overflow-hidden border border-gray-100 hover:shadow-md transition"
+												onClick={() => setLocation(href)}>
+												<div className="aspect-video overflow-hidden">
+													<img
+														src={r.image}
+														alt={r.title}
+														className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
+														onError={(e) => {
+															(e.target as HTMLImageElement).src =
+																'/placeholder-article.jpg';
+														}}
+													/>
+												</div>
+												<div className="p-4">
+													<h4 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+														{r.title}
+													</h4>
+													<p className="text-sm text-gray-600 line-clamp-3 mb-3">
+														{r.excerpt}
+													</p>
+													{r.tags && r.tags.length > 0 && (
+														<div className="flex flex-wrap gap-1">
+															{r.tags.slice(0, 3).map((t, i) => (
+																<Badge
+																	key={i}
+																	variant="secondary"
+																	className="text-xs">
+																	{t}
+																</Badge>
+															))}
+														</div>
+													)}
+												</div>
+											</div>
+										);
+									})}
 								</div>
-								<div className="bg-gray-50 rounded-lg p-6">
-									<h4 className="text-lg font-semibold text-gray-900 mb-2">
-										Beranda Himatif Encoder
-									</h4>
-									<p className="text-gray-600 mb-4">
-										Kembali ke halaman utama untuk melihat informasi lengkap
-										tentang Himpunan Mahasiswa Teknik Informatika UIN Malang
-									</p>
-									<Button
-										onClick={() => setLocation('/')}
-										variant="outline"
-										className="w-full">
-										Kembali ke Beranda
-									</Button>
-								</div>
-							</div>
+							) : (
+								<div className="text-gray-500">Belum ada artikel terkait.</div>
+							)}
 						</div>
 
 						{/* Back to Articles */}
