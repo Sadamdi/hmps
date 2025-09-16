@@ -42,11 +42,22 @@ export function UserManagement({
 		confirmPassword: '',
 	});
 
-	// Fetch roles (dinamis)
-	const { data: roles = [] as any[] } = useQuery({
-		queryKey: ['/api/roles'],
-		placeholderData: [],
+	// Fetch assignable roles (tidak butuh roles.view)
+	const { data: assignableData } = useQuery({
+		queryKey: ['/api/roles/assignable'],
+		queryFn: async () => {
+			const res = await apiRequest('GET', '/api/roles/assignable');
+			if (res && typeof res === 'object' && 'json' in (res as any)) {
+				return await (res as any).json();
+			}
+			return res as any;
+		},
+		staleTime: 0,
+		refetchOnMount: true,
+		refetchOnWindowFocus: true,
 	});
+
+	const roles: any[] = (assignableData?.roles as any[]) || [];
 
 	const getRoleLevel = (roleName: string) => {
 		const r = roles.find((x: any) => x?.name === roleName);
