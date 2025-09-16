@@ -2316,12 +2316,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get('/api/roles/assignable', authenticate, async (req, res) => {
 		try {
 			const allRoles = await mongoStorage.getAllRoles();
-			const requesterRoleName = (req.user as any)?.role || '';
-			const requesterRole = allRoles.find(
-				(r: any) => (r?.name || '').toString() === requesterRoleName.toString()
+			const requesterRoleName = ((req.user as any)?.role || '').toString();
+
+			// Cari role user saat ini secara case-insensitive
+			let requesterRole = allRoles.find(
+				(r: any) =>
+					(r?.name || '').toString().toLowerCase() ===
+					requesterRoleName.toLowerCase()
 			);
+
+			// Fallback: gunakan storage lookup bila tidak ketemu di cache lokal
+			if (!requesterRole) {
+				try {
+					requesterRole = await mongoStorage.getRoleByName(requesterRoleName);
+				} catch (_) {
+					// ignore
+				}
+			}
+
 			const requesterLevel =
-				typeof requesterRole?.level === 'number' ? requesterRole.level : 999;
+				typeof (requesterRole as any)?.level === 'number'
+					? (requesterRole as any).level
+					: 999;
 
 			const roles = allRoles
 				.filter((r: any) => typeof r?.level === 'number')
