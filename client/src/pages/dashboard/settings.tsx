@@ -819,7 +819,6 @@ export default function SettingsPage() {
 												type="password"
 												value={passwordData.currentPassword}
 												onChange={handlePasswordChange}
-												disabled={!canEditSettings}
 											/>
 										</div>
 										<div className="space-y-2">
@@ -830,7 +829,6 @@ export default function SettingsPage() {
 												type="password"
 												value={passwordData.newPassword}
 												onChange={handlePasswordChange}
-												disabled={!canEditSettings}
 											/>
 										</div>
 										<div className="space-y-2">
@@ -843,14 +841,11 @@ export default function SettingsPage() {
 												type="password"
 												value={passwordData.confirmPassword}
 												onChange={handlePasswordChange}
-												disabled={!canEditSettings}
 											/>
 										</div>
 										<Button
 											onClick={changePassword}
-											disabled={
-												changePasswordMutation.isPending || !canEditSettings
-											}
+											disabled={changePasswordMutation.isPending}
 											className="mt-2">
 											{changePasswordMutation.isPending ? (
 												<>
