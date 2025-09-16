@@ -1,6 +1,8 @@
 import cookieParser from 'cookie-parser';
 import type { Express } from 'express';
+import fs from 'fs';
 import { createServer, type Server } from 'http';
+import path from 'path';
 import {
 	authenticate,
 	authorize,
@@ -16,6 +18,7 @@ import {
 	cleanupArticleImages,
 	deleteFile,
 	extractImageUrlsFromContent,
+	uploadArticleImage,
 	uploadHandler,
 	uploadMiddleware,
 	uploadOrganizationMemberImage,
@@ -804,13 +807,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Article ID is required' });
 				}
 
-				// Process the uploaded image - use articles category with articleId subfolder
-				const imageUrl = await uploadHandler(
+				// Process the uploaded image (compress + WebP) under uploads/articles/{articleId}
+				const imageUrl = await uploadArticleImage(
 					req.file,
-					false,
-					'articles',
 					undefined,
-					articleId
+					articleId,
+					false
 				);
 
 				// Return the URL to be used in the article content
@@ -1036,9 +1038,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					imageUrl = gdriveUrl;
 					imageSource = 'gdrive';
 					gdriveFileId = fileId;
-				} else if (req.file) {
-					// Process the uploaded image if available - store in attached_assets/articles
-					imageUrl = await uploadHandler(req.file, true, 'articles');
 				}
 
 				// Generate unique slug from title
@@ -1049,7 +1048,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				);
 				const slug = generateUniqueSlug(title.trim(), existingSlugs);
 
-				// Create article with Google Drive support and slug
+				// Create article first to get articleId
 				const newArticle = await mongoStorage.createArticle({
 					title: title.trim(),
 					slug,
@@ -1064,14 +1063,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					author: authorName,
 				});
 
-				// Cleanup unused images in article folder
-				const articleId = newArticle._id || newArticle.id;
+				// If local file uploaded (not GDrive), process thumbnail into uploads/articles/{articleId}
+				const articleId = (newArticle._id || newArticle.id)?.toString();
+				let finalArticle = newArticle;
+				if (!gdriveUrl && req.file && articleId) {
+					try {
+						const processedThumbUrl = await uploadArticleImage(
+							req.file,
+							undefined,
+							articleId,
+							false
+						);
+						finalArticle = await mongoStorage.updateArticle(articleId, {
+							image: processedThumbUrl,
+							imageSource: 'local',
+						});
+						imageUrl = processedThumbUrl;
+					} catch (thumbErr) {
+						console.error(
+							'Thumbnail processing after create failed:',
+							thumbErr
+						);
+					}
+				}
+
+				// Migrate temp content images to article folder if any (replace URLs in content)
+				if (articleId) {
+					try {
+						const tempIdMatch = (content || '').match(
+							/\/uploads\/articles\/(temp-[^/]+)\//
+						);
+						if (tempIdMatch && tempIdMatch[1]) {
+							const tempId = tempIdMatch[1];
+							const tempDir = path.join(
+								process.cwd(),
+								'uploads',
+								'articles',
+								tempId
+							);
+							const targetDir = path.join(
+								process.cwd(),
+								'uploads',
+								'articles',
+								articleId
+							);
+							if (fs.existsSync(tempDir)) {
+								if (!fs.existsSync(targetDir))
+									fs.mkdirSync(targetDir, { recursive: true });
+								for (const f of fs.readdirSync(tempDir)) {
+									fs.renameSync(path.join(tempDir, f), path.join(targetDir, f));
+								}
+								try {
+									fs.rmdirSync(tempDir);
+								} catch {}
+							}
+
+							// Replace URLs in content
+							const updatedContent = (content || '').replace(
+								new RegExp(`/uploads/articles/${tempId}/`, 'g'),
+								`/uploads/articles/${articleId}/`
+							);
+							if (updatedContent !== content) {
+								finalArticle = await mongoStorage.updateArticle(articleId, {
+									content: updatedContent,
+								});
+								content = updatedContent;
+							}
+						}
+					} catch (migrateErr) {
+						console.warn(
+							'Optional migration from temp folder failed:',
+							migrateErr
+						);
+					}
+				}
+
+				// Cleanup unused images in article folder (keep content images + thumbnail if local)
 				if (articleId) {
 					const usedImageUrls = extractImageUrlsFromContent(content);
+					if (imageUrl && imageUrl.startsWith('/uploads/')) {
+						usedImageUrls.push(imageUrl);
+					}
 					await cleanupArticleImages(articleId.toString(), usedImageUrls);
 				}
 
-				res.status(201).json(newArticle);
+				res.status(201).json(finalArticle);
 			} catch (error) {
 				console.error('Create article error:', error);
 				res.status(500).json({ message: 'Internal server error' });
@@ -1137,7 +1213,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updatedAt: new Date(),
 				};
 
-				// Process image if uploaded
+				// Process image if uploaded (store inside uploads/articles/{articleId})
 				if (req.file) {
 					// Hapus gambar lama jika ada dan berbeda dari default
 					const oldImageUrl =
@@ -1145,13 +1221,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							? existingArticle.image
 							: undefined;
 
-					const imageUrl = await uploadHandler(
+					const imageUrl = await uploadArticleImage(
 						req.file,
-						true,
-						'articles',
-						oldImageUrl
+						oldImageUrl,
+						articleId,
+						false
 					);
 					updates.image = imageUrl;
+					updates.imageSource = 'local';
 				}
 
 				// Update article
@@ -1160,9 +1237,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updates
 				);
 
-				// Cleanup unused images in article folder after update
-				if (content) {
+				// Cleanup unused images in article folder after update (keep thumbnail too)
+				if (typeof content === 'string') {
 					const usedImageUrls = extractImageUrlsFromContent(content);
+					const thumbnailUrl = (
+						updates.image && updates.image.startsWith('/uploads/')
+							? updates.image
+							: existingArticle.image || ''
+					).toString();
+					if (thumbnailUrl && thumbnailUrl.startsWith('/uploads/')) {
+						usedImageUrls.push(thumbnailUrl);
+					}
 					await cleanupArticleImages(articleId, usedImageUrls);
 				}
 
@@ -1205,8 +1290,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Delete article
 			await mongoStorage.deleteArticle(articleId);
 
-			// Cleanup entire article folder
+			// Cleanup entire article folder (uploads/articles/{articleId})
 			await cleanupArticleImages(articleId, []); // Empty array means delete all
+
+			// Also cleanup attached_assets/articles/{articleId} if exists (legacy/misplaced)
+			try {
+				const assetsDir = path.join(
+					process.cwd(),
+					'attached_assets',
+					'articles',
+					articleId
+				);
+				if (fs.existsSync(assetsDir)) {
+					for (const f of fs.readdirSync(assetsDir)) {
+						const p = path.join(assetsDir, f);
+						try {
+							fs.unlinkSync(p);
+						} catch {}
+					}
+					try {
+						fs.rmdirSync(assetsDir);
+					} catch {}
+				}
+			} catch (cleanupErr) {
+				console.warn('Optional cleanup of attached_assets failed:', cleanupErr);
+			}
 
 			res.json({ message: 'Article deleted successfully' });
 		} catch (error) {

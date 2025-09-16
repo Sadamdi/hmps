@@ -115,6 +115,71 @@ export async function uploadHandler(
 }
 
 /**
+ * Handles article image upload with automatic processing to WebP
+ * Supports optional subFolder (e.g., articleId) to organize content images
+ */
+export async function uploadArticleImage(
+	file: Express.Multer.File,
+	oldFileUrl?: string,
+	subFolder?: string,
+	useAssetsDir: boolean = false // default uploads/, set true to save under attached_assets/
+): Promise<string> {
+	try {
+		// Hapus file lama jika ada
+		if (oldFileUrl) {
+			await deleteFile(oldFileUrl);
+		}
+
+		if (!isProcessableImage(file.mimetype)) {
+			throw new Error(`File type ${file.mimetype} is not processable`);
+		}
+
+		// Generate a unique filename with .webp extension
+		const timestamp = Date.now();
+		const randomName = crypto.randomBytes(8).toString('hex');
+		const safeOriginalName = file.originalname
+			.replace(/[^a-zA-Z0-9.]/g, '_')
+			.substring(0, 20);
+		const fileName = `${timestamp}_${safeOriginalName}_${randomName}.webp`;
+
+		// Ensure articles directory exists (uploads or attached_assets)
+		let categoryDir = await ensureUploadDirectory('articles', useAssetsDir);
+		if (subFolder) {
+			categoryDir = path.join(categoryDir, subFolder);
+			if (!fs.existsSync(categoryDir)) {
+				await mkdir(categoryDir, { recursive: true });
+			}
+		}
+
+		// Full target path (URL)
+		const targetPath = subFolder
+			? useAssetsDir
+				? `/attached_assets/articles/${subFolder}`
+				: `/uploads/articles/${subFolder}`
+			: useAssetsDir
+			? `/attached_assets/articles`
+			: `/uploads/articles`;
+
+		const filePath = path.join(categoryDir, fileName);
+
+		// Process image to WebP
+		const processedBuffer = await processImage(file.buffer, {
+			quality: 80,
+			maxWidth: 1920,
+			maxHeight: 1080,
+			format: 'webp',
+		});
+
+		await writeFile(filePath, processedBuffer);
+
+		return `${targetPath}/${fileName}`;
+	} catch (error) {
+		console.error('Error processing article image:', error);
+		throw new Error('Failed to process article image');
+	}
+}
+
+/**
  * Handles organization member image upload with automatic processing
  * Converts PNG/JPEG to WebP with compression while maintaining resolution
  */
