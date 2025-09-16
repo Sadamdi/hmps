@@ -59,15 +59,13 @@ export function UserManagement({
 
 	const roles: any[] = (assignableData?.roles as any[]) || [];
 
-	const getRoleLevel = (roleName: string) => {
-		const r = roles.find((x: any) => x?.name === roleName);
-		return typeof r?.level === 'number' ? r.level : 999;
-	};
-
-	const currentUserLevel = useMemo(
-		() => (currentUser ? getRoleLevel(currentUser.role as string) : 999),
-		[currentUser, roles]
-	);
+	// Gunakan requesterLevel langsung dari server agar tidak tergantung daftar roles assignable
+	const currentUserLevel = useMemo(() => {
+		if (typeof assignableData?.requesterLevel === 'number') {
+			return assignableData.requesterLevel as number;
+		}
+		return 999;
+	}, [assignableData]);
 
 	// Role yang boleh di-assign: level lebih rendah dari current user (angka level lebih besar)
 	const assignableRoles = useMemo(() => {
