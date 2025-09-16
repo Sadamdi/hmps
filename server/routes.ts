@@ -2292,6 +2292,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	);
 
+	// Roles that current user is allowed to assign (no need roles.view)
+	// Returned with requesterLevel to support consistent client-side logic
+	app.get('/api/roles/assignable', authenticate, async (req, res) => {
+		try {
+			const allRoles = await mongoStorage.getAllRoles();
+			const requesterRoleName = (req.user as any)?.role || '';
+			const requesterRole = allRoles.find(
+				(r: any) => (r?.name || '').toString() === requesterRoleName.toString()
+			);
+			const requesterLevel =
+				typeof requesterRole?.level === 'number' ? requesterRole.level : 999;
+
+			const roles = allRoles
+				.filter((r: any) => typeof r?.level === 'number')
+				.filter((r: any) => r.level > requesterLevel)
+				.sort((a: any, b: any) => a.level - b.level);
+
+			res.json({ roles, requesterLevel });
+		} catch (error) {
+			console.error('Error getting assignable roles:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	app.post(
 		'/api/roles',
 		authenticate,
