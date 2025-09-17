@@ -58,9 +58,25 @@ const userSchema = new mongoose.Schema({
 		default: 'division_head',
 	},
 	division: { type: String, default: '' },
+	tokenVersion: { type: Number, default: 0 },
 	lastLogin: { type: Date, default: Date.now },
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
+});
+
+// Model Session
+const sessionSchema = new mongoose.Schema({
+	userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+	sessionId: { type: String, required: true, unique: true },
+	userAgent: { type: String, default: '' },
+	ip: { type: String, default: '' },
+	device: { type: String, default: '' }, // Mobile / Desktop / Tablet
+	os: { type: String, default: '' },
+	browser: { type: String, default: '' },
+	location: { type: String, default: '' }, // City, Region, Country
+	createdAt: { type: Date, default: Date.now },
+	lastActive: { type: Date, default: Date.now },
+	revokedAt: { type: Date, default: null },
 });
 
 // Model Role (untuk custom roles)
@@ -301,6 +317,8 @@ const Settings =
 const Role = mongoose.models.Role || mongoose.model('Role', roleSchema);
 const Permission =
 	mongoose.models.Permission || mongoose.model('Permission', permissionSchema);
+const Session =
+	mongoose.models.Session || mongoose.model('Session', sessionSchema);
 
 // Create Position model
 export const Position =
@@ -317,6 +335,7 @@ export {
 	Organization,
 	Permission,
 	Role,
+	Session,
 	Settings,
 	User,
 };

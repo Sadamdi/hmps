@@ -20,7 +20,15 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Eye, EyeOff, Loader2, LogOut, Save, Shield } from 'lucide-react';
+import {
+	Eye,
+	EyeOff,
+	Laptop,
+	Loader2,
+	LogOut,
+	Save,
+	Shield,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface SiteSettings {
@@ -90,6 +98,19 @@ export default function SettingsPage() {
 	const [showCurrent, setShowCurrent] = useState(false);
 	const [showNew, setShowNew] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
+
+	// Sessions polling (heartbeat) every 15s to trigger 401 handling automatically
+	useEffect(() => {
+		const id = setInterval(async () => {
+			try {
+				await fetch('/api/auth/me', {
+					credentials: 'include',
+					cache: 'no-store',
+				});
+			} catch {}
+		}, 15000);
+		return () => clearInterval(id);
+	}, []);
 
 	// Create default settings
 	const defaultSettings: SiteSettings = {
@@ -947,6 +968,11 @@ export default function SettingsPage() {
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="space-y-4">
+										{/* Active Sessions */}
+										<div>
+											<h4 className="font-medium mb-2">Active Sessions</h4>
+											<SessionsList />
+										</div>
 										<div className="rounded-lg border border-red-200 bg-red-50 p-4">
 											<div className="flex items-start gap-3">
 												<LogOut className="h-5 w-5 text-red-600 mt-0.5" />
@@ -1020,5 +1046,81 @@ export default function SettingsPage() {
 					</div>
 				)}
 		</DashboardLayout>
+	);
+}
+
+function SessionsList() {
+	const { data, isLoading, refetch } = useQuery({
+		queryKey: ['/api/auth/sessions'],
+		refetchInterval: 30000,
+	});
+
+	const revokeOne = useMutation({
+		mutationFn: async (sessionId: string) => {
+			return await apiRequest('POST', '/api/auth/sessions/revoke', {
+				sessionId,
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/auth/sessions'] });
+		},
+	});
+
+	if (isLoading)
+		return (
+			<div className="text-sm text-muted-foreground">Loading sessions...</div>
+		);
+
+	const sessions = (data as any[]) || [];
+	if (!sessions.length) {
+		return (
+			<div className="text-sm text-muted-foreground">No active sessions</div>
+		);
+	}
+
+	return (
+		<div className="space-y-2">
+			{sessions.map((s: any) => {
+				const isRevoked = !!s.revokedAt;
+				const created = new Date(s.createdAt);
+				const agoMs = Date.now() - created.getTime();
+				const agoMin = Math.floor(agoMs / 60000);
+				return (
+					<div
+						key={s.sessionId}
+						className="flex items-center justify-between rounded border p-2">
+						<div className="flex items-center gap-2">
+							<Laptop className="h-4 w-4" />
+							<div className="text-sm">
+								<div className="font-medium">
+									{s.device || 'Device'} • {s.os || 'OS'} •{' '}
+									{s.browser || 'Browser'}
+								</div>
+								<div className="text-xs text-muted-foreground">
+									IP {s.ip || '-'}
+									{s.location ? ` • ${s.location}` : ''} • Login{' '}
+									{created.toLocaleString()} • Last active{' '}
+									{new Date(s.lastActive || s.createdAt).toLocaleString()} •{' '}
+									{agoMin}m ago
+								</div>
+							</div>
+						</div>
+						<div className="flex items-center gap-2">
+							{isRevoked ? (
+								<span className="text-xs text-red-600">revoked</span>
+							) : (
+								<Button
+									variant="destructive"
+									size="sm"
+									onClick={() => revokeOne.mutate(s.sessionId)}
+									disabled={revokeOne.isPending}>
+									Revoke
+								</Button>
+							)}
+						</div>
+					</div>
+				);
+			})}
+		</div>
 	);
 }

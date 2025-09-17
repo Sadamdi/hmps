@@ -1,6 +1,8 @@
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { Session } from '../db/mongodb';
 import { mongoStorage } from './mongo-storage';
 
 // Define user type for MongoDB
@@ -29,6 +31,10 @@ export function generateToken(user: UserWithRole): string {
 		id: user._id,
 		username: user.username,
 		role: user.role,
+		// Embed token version to support global revoke
+		tv: (user as any).tokenVersion || 0,
+		// include sessionId if present
+		sid: (user as any).sessionId,
 	};
 
 	// @ts-ignore - Ignore typings issue with jwt.sign
@@ -65,7 +71,9 @@ export async function authenticate(
 
 		// Verify token
 		// @ts-ignore
-		const decoded = jwt.verify(token, JWT_SECRET_KEY) as { id: string };
+		const decoded = jwt.verify(token, JWT_SECRET_KEY) as { id: string } & {
+			sid?: string;
+		};
 
 		// Fetch user from database
 		const user = await mongoStorage.getUserById(decoded.id);
@@ -74,12 +82,113 @@ export async function authenticate(
 			return res.status(401).json({ message: 'User not found' });
 		}
 
+		// Compare tokenVersion to invalidate old tokens
+		const tokenVersionFromDb = (user as any).tokenVersion || 0;
+		const tokenVersionFromToken = (decoded as any).tv || 0;
+		if (tokenVersionFromDb !== tokenVersionFromToken) {
+			return res
+				.status(401)
+				.json({ message: 'Session revoked. Please login again.' });
+		}
+
+		// Optional: Update lastActive for this session (throttle by 60s)
+		try {
+			if ((decoded as any).sid) {
+				const { Session } = await import('../db/mongodb');
+				await Session.updateOne(
+					{ sessionId: (decoded as any).sid, userId: (user as any)._id },
+					{ $set: { lastActive: new Date() } }
+				);
+			}
+		} catch (e) {
+			// ignore session update errors
+		}
+
 		// Set user in request
 		req.user = user as UserWithRole;
 		next();
 	} catch (error) {
 		return res.status(401).json({ message: 'Invalid or expired token' });
 	}
+}
+
+async function resolveGeoLocation(ip: string): Promise<string> {
+	try {
+		if (!ip) return '';
+		// Prefer ipapi.co; fall back to ipwho.is
+		const controller = new AbortController();
+		const timeout = setTimeout(() => controller.abort(), 2000);
+		try {
+			const res = await fetch(
+				`https://ipapi.co/${encodeURIComponent(ip)}/json/`,
+				{ signal: controller.signal }
+			);
+			clearTimeout(timeout);
+			if (res.ok) {
+				const data: any = await res.json();
+				const city = data?.city || '';
+				const region = data?.region || '';
+				const country = data?.country_name || data?.country || '';
+				const parts = [city, region, country].filter(Boolean);
+				return parts.join(', ');
+			}
+		} catch {}
+		// fallback
+		const res2 = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}`);
+		if (res2.ok) {
+			const data2: any = await res2.json();
+			const city = data2?.city || '';
+			const region = data2?.region || '';
+			const country = data2?.country || '';
+			const parts = [city, region, country].filter(Boolean);
+			return parts.join(', ');
+		}
+	} catch {}
+	return '';
+}
+
+// Helper to create a session record and return sessionId
+export async function createSessionRecord(req: Request, userId: string) {
+	const sessionId = crypto.randomUUID();
+	try {
+		// Basic UA parsing (lightweight)
+		const ua = (req.headers['user-agent'] as string) || '';
+		let device = '';
+		if (/Mobile|Android|iPhone|iPad/i.test(ua)) device = 'Mobile';
+		else if (/Tablet|iPad/i.test(ua)) device = 'Tablet';
+		else device = 'Desktop';
+		let os = '';
+		if (/Windows/i.test(ua)) os = 'Windows';
+		else if (/Mac OS X/i.test(ua)) os = 'macOS';
+		else if (/Android/i.test(ua)) os = 'Android';
+		else if (/iPhone|iPad|iOS/i.test(ua)) os = 'iOS';
+		else if (/Linux/i.test(ua)) os = 'Linux';
+		let browser = '';
+		if (/Chrome\//i.test(ua)) browser = 'Chrome';
+		else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua)) browser = 'Safari';
+		else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+		else if (/Edg\//i.test(ua)) browser = 'Edge';
+
+		const ip =
+			(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+			req.socket.remoteAddress ||
+			'';
+
+		const location = await resolveGeoLocation(ip);
+		await new Session({
+			userId,
+			sessionId,
+			userAgent: ua,
+			ip,
+			device,
+			os,
+			browser,
+			location,
+		}).save();
+	} catch (e) {
+		console.error('Failed to save session record:', e);
+	}
+	return sessionId;
 }
 
 // Authorization middleware for role-based access

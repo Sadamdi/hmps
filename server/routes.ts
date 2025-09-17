@@ -7,6 +7,7 @@ import {
 	authenticate,
 	authorize,
 	canManageRole,
+	createSessionRecord,
 	generateToken,
 	hashPassword,
 	requirePermission,
@@ -451,8 +452,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Update last login
 				await mongoStorage.updateUser(user._id, { lastLogin: new Date() });
 
-				// Generate token and set cookie
-				const token = generateToken(user);
+				// Create server-side session record
+				const sessionId = await createSessionRecord(req, String(user._id));
+
+				// Generate token and set cookie (include tokenVersion)
+				const token = generateToken({ ...(user as any), sessionId } as any);
 				res.cookie('authToken', token, {
 					httpOnly: true,
 					secure: process.env.NODE_ENV === 'production',
@@ -483,6 +487,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(401).json({ message: 'Authentication required' });
 			}
 
+			// Increment tokenVersion to invalidate all existing tokens
+			await mongoStorage.updateUser(userId, {
+				$inc: { tokenVersion: 1 } as any,
+			});
+
+			// Mark all sessions revoked
+			try {
+				const { Session } = await import('../db/mongodb');
+				await Session.updateMany(
+					{ userId },
+					{ $set: { revokedAt: new Date() } }
+				);
+			} catch (e) {
+				console.warn('Failed to revoke session records:', e);
+			}
+
 			// Clear current session cookie
 			res.clearCookie('authToken');
 
@@ -490,8 +510,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const { logActivity } = await import('./models/activity');
 				const activityData = {
-					type: 'user',
-					action: 'update',
+					type: 'user' as 'user',
+					action: 'update' as 'update',
 					title: 'Revoke All Sessions',
 					description: `User ${
 						(req.user as UserWithRole)?.username
@@ -517,6 +537,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get('/api/auth/me', authenticate, (req, res) => {
 		const { password, ...userWithoutPassword } = req.user as UserWithRole;
 		res.json(userWithoutPassword);
+	});
+
+	// Sessions: list active sessions for current user
+	app.get('/api/auth/sessions', authenticate, async (req, res) => {
+		try {
+			const { Session } = await import('../db/mongodb');
+			const sessions = await Session.find({ userId: (req.user as any)?._id })
+				.sort({ createdAt: -1 })
+				.lean();
+			res.json(sessions);
+		} catch (e) {
+			console.error('Failed to list sessions:', e);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Sessions: revoke single session by sessionId
+	app.post('/api/auth/sessions/revoke', authenticate, async (req, res) => {
+		try {
+			const { sessionId } = req.body || {};
+			if (!sessionId)
+				return res.status(400).json({ message: 'sessionId required' });
+			const { Session } = await import('../db/mongodb');
+			const sess = await Session.findOne({
+				sessionId,
+				userId: (req.user as any)?._id,
+			});
+			if (!sess) return res.status(404).json({ message: 'Session not found' });
+			await Session.updateOne(
+				{ _id: sess._id },
+				{ $set: { revokedAt: new Date() } }
+			);
+			res.json({ message: 'Session revoked' });
+		} catch (e) {
+			console.error('Failed to revoke session:', e);
+			res.status(500).json({ message: 'Internal server error' });
+		}
 	});
 
 	app.post('/api/auth/change-password', authenticate, async (req, res) => {
