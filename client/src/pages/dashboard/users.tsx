@@ -260,8 +260,8 @@ export default function UsersPage() {
 					</CardContent>
 				</Card>
 			) : (
-				<div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow">
-					<table className="w-full border-collapse text-left">
+				<div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow">
+					<table className="w-full min-w-[720px] border-collapse text-left">
 						<thead className="bg-gray-50">
 							<tr>
 								<th className="px-6 py-4 text-sm font-medium text-gray-500">
@@ -273,7 +273,7 @@ export default function UsersPage() {
 								<th className="px-6 py-4 text-sm font-medium text-gray-500">
 									Last Login
 								</th>
-								<th className="px-6 py-4 text-sm font-medium text-gray-500">
+								<th className="px-6 py-4 text-sm font-medium text-gray-500 sticky right-0 bg-gray-50 z-10">
 									Actions
 								</th>
 							</tr>
@@ -333,7 +333,7 @@ export default function UsersPage() {
 												? new Date(user.lastLogin).toLocaleString()
 												: 'Never'}
 										</td>
-										<td className="px-6 py-4">
+										<td className="px-6 py-4 sticky right-0 bg-white z-10">
 											<div className="flex items-center gap-2">
 												<Button
 													variant="ghost"

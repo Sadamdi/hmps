@@ -1078,6 +1078,17 @@ function SessionsList() {
 		refetchInterval: 30000,
 	});
 
+	function formatTimeAgo(dateInput: string | number | Date) {
+		const date = new Date(dateInput);
+		const diffMs = Date.now() - date.getTime();
+		const minutes = Math.floor(diffMs / 60000);
+		if (minutes < 60) return `${minutes}m ago`;
+		const hours = Math.floor(minutes / 60);
+		if (hours < 24) return `${hours}h ago`;
+		const days = Math.floor(hours / 24);
+		return `${days}d ago`;
+	}
+
 	const revokeOne = useMutation({
 		mutationFn: async (sessionId: string) => {
 			return await apiRequest('POST', '/api/auth/sessions/revoke', {
@@ -1106,8 +1117,7 @@ function SessionsList() {
 			{sessions.map((s: any) => {
 				const isRevoked = !!s.revokedAt;
 				const created = new Date(s.createdAt);
-				const agoMs = Date.now() - created.getTime();
-				const agoMin = Math.floor(agoMs / 60000);
+				const lastActive = new Date(s.lastActive || s.createdAt);
 				return (
 					<div
 						key={s.sessionId}
@@ -1123,8 +1133,7 @@ function SessionsList() {
 									IP {s.ip || '-'}
 									{s.location ? ` • ${s.location}` : ''} • Login{' '}
 									{created.toLocaleString()} • Last active{' '}
-									{new Date(s.lastActive || s.createdAt).toLocaleString()} •{' '}
-									{agoMin}m ago
+									{lastActive.toLocaleString()} • {formatTimeAgo(lastActive)}
 								</div>
 							</div>
 						</div>

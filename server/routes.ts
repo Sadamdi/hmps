@@ -466,6 +466,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Return user info (without password)
 				const { password: _, ...userWithoutPassword } = user;
 				res.json(userWithoutPassword);
+
+				// Session retention: purge revoked >7 days and ensure max 10 sessions
+				try {
+					const { Session } = await import('../db/mongodb');
+					const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+					await Session.deleteMany({
+						userId: user._id,
+						revokedAt: { $lte: sevenDaysAgo },
+					});
+					const activeSessions = await Session.find({ userId: user._id })
+						.sort({ createdAt: -1 })
+						.lean();
+					if (activeSessions.length > 10) {
+						const toRevoke = activeSessions.slice(10);
+						const ids = toRevoke.map((s: any) => s._id);
+						await Session.updateMany(
+							{ _id: { $in: ids }, revokedAt: null },
+							{ $set: { revokedAt: new Date() } }
+						);
+					}
+				} catch (e) {
+					console.warn('Session retention maintenance (login) failed:', e);
+				}
 			} catch (error) {
 				console.error('Login error:', error);
 				res.status(500).json({ message: 'Internal server error' });
@@ -548,7 +571,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get('/api/auth/sessions', authenticate, async (req, res) => {
 		try {
 			const { Session } = await import('../db/mongodb');
-			const sessions = await Session.find({ userId: (req.user as any)?._id })
+			// Maintenance: purge revoked >7 days and cap at 10 by auto-revoking oldest
+			const userId = (req.user as any)?._id;
+			const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+			await Session.deleteMany({ userId, revokedAt: { $lte: sevenDaysAgo } });
+			const all = await Session.find({ userId }).sort({ createdAt: -1 });
+			if (all.length > 10) {
+				const toRevoke = all.slice(10);
+				const ids = toRevoke.map((s: any) => s._id);
+				await Session.updateMany(
+					{ _id: { $in: ids }, revokedAt: null },
+					{ $set: { revokedAt: new Date() } }
+				);
+			}
+			const sessions = await Session.find({ userId })
 				.sort({ createdAt: -1 })
 				.limit(10)
 				.lean();
