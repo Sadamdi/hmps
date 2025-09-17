@@ -1,9 +1,29 @@
+import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import { z } from 'zod';
 
 // ==================== RATE LIMITING ====================
+function getClientIp(req: any): string {
+	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
+	const forwardedIp = xfwd.split(',')[0]?.trim();
+	return forwardedIp || req.ip || req.connection?.remoteAddress || 'unknown';
+}
+
+function getDeviceId(req: any): string {
+	const userAgent = req.get?.('User-Agent') || '';
+	const acceptLanguage = req.get?.('Accept-Language') || '';
+	const acceptEncoding = req.get?.('Accept-Encoding') || '';
+	const ip = getClientIp(req);
+	const fingerprint = `${userAgent}|${acceptLanguage}|${acceptEncoding}|${ip}`;
+	return crypto
+		.createHash('sha256')
+		.update(fingerprint)
+		.digest('hex')
+		.substring(0, 16);
+}
+
 export const apiLimiter = rateLimit({
 	windowMs: 60 * 1000, // 1 menit
 	max: 500, // Maksimal 500 request per IP per menit
@@ -13,6 +33,7 @@ export const apiLimiter = rateLimit({
 	},
 	standardHeaders: true,
 	legacyHeaders: false,
+	keyGenerator: (req) => getClientIp(req),
 });
 
 export const loginLimiter = rateLimit({
@@ -24,6 +45,8 @@ export const loginLimiter = rateLimit({
 	},
 	standardHeaders: true,
 	legacyHeaders: false,
+	// Gabungkan IP + device untuk pembatasan yang lebih akurat
+	keyGenerator: (req) => `${getClientIp(req)}:${getDeviceId(req)}`,
 });
 
 export const uploadLimiter = rateLimit({
@@ -35,6 +58,7 @@ export const uploadLimiter = rateLimit({
 	},
 	standardHeaders: true,
 	legacyHeaders: false,
+	keyGenerator: (req) => getClientIp(req),
 });
 
 export const chatLimiter = rateLimit({
@@ -46,6 +70,7 @@ export const chatLimiter = rateLimit({
 	},
 	standardHeaders: true,
 	legacyHeaders: false,
+	keyGenerator: (req) => `${getClientIp(req)}:${getDeviceId(req)}`,
 });
 
 // ==================== INPUT VALIDATION SCHEMAS ====================
