@@ -6,12 +6,15 @@ async function throwIfResNotOk(res: Response) {
 		// Global 401 handler: show toast and redirect to login
 		if (res.status === 401) {
 			try {
-				const { toast } = await import('@/hooks/use-toast');
-				toast({
-					title: 'Anda telah logout',
-					description: 'Sesi Anda berakhir atau dicabut dari perangkat lain.',
-					variant: 'destructive',
-				});
+				// Simpan pesan agar bisa ditampilkan setelah redirect
+				sessionStorage.setItem(
+					'postLogoutToast',
+					JSON.stringify({
+						title: 'Anda telah logout',
+						description: 'Sesi Anda berakhir atau dicabut dari perangkat lain.',
+						variant: 'destructive',
+					})
+				);
 			} catch (e) {
 				// ignore toast errors in non-React context
 			}

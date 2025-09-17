@@ -144,11 +144,23 @@ const allowlistedSearchBots = [
 ];
 
 // ==================== DEVICE ID GENERATION ====================
+function getClientIp(req: Request): string {
+	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
+	const forwardedIp = xfwd.split(',')[0]?.trim();
+	return (
+		forwardedIp ||
+		req.ip ||
+		(req.connection as any)?.remoteAddress ||
+		req.socket.remoteAddress ||
+		'unknown'
+	);
+}
+
 function generateDeviceId(req: Request): string {
 	const userAgent = req.get('User-Agent') || '';
 	const acceptLanguage = req.get('Accept-Language') || '';
 	const acceptEncoding = req.get('Accept-Encoding') || '';
-	const ip = req.ip || req.connection.remoteAddress || 'unknown';
+	const ip = getClientIp(req);
 
 	// Create a unique device fingerprint
 	const fingerprint = `${userAgent}|${acceptLanguage}|${acceptEncoding}|${ip}`;
@@ -229,7 +241,7 @@ export const ddosProtectionMiddleware = (
 	next: NextFunction
 ) => {
 	try {
-		const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+		const clientIP = getClientIp(req);
 		const userAgent = req.get('User-Agent') || '';
 		const path = req.path;
 		const method = req.method;

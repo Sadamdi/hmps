@@ -550,6 +550,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const { Session } = await import('../db/mongodb');
 			const sessions = await Session.find({ userId: (req.user as any)?._id })
 				.sort({ createdAt: -1 })
+				.limit(10)
 				.lean();
 			res.json(sessions);
 		} catch (e) {

@@ -95,7 +95,7 @@ export async function authenticate(
 		try {
 			if ((decoded as any).sid) {
 				const { Session } = await import('../db/mongodb');
-				const sess = await Session.findOne({
+				const sess: any = await Session.findOne({
 					sessionId: (decoded as any).sid,
 					userId: (user as any)._id,
 				}).lean();

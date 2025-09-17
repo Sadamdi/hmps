@@ -98,6 +98,7 @@ export default function SettingsPage() {
 	const [showCurrent, setShowCurrent] = useState(false);
 	const [showNew, setShowNew] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
+	const [showRevokeDialog, setShowRevokeDialog] = useState(false);
 
 	// Sessions polling (heartbeat) every 15s to trigger 401 handling automatically
 	useEffect(() => {
@@ -989,15 +990,7 @@ export default function SettingsPage() {
 														variant="destructive"
 														size="sm"
 														className="mt-3"
-														onClick={() => {
-															if (
-																confirm(
-																	'Are you sure you want to revoke all sessions? You will be logged out from all devices.'
-																)
-															) {
-																revokeSessionsMutation.mutate();
-															}
-														}}
+														onClick={() => setShowRevokeDialog(true)}
 														disabled={revokeSessionsMutation.isPending}>
 														{revokeSessionsMutation.isPending ? (
 															<>
@@ -1016,6 +1009,36 @@ export default function SettingsPage() {
 										</div>
 									</CardContent>
 								</Card>
+
+								{/* Custom Confirm Dialog */}
+								{showRevokeDialog && (
+									<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+										<div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+											<h3 className="text-lg font-semibold">
+												Revoke All Sessions
+											</h3>
+											<p className="mt-2 text-sm text-muted-foreground">
+												Apakah Anda yakin ingin logout dari semua perangkat dan
+												browser? Ini akan mengakhiri semua sesi aktif.
+											</p>
+											<div className="mt-4 flex justify-end gap-2">
+												<Button
+													variant="outline"
+													onClick={() => setShowRevokeDialog(false)}>
+													Batal
+												</Button>
+												<Button
+													variant="destructive"
+													onClick={() => {
+														setShowRevokeDialog(false);
+														revokeSessionsMutation.mutate();
+													}}>
+													Ya, Revoke Semua
+												</Button>
+											</div>
+										</div>
+									</div>
+								)}
 							</div>
 						</TabsContent>
 					</>

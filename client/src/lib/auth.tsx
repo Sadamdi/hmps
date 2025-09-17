@@ -29,6 +29,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	const { toast } = useToast();
 	const [, setLocation] = useLocation();
 
+	// Tampilkan toast setelah redirect login (post-logout toast)
+	useEffect(() => {
+		try {
+			const raw = sessionStorage.getItem('postLogoutToast');
+			if (raw) {
+				const { title, description, variant } = JSON.parse(raw);
+				toast({ title, description, variant });
+				sessionStorage.removeItem('postLogoutToast');
+			}
+		} catch {}
+	}, []);
+
 	useEffect(() => {
 		// Check if user is already logged in
 		const fetchCurrentUser = async () => {
