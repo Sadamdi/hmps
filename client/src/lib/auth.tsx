@@ -73,6 +73,63 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		};
 
 		fetchCurrentUser();
+
+		// Heartbeat: cek status session berkala agar auto-logout segera tanpa interaksi
+		const intervalId = setInterval(async () => {
+			try {
+				const res = await fetch('/api/auth/me', {
+					credentials: 'include',
+					cache: 'no-store',
+				});
+				if (!res.ok) {
+					// Simpan toast agar muncul setelah redirect
+					try {
+						sessionStorage.setItem(
+							'postLogoutToast',
+							JSON.stringify({
+								title: 'Anda telah logout',
+								description:
+									'Sesi Anda berakhir atau dicabut dari perangkat lain.',
+								variant: 'destructive',
+							})
+						);
+					} catch {}
+					window.location.href = '/login';
+				}
+			} catch (_) {
+				// Jika network error, abaikan agar tidak logout palsu
+			}
+		}, 5000);
+
+		// Fokus tab: cek segera saat user kembali ke tab
+		const onVisibility = async () => {
+			if (document.visibilityState === 'visible') {
+				try {
+					const res = await fetch('/api/auth/me', {
+						credentials: 'include',
+						cache: 'no-store',
+					});
+					if (!res.ok) {
+						sessionStorage.setItem(
+							'postLogoutToast',
+							JSON.stringify({
+								title: 'Anda telah logout',
+								description:
+									'Sesi Anda berakhir atau dicabut dari perangkat lain.',
+								variant: 'destructive',
+							})
+						);
+						window.location.href = '/login';
+					}
+				} catch {}
+			}
+		};
+		document.addEventListener('visibilitychange', onVisibility);
+
+		return () => {
+			clearInterval(intervalId);
+			document.removeEventListener('visibilitychange', onVisibility);
+		};
 	}, []);
 
 	const fetchUserPermissions = async () => {
