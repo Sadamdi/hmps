@@ -20,7 +20,7 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Eye, EyeOff, Loader2, Save } from 'lucide-react';
+import { Eye, EyeOff, Loader2, LogOut, Save, Shield } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface SiteSettings {
@@ -256,6 +256,34 @@ export default function SettingsPage() {
 				title: 'Password Change Failed',
 				description:
 					error.message || 'There was a problem changing your password.',
+				variant: 'destructive',
+			});
+		},
+	});
+
+	// Revoke all sessions mutation
+	const revokeSessionsMutation = useMutation({
+		mutationFn: async () => {
+			return await apiRequest('POST', '/api/auth/revoke-all-sessions');
+		},
+		onSuccess: async () => {
+			toast({
+				title: 'All Sessions Revoked',
+				description:
+					'You have been logged out from all devices. Please log in again.',
+			});
+
+			// Clear all cached data
+			queryClient.clear();
+
+			// Redirect to login page
+			window.location.href = '/login';
+		},
+		onError: (error: any) => {
+			toast({
+				title: 'Revoke Sessions Failed',
+				description:
+					error.message || 'There was a problem revoking your sessions.',
 				variant: 'destructive',
 			});
 		},
@@ -904,6 +932,62 @@ export default function SettingsPage() {
 												'Change Password'
 											)}
 										</Button>
+									</CardContent>
+								</Card>
+
+								{/* Security Section */}
+								<Card>
+									<CardHeader>
+										<CardTitle className="flex items-center gap-2">
+											<Shield className="h-5 w-5" />
+											Security
+										</CardTitle>
+										<CardDescription>
+											Manage your account security settings
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-4">
+										<div className="rounded-lg border border-red-200 bg-red-50 p-4">
+											<div className="flex items-start gap-3">
+												<LogOut className="h-5 w-5 text-red-600 mt-0.5" />
+												<div className="flex-1">
+													<h4 className="font-medium text-red-800">
+														Revoke All Sessions
+													</h4>
+													<p className="text-sm text-red-700 mt-1">
+														Log out from all devices and browsers. This will
+														immediately end all active sessions for your
+														account.
+													</p>
+													<Button
+														variant="destructive"
+														size="sm"
+														className="mt-3"
+														onClick={() => {
+															if (
+																confirm(
+																	'Are you sure you want to revoke all sessions? You will be logged out from all devices.'
+																)
+															) {
+																revokeSessionsMutation.mutate();
+															}
+														}}
+														disabled={revokeSessionsMutation.isPending}>
+														{revokeSessionsMutation.isPending ? (
+															<>
+																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																Revoking...
+															</>
+														) : (
+															<>
+																<LogOut className="mr-2 h-4 w-4" />
+																Revoke All Sessions
+															</>
+														)}
+													</Button>
+												</div>
+											</div>
+										</div>
 									</CardContent>
 								</Card>
 							</div>

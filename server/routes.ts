@@ -474,6 +474,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		res.json({ message: 'Logged out successfully' });
 	});
 
+	// Revoke all sessions for current user
+	app.post('/api/auth/revoke-all-sessions', authenticate, async (req, res) => {
+		try {
+			const userId = (req.user as UserWithRole)?._id;
+
+			if (!userId) {
+				return res.status(401).json({ message: 'Authentication required' });
+			}
+
+			// Clear current session cookie
+			res.clearCookie('authToken');
+
+			// Log activity
+			try {
+				const { logActivity } = await import('./models/activity');
+				const activityData = {
+					type: 'user',
+					action: 'update',
+					title: 'Revoke All Sessions',
+					description: `User ${
+						(req.user as UserWithRole)?.username
+					} revoked all sessions`,
+					userId: (req.user as any)?._id,
+					userName: (req.user as any)?.name || (req.user as any)?.username,
+					userRole: (req.user as any)?.role,
+				};
+				await logActivity(activityData);
+			} catch (error) {
+				console.warn('Failed to log revoke sessions activity:', error);
+			}
+
+			res.json({
+				message: 'All sessions revoked successfully. You have been logged out.',
+			});
+		} catch (error) {
+			console.error('Error revoking sessions:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	app.get('/api/auth/me', authenticate, (req, res) => {
 		const { password, ...userWithoutPassword } = req.user as UserWithRole;
 		res.json(userWithoutPassword);
