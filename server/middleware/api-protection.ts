@@ -173,7 +173,13 @@ export const apiRateLimitMiddleware = (
 		return next();
 	}
 
-	const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
+	const forwardedIp = xfwd.split(',')[0]?.trim();
+	const clientIP =
+		forwardedIp ||
+		(req as any).ip ||
+		(req as any).connection?.remoteAddress ||
+		'unknown';
 	const now = Date.now();
 	const ipData = apiRequestCounts.get(clientIP);
 

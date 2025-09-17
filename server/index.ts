@@ -32,6 +32,9 @@ process.env.DISABLE_MONGODB = 'false';
 
 const app = express();
 
+// Trust proxy untuk membaca X-Forwarded-For dengan benar
+app.set('trust proxy', true);
+
 // ==================== SECURITY MIDDLEWARE SETUP ====================
 // Apply security headers and basic protection
 app.use(securityMiddleware.helmet);
