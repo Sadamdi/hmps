@@ -1,6 +1,6 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AtSign, Loader2, Mail, User } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useToast } from '../../hooks/use-toast';
 import { logActivity } from '../../lib/activity-logger';
 import { useAuth } from '../../lib/auth';
@@ -55,12 +55,35 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 		division: user?.division || '',
 	});
 
+	// Fetch roles untuk mendapatkan level
+	const { data: roles = [] as any[] } = useQuery({
+		queryKey: ['/api/roles/levels'],
+		placeholderData: [],
+	});
+
+	const getRoleLevel = (roleName: string) => {
+		const r = roles.find((x: any) => x?.name === roleName);
+		return typeof r?.level === 'number' ? r.level : 999;
+	};
+
+	const currentUserLevel = useMemo(() => {
+		return currentUser ? getRoleLevel(currentUser.role as string) : 999;
+	}, [currentUser, roles]);
+
+	// Role yang boleh di-assign: level lebih rendah dari current user (angka level lebih besar)
+	const assignableRoles = useMemo(() => {
+		return roles
+			.filter((r: any) => typeof r?.level === 'number')
+			.filter((r: any) => r.level > currentUserLevel)
+			.sort((a: any, b: any) => a.level - b.level);
+	}, [roles, currentUserLevel]);
+
 	// Check if current user can edit role/division
 	const canEditRole =
 		currentUser?.role === 'owner' ||
 		currentUser?.role === 'admin' ||
-		currentUser?.role === 'ketua' ||
-		currentUser?.role === 'wakil_ketua';
+		currentUser?.role === 'chair' ||
+		currentUser?.role === 'vice_chair';
 
 	// Update profile mutation
 	const updateProfileMutation = useMutation({
@@ -71,7 +94,7 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 			// Log activity
 			try {
 				await logActivity({
-					type: 'profile',
+					type: 'user',
 					action: 'update',
 					title: 'Profile diubah',
 					description: 'User mengubah profile akun',
@@ -270,13 +293,13 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 									<SelectValue placeholder="Select role" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="owner">Owner</SelectItem>
-									<SelectItem value="admin">Admin</SelectItem>
-									<SelectItem value="ketua">Ketua Himpunan</SelectItem>
-									<SelectItem value="wakil_ketua">
-										Wakil Ketua Himpunan
-									</SelectItem>
-									<SelectItem value="division_head">Division Head</SelectItem>
+									{assignableRoles.map((role: any) => (
+										<SelectItem
+											key={role._id}
+											value={role.name}>
+											{role.displayName} (Level {role.level})
+										</SelectItem>
+									))}
 								</SelectContent>
 							</Select>
 						</div>

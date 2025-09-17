@@ -835,6 +835,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	// Related articles (PLACE BEFORE /api/articles/:id/:slug to avoid 302 redirect)
+	app.get('/api/articles/:id/related', async (req, res) => {
+		try {
+			const articleId = req.params.id;
+			const limit = Math.max(
+				1,
+				Math.min(5, parseInt((req.query.limit as string) || '2'))
+			);
+
+			const base = await mongoStorage.getArticleById(articleId);
+			if (!base) {
+				return res.status(404).json({ message: 'Article not found' });
+			}
+
+			const { RecommendationService } = await import(
+				'./services/recommendation'
+			);
+			const relatedDocs = await RecommendationService.getRelatedById(
+				String(base._id),
+				limit
+			);
+
+			res.json(
+				relatedDocs.map((r: any) => ({
+					_id: r._id,
+					title: r.title,
+					excerpt: r.excerpt,
+					image: r.image,
+					author: r.author,
+					createdAt: r.createdAt,
+					slug: r.slug,
+					tags: r.tags || [],
+				}))
+			);
+		} catch (error) {
+			console.error('Get related articles error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	app.get('/api/articles/manage', authenticate, async (req, res) => {
 		try {
 			// Get user permissions
@@ -954,80 +994,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: 'Article not found' });
 			}
 
-			// Get candidates: all published except current
-			const all = await mongoStorage.getPublishedArticles();
-			const candidates = (all || []).filter(
-				(a: any) => String(a._id) !== String(base._id)
+			// Use RecommendationService (TF-IDF)
+			const { RecommendationService } = await import(
+				'./services/recommendation'
+			);
+			const relatedDocs = await RecommendationService.getRelatedById(
+				String(base._id),
+				limit
 			);
 
-			const baseTags: string[] = Array.isArray(base.tags)
-				? (base.tags as string[]).map((t) => String(t).toLowerCase())
-				: [];
-			const baseText = `${base.title || ''} ${
-				base.excerpt || ''
-			}`.toLowerCase();
-
-			const stopwords = new Set(
-				'id ini itu dan yang untuk pada dari dengan oleh atau ke di sebagai tentang lebih agar bukan telah akan sudah juga karena namun tetapi tetapi\n'.split(
-					/\s+/
-				)
-			);
-
-			const tokenize = (text: string): Set<string> => {
-				return new Set(
-					text
-						.toLowerCase()
-						.replace(/[^a-z0-9\s]/g, ' ')
-						.split(/\s+/)
-						.filter((w) => w && w.length > 2 && !stopwords.has(w))
-				);
-			};
-
-			const baseTokens = tokenize(baseText);
-
-			const jaccard = (a: Set<string>, b: Set<string>): number => {
-				if (a.size === 0 && b.size === 0) return 0;
-				let inter = 0;
-				a.forEach((x) => {
-					if (b.has(x)) inter++;
-				});
-				const union = a.size + b.size - inter;
-				return union === 0 ? 0 : inter / union;
-			};
-
-			const scored = candidates
-				.map((a: any) => {
-					const candTags: string[] = Array.isArray(a.tags)
-						? (a.tags as string[]).map((t) => String(t).toLowerCase())
-						: [];
-					const tagScore = jaccard(new Set(baseTags), new Set(candTags));
-					const candText = `${a.title || ''} ${a.excerpt || ''}`.toLowerCase();
-					const textScore = jaccard(baseTokens, tokenize(candText));
-					// Weighted sum: tags more important
-					const score = tagScore * 0.7 + textScore * 0.3;
-					return { a, score, tagScore, textScore };
-				})
-				.sort((x: any, y: any) => y.score - x.score);
-
-			let related = scored
-				.filter((s: any) => s.score > 0)
-				.slice(0, limit)
-				.map((s: any) => s.a);
-			if (related.length < limit) {
-				// Fallback by same author or latest
-				const remaining = candidates
-					.filter(
-						(a: any) =>
-							!related.find((r: any) => String(r._id) === String(a._id))
-					)
-					.sort((x: any, y: any) =>
-						String(x.author) === String(base.author) ? -1 : 1
-					);
-				related = related.concat(remaining.slice(0, limit - related.length));
-			}
+			// Remove legacy in-route scoring; RecommendationService result is used
 
 			res.json(
-				related.map((r: any) => ({
+				relatedDocs.map((r: any) => ({
 					_id: r._id,
 					title: r.title,
 					excerpt: r.excerpt,
@@ -1051,77 +1030,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const article = await mongoStorage.getArticleBySlug(slug);
 			if (!article)
 				return res.status(404).json({ message: 'Article not found' });
-			// Compute using the same logic here
-			const all = await mongoStorage.getPublishedArticles();
-			const candidates = (all || []).filter(
-				(a: any) => String(a._id) !== String(article._id)
+			// Use RecommendationService as well
+			const { RecommendationService } = await import(
+				'./services/recommendation'
 			);
-			const baseTags: string[] = Array.isArray(article.tags)
-				? (article.tags as string[]).map((t) => String(t).toLowerCase())
-				: [];
-			const baseText = `${article.title || ''} ${
-				article.excerpt || ''
-			}`.toLowerCase();
-			const stopwords = new Set(
-				'id ini itu dan yang untuk pada dari dengan oleh atau ke di sebagai tentang lebih agar bukan telah akan sudah juga karena namun tetapi tetapi\n'.split(
-					/\s+/
-				)
-			);
-			const tokenize = (text: string): Set<string> => {
-				return new Set(
-					text
-						.toLowerCase()
-						.replace(/[^a-z0-9\s]/g, ' ')
-						.split(/\s+/)
-						.filter((w) => w && w.length > 2 && !stopwords.has(w))
-				);
-			};
-			const jaccard = (a: Set<string>, b: Set<string>): number => {
-				if (a.size === 0 && b.size === 0) return 0;
-				let inter = 0;
-				a.forEach((x) => {
-					if (b.has(x)) inter++;
-				});
-				const union = a.size + b.size - inter;
-				return union === 0 ? 0 : inter / union;
-			};
-			const baseTokens = tokenize(baseText);
-			const scored = candidates
-				.map((a: any) => {
-					const candTags: string[] = Array.isArray(a.tags)
-						? (a.tags as string[]).map((t) => String(t).toLowerCase())
-						: [];
-					const tagScore = jaccard(new Set(baseTags), new Set(candTags));
-					const candText = `${a.title || ''} ${a.excerpt || ''}`.toLowerCase();
-					const textScore = jaccard(baseTokens, tokenize(candText));
-					const score = tagScore * 0.7 + textScore * 0.3;
-					return { a, score };
-				})
-				.sort((x: any, y: any) => y.score - x.score);
 			const limit = Math.max(
 				1,
 				Math.min(5, parseInt((req.query.limit as string) || '2'))
 			);
-			let related = scored.slice(0, limit).map((s: any) => s.a);
-			if (related.length < limit || (scored[0]?.score || 0) === 0) {
-				const remaining = candidates
-					.filter(
-						(a: any) =>
-							!related.find((r: any) => String(r._id) === String(a._id))
-					)
-					.sort((x: any, y: any) => {
-						// Prefer same author, then newest
-						const sx = String(x.author) === String(article.author) ? 1 : 0;
-						const sy = String(y.author) === String(article.author) ? 1 : 0;
-						if (sy !== sx) return sy - sx;
-						return (
-							new Date(y.createdAt).getTime() - new Date(x.createdAt).getTime()
-						);
-					});
-				related = related.concat(remaining.slice(0, limit - related.length));
-			}
+			const relatedDocs = await RecommendationService.getRelatedById(
+				String(article._id),
+				limit
+			);
 			res.json(
-				related.map((r: any) => ({
+				relatedDocs.map((r: any) => ({
 					_id: r._id,
 					title: r.title,
 					excerpt: r.excerpt,
