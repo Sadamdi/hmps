@@ -488,9 +488,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			// Increment tokenVersion to invalidate all existing tokens
-			await mongoStorage.updateUser(userId, {
-				$inc: { tokenVersion: 1 } as any,
-			});
+			try {
+				const { User } = await import('../db/mongodb');
+				await User.updateOne({ _id: userId }, { $inc: { tokenVersion: 1 } });
+			} catch (e) {
+				await mongoStorage.updateUser(userId, {
+					tokenVersion: ((req.user as any)?.tokenVersion || 0) + 1,
+				});
+			}
 
 			// Mark all sessions revoked
 			try {

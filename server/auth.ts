@@ -91,12 +91,21 @@ export async function authenticate(
 				.json({ message: 'Session revoked. Please login again.' });
 		}
 
-		// Optional: Update lastActive for this session (throttle by 60s)
+		// Validate session not revoked + update lastActive
 		try {
 			if ((decoded as any).sid) {
 				const { Session } = await import('../db/mongodb');
+				const sess = await Session.findOne({
+					sessionId: (decoded as any).sid,
+					userId: (user as any)._id,
+				}).lean();
+				if (!sess || sess.revokedAt) {
+					return res
+						.status(401)
+						.json({ message: 'Session revoked. Please login again.' });
+				}
 				await Session.updateOne(
-					{ sessionId: (decoded as any).sid, userId: (user as any)._id },
+					{ _id: sess._id },
 					{ $set: { lastActive: new Date() } }
 				);
 			}
