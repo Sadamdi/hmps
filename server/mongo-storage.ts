@@ -792,21 +792,12 @@ async function initializeDefaultPermissions() {
 	try {
 		const existingPermissions = await Permission.countDocuments();
 		if (existingPermissions > 0) {
-			console.log(
-				'Permissions already exist, checking if articles.delete_others exists...'
-			);
 			const deleteOthersExists = await Permission.findOne({
 				name: 'articles.delete_others',
 			});
 			if (deleteOthersExists) {
-				console.log(
-					'articles.delete_others permission exists, skipping initialization'
-				);
 				return;
 			} else {
-				console.log(
-					'articles.delete_others permission missing, re-initializing...'
-				);
 				// Clear existing permissions and re-initialize
 				await Permission.deleteMany({});
 			}
@@ -1116,7 +1107,6 @@ async function initializeDefaultRoles() {
 	try {
 		const existingRoles = await Role.countDocuments();
 		if (existingRoles > 0) {
-			console.log('Roles already exist, skipping initialization');
 			return;
 		}
 
@@ -1280,7 +1270,6 @@ async function initializeDefaultDivisions() {
 	try {
 		const existingDivisions = await Division.countDocuments();
 		if (existingDivisions > 0) {
-			console.log('Divisions already exist, skipping initialization');
 			return;
 		}
 
