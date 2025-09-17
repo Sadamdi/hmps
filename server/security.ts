@@ -230,7 +230,10 @@ export const securityLogger = (req: any, res: any, next: any) => {
 	}
 
 	const start = Date.now();
-	const ip = req.ip || req.connection.remoteAddress;
+	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
+	const forwardedIp = xfwd.split(',')[0]?.trim();
+	const ip =
+		forwardedIp || req.ip || req.connection?.remoteAddress || 'unknown';
 	const userAgent = req.get('User-Agent') || 'Unknown';
 
 	// Log request
