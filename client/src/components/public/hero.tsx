@@ -89,14 +89,14 @@ export default function Hero({
 
 	// Mobile banner images from benner folder
 	const mobileBanners = [
-		'/attached_assets/benner/ketua.jpg',
-		'/attached_assets/benner/wakil.jpg',
-		'/attached_assets/benner/intelek.jpg',
-		'/attached_assets/benner/pr.jpg',
-		'/attached_assets/benner/techno.jpg',
-		'/attached_assets/benner/senor.jpg',
-		'/attached_assets/benner/medinfo.jpg',
-		'/attached_assets/benner/religius.jpg',
+		'/attached_assets/benner/ketua.webp',
+		'/attached_assets/benner/wakil.webp',
+		'/attached_assets/benner/intelek.webp',
+		'/attached_assets/benner/pr.webp',
+		'/attached_assets/benner/techno.webp',
+		'/attached_assets/benner/senor.webp',
+		'/attached_assets/benner/medinfo.webp',
+		'/attached_assets/benner/religius.webp',
 	];
 
 	// Observe visibility of hero section to pause effects when out of view

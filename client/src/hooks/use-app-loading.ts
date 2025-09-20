@@ -48,14 +48,14 @@ export function useAppLoading() {
 
 				// Preload mobile banner images (yang paling penting untuk mobile)
 				const mobileBanners = [
-					'/attached_assets/benner/ketua.jpg',
-					'/attached_assets/benner/wakil.jpg',
-					'/attached_assets/benner/intelek.jpg',
-					'/attached_assets/benner/pr.jpg',
-					'/attached_assets/benner/techno.jpg',
-					'/attached_assets/benner/senor.jpg',
-					'/attached_assets/benner/medinfo.jpg',
-					'/attached_assets/benner/religius.jpg',
+					'/attached_assets/benner/ketua.webp',
+					'/attached_assets/benner/wakil.webp',
+					'/attached_assets/benner/intelek.webp',
+					'/attached_assets/benner/pr.webp',
+					'/attached_assets/benner/techno.webp',
+					'/attached_assets/benner/senor.webp',
+					'/attached_assets/benner/medinfo.webp',
+					'/attached_assets/benner/religius.webp',
 				];
 
 				// Preload 3 banner pertama untuk mobile (yang paling penting)
@@ -74,7 +74,7 @@ export function useAppLoading() {
 				// Preload logo HMPS
 				const logoImg = new Image();
 				logoImg.src =
-					'/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.png';
+					'/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
 				imagePromises.push(
 					new Promise((resolve) => {
 						logoImg.onload = resolve;

@@ -127,7 +127,7 @@ export function LoadingScreen({
 				<div className="mb-10 animate-fade-in">
 					<div className="w-16 h-16 mx-auto mb-4">
 						<img
-							src="/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.png"
+							src="/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp"
 							alt="Logo HMPS"
 							className="w-full h-full object-contain animate-pulse"
 						/>
