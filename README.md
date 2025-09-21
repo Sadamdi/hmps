@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![HMPS Logo](attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.png)
+![HMPS Logo](attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp)
 
 **Platform Informasi Resmi Himpunan Mahasiswa Teknik Informatika UIN Malang**
 *Periode 2025-2026*

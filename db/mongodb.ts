@@ -181,7 +181,7 @@ const settingsSchema = new mongoose.Schema({
 		default:
 			'© 2023 Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.',
 	},
-	logoUrl: { type: String, default: '/logo.png' },
+	logoUrl: { type: String, default: '/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp' },
 	chairpersonPhoto: { type: String, default: '' },
 	viceChairpersonPhoto: { type: String, default: '' },
 	chairpersonName: { type: String, default: '' },
