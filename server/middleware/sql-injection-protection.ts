@@ -1,4 +1,35 @@
 import { NextFunction, Request, Response } from 'express';
+import { getMiddlewareSettings } from '../models/middleware-settings';
+
+// Cache for middleware settings
+let sqlMiddlewareSettingsCache: any = null;
+let sqlSettingsCacheTimestamp: number = 0;
+const SQL_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Function to get middleware settings with caching for SQL middleware
+async function getCachedSqlMiddlewareSettings() {
+	const now = Date.now();
+	if (
+		!sqlMiddlewareSettingsCache ||
+		now - sqlSettingsCacheTimestamp > SQL_CACHE_DURATION
+	) {
+		try {
+			sqlMiddlewareSettingsCache = await getMiddlewareSettings();
+			sqlSettingsCacheTimestamp = now;
+		} catch (error) {
+			console.error('Error getting SQL middleware settings:', error);
+			// Fallback to default enabled settings if error
+			sqlMiddlewareSettingsCache = {
+				apiProtectionEnabled: true,
+				apiRateLimitEnabled: true,
+				ddosProtectionEnabled: true,
+				sqlInjectionProtectionEnabled: true,
+				noSqlInjectionProtectionEnabled: true,
+			};
+		}
+	}
+	return sqlMiddlewareSettingsCache;
+}
 
 // ==================== BEAUTIFUL ERROR RESPONSE ====================
 function sendBeautifulError(
@@ -162,114 +193,77 @@ const xssPatterns = [
 ];
 
 // ==================== SQL INJECTION PROTECTION MIDDLEWARE ====================
-export const sqlInjectionProtectionMiddleware = (
+export const sqlInjectionProtectionMiddleware = async (
 	req: Request,
 	res: Response,
 	next: NextFunction
 ) => {
-	// Skip protection untuk frontend files dan static routes
-	if (
-		req.path.includes('/src/') ||
-		req.path.includes('/@') ||
-		req.path.includes('/node_modules/') ||
-		req.path.includes('/uploads/') ||
-		req.path.includes('/attached_assets/') ||
-		req.path.endsWith('.tsx') ||
-		req.path.endsWith('.ts') ||
-		req.path.endsWith('.js') ||
-		req.path.endsWith('.css') ||
-		req.path.endsWith('.mjs') ||
-		req.path.endsWith('.png') ||
-		req.path.endsWith('.jpg') ||
-		req.path.endsWith('.jpeg') ||
-		req.path.endsWith('.gif') ||
-		req.path.endsWith('.svg') ||
-		req.path.endsWith('.ico') ||
-		req.path.endsWith('.woff') ||
-		req.path.endsWith('.woff2') ||
-		req.path.endsWith('.ttf') ||
-		req.path.endsWith('.eot') ||
-		req.path === '/' ||
-		req.path === '/login' ||
-		req.path === '/dashboard' ||
-		req.path === '/artikel' ||
-		req.path === '/library' ||
-		req.path === '/about' ||
-		req.path === '/ai-chat' ||
-		req.path === '/error' ||
-		req.path.startsWith('/artikel/') ||
-		req.path.startsWith('/dashboard/') ||
-		req.path.startsWith('/login') ||
-		req.path.startsWith('/error') ||
-		// Skip untuk semua API routes
-		req.path.startsWith('/api/') ||
-		req.path.startsWith('/.well-known/')
-	) {
-		return next();
-	}
+	try {
+		const settings = await getCachedSqlMiddlewareSettings();
 
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	const clientIP =
-		forwardedIp ||
-		(req as any).ip ||
-		(req as any).connection?.remoteAddress ||
-		'unknown';
-	let isInjectionDetected = false;
-	let injectionType = '';
-	let detectedPattern = '';
-
-	// ==================== CHECK REQUEST BODY ====================
-	if (req.body) {
-		const bodyString = JSON.stringify(req.body);
-
-		// Check SQL injection
-		for (const pattern of sqlInjectionPatterns) {
-			if (pattern.test(bodyString)) {
-				isInjectionDetected = true;
-				injectionType = 'SQL Injection';
-				detectedPattern = pattern.source;
-				break;
-			}
+		// Skip middleware if disabled
+		if (!settings.sqlInjectionProtectionEnabled) {
+			return next();
+		}
+		// Skip protection untuk frontend files dan static routes
+		if (
+			req.path.includes('/src/') ||
+			req.path.includes('/@') ||
+			req.path.includes('/node_modules/') ||
+			req.path.includes('/uploads/') ||
+			req.path.includes('/attached_assets/') ||
+			req.path.endsWith('.tsx') ||
+			req.path.endsWith('.ts') ||
+			req.path.endsWith('.js') ||
+			req.path.endsWith('.css') ||
+			req.path.endsWith('.mjs') ||
+			req.path.endsWith('.png') ||
+			req.path.endsWith('.jpg') ||
+			req.path.endsWith('.jpeg') ||
+			req.path.endsWith('.gif') ||
+			req.path.endsWith('.svg') ||
+			req.path.endsWith('.ico') ||
+			req.path.endsWith('.woff') ||
+			req.path.endsWith('.woff2') ||
+			req.path.endsWith('.ttf') ||
+			req.path.endsWith('.eot') ||
+			req.path === '/' ||
+			req.path === '/login' ||
+			req.path === '/dashboard' ||
+			req.path === '/artikel' ||
+			req.path === '/library' ||
+			req.path === '/about' ||
+			req.path === '/ai-chat' ||
+			req.path === '/error' ||
+			req.path.startsWith('/artikel/') ||
+			req.path.startsWith('/dashboard/') ||
+			req.path.startsWith('/login') ||
+			req.path.startsWith('/error') ||
+			// Skip untuk semua API routes
+			req.path.startsWith('/api/') ||
+			req.path.startsWith('/.well-known/')
+		) {
+			return next();
 		}
 
-		// Check NoSQL injection
-		if (!isInjectionDetected) {
-			for (const pattern of noSqlInjectionPatterns) {
-				if (pattern.test(bodyString)) {
-					isInjectionDetected = true;
-					injectionType = 'NoSQL Injection';
-					detectedPattern = pattern.source;
-					break;
-				}
-			}
-		}
+		const xfwd = (req.headers['x-forwarded-for'] as string) || '';
+		const forwardedIp = xfwd.split(',')[0]?.trim();
+		const clientIP =
+			forwardedIp ||
+			(req as any).ip ||
+			(req as any).connection?.remoteAddress ||
+			'unknown';
+		let isInjectionDetected = false;
+		let injectionType = '';
+		let detectedPattern = '';
 
-		// Check XSS
-		if (!isInjectionDetected) {
-			for (const pattern of xssPatterns) {
-				if (pattern.test(bodyString)) {
-					isInjectionDetected = true;
-					injectionType = 'XSS';
-					detectedPattern = pattern.source;
-					break;
-				}
-			}
-		}
-	}
+		// ==================== CHECK REQUEST BODY ====================
+		if (req.body) {
+			const bodyString = JSON.stringify(req.body);
 
-	// ==================== CHECK QUERY PARAMETERS ====================
-	if (!isInjectionDetected && req.query) {
-		const queryString = JSON.stringify(req.query);
-
-		// Skip detection untuk error page parameters
-		if (req.path.startsWith('/error') && req.query.error) {
-			// Untuk error page, kita skip pattern detection pada query parameters
-			// karena error parameter berisi JSON yang mungkin memiliki karakter khusus
-		} else {
 			// Check SQL injection
 			for (const pattern of sqlInjectionPatterns) {
-				if (pattern.test(queryString)) {
+				if (pattern.test(bodyString)) {
 					isInjectionDetected = true;
 					injectionType = 'SQL Injection';
 					detectedPattern = pattern.source;
@@ -280,7 +274,7 @@ export const sqlInjectionProtectionMiddleware = (
 			// Check NoSQL injection
 			if (!isInjectionDetected) {
 				for (const pattern of noSqlInjectionPatterns) {
-					if (pattern.test(queryString)) {
+					if (pattern.test(bodyString)) {
 						isInjectionDetected = true;
 						injectionType = 'NoSQL Injection';
 						detectedPattern = pattern.source;
@@ -292,7 +286,7 @@ export const sqlInjectionProtectionMiddleware = (
 			// Check XSS
 			if (!isInjectionDetected) {
 				for (const pattern of xssPatterns) {
-					if (pattern.test(queryString)) {
+					if (pattern.test(bodyString)) {
 						isInjectionDetected = true;
 						injectionType = 'XSS';
 						detectedPattern = pattern.source;
@@ -301,238 +295,299 @@ export const sqlInjectionProtectionMiddleware = (
 				}
 			}
 		}
-	}
 
-	// ==================== CHECK URL PARAMETERS ====================
-	if (!isInjectionDetected && req.params) {
-		const paramsString = JSON.stringify(req.params);
+		// ==================== CHECK QUERY PARAMETERS ====================
+		if (!isInjectionDetected && req.query) {
+			const queryString = JSON.stringify(req.query);
 
-		// Check SQL injection (hanya untuk pattern yang benar-benar mencurigakan)
-		for (const pattern of sqlInjectionPatterns) {
-			// Skip pattern yang terlalu umum untuk URL
-			if (pattern.source.includes('--') || pattern.source.includes('#')) {
-				continue;
-			}
+			// Skip detection untuk error page parameters
+			if (req.path.startsWith('/error') && req.query.error) {
+				// Untuk error page, kita skip pattern detection pada query parameters
+				// karena error parameter berisi JSON yang mungkin memiliki karakter khusus
+			} else {
+				// Check SQL injection
+				for (const pattern of sqlInjectionPatterns) {
+					if (pattern.test(queryString)) {
+						isInjectionDetected = true;
+						injectionType = 'SQL Injection';
+						detectedPattern = pattern.source;
+						break;
+					}
+				}
 
-			if (pattern.test(paramsString)) {
-				isInjectionDetected = true;
-				injectionType = 'SQL Injection';
-				detectedPattern = pattern.source;
-				break;
-			}
-		}
+				// Check NoSQL injection
+				if (!isInjectionDetected) {
+					for (const pattern of noSqlInjectionPatterns) {
+						if (pattern.test(queryString)) {
+							isInjectionDetected = true;
+							injectionType = 'NoSQL Injection';
+							detectedPattern = pattern.source;
+							break;
+						}
+					}
+				}
 
-		// Check NoSQL injection
-		if (!isInjectionDetected) {
-			for (const pattern of noSqlInjectionPatterns) {
-				if (pattern.test(paramsString)) {
-					isInjectionDetected = true;
-					injectionType = 'NoSQL Injection';
-					detectedPattern = pattern.source;
-					break;
+				// Check XSS
+				if (!isInjectionDetected) {
+					for (const pattern of xssPatterns) {
+						if (pattern.test(queryString)) {
+							isInjectionDetected = true;
+							injectionType = 'XSS';
+							detectedPattern = pattern.source;
+							break;
+						}
+					}
 				}
 			}
 		}
 
-		// Check XSS
-		if (!isInjectionDetected) {
-			for (const pattern of xssPatterns) {
+		// ==================== CHECK URL PARAMETERS ====================
+		if (!isInjectionDetected && req.params) {
+			const paramsString = JSON.stringify(req.params);
+
+			// Check SQL injection (hanya untuk pattern yang benar-benar mencurigakan)
+			for (const pattern of sqlInjectionPatterns) {
+				// Skip pattern yang terlalu umum untuk URL
+				if (pattern.source.includes('--') || pattern.source.includes('#')) {
+					continue;
+				}
+
 				if (pattern.test(paramsString)) {
 					isInjectionDetected = true;
-					injectionType = 'XSS';
+					injectionType = 'SQL Injection';
 					detectedPattern = pattern.source;
 					break;
 				}
 			}
-		}
-	}
 
-	// ==================== CHECK HEADERS ====================
-	if (!isInjectionDetected) {
-		const headersString = JSON.stringify(req.headers);
-
-		// Check SQL injection (hanya untuk pattern yang benar-benar mencurigakan)
-		for (const pattern of sqlInjectionPatterns) {
-			// Skip pattern yang terlalu umum
-			if (pattern.source.includes('--') || pattern.source.includes('#')) {
-				continue;
+			// Check NoSQL injection
+			if (!isInjectionDetected) {
+				for (const pattern of noSqlInjectionPatterns) {
+					if (pattern.test(paramsString)) {
+						isInjectionDetected = true;
+						injectionType = 'NoSQL Injection';
+						detectedPattern = pattern.source;
+						break;
+					}
+				}
 			}
 
-			if (pattern.test(headersString)) {
-				isInjectionDetected = true;
-				injectionType = 'SQL Injection';
-				detectedPattern = pattern.source;
-				break;
+			// Check XSS
+			if (!isInjectionDetected) {
+				for (const pattern of xssPatterns) {
+					if (pattern.test(paramsString)) {
+						isInjectionDetected = true;
+						injectionType = 'XSS';
+						detectedPattern = pattern.source;
+						break;
+					}
+				}
 			}
 		}
 
-		// Check XSS in headers
+		// ==================== CHECK HEADERS ====================
 		if (!isInjectionDetected) {
-			for (const pattern of xssPatterns) {
+			const headersString = JSON.stringify(req.headers);
+
+			// Check SQL injection (hanya untuk pattern yang benar-benar mencurigakan)
+			for (const pattern of sqlInjectionPatterns) {
+				// Skip pattern yang terlalu umum
+				if (pattern.source.includes('--') || pattern.source.includes('#')) {
+					continue;
+				}
+
 				if (pattern.test(headersString)) {
 					isInjectionDetected = true;
-					injectionType = 'XSS';
+					injectionType = 'SQL Injection';
 					detectedPattern = pattern.source;
 					break;
 				}
 			}
+
+			// Check XSS in headers
+			if (!isInjectionDetected) {
+				for (const pattern of xssPatterns) {
+					if (pattern.test(headersString)) {
+						isInjectionDetected = true;
+						injectionType = 'XSS';
+						detectedPattern = pattern.source;
+						break;
+					}
+				}
+			}
 		}
+
+		// ==================== RESPONSE TO INJECTION ATTEMPT ====================
+		if (isInjectionDetected) {
+			console.log(
+				`🚨 SQL Injection Protection: ${injectionType} attempt detected from IP ${clientIP}`
+			);
+			console.log(`   Pattern: ${detectedPattern}`);
+			console.log(`   Path: ${req.path}`);
+			console.log(`   Method: ${req.method}`);
+			console.log(`   User-Agent: ${req.get('User-Agent') || 'Unknown'}`);
+
+			// Log detailed injection attempt
+			console.log(
+				`🚨 ${injectionType} Attempt: ${req.method} ${req.path} from IP ${clientIP}`,
+				{
+					type: injectionType,
+					pattern: detectedPattern,
+					path: req.path,
+					method: req.method,
+					userAgent: req.get('User-Agent'),
+					body: req.body ? JSON.stringify(req.body).substring(0, 200) : null,
+					query: req.query ? JSON.stringify(req.query).substring(0, 200) : null,
+					timestamp: new Date().toISOString(),
+				}
+			);
+
+			// Return beautiful error response
+			return sendBeautifulError(
+				res,
+				403,
+				'Security Violation',
+				'Malicious injection attempt detected. This request has been blocked for security reasons.',
+				{
+					type: injectionType,
+					pattern: detectedPattern,
+					path: req.path,
+					method: req.method,
+					ip: clientIP,
+				}
+			);
+		}
+
+		next();
+	} catch (error) {
+		console.error('Error in SQL injection protection middleware:', error);
+		// Continue processing if middleware fails
+		next();
 	}
-
-	// ==================== RESPONSE TO INJECTION ATTEMPT ====================
-	if (isInjectionDetected) {
-		console.log(
-			`🚨 SQL Injection Protection: ${injectionType} attempt detected from IP ${clientIP}`
-		);
-		console.log(`   Pattern: ${detectedPattern}`);
-		console.log(`   Path: ${req.path}`);
-		console.log(`   Method: ${req.method}`);
-		console.log(`   User-Agent: ${req.get('User-Agent') || 'Unknown'}`);
-
-		// Log detailed injection attempt
-		console.log(
-			`🚨 ${injectionType} Attempt: ${req.method} ${req.path} from IP ${clientIP}`,
-			{
-				type: injectionType,
-				pattern: detectedPattern,
-				path: req.path,
-				method: req.method,
-				userAgent: req.get('User-Agent'),
-				body: req.body ? JSON.stringify(req.body).substring(0, 200) : null,
-				query: req.query ? JSON.stringify(req.query).substring(0, 200) : null,
-				timestamp: new Date().toISOString(),
-			}
-		);
-
-		// Return beautiful error response
-		return sendBeautifulError(
-			res,
-			403,
-			'Security Violation',
-			'Malicious injection attempt detected. This request has been blocked for security reasons.',
-			{
-				type: injectionType,
-				pattern: detectedPattern,
-				path: req.path,
-				method: req.method,
-				ip: clientIP,
-			}
-		);
-	}
-
-	next();
 };
 
 // ==================== NOSQL INJECTION PROTECTION MIDDLEWARE ====================
-export const noSqlInjectionProtectionMiddleware = (
+export const noSqlInjectionProtectionMiddleware = async (
 	req: Request,
 	res: Response,
 	next: NextFunction
 ) => {
-	// Skip protection untuk frontend files dan error page
-	if (
-		req.path.includes('/src/') ||
-		req.path.includes('/@') ||
-		req.path.includes('/node_modules/') ||
-		req.path.includes('/uploads/') ||
-		req.path.includes('/attached_assets/') ||
-		req.path.endsWith('.tsx') ||
-		req.path.endsWith('.ts') ||
-		req.path.endsWith('.js') ||
-		req.path.endsWith('.css') ||
-		req.path.endsWith('.mjs') ||
-		req.path.endsWith('.png') ||
-		req.path.endsWith('.jpg') ||
-		req.path.endsWith('.jpeg') ||
-		req.path.endsWith('.gif') ||
-		req.path.endsWith('.svg') ||
-		req.path.endsWith('.ico') ||
-		req.path.endsWith('.woff') ||
-		req.path.endsWith('.woff2') ||
-		req.path.endsWith('.ttf') ||
-		req.path.endsWith('.eot') ||
-		req.path === '/' ||
-		req.path === '/login' ||
-		req.path === '/dashboard' ||
-		req.path === '/artikel' ||
-		req.path === '/library' ||
-		req.path === '/about' ||
-		req.path === '/ai-chat' ||
-		req.path === '/error' ||
-		req.path.startsWith('/artikel/') ||
-		req.path.startsWith('/dashboard/') ||
-		req.path.startsWith('/login') ||
-		req.path.startsWith('/error') ||
-		// Skip untuk semua API routes
-		req.path.startsWith('/api/') ||
-		req.path.startsWith('/.well-known/')
-	) {
-		return next();
-	}
+	try {
+		const settings = await getCachedSqlMiddlewareSettings();
 
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	const clientIP =
-		forwardedIp ||
-		(req as any).ip ||
-		(req as any).connection?.remoteAddress ||
-		'unknown';
-	let isInjectionDetected = false;
-	let detectedPattern = '';
-
-	// Check all request data for NoSQL injection patterns
-	const requestData = {
-		body: req.body,
-		query: req.query,
-		params: req.params,
-		headers: req.headers,
-	};
-
-	const dataString = JSON.stringify(requestData);
-
-	for (const pattern of noSqlInjectionPatterns) {
-		if (pattern.test(dataString)) {
-			isInjectionDetected = true;
-			detectedPattern = pattern.source;
-			break;
+		// Skip middleware if disabled
+		if (!settings.noSqlInjectionProtectionEnabled) {
+			return next();
 		}
-	}
+		// Skip protection untuk frontend files dan error page
+		if (
+			req.path.includes('/src/') ||
+			req.path.includes('/@') ||
+			req.path.includes('/node_modules/') ||
+			req.path.includes('/uploads/') ||
+			req.path.includes('/attached_assets/') ||
+			req.path.endsWith('.tsx') ||
+			req.path.endsWith('.ts') ||
+			req.path.endsWith('.js') ||
+			req.path.endsWith('.css') ||
+			req.path.endsWith('.mjs') ||
+			req.path.endsWith('.png') ||
+			req.path.endsWith('.jpg') ||
+			req.path.endsWith('.jpeg') ||
+			req.path.endsWith('.gif') ||
+			req.path.endsWith('.svg') ||
+			req.path.endsWith('.ico') ||
+			req.path.endsWith('.woff') ||
+			req.path.endsWith('.woff2') ||
+			req.path.endsWith('.ttf') ||
+			req.path.endsWith('.eot') ||
+			req.path === '/' ||
+			req.path === '/login' ||
+			req.path === '/dashboard' ||
+			req.path === '/artikel' ||
+			req.path === '/library' ||
+			req.path === '/about' ||
+			req.path === '/ai-chat' ||
+			req.path === '/error' ||
+			req.path.startsWith('/artikel/') ||
+			req.path.startsWith('/dashboard/') ||
+			req.path.startsWith('/login') ||
+			req.path.startsWith('/error') ||
+			// Skip untuk semua API routes
+			req.path.startsWith('/api/') ||
+			req.path.startsWith('/.well-known/')
+		) {
+			return next();
+		}
 
-	if (isInjectionDetected) {
-		console.log(
-			`🚨 NoSQL Injection Protection: NoSQL injection attempt detected from IP ${clientIP}`
-		);
-		console.log(`   Pattern: ${detectedPattern}`);
-		console.log(`   Path: ${req.path}`);
-		console.log(`   Method: ${req.method}`);
+		const xfwd = (req.headers['x-forwarded-for'] as string) || '';
+		const forwardedIp = xfwd.split(',')[0]?.trim();
+		const clientIP =
+			forwardedIp ||
+			(req as any).ip ||
+			(req as any).connection?.remoteAddress ||
+			'unknown';
+		let isInjectionDetected = false;
+		let detectedPattern = '';
 
-		// Log detailed injection attempt
-		console.log(
-			`🚨 NoSQL Injection Attempt: ${req.method} ${req.path} from IP ${clientIP}`,
-			{
-				pattern: detectedPattern,
-				path: req.path,
-				method: req.method,
-				userAgent: req.get('User-Agent'),
-				timestamp: new Date().toISOString(),
+		// Check all request data for NoSQL injection patterns
+		const requestData = {
+			body: req.body,
+			query: req.query,
+			params: req.params,
+			headers: req.headers,
+		};
+
+		const dataString = JSON.stringify(requestData);
+
+		for (const pattern of noSqlInjectionPatterns) {
+			if (pattern.test(dataString)) {
+				isInjectionDetected = true;
+				detectedPattern = pattern.source;
+				break;
 			}
-		);
+		}
 
-		// Return beautiful error response
-		return sendBeautifulError(
-			res,
-			403,
-			'Security Violation',
-			'Malicious NoSQL injection attempt detected. This request has been blocked for security reasons.',
-			{
-				type: 'NoSQL Injection',
-				pattern: detectedPattern,
-				path: req.path,
-				method: req.method,
-				ip: clientIP,
-			}
-		);
+		if (isInjectionDetected) {
+			console.log(
+				`🚨 NoSQL Injection Protection: NoSQL injection attempt detected from IP ${clientIP}`
+			);
+			console.log(`   Pattern: ${detectedPattern}`);
+			console.log(`   Path: ${req.path}`);
+			console.log(`   Method: ${req.method}`);
+
+			// Log detailed injection attempt
+			console.log(
+				`🚨 NoSQL Injection Attempt: ${req.method} ${req.path} from IP ${clientIP}`,
+				{
+					pattern: detectedPattern,
+					path: req.path,
+					method: req.method,
+					userAgent: req.get('User-Agent'),
+					timestamp: new Date().toISOString(),
+				}
+			);
+
+			// Return beautiful error response
+			return sendBeautifulError(
+				res,
+				403,
+				'Security Violation',
+				'Malicious NoSQL injection attempt detected. This request has been blocked for security reasons.',
+				{
+					type: 'NoSQL Injection',
+					pattern: detectedPattern,
+					path: req.path,
+					method: req.method,
+					ip: clientIP,
+				}
+			);
+		}
+
+		next();
+	} catch (error) {
+		console.error('Error in SQL injection protection middleware:', error);
+		// Continue processing if middleware fails
+		next();
 	}
-
-	next();
 };

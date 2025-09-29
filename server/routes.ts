@@ -13,6 +13,10 @@ import {
 	requirePermission,
 	verifyPassword,
 } from './auth';
+import {
+	getMiddlewareSettings,
+	updateMiddlewareSettings,
+} from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
 import chatRouter from './routes/chat';
 import {
@@ -2430,6 +2434,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				res.json(settings);
 			} catch (error) {
 				console.error('Reset settings error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	// Middleware Settings endpoints
+	app.get(
+		'/api/settings/middleware',
+		authenticate,
+		requirePermission('middleware.manage'),
+		async (req, res) => {
+			try {
+				const settings = await getMiddlewareSettings();
+				res.json(settings);
+			} catch (error) {
+				console.error('Get middleware settings error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
+
+	app.put(
+		'/api/settings/middleware',
+		authenticate,
+		requirePermission('middleware.manage'),
+		async (req, res) => {
+			try {
+				const { user } = req as any;
+				const settings = await updateMiddlewareSettings(req.body, user.id);
+				res.json(settings);
+			} catch (error) {
+				console.error('Update middleware settings error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		}

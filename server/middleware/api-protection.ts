@@ -1,4 +1,35 @@
 import { NextFunction, Request, Response } from 'express';
+import { getMiddlewareSettings } from '../models/middleware-settings';
+
+// Cache for middleware settings
+let middlewareSettingsCache: any = null;
+let settingsCacheTimestamp: number = 0;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Function to get middleware settings with caching
+async function getCachedMiddlewareSettings() {
+	const now = Date.now();
+	if (
+		!middlewareSettingsCache ||
+		now - settingsCacheTimestamp > CACHE_DURATION
+	) {
+		try {
+			middlewareSettingsCache = await getMiddlewareSettings();
+			settingsCacheTimestamp = now;
+		} catch (error) {
+			console.error('Error getting middleware settings:', error);
+			// Fallback to default enabled settings if error
+			middlewareSettingsCache = {
+				apiProtectionEnabled: true,
+				apiRateLimitEnabled: true,
+				ddosProtectionEnabled: true,
+				sqlInjectionProtectionEnabled: true,
+				noSqlInjectionProtectionEnabled: true,
+			};
+		}
+	}
+	return middlewareSettingsCache;
+}
 
 // ==================== API PROTECTION CONFIGURATION ====================
 const ALLOWED_API_ROUTES = [
@@ -61,96 +92,110 @@ function sendBeautifulApiError(
 }
 
 // ==================== API PROTECTION MIDDLEWARE ====================
-export const apiProtectionMiddleware = (
+export const apiProtectionMiddleware = async (
 	req: Request,
 	res: Response,
 	next: NextFunction
 ) => {
-	const path = req.path;
-	const method = req.method;
-	const userAgent = req.get('User-Agent') || '';
-	const referer = req.get('Referer') || '';
-	const origin = req.get('Origin') || '';
-	const host = req.get('Host') || '';
+	try {
+		const settings = await getCachedMiddlewareSettings();
 
-	// Skip jika bukan API route
-	if (!path.startsWith('/api/')) {
-		return next();
-	}
+		// Skip middleware if disabled
+		if (!settings.apiProtectionEnabled) {
+			return next();
+		}
+		const path = req.path;
+		const method = req.method;
+		const userAgent = req.get('User-Agent') || '';
+		const referer = req.get('Referer') || '';
+		const origin = req.get('Origin') || '';
+		const host = req.get('Host') || '';
 
-	// Cek apakah route diizinkan untuk akses umum
-	const isAllowedRoute = ALLOWED_API_ROUTES.some((route) =>
-		path.startsWith(route)
-	);
+		// Skip jika bukan API route
+		if (!path.startsWith('/api/')) {
+			return next();
+		}
 
-	// Cek apakah request dari browser (bukan server-to-server)
-	const isBrowserRequest =
-		userAgent.includes('Mozilla') ||
-		userAgent.includes('Chrome') ||
-		userAgent.includes('Safari') ||
-		userAgent.includes('Firefox') ||
-		userAgent.includes('Edge') ||
-		userAgent.includes('Opera');
-
-	// Cek apakah request dari frontend (production dan development)
-	const isFromFrontend =
-		referer.includes('localhost:5000') ||
-		origin.includes('localhost:5000') ||
-		referer.includes('43.157.211.134') ||
-		origin.includes('43.157.211.134') ||
-		referer.includes('https://43.157.211.134') ||
-		origin.includes('https://43.157.211.134') ||
-		referer.includes('http://43.157.211.134') ||
-		origin.includes('http://43.157.211.134') ||
-		referer.includes('himatif-encoder.com') ||
-		origin.includes('himatif-encoder.com') ||
-		referer.includes('https://himatif-encoder.com') ||
-		origin.includes('https://himatif-encoder.com') ||
-		referer.includes('www.himatif-encoder.com') ||
-		origin.includes('www.himatif-encoder.com');
-
-	// Cek apakah ada authentication header atau session
-	const hasAuth =
-		req.headers.authorization ||
-		req.headers['x-api-key'] ||
-		(req as any).session?.user ||
-		(req as any).cookies?.token;
-
-	// Cek apakah ini request dengan proper headers (AJAX/fetch)
-	const hasProperHeaders =
-		req.headers['accept']?.includes('application/json') ||
-		req.headers['x-requested-with'] === 'XMLHttpRequest' ||
-		req.headers['content-type']?.includes('application/json');
-
-	// ALLOW FRONTEND REQUESTS (relaxed protection for production)
-	if (isBrowserRequest && (isFromFrontend || hasProperHeaders || hasAuth)) {
-		console.log(`✅ API Protection: Allowing frontend request to ${path}`);
-		return next();
-	}
-
-	// BLOCK ONLY DIRECT BROWSER ACCESS TANPA REFERER DAN HEADERS
-	if (isBrowserRequest && !referer && !hasProperHeaders && !hasAuth) {
-		console.log(`🚫 API Protection: Direct browser access blocked to ${path}`);
-
-		return sendBeautifulApiError(
-			res,
-			403,
-			'API Access Forbidden',
-			'Direct browser access to API endpoints is not allowed.',
-			{
-				path: path,
-				method: method,
-				reason: 'Direct browser access without proper referer',
-				userAgent: userAgent,
-				referer: referer,
-				origin: origin,
-			}
+		// Cek apakah route diizinkan untuk akses umum
+		const isAllowedRoute = ALLOWED_API_ROUTES.some((route) =>
+			path.startsWith(route)
 		);
-	}
 
-	// Allow semua request yang lain (server-to-server, authenticated, proper headers)
-	console.log(`✅ API Protection: Allowing request to ${path}`);
-	next();
+		// Cek apakah request dari browser (bukan server-to-server)
+		const isBrowserRequest =
+			userAgent.includes('Mozilla') ||
+			userAgent.includes('Chrome') ||
+			userAgent.includes('Safari') ||
+			userAgent.includes('Firefox') ||
+			userAgent.includes('Edge') ||
+			userAgent.includes('Opera');
+
+		// Cek apakah request dari frontend (production dan development)
+		const isFromFrontend =
+			referer.includes('localhost:5000') ||
+			origin.includes('localhost:5000') ||
+			referer.includes('43.157.211.134') ||
+			origin.includes('43.157.211.134') ||
+			referer.includes('https://43.157.211.134') ||
+			origin.includes('https://43.157.211.134') ||
+			referer.includes('http://43.157.211.134') ||
+			origin.includes('http://43.157.211.134') ||
+			referer.includes('himatif-encoder.com') ||
+			origin.includes('himatif-encoder.com') ||
+			referer.includes('https://himatif-encoder.com') ||
+			origin.includes('https://himatif-encoder.com') ||
+			referer.includes('www.himatif-encoder.com') ||
+			origin.includes('www.himatif-encoder.com');
+
+		// Cek apakah ada authentication header atau session
+		const hasAuth =
+			req.headers.authorization ||
+			req.headers['x-api-key'] ||
+			(req as any).session?.user ||
+			(req as any).cookies?.token;
+
+		// Cek apakah ini request dengan proper headers (AJAX/fetch)
+		const hasProperHeaders =
+			req.headers['accept']?.includes('application/json') ||
+			req.headers['x-requested-with'] === 'XMLHttpRequest' ||
+			req.headers['content-type']?.includes('application/json');
+
+		// ALLOW FRONTEND REQUESTS (relaxed protection for production)
+		if (isBrowserRequest && (isFromFrontend || hasProperHeaders || hasAuth)) {
+			console.log(`✅ API Protection: Allowing frontend request to ${path}`);
+			return next();
+		}
+
+		// BLOCK ONLY DIRECT BROWSER ACCESS TANPA REFERER DAN HEADERS
+		if (isBrowserRequest && !referer && !hasProperHeaders && !hasAuth) {
+			console.log(
+				`🚫 API Protection: Direct browser access blocked to ${path}`
+			);
+
+			return sendBeautifulApiError(
+				res,
+				403,
+				'API Access Forbidden',
+				'Direct browser access to API endpoints is not allowed.',
+				{
+					path: path,
+					method: method,
+					reason: 'Direct browser access without proper referer',
+					userAgent: userAgent,
+					referer: referer,
+					origin: origin,
+				}
+			);
+		}
+
+		// Allow semua request yang lain (server-to-server, authenticated, proper headers)
+		console.log(`✅ API Protection: Allowing request to ${path}`);
+		next();
+	} catch (error) {
+		console.error('Error in API protection middleware:', error);
+		// Continue processing if middleware fails
+		next();
+	}
 };
 
 // ==================== API RATE LIMITING ====================
@@ -161,60 +206,72 @@ const apiRequestCounts = new Map<
 const API_RATE_LIMIT = 100; // 100 requests per minute per IP for API
 const API_WINDOW_MS = 60 * 1000; // 1 minute
 
-export const apiRateLimitMiddleware = (
+export const apiRateLimitMiddleware = async (
 	req: Request,
 	res: Response,
 	next: NextFunction
 ) => {
-	const path = req.path;
+	try {
+		const settings = await getCachedMiddlewareSettings();
 
-	// Skip jika bukan API route
-	if (!path.startsWith('/api/')) {
-		return next();
-	}
-
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	const clientIP =
-		forwardedIp ||
-		(req as any).ip ||
-		(req as any).connection?.remoteAddress ||
-		'unknown';
-	const now = Date.now();
-	const ipData = apiRequestCounts.get(clientIP);
-
-	if (!ipData || now > ipData.resetTime) {
-		apiRequestCounts.set(clientIP, {
-			count: 1,
-			resetTime: now + API_WINDOW_MS,
-		});
-	} else {
-		ipData.count++;
-		apiRequestCounts.set(clientIP, ipData);
-
-		// Check API rate limit
-		if (ipData.count > API_RATE_LIMIT) {
-			const retryAfter = Math.ceil((ipData.resetTime - now) / 1000);
-			console.log(
-				`🚨 API Rate Limit: IP ${clientIP} exceeded API rate limit, retry in ${retryAfter}s`
-			);
-
-			return sendBeautifulApiError(
-				res,
-				429,
-				'API Rate Limit Exceeded',
-				'Too many API requests. Please slow down and try again later.',
-				{
-					limit: API_RATE_LIMIT,
-					window: '1 minute',
-					retryAfter: retryAfter,
-					ip: clientIP,
-				}
-			);
+		// Skip middleware if disabled
+		if (!settings.apiRateLimitEnabled) {
+			return next();
 		}
-	}
+		const path = req.path;
 
-	next();
+		// Skip jika bukan API route
+		if (!path.startsWith('/api/')) {
+			return next();
+		}
+
+		const xfwd = (req.headers['x-forwarded-for'] as string) || '';
+		const forwardedIp = xfwd.split(',')[0]?.trim();
+		const clientIP =
+			forwardedIp ||
+			(req as any).ip ||
+			(req as any).connection?.remoteAddress ||
+			'unknown';
+		const now = Date.now();
+		const ipData = apiRequestCounts.get(clientIP);
+
+		if (!ipData || now > ipData.resetTime) {
+			apiRequestCounts.set(clientIP, {
+				count: 1,
+				resetTime: now + API_WINDOW_MS,
+			});
+		} else {
+			ipData.count++;
+			apiRequestCounts.set(clientIP, ipData);
+
+			// Check API rate limit
+			if (ipData.count > API_RATE_LIMIT) {
+				const retryAfter = Math.ceil((ipData.resetTime - now) / 1000);
+				console.log(
+					`🚨 API Rate Limit: IP ${clientIP} exceeded API rate limit, retry in ${retryAfter}s`
+				);
+
+				return sendBeautifulApiError(
+					res,
+					429,
+					'API Rate Limit Exceeded',
+					'Too many API requests. Please slow down and try again later.',
+					{
+						limit: API_RATE_LIMIT,
+						window: '1 minute',
+						retryAfter: retryAfter,
+						ip: clientIP,
+					}
+				);
+			}
+		}
+
+		next();
+	} catch (error) {
+		console.error('Error in API rate limit middleware:', error);
+		// Continue processing if middleware fails
+		next();
+	}
 };
 
 // ==================== CLEANUP FUNCTION ====================

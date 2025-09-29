@@ -59,7 +59,10 @@ export default function ContentEditor({
 		settings?.visionMission || ''
 	);
 	const [selectedTab, setSelectedTab] = useState('about');
-	const [logoUrl, setLogoUrl] = useState(settings?.logoUrl || '/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp');
+	const [logoUrl, setLogoUrl] = useState(
+		settings?.logoUrl ||
+			'/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp'
+	);
 	const [divisionLogos, setDivisionLogos] = useState(
 		settings?.divisionLogos || {
 			akademik: '/uploads/logo-akademik.png',

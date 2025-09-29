@@ -55,6 +55,17 @@ interface SiteSettings {
 	};
 }
 
+interface MiddlewareSettings {
+	apiProtectionEnabled: boolean;
+	apiRateLimitEnabled: boolean;
+	ddosProtectionEnabled: boolean;
+	sqlInjectionProtectionEnabled: boolean;
+	noSqlInjectionProtectionEnabled: boolean;
+	updatedBy: string;
+	updatedAt: string;
+	createdAt: string;
+}
+
 interface PasswordChangeData {
 	currentPassword: string;
 	newPassword: string;
@@ -154,7 +165,33 @@ export default function SettingsPage() {
 		refetchOnMount: true,
 	});
 
+	// Fetch middleware settings (owner only)
+	const {
+		data: middlewareSettings,
+		isLoading: isMiddlewareLoading,
+		refetch: refetchMiddlewareSettings,
+	} = useQuery({
+		queryKey: ['/api/settings/middleware'],
+		enabled: user?.role === 'owner',
+		staleTime: 0,
+		refetchOnWindowFocus: true,
+		refetchOnMount: true,
+	});
+
 	const [formData, setFormData] = useState<SiteSettings>(defaultSettings);
+
+	// Middleware settings state
+	const [middlewareFormData, setMiddlewareFormData] =
+		useState<MiddlewareSettings>({
+			apiProtectionEnabled: true,
+			apiRateLimitEnabled: true,
+			ddosProtectionEnabled: true,
+			sqlInjectionProtectionEnabled: true,
+			noSqlInjectionProtectionEnabled: true,
+			updatedBy: '',
+			updatedAt: '',
+			createdAt: '',
+		});
 
 	// Update form data when settings are loaded
 	useEffect(() => {
@@ -185,6 +222,13 @@ export default function SettingsPage() {
 			setFormData(settingsCopy);
 		}
 	}, [settings]);
+
+	// Update middleware form data when middleware settings are loaded
+	useEffect(() => {
+		if (middlewareSettings) {
+			setMiddlewareFormData(middlewareSettings);
+		}
+	}, [middlewareSettings]);
 
 	// Update settings mutation
 	const updateSettingsMutation = useMutation({
@@ -235,6 +279,54 @@ export default function SettingsPage() {
 			toast({
 				title: 'Update Failed',
 				description: 'There was a problem updating the settings.',
+				variant: 'destructive',
+			});
+		},
+	});
+
+	// Update middleware settings mutation
+	const updateMiddlewareSettingsMutation = useMutation({
+		mutationFn: async (data: MiddlewareSettings) => {
+			const response = await apiRequest(
+				'PUT',
+				'/api/settings/middleware',
+				data
+			);
+			const responseData = await response.json();
+			return responseData;
+		},
+		onSuccess: async (data) => {
+			// Update the middleware settings data in the cache
+			queryClient.setQueryData(['/api/settings/middleware'], data);
+
+			// Force refetch to ensure UI is updated
+			refetchMiddlewareSettings();
+
+			// Force refresh middleware settings queries across the app
+			queryClient.refetchQueries({ queryKey: ['/api/settings/middleware'] });
+
+			// Log activity
+			try {
+				await logActivity({
+					type: 'settings',
+					action: 'update',
+					title: 'Middleware settings diubah',
+					description: 'Pengaturan middleware keamanan telah diubah',
+				});
+			} catch (error) {
+				console.warn('Failed to log middleware settings activity:', error);
+			}
+
+			toast({
+				title: 'Middleware Settings Updated',
+				description:
+					'Middleware security settings have been updated successfully.',
+			});
+		},
+		onError: () => {
+			toast({
+				title: 'Update Failed',
+				description: 'There was a problem updating the middleware settings.',
 				variant: 'destructive',
 			});
 		},
@@ -364,6 +456,14 @@ export default function SettingsPage() {
 		});
 	};
 
+	// Handle middleware switch changes
+	const handleMiddlewareSwitchChange = (field: string, value: boolean) => {
+		setMiddlewareFormData({
+			...middlewareFormData,
+			[field]: value,
+		});
+	};
+
 	// Handle password input changes
 	const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const { name, value } = e.target;
@@ -377,6 +477,11 @@ export default function SettingsPage() {
 	const saveSettings = async () => {
 		if (!formData) return;
 		await updateSettingsMutation.mutateAsync(formData);
+	};
+
+	// Save middleware settings
+	const saveMiddlewareSettings = async () => {
+		await updateMiddlewareSettingsMutation.mutateAsync(middlewareFormData);
 	};
 
 	// Change password
@@ -511,10 +616,15 @@ export default function SettingsPage() {
 					{canViewSettings && (
 						<TabsTrigger value="security">Security</TabsTrigger>
 					)}
+					{user?.role === 'owner' && (
+						<TabsTrigger value="middleware">Middleware</TabsTrigger>
+					)}
 					<TabsTrigger value="profile">Profile</TabsTrigger>
 				</TabsList>
 
-				{isLoading || !formData ? (
+				{(isLoading && !middlewareSettings) ||
+				(!formData && activeTab !== 'middleware') ||
+				(isMiddlewareLoading && activeTab === 'middleware') ? (
 					<div className="flex justify-center items-center h-64">
 						<Loader2 className="h-8 w-8 animate-spin text-primary" />
 					</div>
@@ -843,6 +953,150 @@ export default function SettingsPage() {
 							</div>
 						</TabsContent>
 
+						<TabsContent value="middleware">
+							<div className="space-y-6">
+								<Card>
+									<CardHeader>
+										<CardTitle className="flex items-center gap-2">
+											<Shield className="h-5 w-5" />
+											Middleware Security Settings
+										</CardTitle>
+										<CardDescription>
+											Configure server-side security middleware. Only system
+											owners can modify these settings.
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-6">
+										{/* API Protection */}
+										<div className="flex items-center justify-between">
+											<div className="space-y-0.5">
+												<Label className="text-base">API Protection</Label>
+												<p className="text-sm text-gray-500">
+													Protects API endpoints from unauthorized access and
+													direct browser calls
+												</p>
+											</div>
+											<Switch
+												checked={middlewareFormData.apiProtectionEnabled}
+												onCheckedChange={(checked) =>
+													handleMiddlewareSwitchChange(
+														'apiProtectionEnabled',
+														checked
+													)
+												}
+												disabled={updateMiddlewareSettingsMutation.isPending}
+											/>
+										</div>
+
+										{/* API Rate Limiting */}
+										<div className="flex items-center justify-between">
+											<div className="space-y-0.5">
+												<Label className="text-base">API Rate Limiting</Label>
+												<p className="text-sm text-gray-500">
+													Limits API requests per IP address (100
+													requests/minute)
+												</p>
+											</div>
+											<Switch
+												checked={middlewareFormData.apiRateLimitEnabled}
+												onCheckedChange={(checked) =>
+													handleMiddlewareSwitchChange(
+														'apiRateLimitEnabled',
+														checked
+													)
+												}
+												disabled={updateMiddlewareSettingsMutation.isPending}
+											/>
+										</div>
+
+										{/* DDoS Protection */}
+										<div className="flex items-center justify-between">
+											<div className="space-y-0.5">
+												<Label className="text-base">DDoS Protection</Label>
+												<p className="text-sm text-gray-500">
+													Multi-tier DDoS protection system with automatic
+													blocking
+												</p>
+											</div>
+											<Switch
+												checked={middlewareFormData.ddosProtectionEnabled}
+												onCheckedChange={(checked) =>
+													handleMiddlewareSwitchChange(
+														'ddosProtectionEnabled',
+														checked
+													)
+												}
+												disabled={updateMiddlewareSettingsMutation.isPending}
+											/>
+										</div>
+
+										{/* SQL Injection Protection */}
+										<div className="flex items-center justify-between">
+											<div className="space-y-0.5">
+												<Label className="text-base">
+													SQL Injection Protection
+												</Label>
+												<p className="text-sm text-gray-500">
+													Detects and blocks SQL injection attempts in requests
+												</p>
+											</div>
+											<Switch
+												checked={
+													middlewareFormData.sqlInjectionProtectionEnabled
+												}
+												onCheckedChange={(checked) =>
+													handleMiddlewareSwitchChange(
+														'sqlInjectionProtectionEnabled',
+														checked
+													)
+												}
+												disabled={updateMiddlewareSettingsMutation.isPending}
+											/>
+										</div>
+
+										{/* NoSQL Injection Protection */}
+										<div className="flex items-center justify-between">
+											<div className="space-y-0.5">
+												<Label className="text-base">
+													NoSQL Injection Protection
+												</Label>
+												<p className="text-sm text-gray-500">
+													Detects and blocks NoSQL injection attempts in MongoDB
+													queries
+												</p>
+											</div>
+											<Switch
+												checked={
+													middlewareFormData.noSqlInjectionProtectionEnabled
+												}
+												onCheckedChange={(checked) =>
+													handleMiddlewareSwitchChange(
+														'noSqlInjectionProtectionEnabled',
+														checked
+													)
+												}
+												disabled={updateMiddlewareSettingsMutation.isPending}
+											/>
+										</div>
+
+										{/* Last Updated Info */}
+										{middlewareFormData.updatedAt && (
+											<div className="pt-4 border-t">
+												<p className="text-sm text-gray-500">
+													Last updated:{' '}
+													{new Date(
+														middlewareFormData.updatedAt
+													).toLocaleString()}
+													{middlewareFormData.updatedBy &&
+														` by ${middlewareFormData.updatedBy}`}
+												</p>
+											</div>
+										)}
+									</CardContent>
+								</Card>
+							</div>
+						</TabsContent>
+
 						<TabsContent value="profile">
 							<div className="space-y-6">
 								<UserProfileEditor
@@ -1045,29 +1299,40 @@ export default function SettingsPage() {
 				)}
 			</Tabs>
 
-			{activeTab !== 'security' &&
+			{(activeTab !== 'security' &&
 				activeTab !== 'profile' &&
-				canEditSettings && (
-					<div className="mt-6 flex justify-end">
-						<Button
-							onClick={saveSettings}
-							disabled={
-								updateSettingsMutation.isPending || isLoading || !formData
-							}>
-							{updateSettingsMutation.isPending ? (
-								<>
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									Saving...
-								</>
-							) : (
-								<>
-									<Save className="mr-2 h-4 w-4" />
-									Save Changes
-								</>
-							)}
-						</Button>
-					</div>
-				)}
+				activeTab !== 'middleware' &&
+				canEditSettings) ||
+			(activeTab === 'middleware' && user?.role === 'owner') ? (
+				<div className="mt-6 flex justify-end">
+					<Button
+						onClick={
+							activeTab === 'middleware' ? saveMiddlewareSettings : saveSettings
+						}
+						disabled={
+							activeTab === 'middleware'
+								? updateMiddlewareSettingsMutation.isPending ||
+								  isMiddlewareLoading
+								: updateSettingsMutation.isPending || isLoading || !formData
+						}>
+						{(
+							activeTab === 'middleware'
+								? updateMiddlewareSettingsMutation.isPending
+								: updateSettingsMutation.isPending
+						) ? (
+							<>
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								Saving...
+							</>
+						) : (
+							<>
+								<Save className="mr-2 h-4 w-4" />
+								Save Changes
+							</>
+						)}
+					</Button>
+				</div>
+			) : null}
 		</DashboardLayout>
 	);
 }

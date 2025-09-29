@@ -1073,6 +1073,15 @@ async function initializeDefaultPermissions() {
 				description: 'Melihat konten dari user lain',
 				category: 'content',
 			},
+
+			// Middleware management permissions (Owner only)
+			{
+				name: 'middleware.manage',
+				displayName: 'Manage Middleware',
+				description:
+					'Mengatur pengaktifan/nonaktifkan middleware (API protection, DDOS, SQL injection)',
+				category: 'system',
+			},
 		];
 
 		await Permission.insertMany(defaultPermissions);

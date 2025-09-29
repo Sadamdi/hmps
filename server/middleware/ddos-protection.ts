@@ -1,5 +1,36 @@
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
+import { getMiddlewareSettings } from '../models/middleware-settings';
+
+// Cache for middleware settings
+let ddosMiddlewareSettingsCache: any = null;
+let ddosSettingsCacheTimestamp: number = 0;
+const DDOS_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Function to get middleware settings with caching for DDOS middleware
+async function getCachedDdosMiddlewareSettings() {
+	const now = Date.now();
+	if (
+		!ddosMiddlewareSettingsCache ||
+		now - ddosSettingsCacheTimestamp > DDOS_CACHE_DURATION
+	) {
+		try {
+			ddosMiddlewareSettingsCache = await getMiddlewareSettings();
+			ddosSettingsCacheTimestamp = now;
+		} catch (error) {
+			console.error('Error getting DDOS middleware settings:', error);
+			// Fallback to default enabled settings if error
+			ddosMiddlewareSettingsCache = {
+				apiProtectionEnabled: true,
+				apiRateLimitEnabled: true,
+				ddosProtectionEnabled: true,
+				sqlInjectionProtectionEnabled: true,
+				noSqlInjectionProtectionEnabled: true,
+			};
+		}
+	}
+	return ddosMiddlewareSettingsCache;
+}
 
 // ==================== DDoS PROTECTION CONFIGURATION ====================
 
@@ -235,12 +266,18 @@ function sendBeautifulError(
 }
 
 // ==================== DDoS PROTECTION MIDDLEWARE ====================
-export const ddosProtectionMiddleware = (
+export const ddosProtectionMiddleware = async (
 	req: Request,
 	res: Response,
 	next: NextFunction
 ) => {
 	try {
+		const settings = await getCachedDdosMiddlewareSettings();
+
+		// Skip middleware if disabled
+		if (!settings.ddosProtectionEnabled) {
+			return next();
+		}
 		const clientIP = getClientIp(req);
 		const userAgent = req.get('User-Agent') || '';
 		const path = req.path;
