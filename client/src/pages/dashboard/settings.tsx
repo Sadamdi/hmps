@@ -235,6 +235,10 @@ export default function SettingsPage() {
 	// Update middleware form data when middleware settings are loaded
 	useEffect(() => {
 		if (middlewareSettings) {
+			console.log(
+				'📥 Loading middleware settings from server:',
+				middlewareSettings
+			);
 			const middlewareData = middlewareSettings as any; // Type assertion untuk menghindari masalah inference
 
 			// Load data from server
@@ -296,6 +300,7 @@ export default function SettingsPage() {
 				loadedData.allEnabled = firstToggleValue;
 			}
 
+			console.log('📋 Final middleware form data after sync:', loadedData);
 			setMiddlewareFormData(loadedData);
 		}
 	}, [middlewareSettings, user]);
@@ -528,9 +533,16 @@ export default function SettingsPage() {
 
 	// Handle middleware switch changes
 	const handleMiddlewareSwitchChange = (field: string, value: boolean) => {
+		console.log('🔄 Toggle changed:', {
+			field,
+			value,
+			currentState: middlewareFormData,
+		});
+
 		if (field === 'allEnabled') {
 			// When master toggle changes, update all individual toggles
-			setMiddlewareFormData({
+			console.log('🔄 Master toggle changed, updating all toggles to:', value);
+			const newState = {
 				...middlewareFormData,
 				allEnabled: value,
 				apiProtectionEnabled: value,
@@ -541,7 +553,9 @@ export default function SettingsPage() {
 				antiSpoofingProtectionEnabled: value,
 				dnsLayerProtectionEnabled: value,
 				portScanningProtectionEnabled: value,
-			});
+			};
+			console.log('🔄 New state after master toggle:', newState);
+			setMiddlewareFormData(newState);
 		} else {
 			// For individual toggles, update the specific field and sync allEnabled
 			const updatedData = {
@@ -617,6 +631,8 @@ export default function SettingsPage() {
 			),
 			updatedBy: user._id, // Always use current user ID
 		};
+
+		console.log('📤 Sending middleware settings to server:', updatedFormData);
 
 		console.log('Sending to server:', {
 			...updatedFormData,
