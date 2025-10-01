@@ -2529,15 +2529,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const { user } = req as any;
 				console.log('Received middleware settings update request:', {
-					userId: user.id,
+					userId: user._id,
 					hasUpdatedBy: !!req.body.updatedBy,
 					updatedBy: req.body.updatedBy,
 					bodyKeys: Object.keys(req.body),
 				});
 
-				// Extract updatedBy from request body and use user.id instead
+				// Extract updatedBy from request body and use user._id instead
 				const { updatedBy, ...settingsData } = req.body;
-				const settings = await updateMiddlewareSettings(settingsData, user.id);
+				const settings = await updateMiddlewareSettings(settingsData, user._id);
 				res.json(settings);
 			} catch (error) {
 				console.error('Update middleware settings error:', error);
