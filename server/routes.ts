@@ -2456,17 +2456,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							'🚨 Emergency: Owner missing middleware.manage permission, fixing...'
 						);
 						const allPermissionNames = allPermissions.map((p: any) => p.name);
-						await mongoStorage
-							.getRoleCollection()
-							.updateOne(
-								{ name: 'owner' },
-								{
-									$set: {
-										permissions: allPermissionNames,
-										updatedAt: new Date(),
-									},
-								}
-							);
+						const { Role } = await import('../db/mongodb');
+						await Role.updateOne(
+							{ name: 'owner' },
+							{
+								$set: {
+									permissions: allPermissionNames,
+									updatedAt: new Date(),
+								},
+							}
+						);
 						console.log('✅ Fixed owner permissions');
 					}
 				}
@@ -2505,17 +2504,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							'🚨 Emergency: Owner missing middleware.manage permission, fixing...'
 						);
 						const allPermissionNames = allPermissions.map((p: any) => p.name);
-						await mongoStorage
-							.getRoleCollection()
-							.updateOne(
-								{ name: 'owner' },
-								{
-									$set: {
-										permissions: allPermissionNames,
-										updatedAt: new Date(),
-									},
-								}
-							);
+						const { Role } = await import('../db/mongodb');
+						await Role.updateOne(
+							{ name: 'owner' },
+							{
+								$set: {
+									permissions: allPermissionNames,
+									updatedAt: new Date(),
+								},
+							}
+						);
 						console.log('✅ Fixed owner permissions');
 					}
 				}
@@ -2538,92 +2536,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 		}
 	);
-
-	// Debug endpoint untuk check owner permissions
-	app.get('/api/debug/owner-permissions', authenticate, async (req, res) => {
-		try {
-			const { user } = req as any;
-
-			// Get user's role
-			const userRole = await mongoStorage.getRoleByName(user.role);
-			const allPermissions = await mongoStorage.getAllPermissions();
-
-			// Debug: Check if middleware.manage permission exists
-			const middlewareManagePermission = allPermissions.find(
-				(p: any) => p.name === 'middleware.manage'
-			);
-
-			// Emergency fix: Ensure owner has middleware.manage permission
-			if (
-				user.role === 'owner' &&
-				userRole &&
-				!userRole.permissions.includes('middleware.manage')
-			) {
-				console.log(
-					'🚨 Emergency: Adding middleware.manage permission to owner role'
-				);
-				const allPermissionNames = allPermissions.map((p: any) => p.name);
-				await mongoStorage.getRoleCollection().updateOne(
-					{ name: 'owner' },
-					{
-						$set: {
-							permissions: allPermissionNames,
-							updatedAt: new Date(),
-						},
-					}
-				);
-
-				// Refresh user role
-				const updatedUserRole = await mongoStorage.getRoleByName('owner');
-				console.log('✅ Owner permissions updated with middleware.manage');
-
-				res.json({
-					user: {
-						id: user.id,
-						username: user.username,
-						role: user.role,
-					},
-					userRole: updatedUserRole,
-					hasMiddlewareManage:
-						updatedUserRole?.permissions?.includes('middleware.manage') ||
-						false,
-					allPermissions: allPermissions.map((p: any) => p.name),
-					ownerHasAllPermissions:
-						updatedUserRole?.permissions?.length === allPermissions.length,
-					middlewareManagePermission: middlewareManagePermission,
-					debugInfo: {
-						totalPermissions: allPermissions.length,
-						ownerPermissions: updatedUserRole?.permissions?.length || 0,
-						permissionNames: allPermissions.map((p: any) => p.name),
-						emergencyFix: true,
-					},
-				});
-			} else {
-				res.json({
-					user: {
-						id: user.id,
-						username: user.username,
-						role: user.role,
-					},
-					userRole: userRole,
-					hasMiddlewareManage:
-						userRole?.permissions?.includes('middleware.manage') || false,
-					allPermissions: allPermissions.map((p: any) => p.name),
-					ownerHasAllPermissions:
-						userRole?.permissions?.length === allPermissions.length,
-					middlewareManagePermission: middlewareManagePermission,
-					debugInfo: {
-						totalPermissions: allPermissions.length,
-						ownerPermissions: userRole?.permissions?.length || 0,
-						permissionNames: allPermissions.map((p: any) => p.name),
-					},
-				});
-			}
-		} catch (error) {
-			console.error('Debug error:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
-	});
 
 	// Public stats (no auth required for public home page)
 	app.get('/api/stats', async (req, res) => {
