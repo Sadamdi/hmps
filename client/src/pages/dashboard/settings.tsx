@@ -236,7 +236,9 @@ export default function SettingsPage() {
 	useEffect(() => {
 		if (middlewareSettings) {
 			const middlewareData = middlewareSettings as any; // Type assertion untuk menghindari masalah inference
-			setMiddlewareFormData({
+
+			// Load data from server
+			const loadedData = {
 				allEnabled: Boolean(middlewareData.allEnabled ?? true),
 				apiProtectionEnabled: Boolean(
 					middlewareData.apiProtectionEnabled ?? true
@@ -269,7 +271,32 @@ export default function SettingsPage() {
 				createdAt: middlewareData.createdAt
 					? new Date(middlewareData.createdAt)
 					: new Date(),
-			});
+			};
+
+			// Sync allEnabled with individual toggles if needed
+			const individualToggles = [
+				'apiProtectionEnabled',
+				'apiRateLimitEnabled',
+				'ddosProtectionEnabled',
+				'sqlInjectionProtectionEnabled',
+				'noSqlInjectionProtectionEnabled',
+				'antiSpoofingProtectionEnabled',
+				'dnsLayerProtectionEnabled',
+				'portScanningProtectionEnabled',
+			];
+
+			const firstToggleValue = loadedData.apiProtectionEnabled;
+			const allSame = individualToggles.every(
+				(toggle) =>
+					loadedData[toggle as keyof MiddlewareSettings] === firstToggleValue
+			);
+
+			// Update allEnabled if all toggles are the same
+			if (allSame) {
+				loadedData.allEnabled = firstToggleValue;
+			}
+
+			setMiddlewareFormData(loadedData);
 		}
 	}, [middlewareSettings, user]);
 
@@ -516,13 +543,13 @@ export default function SettingsPage() {
 				portScanningProtectionEnabled: value,
 			});
 		} else {
-			// For individual toggles, update the specific field
-			setMiddlewareFormData({
+			// For individual toggles, update the specific field and sync allEnabled
+			const updatedData = {
 				...middlewareFormData,
 				[field]: value,
-			});
+			};
 
-			// Also update allEnabled based on whether all toggles are the same
+			// Calculate allEnabled based on whether all toggles are the same
 			const individualToggles = [
 				'apiProtectionEnabled',
 				'apiRateLimitEnabled',
@@ -534,23 +561,17 @@ export default function SettingsPage() {
 				'portScanningProtectionEnabled',
 			];
 
-			const updatedData = {
-				...middlewareFormData,
-				[field]: value,
-			};
-
 			const firstToggleValue = updatedData.apiProtectionEnabled;
 			const allSame = individualToggles.every(
 				(toggle) =>
 					updatedData[toggle as keyof MiddlewareSettings] === firstToggleValue
 			);
 
-			if (allSame) {
-				setMiddlewareFormData({
-					...updatedData,
-					allEnabled: firstToggleValue,
-				});
-			}
+			// Update state with synced allEnabled
+			setMiddlewareFormData({
+				...updatedData,
+				allEnabled: allSame ? firstToggleValue : updatedData.allEnabled,
+			});
 		}
 	};
 
