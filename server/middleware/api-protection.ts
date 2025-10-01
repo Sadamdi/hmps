@@ -6,6 +6,12 @@ let middlewareSettingsCache: any = null;
 let settingsCacheTimestamp: number = 0;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Function to clear settings cache (called when settings are updated)
+export function clearMiddlewareSettingsCache() {
+	middlewareSettingsCache = null;
+	settingsCacheTimestamp = 0;
+}
+
 // Function to get middleware settings with caching
 async function getCachedMiddlewareSettings() {
 	const now = Date.now();
@@ -14,10 +20,21 @@ async function getCachedMiddlewareSettings() {
 		now - settingsCacheTimestamp > CACHE_DURATION
 	) {
 		try {
+			console.log(
+				'🔄 API Protection: Fetching fresh middleware settings from database...'
+			);
 			middlewareSettingsCache = await getMiddlewareSettings();
 			settingsCacheTimestamp = now;
+			console.log('✅ API Protection: Settings loaded:', {
+				apiProtectionEnabled: middlewareSettingsCache.apiProtectionEnabled,
+				allEnabled: middlewareSettingsCache.allEnabled,
+				timestamp: new Date().toISOString(),
+			});
 		} catch (error) {
-			console.error('Error getting middleware settings:', error);
+			console.error(
+				'❌ API Protection: Error getting middleware settings:',
+				error
+			);
 			// Fallback to default enabled settings if error
 			middlewareSettingsCache = {
 				apiProtectionEnabled: true,
@@ -30,6 +47,11 @@ async function getCachedMiddlewareSettings() {
 				portScanningProtectionEnabled: true,
 			};
 		}
+	} else {
+		console.log('📋 API Protection: Using cached settings:', {
+			apiProtectionEnabled: middlewareSettingsCache.apiProtectionEnabled,
+			cacheAge: Math.round((now - settingsCacheTimestamp) / 1000) + 's',
+		});
 	}
 	return middlewareSettingsCache;
 }
@@ -103,8 +125,21 @@ export const apiProtectionMiddleware = async (
 	try {
 		const settings = await getCachedMiddlewareSettings();
 
+		// Debug logging
+		console.log('API Protection Middleware - Settings:', {
+			apiProtectionEnabled: settings.apiProtectionEnabled,
+			path: req.path,
+			userAgent: req.get('User-Agent'),
+			referer: req.get('Referer'),
+			origin: req.get('Origin'),
+		});
+
 		// Skip middleware if disabled
 		if (!settings.apiProtectionEnabled) {
+			console.log(
+				'✅ API Protection: Middleware disabled, allowing request to',
+				req.path
+			);
 			return next();
 		}
 		const path = req.path;

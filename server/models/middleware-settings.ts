@@ -1,5 +1,8 @@
 import { model, Schema } from 'mongoose';
 
+// Import cache clearing function
+import { clearMiddlewareSettingsCache } from '../middleware/api-protection';
+
 export interface IMiddlewareSettings {
 	_id?: string;
 	allEnabled: boolean; // Master toggle for all middleware
@@ -106,6 +109,23 @@ export async function getMiddlewareSettings(): Promise<IMiddlewareSettings> {
 			await settings.save();
 		}
 
+		// Ensure allEnabled field is always present (for backward compatibility)
+		if (settings.allEnabled === undefined) {
+			// If allEnabled is not set, determine it based on individual toggles
+			const allEnabled =
+				settings.apiProtectionEnabled &&
+				settings.apiRateLimitEnabled &&
+				settings.ddosProtectionEnabled &&
+				settings.sqlInjectionProtectionEnabled &&
+				settings.noSqlInjectionProtectionEnabled &&
+				settings.antiSpoofingProtectionEnabled &&
+				settings.dnsLayerProtectionEnabled &&
+				settings.portScanningProtectionEnabled;
+
+			settings.allEnabled = allEnabled;
+			await settings.save();
+		}
+
 		return settings;
 	} catch (error) {
 		console.error('Error getting middleware settings:', error);
@@ -199,7 +219,20 @@ export async function updateMiddlewareSettings(
 			});
 		}
 
-		return await existingSettings.save();
+		const savedSettings = await existingSettings.save();
+
+		// Clear middleware cache to ensure fresh settings are used
+		console.log('🔄 Middleware Settings: Clearing cache after update');
+		clearMiddlewareSettingsCache();
+
+		console.log('✅ Middleware Settings: Updated successfully:', {
+			allEnabled: savedSettings.allEnabled,
+			apiProtectionEnabled: savedSettings.apiProtectionEnabled,
+			updatedBy: savedSettings.updatedBy,
+			updatedAt: savedSettings.updatedAt,
+		});
+
+		return savedSettings;
 	} catch (error) {
 		console.error('Error updating middleware settings:', error);
 		throw error;
