@@ -7,6 +7,9 @@ export interface IMiddlewareSettings {
 	ddosProtectionEnabled: boolean;
 	sqlInjectionProtectionEnabled: boolean;
 	noSqlInjectionProtectionEnabled: boolean;
+	antiSpoofingProtectionEnabled: boolean;
+	dnsLayerProtectionEnabled: boolean;
+	portScanningProtectionEnabled: boolean;
 	updatedBy: string; // User ID who made the change
 	updatedAt: Date;
 	createdAt: Date;
@@ -31,6 +34,18 @@ const middlewareSettingsSchema = new Schema<IMiddlewareSettings>(
 			default: true,
 		},
 		noSqlInjectionProtectionEnabled: {
+			type: Boolean,
+			default: true,
+		},
+		antiSpoofingProtectionEnabled: {
+			type: Boolean,
+			default: true,
+		},
+		dnsLayerProtectionEnabled: {
+			type: Boolean,
+			default: true,
+		},
+		portScanningProtectionEnabled: {
 			type: Boolean,
 			default: true,
 		},
@@ -71,6 +86,9 @@ export async function getMiddlewareSettings(): Promise<IMiddlewareSettings> {
 				ddosProtectionEnabled: true,
 				sqlInjectionProtectionEnabled: true,
 				noSqlInjectionProtectionEnabled: true,
+				antiSpoofingProtectionEnabled: true,
+				dnsLayerProtectionEnabled: true,
+				portScanningProtectionEnabled: true,
 				updatedBy: 'system',
 			});
 			await settings.save();

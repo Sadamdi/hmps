@@ -25,6 +25,9 @@ async function getCachedSqlMiddlewareSettings() {
 				ddosProtectionEnabled: true,
 				sqlInjectionProtectionEnabled: true,
 				noSqlInjectionProtectionEnabled: true,
+				antiSpoofingProtectionEnabled: true,
+				dnsLayerProtectionEnabled: true,
+				portScanningProtectionEnabled: true,
 			};
 		}
 	}

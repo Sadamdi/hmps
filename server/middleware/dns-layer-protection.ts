@@ -9,7 +9,10 @@ const DNS_LAYER_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Function to get middleware settings with caching for DNS layer middleware
 async function getCachedDnsLayerMiddlewareSettings() {
 	const now = Date.now();
-	if (!dnsLayerSettingsCache || now - dnsLayerSettingsCacheTimestamp > DNS_LAYER_CACHE_DURATION) {
+	if (
+		!dnsLayerSettingsCache ||
+		now - dnsLayerSettingsCacheTimestamp > DNS_LAYER_CACHE_DURATION
+	) {
 		try {
 			dnsLayerSettingsCache = await getMiddlewareSettings();
 			dnsLayerSettingsCacheTimestamp = now;
@@ -22,6 +25,9 @@ async function getCachedDnsLayerMiddlewareSettings() {
 				ddosProtectionEnabled: true,
 				sqlInjectionProtectionEnabled: true,
 				noSqlInjectionProtectionEnabled: true,
+				antiSpoofingProtectionEnabled: true,
+				dnsLayerProtectionEnabled: true,
+				portScanningProtectionEnabled: true,
 			};
 		}
 	}
@@ -41,46 +47,291 @@ const WHITELISTED_DOMAINS = [
 
 // Allowed TLDs for legitimate requests
 const ALLOWED_TLDS = [
-	'.com', '.org', '.net', '.edu', '.gov', '.mil', '.int',
-	'.ac', '.ad', '.ae', '.af', '.ag', '.ai', '.al', '.am',
-	'.ao', '.aq', '.ar', '.as', '.at', '.au', '.aw', '.ax',
-	'.az', '.ba', '.bb', '.bd', '.be', '.bf', '.bg', '.bh',
-	'.bi', '.bj', '.bl', '.bm', '.bn', '.bo', '.bq', '.br',
-	'.bs', '.bt', '.bv', '.bw', '.by', '.bz', '.ca', '.cc',
-	'.cd', '.cf', '.cg', '.ch', '.ci', '.ck', '.cl', '.cm',
-	'.cn', '.co', '.cr', '.cu', '.cv', '.cw', '.cx', '.cy',
-	'.cz', '.de', '.dj', '.dk', '.dm', '.do', '.dz', '.ec',
-	'.ee', '.eg', '.eh', '.er', '.es', '.et', '.eu', '.fi',
-	'.fj', '.fk', '.fm', '.fo', '.fr', '.ga', '.gb', '.gd',
-	'.ge', '.gf', '.gg', '.gh', '.gi', '.gl', '.gm', '.gn',
-	'.gp', '.gq', '.gr', '.gs', '.gt', '.gu', '.gw', '.gy',
-	'.hk', '.hm', '.hn', '.hr', '.ht', '.hu', '.id', '.ie',
-	'.il', '.im', '.in', '.io', '.iq', '.ir', '.is', '.it',
-	'.je', '.jm', '.jo', '.jp', '.ke', '.kg', '.kh', '.ki',
-	'.km', '.kn', '.kp', '.kr', '.kw', '.ky', '.kz', '.la',
-	'.lb', '.lc', '.li', '.lk', '.lr', '.ls', '.lt', '.lu',
-	'.lv', '.ly', '.ma', '.mc', '.md', '.me', '.mf', '.mg',
-	'.mh', '.mk', '.ml', '.mm', '.mn', '.mo', '.mp', '.mq',
-	'.mr', '.ms', '.mt', '.mu', '.mv', '.mw', '.mx', '.my',
-	'.mz', '.na', '.nc', '.ne', '.nf', '.ng', '.ni', '.nl',
-	'.no', '.np', '.nr', '.nu', '.nz', '.om', '.pa', '.pe',
-	'.pf', '.pg', '.ph', '.pk', '.pl', '.pm', '.pn', '.pr',
-	'.ps', '.pt', '.pw', '.py', '.qa', '.re', '.ro', '.rs',
-	'.ru', '.rw', '.sa', '.sb', '.sc', '.sd', '.se', '.sg',
-	'.sh', '.si', '.sj', '.sk', '.sl', '.sm', '.sn', '.so',
-	'.sr', '.ss', '.st', '.su', '.sv', '.sx', '.sy', '.sz',
-	'.tc', '.td', '.tf', '.tg', '.th', '.tj', '.tk', '.tl',
-	'.tm', '.tn', '.to', '.tp', '.tr', '.tt', '.tv', '.tw',
-	'.tz', '.ua', '.ug', '.uk', '.us', '.uy', '.uz', '.va',
-	'.vc', '.ve', '.vg', '.vi', '.vn', '.vu', '.wf', '.ws',
-	'.ye', '.yt', '.yu', '.za', '.zm', '.zw'
+	'.com',
+	'.org',
+	'.net',
+	'.edu',
+	'.gov',
+	'.mil',
+	'.int',
+	'.ac',
+	'.ad',
+	'.ae',
+	'.af',
+	'.ag',
+	'.ai',
+	'.al',
+	'.am',
+	'.ao',
+	'.aq',
+	'.ar',
+	'.as',
+	'.at',
+	'.au',
+	'.aw',
+	'.ax',
+	'.az',
+	'.ba',
+	'.bb',
+	'.bd',
+	'.be',
+	'.bf',
+	'.bg',
+	'.bh',
+	'.bi',
+	'.bj',
+	'.bl',
+	'.bm',
+	'.bn',
+	'.bo',
+	'.bq',
+	'.br',
+	'.bs',
+	'.bt',
+	'.bv',
+	'.bw',
+	'.by',
+	'.bz',
+	'.ca',
+	'.cc',
+	'.cd',
+	'.cf',
+	'.cg',
+	'.ch',
+	'.ci',
+	'.ck',
+	'.cl',
+	'.cm',
+	'.cn',
+	'.co',
+	'.cr',
+	'.cu',
+	'.cv',
+	'.cw',
+	'.cx',
+	'.cy',
+	'.cz',
+	'.de',
+	'.dj',
+	'.dk',
+	'.dm',
+	'.do',
+	'.dz',
+	'.ec',
+	'.ee',
+	'.eg',
+	'.eh',
+	'.er',
+	'.es',
+	'.et',
+	'.eu',
+	'.fi',
+	'.fj',
+	'.fk',
+	'.fm',
+	'.fo',
+	'.fr',
+	'.ga',
+	'.gb',
+	'.gd',
+	'.ge',
+	'.gf',
+	'.gg',
+	'.gh',
+	'.gi',
+	'.gl',
+	'.gm',
+	'.gn',
+	'.gp',
+	'.gq',
+	'.gr',
+	'.gs',
+	'.gt',
+	'.gu',
+	'.gw',
+	'.gy',
+	'.hk',
+	'.hm',
+	'.hn',
+	'.hr',
+	'.ht',
+	'.hu',
+	'.id',
+	'.ie',
+	'.il',
+	'.im',
+	'.in',
+	'.io',
+	'.iq',
+	'.ir',
+	'.is',
+	'.it',
+	'.je',
+	'.jm',
+	'.jo',
+	'.jp',
+	'.ke',
+	'.kg',
+	'.kh',
+	'.ki',
+	'.km',
+	'.kn',
+	'.kp',
+	'.kr',
+	'.kw',
+	'.ky',
+	'.kz',
+	'.la',
+	'.lb',
+	'.lc',
+	'.li',
+	'.lk',
+	'.lr',
+	'.ls',
+	'.lt',
+	'.lu',
+	'.lv',
+	'.ly',
+	'.ma',
+	'.mc',
+	'.md',
+	'.me',
+	'.mf',
+	'.mg',
+	'.mh',
+	'.mk',
+	'.ml',
+	'.mm',
+	'.mn',
+	'.mo',
+	'.mp',
+	'.mq',
+	'.mr',
+	'.ms',
+	'.mt',
+	'.mu',
+	'.mv',
+	'.mw',
+	'.mx',
+	'.my',
+	'.mz',
+	'.na',
+	'.nc',
+	'.ne',
+	'.nf',
+	'.ng',
+	'.ni',
+	'.nl',
+	'.no',
+	'.np',
+	'.nr',
+	'.nu',
+	'.nz',
+	'.om',
+	'.pa',
+	'.pe',
+	'.pf',
+	'.pg',
+	'.ph',
+	'.pk',
+	'.pl',
+	'.pm',
+	'.pn',
+	'.pr',
+	'.ps',
+	'.pt',
+	'.pw',
+	'.py',
+	'.qa',
+	'.re',
+	'.ro',
+	'.rs',
+	'.ru',
+	'.rw',
+	'.sa',
+	'.sb',
+	'.sc',
+	'.sd',
+	'.se',
+	'.sg',
+	'.sh',
+	'.si',
+	'.sj',
+	'.sk',
+	'.sl',
+	'.sm',
+	'.sn',
+	'.so',
+	'.sr',
+	'.ss',
+	'.st',
+	'.su',
+	'.sv',
+	'.sx',
+	'.sy',
+	'.sz',
+	'.tc',
+	'.td',
+	'.tf',
+	'.tg',
+	'.th',
+	'.tj',
+	'.tk',
+	'.tl',
+	'.tm',
+	'.tn',
+	'.to',
+	'.tp',
+	'.tr',
+	'.tt',
+	'.tv',
+	'.tw',
+	'.tz',
+	'.ua',
+	'.ug',
+	'.uk',
+	'.us',
+	'.uy',
+	'.uz',
+	'.va',
+	'.vc',
+	'.ve',
+	'.vg',
+	'.vi',
+	'.vn',
+	'.vu',
+	'.wf',
+	'.ws',
+	'.ye',
+	'.yt',
+	'.yu',
+	'.za',
+	'.zm',
+	'.zw',
 ];
 
 // Suspicious TLDs commonly used for malicious activities
 const SUSPICIOUS_TLDS = [
-	'.tk', '.ml', '.ga', '.cf', '.gq', '.pw', '.top', '.win',
-	'.bid', '.stream', '.download', '.racing', '.science', '.party',
-	'.review', '.trade', '.date', '.loan', '.cricket', '.accountant'
+	'.tk',
+	'.ml',
+	'.ga',
+	'.cf',
+	'.gq',
+	'.pw',
+	'.top',
+	'.win',
+	'.bid',
+	'.stream',
+	'.download',
+	'.racing',
+	'.science',
+	'.party',
+	'.review',
+	'.trade',
+	'.date',
+	'.loan',
+	'.cricket',
+	'.accountant',
 ];
 
 // Blacklisted domains known for malicious activities
@@ -131,12 +382,17 @@ function isDnsRebindingAttempt(hostname: string): boolean {
 	}
 
 	// Check for suspicious domain patterns
-	if (hostname.includes('..') || hostname.startsWith('.') || hostname.endsWith('.')) {
+	if (
+		hostname.includes('..') ||
+		hostname.startsWith('.') ||
+		hostname.endsWith('.')
+	) {
 		return true;
 	}
 
 	// Check for extremely long hostnames (potential DNS rebinding)
-	if (hostname.length > 253) { // RFC 1035 limit
+	if (hostname.length > 253) {
+		// RFC 1035 limit
 		return true;
 	}
 
@@ -149,7 +405,11 @@ function isDnsRebindingAttempt(hostname: string): boolean {
 }
 
 // ==================== HOST HEADER VALIDATION ====================
-function isValidHostHeader(host: string, referer: string, origin: string): boolean {
+function isValidHostHeader(
+	host: string,
+	referer: string,
+	origin: string
+): boolean {
 	if (!host) return false;
 
 	// Extract domain from referer/origin if available
@@ -208,16 +468,25 @@ function isSuspiciousDomain(domain: string): boolean {
 	}
 
 	// Check for suspicious domain patterns
-	if (/^[0-9a-f]{32,}\.com$/.test(domain)) { // MD5 hash domains
+	if (/^[0-9a-f]{32,}\.com$/.test(domain)) {
+		// MD5 hash domains
 		return true;
 	}
 
-	if (/^[a-z]{1,3}\d{1,3}\.com$/.test(domain)) { // Short random domains
+	if (/^[a-z]{1,3}\d{1,3}\.com$/.test(domain)) {
+		// Short random domains
 		return true;
 	}
 
 	// Check for domains with suspicious keywords
-	const suspiciousKeywords = ['malware', 'exploit', 'hack', 'phish', 'spam', 'scam'];
+	const suspiciousKeywords = [
+		'malware',
+		'exploit',
+		'hack',
+		'phish',
+		'spam',
+		'scam',
+	];
 	for (const keyword of suspiciousKeywords) {
 		if (domain.includes(keyword)) {
 			return true;
@@ -349,7 +618,9 @@ export const dnsLayerProtectionMiddleware = async (
 
 		// ==================== LOG AND BLOCK DNS ATTACKS ====================
 		if (dnsAttackDetected) {
-			console.log(`🚨 DNS Layer Protection: DNS attack detected from IP ${clientIP}`);
+			console.log(
+				`🚨 DNS Layer Protection: DNS attack detected from IP ${clientIP}`
+			);
 			console.log(`   Reason: ${attackReason}`);
 			console.log(`   Path: ${req.path}`);
 			console.log(`   Method: ${req.method}`);
@@ -388,11 +659,14 @@ export const dnsLayerProtectionMiddleware = async (
 
 // ==================== DNS CACHE POISONING DETECTION ====================
 // Track requests from suspicious sources
-const suspiciousSourceTracker = new Map<string, {
-	count: number;
-	lastSeen: number;
-	domains: Set<string>;
-}>();
+const suspiciousSourceTracker = new Map<
+	string,
+	{
+		count: number;
+		lastSeen: number;
+		domains: Set<string>;
+	}
+>();
 
 const SUSPICIOUS_SOURCES = {
 	MAX_REQUESTS_PER_MINUTE: 50,
@@ -458,8 +732,8 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 		const clientIP = req.ip || req.connection?.remoteAddress || 'unknown';
 
 		// Skip for legitimate whitelisted domains
-		const isWhitelisted = WHITELISTED_DOMAINS.some(domain =>
-			host === domain || host.endsWith(`.${domain}`)
+		const isWhitelisted = WHITELISTED_DOMAINS.some(
+			(domain) => host === domain || host.endsWith(`.${domain}`)
 		);
 
 		if (isWhitelisted) {
@@ -468,7 +742,9 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 
 		// Detect DNS cache poisoning attempts
 		if (isDnsCachePoisoningAttempt(clientIP, host)) {
-			console.log(`🚨 DNS Cache Poisoning Protection: Suspicious activity from IP ${clientIP}`);
+			console.log(
+				`🚨 DNS Cache Poisoning Protection: Suspicious activity from IP ${clientIP}`
+			);
 
 			return sendBeautifulDnsLayerError(
 				res,

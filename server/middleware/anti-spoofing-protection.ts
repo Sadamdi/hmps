@@ -9,7 +9,10 @@ const ANTI_SPOOFING_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Function to get middleware settings with caching for anti-spoofing middleware
 async function getCachedAntiSpoofingMiddlewareSettings() {
 	const now = Date.now();
-	if (!antiSpoofingSettingsCache || now - antiSpoofingSettingsCacheTimestamp > ANTI_SPOOFING_CACHE_DURATION) {
+	if (
+		!antiSpoofingSettingsCache ||
+		now - antiSpoofingSettingsCacheTimestamp > ANTI_SPOOFING_CACHE_DURATION
+	) {
 		try {
 			antiSpoofingSettingsCache = await getMiddlewareSettings();
 			antiSpoofingSettingsCacheTimestamp = now;
@@ -22,6 +25,9 @@ async function getCachedAntiSpoofingMiddlewareSettings() {
 				ddosProtectionEnabled: true,
 				sqlInjectionProtectionEnabled: true,
 				noSqlInjectionProtectionEnabled: true,
+				antiSpoofingProtectionEnabled: true,
+				dnsLayerProtectionEnabled: true,
+				portScanningProtectionEnabled: true,
 			};
 		}
 	}
@@ -317,7 +323,7 @@ export const antiSpoofingProtectionMiddleware = async (
 		// ==================== IP SPOOFING DETECTION ====================
 		// Check X-Forwarded-For header for private IPs
 		if (xForwardedFor) {
-			const forwardedIPs = xForwardedFor.split(',').map(ip => ip.trim());
+			const forwardedIPs = xForwardedFor.split(',').map((ip) => ip.trim());
 			for (const forwardedIP of forwardedIPs) {
 				if (isPrivateIP(forwardedIP)) {
 					spoofingDetected = true;
@@ -336,7 +342,8 @@ export const antiSpoofingProtectionMiddleware = async (
 		// Check for protocol mismatch (HTTPS spoofing)
 		if (req.secure && xForwardedProto === 'http') {
 			spoofingDetected = true;
-			spoofingReason = 'Protocol mismatch: HTTPS request with HTTP X-Forwarded-Proto';
+			spoofingReason =
+				'Protocol mismatch: HTTPS request with HTTP X-Forwarded-Proto';
 		}
 
 		// ==================== USER-AGENT SPOOFING DETECTION ====================
@@ -359,7 +366,9 @@ export const antiSpoofingProtectionMiddleware = async (
 
 		// ==================== LOG AND BLOCK SPOOFING ATTEMPTS ====================
 		if (spoofingDetected) {
-			console.log(`🚨 Anti-Spoofing Protection: Spoofing attempt detected from IP ${clientIP}`);
+			console.log(
+				`🚨 Anti-Spoofing Protection: Spoofing attempt detected from IP ${clientIP}`
+			);
 			console.log(`   Reason: ${spoofingReason}`);
 			console.log(`   Path: ${req.path}`);
 			console.log(`   Method: ${req.method}`);
@@ -386,7 +395,9 @@ export const antiSpoofingProtectionMiddleware = async (
 
 		// Log legitimate requests for monitoring
 		if (clientIP !== 'unknown' && (referrer || userAgent)) {
-			console.log(`✅ Anti-Spoofing: Valid request from IP ${clientIP} to ${req.path}`);
+			console.log(
+				`✅ Anti-Spoofing: Valid request from IP ${clientIP} to ${req.path}`
+			);
 		}
 
 		next();
@@ -402,14 +413,23 @@ const PORT_SCANNING_THRESHOLDS = {
 	WINDOW_MS: 60 * 1000, // 1 minute
 	MAX_REQUESTS_PER_MINUTE: 100,
 	MAX_DIFFERENT_ENDPOINTS: 20,
-	SUSPICIOUS_ENDPOINTS: ['/admin', '/wp-admin', '/phpmyadmin', '/.env', '/config'],
+	SUSPICIOUS_ENDPOINTS: [
+		'/admin',
+		'/wp-admin',
+		'/phpmyadmin',
+		'/.env',
+		'/config',
+	],
 };
 
-const portScanningData = new Map<string, {
-	count: number;
-	endpoints: Set<string>;
-	resetTime: number;
-}>();
+const portScanningData = new Map<
+	string,
+	{
+		count: number;
+		endpoints: Set<string>;
+		resetTime: number;
+	}
+>();
 
 // Function to detect port scanning
 function isPortScanning(clientIP: string): boolean {
@@ -440,15 +460,19 @@ function isPortScanning(clientIP: string): boolean {
 		return true;
 	}
 
-	if (scanData.endpoints.size > PORT_SCANNING_THRESHOLDS.MAX_DIFFERENT_ENDPOINTS) {
+	if (
+		scanData.endpoints.size > PORT_SCANNING_THRESHOLDS.MAX_DIFFERENT_ENDPOINTS
+	) {
 		return true;
 	}
 
 	// Check for suspicious endpoints
 	for (const endpoint of scanData.endpoints) {
-		if (PORT_SCANNING_THRESHOLDS.SUSPICIOUS_ENDPOINTS.some(suspicious =>
-			endpoint.toLowerCase().includes(suspicious)
-		)) {
+		if (
+			PORT_SCANNING_THRESHOLDS.SUSPICIOUS_ENDPOINTS.some((suspicious) =>
+				endpoint.toLowerCase().includes(suspicious)
+			)
+		) {
 			return true;
 		}
 	}
@@ -497,7 +521,9 @@ export const portScanningProtectionMiddleware = async (
 
 		// Detect port scanning
 		if (isPortScanning(clientIP)) {
-			console.log(`🚨 Port Scanning Protection: Port scanning detected from IP ${clientIP}`);
+			console.log(
+				`🚨 Port Scanning Protection: Port scanning detected from IP ${clientIP}`
+			);
 
 			return sendBeautifulAntiSpoofingError(
 				res,

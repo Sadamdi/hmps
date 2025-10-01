@@ -7,6 +7,10 @@ import { log, serveStatic, setupVite } from './vite';
 
 // Import security middleware
 import {
+	antiSpoofingProtectionMiddleware,
+	cleanupAntiSpoofingData,
+} from './middleware/anti-spoofing-protection';
+import {
 	apiProtectionMiddleware,
 	apiRateLimitMiddleware,
 } from './middleware/api-protection';
@@ -14,6 +18,10 @@ import {
 	cleanupDdosData,
 	ddosProtectionMiddleware,
 } from './middleware/ddos-protection';
+import {
+	cleanupDnsLayerData,
+	dnsLayerProtectionMiddleware,
+} from './middleware/dns-layer-protection';
 import {
 	noSqlInjectionProtectionMiddleware,
 	sqlInjectionProtectionMiddleware,
@@ -50,6 +58,12 @@ app.use(apiRateLimitMiddleware);
 // Apply SQL/NoSQL injection protection
 app.use(sqlInjectionProtectionMiddleware);
 app.use(noSqlInjectionProtectionMiddleware);
+
+// Apply anti-spoofing protection
+app.use(antiSpoofingProtectionMiddleware);
+
+// Apply DNS layer protection
+app.use(dnsLayerProtectionMiddleware);
 
 // Apply input sanitization
 app.use(sanitizeInput);
@@ -228,6 +242,12 @@ setInterval(async () => {
 // DDoS Protection Cleanup (every hour)
 setInterval(cleanupDdosData, 60 * 60 * 1000);
 
+// Anti-Spoofing Protection Cleanup (every minute)
+setInterval(cleanupAntiSpoofingData, 60 * 1000);
+
+// DNS Layer Protection Cleanup (every 5 minutes)
+setInterval(cleanupDnsLayerData, 5 * 60 * 1000);
+
 // ==================== SECURITY MONITORING ====================
 // Security monitoring akan ditampilkan saat server start
 
@@ -304,6 +324,9 @@ setInterval(() => {
 			console.log('   ✅ SQL Injection Protection');
 			console.log('   ✅ NoSQL Injection Protection');
 			console.log('   ✅ XSS Protection');
+			console.log('   ✅ Anti-Spoofing Protection');
+			console.log('   ✅ DNS Layer Protection');
+			console.log('   ✅ Port Scanning Protection');
 			console.log('   ✅ Rate Limiting');
 			console.log('   ✅ Security Headers');
 		}

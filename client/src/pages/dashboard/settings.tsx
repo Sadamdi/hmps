@@ -61,6 +61,9 @@ interface MiddlewareSettings {
 	ddosProtectionEnabled: boolean;
 	sqlInjectionProtectionEnabled: boolean;
 	noSqlInjectionProtectionEnabled: boolean;
+	antiSpoofingProtectionEnabled: boolean;
+	dnsLayerProtectionEnabled: boolean;
+	portScanningProtectionEnabled: boolean;
 	updatedBy: string;
 	updatedAt: string;
 	createdAt: string;
@@ -188,6 +191,9 @@ export default function SettingsPage() {
 			ddosProtectionEnabled: true,
 			sqlInjectionProtectionEnabled: true,
 			noSqlInjectionProtectionEnabled: true,
+			antiSpoofingProtectionEnabled: true,
+			dnsLayerProtectionEnabled: true,
+			portScanningProtectionEnabled: true,
 			updatedBy: '',
 			updatedAt: '',
 			createdAt: '',
@@ -1072,6 +1078,79 @@ export default function SettingsPage() {
 												onCheckedChange={(checked) =>
 													handleMiddlewareSwitchChange(
 														'noSqlInjectionProtectionEnabled',
+														checked
+													)
+												}
+												disabled={updateMiddlewareSettingsMutation.isPending}
+											/>
+										</div>
+
+										{/* Anti-Spoofing Protection */}
+										<div className="flex items-center justify-between">
+											<div className="space-y-0.5">
+												<Label className="text-base">
+													Anti-Spoofing Protection
+												</Label>
+												<p className="text-sm text-gray-500">
+													Detects and blocks IP spoofing, user-agent spoofing,
+													and referrer spoofing attempts
+												</p>
+											</div>
+											<Switch
+												checked={
+													middlewareFormData.antiSpoofingProtectionEnabled
+												}
+												onCheckedChange={(checked) =>
+													handleMiddlewareSwitchChange(
+														'antiSpoofingProtectionEnabled',
+														checked
+													)
+												}
+												disabled={updateMiddlewareSettingsMutation.isPending}
+											/>
+										</div>
+
+										{/* DNS Layer Protection */}
+										<div className="flex items-center justify-between">
+											<div className="space-y-0.5">
+												<Label className="text-base">
+													DNS Layer Protection
+												</Label>
+												<p className="text-sm text-gray-500">
+													Protects against DNS rebinding, cache poisoning, and
+													suspicious domain attacks
+												</p>
+											</div>
+											<Switch
+												checked={middlewareFormData.dnsLayerProtectionEnabled}
+												onCheckedChange={(checked) =>
+													handleMiddlewareSwitchChange(
+														'dnsLayerProtectionEnabled',
+														checked
+													)
+												}
+												disabled={updateMiddlewareSettingsMutation.isPending}
+											/>
+										</div>
+
+										{/* Port Scanning Protection */}
+										<div className="flex items-center justify-between">
+											<div className="space-y-0.5">
+												<Label className="text-base">
+													Port Scanning Protection
+												</Label>
+												<p className="text-sm text-gray-500">
+													Detects and blocks port scanning attempts and
+													suspicious request patterns
+												</p>
+											</div>
+											<Switch
+												checked={
+													middlewareFormData.portScanningProtectionEnabled
+												}
+												onCheckedChange={(checked) =>
+													handleMiddlewareSwitchChange(
+														'portScanningProtectionEnabled',
 														checked
 													)
 												}
