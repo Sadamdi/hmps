@@ -125,23 +125,14 @@ export const apiProtectionMiddleware = async (
 	try {
 		const settings = await getCachedMiddlewareSettings();
 
-		// Debug logging
-		console.log('API Protection Middleware - Settings:', {
-			apiProtectionEnabled: settings.apiProtectionEnabled,
-			path: req.path,
-			userAgent: req.get('User-Agent'),
-			referer: req.get('Referer'),
-			origin: req.get('Origin'),
-		});
-
-		// Skip middleware if disabled
+		// If API Protection is completely disabled, allow ALL requests
 		if (!settings.apiProtectionEnabled) {
 			console.log(
-				'✅ API Protection: Middleware disabled, allowing request to',
-				req.path
+				`🔓 API Protection: COMPLETELY DISABLED - Allowing ALL requests to ${req.path}`
 			);
 			return next();
 		}
+
 		const path = req.path;
 		const method = req.method;
 		const userAgent = req.get('User-Agent') || '';
