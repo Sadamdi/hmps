@@ -432,7 +432,7 @@ const portScanningData = new Map<
 >();
 
 // Function to detect port scanning
-function isPortScanning(clientIP: string): boolean {
+function isPortScanning(clientIP: string, currentPath: string): boolean {
 	const now = Date.now();
 	const scanData = portScanningData.get(clientIP);
 
@@ -440,7 +440,7 @@ function isPortScanning(clientIP: string): boolean {
 		// Reset or create new scan data
 		portScanningData.set(clientIP, {
 			count: 1,
-			endpoints: new Set([req.path]),
+			endpoints: new Set([currentPath]),
 			resetTime: now + PORT_SCANNING_THRESHOLDS.WINDOW_MS,
 		});
 		return false;
@@ -448,7 +448,7 @@ function isPortScanning(clientIP: string): boolean {
 
 	// Increment request count
 	scanData.count++;
-	scanData.endpoints.add(req.path);
+	scanData.endpoints.add(currentPath);
 
 	// Update reset time if needed
 	if (now > scanData.resetTime) {
@@ -520,7 +520,7 @@ export const portScanningProtectionMiddleware = async (
 		}
 
 		// Detect port scanning
-		if (isPortScanning(clientIP)) {
+		if (isPortScanning(clientIP, req.path)) {
 			console.log(
 				`🚨 Port Scanning Protection: Port scanning detected from IP ${clientIP}`
 			);

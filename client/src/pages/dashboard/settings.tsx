@@ -622,15 +622,17 @@ export default function SettingsPage() {
 					{canViewSettings && (
 						<TabsTrigger value="security">Security</TabsTrigger>
 					)}
-					{user?.role === 'owner' && (
+					{user && user.role === 'owner' && (
 						<TabsTrigger value="middleware">Middleware</TabsTrigger>
 					)}
 					<TabsTrigger value="profile">Profile</TabsTrigger>
 				</TabsList>
 
-				{(isLoading && !middlewareSettings) ||
+				{(isLoading && activeTab !== 'middleware') ||
 				(!formData && activeTab !== 'middleware') ||
-				(isMiddlewareLoading && activeTab === 'middleware') ? (
+				(isMiddlewareLoading &&
+					activeTab === 'middleware' &&
+					!middlewareSettings) ? (
 					<div className="flex justify-center items-center h-64">
 						<Loader2 className="h-8 w-8 animate-spin text-primary" />
 					</div>
@@ -960,220 +962,227 @@ export default function SettingsPage() {
 						</TabsContent>
 
 						<TabsContent value="middleware">
-							<div className="space-y-6">
-								<Card>
-									<CardHeader>
-										<CardTitle className="flex items-center gap-2">
-											<Shield className="h-5 w-5" />
-											Middleware Security Settings
-										</CardTitle>
-										<CardDescription>
-											Configure server-side security middleware. Only system
-											owners can modify these settings.
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="space-y-6">
-										{/* API Protection */}
-										<div className="flex items-center justify-between">
-											<div className="space-y-0.5">
-												<Label className="text-base">API Protection</Label>
-												<p className="text-sm text-gray-500">
-													Protects API endpoints from unauthorized access and
-													direct browser calls
-												</p>
+							{middlewareSettings ? (
+								<div className="space-y-6">
+									<Card>
+										<CardHeader>
+											<CardTitle className="flex items-center gap-2">
+												<Shield className="h-5 w-5" />
+												Middleware Security Settings
+											</CardTitle>
+											<CardDescription>
+												Configure server-side security middleware. Only system
+												owners can modify these settings.
+											</CardDescription>
+										</CardHeader>
+										<CardContent className="space-y-6">
+											{/* API Protection */}
+											<div className="flex items-center justify-between">
+												<div className="space-y-0.5">
+													<Label className="text-base">API Protection</Label>
+													<p className="text-sm text-gray-500">
+														Protects API endpoints from unauthorized access and
+														direct browser calls
+													</p>
+												</div>
+												<Switch
+													checked={middlewareFormData.apiProtectionEnabled}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange(
+															'apiProtectionEnabled',
+															checked
+														)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
 											</div>
-											<Switch
-												checked={middlewareFormData.apiProtectionEnabled}
-												onCheckedChange={(checked) =>
-													handleMiddlewareSwitchChange(
-														'apiProtectionEnabled',
-														checked
-													)
-												}
-												disabled={updateMiddlewareSettingsMutation.isPending}
-											/>
-										</div>
 
-										{/* API Rate Limiting */}
-										<div className="flex items-center justify-between">
-											<div className="space-y-0.5">
-												<Label className="text-base">API Rate Limiting</Label>
-												<p className="text-sm text-gray-500">
-													Limits API requests per IP address (100
-													requests/minute)
-												</p>
+											{/* API Rate Limiting */}
+											<div className="flex items-center justify-between">
+												<div className="space-y-0.5">
+													<Label className="text-base">API Rate Limiting</Label>
+													<p className="text-sm text-gray-500">
+														Limits API requests per IP address (100
+														requests/minute)
+													</p>
+												</div>
+												<Switch
+													checked={middlewareFormData.apiRateLimitEnabled}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange(
+															'apiRateLimitEnabled',
+															checked
+														)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
 											</div>
-											<Switch
-												checked={middlewareFormData.apiRateLimitEnabled}
-												onCheckedChange={(checked) =>
-													handleMiddlewareSwitchChange(
-														'apiRateLimitEnabled',
-														checked
-													)
-												}
-												disabled={updateMiddlewareSettingsMutation.isPending}
-											/>
-										</div>
 
-										{/* DDoS Protection */}
-										<div className="flex items-center justify-between">
-											<div className="space-y-0.5">
-												<Label className="text-base">DDoS Protection</Label>
-												<p className="text-sm text-gray-500">
-													Multi-tier DDoS protection system with automatic
-													blocking
-												</p>
+											{/* DDoS Protection */}
+											<div className="flex items-center justify-between">
+												<div className="space-y-0.5">
+													<Label className="text-base">DDoS Protection</Label>
+													<p className="text-sm text-gray-500">
+														Multi-tier DDoS protection system with automatic
+														blocking
+													</p>
+												</div>
+												<Switch
+													checked={middlewareFormData.ddosProtectionEnabled}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange(
+															'ddosProtectionEnabled',
+															checked
+														)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
 											</div>
-											<Switch
-												checked={middlewareFormData.ddosProtectionEnabled}
-												onCheckedChange={(checked) =>
-													handleMiddlewareSwitchChange(
-														'ddosProtectionEnabled',
-														checked
-													)
-												}
-												disabled={updateMiddlewareSettingsMutation.isPending}
-											/>
-										</div>
 
-										{/* SQL Injection Protection */}
-										<div className="flex items-center justify-between">
-											<div className="space-y-0.5">
-												<Label className="text-base">
-													SQL Injection Protection
-												</Label>
-												<p className="text-sm text-gray-500">
-													Detects and blocks SQL injection attempts in requests
-												</p>
+											{/* SQL Injection Protection */}
+											<div className="flex items-center justify-between">
+												<div className="space-y-0.5">
+													<Label className="text-base">
+														SQL Injection Protection
+													</Label>
+													<p className="text-sm text-gray-500">
+														Detects and blocks SQL injection attempts in
+														requests
+													</p>
+												</div>
+												<Switch
+													checked={
+														middlewareFormData.sqlInjectionProtectionEnabled
+													}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange(
+															'sqlInjectionProtectionEnabled',
+															checked
+														)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
 											</div>
-											<Switch
-												checked={
-													middlewareFormData.sqlInjectionProtectionEnabled
-												}
-												onCheckedChange={(checked) =>
-													handleMiddlewareSwitchChange(
-														'sqlInjectionProtectionEnabled',
-														checked
-													)
-												}
-												disabled={updateMiddlewareSettingsMutation.isPending}
-											/>
-										</div>
 
-										{/* NoSQL Injection Protection */}
-										<div className="flex items-center justify-between">
-											<div className="space-y-0.5">
-												<Label className="text-base">
-													NoSQL Injection Protection
-												</Label>
-												<p className="text-sm text-gray-500">
-													Detects and blocks NoSQL injection attempts in MongoDB
-													queries
-												</p>
+											{/* NoSQL Injection Protection */}
+											<div className="flex items-center justify-between">
+												<div className="space-y-0.5">
+													<Label className="text-base">
+														NoSQL Injection Protection
+													</Label>
+													<p className="text-sm text-gray-500">
+														Detects and blocks NoSQL injection attempts in
+														MongoDB queries
+													</p>
+												</div>
+												<Switch
+													checked={
+														middlewareFormData.noSqlInjectionProtectionEnabled
+													}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange(
+															'noSqlInjectionProtectionEnabled',
+															checked
+														)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
 											</div>
-											<Switch
-												checked={
-													middlewareFormData.noSqlInjectionProtectionEnabled
-												}
-												onCheckedChange={(checked) =>
-													handleMiddlewareSwitchChange(
-														'noSqlInjectionProtectionEnabled',
-														checked
-													)
-												}
-												disabled={updateMiddlewareSettingsMutation.isPending}
-											/>
-										</div>
 
-										{/* Anti-Spoofing Protection */}
-										<div className="flex items-center justify-between">
-											<div className="space-y-0.5">
-												<Label className="text-base">
-													Anti-Spoofing Protection
-												</Label>
-												<p className="text-sm text-gray-500">
-													Detects and blocks IP spoofing, user-agent spoofing,
-													and referrer spoofing attempts
-												</p>
+											{/* Anti-Spoofing Protection */}
+											<div className="flex items-center justify-between">
+												<div className="space-y-0.5">
+													<Label className="text-base">
+														Anti-Spoofing Protection
+													</Label>
+													<p className="text-sm text-gray-500">
+														Detects and blocks IP spoofing, user-agent spoofing,
+														and referrer spoofing attempts
+													</p>
+												</div>
+												<Switch
+													checked={
+														middlewareFormData.antiSpoofingProtectionEnabled
+													}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange(
+															'antiSpoofingProtectionEnabled',
+															checked
+														)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
 											</div>
-											<Switch
-												checked={
-													middlewareFormData.antiSpoofingProtectionEnabled
-												}
-												onCheckedChange={(checked) =>
-													handleMiddlewareSwitchChange(
-														'antiSpoofingProtectionEnabled',
-														checked
-													)
-												}
-												disabled={updateMiddlewareSettingsMutation.isPending}
-											/>
-										</div>
 
-										{/* DNS Layer Protection */}
-										<div className="flex items-center justify-between">
-											<div className="space-y-0.5">
-												<Label className="text-base">
-													DNS Layer Protection
-												</Label>
-												<p className="text-sm text-gray-500">
-													Protects against DNS rebinding, cache poisoning, and
-													suspicious domain attacks
-												</p>
+											{/* DNS Layer Protection */}
+											<div className="flex items-center justify-between">
+												<div className="space-y-0.5">
+													<Label className="text-base">
+														DNS Layer Protection
+													</Label>
+													<p className="text-sm text-gray-500">
+														Protects against DNS rebinding, cache poisoning, and
+														suspicious domain attacks
+													</p>
+												</div>
+												<Switch
+													checked={middlewareFormData.dnsLayerProtectionEnabled}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange(
+															'dnsLayerProtectionEnabled',
+															checked
+														)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
 											</div>
-											<Switch
-												checked={middlewareFormData.dnsLayerProtectionEnabled}
-												onCheckedChange={(checked) =>
-													handleMiddlewareSwitchChange(
-														'dnsLayerProtectionEnabled',
-														checked
-													)
-												}
-												disabled={updateMiddlewareSettingsMutation.isPending}
-											/>
-										</div>
 
-										{/* Port Scanning Protection */}
-										<div className="flex items-center justify-between">
-											<div className="space-y-0.5">
-												<Label className="text-base">
-													Port Scanning Protection
-												</Label>
-												<p className="text-sm text-gray-500">
-													Detects and blocks port scanning attempts and
-													suspicious request patterns
-												</p>
+											{/* Port Scanning Protection */}
+											<div className="flex items-center justify-between">
+												<div className="space-y-0.5">
+													<Label className="text-base">
+														Port Scanning Protection
+													</Label>
+													<p className="text-sm text-gray-500">
+														Detects and blocks port scanning attempts and
+														suspicious request patterns
+													</p>
+												</div>
+												<Switch
+													checked={
+														middlewareFormData.portScanningProtectionEnabled
+													}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange(
+															'portScanningProtectionEnabled',
+															checked
+														)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
 											</div>
-											<Switch
-												checked={
-													middlewareFormData.portScanningProtectionEnabled
-												}
-												onCheckedChange={(checked) =>
-													handleMiddlewareSwitchChange(
-														'portScanningProtectionEnabled',
-														checked
-													)
-												}
-												disabled={updateMiddlewareSettingsMutation.isPending}
-											/>
-										</div>
 
-										{/* Last Updated Info */}
-										{middlewareFormData.updatedAt && (
-											<div className="pt-4 border-t">
-												<p className="text-sm text-gray-500">
-													Last updated:{' '}
-													{new Date(
-														middlewareFormData.updatedAt
-													).toLocaleString()}
-													{middlewareFormData.updatedBy &&
-														` by ${middlewareFormData.updatedBy}`}
-												</p>
-											</div>
-										)}
-									</CardContent>
-								</Card>
-							</div>
+											{/* Last Updated Info */}
+											{middlewareFormData.updatedAt && (
+												<div className="pt-4 border-t">
+													<p className="text-sm text-gray-500">
+														Last updated:{' '}
+														{new Date(
+															middlewareFormData.updatedAt
+														).toLocaleString()}
+														{middlewareFormData.updatedBy &&
+															` by ${middlewareFormData.updatedBy}`}
+													</p>
+												</div>
+											)}
+										</CardContent>
+									</Card>
+								</div>
+							) : (
+								<div className="flex justify-center items-center h-64">
+									<Loader2 className="h-8 w-8 animate-spin text-primary" />
+								</div>
+							)}
 						</TabsContent>
 
 						<TabsContent value="profile">
@@ -1382,7 +1391,7 @@ export default function SettingsPage() {
 				activeTab !== 'profile' &&
 				activeTab !== 'middleware' &&
 				canEditSettings) ||
-			(activeTab === 'middleware' && user?.role === 'owner') ? (
+			(activeTab === 'middleware' && user && user.role === 'owner') ? (
 				<div className="mt-6 flex justify-end">
 					<Button
 						onClick={
