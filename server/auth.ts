@@ -228,8 +228,20 @@ export function requirePermission(permission: string) {
 			// Get user's role and check permissions
 			const userRole = await mongoStorage.getRoleByName(req.user.role);
 			if (!userRole || !userRole.permissions.includes(permission)) {
+				console.log(
+					`🚫 Permission denied: User ${req.user.username} (${req.user.role}) missing permission: ${permission}`
+				);
+				console.log(`   User permissions:`, userRole?.permissions || []);
+				console.log(`   Required permission: ${permission}`);
+
 				return res.status(403).json({
 					message: 'You do not have permission to perform this action',
+					debug: {
+						userRole: req.user.role,
+						requiredPermission: permission,
+						userPermissions: userRole?.permissions || [],
+						hasPermission: userRole?.permissions?.includes(permission) || false,
+					},
 				});
 			}
 

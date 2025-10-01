@@ -1106,6 +1106,11 @@ async function initializeDefaultPermissions() {
 				'articles.delete_others'
 			)}`
 		);
+		console.log(
+			`🔍 Owner has middleware.manage: ${allPermissionNames.includes(
+				'middleware.manage'
+			)}`
+		);
 	} catch (error) {
 		console.error('Error initializing default permissions:', error);
 	}
