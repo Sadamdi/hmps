@@ -20,21 +20,10 @@ async function getCachedMiddlewareSettings() {
 		now - settingsCacheTimestamp > CACHE_DURATION
 	) {
 		try {
-			console.log(
-				'🔄 API Protection: Fetching fresh middleware settings from database...'
-			);
 			middlewareSettingsCache = await getMiddlewareSettings();
 			settingsCacheTimestamp = now;
-			console.log('✅ API Protection: Settings loaded:', {
-				apiProtectionEnabled: middlewareSettingsCache.apiProtectionEnabled,
-				allEnabled: middlewareSettingsCache.allEnabled,
-				timestamp: new Date().toISOString(),
-			});
 		} catch (error) {
-			console.error(
-				'❌ API Protection: Error getting middleware settings:',
-				error
-			);
+			console.error('Error getting middleware settings:', error);
 			// Fallback to default enabled settings if error
 			middlewareSettingsCache = {
 				apiProtectionEnabled: true,
@@ -47,11 +36,6 @@ async function getCachedMiddlewareSettings() {
 				portScanningProtectionEnabled: true,
 			};
 		}
-	} else {
-		console.log('📋 API Protection: Using cached settings:', {
-			apiProtectionEnabled: middlewareSettingsCache.apiProtectionEnabled,
-			cacheAge: Math.round((now - settingsCacheTimestamp) / 1000) + 's',
-		});
 	}
 	return middlewareSettingsCache;
 }
@@ -127,9 +111,6 @@ export const apiProtectionMiddleware = async (
 
 		// If API Protection is completely disabled, allow ALL requests
 		if (!settings.apiProtectionEnabled) {
-			console.log(
-				`🔓 API Protection: COMPLETELY DISABLED - Allowing ALL requests to ${req.path}`
-			);
 			return next();
 		}
 
@@ -191,16 +172,11 @@ export const apiProtectionMiddleware = async (
 
 		// ALLOW FRONTEND REQUESTS (relaxed protection for production)
 		if (isBrowserRequest && (isFromFrontend || hasProperHeaders || hasAuth)) {
-			console.log(`✅ API Protection: Allowing frontend request to ${path}`);
 			return next();
 		}
 
 		// BLOCK ONLY DIRECT BROWSER ACCESS TANPA REFERER DAN HEADERS
 		if (isBrowserRequest && !referer && !hasProperHeaders && !hasAuth) {
-			console.log(
-				`🚫 API Protection: Direct browser access blocked to ${path}`
-			);
-
 			return sendBeautifulApiError(
 				res,
 				403,
@@ -218,7 +194,6 @@ export const apiProtectionMiddleware = async (
 		}
 
 		// Allow semua request yang lain (server-to-server, authenticated, proper headers)
-		console.log(`✅ API Protection: Allowing request to ${path}`);
 		next();
 	} catch (error) {
 		console.error('Error in API protection middleware:', error);

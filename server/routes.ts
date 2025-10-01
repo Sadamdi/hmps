@@ -2528,21 +2528,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const { user } = req as any;
-				console.log('📨 Received middleware settings update request:', {
-					userId: user._id,
-					body: req.body,
-					allEnabled: req.body.allEnabled,
-					apiProtectionEnabled: req.body.apiProtectionEnabled,
-				});
 
 				// Extract updatedBy from request body and use user._id instead
 				const { updatedBy, ...settingsData } = req.body;
-				console.log('📤 Sending to updateMiddlewareSettings:', settingsData);
 				const settings = await updateMiddlewareSettings(settingsData, user._id);
-				console.log('✅ Updated settings result:', settings);
 				res.json(settings);
 			} catch (error) {
-				console.error('❌ Update middleware settings error:', error);
+				console.error('Update middleware settings error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		}

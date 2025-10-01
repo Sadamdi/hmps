@@ -215,31 +215,12 @@ export async function updateMiddlewareSettings(
 		const savedSettings = await existingSettings.save();
 
 		// Clear middleware cache to ensure fresh settings are used
-		console.log('🔄 Middleware Settings: Clearing cache after update');
 		clearMiddlewareSettingsCache();
 
 		// Force clear cache again to ensure it's really cleared
 		setTimeout(() => {
 			clearMiddlewareSettingsCache();
 		}, 100);
-
-		console.log('✅ Middleware Settings: Updated successfully:', {
-			allEnabled: savedSettings.allEnabled,
-			apiProtectionEnabled: savedSettings.apiProtectionEnabled,
-			apiRateLimitEnabled: savedSettings.apiRateLimitEnabled,
-			ddosProtectionEnabled: savedSettings.ddosProtectionEnabled,
-			sqlInjectionProtectionEnabled:
-				savedSettings.sqlInjectionProtectionEnabled,
-			noSqlInjectionProtectionEnabled:
-				savedSettings.noSqlInjectionProtectionEnabled,
-			antiSpoofingProtectionEnabled:
-				savedSettings.antiSpoofingProtectionEnabled,
-			dnsLayerProtectionEnabled: savedSettings.dnsLayerProtectionEnabled,
-			portScanningProtectionEnabled:
-				savedSettings.portScanningProtectionEnabled,
-			updatedBy: savedSettings.updatedBy,
-			updatedAt: savedSettings.updatedAt,
-		});
 
 		return savedSettings;
 	} catch (error) {
