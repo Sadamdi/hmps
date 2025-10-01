@@ -197,7 +197,7 @@ export default function SettingsPage() {
 			updatedBy: '',
 			updatedAt: new Date(),
 			createdAt: new Date(),
-		});
+		} as MiddlewareSettings);
 
 	// Update form data when settings are loaded
 	useEffect(() => {
@@ -232,10 +232,33 @@ export default function SettingsPage() {
 	// Update middleware form data when middleware settings are loaded
 	useEffect(() => {
 		if (middlewareSettings) {
+			const settings = middlewareSettings as any; // Type assertion untuk menghindari masalah inference
 			setMiddlewareFormData({
-				...middlewareSettings,
-				updatedBy:
-					(middlewareSettings as any).updatedBy || (user ? user._id : ''),
+				apiProtectionEnabled: Boolean(settings.apiProtectionEnabled ?? true),
+				apiRateLimitEnabled: Boolean(settings.apiRateLimitEnabled ?? true),
+				ddosProtectionEnabled: Boolean(settings.ddosProtectionEnabled ?? true),
+				sqlInjectionProtectionEnabled: Boolean(
+					settings.sqlInjectionProtectionEnabled ?? true
+				),
+				noSqlInjectionProtectionEnabled: Boolean(
+					settings.noSqlInjectionProtectionEnabled ?? true
+				),
+				antiSpoofingProtectionEnabled: Boolean(
+					settings.antiSpoofingProtectionEnabled ?? true
+				),
+				dnsLayerProtectionEnabled: Boolean(
+					settings.dnsLayerProtectionEnabled ?? true
+				),
+				portScanningProtectionEnabled: Boolean(
+					settings.portScanningProtectionEnabled ?? true
+				),
+				updatedBy: settings.updatedBy || (user ? user._id : ''),
+				updatedAt: settings.updatedAt
+					? new Date(settings.updatedAt)
+					: new Date(),
+				createdAt: settings.createdAt
+					? new Date(settings.createdAt)
+					: new Date(),
 			});
 		}
 	}, [middlewareSettings, user]);
@@ -493,24 +516,33 @@ export default function SettingsPage() {
 	const saveMiddlewareSettings = async () => {
 		if (!user) return;
 
-		// Ensure all required fields are present
-		const updatedFormData: MiddlewareSettings = {
-			apiProtectionEnabled: middlewareFormData.apiProtectionEnabled,
-			apiRateLimitEnabled: middlewareFormData.apiRateLimitEnabled,
-			ddosProtectionEnabled: middlewareFormData.ddosProtectionEnabled,
-			sqlInjectionProtectionEnabled:
-				middlewareFormData.sqlInjectionProtectionEnabled,
-			noSqlInjectionProtectionEnabled:
-				middlewareFormData.noSqlInjectionProtectionEnabled,
-			antiSpoofingProtectionEnabled:
-				middlewareFormData.antiSpoofingProtectionEnabled,
-			dnsLayerProtectionEnabled: middlewareFormData.dnsLayerProtectionEnabled,
-			portScanningProtectionEnabled:
-				middlewareFormData.portScanningProtectionEnabled,
+		// Ensure all required fields are present and have valid values
+		const updatedFormData = {
+			apiProtectionEnabled: Boolean(middlewareFormData.apiProtectionEnabled),
+			apiRateLimitEnabled: Boolean(middlewareFormData.apiRateLimitEnabled),
+			ddosProtectionEnabled: Boolean(middlewareFormData.ddosProtectionEnabled),
+			sqlInjectionProtectionEnabled: Boolean(
+				middlewareFormData.sqlInjectionProtectionEnabled
+			),
+			noSqlInjectionProtectionEnabled: Boolean(
+				middlewareFormData.noSqlInjectionProtectionEnabled
+			),
+			antiSpoofingProtectionEnabled: Boolean(
+				middlewareFormData.antiSpoofingProtectionEnabled
+			),
+			dnsLayerProtectionEnabled: Boolean(
+				middlewareFormData.dnsLayerProtectionEnabled
+			),
+			portScanningProtectionEnabled: Boolean(
+				middlewareFormData.portScanningProtectionEnabled
+			),
 			updatedBy: user._id, // Always use current user ID
-			updatedAt: new Date(),
-			createdAt: middlewareFormData.createdAt,
 		};
+
+		console.log('Sending to server:', {
+			...updatedFormData,
+			updatedBy: updatedFormData.updatedBy ? 'SET' : 'MISSING',
+		});
 
 		await updateMiddlewareSettingsMutation.mutateAsync(updatedFormData);
 	};

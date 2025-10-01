@@ -2528,6 +2528,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const { user } = req as any;
+				console.log('Received middleware settings update request:', {
+					userId: user.id,
+					hasUpdatedBy: !!req.body.updatedBy,
+					updatedBy: req.body.updatedBy,
+					bodyKeys: Object.keys(req.body),
+				});
+
 				const settings = await updateMiddlewareSettings(req.body, user.id);
 				res.json(settings);
 			} catch (error) {
