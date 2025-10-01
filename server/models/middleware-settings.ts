@@ -151,30 +151,19 @@ export async function updateMiddlewareSettings(
 			// Handle master toggle logic
 			const updatedSettings = { ...settings };
 
-			// If allEnabled is being set, update all individual toggles accordingly
-			if (updatedSettings.allEnabled !== undefined) {
-				if (updatedSettings.allEnabled) {
-					// Enable all protections
-					updatedSettings.apiProtectionEnabled = true;
-					updatedSettings.apiRateLimitEnabled = true;
-					updatedSettings.ddosProtectionEnabled = true;
-					updatedSettings.sqlInjectionProtectionEnabled = true;
-					updatedSettings.noSqlInjectionProtectionEnabled = true;
-					updatedSettings.antiSpoofingProtectionEnabled = true;
-					updatedSettings.dnsLayerProtectionEnabled = true;
-					updatedSettings.portScanningProtectionEnabled = true;
-				} else {
-					// Disable all protections
-					updatedSettings.apiProtectionEnabled = false;
-					updatedSettings.apiRateLimitEnabled = false;
-					updatedSettings.ddosProtectionEnabled = false;
-					updatedSettings.sqlInjectionProtectionEnabled = false;
-					updatedSettings.noSqlInjectionProtectionEnabled = false;
-					updatedSettings.antiSpoofingProtectionEnabled = false;
-					updatedSettings.dnsLayerProtectionEnabled = false;
-					updatedSettings.portScanningProtectionEnabled = false;
-				}
+			// If allEnabled is being set to true, enable all protections
+			if (updatedSettings.allEnabled === true) {
+				updatedSettings.apiProtectionEnabled = true;
+				updatedSettings.apiRateLimitEnabled = true;
+				updatedSettings.ddosProtectionEnabled = true;
+				updatedSettings.sqlInjectionProtectionEnabled = true;
+				updatedSettings.noSqlInjectionProtectionEnabled = true;
+				updatedSettings.antiSpoofingProtectionEnabled = true;
+				updatedSettings.dnsLayerProtectionEnabled = true;
+				updatedSettings.portScanningProtectionEnabled = true;
 			}
+			// If allEnabled is being set to false, don't override individual toggles
+			// Let the client decide which individual toggles should be enabled/disabled
 
 			// If any individual toggle is changed, check if we need to update allEnabled
 			const individualToggles = [
@@ -194,21 +183,25 @@ export async function updateMiddlewareSettings(
 			);
 
 			if (hasIndividualToggleChange) {
-				// Check if all individual toggles are the same value
-				const firstToggleValue = existingSettings.apiProtectionEnabled;
-				const allSame = individualToggles.every(
-					(toggle) =>
-						existingSettings[toggle as keyof IMiddlewareSettings] ===
-						firstToggleValue
-				);
+				// Check if all individual toggles are the same value in the updated data
+				const firstToggleValue =
+					updatedSettings.apiProtectionEnabled ??
+					existingSettings.apiProtectionEnabled;
+				const allSame = individualToggles.every((toggle) => {
+					const currentValue =
+						updatedSettings[toggle as keyof IMiddlewareSettings];
+					const existingValue =
+						existingSettings[toggle as keyof IMiddlewareSettings];
+					return currentValue !== undefined
+						? currentValue === firstToggleValue
+						: existingValue === firstToggleValue;
+				});
 
 				if (allSame) {
 					updatedSettings.allEnabled = firstToggleValue;
 				} else {
-					// If toggles are mixed, keep allEnabled as is unless explicitly set
-					if (updatedSettings.allEnabled === undefined) {
-						updatedSettings.allEnabled = existingSettings.allEnabled;
-					}
+					// If toggles are mixed, set allEnabled to false
+					updatedSettings.allEnabled = false;
 				}
 			}
 
@@ -225,9 +218,25 @@ export async function updateMiddlewareSettings(
 		console.log('🔄 Middleware Settings: Clearing cache after update');
 		clearMiddlewareSettingsCache();
 
+		// Force clear cache again to ensure it's really cleared
+		setTimeout(() => {
+			clearMiddlewareSettingsCache();
+		}, 100);
+
 		console.log('✅ Middleware Settings: Updated successfully:', {
 			allEnabled: savedSettings.allEnabled,
 			apiProtectionEnabled: savedSettings.apiProtectionEnabled,
+			apiRateLimitEnabled: savedSettings.apiRateLimitEnabled,
+			ddosProtectionEnabled: savedSettings.ddosProtectionEnabled,
+			sqlInjectionProtectionEnabled:
+				savedSettings.sqlInjectionProtectionEnabled,
+			noSqlInjectionProtectionEnabled:
+				savedSettings.noSqlInjectionProtectionEnabled,
+			antiSpoofingProtectionEnabled:
+				savedSettings.antiSpoofingProtectionEnabled,
+			dnsLayerProtectionEnabled: savedSettings.dnsLayerProtectionEnabled,
+			portScanningProtectionEnabled:
+				savedSettings.portScanningProtectionEnabled,
 			updatedBy: savedSettings.updatedBy,
 			updatedAt: savedSettings.updatedAt,
 		});

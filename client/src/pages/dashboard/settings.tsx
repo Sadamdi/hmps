@@ -575,7 +575,9 @@ export default function SettingsPage() {
 				'portScanningProtectionEnabled',
 			];
 
-			const firstToggleValue = updatedData.apiProtectionEnabled;
+			// Check if all toggles have the same value
+			const firstToggleValue =
+				updatedData[individualToggles[0] as keyof MiddlewareSettings];
 			const allSame = individualToggles.every(
 				(toggle) =>
 					updatedData[toggle as keyof MiddlewareSettings] === firstToggleValue
@@ -584,7 +586,7 @@ export default function SettingsPage() {
 			// Update state with synced allEnabled
 			setMiddlewareFormData({
 				...updatedData,
-				allEnabled: allSame ? firstToggleValue : updatedData.allEnabled,
+				allEnabled: allSame ? firstToggleValue : false, // Set to false if not all same
 			});
 		}
 	};
