@@ -467,7 +467,7 @@ function isPortScanning(clientIP: string, currentPath: string): boolean {
 	}
 
 	// Check for suspicious endpoints
-	for (const endpoint of scanData.endpoints) {
+	for (const endpoint of Array.from(scanData.endpoints)) {
 		if (
 			PORT_SCANNING_THRESHOLDS.SUSPICIOUS_ENDPOINTS.some((suspicious) =>
 				endpoint.toLowerCase().includes(suspicious)

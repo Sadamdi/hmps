@@ -94,6 +94,12 @@ export async function getMiddlewareSettings(): Promise<IMiddlewareSettings> {
 			await settings.save();
 		}
 
+		// Ensure updatedBy field is always present
+		if (!settings.updatedBy) {
+			settings.updatedBy = 'system';
+			await settings.save();
+		}
+
 		return settings;
 	} catch (error) {
 		console.error('Error getting middleware settings:', error);
@@ -123,8 +129,7 @@ export async function updateMiddlewareSettings(
 			});
 		}
 
-		await existingSettings.save();
-		return existingSettings;
+		return await existingSettings.save();
 	} catch (error) {
 		console.error('Error updating middleware settings:', error);
 		throw error;

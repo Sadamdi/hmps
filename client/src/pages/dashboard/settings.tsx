@@ -65,8 +65,8 @@ interface MiddlewareSettings {
 	dnsLayerProtectionEnabled: boolean;
 	portScanningProtectionEnabled: boolean;
 	updatedBy: string;
-	updatedAt: string;
-	createdAt: string;
+	updatedAt: Date;
+	createdAt: Date;
 }
 
 interface PasswordChangeData {
@@ -195,8 +195,8 @@ export default function SettingsPage() {
 			dnsLayerProtectionEnabled: true,
 			portScanningProtectionEnabled: true,
 			updatedBy: '',
-			updatedAt: '',
-			createdAt: '',
+			updatedAt: new Date(),
+			createdAt: new Date(),
 		});
 
 	// Update form data when settings are loaded
@@ -232,9 +232,13 @@ export default function SettingsPage() {
 	// Update middleware form data when middleware settings are loaded
 	useEffect(() => {
 		if (middlewareSettings) {
-			setMiddlewareFormData(middlewareSettings);
+			setMiddlewareFormData({
+				...middlewareSettings,
+				updatedBy:
+					(middlewareSettings as any).updatedBy || (user ? user._id : ''),
+			});
 		}
-	}, [middlewareSettings]);
+	}, [middlewareSettings, user]);
 
 	// Update settings mutation
 	const updateSettingsMutation = useMutation({
@@ -487,7 +491,28 @@ export default function SettingsPage() {
 
 	// Save middleware settings
 	const saveMiddlewareSettings = async () => {
-		await updateMiddlewareSettingsMutation.mutateAsync(middlewareFormData);
+		if (!user) return;
+
+		// Ensure all required fields are present
+		const updatedFormData: MiddlewareSettings = {
+			apiProtectionEnabled: middlewareFormData.apiProtectionEnabled,
+			apiRateLimitEnabled: middlewareFormData.apiRateLimitEnabled,
+			ddosProtectionEnabled: middlewareFormData.ddosProtectionEnabled,
+			sqlInjectionProtectionEnabled:
+				middlewareFormData.sqlInjectionProtectionEnabled,
+			noSqlInjectionProtectionEnabled:
+				middlewareFormData.noSqlInjectionProtectionEnabled,
+			antiSpoofingProtectionEnabled:
+				middlewareFormData.antiSpoofingProtectionEnabled,
+			dnsLayerProtectionEnabled: middlewareFormData.dnsLayerProtectionEnabled,
+			portScanningProtectionEnabled:
+				middlewareFormData.portScanningProtectionEnabled,
+			updatedBy: user._id, // Always use current user ID
+			updatedAt: new Date(),
+			createdAt: middlewareFormData.createdAt,
+		};
+
+		await updateMiddlewareSettingsMutation.mutateAsync(updatedFormData);
 	};
 
 	// Change password
