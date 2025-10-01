@@ -56,6 +56,7 @@ interface SiteSettings {
 }
 
 interface MiddlewareSettings {
+	allEnabled: boolean; // Master toggle for all middleware
 	apiProtectionEnabled: boolean;
 	apiRateLimitEnabled: boolean;
 	ddosProtectionEnabled: boolean;
@@ -186,6 +187,7 @@ export default function SettingsPage() {
 	// Middleware settings state
 	const [middlewareFormData, setMiddlewareFormData] =
 		useState<MiddlewareSettings>({
+			allEnabled: true,
 			apiProtectionEnabled: true,
 			apiRateLimitEnabled: true,
 			ddosProtectionEnabled: true,
@@ -234,6 +236,7 @@ export default function SettingsPage() {
 		if (middlewareSettings) {
 			const settings = middlewareSettings as any; // Type assertion untuk menghindari masalah inference
 			setMiddlewareFormData({
+				allEnabled: Boolean(settings.allEnabled ?? true),
 				apiProtectionEnabled: Boolean(settings.apiProtectionEnabled ?? true),
 				apiRateLimitEnabled: Boolean(settings.apiRateLimitEnabled ?? true),
 				ddosProtectionEnabled: Boolean(settings.ddosProtectionEnabled ?? true),
@@ -491,10 +494,57 @@ export default function SettingsPage() {
 
 	// Handle middleware switch changes
 	const handleMiddlewareSwitchChange = (field: string, value: boolean) => {
-		setMiddlewareFormData({
-			...middlewareFormData,
-			[field]: value,
-		});
+		if (field === 'allEnabled') {
+			// When master toggle changes, update all individual toggles
+			setMiddlewareFormData({
+				...middlewareFormData,
+				allEnabled: value,
+				apiProtectionEnabled: value,
+				apiRateLimitEnabled: value,
+				ddosProtectionEnabled: value,
+				sqlInjectionProtectionEnabled: value,
+				noSqlInjectionProtectionEnabled: value,
+				antiSpoofingProtectionEnabled: value,
+				dnsLayerProtectionEnabled: value,
+				portScanningProtectionEnabled: value,
+			});
+		} else {
+			// For individual toggles, update the specific field
+			setMiddlewareFormData({
+				...middlewareFormData,
+				[field]: value,
+			});
+
+			// Also update allEnabled based on whether all toggles are the same
+			const individualToggles = [
+				'apiProtectionEnabled',
+				'apiRateLimitEnabled',
+				'ddosProtectionEnabled',
+				'sqlInjectionProtectionEnabled',
+				'noSqlInjectionProtectionEnabled',
+				'antiSpoofingProtectionEnabled',
+				'dnsLayerProtectionEnabled',
+				'portScanningProtectionEnabled',
+			];
+
+			const updatedData = {
+				...middlewareFormData,
+				[field]: value,
+			};
+
+			const firstToggleValue = updatedData.apiProtectionEnabled;
+			const allSame = individualToggles.every(
+				(toggle) =>
+					updatedData[toggle as keyof MiddlewareSettings] === firstToggleValue
+			);
+
+			if (allSame) {
+				setMiddlewareFormData({
+					...updatedData,
+					allEnabled: firstToggleValue,
+				});
+			}
+		}
 	};
 
 	// Handle password input changes
@@ -518,6 +568,7 @@ export default function SettingsPage() {
 
 		// Ensure all required fields are present and have valid values
 		const updatedFormData = {
+			allEnabled: Boolean(middlewareFormData.allEnabled),
 			apiProtectionEnabled: Boolean(middlewareFormData.apiProtectionEnabled),
 			apiRateLimitEnabled: Boolean(middlewareFormData.apiRateLimitEnabled),
 			ddosProtectionEnabled: Boolean(middlewareFormData.ddosProtectionEnabled),
@@ -1033,6 +1084,29 @@ export default function SettingsPage() {
 											</CardDescription>
 										</CardHeader>
 										<CardContent className="space-y-6">
+											{/* Master Toggle for All Middleware */}
+											<div className="flex items-center justify-between p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+												<div className="space-y-0.5">
+													<div className="flex items-center gap-2">
+														<Settings className="h-4 w-4 text-blue-600" />
+														<label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+															Enable All Security Middleware
+														</label>
+													</div>
+													<p className="text-xs text-muted-foreground">
+														Master toggle to enable or disable all security
+														protections at once
+													</p>
+												</div>
+												<Switch
+													checked={middlewareFormData.allEnabled}
+													onCheckedChange={(checked) =>
+														handleMiddlewareSwitchChange('allEnabled', checked)
+													}
+													disabled={updateMiddlewareSettingsMutation.isPending}
+												/>
+											</div>
+
 											{/* API Protection */}
 											<div className="flex items-center justify-between">
 												<div className="space-y-0.5">

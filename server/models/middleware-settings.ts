@@ -2,6 +2,7 @@ import { model, Schema } from 'mongoose';
 
 export interface IMiddlewareSettings {
 	_id?: string;
+	allEnabled: boolean; // Master toggle for all middleware
 	apiProtectionEnabled: boolean;
 	apiRateLimitEnabled: boolean;
 	ddosProtectionEnabled: boolean;
@@ -17,6 +18,10 @@ export interface IMiddlewareSettings {
 
 const middlewareSettingsSchema = new Schema<IMiddlewareSettings>(
 	{
+		allEnabled: {
+			type: Boolean,
+			default: true,
+		},
 		apiProtectionEnabled: {
 			type: Boolean,
 			default: true,
@@ -81,6 +86,7 @@ export async function getMiddlewareSettings(): Promise<IMiddlewareSettings> {
 		if (!settings) {
 			// Create default settings if none exist
 			settings = new MiddlewareSettings({
+				allEnabled: true,
 				apiProtectionEnabled: true,
 				apiRateLimitEnabled: true,
 				ddosProtectionEnabled: true,
@@ -122,9 +128,73 @@ export async function updateMiddlewareSettings(
 				updatedBy,
 			});
 		} else {
+			// Handle master toggle logic
+			const updatedSettings = { ...settings };
+
+			// If allEnabled is being set, update all individual toggles accordingly
+			if (updatedSettings.allEnabled !== undefined) {
+				if (updatedSettings.allEnabled) {
+					// Enable all protections
+					updatedSettings.apiProtectionEnabled = true;
+					updatedSettings.apiRateLimitEnabled = true;
+					updatedSettings.ddosProtectionEnabled = true;
+					updatedSettings.sqlInjectionProtectionEnabled = true;
+					updatedSettings.noSqlInjectionProtectionEnabled = true;
+					updatedSettings.antiSpoofingProtectionEnabled = true;
+					updatedSettings.dnsLayerProtectionEnabled = true;
+					updatedSettings.portScanningProtectionEnabled = true;
+				} else {
+					// Disable all protections
+					updatedSettings.apiProtectionEnabled = false;
+					updatedSettings.apiRateLimitEnabled = false;
+					updatedSettings.ddosProtectionEnabled = false;
+					updatedSettings.sqlInjectionProtectionEnabled = false;
+					updatedSettings.noSqlInjectionProtectionEnabled = false;
+					updatedSettings.antiSpoofingProtectionEnabled = false;
+					updatedSettings.dnsLayerProtectionEnabled = false;
+					updatedSettings.portScanningProtectionEnabled = false;
+				}
+			}
+
+			// If any individual toggle is changed, check if we need to update allEnabled
+			const individualToggles = [
+				'apiProtectionEnabled',
+				'apiRateLimitEnabled',
+				'ddosProtectionEnabled',
+				'sqlInjectionProtectionEnabled',
+				'noSqlInjectionProtectionEnabled',
+				'antiSpoofingProtectionEnabled',
+				'dnsLayerProtectionEnabled',
+				'portScanningProtectionEnabled',
+			];
+
+			const hasIndividualToggleChange = individualToggles.some(
+				(toggle) =>
+					updatedSettings[toggle as keyof IMiddlewareSettings] !== undefined
+			);
+
+			if (hasIndividualToggleChange) {
+				// Check if all individual toggles are the same value
+				const firstToggleValue = existingSettings.apiProtectionEnabled;
+				const allSame = individualToggles.every(
+					(toggle) =>
+						existingSettings[toggle as keyof IMiddlewareSettings] ===
+						firstToggleValue
+				);
+
+				if (allSame) {
+					updatedSettings.allEnabled = firstToggleValue;
+				} else {
+					// If toggles are mixed, keep allEnabled as is unless explicitly set
+					if (updatedSettings.allEnabled === undefined) {
+						updatedSettings.allEnabled = existingSettings.allEnabled;
+					}
+				}
+			}
+
 			// Update existing settings
 			existingSettings.set({
-				...settings,
+				...updatedSettings,
 				updatedBy,
 			});
 		}
