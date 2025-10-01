@@ -27,6 +27,7 @@ import {
 	Loader2,
 	LogOut,
 	Save,
+	Settings,
 	Shield,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -234,33 +235,39 @@ export default function SettingsPage() {
 	// Update middleware form data when middleware settings are loaded
 	useEffect(() => {
 		if (middlewareSettings) {
-			const settings = middlewareSettings as any; // Type assertion untuk menghindari masalah inference
+			const middlewareData = middlewareSettings as any; // Type assertion untuk menghindari masalah inference
 			setMiddlewareFormData({
-				allEnabled: Boolean(settings.allEnabled ?? true),
-				apiProtectionEnabled: Boolean(settings.apiProtectionEnabled ?? true),
-				apiRateLimitEnabled: Boolean(settings.apiRateLimitEnabled ?? true),
-				ddosProtectionEnabled: Boolean(settings.ddosProtectionEnabled ?? true),
+				allEnabled: Boolean(middlewareData.allEnabled ?? true),
+				apiProtectionEnabled: Boolean(
+					middlewareData.apiProtectionEnabled ?? true
+				),
+				apiRateLimitEnabled: Boolean(
+					middlewareData.apiRateLimitEnabled ?? true
+				),
+				ddosProtectionEnabled: Boolean(
+					middlewareData.ddosProtectionEnabled ?? true
+				),
 				sqlInjectionProtectionEnabled: Boolean(
-					settings.sqlInjectionProtectionEnabled ?? true
+					middlewareData.sqlInjectionProtectionEnabled ?? true
 				),
 				noSqlInjectionProtectionEnabled: Boolean(
-					settings.noSqlInjectionProtectionEnabled ?? true
+					middlewareData.noSqlInjectionProtectionEnabled ?? true
 				),
 				antiSpoofingProtectionEnabled: Boolean(
-					settings.antiSpoofingProtectionEnabled ?? true
+					middlewareData.antiSpoofingProtectionEnabled ?? true
 				),
 				dnsLayerProtectionEnabled: Boolean(
-					settings.dnsLayerProtectionEnabled ?? true
+					middlewareData.dnsLayerProtectionEnabled ?? true
 				),
 				portScanningProtectionEnabled: Boolean(
-					settings.portScanningProtectionEnabled ?? true
+					middlewareData.portScanningProtectionEnabled ?? true
 				),
-				updatedBy: settings.updatedBy || (user ? user._id : ''),
-				updatedAt: settings.updatedAt
-					? new Date(settings.updatedAt)
+				updatedBy: middlewareData.updatedBy || (user ? user._id : ''),
+				updatedAt: middlewareData.updatedAt
+					? new Date(middlewareData.updatedAt)
 					: new Date(),
-				createdAt: settings.createdAt
-					? new Date(settings.createdAt)
+				createdAt: middlewareData.createdAt
+					? new Date(middlewareData.createdAt)
 					: new Date(),
 			});
 		}
