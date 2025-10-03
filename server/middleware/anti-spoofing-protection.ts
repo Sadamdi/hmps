@@ -79,6 +79,48 @@ function isPrivateIP(ip: string): boolean {
 	return false;
 }
 
+// ==================== LEGITIMATE BOTS WHITELIST ====================
+const LEGITIMATE_BOTS = [
+	// Google bots
+	/googlebot/i,
+	/google-structured-data-testing-tool/i,
+	/google-site-verification/i,
+
+	// Bing bots
+	/msnbot/i,
+	/bingbot/i,
+
+	// Facebook bots
+	/facebookexternalhit/i,
+	/facebot/i,
+	/meta-externalagent/i,
+
+	// Twitter bots
+	/twitterbot/i,
+	/tweetmeme/i,
+
+	// LinkedIn bots
+	/linkedinbot/i,
+
+	// WhatsApp bots
+	/whatsapp/i,
+
+	// Telegram bots
+	/telegrambot/i,
+
+	// Other legitimate bots
+	/slackbot/i,
+	/discordbot/i,
+	/redditbot/i,
+	/pinterestbot/i,
+	/yandexbot/i,
+	/baiduspider/i,
+	/duckduckbot/i,
+	/ia_archiver/i,
+	/archive\.org_bot/i,
+	/wayback/i,
+];
+
 // ==================== USER-AGENT SPOOFING DETECTION ====================
 const SUSPICIOUS_USER_AGENTS = [
 	// Empty or missing User-Agent
@@ -93,16 +135,16 @@ const SUSPICIOUS_USER_AGENTS = [
 	/^Go-http-client/i,
 	/^Java\/[0-9]/i,
 
-	// Bot-like patterns
-	/bot/i,
-	/crawler/i,
-	/spider/i,
-	/scanner/i,
+	// Malicious bot patterns (bukan bot resmi)
 	/sqlmap/i,
 	/nmap/i,
 	/masscan/i,
 	/zgrab/i,
 	/nikto/i,
+	/scanner/i,
+	/exploit/i,
+	/hack/i,
+	/attack/i,
 
 	// Very long or suspicious strings
 	/^.{200,}$/,
@@ -111,10 +153,30 @@ const SUSPICIOUS_USER_AGENTS = [
 	/data:text\/html/i,
 ];
 
+// Function to check if bot is legitimate
+function isLegitimateBot(userAgent: string): boolean {
+	if (!userAgent || userAgent.trim().length === 0) {
+		return false;
+	}
+
+	for (const pattern of LEGITIMATE_BOTS) {
+		if (pattern.test(userAgent)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // Function to validate User-Agent
 function isSuspiciousUserAgent(userAgent: string): boolean {
 	if (!userAgent || userAgent.trim().length === 0) {
 		return true;
+	}
+
+	// Skip check untuk bot legitimate
+	if (isLegitimateBot(userAgent)) {
+		return false;
 	}
 
 	for (const pattern of SUSPICIOUS_USER_AGENTS) {
@@ -259,6 +321,11 @@ function sendBeautifulAntiSpoofingError(
 		return res.status(statusCode).json(errorResponse);
 	}
 
+	// Cek apakah sudah di error page untuk mencegah redirect loop
+	if (res.req?.path?.startsWith('/error')) {
+		return res.status(statusCode).json(errorResponse);
+	}
+
 	// Untuk browser requests, redirect ke error page
 	const errorParam = encodeURIComponent(JSON.stringify(errorResponse.error));
 	const redirectUrl = `/error?error=${errorParam}`;
@@ -305,7 +372,8 @@ export const antiSpoofingProtectionMiddleware = async (
 			req.path === '/sitemap.xml' ||
 			req.path === '/robots.txt' ||
 			req.path.startsWith('/artikel/') ||
-			req.path.startsWith('/api/') // Skip API routes untuk anti-spoofing (handled by API protection)
+			req.path.startsWith('/api/') || // Skip API routes untuk anti-spoofing (handled by API protection)
+			req.path.startsWith('/error') // Skip error page untuk mencegah redirect loop
 		) {
 			return next();
 		}
@@ -317,80 +385,119 @@ export const antiSpoofingProtectionMiddleware = async (
 		const xRealIP = req.get('X-Real-IP') || '';
 		const xForwardedProto = req.get('X-Forwarded-Proto') || '';
 
-		let spoofingDetected = false;
-		let spoofingReason = '';
+		// ==================== PUBLIC VS PRIVATE CONTENT DETECTION ====================
+		const isPublicContent =
+			req.path === '/' ||
+			req.path.startsWith('/artikel') ||
+			req.path === '/sitemap.xml' ||
+			req.path === '/robots.txt';
 
-		// ==================== IP SPOOFING DETECTION ====================
-		// Check X-Forwarded-For header for private IPs
-		if (xForwardedFor) {
-			const forwardedIPs = xForwardedFor.split(',').map((ip) => ip.trim());
-			for (const forwardedIP of forwardedIPs) {
-				if (isPrivateIP(forwardedIP)) {
-					spoofingDetected = true;
-					spoofingReason = `Private IP detected in X-Forwarded-For: ${forwardedIP}`;
-					break;
+		const isPrivateContent =
+			req.path.startsWith('/dashboard') ||
+			req.path.startsWith('/api/') ||
+			req.path === '/login';
+
+		// Allow legitimate bots untuk mengakses konten public
+		if (isLegitimateBot(userAgent)) {
+			console.log(
+				`🤖 Legitimate Bot Access Allowed: ${userAgent} to ${req.path}`
+			);
+			return next();
+		}
+
+		// Untuk konten public, biarkan semua akses (termasuk yang mencurigakan)
+		// tapi tetap log untuk monitoring
+		if (isPublicContent) {
+			// Log aktivitas mencurigakan tapi tetap izinkan akses
+			if (isSuspiciousUserAgent(userAgent) || isSuspiciousReferrer(referrer)) {
+				console.log(
+					`⚠️ Suspicious Activity on Public Content (ALLOWED): ${userAgent} from IP ${clientIP} to ${req.path}`
+				);
+				console.log(`   User-Agent: ${userAgent}`);
+				console.log(`   Referrer: ${referrer}`);
+				console.log(`   X-Forwarded-For: ${xForwardedFor}`);
+			}
+			return next();
+		}
+
+		// ==================== PRIVATE CONTENT PROTECTION ====================
+		// Hanya lakukan deteksi spoofing untuk konten private
+		if (isPrivateContent) {
+			let spoofingDetected = false;
+			let spoofingReason = '';
+
+			// ==================== IP SPOOFING DETECTION ====================
+			// Check X-Forwarded-For header for private IPs
+			if (xForwardedFor) {
+				const forwardedIPs = xForwardedFor.split(',').map((ip) => ip.trim());
+				for (const forwardedIP of forwardedIPs) {
+					if (isPrivateIP(forwardedIP)) {
+						spoofingDetected = true;
+						spoofingReason = `Private IP detected in X-Forwarded-For: ${forwardedIP}`;
+						break;
+					}
 				}
 			}
-		}
 
-		// Check X-Real-IP header for private IPs
-		if (!spoofingDetected && xRealIP && isPrivateIP(xRealIP)) {
-			spoofingDetected = true;
-			spoofingReason = `Private IP detected in X-Real-IP: ${xRealIP}`;
-		}
+			// Check X-Real-IP header for private IPs
+			if (!spoofingDetected && xRealIP && isPrivateIP(xRealIP)) {
+				spoofingDetected = true;
+				spoofingReason = `Private IP detected in X-Real-IP: ${xRealIP}`;
+			}
 
-		// Check for protocol mismatch (HTTPS spoofing)
-		if (req.secure && xForwardedProto === 'http') {
-			spoofingDetected = true;
-			spoofingReason =
-				'Protocol mismatch: HTTPS request with HTTP X-Forwarded-Proto';
-		}
+			// Check for protocol mismatch (HTTPS spoofing)
+			if (req.secure && xForwardedProto === 'http') {
+				spoofingDetected = true;
+				spoofingReason =
+					'Protocol mismatch: HTTPS request with HTTP X-Forwarded-Proto';
+			}
 
-		// ==================== USER-AGENT SPOOFING DETECTION ====================
-		if (!spoofingDetected && isSuspiciousUserAgent(userAgent)) {
-			spoofingDetected = true;
-			spoofingReason = `Suspicious User-Agent: ${userAgent}`;
-		}
+			// ==================== USER-AGENT SPOOFING DETECTION ====================
+			if (!spoofingDetected && isSuspiciousUserAgent(userAgent)) {
+				spoofingDetected = true;
+				spoofingReason = `Suspicious User-Agent: ${userAgent}`;
+			}
 
-		// ==================== REFERRER SPOOFING DETECTION ====================
-		if (!spoofingDetected && isSuspiciousReferrer(referrer)) {
-			spoofingDetected = true;
-			spoofingReason = `Suspicious Referrer: ${referrer}`;
-		}
+			// ==================== REFERRER SPOOFING DETECTION ====================
+			if (!spoofingDetected && isSuspiciousReferrer(referrer)) {
+				spoofingDetected = true;
+				spoofingReason = `Suspicious Referrer: ${referrer}`;
+			}
 
-		// ==================== REQUEST PATTERN ANALYSIS ====================
-		if (!spoofingDetected && hasSuspiciousRequestPattern(req)) {
-			spoofingDetected = true;
-			spoofingReason = 'Suspicious request pattern detected';
-		}
+			// ==================== REQUEST PATTERN ANALYSIS ====================
+			if (!spoofingDetected && hasSuspiciousRequestPattern(req)) {
+				spoofingDetected = true;
+				spoofingReason = 'Suspicious request pattern detected';
+			}
 
-		// ==================== LOG AND BLOCK SPOOFING ATTEMPTS ====================
-		if (spoofingDetected) {
-			console.log(
-				`🚨 Anti-Spoofing Protection: Spoofing attempt detected from IP ${clientIP}`
-			);
-			console.log(`   Reason: ${spoofingReason}`);
-			console.log(`   Path: ${req.path}`);
-			console.log(`   Method: ${req.method}`);
-			console.log(`   User-Agent: ${userAgent}`);
-			console.log(`   Referrer: ${referrer}`);
-			console.log(`   X-Forwarded-For: ${xForwardedFor}`);
-			console.log(`   X-Real-IP: ${xRealIP}`);
+			// ==================== BLOCK SUSPICIOUS ACCESS TO PRIVATE CONTENT ====================
+			if (spoofingDetected) {
+				console.log(
+					`🚨 Anti-Spoofing Protection: Suspicious access to PRIVATE content from IP ${clientIP}`
+				);
+				console.log(`   Reason: ${spoofingReason}`);
+				console.log(`   Path: ${req.path}`);
+				console.log(`   Method: ${req.method}`);
+				console.log(`   User-Agent: ${userAgent}`);
+				console.log(`   Referrer: ${referrer}`);
+				console.log(`   X-Forwarded-For: ${xForwardedFor}`);
+				console.log(`   X-Real-IP: ${xRealIP}`);
 
-			return sendBeautifulAntiSpoofingError(
-				res,
-				403,
-				'Security Violation',
-				'Spoofing attempt detected. This request has been blocked for security reasons.',
-				{
-					reason: spoofingReason,
-					path: req.path,
-					method: req.method,
-					ip: clientIP,
-					userAgent: userAgent,
-					referrer: referrer,
-				}
-			);
+				return sendBeautifulAntiSpoofingError(
+					res,
+					403,
+					'Security Violation',
+					'Access to private content blocked. This request appears to be from a suspicious source.',
+					{
+						reason: spoofingReason,
+						path: req.path,
+						method: req.method,
+						ip: clientIP,
+						userAgent: userAgent,
+						referrer: referrer,
+					}
+				);
+			}
 		}
 
 		// Log legitimate requests for monitoring
@@ -514,7 +621,8 @@ export const portScanningProtectionMiddleware = async (
 			req.path.endsWith('.svg') ||
 			req.path.endsWith('.ico') ||
 			req.path === '/sitemap.xml' ||
-			req.path === '/robots.txt'
+			req.path === '/robots.txt' ||
+			req.path.startsWith('/error') // Skip error page untuk mencegah redirect loop
 		) {
 			return next();
 		}
@@ -524,6 +632,26 @@ export const portScanningProtectionMiddleware = async (
 			console.log(
 				`🚨 Port Scanning Protection: Port scanning detected from IP ${clientIP}`
 			);
+
+			// Cek apakah sudah di error page untuk mencegah redirect loop
+			if (req.path.startsWith('/error')) {
+				return res.status(429).json({
+					error: {
+						code: 429,
+						title: 'Too Many Requests',
+						message:
+							'Port scanning behavior detected. Please slow down your requests.',
+						timestamp: new Date().toISOString(),
+						details: {
+							type: 'port_scanning',
+							ip: clientIP,
+							path: req.path,
+							requestCount: portScanningData.get(clientIP)?.count || 0,
+						},
+						help: 'This request appears to be from a suspicious source. Please contact the administrator if you believe this is an error.',
+					},
+				});
+			}
 
 			return sendBeautifulAntiSpoofingError(
 				res,

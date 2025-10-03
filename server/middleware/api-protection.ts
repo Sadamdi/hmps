@@ -94,6 +94,11 @@ function sendBeautifulApiError(
 		return res.status(statusCode).json(errorResponse);
 	}
 
+	// Cek apakah sudah di error page untuk mencegah redirect loop
+	if (res.req?.path?.startsWith('/error')) {
+		return res.status(statusCode).json(errorResponse);
+	}
+
 	// Untuk browser biasa, selalu redirect ke halaman error yang cantik
 	const errorParam = encodeURIComponent(JSON.stringify(errorResponse.error));
 	const redirectUrl = `/error?error=${errorParam}`;

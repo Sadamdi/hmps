@@ -334,6 +334,7 @@ export const Division =
 
 export {
 	Article,
+	connectDB,
 	Library,
 	Organization,
 	Permission,
@@ -341,5 +342,4 @@ export {
 	Session,
 	Settings,
 	User,
-	connectDB,
 };

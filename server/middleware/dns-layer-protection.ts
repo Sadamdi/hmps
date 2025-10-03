@@ -1,6 +1,63 @@
 import { NextFunction, Request, Response } from 'express';
 import { getMiddlewareSettings } from '../models/middleware-settings';
 
+// Import function untuk cek bot legitimate dari anti-spoofing
+// Function to check if bot is legitimate
+function isLegitimateBot(userAgent: string): boolean {
+	if (!userAgent || userAgent.trim().length === 0) {
+		return false;
+	}
+
+	const LEGITIMATE_BOTS = [
+		// Google bots
+		/googlebot/i,
+		/google-structured-data-testing-tool/i,
+		/google-site-verification/i,
+
+		// Bing bots
+		/msnbot/i,
+		/bingbot/i,
+
+		// Facebook bots
+		/facebookexternalhit/i,
+		/facebot/i,
+		/meta-externalagent/i,
+
+		// Twitter bots
+		/twitterbot/i,
+		/tweetmeme/i,
+
+		// LinkedIn bots
+		/linkedinbot/i,
+
+		// WhatsApp bots
+		/whatsapp/i,
+
+		// Telegram bots
+		/telegrambot/i,
+
+		// Other legitimate bots
+		/slackbot/i,
+		/discordbot/i,
+		/redditbot/i,
+		/pinterestbot/i,
+		/yandexbot/i,
+		/baiduspider/i,
+		/duckduckbot/i,
+		/ia_archiver/i,
+		/archive\.org_bot/i,
+		/wayback/i,
+	];
+
+	for (const pattern of LEGITIMATE_BOTS) {
+		if (pattern.test(userAgent)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // Cache for middleware settings
 let dnsLayerSettingsCache: any = null;
 let dnsLayerSettingsCacheTimestamp: number = 0;
@@ -523,6 +580,11 @@ function sendBeautifulDnsLayerError(
 		return res.status(statusCode).json(errorResponse);
 	}
 
+	// Cek apakah sudah di error page untuk mencegah redirect loop
+	if (res.req?.path?.startsWith('/error')) {
+		return res.status(statusCode).json(errorResponse);
+	}
+
 	// Untuk browser requests, redirect ke error page
 	const errorParam = encodeURIComponent(JSON.stringify(errorResponse.error));
 	const redirectUrl = `/error?error=${errorParam}`;
@@ -567,7 +629,8 @@ export const dnsLayerProtectionMiddleware = async (
 			req.path.endsWith('.eot') ||
 			req.path === '/sitemap.xml' ||
 			req.path === '/robots.txt' ||
-			req.path.startsWith('/artikel/')
+			req.path.startsWith('/artikel/') ||
+			req.path.startsWith('/error') // Skip error page untuk mencegah redirect loop
 		) {
 			return next();
 		}
@@ -576,72 +639,112 @@ export const dnsLayerProtectionMiddleware = async (
 		const referer = req.get('Referer') || '';
 		const origin = req.get('Origin') || '';
 		const clientIP = req.ip || req.connection?.remoteAddress || 'unknown';
+		const userAgent = req.get('User-Agent') || '';
 
-		let dnsAttackDetected = false;
-		let attackReason = '';
+		// ==================== PUBLIC VS PRIVATE CONTENT DETECTION ====================
+		const isPublicContent =
+			req.path === '/' ||
+			req.path.startsWith('/artikel') ||
+			req.path === '/sitemap.xml' ||
+			req.path === '/robots.txt';
 
-		// ==================== DNS REBINDING DETECTION ====================
-		if (isDnsRebindingAttempt(host)) {
-			dnsAttackDetected = true;
-			attackReason = `DNS rebinding attempt detected: ${host}`;
-		}
+		const isPrivateContent =
+			req.path.startsWith('/dashboard') ||
+			req.path.startsWith('/api/') ||
+			req.path === '/login';
 
-		// ==================== HOST HEADER VALIDATION ====================
-		if (!dnsAttackDetected && !isValidHostHeader(host, referer, origin)) {
-			dnsAttackDetected = true;
-			attackReason = `Invalid or suspicious Host header: ${host}`;
-		}
-
-		// ==================== SUSPICIOUS DOMAIN DETECTION ====================
-		if (!dnsAttackDetected && isSuspiciousDomain(host)) {
-			dnsAttackDetected = true;
-			attackReason = `Suspicious domain detected: ${host}`;
-		}
-
-		// ==================== ORIGIN-HOST MISMATCH DETECTION ====================
-		if (!dnsAttackDetected && origin && host) {
-			try {
-				const originUrl = new URL(origin);
-				const originDomain = originUrl.hostname;
-
-				if (originDomain !== host && `www.${originDomain}` !== host) {
-					// Check if it's a legitimate subdomain relationship
-					if (!host.endsWith(`.${originDomain}`)) {
-						dnsAttackDetected = true;
-						attackReason = `Origin-Host mismatch: Origin=${originDomain}, Host=${host}`;
-					}
-				}
-			} catch (e) {
-				// Invalid origin URL
-			}
-		}
-
-		// ==================== LOG AND BLOCK DNS ATTACKS ====================
-		if (dnsAttackDetected) {
+		// Allow legitimate bots untuk mengakses konten public
+		if (isLegitimateBot(userAgent)) {
 			console.log(
-				`🚨 DNS Layer Protection: DNS attack detected from IP ${clientIP}`
+				`🤖 DNS Layer: Legitimate Bot Access Allowed: ${userAgent} to ${req.path}`
 			);
-			console.log(`   Reason: ${attackReason}`);
-			console.log(`   Path: ${req.path}`);
-			console.log(`   Method: ${req.method}`);
-			console.log(`   Host: ${host}`);
-			console.log(`   Referer: ${referer}`);
-			console.log(`   Origin: ${origin}`);
+			return next();
+		}
 
-			return sendBeautifulDnsLayerError(
-				res,
-				403,
-				'Security Violation',
-				'DNS layer attack detected. This request has been blocked for security reasons.',
-				{
-					type: 'dns_attack',
-					reason: attackReason,
-					host: host,
-					referer: referer,
-					origin: origin,
-					ip: clientIP,
+		// Untuk konten public, biarkan semua akses (termasuk yang mencurigakan)
+		// tapi tetap log untuk monitoring
+		if (isPublicContent) {
+			// Log aktivitas mencurigakan tapi tetap izinkan akses
+			if (isDnsRebindingAttempt(host) || isSuspiciousDomain(host)) {
+				console.log(
+					`⚠️ DNS Layer: Suspicious Activity on Public Content (ALLOWED): ${host} from IP ${clientIP} to ${req.path}`
+				);
+				console.log(`   Host: ${host}`);
+				console.log(`   Referer: ${referer}`);
+				console.log(`   Origin: ${origin}`);
+			}
+			return next();
+		}
+
+		// ==================== PRIVATE CONTENT PROTECTION ====================
+		// Hanya lakukan deteksi DNS attack untuk konten private
+		if (isPrivateContent) {
+			let dnsAttackDetected = false;
+			let attackReason = '';
+
+			// ==================== DNS REBINDING DETECTION ====================
+			if (isDnsRebindingAttempt(host)) {
+				dnsAttackDetected = true;
+				attackReason = `DNS rebinding attempt detected: ${host}`;
+			}
+
+			// ==================== HOST HEADER VALIDATION ====================
+			if (!dnsAttackDetected && !isValidHostHeader(host, referer, origin)) {
+				dnsAttackDetected = true;
+				attackReason = `Invalid or suspicious Host header: ${host}`;
+			}
+
+			// ==================== SUSPICIOUS DOMAIN DETECTION ====================
+			if (!dnsAttackDetected && isSuspiciousDomain(host)) {
+				dnsAttackDetected = true;
+				attackReason = `Suspicious domain detected: ${host}`;
+			}
+
+			// ==================== ORIGIN-HOST MISMATCH DETECTION ====================
+			if (!dnsAttackDetected && origin && host) {
+				try {
+					const originUrl = new URL(origin);
+					const originDomain = originUrl.hostname;
+
+					if (originDomain !== host && `www.${originDomain}` !== host) {
+						// Check if it's a legitimate subdomain relationship
+						if (!host.endsWith(`.${originDomain}`)) {
+							dnsAttackDetected = true;
+							attackReason = `Origin-Host mismatch: Origin=${originDomain}, Host=${host}`;
+						}
+					}
+				} catch (e) {
+					// Invalid origin URL
 				}
-			);
+			}
+
+			// ==================== BLOCK SUSPICIOUS ACCESS TO PRIVATE CONTENT ====================
+			if (dnsAttackDetected) {
+				console.log(
+					`🚨 DNS Layer Protection: Suspicious access to PRIVATE content from IP ${clientIP}`
+				);
+				console.log(`   Reason: ${attackReason}`);
+				console.log(`   Path: ${req.path}`);
+				console.log(`   Method: ${req.method}`);
+				console.log(`   Host: ${host}`);
+				console.log(`   Referer: ${referer}`);
+				console.log(`   Origin: ${origin}`);
+
+				return sendBeautifulDnsLayerError(
+					res,
+					403,
+					'Security Violation',
+					'Access to private content blocked. DNS layer attack detected.',
+					{
+						type: 'dns_attack',
+						reason: attackReason,
+						host: host,
+						referer: referer,
+						origin: origin,
+						ip: clientIP,
+					}
+				);
+			}
 		}
 
 		// Log legitimate requests for monitoring
@@ -740,11 +843,36 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 			return next();
 		}
 
+		// Skip error page untuk mencegah redirect loop
+		if (req.path.startsWith('/error')) {
+			return next();
+		}
+
 		// Detect DNS cache poisoning attempts
 		if (isDnsCachePoisoningAttempt(clientIP, host)) {
 			console.log(
 				`🚨 DNS Cache Poisoning Protection: Suspicious activity from IP ${clientIP}`
 			);
+
+			// Cek apakah sudah di error page untuk mencegah redirect loop
+			if (req.path.startsWith('/error')) {
+				return res.status(429).json({
+					error: {
+						code: 429,
+						title: 'Too Many Requests',
+						message:
+							'Suspicious DNS activity detected. Please slow down your requests.',
+						timestamp: new Date().toISOString(),
+						details: {
+							type: 'dns_cache_poisoning',
+							ip: clientIP,
+							host: host,
+							requestCount: suspiciousSourceTracker.get(clientIP)?.count || 0,
+						},
+						help: 'This request appears to be from a suspicious domain or may be a DNS-related attack. Please contact the administrator if you believe this is an error.',
+					},
+				});
+			}
 
 			return sendBeautifulDnsLayerError(
 				res,

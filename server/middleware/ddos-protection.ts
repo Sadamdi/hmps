@@ -2,6 +2,62 @@ import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import { getMiddlewareSettings } from '../models/middleware-settings';
 
+// Function to check if bot is legitimate
+function isLegitimateBot(userAgent: string): boolean {
+	if (!userAgent || userAgent.trim().length === 0) {
+		return false;
+	}
+
+	const LEGITIMATE_BOTS = [
+		// Google bots
+		/googlebot/i,
+		/google-structured-data-testing-tool/i,
+		/google-site-verification/i,
+
+		// Bing bots
+		/msnbot/i,
+		/bingbot/i,
+
+		// Facebook bots
+		/facebookexternalhit/i,
+		/facebot/i,
+		/meta-externalagent/i,
+
+		// Twitter bots
+		/twitterbot/i,
+		/tweetmeme/i,
+
+		// LinkedIn bots
+		/linkedinbot/i,
+
+		// WhatsApp bots
+		/whatsapp/i,
+
+		// Telegram bots
+		/telegrambot/i,
+
+		// Other legitimate bots
+		/slackbot/i,
+		/discordbot/i,
+		/redditbot/i,
+		/pinterestbot/i,
+		/yandexbot/i,
+		/baiduspider/i,
+		/duckduckbot/i,
+		/ia_archiver/i,
+		/archive\.org_bot/i,
+		/wayback/i,
+	];
+
+	for (const pattern of LEGITIMATE_BOTS) {
+		if (pattern.test(userAgent)) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // Cache for middleware settings
 let ddosMiddlewareSettingsCache: any = null;
 let ddosSettingsCacheTimestamp: number = 0;
@@ -368,6 +424,38 @@ export const ddosProtectionMiddleware = async (
 		const isAllowlistedSearchBot = allowlistedSearchBots.some((p) =>
 			p.test(userAgent)
 		);
+
+		// ==================== PUBLIC VS PRIVATE CONTENT DETECTION ====================
+		const isPublicContent =
+			path === '/' ||
+			path.startsWith('/artikel') ||
+			path === '/sitemap.xml' ||
+			path === '/robots.txt';
+
+		const isPrivateContent =
+			path.startsWith('/dashboard') ||
+			path.startsWith('/api/') ||
+			path === '/login';
+
+		// Skip DDoS protection untuk bot legitimate
+		if (isLegitimateBot(userAgent)) {
+			console.log(
+				`🤖 DDoS Protection: Legitimate Bot Access Allowed: ${userAgent} to ${path}`
+			);
+			return next();
+		}
+
+		// Untuk konten public, biarkan semua akses (termasuk yang mencurigakan)
+		// tapi tetap log untuk monitoring
+		if (isPublicContent) {
+			// Log aktivitas mencurigakan tapi tetap izinkan akses
+			if (isBot || isAllowlistedSearchBot) {
+				console.log(
+					`⚠️ DDoS Protection: Suspicious Activity on Public Content (ALLOWED): ${userAgent} from IP ${clientIP} to ${path}`
+				);
+			}
+			return next();
+		}
 		const isSeoPath =
 			path === '/' ||
 			path === '/sitemap.xml' ||
