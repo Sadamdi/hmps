@@ -3,7 +3,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { ApiKeyUsage, Chat } from '../models/chat';
+import { Chat } from '../models/chat';
 import { chatLimiter } from '../security';
 import { ChatService } from '../services/chat-service';
 dotenv.config();
@@ -42,7 +42,12 @@ router.get('/all', async (req, res) => {
 			res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 		}
 		const chats = await Chat.find({ userId }).sort({ createdAt: -1 });
-		res.json({ chats });
+		// Remove sensitive data before sending response
+		const safeChats = chats.map((chat) => {
+			const { apiKey, ...safeChat } = chat.toObject();
+			return safeChat;
+		});
+		res.json({ chats: safeChats });
 	} catch (error) {
 		console.error('Error getting all chats:', error);
 		res.status(500).json({ error: 'Internal server error' });
@@ -57,7 +62,9 @@ router.post('/new', async (req, res) => {
 			res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 		}
 		const chat = await ChatService.getOrCreateChat(userId, true); // true = force new
-		res.json({ chat });
+		// Remove sensitive data before sending response
+		const { apiKey, ...safeChat } = chat.toObject();
+		res.json({ chat: safeChat });
 	} catch (error) {
 		console.error('Error creating new chat:', error);
 		res.status(500).json({ error: 'Internal server error' });
@@ -90,6 +97,7 @@ router.get('/history', async (req, res) => {
 
 		const chat = await Chat.findOne({ userId }).sort({ createdAt: -1 });
 		const history = chat ? chat.messages : [];
+		// Don't send chat object, only messages history
 		res.json({ history });
 	} catch (error) {
 		console.error('Error getting chat history:', error);
@@ -129,7 +137,9 @@ router.post(
 				imageUrl,
 				chat._id.toString()
 			);
-			res.json({ chat: updatedChat });
+			// Remove sensitive data before sending response
+			const { apiKey, ...safeChat } = updatedChat.toObject();
+			res.json({ chat: safeChat });
 		} catch (error) {
 			console.error('Error sending message:', error);
 			res.status(500).json({ error: 'Internal server error' });
@@ -153,9 +163,10 @@ router.delete('/', async (req, res) => {
 	}
 });
 
-router.get('/debug/apikeys', async (req, res) => {
-	const keys = await ApiKeyUsage.find();
-	res.json(keys);
-});
+// REMOVED: Debug endpoint that exposed API keys
+// router.get('/debug/apikeys', async (req, res) => {
+// 	const keys = await ApiKeyUsage.find();
+// 	res.json(keys);
+// });
 
 export default router;
