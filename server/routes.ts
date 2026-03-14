@@ -52,6 +52,15 @@ interface UserWithRole {
 	lastLogin?: Date;
 }
 
+function getPaginationParams(query: any) {
+	const pageRaw = query?.page;
+	const limitRaw = query?.limit;
+	const page = Math.max(1, parseInt(String(pageRaw || '1'), 10));
+	const limit = Math.min(100, Math.max(1, parseInt(String(limitRaw || '10'), 10)));
+	const isPaginated = pageRaw !== undefined || limitRaw !== undefined;
+	return { page, limit, isPaginated };
+}
+
 // Helper function to check article permissions
 async function checkArticlePermission(
 	user: UserWithRole,
@@ -772,7 +781,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.json({ message: 'You do not have permission to view users' });
 			}
 
-			let users = await mongoStorage.getAllUsers();
+			const { page, limit, isPaginated } = getPaginationParams(req.query);
+			let users = await mongoStorage.getAllUsers(
+				isPaginated ? { page, limit } : undefined
+			);
 			if (
 				permissions.includes('users.view') &&
 				!permissions.includes('users.view_others')
@@ -786,6 +798,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { password, ...userWithoutPassword } = user;
 				return userWithoutPassword;
 			});
+
+			if (isPaginated) {
+				const total = await mongoStorage.getAllUsers();
+				return res.json({
+					data: usersWithoutPasswords,
+					meta: {
+						page,
+						limit,
+						total: total.length,
+						totalPages: Math.ceil(total.length / limit),
+					},
+				});
+			}
 
 			res.json(usersWithoutPasswords);
 		} catch (error) {
@@ -970,7 +995,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Articles routes
 	app.get('/api/articles', async (req, res) => {
 		try {
-			const allArticles = await mongoStorage.getPublishedArticles();
+			const { page, limit, isPaginated } = getPaginationParams(req.query);
+			const allArticles = await mongoStorage.getPublishedArticles(
+				isPaginated ? { page, limit } : undefined
+			);
+			if (isPaginated) {
+				const total = await mongoStorage.getArticlesCount();
+				return res.json({
+					data: allArticles,
+					meta: {
+						page,
+						limit,
+						total,
+						totalPages: Math.ceil(total / limit),
+					},
+				});
+			}
 			res.json(allArticles);
 		} catch (error) {
 			console.error('Get articles error:', error);
@@ -1589,7 +1629,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Library routes
 	app.get('/api/library', async (req, res) => {
 		try {
-			const allItems = await mongoStorage.getAllLibraryItems();
+			const { page, limit, isPaginated } = getPaginationParams(req.query);
+			const allItems = await mongoStorage.getAllLibraryItems(
+				isPaginated ? { page, limit } : undefined
+			);
+			if (isPaginated) {
+				const total = await mongoStorage.getLibraryItemsCount();
+				return res.json({
+					data: allItems,
+					meta: {
+						page,
+						limit,
+						total,
+						totalPages: Math.ceil(total / limit),
+					},
+				});
+			}
 			res.json(allItems);
 		} catch (error) {
 			console.error('Get library items error:', error);
@@ -2136,6 +2191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get('/api/organization/members', async (req, res) => {
 		try {
 			const { period } = req.query;
+			const { page, limit, isPaginated } = getPaginationParams(req.query);
 
 			if (!period) {
 				// Get latest period if not specified
@@ -2147,14 +2203,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				const members = await mongoStorage.getOrganizationMembersByPeriod(
-					latestPeriod
+					latestPeriod,
+					isPaginated ? { page, limit } : undefined
 				);
+				if (isPaginated) {
+					const allMembers = await mongoStorage.getOrganizationMembersByPeriod(
+						latestPeriod
+					);
+					return res.json({
+						data: members,
+						meta: {
+							page,
+							limit,
+							total: allMembers.length,
+							totalPages: Math.ceil(allMembers.length / limit),
+						},
+					});
+				}
 				return res.json(members);
 			}
 
 			const members = await mongoStorage.getOrganizationMembersByPeriod(
-				period as string
+				period as string,
+				isPaginated ? { page, limit } : undefined
 			);
+			if (isPaginated) {
+				const allMembers = await mongoStorage.getOrganizationMembersByPeriod(
+					period as string
+				);
+				return res.json({
+					data: members,
+					meta: {
+						page,
+						limit,
+						total: allMembers.length,
+						totalPages: Math.ceil(allMembers.length / limit),
+					},
+				});
+			}
 			res.json(members);
 		} catch (error) {
 			console.error('Get organization members error:', error);

@@ -46,9 +46,24 @@ function toObjectId(id: string | number): mongoose.Types.ObjectId | null {
 	}
 }
 
+type PaginationOptions = {
+	page?: number;
+	limit?: number;
+};
+
+function applyPagination<T>(query: any, options?: PaginationOptions) {
+	const page = options?.page;
+	const limit = options?.limit;
+	if (!page || !limit || page < 1 || limit < 1) {
+		return query;
+	}
+	return query.skip((page - 1) * limit).limit(limit);
+}
+
 // User functions
-async function getAllUsers(): Promise<any[]> {
-	return await User.find().select('-password').lean();
+async function getAllUsers(options?: PaginationOptions): Promise<any[]> {
+	const query = User.find().select('-password');
+	return await applyPagination(query, options).lean();
 }
 
 async function getUserById(id: string | number): Promise<any | null> {
@@ -115,12 +130,14 @@ async function deleteUser(id: string | number): Promise<void> {
 }
 
 // Article functions
-async function getAllArticles(): Promise<any[]> {
-	return await Article.find().sort({ createdAt: -1 }).lean();
+async function getAllArticles(options?: PaginationOptions): Promise<any[]> {
+	const query = Article.find().sort({ createdAt: -1 });
+	return await applyPagination(query, options).lean();
 }
 
-async function getPublishedArticles(): Promise<any[]> {
-	return await Article.find({ published: true }).sort({ createdAt: -1 }).lean();
+async function getPublishedArticles(options?: PaginationOptions): Promise<any[]> {
+	const query = Article.find({ published: true }).sort({ createdAt: -1 });
+	return await applyPagination(query, options).lean();
 }
 
 async function getArticlesByAuthorId(
@@ -206,8 +223,9 @@ async function getArticlesCount(): Promise<number> {
 }
 
 // Library functions
-async function getAllLibraryItems(): Promise<any[]> {
-	return await Library.find().sort({ createdAt: -1 }).lean();
+async function getAllLibraryItems(options?: PaginationOptions): Promise<any[]> {
+	const query = Library.find().sort({ createdAt: -1 });
+	return await applyPagination(query, options).lean();
 }
 
 async function getPublishedLibraryItems(): Promise<any[]> {
@@ -287,8 +305,12 @@ async function getLibraryItemsCount(): Promise<number> {
 }
 
 // Organization functions
-async function getOrganizationMembersByPeriod(period: string): Promise<any[]> {
-	return await Organization.find({ period }).sort({ position: 1 }).lean();
+async function getOrganizationMembersByPeriod(
+	period: string,
+	options?: PaginationOptions
+): Promise<any[]> {
+	const query = Organization.find({ period }).sort({ position: 1 });
+	return await applyPagination(query, options).lean();
 }
 
 async function getOrganizationPeriods(): Promise<string[]> {

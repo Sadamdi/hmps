@@ -7,12 +7,11 @@ import Footer from '@/components/public/footer';
 import Hero from '@/components/public/hero';
 import Library from '@/components/public/library';
 import Navbar from '@/components/public/navbar';
-import Structure from '@/components/public/structure';
 import VisionMission from '@/components/public/vision-mission';
 import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 
 interface Settings {
 	siteName: string;
@@ -40,6 +39,8 @@ interface Settings {
 	};
 }
 
+const Structure = lazy(() => import('@/components/public/structure'));
+
 export default function Home() {
 	const { isLoading, completeLoading, forceComplete, assetsLoaded } =
 		useAppLoading();
@@ -50,8 +51,9 @@ export default function Home() {
 			const response = await apiRequest('GET', '/api/settings');
 			return response.json();
 		},
-		staleTime: 0,
-		refetchOnWindowFocus: true,
+		staleTime: 5 * 60 * 1000,
+		refetchOnWindowFocus: false,
+		refetchOnMount: false,
 	});
 
 	const [activeSection, setActiveSection] = useState('home');
@@ -64,7 +66,11 @@ export default function Home() {
 	};
 
 	useEffect(() => {
+		let ticking = false;
 		const handleScroll = () => {
+			if (ticking) return;
+			ticking = true;
+			requestAnimationFrame(() => {
 			const sections = [
 				'home',
 				'about',
@@ -87,8 +93,10 @@ export default function Home() {
 					break;
 				}
 			}
+				ticking = false;
+			});
 		};
-		window.addEventListener('scroll', handleScroll);
+		window.addEventListener('scroll', handleScroll, { passive: true });
 		return () => window.removeEventListener('scroll', handleScroll);
 	}, []);
 
@@ -107,7 +115,7 @@ export default function Home() {
 	}
 
 	return (
-		<div>
+		<div className="min-h-screen bg-background text-foreground">
 			<Navbar
 				activeSection={activeSection}
 				scrollToSection={scrollToSection}
@@ -118,7 +126,14 @@ export default function Home() {
 			/>
 			<About />
 			<VisionMission />
-			<Structure />
+			<Suspense
+				fallback={
+					<div className="py-16 flex justify-center">
+						<div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+					</div>
+				}>
+				<Structure />
+			</Suspense>
 			<Articles />
 			<Library />
 			<Footer />

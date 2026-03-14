@@ -114,60 +114,64 @@ export function LoadingScreen({
 
 	return (
 		<div
-			className={`fixed inset-0 z-50 bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center transition-all duration-1000 ease-out ${
+			className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-700 ease-out ${
 				isComplete ? 'opacity-0 pointer-events-none' : 'opacity-100'
-			} ${isExiting ? 'scale-110 blur-sm' : 'scale-100 blur-0'}`}>
+			} ${isExiting ? 'scale-110' : 'scale-100'}`}
+			style={{ background: 'var(--gradient-loading)' }}>
+			{/* Subtle static orbs */}
 			<div
-				className={`text-center text-white transition-all duration-1000 ease-out ${
-					isExiting
-						? 'scale-95 opacity-0 -translate-y-4'
-						: 'scale-100 opacity-100 translate-y-0'
-				}`}>
-				{/* Logo HMPS dengan animasi */}
-				<div className="mb-10 animate-fade-in">
-					<div className="w-16 h-16 mx-auto mb-4">
-						<img
-							src="/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp"
-							alt="Logo HMPS"
-							className="w-full h-full object-contain animate-pulse"
-						/>
-					</div>
-					<h1 className="text-lg font-bold mb-1 animate-slide-up text-blue-100">
-						HMPS
-					</h1>
-					<p className="text-blue-200 text-xs animate-slide-up-delay-1">
-						Himpunan Mahasiswa Teknik Informatika
-					</p>
+				className="pointer-events-none absolute top-1/4 left-1/4 w-80 h-80 rounded-full"
+				style={{ background: 'var(--orb-color-1)', filter: 'blur(72px)' }}
+			/>
+			<div
+				className="pointer-events-none absolute bottom-1/4 right-1/4 w-60 h-60 rounded-full"
+				style={{ background: 'var(--orb-color-2)', filter: 'blur(64px)' }}
+			/>
+
+		<div
+			className={`relative text-center transition-all duration-700 ease-out ${
+				isExiting
+					? 'scale-95 opacity-0 -translate-y-4'
+					: 'scale-100 opacity-100 translate-y-0'
+			}`}>
+			{/* Logo HMPS – glow ring */}
+			<div className="mb-8 animate-fade-in">
+				<div className="w-20 h-20 mx-auto mb-4 rounded-full ring-2 ring-primary/50 flex items-center justify-center bg-card animate-glow-pulse">
+					<img
+						src="/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp"
+						alt="Logo HMPS"
+						className="w-14 h-14 object-contain"
+					/>
 				</div>
-
-				{/* Progress Bar minimalis */}
-				<div className="w-40 mx-auto mb-6 animate-fade-in-delay">
-					<div className="bg-white/10 rounded-full h-1 mb-2">
-						<div
-							className="bg-gradient-to-r from-blue-400 to-cyan-400 h-1 rounded-full transition-all duration-200 ease-out"
-							style={{ width: `${progress}%` }}
-						/>
-					</div>
-					<div className="text-xs text-blue-300 font-medium">
-						{loadingSteps[currentStep]}
-					</div>
-				</div>
-
-				{/* Progress Percentage */}
-				<div className="text-xs text-blue-300 font-medium mb-6">
-					{progress}%
-				</div>
-
-				{/* Skip Button minimalis */}
-				<button
-					onClick={handleSkip}
-					className="mt-6 px-4 py-1.5 bg-white/10 hover:bg-white/20 text-blue-200 text-xs rounded-full transition-all duration-200 border border-white/20 hover:border-white/40">
-					Lewati
-				</button>
-
-				{/* Single decorative element */}
-				<div className="absolute bottom-8 right-8 w-12 h-12 bg-blue-500/5 rounded-full animate-pulse"></div>
+				<h1 className="text-lg font-bold mb-1 animate-slide-up text-foreground">
+					HIMATIF ENCODER
+				</h1>
+				<p className="text-muted-foreground text-xs animate-slide-up-delay-1">
+					Himpunan Mahasiswa Teknik Informatika
+				</p>
 			</div>
+
+			{/* Progress bar – vibrant gradient */}
+			<div className="w-44 mx-auto mb-4 animate-fade-in-delay">
+				<div className="bg-secondary rounded-full h-1.5 mb-3 overflow-hidden">
+					<div
+						className="h-1.5 rounded-full transition-all duration-500 ease-out bg-gradient-to-r from-amber-400 via-cyan-400 to-blue-500"
+						style={{ width: `${progress}%` }}
+					/>
+				</div>
+				<div className="flex items-center justify-between">
+					<span className="text-xs text-muted-foreground font-medium">{loadingSteps[currentStep]}</span>
+					<span className="text-xs text-primary font-semibold tabular-nums">{progress}%</span>
+				</div>
+			</div>
+
+			{/* Skip Button */}
+			<button
+				onClick={handleSkip}
+				className="mt-4 px-4 py-1.5 bg-secondary hover:bg-muted text-muted-foreground text-xs rounded-full transition-all duration-200 border border-border hover:border-primary/40">
+				Lewati →
+			</button>
+		</div>
 		</div>
 	);
 }

@@ -81,9 +81,9 @@ export default function DashboardArticles() {
 	// Query articles with proper typing
 	const { data: articlesData = [], isLoading } = useQuery({
 		queryKey: ['/api/articles/manage'],
-		refetchOnWindowFocus: true,
-		refetchOnMount: true,
-		staleTime: 0, // Always fetch fresh data
+		refetchOnWindowFocus: false,
+		refetchOnMount: false,
+		staleTime: 60000,
 	});
 
 	// Type assertion for articles array

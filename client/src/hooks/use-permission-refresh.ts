@@ -9,9 +9,13 @@ export function usePermissionRefresh() {
 	const { refreshPermissions } = useAuth();
 
 	useEffect(() => {
+		if (typeof document !== 'undefined' && document.hidden) {
+			return;
+		}
+
 		const interval = setInterval(() => {
 			refreshPermissions();
-		}, 5000); // 5 seconds
+		}, 45000);
 
 		return () => clearInterval(interval);
 	}, [refreshPermissions]);

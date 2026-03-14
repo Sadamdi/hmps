@@ -1,3 +1,4 @@
+import { Content, FunctionDeclarationsTool } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -8,6 +9,7 @@ import {
 	initGeminiClient,
 } from '../config/gemini-config';
 import { ApiKeyUsage, Chat } from '../models/chat';
+import { AI_TOOLS, executeToolCall } from './ai-tools';
 
 export class ChatService {
 	// Mendapatkan atau membuat chat baru
@@ -129,21 +131,85 @@ export class ChatService {
 			},
 		];
 
-		// Dapatkan respons dari Gemini dengan fallback
+		// Dapatkan respons dari Gemini dengan fallback dan agentic tool-calling loop
 		const gemini = initGeminiClient(chat.apiKey);
 		let currentModel = GEMINI_MODEL;
 		let responseText = '';
 		let lastError: Error | null = null;
 
+		// Tool definitions untuk Gemini function calling
+		const geminiTools: FunctionDeclarationsTool[] = [
+			{
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				functionDeclarations: AI_TOOLS as any,
+			},
+		];
+
 		// Coba dengan model utama dan fallback jika error
 		for (const modelName of GEMINI_MODELS) {
 			try {
-				const model = gemini.getGenerativeModel({ model: modelName });
-				const result = await model.generateContent({ contents: history });
-				const response = await result.response;
-				responseText = response.text();
-				currentModel = modelName; // Update model yang berhasil
-				break; // Berhasil, keluar dari loop
+				const model = gemini.getGenerativeModel({
+					model: modelName,
+					tools: geminiTools,
+				});
+
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				let contents: Content[] = history as any;
+
+				// Agentic loop: Gemini bisa memanggil tools maksimal 5 kali sebelum jawaban final
+				for (let iteration = 0; iteration < 5; iteration++) {
+					const result = await model.generateContent({ contents });
+					const response = result.response;
+
+					// Cek apakah Gemini meminta tool call
+					const functionCalls = response.functionCalls?.();
+					if (!functionCalls || functionCalls.length === 0) {
+						// Tidak ada tool call → ini jawaban final
+						responseText = response.text();
+						break;
+					}
+
+					console.log(
+						`[AI Agent] Iteration ${iteration + 1}: executing tools:`,
+						functionCalls.map((fc) => fc.name).join(', ')
+					);
+
+					// Eksekusi semua function calls secara paralel
+					const toolResults = await Promise.all(
+						functionCalls.map(async (fc) => ({
+							functionResponse: {
+								name: fc.name,
+								response: await executeToolCall(
+									fc.name,
+									(fc.args ?? {}) as Record<string, unknown>
+								),
+							},
+						}))
+					);
+
+					// Tambahkan respons model + hasil tool ke history untuk iterasi berikutnya
+					contents = [
+						...contents,
+						{
+							role: 'model' as const,
+							parts: response.candidates![0].content.parts,
+						},
+						{
+							role: 'user' as const,
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
+							parts: toolResults as any,
+						},
+					];
+				}
+
+				// Jika loop habis tapi responseText masih kosong (edge case)
+				if (!responseText) {
+					responseText =
+						'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
+				}
+
+				currentModel = modelName;
+				break; // Berhasil, keluar dari loop model fallback
 			} catch (error) {
 				lastError = error as Error;
 				console.warn(`Model ${modelName} failed, trying fallback...`, error);

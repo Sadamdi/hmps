@@ -2,140 +2,156 @@ import LoginForm from '@/components/auth/login-form';
 import ProtectedRoute from '@/components/auth/protected-route';
 import { Toaster } from '@/components/ui/toaster';
 import { AuthProvider } from '@/lib/auth.tsx';
-import ArticleDetail from '@/pages/artikel/[id]';
-import AllArticles from '@/pages/artikel/index';
-import DashboardArticles from '@/pages/dashboard/articles';
-import DashboardContent from '@/pages/dashboard/content';
-import Dashboard from '@/pages/dashboard/index';
-import DashboardLibrary from '@/pages/dashboard/library';
-import DashboardOrganization from '@/pages/dashboard/organization';
-import DashboardRoles from '@/pages/dashboard/roles';
-import DashboardSettings from '@/pages/dashboard/settings';
-import DashboardUsers from '@/pages/dashboard/users';
+import { ThemeProvider } from '@/lib/theme';
 import Error from '@/pages/error';
-import Home from '@/pages/index';
 import NotFound from '@/pages/not-found';
 import { QueryClientProvider } from '@tanstack/react-query';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Route, Switch } from 'wouter';
 import { queryClient } from './lib/queryClient';
 
+const Home = lazy(() => import('@/pages/index'));
+const AllArticles = lazy(() => import('@/pages/artikel/index'));
+const ArticleDetail = lazy(() => import('@/pages/artikel/[id]'));
+const Dashboard = lazy(() => import('@/pages/dashboard/index'));
+const DashboardArticles = lazy(() => import('@/pages/dashboard/articles'));
+const DashboardLibrary = lazy(() => import('@/pages/dashboard/library'));
+const DashboardOrganization = lazy(() => import('@/pages/dashboard/organization'));
+const DashboardUsers = lazy(() => import('@/pages/dashboard/users'));
+const DashboardRoles = lazy(() => import('@/pages/dashboard/roles'));
+const DashboardSettings = lazy(() => import('@/pages/dashboard/settings'));
+const DashboardContent = lazy(() => import('@/pages/dashboard/content'));
+
+function RouteLoadingFallback() {
+	return (
+		<div className="min-h-[50vh] flex items-center justify-center">
+			<div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+		</div>
+	);
+}
+
 function Router() {
 	return (
-		<Switch>
-			<Route
-				path="/"
-				component={Home}
-			/>
-			<Route
-				path="/artikel"
-				component={AllArticles}
-			/>
-			<Route
-				path="/artikel/:id/:slug"
-				component={ArticleDetail}
-			/>
-			<Route
-				path="/artikel/slug/:slug"
-				component={ArticleDetail}
-			/>
-			<Route
-				path="/artikel/:id"
-				component={ArticleDetail}
-			/>
-			<Route
-				path="/login"
-				component={LoginForm}
-			/>
-			<Route
-				path="/error"
-				component={Error}
-			/>
+		<Suspense fallback={<RouteLoadingFallback />}>
+			<Switch>
+				<Route
+					path="/"
+					component={Home}
+				/>
+				<Route
+					path="/artikel"
+					component={AllArticles}
+				/>
+				<Route
+					path="/artikel/:id/:slug"
+					component={ArticleDetail}
+				/>
+				<Route
+					path="/artikel/slug/:slug"
+					component={ArticleDetail}
+				/>
+				<Route
+					path="/artikel/:id"
+					component={ArticleDetail}
+				/>
+				<Route
+					path="/login"
+					component={LoginForm}
+				/>
+				<Route
+					path="/error"
+					component={Error}
+				/>
 
-			{/* Dashboard Routes - Protected */}
-			<Route path="/dashboard">
-				{() => (
-					<ProtectedRoute>
-						<Dashboard />
-					</ProtectedRoute>
-				)}
-			</Route>
-			<Route path="/dashboard/articles">
-				{() => (
-					<ProtectedRoute>
-						<DashboardArticles />
-					</ProtectedRoute>
-				)}
-			</Route>
-			<Route path="/dashboard/library">
-				{() => (
-					<ProtectedRoute>
-						<DashboardLibrary />
-					</ProtectedRoute>
-				)}
-			</Route>
-			<Route path="/dashboard/organization">
-				{() => (
-					<ProtectedRoute>
-						<DashboardOrganization />
-					</ProtectedRoute>
-				)}
-			</Route>
+				{/* Dashboard Routes - Protected */}
+				<Route path="/dashboard">
+					{() => (
+						<ProtectedRoute>
+							<Dashboard />
+						</ProtectedRoute>
+					)}
+				</Route>
+				<Route path="/dashboard/articles">
+					{() => (
+						<ProtectedRoute>
+							<DashboardArticles />
+						</ProtectedRoute>
+					)}
+				</Route>
+				<Route path="/dashboard/library">
+					{() => (
+						<ProtectedRoute>
+							<DashboardLibrary />
+						</ProtectedRoute>
+					)}
+				</Route>
+				<Route path="/dashboard/organization">
+					{() => (
+						<ProtectedRoute>
+							<DashboardOrganization />
+						</ProtectedRoute>
+					)}
+				</Route>
 
-			<Route path="/dashboard/users">
-				{() => (
-					<ProtectedRoute>
-						<DashboardUsers />
-					</ProtectedRoute>
-				)}
-			</Route>
-			<Route path="/dashboard/roles">
-				{() => (
-					<ProtectedRoute>
-						<DashboardRoles />
-					</ProtectedRoute>
-				)}
-			</Route>
-			<Route path="/dashboard/settings">
-				{() => (
-					<ProtectedRoute>
-						<DashboardSettings />
-					</ProtectedRoute>
-				)}
-			</Route>
-			<Route path="/dashboard/content">
-				{() => (
-					<ProtectedRoute>
-						<DashboardContent />
-					</ProtectedRoute>
-				)}
-			</Route>
+				<Route path="/dashboard/users">
+					{() => (
+						<ProtectedRoute>
+							<DashboardUsers />
+						</ProtectedRoute>
+					)}
+				</Route>
+				<Route path="/dashboard/roles">
+					{() => (
+						<ProtectedRoute>
+							<DashboardRoles />
+						</ProtectedRoute>
+					)}
+				</Route>
+				<Route path="/dashboard/settings">
+					{() => (
+						<ProtectedRoute>
+							<DashboardSettings />
+						</ProtectedRoute>
+					)}
+				</Route>
+				<Route path="/dashboard/content">
+					{() => (
+						<ProtectedRoute>
+							<DashboardContent />
+						</ProtectedRoute>
+					)}
+				</Route>
 
-			{/* Fallback to 404 */}
-			<Route component={NotFound} />
-		</Switch>
+				{/* Fallback to 404 */}
+				<Route component={NotFound} />
+			</Switch>
+		</Suspense>
 	);
 }
 
 function App() {
 	useEffect(() => {
 		AOS.init({
-			duration: 800,
-			easing: 'ease-in-out',
+			duration: 500,
+			easing: 'ease-out',
 			once: true,
 			mirror: false,
-			offset: 100,
+			offset: 60,
+			throttleDelay: 99,
+			disableMutationObserver: false,
 		});
 	}, []);
 
 	return (
 		<QueryClientProvider client={queryClient}>
-			<AuthProvider>
-				<Router />
-				<Toaster />
-			</AuthProvider>
+			<ThemeProvider>
+				<AuthProvider>
+					<Router />
+					<Toaster />
+				</AuthProvider>
+			</ThemeProvider>
 		</QueryClientProvider>
 	);
 }

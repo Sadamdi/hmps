@@ -123,26 +123,23 @@ export default function Sidebar({
 
 			{/* Sidebar */}
 			<aside
-				className={`bg-white border-r border-gray-200 transition-all fixed h-screen z-50 ${
+				className={`bg-sidebar border-r border-sidebar-border transition-all fixed h-screen z-50 ${
 					isExpanded ? 'w-64' : 'w-20'
 				} ${
 					mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
 				}`}>
 				<div className="h-full flex flex-col">
 					{/* Header */}
-					<div className="p-6 flex items-center justify-between border-b flex-shrink-0">
-						<div className="flex items-center space-x-2">
-							{isExpanded && (
-								<span className="font-bold text-xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
-									{(settings as any)?.navbarBrand || 'HMTI'}
-								</span>
-							)}
-							{!isExpanded && (
-								<span className="font-bold text-xl bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
-									{((settings as any)?.navbarBrand || 'HMTI').charAt(0)}
-								</span>
-							)}
-						</div>
+					<div className="p-6 flex items-center justify-between border-b border-sidebar-border flex-shrink-0">
+				<div className="flex items-center space-x-2">
+						<Link
+							href="/"
+							className="font-bold text-xl bg-gradient-to-r from-blue-300 via-cyan-200 to-blue-100 bg-clip-text text-transparent hover:opacity-80 transition-opacity">
+							{isExpanded
+								? ((settings as any)?.navbarBrand || 'HMTI')
+								: ((settings as any)?.navbarBrand || 'HMTI').charAt(0)}
+						</Link>
+					</div>
 						<Button
 							variant="ghost"
 							size="icon"
@@ -231,8 +228,8 @@ export default function Sidebar({
 										isExpanded ? 'px-4' : 'justify-center px-2'
 									} py-3 text-sm font-medium rounded-md ${
 										item.active
-											? 'bg-primary text-white'
-											: 'text-gray-700 hover:bg-gray-100'
+											? 'bg-primary text-primary-foreground'
+											: 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
 									}`}>
 									{item.icon}
 									{isExpanded && <span className="ml-3">{item.label}</span>}
@@ -242,7 +239,7 @@ export default function Sidebar({
 					</nav>
 
 					{/* User Profile - always at bottom */}
-					<div className="p-4 border-t bg-white flex-shrink-0">
+					<div className="p-4 border-t border-sidebar-border bg-sidebar flex-shrink-0">
 						<div
 							className={`flex ${
 								isExpanded ? 'items-center' : 'flex-col items-center'
@@ -254,10 +251,10 @@ export default function Sidebar({
 							</Avatar>
 							{isExpanded && (
 								<div className="min-w-0 flex-1">
-									<p className="text-sm font-medium text-gray-900 truncate">
+									<p className="text-sm font-medium text-sidebar-foreground truncate">
 										{user?.name || user?.username}
 									</p>
-									<p className="text-xs text-gray-500 capitalize">
+									<p className="text-xs text-sidebar-foreground/70 capitalize">
 										{user?.role}
 									</p>
 								</div>
@@ -266,7 +263,7 @@ export default function Sidebar({
 
 						<Button
 							variant="ghost"
-							className={`mt-4 text-gray-700 ${
+							className={`mt-4 text-sidebar-foreground/85 hover:text-sidebar-foreground ${
 								isExpanded
 									? 'w-full justify-start'
 									: 'w-full justify-center px-0'

@@ -231,6 +231,17 @@ function isSuspiciousReferrer(referrer: string): boolean {
 		return false; // Empty referrer is OK
 	}
 
+	// Allow local development frontend (localhost:5000) so it isn't flagged
+	// as suspicious when accessing private routes like /login.
+	if (
+		referrer.includes('http://localhost:5000') ||
+		referrer.includes('https://localhost:5000') ||
+		referrer.includes('http://127.0.0.1:5000') ||
+		referrer.includes('https://127.0.0.1:5000')
+	) {
+		return false;
+	}
+
 	for (const pattern of SUSPICIOUS_REFERRERS) {
 		if (pattern.test(referrer)) {
 			return true;

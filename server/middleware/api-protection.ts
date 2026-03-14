@@ -67,7 +67,7 @@ function sendBeautifulApiError(
 	statusCode: number,
 	title: string,
 	message: string,
-	details?: any
+	details?: any,
 ) {
 	const errorResponse = {
 		error: {
@@ -109,7 +109,7 @@ function sendBeautifulApiError(
 export const apiProtectionMiddleware = async (
 	req: Request,
 	res: Response,
-	next: NextFunction
+	next: NextFunction,
 ) => {
 	try {
 		const settings = await getCachedMiddlewareSettings();
@@ -133,7 +133,7 @@ export const apiProtectionMiddleware = async (
 
 		// Cek apakah route diizinkan untuk akses umum
 		const isAllowedRoute = ALLOWED_API_ROUTES.some((route) =>
-			path.startsWith(route)
+			path.startsWith(route),
 		);
 
 		// Cek apakah request dari browser (bukan server-to-server)
@@ -194,7 +194,7 @@ export const apiProtectionMiddleware = async (
 					userAgent: userAgent,
 					referer: referer,
 					origin: origin,
-				}
+				},
 			);
 		}
 
@@ -218,7 +218,7 @@ const API_WINDOW_MS = 60 * 1000; // 1 minute
 export const apiRateLimitMiddleware = async (
 	req: Request,
 	res: Response,
-	next: NextFunction
+	next: NextFunction,
 ) => {
 	try {
 		const settings = await getCachedMiddlewareSettings();
@@ -257,7 +257,7 @@ export const apiRateLimitMiddleware = async (
 			if (ipData.count > API_RATE_LIMIT) {
 				const retryAfter = Math.ceil((ipData.resetTime - now) / 1000);
 				console.log(
-					`🚨 API Rate Limit: IP ${clientIP} exceeded API rate limit, retry in ${retryAfter}s`
+					`🚨 API Rate Limit: IP ${clientIP} exceeded API rate limit, retry in ${retryAfter}s`,
 				);
 
 				return sendBeautifulApiError(
@@ -270,7 +270,7 @@ export const apiRateLimitMiddleware = async (
 						window: '1 minute',
 						retryAfter: retryAfter,
 						ip: clientIP,
-					}
+					},
 				);
 			}
 		}

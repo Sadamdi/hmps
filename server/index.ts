@@ -31,12 +31,14 @@ import { sanitizeInput, securityLogger, securityMiddleware } from './security';
 // Import models to ensure they are registered
 import './models/activity';
 
-// Set MongoDB URI yang Anda berikan
-process.env.MONGODB_URI =
-	'mongodb+srv://recipesDB:4434@recipesdb.pjmdt.mongodb.net/?retryWrites=true&w=majority&appName=recipesDB';
-
-// Karena kita menggunakan MongoDB, pastikan DISABLE_MONGODB dinonaktifkan
-process.env.DISABLE_MONGODB = 'false';
+// Respect environment variables in production; provide safe defaults for local dev only
+if (!process.env.MONGODB_URI) {
+	process.env.MONGODB_URI =
+		'mongodb+srv://recipesDB:4434@recipesdb.pjmdt.mongodb.net/?retryWrites=true&w=majority&appName=recipesDB';
+}
+if (process.env.DISABLE_MONGODB === undefined) {
+	process.env.DISABLE_MONGODB = 'false';
+}
 
 const app = express();
 
@@ -79,7 +81,7 @@ app.use(express.urlencoded({ extended: false, limit: '100mb' }));
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use(
 	'/attached_assets',
-	express.static(path.join(process.cwd(), 'attached_assets'))
+	express.static(path.join(process.cwd(), 'attached_assets')),
 );
 
 // Serve static files from public folder (SEO files, favicon, etc.)
@@ -135,18 +137,18 @@ app.get('/sitemap.xml', async (_req, res) => {
 					});
 				} else {
 					console.log(
-						'⚠️ Article model not found, continuing with base URLs only'
+						'⚠️ Article model not found, continuing with base URLs only',
 					);
 				}
 			} else {
 				console.log(
-					'⚠️ Database not connected, continuing with base URLs only'
+					'⚠️ Database not connected, continuing with base URLs only',
 				);
 			}
 		} catch (dbError: any) {
 			console.log(
 				'⚠️ Database error, continuing with base URLs only:',
-				dbError?.message || 'Unknown error'
+				dbError?.message || 'Unknown error',
 			);
 		}
 
@@ -164,7 +166,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 		console.log(`🌐 Generated ${urls.length} total URLs for sitemap`);
 		console.log(
 			'📋 URLs:',
-			urls.map((u) => u.loc)
+			urls.map((u) => u.loc),
 		);
 
 		const xml =
@@ -177,7 +179,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 							u.lastmod || now
 						}</lastmod>\n    <changefreq>${
 							u.changefreq
-						}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`
+						}</changefreq>\n    <priority>${u.priority}</priority>\n  </url>`,
 				)
 				.join('\n') +
 			`\n</urlset>`;
@@ -252,13 +254,16 @@ setInterval(cleanupDnsLayerData, 5 * 60 * 1000);
 // Security monitoring akan ditampilkan saat server start
 
 // Log server status setiap 5 menit
-setInterval(() => {
-	console.log('📊 Server Status: Active');
-	console.log('   - MongoDB Connection: ✅ Connected');
-	console.log('   - Server Uptime: ✅ Running');
-	console.log('   - Memory Usage: ✅ Normal');
-	console.log('   - Request Handling: ✅ Active');
-}, 5 * 60 * 1000);
+setInterval(
+	() => {
+		console.log('📊 Server Status: Active');
+		console.log('   - MongoDB Connection: ✅ Connected');
+		console.log('   - Server Uptime: ✅ Running');
+		console.log('   - Memory Usage: ✅ Normal');
+		console.log('   - Request Handling: ✅ Active');
+	},
+	5 * 60 * 1000,
+);
 
 (async () => {
 	// Connect to MongoDB
@@ -293,7 +298,7 @@ setInterval(() => {
 	console.log('   - app.get("env"):', app.get('env'));
 	console.log(
 		'   - process.env.NODE_ENV === "production":',
-		process.env.NODE_ENV === 'production'
+		process.env.NODE_ENV === 'production',
 	);
 
 	// importantly only setup vite in development and after
@@ -311,24 +316,26 @@ setInterval(() => {
 	// this serves both the API and the client.
 	// It is the only port that is not firewalled.
 	const port = 5000;
-	server.listen(
-		{
-			port,
-			host: '0.0.0.0',
-			reusePort: true,
-		},
-		() => {
-			log(`🛡️ Secure server running on port ${port}`);
-			console.log('🛡️ Security Features Activated:');
-			console.log('   ✅ DDoS Protection (Multi-Tier System)');
-			console.log('   ✅ SQL Injection Protection');
-			console.log('   ✅ NoSQL Injection Protection');
-			console.log('   ✅ XSS Protection');
-			console.log('   ✅ Anti-Spoofing Protection');
-			console.log('   ✅ DNS Layer Protection');
-			console.log('   ✅ Port Scanning Protection');
-			console.log('   ✅ Rate Limiting');
-			console.log('   ✅ Security Headers');
-		}
-	);
+	const listenOptions: { port: number; host: string; reusePort?: boolean } = {
+		port,
+		host: '0.0.0.0',
+	};
+	// `reusePort` tidak didukung di Windows (akan memicu ENOTSUP)
+	if (process.platform !== 'win32') {
+		listenOptions.reusePort = true;
+	}
+
+	server.listen(listenOptions, () => {
+		log(`🛡️ Secure server running on port ${port}`);
+		console.log('🛡️ Security Features Activated:');
+		console.log('   ✅ DDoS Protection (Multi-Tier System)');
+		console.log('   ✅ SQL Injection Protection');
+		console.log('   ✅ NoSQL Injection Protection');
+		console.log('   ✅ XSS Protection');
+		console.log('   ✅ Anti-Spoofing Protection');
+		console.log('   ✅ DNS Layer Protection');
+		console.log('   ✅ Port Scanning Protection');
+		console.log('   ✅ Rate Limiting');
+		console.log('   ✅ Security Headers');
+	});
 })();

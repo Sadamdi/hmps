@@ -91,8 +91,10 @@ export default function Dashboard() {
 				return { totalArticles: 0, totalMediaItems: 0, totalMembers: 0 };
 			}
 		},
-		refetchInterval: 10000, // 10 seconds
-		staleTime: 5000, // 5 seconds
+		refetchInterval: 30000,
+		refetchIntervalInBackground: false,
+		refetchOnWindowFocus: false,
+		staleTime: 20000,
 		retry: 3,
 		retryDelay: 2000,
 		placeholderData: { totalArticles: 0, totalMediaItems: 0, totalMembers: 0 },
@@ -123,8 +125,10 @@ export default function Dashboard() {
 					return [];
 				}
 			},
-			refetchInterval: 5000, // 5 seconds
-			staleTime: 2000, // 2 seconds
+			refetchInterval: 20000,
+			refetchIntervalInBackground: false,
+			refetchOnWindowFocus: false,
+			staleTime: 15000,
 			retry: 2,
 			retryDelay: 1000,
 			enabled: hasSpecificPermission('dashboard.activities'), // Only fetch if user has permission
@@ -157,8 +161,10 @@ export default function Dashboard() {
 			},
 			enabled:
 				showAllActivities && hasSpecificPermission('dashboard.activities'), // Only fetch when modal is opened and user has permission
-			refetchInterval: 5000,
-			staleTime: 2000,
+			refetchInterval: 30000,
+			refetchIntervalInBackground: false,
+			refetchOnWindowFocus: false,
+			staleTime: 20000,
 			retry: 2,
 			retryDelay: 1000,
 		});
@@ -194,14 +200,14 @@ export default function Dashboard() {
 	const getActivityColor = (type: Activity['type']) => {
 		switch (type) {
 			case 'article':
-				return 'text-purple-600 bg-purple-50';
+				return 'text-violet-300 bg-violet-500/15';
 			case 'library':
-				return 'text-cyan-600 bg-cyan-50';
+				return 'text-cyan-300 bg-cyan-500/15';
 			case 'organization':
-				return 'text-orange-600 bg-orange-50';
+				return 'text-amber-300 bg-amber-500/15';
 			case 'settings':
 			case 'content':
-				return 'text-gray-600 bg-gray-50';
+				return 'text-slate-300 bg-slate-500/15';
 			default:
 				return 'text-primary bg-primary/10';
 		}
@@ -244,21 +250,21 @@ export default function Dashboard() {
 
 	return (
 		<DashboardLayout title="Dashboard">
-			<div className="mb-8">
-				<h1 className="text-3xl font-bold text-gray-900 mb-2">
+			<div className="mb-6 sm:mb-8">
+				<h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
 					Welcome back, {user?.name || user?.username}
 				</h1>
-				<p className="text-gray-600">Here's an overview of the system</p>
+				<p className="text-muted-foreground text-sm sm:text-base">Here's an overview of the system</p>
 			</div>
 
 			{/* Stats Cards */}
 			{!hasSpecificPermission('dashboard.stats') ? (
 				<div className="flex justify-center items-center h-64">
 					<div className="text-center">
-						<p className="text-gray-500 text-lg">
+						<p className="text-muted-foreground text-lg">
 							You do not have permission to view dashboard statistics
 						</p>
-						<p className="text-gray-400 text-sm mt-2">
+						<p className="text-muted-foreground/80 text-sm mt-2">
 							Contact your administrator for access
 						</p>
 					</div>
@@ -268,55 +274,55 @@ export default function Dashboard() {
 					<Loader2 className="h-8 w-8 animate-spin text-primary" />
 				</div>
 			) : (
-				<div className="grid md:grid-cols-3 gap-6">
-					<Card>
-						<CardHeader className="pb-2">
-							<CardTitle className="text-lg">Total Articles</CardTitle>
-							<CardDescription>Published content</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<p className="text-3xl font-bold">
-								{stats?.totalArticles || '0'}
-							</p>
-							{statsError && (
-								<p className="text-xs text-red-500 mt-1">Error loading data</p>
-							)}
-						</CardContent>
-					</Card>
+				<div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
+				<Card className="border-border/70 bg-card/95">
+					<CardHeader className="pb-2 p-3 sm:p-6">
+						<CardTitle className="text-sm sm:text-lg">Total Articles</CardTitle>
+						<CardDescription className="text-xs sm:text-sm">Published content</CardDescription>
+					</CardHeader>
+					<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+						<p className="text-2xl sm:text-3xl font-bold">
+							{stats?.totalArticles || '0'}
+						</p>
+						{statsError && (
+							<p className="text-xs text-red-500 mt-1">Error loading data</p>
+						)}
+					</CardContent>
+				</Card>
 
-					<Card>
-						<CardHeader className="pb-2">
-							<CardTitle className="text-lg">Media Library</CardTitle>
-							<CardDescription>Photos and videos</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<p className="text-3xl font-bold">
-								{stats?.totalMediaItems || '0'}
-							</p>
-							{statsError && (
-								<p className="text-xs text-red-500 mt-1">Error loading data</p>
-							)}
-						</CardContent>
-					</Card>
+				<Card className="border-border/70 bg-card/95">
+					<CardHeader className="pb-2 p-3 sm:p-6">
+						<CardTitle className="text-sm sm:text-lg">Media Library</CardTitle>
+						<CardDescription className="text-xs sm:text-sm">Photos and videos</CardDescription>
+					</CardHeader>
+					<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+						<p className="text-2xl sm:text-3xl font-bold">
+							{stats?.totalMediaItems || '0'}
+						</p>
+						{statsError && (
+							<p className="text-xs text-red-500 mt-1">Error loading data</p>
+						)}
+					</CardContent>
+				</Card>
 
-					<Card>
-						<CardHeader className="pb-2">
-							<CardTitle className="text-lg">Organization Members</CardTitle>
-							<CardDescription>Active members</CardDescription>
-						</CardHeader>
-						<CardContent>
-							<p className="text-3xl font-bold">{stats?.totalMembers || '0'}</p>
-							{statsError && (
-								<p className="text-xs text-red-500 mt-1">Error loading data</p>
-							)}
-						</CardContent>
-					</Card>
+				<Card className="border-border/70 bg-card/95 col-span-2 md:col-span-1">
+					<CardHeader className="pb-2 p-3 sm:p-6">
+						<CardTitle className="text-sm sm:text-lg">Organization Members</CardTitle>
+						<CardDescription className="text-xs sm:text-sm">Active members</CardDescription>
+					</CardHeader>
+					<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+						<p className="text-2xl sm:text-3xl font-bold">{stats?.totalMembers || '0'}</p>
+						{statsError && (
+							<p className="text-xs text-red-500 mt-1">Error loading data</p>
+						)}
+					</CardContent>
+				</Card>
 				</div>
 			)}
 
-			<div className="mt-8 grid md:grid-cols-2 gap-6">
+			<div className="mt-6 sm:mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
 				{/* Recent Activities */}
-				<Card>
+				<Card className="border-border/70 bg-card/95">
 					<CardHeader className="flex flex-row items-center justify-between">
 						<div>
 							<CardTitle>Recent Activities</CardTitle>
@@ -338,22 +344,22 @@ export default function Dashboard() {
 					<CardContent>
 						{!hasSpecificPermission('dashboard.activities') ? (
 							<div className="text-center py-8">
-								<div className="text-gray-400 text-sm">
+								<div className="text-muted-foreground text-sm">
 									You do not have permission to view activities
-									<div className="text-xs text-gray-300 mt-1">
+									<div className="text-xs text-muted-foreground/80 mt-1">
 										Contact your administrator for access
 									</div>
 								</div>
 							</div>
 						) : activitiesLoading ? (
 							<div className="flex items-center justify-center py-8">
-								<Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+								<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 							</div>
 						) : recentActivities.length === 0 ? (
 							<div className="text-center py-8">
-								<div className="text-gray-400 text-sm">
+								<div className="text-muted-foreground text-sm">
 									Belum ada aktivitas
-									<div className="text-xs text-gray-300 mt-1">
+									<div className="text-xs text-muted-foreground/80 mt-1">
 										Aktivitas akan muncul saat Anda melakukan perubahan
 									</div>
 								</div>
@@ -371,10 +377,10 @@ export default function Dashboard() {
 											{getActivityIcon(activity.type, activity.action)}
 										</div>
 										<div className="flex-1 min-w-0">
-											<p className="text-sm font-medium text-gray-900 truncate">
+											<p className="text-sm font-medium text-foreground truncate">
 												{activity.title}
 											</p>
-											<p className="text-xs text-gray-500 truncate">
+											<p className="text-xs text-muted-foreground truncate">
 												{activity.entityTitle && `${activity.entityTitle} · `}
 												{formatTimeAgo(activity.timestamp)} oleh{' '}
 												{activity.userName}
@@ -388,7 +394,7 @@ export default function Dashboard() {
 				</Card>
 
 				{/* Quick Actions */}
-				<Card>
+				<Card className="border-border/70 bg-card/95">
 					<CardHeader>
 						<CardTitle>Quick Actions</CardTitle>
 						<CardDescription>Frequently used actions</CardDescription>
@@ -398,7 +404,7 @@ export default function Dashboard() {
 							{hasSpecificPermission('articles.create') && (
 								<button
 									onClick={() => setLocation('/dashboard/articles')}
-									className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
+									className="p-4 border border-border rounded-lg hover:bg-secondary transition-colors text-left">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										className="h-5 w-5 text-primary mb-2"
@@ -419,7 +425,7 @@ export default function Dashboard() {
 							{hasSpecificPermission('library.create') && (
 								<button
 									onClick={() => setLocation('/dashboard/library')}
-									className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
+									className="p-4 border border-border rounded-lg hover:bg-secondary transition-colors text-left">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										className="h-5 w-5 text-primary mb-2"
@@ -440,7 +446,7 @@ export default function Dashboard() {
 							{hasSpecificPermission('organization.view') && (
 								<button
 									onClick={() => setLocation('/dashboard/organization')}
-									className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
+									className="p-4 border border-border rounded-lg hover:bg-secondary transition-colors text-left">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										className="h-5 w-5 text-primary mb-2"
@@ -461,7 +467,7 @@ export default function Dashboard() {
 							{hasSpecificPermission('settings.view') && (
 								<button
 									onClick={() => setLocation('/dashboard/settings')}
-									className="p-4 border rounded-lg hover:bg-gray-50 transition-colors text-left">
+									className="p-4 border border-border rounded-lg hover:bg-secondary transition-colors text-left">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
 										className="h-5 w-5 text-primary mb-2"
@@ -495,7 +501,7 @@ export default function Dashboard() {
 					showAllActivities && hasSpecificPermission('dashboard.activities')
 				}
 				onOpenChange={setShowAllActivities}>
-				<DialogContent className="max-w-2xl max-h-[80vh]">
+				<DialogContent className="max-w-2xl max-h-[80vh] border-border bg-card text-foreground">
 					<DialogHeader>
 						<DialogTitle>Semua Aktivitas Recent</DialogTitle>
 						<p className="text-sm text-muted-foreground">
@@ -505,13 +511,13 @@ export default function Dashboard() {
 					<ScrollArea className="h-[60vh] w-full pr-4">
 						{allActivitiesLoading ? (
 							<div className="flex items-center justify-center py-8">
-								<Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+								<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 							</div>
 						) : allActivities.length === 0 ? (
 							<div className="text-center py-8">
-								<div className="text-gray-400 text-sm">
+								<div className="text-muted-foreground text-sm">
 									Belum ada aktivitas
-									<div className="text-xs text-gray-300 mt-1">
+									<div className="text-xs text-muted-foreground/80 mt-1">
 										Aktivitas akan muncul saat Anda melakukan perubahan
 									</div>
 								</div>
@@ -521,7 +527,7 @@ export default function Dashboard() {
 								{allActivities.map((activity: any, index: number) => (
 									<div
 										key={index}
-										className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50">
+										className="flex items-start space-x-3 p-3 rounded-lg hover:bg-secondary">
 										<div
 											className={`p-2 rounded-full ${getActivityColor(
 												activity.type
@@ -529,11 +535,11 @@ export default function Dashboard() {
 											{getActivityIcon(activity.type, activity.action)}
 										</div>
 										<div className="flex-1 min-w-0">
-											<p className="text-sm font-medium text-gray-900">
+											<p className="text-sm font-medium text-foreground">
 												{activity.title}
 											</p>
 											{activity.description && (
-												<p className="text-xs text-gray-600 mt-1">
+												<p className="text-xs text-muted-foreground mt-1">
 													{activity.description}
 												</p>
 											)}
@@ -545,7 +551,7 @@ export default function Dashboard() {
 														{activity.entityTitle}
 													</Badge>
 												)}
-												<span className="text-xs text-gray-500">
+												<span className="text-xs text-muted-foreground">
 													{formatTimeAgo(activity.timestamp)} oleh{' '}
 													{activity.userName}
 												</span>

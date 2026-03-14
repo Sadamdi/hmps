@@ -2,7 +2,13 @@ import { QueryClient, QueryFunction } from '@tanstack/react-query';
 
 async function throwIfResNotOk(res: Response) {
 	if (!res.ok) {
-		const text = (await res.text()) || res.statusText;
+		let text = res.statusText;
+		try {
+			const payload = await res.clone().json();
+			text = payload?.message || payload?.error || JSON.stringify(payload);
+		} catch {
+			text = (await res.text()) || res.statusText;
+		}
 		// Global 401 handler: show toast and redirect to login
 		if (res.status === 401) {
 			try {
@@ -40,7 +46,9 @@ export async function apiRequest(
 	const res = await fetch(url, {
 		method,
 		// Jangan tambahkan Content-Type untuk FormData karena browser akan otomatis menambahkan boundary
-		headers: data && !isFormData ? { 'Content-Type': 'application/json' } : {},
+		headers: data && !isFormData
+			? { Accept: 'application/json', 'Content-Type': 'application/json' }
+			: { Accept: 'application/json' },
 		// Jika FormData, kirim langsung. Jika bukan, ubah ke JSON string
 		body: data ? (isFormData ? data : JSON.stringify(data)) : undefined,
 		credentials: 'include',
@@ -58,6 +66,9 @@ export const getQueryFn: <T>(options: {
 	async ({ queryKey }) => {
 		const res = await fetch(queryKey[0] as string, {
 			credentials: 'include',
+			headers: {
+				Accept: 'application/json',
+			},
 		});
 
 		if (unauthorizedBehavior === 'returnNull' && res.status === 401) {
@@ -73,8 +84,10 @@ export const queryClient = new QueryClient({
 		queries: {
 			queryFn: getQueryFn({ on401: 'throw' }),
 			refetchInterval: false,
-			refetchOnWindowFocus: true, // Enable refetch on window focus
-			staleTime: 10000, // Set data to become stale after 10 seconds
+			refetchOnWindowFocus: false,
+			refetchOnMount: false,
+			staleTime: 60000,
+			gcTime: 5 * 60 * 1000,
 			retry: false,
 		},
 		mutations: {

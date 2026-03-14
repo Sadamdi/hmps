@@ -6,13 +6,16 @@ import {
 	DialogTitle,
 	DialogTrigger,
 } from '@/components/ui/dialog';
+import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { useQuery } from '@tanstack/react-query';
+import AOS from 'aos';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import MediaDisplay from '../MediaDisplay';
 
 interface LibraryItem {
-	id: number;
+	id?: number;
+	_id?: string;
 	title: string;
 	description: string;
 	fullDescription: string;
@@ -22,16 +25,34 @@ interface LibraryItem {
 	type: 'photo' | 'video';
 }
 
+interface PaginatedResponse<T> {
+	data: T[];
+	meta?: {
+		page: number;
+		limit: number;
+		total: number;
+		totalPages: number;
+	};
+}
+
 export default function Library() {
 	const [searchQuery, setSearchQuery] = useState('');
-	const [currentLibraryItemId, setCurrentLibraryItemId] = useState<
-		number | null
-	>(null);
+	const [currentLibraryItemId, setCurrentLibraryItemId] = useState<string | null>(
+		null
+	);
 	const [currentImageIndex, setCurrentImageIndex] = useState(0);
+	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
 
-	const { data: libraryItems = [], isLoading } = useQuery({
+	const { data: libraryItems = [], isLoading } = useQuery<LibraryItem[]>({
 		queryKey: ['/api/library'],
+		queryFn: async () => {
+			const response = await fetch('/api/library?page=1&limit=18');
+			const payload =
+				(await response.json()) as LibraryItem[] | PaginatedResponse<LibraryItem>;
+			return Array.isArray(payload) ? payload : payload.data;
+		},
 		placeholderData: [],
+		staleTime: 60 * 1000,
 	});
 
 	const searchLibrary = (items: LibraryItem[]) => {
@@ -41,27 +62,36 @@ export default function Library() {
 		);
 	};
 
-	const filteredLibraryItems = searchLibrary(libraryItems as LibraryItem[]);
+	// Refresh AOS setelah data load async agar grid items dengan data-aos terdeteksi
+	useEffect(() => {
+		if (libraryItems.length > 0) {
+			const timer = setTimeout(() => AOS.refreshHard(), 80);
+			return () => clearTimeout(timer);
+		}
+	}, [libraryItems.length]);
+
+	const filteredLibraryItems = useMemo(
+		() => searchLibrary(libraryItems),
+		[libraryItems, searchQuery]
+	);
 	const currentItem = filteredLibraryItems.find(
-		(item) => item.id === currentLibraryItemId
+		(item) => (item._id || String(item.id)) === currentLibraryItemId
 	);
 
 	return (
 		<section
 			id="library"
-			className="py-16 bg-gray-50">
+			className="py-16 bg-secondary/35">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div
-					className="text-center mb-12"
-					data-aos="fade-up">
-					<h2 className="text-3xl font-bold text-gray-900 font-serif">
-						Library
-					</h2>
-					<div className="mt-2 h-1 w-20 bg-primary mx-auto"></div>
-					<p className="mt-4 text-lg text-gray-600">
-						Koleksi foto dan video kegiatan Himpunan
-					</p>
-				</div>
+			<div ref={headingRef} className="text-center mb-12">
+				<h2 className={`text-3xl font-bold text-foreground font-serif ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
+					Library
+				</h2>
+				<div className={`mt-2 h-1 w-20 bg-primary mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`} />
+				<p className={`mt-4 text-lg text-muted-foreground ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
+					Koleksi foto dan video kegiatan Himpunan
+				</p>
+			</div>
 
 				<div
 					className="mb-8"
@@ -69,13 +99,13 @@ export default function Library() {
 					data-aos-delay="100">
 					<div className="relative max-w-lg mx-auto">
 						<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-							<Search className="h-5 w-5 text-gray-400" />
+							<Search className="h-5 w-5 text-muted-foreground" />
 						</div>
 						<input
 							value={searchQuery}
 							onChange={(e) => setSearchQuery(e.target.value)}
 							type="text"
-							className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
+							className="block w-full pl-10 pr-3 py-2 border border-border rounded-md leading-5 bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
 							placeholder="Cari di library..."
 						/>
 					</div>
@@ -87,7 +117,7 @@ export default function Library() {
 							{[...Array(3)].map((_, i) => (
 								<div
 									key={i}
-									className="bg-white rounded-lg overflow-hidden shadow-md">
+									className="bg-card rounded-lg overflow-hidden shadow-md border border-border/60">
 									<div className="h-48 bg-gray-200"></div>
 									<div className="p-6 space-y-3">
 										<div className="h-4 bg-gray-200 rounded w-3/4"></div>
@@ -103,8 +133,8 @@ export default function Library() {
 						<div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
 							{filteredLibraryItems.map((item: LibraryItem, index) => (
 								<div
-									key={item.id}
-									className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow"
+									key={item._id || item.id}
+									className="bg-card rounded-lg overflow-hidden shadow-md border border-border/70 hover:shadow-lg hover:border-primary/40 transition-all"
 									data-aos="fade-up"
 									data-aos-delay={index * 100}>
 									<div className="h-48 relative overflow-hidden group">
@@ -181,24 +211,26 @@ export default function Library() {
 
 									<div className="p-6">
 										<div className="flex justify-between items-center mb-3">
-											<span className="text-xs text-gray-500">{`${item.date} · ${item.time}`}</span>
-											<span className="capitalize text-xs px-2 py-1 bg-gray-100 rounded-full">
+											<span className="text-xs text-muted-foreground">{`${item.date} · ${item.time}`}</span>
+											<span className="capitalize text-xs px-2 py-1 bg-secondary text-slate-200 rounded-full">
 												{item.type}
 											</span>
 										</div>
 										<h3 className="font-bold text-xl mb-2">{item.title}</h3>
-										<p className="text-gray-600 mb-4 line-clamp-2">
+										<p className="text-muted-foreground mb-4 line-clamp-2">
 											{item.description}
 										</p>
 										<Dialog>
 											<DialogTrigger asChild>
 												<Button
 													onClick={() => {
-														setCurrentLibraryItemId(item.id);
+														setCurrentLibraryItemId(
+															item._id || String(item.id)
+														);
 														setCurrentImageIndex(0);
 													}}
 													variant="link"
-													className="text-primary hover:text-[#1E40AF] p-0 h-auto font-medium">
+											className="text-primary hover:text-primary/80 p-0 h-auto font-medium">
 													Lihat detail →
 												</Button>
 											</DialogTrigger>
@@ -212,7 +244,7 @@ export default function Library() {
 												{item.type === 'photo' ? (
 													<div className="mb-6 relative">
 														<div className="relative">
-															<div className="aspect-w-16 aspect-h-9 bg-gray-100 rounded-lg overflow-hidden">
+															<div className="aspect-w-16 aspect-h-9 bg-secondary rounded-lg overflow-hidden">
 																<MediaDisplay
 																	src={item.images[currentImageIndex]}
 																	alt={`${item.title} - Image ${
@@ -285,7 +317,7 @@ export default function Library() {
 												) : (
 													// Video content - use MediaDisplay for proper video rendering
 													<div className="mb-6 relative">
-														<div className="aspect-w-16 aspect-h-9 bg-gray-100 rounded-lg overflow-hidden">
+														<div className="aspect-w-16 aspect-h-9 bg-secondary rounded-lg overflow-hidden">
 															<MediaDisplay
 																src={item.images[currentImageIndex]}
 																alt={`${item.title} - Video ${
@@ -367,7 +399,7 @@ export default function Library() {
 													</div>
 												)}
 
-												<div className="mb-4 flex items-center text-sm text-gray-500">
+												<div className="mb-4 flex items-center text-sm text-muted-foreground">
 													<svg
 														xmlns="http://www.w3.org/2000/svg"
 														className="h-4 w-4 mr-1"

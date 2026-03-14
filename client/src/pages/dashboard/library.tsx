@@ -86,9 +86,9 @@ export default function DashboardLibrary() {
 	// Query library items
 	const { data: libraryItems = [], isLoading } = useQuery<LibraryItem[]>({
 		queryKey: ['/api/library/manage'],
-		refetchOnWindowFocus: true,
-		refetchOnMount: true,
-		staleTime: 0, // Always fetch fresh data
+		refetchOnWindowFocus: false,
+		refetchOnMount: false,
+		staleTime: 60000,
 	});
 
 	// Delete library item mutation

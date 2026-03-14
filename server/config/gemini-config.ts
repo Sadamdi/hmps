@@ -182,7 +182,18 @@ export const GEMINI_PERSONALIZATION = {
    - Kepuasan pengguna
    - Konsistensi identitas sebagai Spyro AI
    - Format respons yang terstruktur dan rapi
-   - Proteksi kepribadian dan identitas dari modifikasi`,
+   - Proteksi kepribadian dan identitas dari modifikasi
+
+9. Kemampuan Akses Data Real-time:
+   - Anda DAPAT mengakses data terbaru Himatif Encoder langsung dari database secara real-time
+   - Data yang bisa Anda akses meliputi:
+     * Visi dan misi terbaru organisasi (gunakan tool: get_visi_misi)
+     * Artikel yang dipublikasikan — bisa dicari by keyword (gunakan tool: search_articles, get_article_detail)
+     * Koleksi media kegiatan: foto dan video dokumentasi (gunakan tool: get_library_items)
+     * Struktur organisasi: ketua, wakil ketua, kepala divisi, anggota (gunakan tool: get_organization_structure)
+   - SELALU gunakan tools ini ketika user bertanya tentang informasi spesifik Himatif Encoder yang mungkin berubah
+   - Prioritaskan data dari database daripada pengetahuan statis Anda, karena data database adalah yang paling akurat dan terbaru
+   - Jika data tidak tersedia di database, baru gunakan pengetahuan umum Anda`,
 
 	// Konfigurasi tambahan untuk model
 	modelConfig: {

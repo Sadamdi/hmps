@@ -1,3 +1,4 @@
+import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
 
@@ -189,6 +190,7 @@ export default function About() {
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
 	});
+	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
 
 	// Fetch library items (photos from Google Drive)
 	const { data: libraryItems } = useQuery<LibraryItem[]>({
@@ -247,8 +249,10 @@ export default function About() {
 
 	return (
 		<section
-			id="about"
-			className="py-16 bg-white relative overflow-hidden">
+		id="about"
+		className="py-16 bg-background section-tint-bg relative overflow-hidden">
+			{/* Section top connector */}
+			<div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
 			{/* Animated Galleries */}
 			<AnimatedGallery
 				images={galleryImages}
@@ -262,18 +266,19 @@ export default function About() {
 			/>
 
 			<div className="container mx-auto px-4 relative z-10">
-				<div
-					className="text-center mb-12"
-					data-aos="fade-up">
-					<h1 className="text-3xl md:text-4xl font-bold text-primary mb-2 tracking-tight">
-						Tentang Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN
-						Malang
-					</h1>
-					<p className="text-lg text-gray-600 mb-4">
-						Organisasi Mahasiswa Teknik Informatika di Fakultas Sains dan
-						Teknologi UIN Maulana Malik Ibrahim Malang
-					</p>
-					<div className="w-24 h-1 bg-primary mx-auto rounded"></div>
+			<div ref={headingRef} className="text-center mb-12">
+				<span className={`inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-widest rounded-full bg-cyan-500/12 border border-cyan-400/30 text-cyan-300 uppercase ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
+					Tentang Kami
+				</span>
+				<h1 className={`text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}>
+					Himatif Encoder
+				</h1>
+				<p className={`text-base text-muted-foreground mb-5 max-w-xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
+					Himpunan Mahasiswa Teknik Informatika · Fakultas Sains dan Teknologi
+					UIN Maulana Malik Ibrahim Malang
+				</p>
+					{/* Gradient divider */}
+					<div className="mx-auto w-32 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
 				</div>
 
 				<div
@@ -281,25 +286,27 @@ export default function About() {
 					data-aos="fade-up"
 					data-aos-delay="200">
 					{settings?.aboutUs ? (
-						<div className="prose prose-lg lg:prose-xl prose-slate leading-relaxed space-y-4 bg-white/90 backdrop-blur-sm rounded-lg p-8 shadow-sm mx-auto">
+						<div className="prose prose-lg lg:prose-xl prose-invert leading-relaxed space-y-4 bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm mx-auto">
 							<div
 								dangerouslySetInnerHTML={{ __html: settings.aboutUs }}
 								className="text-justify" // Back to justify alignment
 							/>
 						</div>
 					) : (
-						<div className="text-center text-gray-500 bg-white/90 backdrop-blur-sm rounded-lg p-8 shadow-sm">
+						<div className="text-center text-muted-foreground bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm">
 							<div className="text-4xl mb-4">📝</div>
 							<p className="text-lg mb-2">
 								Informasi tentang himpunan belum tersedia
 							</p>
-							<p className="text-sm text-gray-400">
+							<p className="text-sm text-muted-foreground/80">
 								Konten sedang dalam proses pengembangan
 							</p>
 						</div>
 					)}
 				</div>
 			</div>
+			{/* Section bottom connector */}
+			<div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/35 to-transparent" />
 		</section>
 	);
 }

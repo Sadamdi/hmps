@@ -2,6 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   Performance-first keyframes: only transform + opacity
+   (GPU-composited, safe for low-end devices)
+   ============================================================ */
+
+@keyframes shimmer-slide {
+	0%   { transform: translateX(-100%); }
+	100% { transform: translateX(100%); }
+}
+
+@keyframes glow-pulse {
+	0%, 100% { box-shadow: 0 0 0 0 rgba(56,189,248,0); }
+	50%       { box-shadow: 0 0 18px 5px rgba(56,189,248,0.28); }
+}
+
+@keyframes slide-down-nav {
+	from { opacity: 0; transform: translateY(-10px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideDownIndicator {
+	0%   { transform: translateY(-100%); opacity: 0; }
+	30%  { opacity: 1; }
+	70%  { opacity: 1; }
+	100% { transform: translateY(250%); opacity: 0; }
+}
+
+@keyframes scale-in {
+	from { opacity: 0; transform: scale(0.95); }
+	to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes text-reveal-up {
+	from { opacity: 0; transform: translateY(28px); }
+	to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+	from { transform: translateX(100%); }
+	to   { transform: translateX(0); }
+}
+
+.reveal-heading {
+	animation: text-reveal-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.reveal-heading-delay-1 {
+	animation: text-reveal-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+	animation-delay: 0.12s;
+}
+.reveal-heading-delay-2 {
+	animation: text-reveal-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+	animation-delay: 0.24s;
+}
+.animate-slide-in-right {
+	animation: slide-in-right 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-shimmer-slide {
+	animation: shimmer-slide 1.8s ease-in-out infinite;
+}
+
+.animate-glow-pulse {
+	animation: glow-pulse 2.4s ease-in-out infinite;
+}
+
+.animate-slide-down-nav {
+	animation: slide-down-nav 0.22s ease-out forwards;
+}
+
+.animate-scale-in {
+	animation: scale-in 0.2s ease-out forwards;
+}
+
+/* Reduce motion: kill all animations for accessibility + low-end */
+@media (prefers-reduced-motion: reduce) {
+	*, *::before, *::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
 /* Loading Screen Animations */
 @keyframes fade-in {
 	from {
@@ -133,7 +216,7 @@
 }
 
 /* SUPER AGGRESSIVE: Dialog fixes */
-.tox-dialog-wrap {
+.rich-text-editor .tox-dialog-wrap {
 	position: fixed !important;
 	top: 0 !important;
 	left: 0 !important;
@@ -146,7 +229,7 @@
 	justify-content: center !important;
 }
 
-.tox-dialog-wrap__backdrop {
+.rich-text-editor .tox-dialog-wrap__backdrop {
 	position: fixed !important;
 	top: 0 !important;
 	left: 0 !important;
@@ -157,7 +240,7 @@
 	pointer-events: auto !important;
 }
 
-.tox-dialog {
+.rich-text-editor .tox-dialog {
 	position: relative !important;
 	z-index: 100001 !important;
 	pointer-events: auto !important;
@@ -169,28 +252,28 @@
 	max-height: 90vh !important;
 }
 
-.tox-dialog__header {
+.rich-text-editor .tox-dialog__header {
 	z-index: 100002 !important;
 	pointer-events: auto !important;
 }
 
-.tox-dialog__body {
+.rich-text-editor .tox-dialog__body {
 	z-index: 100002 !important;
 	pointer-events: auto !important;
 }
 
-.tox-dialog__footer {
+.rich-text-editor .tox-dialog__footer {
 	z-index: 100002 !important;
 	pointer-events: auto !important;
 }
 
 /* CRITICAL: Super aggressive input field fixes */
-.tox-dialog input,
-.tox-dialog textarea,
-.tox-dialog select,
-.tox-textfield,
-.tox-textarea,
-.tox-selectfield select {
+.rich-text-editor .tox-dialog input,
+.rich-text-editor .tox-dialog textarea,
+.rich-text-editor .tox-dialog select,
+.rich-text-editor .tox-textfield,
+.rich-text-editor .tox-textarea,
+.rich-text-editor .tox-selectfield select {
 	pointer-events: auto !important;
 	cursor: text !important;
 	background: white !important;
@@ -211,27 +294,27 @@
 	outline: none !important;
 }
 
-.tox-dialog input:focus,
-.tox-dialog textarea:focus,
-.tox-textfield:focus,
-.tox-textarea:focus {
+.rich-text-editor .tox-dialog input:focus,
+.rich-text-editor .tox-dialog textarea:focus,
+.rich-text-editor .tox-textfield:focus,
+.rich-text-editor .tox-textarea:focus {
 	outline: 2px solid #3b82f6 !important;
 	border-color: #3b82f6 !important;
 	background: white !important;
 }
 
-.tox-dialog input:hover,
-.tox-dialog textarea:hover,
-.tox-textfield:hover,
-.tox-textarea:hover {
+.rich-text-editor .tox-dialog input:hover,
+.rich-text-editor .tox-dialog textarea:hover,
+.rich-text-editor .tox-textfield:hover,
+.rich-text-editor .tox-textarea:hover {
 	border-color: #999 !important;
 }
 
 /* Force remove any disabling attributes */
-.tox-dialog input[readonly],
-.tox-dialog input[disabled],
-.tox-dialog textarea[readonly],
-.tox-dialog textarea[disabled] {
+.rich-text-editor .tox-dialog input[readonly],
+.rich-text-editor .tox-dialog input[disabled],
+.rich-text-editor .tox-dialog textarea[readonly],
+.rich-text-editor .tox-dialog textarea[disabled] {
 	pointer-events: auto !important;
 	background: white !important;
 	cursor: text !important;
@@ -240,29 +323,29 @@
 }
 
 /* Fix dialog buttons */
-.tox-dialog .tox-button,
-.tox-button {
+.rich-text-editor .tox-dialog .tox-button,
+.rich-text-editor .tox-button {
 	pointer-events: auto !important;
 	cursor: pointer !important;
 	z-index: 100003 !important;
 	position: relative !important;
 }
 
-.tox-dialog .tox-button:hover,
-.tox-button:hover {
+.rich-text-editor .tox-dialog .tox-button:hover,
+.rich-text-editor .tox-button:hover {
 	background-color: #e5e7eb !important;
 }
 
 /* Fix dialog labels */
-.tox-dialog .tox-label,
-.tox-label {
+.rich-text-editor .tox-dialog .tox-label,
+.rich-text-editor .tox-label {
 	pointer-events: auto !important;
 	z-index: 100003 !important;
 	position: relative !important;
 }
 
 /* Fix close button */
-.tox-dialog__header .tox-button {
+.rich-text-editor .tox-dialog__header .tox-button {
 	pointer-events: auto !important;
 	cursor: pointer !important;
 	z-index: 100004 !important;
@@ -287,147 +370,229 @@
 }
 
 /* Prevent Tailwind conflicts */
-.tox * {
+.rich-text-editor .tox * {
 	box-sizing: border-box;
 }
 
 /* Custom scrollbar untuk editor */
-.tox-edit-area iframe {
+.rich-text-editor .tox-edit-area iframe {
 	border: none !important;
 }
 
 /* PREVENT EDITOR CONTAINER COLLAPSE */
-.tox-tinymce-aux {
+.rich-text-editor .tox-tinymce-aux {
 	z-index: 100000 !important;
 }
 
 /* Keep main editor visible when dialogs are open */
-body:has(.tox-dialog-wrap) .rich-text-editor {
-	visibility: visible !important;
-	opacity: 1 !important;
-	z-index: 1 !important;
-}
-
-/* Ensure parent containers don't collapse */
-body:has(.tox-dialog-wrap) .tab-content,
-body:has(.tox-dialog-wrap) [data-state='active'],
-body:has(.tox-dialog-wrap) [role='tabpanel'] {
-	height: auto !important;
-	min-height: inherit !important;
-	visibility: visible !important;
-	opacity: 1 !important;
-	display: block !important;
-}
-
-/* Force proper stacking context */
-body:has(.tox-dialog-wrap) {
-	position: relative;
-}
-
-body:has(.tox-dialog-wrap) .tox-dialog-wrap {
-	position: fixed !important;
-	z-index: 100000 !important;
-}
-
 /* Additional fixes for tab navigation */
-.tox-dialog [tabindex] {
+.rich-text-editor .tox-dialog [tabindex] {
 	outline: none !important;
 }
 
-.tox-dialog input:focus,
-.tox-dialog textarea:focus,
-.tox-dialog select:focus {
+.rich-text-editor .tox-dialog input:focus,
+.rich-text-editor .tox-dialog textarea:focus,
+.rich-text-editor .tox-dialog select:focus {
 	box-shadow: 0 0 0 2px #3b82f6 !important;
 }
 
 @layer base {
+	/* ============================================================
+	   LIGHT MODE (Siang) — Pure White, seperti himatif-encoder.com
+	   ============================================================ */
 	:root {
-		--background: 0 0% 100%;
-		--foreground: 222.2 84% 4.9%;
+		--background: 0 0% 100%;         /* pure #ffffff */
+		--foreground: 222 47% 11%;       /* slate-900 dark text */
 
-		--card: 0 0% 100%;
-		--card-foreground: 222.2 84% 4.9%;
+		--card: 0 0% 100%;               /* pure white card */
+		--card-foreground: 222 47% 11%;
 
 		--popover: 0 0% 100%;
-		--popover-foreground: 222.2 84% 4.9%;
+		--popover-foreground: 222 47% 11%;
 
-		--primary: 221.2 83.2% 53.3%;
-		--primary-foreground: 210 40% 98%;
+		--primary: 221 83% 53%;          /* blue-600 #2563eb */
+		--primary-foreground: 0 0% 100%;
 
-		--primary-dark: 227 93% 38%;
+		--primary-dark: 224 76% 42%;     /* blue-700 #1d4ed8 */
 
-		--secondary: 210 40% 96.1%;
-		--secondary-foreground: 222.2 47.4% 11.2%;
+		--secondary: 210 20% 96%;        /* #f3f4f6 gray-100 */
+		--secondary-foreground: 222 47% 20%;
 
-		--muted: 210 40% 96.1%;
-		--muted-foreground: 215.4 16.3% 46.9%;
+		--muted: 210 20% 96%;            /* #f3f4f6 very light gray */
+		--muted-foreground: 215 25% 45%; /* slate-500 */
 
-		--accent: 210 40% 96.1%;
-		--accent-foreground: 222.2 47.4% 11.2%;
+		--accent: 239 84% 67%;           /* indigo-500 #6366f1 */
+		--accent-foreground: 0 0% 100%;
 
 		--destructive: 0 84.2% 60.2%;
-		--destructive-foreground: 210 40% 98%;
+		--destructive-foreground: 0 0% 100%;
 
-		--border: 214.3 31.8% 91.4%;
-		--input: 214.3 31.8% 91.4%;
-		--ring: 221.2 83.2% 53.3%;
+		--border: 214 32% 91%;           /* #e2e8f0 gray-200 */
+		--input: 214 32% 91%;
+		--ring: 221 83% 53%;
 
 		--radius: 0.5rem;
 
-		--chart-1: 221.2 83.2% 53.3%;
-		--chart-2: 240 5.9% 10%;
-		--chart-3: 279 97.8% 57.3%;
-		--chart-4: 151 65.3% 48.2%;
-		--chart-5: 18 94.4% 48.6%;
+		--chart-1: 221 83% 53%;
+		--chart-2: 239 84% 67%;
+		--chart-3: 173 80% 40%;
+		--chart-4: 45 93% 58%;
+		--chart-5: 0 84% 60%;
 
-		/* Sidebar colors */
-		--sidebar-background: 222.2 84% 4.9%;
-		--sidebar-foreground: 210 40% 98%;
-		--sidebar-primary: 221.2 83.2% 53.3%;
-		--sidebar-primary-foreground: 210 40% 98%;
-		--sidebar-accent: 217.2 32.6% 17.5%;
-		--sidebar-accent-foreground: 210 40% 98%;
-		--sidebar-border: 217.2 32.6% 17.5%;
-		--sidebar-ring: 224.3 76.3% 48%;
+		/* Sidebar */
+		--sidebar-background: 210 20% 98%;
+		--sidebar-foreground: 222 47% 20%;
+		--sidebar-primary: 221 83% 53%;
+		--sidebar-primary-foreground: 0 0% 100%;
+		--sidebar-accent: 210 20% 94%;
+		--sidebar-accent-foreground: 221 83% 35%;
+		--sidebar-border: 214 32% 91%;
+		--sidebar-ring: 221 83% 53%;
+
+		/* Accent palette */
+		--accent-gold: 45 93% 58%;
+		--accent-teal: 173 80% 40%;
+		--accent-cyan: 199 89% 62%;
+
+		/* Gradient backgrounds (light – clean white) */
+		--gradient-page: linear-gradient(135deg, #ffffff 0%, #f8fafc 50%, #ffffff 100%);
+		--gradient-hero-overlay: linear-gradient(to top, rgba(10,20,60,0.92) 0%, rgba(10,20,60,0.75) 35%, rgba(10,20,60,0) 100%);
+		--gradient-card-bg: #ffffff;
+		--gradient-section-alt: #f8fafc;
+		--gradient-dashboard: linear-gradient(to bottom, #f8fafc, #ffffff, #f1f5f9);
+		--gradient-login: linear-gradient(135deg, #eff6ff 0%, #eef2ff 40%, #f0fdf4 100%);
+		--gradient-loading: linear-gradient(135deg, #eff6ff 0%, #eef2ff 50%, #f0fdf4 100%);
+		--gradient-vision-section: linear-gradient(to bottom, #eff6ff, #eef2ff, #ede9fe);
+		--orb-color-1: rgba(99, 102, 241, 0.10);
+		--orb-color-2: rgba(56, 189, 248, 0.08);
+		/* Back fog — tipis, menyebar ke full height */
+		--gradient-hero-fog: linear-gradient(to top,
+			rgba(255,255,255,1)    0%,
+			rgba(255,255,255,0.82) 30%,
+			rgba(255,255,255,0.45) 60%,
+			rgba(255,255,255,0.12) 82%,
+			rgba(255,255,255,0)    100%);
+		/* Front fog — tebal, hanya setengah bawah */
+		--gradient-hero-fog-front: linear-gradient(to top,
+			rgba(255,255,255,1)    0%,
+			rgba(255,255,255,0.96) 15%,
+			rgba(255,255,255,0.85) 35%,
+			rgba(255,255,255,0.60) 58%,
+			rgba(255,255,255,0.25) 78%,
+			rgba(255,255,255,0)    100%);
+		/* Section tint untuk alternasi agar tidak flat putih */
+		--section-tint: rgba(239, 246, 255, 0.55);
 	}
 
+	/* ============================================================
+	   DARK MODE (Malam) — Navy-Indigo enriched, tidak flat
+	   ============================================================ */
 	.dark {
-		--background: 222.2 84% 4.9%;
-		--foreground: 210 40% 98%;
+		--background: 230 62% 7%;        /* #06091f navy-indigo base */
+		--foreground: 214 32% 95%;
 
-		--card: 222.2 84% 4.9%;
-		--card-foreground: 210 40% 98%;
+		--card: 232 52% 12%;             /* #0f1430 navy-indigo card */
+		--card-foreground: 214 32% 95%;
 
-		--popover: 222.2 84% 4.9%;
-		--popover-foreground: 210 40% 98%;
+		--popover: 232 52% 12%;
+		--popover-foreground: 214 32% 95%;
 
-		--primary: 217.2 91.2% 59.8%;
-		--primary-foreground: 222.2 47.4% 11.2%;
+		--primary: 199 89% 62%;          /* cyan #38bdf8 */
+		--primary-foreground: 230 62% 7%;
 
-		--secondary: 217.2 32.6% 17.5%;
-		--secondary-foreground: 210 40% 98%;
+		--primary-dark: 214 95% 50%;     /* blue accent */
 
-		--muted: 217.2 32.6% 17.5%;
-		--muted-foreground: 215 20.2% 65.1%;
+		--secondary: 234 40% 18%;        /* #1a1f45 indigo-navy surface */
+		--secondary-foreground: 214 32% 90%;
 
-		--accent: 217.2 32.6% 17.5%;
-		--accent-foreground: 210 40% 98%;
+		--muted: 234 38% 15%;            /* slightly lighter navy */
+		--muted-foreground: 220 20% 68%;
+
+		--accent: 245 58% 63%;           /* indigo-400 #818cf8 */
+		--accent-foreground: 230 62% 7%;
 
 		--destructive: 0 62.8% 30.6%;
 		--destructive-foreground: 210 40% 98%;
 
-		--border: 217.2 32.6% 17.5%;
-		--input: 217.2 32.6% 17.5%;
-		--ring: 224.3 76.3% 48%;
+		--border: 234 30% 22%;           /* indigo-navy border */
+		--input: 234 30% 22%;
+		--ring: 199 89% 62%;
+
+		/* Sidebar dark */
+		--sidebar-background: 232 60% 9%;
+		--sidebar-foreground: 214 32% 90%;
+		--sidebar-primary: 199 89% 62%;
+		--sidebar-primary-foreground: 230 62% 7%;
+		--sidebar-accent: 234 40% 16%;
+		--sidebar-accent-foreground: 214 32% 90%;
+		--sidebar-border: 234 30% 20%;
+		--sidebar-ring: 199 89% 62%;
+
+		/* Accent palette */
+		--accent-gold: 45 93% 58%;
+		--accent-teal: 173 80% 40%;
+		--accent-cyan: 199 89% 62%;
+
+		/* Gradient backgrounds (dark) */
+		--gradient-page: linear-gradient(135deg, #06091f 0%, #0c1535 50%, #081022 100%);
+		--gradient-hero-overlay: linear-gradient(to top, rgba(6,9,31,1) 0%, rgba(6,9,31,0.78) 38%, rgba(6,9,31,0) 100%);
+		--gradient-card-bg: #0f1430;
+		--gradient-section-alt: #0a1228;
+		--gradient-dashboard: linear-gradient(to bottom, #06091f, #0c1535, #091022);
+		--gradient-login: linear-gradient(135deg, #050d24 0%, #0b1d4a 50%, #07122d 100%);
+		--gradient-loading: linear-gradient(135deg, #050d24 0%, #0b1d4a 50%, #07122d 100%);
+		--gradient-vision-section: linear-gradient(to bottom, #091737, #0f2353, #0d1f4a);
+		--orb-color-1: rgba(99, 102, 241, 0.15);
+		--orb-color-2: rgba(56, 189, 248, 0.10);
+		/* Back fog — tipis, full height */
+		--gradient-hero-fog: linear-gradient(to top,
+			hsl(230 62% 7%)          0%,
+			hsla(230,62%,7%,0.78)    30%,
+			hsla(230,62%,7%,0.42)    60%,
+			hsla(230,62%,7%,0.12)    82%,
+			transparent              100%);
+		/* Front fog — tebal, setengah bawah */
+		--gradient-hero-fog-front: linear-gradient(to top,
+			hsl(230 62% 7%)          0%,
+			hsla(230,62%,7%,0.96)    15%,
+			hsla(230,62%,7%,0.84)    35%,
+			hsla(230,62%,7%,0.58)    58%,
+			hsla(230,62%,7%,0.22)    78%,
+			transparent              100%);
+		/* Section tint — navy-indigo subtle untuk variasi dark */
+		--section-tint: rgba(12, 21, 53, 0.65);
 	}
 
 	* {
 		@apply border-border;
 	}
 
+	*:focus-visible {
+		@apply outline-none ring-2 ring-primary/70 ring-offset-2 ring-offset-background;
+	}
+
 	body {
 		@apply font-sans antialiased bg-background text-foreground;
+		background-image: radial-gradient(
+			circle at top,
+			rgba(99, 102, 241, 0.08),
+			transparent 45%
+		);
 	}
+
+	/* Light mode body radial glow – subtle blue */
+	:root body {
+		background-image: radial-gradient(
+			circle at top,
+			rgba(37, 99, 235, 0.07),
+			transparent 45%
+		);
+	}
+}
+
+/* Section background tint — creates subtle alternation between sections */
+.section-tint-bg {
+	background-color: var(--section-tint) !important;
 }
 
 .ai-chat-btn {
@@ -439,7 +604,7 @@ body:has(.tox-dialog-wrap) .tox-dialog-wrap {
 }
 
 .section-title {
-	@apply text-3xl font-bold text-gray-900 font-serif;
+	@apply text-3xl font-bold text-foreground font-serif;
 }
 
 .section-divider {
@@ -447,15 +612,15 @@ body:has(.tox-dialog-wrap) .tox-dialog-wrap {
 }
 
 .btn-primary {
-	@apply px-6 py-3 bg-primary text-white font-medium rounded-md hover:bg-[#1E40AF] transition-colors;
+	@apply px-6 py-3 bg-primary text-primary-foreground font-medium rounded-md hover:bg-primary/90 transition-colors;
 }
 
 .btn-secondary {
-	@apply px-6 py-3 border border-primary text-primary font-medium rounded-md hover:bg-primary hover:text-white transition-colors;
+	@apply px-6 py-3 border border-primary/50 text-primary font-medium rounded-md hover:bg-primary/15 hover:text-primary transition-colors;
 }
 
 .search-input {
-	@apply w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary;
+	@apply w-full pl-10 pr-3 py-2 border border-border rounded-md leading-5 bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary;
 }
 
 .wysiwyg-editor {
@@ -463,7 +628,7 @@ body:has(.tox-dialog-wrap) .tox-dialog-wrap {
 }
 
 .card-hover {
-	@apply bg-white rounded-lg overflow-hidden shadow-md hover:shadow-lg transition-shadow;
+	@apply bg-card rounded-lg overflow-hidden shadow-md border border-border/70 hover:shadow-lg hover:border-primary/40 transition-all;
 }
 /* Line clamp utilities */
 .line-clamp-1 {

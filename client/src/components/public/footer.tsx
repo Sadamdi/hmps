@@ -48,7 +48,7 @@ export default function Footer() {
 	};
 
 	return (
-		<footer className="bg-gray-800 text-white py-12">
+		<footer className="bg-gradient-to-b from-[#07122d] to-[#050b1c] text-slate-100 py-12 border-t border-border/60">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div className="grid md:grid-cols-4 sm:grid-cols-2 gap-8">
 					<div
@@ -57,22 +57,22 @@ export default function Footer() {
 						<h3 className="text-lg font-semibold mb-4">
 							Tentang Himatif Encoder Teknik Informatika
 						</h3>
-						<p className="text-gray-400">
+						<p className="text-slate-300/80">
 							Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim
 							Malang
 						</p>
-						<p className="mt-4 text-gray-400">Salam Satu Saudara Informatika</p>
+						<p className="mt-4 text-slate-300/80">Salam Satu Saudara Informatika</p>
 					</div>
 
 					<div
 						data-aos="fade-up"
 						data-aos-delay="200">
 						<h3 className="text-lg font-semibold mb-4">Kontak</h3>
-						<ul className="space-y-2 text-gray-400">
+						<ul className="space-y-2 text-slate-300/80">
 							<li className="flex items-start">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5 mr-2 text-gray-300"
+									className="h-5 w-5 mr-2 text-slate-300"
 									fill="none"
 									viewBox="0 0 24 24"
 									stroke="currentColor">
@@ -88,7 +88,7 @@ export default function Footer() {
 							<li className="flex items-start">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5 mr-2 text-gray-300"
+									className="h-5 w-5 mr-2 text-slate-300"
 									fill="none"
 									viewBox="0 0 24 24"
 									stroke="currentColor">
@@ -114,13 +114,13 @@ export default function Footer() {
 						data-aos="fade-up"
 						data-aos-delay="300">
 						<h3 className="text-lg font-semibold mb-4">Tautan</h3>
-						<ul className="space-y-2 text-gray-400">
+						<ul className="space-y-2 text-slate-300/80">
 							<li>
 								<a
 									href={links.uinMalang}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="hover:text-white transition">
+									className="hover:text-primary transition-colors">
 									UIN Malang
 								</a>
 							</li>
@@ -129,7 +129,7 @@ export default function Footer() {
 									href={links.fakultasSainsTeknologi}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="hover:text-white transition">
+									className="hover:text-primary transition-colors">
 									Fakultas Sains dan Teknologi
 								</a>
 							</li>
@@ -138,7 +138,7 @@ export default function Footer() {
 									href={links.jurusanTeknikInformatika}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="hover:text-white transition">
+									className="hover:text-primary transition-colors">
 									Jurusan Teknik Informatika
 								</a>
 							</li>
@@ -147,7 +147,7 @@ export default function Footer() {
 									href={links.perpustakaan}
 									target="_blank"
 									rel="noopener noreferrer"
-									className="hover:text-white transition">
+									className="hover:text-primary transition-colors">
 									Perpustakaan
 								</a>
 							</li>
@@ -163,7 +163,7 @@ export default function Footer() {
 								href={socialLinks.instagram}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-gray-400 hover:text-white transition">
+								className="text-slate-300/80 hover:text-primary transition-colors">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-6 w-6"
@@ -176,7 +176,7 @@ export default function Footer() {
 								href={socialLinks.tiktok}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-gray-400 hover:text-white transition">
+								className="text-slate-300/80 hover:text-primary transition-colors">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-6 w-6"
@@ -189,7 +189,7 @@ export default function Footer() {
 								href={socialLinks.youtube}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-gray-400 hover:text-white transition">
+								className="text-slate-300/80 hover:text-primary transition-colors">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-6 w-6"
@@ -202,7 +202,7 @@ export default function Footer() {
 								href={socialLinks.facebook}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-gray-400 hover:text-white transition">
+								className="text-slate-300/80 hover:text-primary transition-colors">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-6 w-6"
@@ -216,7 +216,7 @@ export default function Footer() {
 				</div>
 
 				<div
-					className="mt-12 pt-8 border-t border-gray-700 text-center text-gray-400 text-sm"
+					className="mt-12 pt-8 border-t border-border text-center text-slate-300/70 text-sm"
 					data-aos="fade-up"
 					data-aos-delay="500">
 					<p>{footerText}</p>

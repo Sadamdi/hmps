@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import Navbar from '@/components/public/navbar';
 import { apiRequest } from '@/lib/queryClient';
 import {
 	formatContentDisplay as formatContentDisplayFn,
@@ -45,21 +46,19 @@ export default function ArticleDetail() {
 	const { id, slug } = useParams();
 	const [, setLocation] = useLocation();
 
-	// Debug logging
+	const scrollToSection = (sectionId: string) => {
+		window.location.href = `/#${sectionId}`;
+	};
 
-	// Determine route type and construct API endpoint
 	let apiEndpoint: string;
 	let isHybridRoute = false;
 
 	if (id && slug) {
-		// Hybrid route: /artikel/:id/:slug
 		apiEndpoint = `/api/articles/${id}/${slug}`;
 		isHybridRoute = true;
 	} else if (slug && !id) {
-		// Slug-only route: /artikel/slug/:slug
 		apiEndpoint = `/api/articles/slug/${slug}`;
 	} else {
-		// ID-only route: /artikel/:id (legacy)
 		apiEndpoint = `/api/articles/${id}`;
 	}
 
@@ -76,7 +75,6 @@ export default function ArticleDetail() {
 		enabled: !!apiEndpoint,
 	});
 
-	// Fetch related articles (2 items)
 	let relatedEndpoint: string | null = null;
 	if (id) {
 		relatedEndpoint = `/api/articles/${id}/related?limit=2`;
@@ -94,40 +92,27 @@ export default function ArticleDetail() {
 		placeholderData: [],
 	});
 
-	// SEO Meta Tags dan Structured Data
 	useEffect(() => {
 		if (article) {
-			// Update document title
 			document.title = `${article.title} | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang`;
 
-			// Update meta description
-			const metaDescription = document.querySelector(
-				'meta[name="description"]'
-			);
+			const metaDescription = document.querySelector('meta[name="description"]');
+			const descContent =
+				article.excerpt ||
+				`${article.title} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang.`;
 			if (metaDescription) {
-				metaDescription.setAttribute(
-					'content',
-					article.excerpt ||
-						`${
-							article.title
-						} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang. Baca artikel lengkap tentang ${article.title.toLowerCase()}.`
-				);
+				metaDescription.setAttribute('content', descContent);
 			} else {
 				const newMeta = document.createElement('meta');
 				newMeta.name = 'description';
-				newMeta.content =
-					article.excerpt ||
-					`${
-						article.title
-					} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang. Baca artikel lengkap tentang ${article.title.toLowerCase()}.`;
+				newMeta.content = descContent;
 				document.head.appendChild(newMeta);
 			}
 
-			// Add canonical URL
-			const canonical = document.querySelector('link[rel="canonical"]');
 			const canonicalUrl = `https://himatif-encoder.com/artikel/${
 				article._id || article.id
 			}/${article.slug || slug || ''}`;
+			const canonical = document.querySelector('link[rel="canonical"]');
 			if (canonical) {
 				canonical.setAttribute('href', canonicalUrl);
 			} else {
@@ -137,15 +122,9 @@ export default function ArticleDetail() {
 				document.head.appendChild(newCanonical);
 			}
 
-			// Add Open Graph tags
 			const ogTags = [
 				{ property: 'og:title', content: article.title },
-				{
-					property: 'og:description',
-					content:
-						article.excerpt ||
-						`${article.title} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang`,
-				},
+				{ property: 'og:description', content: article.excerpt || descContent },
 				{ property: 'og:type', content: 'article' },
 				{ property: 'og:url', content: canonicalUrl },
 				{ property: 'og:image', content: article.image },
@@ -153,7 +132,6 @@ export default function ArticleDetail() {
 				{ property: 'article:published_time', content: article.createdAt },
 				{ property: 'article:author', content: article.author },
 			];
-
 			ogTags.forEach(({ property, content }) => {
 				let meta = document.querySelector(`meta[property="${property}"]`);
 				if (meta) {
@@ -166,111 +144,30 @@ export default function ArticleDetail() {
 				}
 			});
 
-			// Add Twitter Card tags
-			const twitterTags = [
-				{ name: 'twitter:card', content: 'summary_large_image' },
-				{ name: 'twitter:title', content: article.title },
-				{
-					name: 'twitter:description',
-					content:
-						article.excerpt ||
-						`${article.title} - Artikel dari Himatif Encoder`,
-				},
-				{ name: 'twitter:image', content: article.image },
-			];
+			const existingScript = document.querySelector('script[type="application/ld+json"]');
+			if (existingScript) existingScript.remove();
 
-			twitterTags.forEach(({ name, content }) => {
-				let meta = document.querySelector(`meta[name="${name}"]`);
-				if (meta) {
-					meta.setAttribute('content', content);
-				} else {
-					meta = document.createElement('meta');
-					meta.setAttribute('name', name);
-					meta.setAttribute('content', content);
-					document.head.appendChild(meta);
-				}
-			});
-
-			// Add structured data (JSON-LD)
-			const structuredData = {
+			const script = document.createElement('script');
+			script.type = 'application/ld+json';
+			script.textContent = JSON.stringify({
 				'@context': 'https://schema.org',
 				'@type': 'Article',
 				headline: article.title,
-				description:
-					article.excerpt ||
-					`${article.title} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang`,
+				description: article.excerpt || descContent,
 				image: article.image,
-				author: {
-					'@type': 'Person',
-					name: article.author,
-				},
+				author: { '@type': 'Person', name: article.author },
 				publisher: {
 					'@type': 'Organization',
 					name: 'Himatif Encoder',
-					alternateName: 'Himpunan Mahasiswa Teknik Informatika UIN Malang',
 					url: 'https://himatif-encoder.com',
-					logo: {
-						'@type': 'ImageObject',
-						url: 'https://himatif-encoder.com/attached_assets/general/logo.png',
-					},
 				},
 				datePublished: article.createdAt,
 				dateModified: article.updatedAt || article.createdAt,
-				mainEntityOfPage: {
-					'@type': 'WebPage',
-					'@id': canonicalUrl,
-				},
-				keywords: article.tags
-					? article.tags.join(', ')
-					: 'himatif encoder, himpunan mahasiswa teknik informatika, uin malang, artikel teknologi, fakultas sains dan teknologi',
-				articleSection: 'Artikel',
+				mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
+				keywords: article.tags?.join(', ') || '',
 				inLanguage: 'id-ID',
-			};
-
-			// Remove existing structured data
-			const existingScript = document.querySelector(
-				'script[type="application/ld+json"]'
-			);
-			if (existingScript) {
-				existingScript.remove();
-			}
-
-			// Add new structured data
-			const script = document.createElement('script');
-			script.type = 'application/ld+json';
-			script.textContent = JSON.stringify(structuredData);
+			});
 			document.head.appendChild(script);
-
-			// Add breadcrumb structured data
-			const breadcrumbData = {
-				'@context': 'https://schema.org',
-				'@type': 'BreadcrumbList',
-				itemListElement: [
-					{
-						'@type': 'ListItem',
-						position: 1,
-						name: 'Beranda',
-						item: 'https://himatif-encoder.com',
-					},
-					{
-						'@type': 'ListItem',
-						position: 2,
-						name: 'Artikel',
-						item: 'https://himatif-encoder.com/artikel',
-					},
-					{
-						'@type': 'ListItem',
-						position: 3,
-						name: article.title,
-						item: canonicalUrl,
-					},
-				],
-			};
-
-			const breadcrumbScript = document.createElement('script');
-			breadcrumbScript.type = 'application/ld+json';
-			breadcrumbScript.textContent = JSON.stringify(breadcrumbData);
-			document.head.appendChild(breadcrumbScript);
 		}
 	}, [article, id, slug]);
 
@@ -284,11 +181,9 @@ export default function ArticleDetail() {
 	};
 
 	const estimateReadingTime = (content: string) => {
-		const wordsPerMinute = 200;
 		const textContent = content.replace(/<[^>]*>/g, '');
 		const wordCount = textContent.split(/\s+/).length;
-		const readingTime = Math.ceil(wordCount / wordsPerMinute);
-		return readingTime;
+		return Math.ceil(wordCount / 200);
 	};
 
 	const shareArticle = () => {
@@ -300,7 +195,6 @@ export default function ArticleDetail() {
 			});
 		} else {
 			navigator.clipboard.writeText(window.location.href);
-			// You could add a toast notification here
 		}
 	};
 
@@ -308,15 +202,10 @@ export default function ArticleDetail() {
 		setLocation(`/artikel?tag=${encodeURIComponent(tag)}`);
 	};
 
-	// Wrapper aman untuk kompatibilitas bundel lama/baru
 	const formatForDisplay = (html: string) => {
 		try {
-			if (typeof formatContentForDisplayFn === 'function') {
-				return formatContentForDisplayFn(html);
-			}
-			if (typeof formatContentDisplayFn === 'function') {
-				return formatContentDisplayFn(html as any);
-			}
+			if (typeof formatContentForDisplayFn === 'function') return formatContentForDisplayFn(html);
+			if (typeof formatContentDisplayFn === 'function') return formatContentDisplayFn(html as any);
 			return html || '';
 		} catch (_e) {
 			return html || '';
@@ -325,36 +214,28 @@ export default function ArticleDetail() {
 
 	if (isLoading) {
 		return (
-			<div className="min-h-screen bg-gray-50">
-				<div className="bg-white border-b border-gray-200">
-					<div className="max-w-7xl mx-auto px-4 py-4">
-						<div className="h-8 bg-gray-200 rounded w-32 animate-pulse"></div>
-					</div>
-				</div>
+			<div className="min-h-screen bg-background">
+				<Navbar activeSection="articles" scrollToSection={scrollToSection} />
 				<div className="max-w-7xl mx-auto px-4 py-8">
 					<div className="flex gap-8">
 						<div className="hidden lg:block w-80 flex-shrink-0">
-							<div className="bg-white rounded-lg border border-gray-200 p-6 animate-pulse">
-								<div className="h-6 bg-gray-200 rounded w-3/4 mb-6"></div>
+							<div className="bg-card border border-border rounded-xl p-6 animate-pulse">
+								<div className="h-5 bg-muted rounded w-3/4 mb-6" />
 								<div className="space-y-3">
 									{[...Array(5)].map((_, i) => (
-										<div
-											key={i}
-											className="h-4 bg-gray-200 rounded w-full"></div>
+										<div key={i} className="h-4 bg-muted rounded w-full" />
 									))}
 								</div>
 							</div>
 						</div>
 						<div className="flex-1 max-w-4xl animate-pulse">
-							<div className="h-12 bg-gray-200 rounded w-3/4 mb-4"></div>
-							<div className="h-4 bg-gray-200 rounded w-1/2 mb-8"></div>
-							<div className="h-6 bg-gray-200 rounded w-full mb-2"></div>
-							<div className="h-6 bg-gray-200 rounded w-5/6 mb-8"></div>
-							<div className="h-96 bg-gray-200 rounded mb-8"></div>
-							<div className="space-y-4">
-								<div className="h-4 bg-gray-200 rounded"></div>
-								<div className="h-4 bg-gray-200 rounded"></div>
-								<div className="h-4 bg-gray-200 rounded w-5/6"></div>
+							<div className="h-10 bg-muted rounded w-3/4 mb-4" />
+							<div className="h-4 bg-muted rounded w-1/2 mb-8" />
+							<div className="h-96 bg-muted rounded mb-8" />
+							<div className="space-y-3">
+								<div className="h-4 bg-muted rounded" />
+								<div className="h-4 bg-muted rounded" />
+								<div className="h-4 bg-muted rounded w-5/6" />
 							</div>
 						</div>
 					</div>
@@ -365,54 +246,58 @@ export default function ArticleDetail() {
 
 	if (error || !article) {
 		return (
-			<div className="min-h-screen bg-gray-50 flex items-center justify-center">
-				<div className="text-center">
-					<h1 className="text-2xl font-bold text-gray-900 mb-4">
-						Artikel tidak ditemukan
-					</h1>
-					<Button
-						onClick={() => setLocation('/')}
-						variant="outline">
-						<ArrowLeft className="w-4 h-4 mr-2" />
-						Kembali ke Beranda
-					</Button>
+			<div className="min-h-screen bg-background flex flex-col">
+				<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+				<div className="flex-1 flex items-center justify-center">
+					<div className="text-center">
+						<h1 className="text-2xl font-bold text-foreground mb-4">
+							Artikel tidak ditemukan
+						</h1>
+						<Button onClick={() => setLocation('/')} variant="outline">
+							<ArrowLeft className="w-4 h-4 mr-2" />
+							Kembali ke Beranda
+						</Button>
+					</div>
 				</div>
 			</div>
 		);
 	}
 
 	return (
-		<div className="min-h-screen bg-gray-50">
-			{/* Navigation Bar with Breadcrumbs */}
-			<div className="bg-white border-b border-gray-200">
-				<div className="max-w-7xl mx-auto px-4 py-4">
-					<div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+		<div className="min-h-screen bg-background">
+			<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+
+			{/* Breadcrumb bar */}
+			<div className="bg-card border-b border-border">
+				<div className="max-w-7xl mx-auto px-4 py-3">
+					<div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
 						<Button
 							onClick={() => setLocation('/')}
 							variant="ghost"
 							size="sm"
-							className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors p-1 h-auto">
+							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
 							Beranda
 						</Button>
-						<span>/</span>
+						<span className="text-border">/</span>
 						<Button
 							onClick={() => setLocation('/artikel')}
 							variant="ghost"
 							size="sm"
-							className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors p-1 h-auto">
+							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
 							Artikel
 						</Button>
-						<span>/</span>
-						<span className="text-gray-900 font-medium truncate max-w-xs">
+						<span className="text-border">/</span>
+						<span className="text-foreground font-medium truncate max-w-xs">
 							{article.title}
 						</span>
 					</div>
 					<Button
-						onClick={() => setLocation('/')}
+						onClick={() => setLocation('/artikel')}
 						variant="ghost"
-						className="text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+						size="sm"
+						className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
 						<ArrowLeft className="w-4 h-4 mr-2" />
-						Kembali ke Beranda
+						Kembali ke Artikel
 					</Button>
 				</div>
 			</div>
@@ -421,12 +306,10 @@ export default function ArticleDetail() {
 			<div className="max-w-7xl mx-auto px-4 py-8">
 				<div className="flex gap-8">
 					{/* Table of Contents - Desktop Sidebar */}
-					<div
-						className="hidden lg:block w-80 flex-shrink-0"
-						data-aos="fade-right">
+					<div className="hidden lg:block w-80 flex-shrink-0" data-aos="fade-right">
 						<Suspense
 							fallback={
-								<div className="bg-white rounded-lg border border-gray-200 p-6">
+								<div className="bg-card border border-border rounded-xl p-6 text-muted-foreground text-sm">
 									Memuat daftar isi...
 								</div>
 							}>
@@ -437,46 +320,39 @@ export default function ArticleDetail() {
 					{/* Main Content */}
 					<div className="flex-1 max-w-4xl">
 						{/* Article Header */}
-						<div
-							className="mb-8"
-							data-aos="fade-up">
-							<h1 className="text-4xl md:text-5xl font-bold text-gray-900 leading-tight mb-6">
+						<div className="mb-8" data-aos="fade-up">
+							<h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight mb-5">
 								{article.title}
 							</h1>
 
 							<div
-								className="flex flex-wrap items-center gap-4 text-sm text-gray-600 mb-6"
+								className="flex flex-wrap items-center gap-3 text-sm mb-6"
 								data-aos="fade-up"
 								data-aos-delay="100">
-								<div className="flex items-center bg-gray-100 px-3 py-2 rounded-full">
-									<User className="w-4 h-4 mr-2 text-primary" />
-									<span className="font-medium">{article.author}</span>
+								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
+									<User className="w-3.5 h-3.5 text-primary" />
+									<span className="font-medium text-foreground">{article.author}</span>
 								</div>
-								<div className="flex items-center bg-gray-100 px-3 py-2 rounded-full">
-									<Calendar className="w-4 h-4 mr-2 text-primary" />
-									<span>{formatDate(article.createdAt)}</span>
+								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
+									<Calendar className="w-3.5 h-3.5 text-primary" />
+									<span className="text-foreground">{formatDate(article.createdAt)}</span>
 								</div>
-								<div className="flex items-center bg-gray-100 px-3 py-2 rounded-full">
-									<BookOpen className="w-4 h-4 mr-2 text-primary" />
-									<span>{estimateReadingTime(article.content)} menit baca</span>
+								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
+									<BookOpen className="w-3.5 h-3.5 text-primary" />
+									<span className="text-foreground">
+										{estimateReadingTime(article.content)} menit baca
+									</span>
 								</div>
 							</div>
-
-							{/* <p className="text-lg text-gray-600 leading-relaxed mb-8">
-                {article.excerpt}
-              </p> */}
 						</div>
 
 						{/* Featured Image */}
-						<div
-							className="mb-12"
-							data-aos="zoom-in"
-							data-aos-delay="200">
+						<div className="mb-10" data-aos="zoom-in" data-aos-delay="150">
 							<div className="relative overflow-hidden rounded-xl shadow-lg">
 								<img
 									src={article.image}
 									alt={article.title}
-									className="w-full h-96 md:h-[400px] object-cover"
+									className="w-full h-80 md:h-[400px] object-cover"
 									onError={(e) => {
 										const target = e.target as HTMLImageElement;
 										target.src = '/placeholder-article.jpg';
@@ -485,15 +361,15 @@ export default function ArticleDetail() {
 							</div>
 						</div>
 
-						{/* Article Content - with proper formatting */}
+						{/* Article Content */}
 						<div
-							className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden"
+							className="bg-card rounded-xl shadow-sm border border-border overflow-hidden"
 							data-aos="fade-up"
-							data-aos-delay="300">
-							<div className="p-8 md:p-12">
-								<div className="prose prose-lg prose-gray max-w-none article-content">
+							data-aos-delay="200">
+							<div className="p-6 md:p-10">
+								<div className="prose prose-lg max-w-none article-content">
 									<div
-										className="text-gray-800 leading-relaxed"
+										className="text-foreground leading-relaxed"
 										dangerouslySetInnerHTML={{
 											__html: formatForDisplay(article.content),
 										}}
@@ -502,22 +378,22 @@ export default function ArticleDetail() {
 							</div>
 						</div>
 
-						{/* Tags Section */}
+						{/* Tags */}
 						{article.tags && article.tags.length > 0 && (
 							<div
-								className="mt-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6"
+								className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
 								data-aos="fade-up"
-								data-aos-delay="350">
-								<div className="flex items-center gap-2 mb-4">
-									<Tag className="w-5 h-5 text-primary" />
-									<h3 className="text-lg font-semibold text-gray-900">Tags:</h3>
+								data-aos-delay="250">
+								<div className="flex items-center gap-2 mb-3">
+									<Tag className="w-4 h-4 text-primary" />
+									<h3 className="text-base font-semibold text-foreground">Tags:</h3>
 								</div>
 								<div className="flex flex-wrap gap-2">
 									{article.tags.map((tag, index) => (
 										<Badge
 											key={index}
 											variant="secondary"
-											className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+											className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
 											onClick={() => navigateToTaggedArticles(tag)}>
 											{tag}
 										</Badge>
@@ -526,44 +402,37 @@ export default function ArticleDetail() {
 							</div>
 						)}
 
-						{/* Article Footer */}
+						{/* Footer */}
 						<div
-							className="mt-16 pt-8 border-t border-gray-200"
+							className="mt-12 pt-6 border-t border-border"
 							data-aos="fade-up"
-							data-aos-delay="400">
+							data-aos-delay="300">
 							<div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-								<div className="text-sm text-gray-500">
-									Artikel ini dipublikasikan pada{' '}
-									{formatDate(article.createdAt)}
-									{article.updatedAt &&
-										article.updatedAt !== article.createdAt && (
-											<span>
-												{' '}
-												• Diperbarui pada {formatDate(article.updatedAt)}
-											</span>
-										)}
+								<div className="text-sm text-muted-foreground">
+									Dipublikasikan pada {formatDate(article.createdAt)}
+									{article.updatedAt && article.updatedAt !== article.createdAt && (
+										<span> • Diperbarui pada {formatDate(article.updatedAt)}</span>
+									)}
 								</div>
 								<Button
 									onClick={shareArticle}
 									variant="outline"
 									size="sm"
-									className="text-gray-600 hover:text-gray-900">
+									className="text-muted-foreground hover:text-foreground border-border">
 									<Share2 className="w-4 h-4 mr-2" />
 									Bagikan Artikel
 								</Button>
 							</div>
 						</div>
 
-						{/* Related Articles Section */}
+						{/* Related Articles */}
 						<div
-							className="mt-12 bg-white rounded-xl shadow-sm border border-gray-100 p-8"
+							className="mt-10 bg-card rounded-xl shadow-sm border border-border p-6"
 							data-aos="fade-up"
-							data-aos-delay="500">
-							<h3 className="text-2xl font-bold text-gray-900 mb-6">
-								Artikel Terkait
-							</h3>
+							data-aos-delay="350">
+							<h3 className="text-xl font-bold text-foreground mb-5">Artikel Terkait</h3>
 							{related && related.length > 0 ? (
-								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 									{related.slice(0, 2).map((r, idx) => {
 										const rid = (r._id || r.id) as string | number;
 										const href =
@@ -573,13 +442,13 @@ export default function ArticleDetail() {
 										return (
 											<div
 												key={String(rid) + '-' + idx}
-												className="group cursor-pointer bg-gray-50 rounded-lg overflow-hidden border border-gray-100 hover:shadow-md transition"
+												className="group cursor-pointer bg-muted/40 rounded-lg overflow-hidden border border-border hover:shadow-md hover:border-primary/30 transition-all duration-200"
 												onClick={() => setLocation(href)}>
 												<div className="aspect-video overflow-hidden">
 													<img
 														src={r.image}
 														alt={r.title}
-														className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
+														className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
 														onError={(e) => {
 															(e.target as HTMLImageElement).src =
 																'/placeholder-article.jpg';
@@ -587,19 +456,16 @@ export default function ArticleDetail() {
 													/>
 												</div>
 												<div className="p-4">
-													<h4 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
+													<h4 className="text-base font-semibold text-foreground mb-2 line-clamp-2 group-hover:text-primary transition-colors">
 														{r.title}
 													</h4>
-													<p className="text-sm text-gray-600 line-clamp-3 mb-3">
+													<p className="text-sm text-muted-foreground line-clamp-2 mb-2">
 														{r.excerpt}
 													</p>
 													{r.tags && r.tags.length > 0 && (
 														<div className="flex flex-wrap gap-1">
 															{r.tags.slice(0, 3).map((t, i) => (
-																<Badge
-																	key={i}
-																	variant="secondary"
-																	className="text-xs">
+																<Badge key={i} variant="secondary" className="text-xs">
 																	{t}
 																</Badge>
 															))}
@@ -611,19 +477,16 @@ export default function ArticleDetail() {
 									})}
 								</div>
 							) : (
-								<div className="text-gray-500">Belum ada artikel terkait.</div>
+								<div className="text-muted-foreground text-sm">Belum ada artikel terkait.</div>
 							)}
 						</div>
 
-						{/* Back to Articles */}
-						<div
-							className="mt-8 text-center"
-							data-aos="fade-up"
-							data-aos-delay="600">
+						{/* Back button */}
+						<div className="mt-8 text-center" data-aos="fade-up" data-aos-delay="400">
 							<Button
 								onClick={() => setLocation('/')}
 								variant="outline"
-								className="px-8 py-3 bg-white hover:bg-gray-50 border-2 border-primary text-primary hover:text-primary font-semibold">
+								className="px-8 py-2.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold transition-colors">
 								<ArrowLeft className="w-4 h-4 mr-2" />
 								Kembali ke Beranda
 							</Button>
@@ -631,12 +494,12 @@ export default function ArticleDetail() {
 					</div>
 				</div>
 
-				{/* Table of Contents - Mobile */}
+				{/* Table of Contents — Mobile */}
 				<div className="lg:hidden">
 					<Suspense
 						fallback={
 							<div className="fixed bottom-4 right-4 z-50">
-								<button className="bg-primary text-white p-3 rounded-full shadow-lg">
+								<button className="bg-primary text-primary-foreground p-3 rounded-full shadow-lg">
 									TOC
 								</button>
 							</div>

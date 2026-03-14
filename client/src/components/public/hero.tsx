@@ -48,14 +48,12 @@ export default function Hero({
 	const [showPerson, setShowPerson] = useState(false);
 	const [currentMobileBanner, setCurrentMobileBanner] = useState(0);
 	const [isHeroVisible, setIsHeroVisible] = useState(true);
-	const [isScrolling, setIsScrolling] = useState(false);
 
 	// Refs untuk direct DOM manipulation
 	const heroRef = useRef<HTMLDivElement>(null);
 	const bannerRef = useRef<HTMLDivElement>(null);
 	const textRef = useRef<HTMLDivElement>(null);
 	const personRef = useRef<HTMLDivElement>(null);
-	const scrollTimeoutRef = useRef<number | null>(null);
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
 		staleTime: 5 * 60 * 1000,
@@ -76,7 +74,7 @@ export default function Hero({
 			}>;
 		},
 		// Refresh every 30 seconds for public stats
-		refetchInterval: 30000,
+		refetchInterval: 60000,
 		refetchOnWindowFocus: false,
 		staleTime: 60 * 1000,
 		// Default fallback data
@@ -114,20 +112,13 @@ export default function Hero({
 		return () => observer.disconnect();
 	}, []);
 
-	// Optimized parallax dengan special handling untuk gambar
+	// Optimized parallax — semua DOM manipulation langsung via refs, tanpa React state
 	useEffect(() => {
 		let ticking = false;
 
 		const handleScroll = () => {
 			if (!isHeroVisible) return;
 			if (!ticking) {
-				setIsScrolling(true);
-				if (scrollTimeoutRef.current !== null) {
-					window.clearTimeout(scrollTimeoutRef.current);
-				}
-				scrollTimeoutRef.current = window.setTimeout(() => {
-					setIsScrolling(false);
-				}, 120);
 				requestAnimationFrame(() => {
 					const scrollY = window.scrollY;
 
@@ -137,10 +128,9 @@ export default function Hero({
 							0,
 							1 - scrollY / 1000
 						).toString();
-						bannerRef.current.style.willChange = 'opacity';
 					}
 
-					// Text - smooth parallax (ini yang smooth)
+					// Text - smooth parallax
 					if (textRef.current && showText) {
 						textRef.current.style.transform = `translate3d(-50%, ${
 							-50 + scrollY * -0.3
@@ -149,17 +139,14 @@ export default function Hero({
 							0,
 							1 - scrollY / 1200
 						).toString();
-						textRef.current.style.willChange = 'opacity, transform';
 					}
 
-					// Person - DISABLE parallax movement, cuma fade out aja
+					// Person - fade out only, no parallax movement
 					if (personRef.current && showPerson) {
-						// Cuma fade out tanpa movement untuk avoid choppy
-						const o = Math.max(0, 1 - scrollY / 1000);
-						personRef.current.style.opacity = o.toString();
-						// Keep static position
-						personRef.current.style.transform = `translate3d(0, 0, 0)`;
-						personRef.current.style.willChange = 'transform';
+						personRef.current.style.opacity = Math.max(
+							0,
+							1 - scrollY / 1000
+						).toString();
 					}
 
 					ticking = false;
@@ -173,15 +160,13 @@ export default function Hero({
 		}
 		return () => {
 			window.removeEventListener('scroll', handleScroll);
-			if (scrollTimeoutRef.current !== null) {
-				window.clearTimeout(scrollTimeoutRef.current);
-			}
 		};
 	}, [showBanner, showText, showPerson, isHeroVisible]);
 
 	// Mobile banner rotation
 	useEffect(() => {
 		const interval = setInterval(() => {
+			if (typeof document !== 'undefined' && document.hidden) return;
 			setCurrentMobileBanner((prev) => (prev + 1) % mobileBanners.length);
 		}, 3000); // Change every 3 seconds
 
@@ -212,38 +197,76 @@ export default function Hero({
 					style={{
 						opacity: showBanner ? 1 : 0,
 						transform: 'translate3d(0, 0, 0)',
-						willChange: isScrolling ? 'opacity' : 'auto',
+						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
 					}}>
 					<LocalBannerFull
 						alt="Banner"
 						className="w-full h-full object-cover"
 					/>
-					<div className="absolute bottom-0 w-full h-full bg-gradient-to-t from-white via-white/70 to-transparent" />
+					{/* Fog belakang — full height, tipis */}
+					<div
+						className="absolute bottom-0 w-full h-full pointer-events-none"
+						style={{ background: 'var(--gradient-hero-fog)' }}
+					/>
 				</div>
 
-				{/* Teks tengah */}
-				<div
-					ref={textRef}
-					className={`absolute z-[5] text-center bg-white/80 ${
-						isScrolling ? '' : 'backdrop-blur-sm'
-					} px-6 py-8 rounded-lg shadow-lg`}
-					style={{
-						left: '50%',
-						top: textMoveUp ? '35%' : '50%',
-						transform: 'translate3d(-50%, -50%, 0)',
-						opacity: showText ? 1 : 0,
-						willChange: isScrolling ? 'opacity, transform' : 'auto',
-						backfaceVisibility: 'hidden',
-					}}>
-					<h1 className="text-5xl font-bold mb-3 text-gray-800">
-						{settings?.siteName}
-					</h1>
-					<h2 className="text-3xl mb-2 text-gray-700">
-						{settings?.siteTagline}
-					</h2>
-					<p className="text-lg text-gray-600">{settings?.siteDescription}</p>
+			{/* Teks tengah */}
+		<div
+			ref={textRef}
+			className="absolute z-[5] text-center bg-white/90 dark:bg-card/80 border border-slate-200/80 dark:border-border/70 backdrop-blur-sm px-8 py-8 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)]"
+				style={{
+					left: '50%',
+					top: textMoveUp ? '35%' : '50%',
+					transform: 'translate3d(-50%, -50%, 0)',
+					opacity: showText ? 1 : 0,
+					willChange: 'opacity, transform',
+					backfaceVisibility: 'hidden',
+					minWidth: '340px',
+				}}>
+			{/* Accent top bar */}
+			<div className="mx-auto mb-5 h-px w-20 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+
+			<h1 className="text-5xl font-bold mb-3 text-foreground drop-shadow-lg">
+				{settings?.siteName}
+			</h1>
+			<h2 className="text-2xl mb-2 text-foreground/80 font-medium drop-shadow-md">
+				{settings?.siteTagline}
+			</h2>
+				<p className="text-base text-muted-foreground max-w-xs mx-auto leading-relaxed">
+					{settings?.siteDescription}
+				</p>
+
+				{/* Desktop CTA Buttons */}
+				<div className="flex items-center justify-center gap-3 mt-6">
+					<button
+						onClick={() => scrollToSection('about')}
+						className="relative overflow-hidden px-5 py-2 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 rounded-full font-semibold text-sm shadow-[0_4px_16px_rgba(245,158,11,0.35)] hover:shadow-[0_4px_22px_rgba(245,158,11,0.55)] hover:scale-105 transition-all duration-250">
+						<span className="relative z-10">Tentang Kami</span>
+					</button>
+				<button
+					onClick={() => scrollToSection('articles')}
+					className="px-5 py-2 border border-blue-400/60 dark:border-cyan-300/50 text-blue-600 dark:text-cyan-200 rounded-full font-medium text-sm hover:bg-blue-50 dark:hover:bg-cyan-400/10 hover:border-blue-500 dark:hover:border-cyan-300/80 hover:scale-105 transition-all duration-250">
+					Lihat Artikel
+				</button>
 				</div>
+
+			{/* Accent bottom bar */}
+			<div className="mx-auto mt-5 h-px w-20 bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
+			</div>
+
+			{/* Desktop scroll indicator */}
+			<div
+				className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[5] flex flex-col items-center gap-1.5 pointer-events-auto"
+				style={{ opacity: showText ? 1 : 0 }}>
+			<span className="text-xs text-muted-foreground tracking-widest uppercase">Scroll</span>
+			<div className="w-px h-10 bg-gradient-to-b from-primary/60 to-transparent relative overflow-hidden">
+				<div
+					className="absolute top-0 w-full h-4 bg-primary rounded-full"
+					style={{ animation: 'slideDownIndicator 1.8s ease-in-out infinite' }}
+				/>
+				</div>
+			</div>
 
 				{/* Gambar orang - Optimized untuk smooth rendering */}
 				<div
@@ -252,33 +275,22 @@ export default function Hero({
 					style={{
 						transform: 'translate3d(0, 0, 0)',
 						opacity: showPerson ? 1 : 0,
-						willChange: isScrolling ? 'transform' : 'auto', // Dinamis
+						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
-						imageRendering: 'pixelated' as any, // Force type untuk optimization
-						contain: 'layout style paint' as any, // CSS containment untuk performa
 					}}>
-					<div
-						style={{
-							imageRendering: 'pixelated' as any, // Force type untuk speed
-							transform: 'translateZ(0)', // Force hardware acceleration
-							width: '100%',
-							height: '100%',
-						}}>
-						{/* Direct img tag untuk maximum performance */}
+					<div style={{ transform: 'translateZ(0)', width: '100%', height: '100%' }}>
 						<img
 							src="/attached_assets/general/orang.webp"
 							alt="Orang"
 							className="w-full h-full object-contain"
-							loading="eager" // Preload untuk parallax
-							decoding="async" // Async decoding untuk menghindari block rendering
-							style={{
-								imageRendering: 'pixelated' as any,
-								transform: 'translateZ(0)',
-								willChange: isScrolling ? 'transform' : 'auto', // Dinamis
-							}}
+							loading="eager"
+							decoding="async"
+							style={{ transform: 'translateZ(0)' }}
 						/>
 					</div>
-					<div className="absolute bottom-0 left-0 w-full h-1/2 bg-[linear-gradient(to_top,_rgba(255,255,255,1)_0%,_rgba(255,255,255,1)_30%,_rgba(255,255,255,0)_100%)]" />
+					{/* Fog depan — setengah, tebal */}
+				<div className="absolute bottom-0 left-0 w-full h-1/2 pointer-events-none"
+						style={{ background: 'var(--gradient-hero-fog-front)' }} />
 				</div>
 			</div>
 
@@ -303,8 +315,10 @@ export default function Hero({
 								src={banner}
 								alt={`Banner ${index + 1}`}
 								className="w-full h-full object-cover"
+								loading={index === 0 ? 'eager' : 'lazy'}
+								decoding="async"
 							/>
-							<div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20" />
+							<div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-800/55 to-slate-700/10" />
 						</div>
 					))}
 
@@ -317,6 +331,8 @@ export default function Hero({
 									src={settings.logoUrl}
 									alt="Logo"
 									className="h-16 w-auto drop-shadow-2xl"
+									loading="lazy"
+									decoding="async"
 								/>
 							</div>
 						)}
@@ -324,7 +340,7 @@ export default function Hero({
 						{/* Main Content */}
 						<div className="text-center max-w-lg mx-auto">
 							<h1 className="text-2xl sm:text-3xl font-bold mb-3 leading-tight">
-								<span className="bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent drop-shadow-lg">
+								<span className="bg-gradient-to-r from-blue-300 via-cyan-200 to-blue-100 bg-clip-text text-transparent drop-shadow-lg">
 									{settings?.siteName || 'HIMATIF ENCODER'}
 								</span>
 							</h1>
@@ -343,36 +359,32 @@ export default function Hero({
 							<div className="flex flex-col gap-3 mb-8">
 								<button
 									onClick={() => scrollToSection('about')}
-									className={`bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ${
-										isScrolling ? '' : 'backdrop-blur-sm'
-									}`}>
+									className="bg-gradient-to-r from-blue-500 to-blue-600 text-slate-950 px-6 py-3 rounded-full font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300">
 									Tentang Kami
 								</button>
 								<button
 									onClick={() => scrollToSection('articles')}
-									className={`border-2 border-white/80 text-white hover:bg-white hover:text-gray-800 px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 ${
-										isScrolling ? '' : 'backdrop-blur-sm'
-									}`}>
+									className="border-2 border-blue-200/70 text-blue-100 hover:bg-blue-100 hover:text-slate-900 px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300">
 									Artikel Terbaru
 								</button>
 							</div>
 
 							{/* Mobile Stats - Real-time data */}
 							<div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
-								<div className="text-center p-3 bg-white/20 backdrop-blur-sm rounded-lg shadow-lg border border-white/30">
-									<div className="text-xl font-bold text-blue-300 mb-1">
+								<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
+									<div className="text-xl font-bold text-blue-200 mb-1">
 										{stats?.organizationMembers || 500}+
 									</div>
 									<div className="text-xs text-white/80">Anggota</div>
 								</div>
-								<div className="text-center p-3 bg-white/20 backdrop-blur-sm rounded-lg shadow-lg border border-white/30">
-									<div className="text-xl font-bold text-purple-300 mb-1">
+								<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
+									<div className="text-xl font-bold text-cyan-200 mb-1">
 										{stats?.articles || 50}+
 									</div>
 									<div className="text-xs text-white/80">Artikel</div>
 								</div>
-								<div className="text-center p-3 bg-white/20 backdrop-blur-sm rounded-lg shadow-lg border border-white/30">
-									<div className="text-xl font-bold text-green-300 mb-1">
+								<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
+									<div className="text-xl font-bold text-indigo-200 mb-1">
 										{stats?.libraryItems || 100}+
 									</div>
 									<div className="text-xs text-white/80">Media</div>

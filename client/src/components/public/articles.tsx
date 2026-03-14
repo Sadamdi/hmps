@@ -7,6 +7,8 @@ import {
 	CardHeader,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import OptimizedImage from '@/components/ui/optimized-image';
+import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, User } from 'lucide-react';
@@ -27,17 +29,30 @@ interface Article {
 	tags?: string[];
 }
 
+interface PaginatedResponse<T> {
+	data: T[];
+	meta?: {
+		page: number;
+		limit: number;
+		total: number;
+		totalPages: number;
+	};
+}
+
 export default function Articles() {
 	const [showAll, setShowAll] = useState(false);
 	const [isMobile, setIsMobile] = useState(false);
+	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
 
 	const { data: articles = [], isLoading } = useQuery<Article[]>({
 		queryKey: ['/api/articles'],
 		queryFn: async () => {
-			const response = await apiRequest('GET', '/api/articles');
-			return response.json();
+			const response = await apiRequest('GET', '/api/articles?page=1&limit=12');
+			const payload = (await response.json()) as Article[] | PaginatedResponse<Article>;
+			return Array.isArray(payload) ? payload : payload.data;
 		},
 		placeholderData: [],
+		staleTime: 60 * 1000,
 	});
 
 	// Check if screen is mobile
@@ -90,7 +105,7 @@ export default function Articles() {
 		return (
 			<section
 				id="articles"
-				className="py-16 bg-white">
+				className="py-16 bg-background">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="text-center mb-12">
 						<Skeleton className="h-8 w-48 mx-auto mb-4" />
@@ -125,22 +140,22 @@ export default function Articles() {
 	return (
 		<section
 			id="articles"
-			className="py-16 bg-white">
+			className="py-16 bg-background">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div className="text-center mb-12">
-					<h2 className="text-3xl font-bold text-gray-900 mb-4">
+				<div ref={headingRef} className="text-center mb-12">
+					<h2 className={`text-3xl font-bold text-foreground mb-4 ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
 						Artikel Terbaru
 					</h2>
-					<div className="w-20 h-1 bg-primary mx-auto mb-4"></div>
-					<p className="text-gray-600 max-w-2xl mx-auto">
+					<div className={`w-20 h-1 bg-primary mx-auto mb-4 ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`} />
+					<p className={`text-muted-foreground max-w-2xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
 						Temukan artikel dan informasi terkini dari HIMATIF ENCODER
 					</p>
 				</div>
 
 				{/* Articles Grid */}
 				{articles.length === 0 ? (
-					<div className="text-center py-12">
-						<div className="text-gray-500 text-lg">
+						<div className="text-center py-12">
+							<div className="text-muted-foreground text-lg">
 							Belum ada artikel yang dipublikasikan
 						</div>
 					</div>
@@ -150,16 +165,18 @@ export default function Articles() {
 							{displayedArticles.map((article, index) => (
 								<Card
 									key={article.id || article._id}
-									className="overflow-hidden hover:shadow-lg transition-shadow duration-300 group"
+									className="overflow-hidden border border-border/70 bg-card hover:shadow-lg hover:border-primary/40 transition-all duration-300 group"
 									data-aos="fade-up"
 									data-aos-delay={index * 100}>
 									{/* Article Image */}
 									<Link href={getArticleUrl(article)}>
 										<div className="relative h-48 overflow-hidden cursor-pointer">
-											<img
+											<OptimizedImage
 												src={article.image}
 												alt={article.title}
 												className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+												loading="lazy"
+												sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
 												onError={(e) => {
 													const target = e.target as HTMLImageElement;
 													target.src = '/placeholder-article.jpg';
@@ -175,7 +192,7 @@ export default function Articles() {
 												{article.title}
 											</h3>
 										</Link>
-										<div className="flex items-center gap-4 text-sm text-gray-500 mt-2">
+										<div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
 											<div className="flex items-center gap-1">
 												<User className="h-4 w-4" />
 												<span>{article.author}</span>
@@ -188,7 +205,7 @@ export default function Articles() {
 									</CardHeader>
 
 									<CardContent className="pt-0">
-										<p className="text-gray-600 leading-relaxed mb-3">
+										<p className="text-muted-foreground leading-relaxed mb-3">
 											{truncateText(article.excerpt)}
 										</p>
 

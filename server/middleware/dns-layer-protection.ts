@@ -1,6 +1,21 @@
 import { NextFunction, Request, Response } from 'express';
 import { getMiddlewareSettings } from '../models/middleware-settings';
 
+function normalizeHostHeader(hostHeader: string): string {
+	const v = (hostHeader || '').trim().toLowerCase();
+	if (!v) return '';
+
+	// IPv6 host header bisa berbentuk: [::1]:5000
+	if (v.startsWith('[')) {
+		const end = v.indexOf(']');
+		if (end > 0) return v.slice(1, end);
+		return v;
+	}
+
+	// Default: hostname:port
+	return v.split(':')[0] ?? v;
+}
+
 // Import function untuk cek bot legitimate dari anti-spoofing
 // Function to check if bot is legitimate
 function isLegitimateBot(userAgent: string): boolean {
@@ -431,30 +446,38 @@ const DNS_REBINDING_PATTERNS = [
 function isDnsRebindingAttempt(hostname: string): boolean {
 	if (!hostname) return false;
 
+	// Jangan anggap domain whitelist sebagai rebinding (mis. localhost untuk dev/local testing)
+	const normalized = normalizeHostHeader(hostname);
+	for (const domain of WHITELISTED_DOMAINS) {
+		if (normalized === domain || normalized.endsWith(`.${domain}`)) {
+			return false;
+		}
+	}
+
 	// Check for obvious DNS rebinding patterns
 	for (const pattern of DNS_REBINDING_PATTERNS) {
-		if (pattern.test(hostname)) {
+		if (pattern.test(normalized)) {
 			return true;
 		}
 	}
 
 	// Check for suspicious domain patterns
 	if (
-		hostname.includes('..') ||
-		hostname.startsWith('.') ||
-		hostname.endsWith('.')
+		normalized.includes('..') ||
+		normalized.startsWith('.') ||
+		normalized.endsWith('.')
 	) {
 		return true;
 	}
 
 	// Check for extremely long hostnames (potential DNS rebinding)
-	if (hostname.length > 253) {
+	if (normalized.length > 253) {
 		// RFC 1035 limit
 		return true;
 	}
 
 	// Check for suspicious characters
-	if (/[<>"'`\x00-\x1f\x7f-\x9f]/.test(hostname)) {
+	if (/[<>"'`\x00-\x1f\x7f-\x9f]/.test(normalized)) {
 		return true;
 	}
 
@@ -465,7 +488,7 @@ function isDnsRebindingAttempt(hostname: string): boolean {
 function isValidHostHeader(
 	host: string,
 	referer: string,
-	origin: string
+	origin: string,
 ): boolean {
 	if (!host) return false;
 
@@ -559,7 +582,7 @@ function sendBeautifulDnsLayerError(
 	statusCode: number,
 	title: string,
 	message: string,
-	details?: any
+	details?: any,
 ) {
 	const errorResponse = {
 		error: {
@@ -595,7 +618,7 @@ function sendBeautifulDnsLayerError(
 export const dnsLayerProtectionMiddleware = async (
 	req: Request,
 	res: Response,
-	next: NextFunction
+	next: NextFunction,
 ) => {
 	try {
 		const settings = await getCachedDnsLayerMiddlewareSettings();
@@ -635,7 +658,8 @@ export const dnsLayerProtectionMiddleware = async (
 			return next();
 		}
 
-		const host = req.get('Host') || '';
+		const rawHostHeader = req.get('Host') || '';
+		const host = normalizeHostHeader(rawHostHeader);
 		const referer = req.get('Referer') || '';
 		const origin = req.get('Origin') || '';
 		const clientIP = req.ip || req.connection?.remoteAddress || 'unknown';
@@ -656,7 +680,7 @@ export const dnsLayerProtectionMiddleware = async (
 		// Allow legitimate bots untuk mengakses konten public
 		if (isLegitimateBot(userAgent)) {
 			console.log(
-				`🤖 DNS Layer: Legitimate Bot Access Allowed: ${userAgent} to ${req.path}`
+				`🤖 DNS Layer: Legitimate Bot Access Allowed: ${userAgent} to ${req.path}`,
 			);
 			return next();
 		}
@@ -667,7 +691,7 @@ export const dnsLayerProtectionMiddleware = async (
 			// Log aktivitas mencurigakan tapi tetap izinkan akses
 			if (isDnsRebindingAttempt(host) || isSuspiciousDomain(host)) {
 				console.log(
-					`⚠️ DNS Layer: Suspicious Activity on Public Content (ALLOWED): ${host} from IP ${clientIP} to ${req.path}`
+					`⚠️ DNS Layer: Suspicious Activity on Public Content (ALLOWED): ${host} from IP ${clientIP} to ${req.path}`,
 				);
 				console.log(`   Host: ${host}`);
 				console.log(`   Referer: ${referer}`);
@@ -721,12 +745,12 @@ export const dnsLayerProtectionMiddleware = async (
 			// ==================== BLOCK SUSPICIOUS ACCESS TO PRIVATE CONTENT ====================
 			if (dnsAttackDetected) {
 				console.log(
-					`🚨 DNS Layer Protection: Suspicious access to PRIVATE content from IP ${clientIP}`
+					`🚨 DNS Layer Protection: Suspicious access to PRIVATE content from IP ${clientIP}`,
 				);
 				console.log(`   Reason: ${attackReason}`);
 				console.log(`   Path: ${req.path}`);
 				console.log(`   Method: ${req.method}`);
-				console.log(`   Host: ${host}`);
+				console.log(`   Host: ${rawHostHeader}`);
 				console.log(`   Referer: ${referer}`);
 				console.log(`   Origin: ${origin}`);
 
@@ -738,18 +762,18 @@ export const dnsLayerProtectionMiddleware = async (
 					{
 						type: 'dns_attack',
 						reason: attackReason,
-						host: host,
+						host: rawHostHeader,
 						referer: referer,
 						origin: origin,
 						ip: clientIP,
-					}
+					},
 				);
 			}
 		}
 
 		// Log legitimate requests for monitoring
-		if (host) {
-			console.log(`✅ DNS Layer: Valid request to ${host}${req.path}`);
+		if (rawHostHeader) {
+			console.log(`✅ DNS Layer: Valid request to ${rawHostHeader}${req.path}`);
 		}
 
 		next();
@@ -821,7 +845,7 @@ function isDnsCachePoisoningAttempt(clientIP: string, host: string): boolean {
 export const dnsCachePoisoningProtectionMiddleware = async (
 	req: Request,
 	res: Response,
-	next: NextFunction
+	next: NextFunction,
 ) => {
 	try {
 		const settings = await getCachedDnsLayerMiddlewareSettings();
@@ -831,12 +855,13 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 			return next();
 		}
 
-		const host = req.get('Host') || '';
+		const rawHostHeader = req.get('Host') || '';
+		const host = normalizeHostHeader(rawHostHeader);
 		const clientIP = req.ip || req.connection?.remoteAddress || 'unknown';
 
 		// Skip for legitimate whitelisted domains
 		const isWhitelisted = WHITELISTED_DOMAINS.some(
-			(domain) => host === domain || host.endsWith(`.${domain}`)
+			(domain) => host === domain || host.endsWith(`.${domain}`),
 		);
 
 		if (isWhitelisted) {
@@ -851,7 +876,7 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 		// Detect DNS cache poisoning attempts
 		if (isDnsCachePoisoningAttempt(clientIP, host)) {
 			console.log(
-				`🚨 DNS Cache Poisoning Protection: Suspicious activity from IP ${clientIP}`
+				`🚨 DNS Cache Poisoning Protection: Suspicious activity from IP ${clientIP}`,
 			);
 
 			// Cek apakah sudah di error page untuk mencegah redirect loop
@@ -866,7 +891,7 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 						details: {
 							type: 'dns_cache_poisoning',
 							ip: clientIP,
-							host: host,
+						host: rawHostHeader,
 							requestCount: suspiciousSourceTracker.get(clientIP)?.count || 0,
 						},
 						help: 'This request appears to be from a suspicious domain or may be a DNS-related attack. Please contact the administrator if you believe this is an error.',
@@ -882,9 +907,9 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 				{
 					type: 'dns_cache_poisoning',
 					ip: clientIP,
-					host: host,
+					host: rawHostHeader,
 					requestCount: suspiciousSourceTracker.get(clientIP)?.count || 0,
-				}
+				},
 			);
 		}
 

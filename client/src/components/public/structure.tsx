@@ -41,7 +41,7 @@ const MemberNode = ({ data }: { data: { member: OrgMember } }) => {
 	const { member } = data;
 
 	return (
-		<div className="px-4 py-2 shadow-md rounded-lg bg-white border-2 border-gray-200 flex flex-col items-center w-60">
+		<div className="px-4 py-2 shadow-md rounded-lg bg-card border-2 border-border/80 flex flex-col items-center w-60">
 			<div className="w-20 h-20 overflow-hidden rounded-full mb-2">
 				{member.imageUrl ? (
 					<MediaDisplay
@@ -51,8 +51,8 @@ const MemberNode = ({ data }: { data: { member: OrgMember } }) => {
 						type="image"
 					/>
 				) : (
-					<div className="w-full h-full bg-gray-200 rounded-full flex items-center justify-center">
-						<span className="text-gray-500 text-xs">No Image</span>
+					<div className="w-full h-full bg-secondary rounded-full flex items-center justify-center">
+						<span className="text-muted-foreground text-xs">No Image</span>
 					</div>
 				)}
 			</div>
@@ -181,7 +181,7 @@ const getAvailableDivisions = (members: OrgMember[]): string[] => {
 // Helper function to sort members by position order
 const sortMembersByPosition = (
 	members: OrgMember[],
-	positions: Position[]
+	positions: Position[],
 ): OrgMember[] => {
 	if (!Array.isArray(positions) || positions.length === 0) {
 		return members;
@@ -219,7 +219,7 @@ export default function Structure() {
 			const period = currentPeriod || '2025-2026'; // Use currentPeriod or fallback
 			try {
 				const response = await fetch(
-					`/api/organization/members?period=${period}`
+					`/api/organization/members?period=${period}`,
 				);
 
 				if (!response.ok) {
@@ -256,7 +256,7 @@ export default function Structure() {
 		queryFn: async () => {
 			if (!currentPeriod) return [];
 			const response = await fetch(
-				`/api/organization/positions/${currentPeriod}`
+				`/api/organization/positions/${currentPeriod}`,
 			);
 			const data = await response.json();
 			return data;
@@ -290,13 +290,13 @@ export default function Structure() {
 			? members
 			: members.filter(
 					(member) =>
-						getDivisionFromPosition(member.position) === selectedDivision
-			  );
+						getDivisionFromPosition(member.position) === selectedDivision,
+				);
 
 	// Sort filtered members by position order
 	const sortedFilteredMembers = sortMembersByPosition(
 		filteredMembers,
-		positions
+		positions,
 	);
 
 	// Pagination for grid view
@@ -560,7 +560,7 @@ export default function Structure() {
 			setNodes(nodes);
 			setEdges(edges);
 		},
-		[setNodes, setEdges]
+		[setNodes, setEdges],
 	);
 
 	// Update chart when members, positions, or period changes
@@ -576,16 +576,16 @@ export default function Structure() {
 	return (
 		<section
 			id="structure"
-			className="py-16 bg-gray-50">
+			className="py-16 bg-secondary/30">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div
 					className="text-center mb-8"
 					data-aos="fade-up">
-					<h2 className="text-3xl font-bold text-gray-900 font-serif">
+					<h2 className="text-3xl font-bold text-foreground font-serif">
 						Struktur Organisasi
 					</h2>
 					<div className="mt-2 h-1 w-20 bg-primary mx-auto"></div>
-					<p className="mt-4 text-lg text-gray-600">
+					<p className="mt-4 text-lg text-muted-foreground">
 						Kepengurusan Himpunan Mahasiswa Teknik Informatika
 					</p>
 				</div>
@@ -679,7 +679,7 @@ export default function Structure() {
 							className="mt-0">
 							{sortedFilteredMembers.length > 0 ? (
 								<div
-									className="w-full h-[700px] border rounded-lg bg-white shadow-sm"
+									className="w-full h-[700px] border border-border rounded-xl bg-card shadow-sm"
 									data-aos="zoom-in"
 									data-aos-delay="300">
 									<ReactFlowProvider>
@@ -693,7 +693,7 @@ export default function Structure() {
 									</ReactFlowProvider>
 								</div>
 							) : (
-								<div className="w-full py-20 text-center text-gray-500">
+								<div className="w-full py-20 text-center text-muted-foreground">
 									{selectedDivision === 'all'
 										? `Tidak ada data pengurus untuk periode ${currentPeriod}`
 										: `Tidak ada data pengurus untuk divisi ${selectedDivision} pada periode ${currentPeriod}`}
@@ -714,7 +714,7 @@ export default function Structure() {
 										paginatedMembers.map((member: OrgMember, index: number) => (
 											<div
 												key={member.id}
-												className="bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 hover:scale-105 animate-fade-in-up"
+												className="bg-card border border-border/70 p-5 rounded-lg shadow-md hover:shadow-lg hover:border-primary/40 transition-all duration-300 hover:scale-105 animate-fade-in-up"
 												data-aos="fade-up"
 												data-aos-delay={300 + index * 50}
 												style={{
@@ -729,8 +729,8 @@ export default function Structure() {
 															type="image"
 														/>
 													) : (
-														<div className="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center">
-															<span className="text-gray-500 text-sm">
+														<div className="w-full h-full bg-secondary rounded-lg flex items-center justify-center">
+															<span className="text-muted-foreground text-sm">
 																No Image
 															</span>
 														</div>
@@ -742,16 +742,16 @@ export default function Structure() {
 												<p className="text-primary font-medium">
 													{member.position}
 												</p>
-												<p className="text-gray-500 text-sm mt-1">
+												<p className="text-muted-foreground text-sm mt-1">
 													{member.period}
 												</p>
-												<p className="text-gray-400 text-xs mt-1">
+												<p className="text-muted-foreground/80 text-xs mt-1">
 													{getDivisionFromPosition(member.position)}
 												</p>
 											</div>
 										))
 									) : (
-										<div className="col-span-4 py-20 text-center text-gray-500 animate-in fade-in-0 duration-500">
+										<div className="col-span-4 py-20 text-center text-muted-foreground animate-in fade-in-0 duration-500">
 											{selectedDivision === 'all'
 												? `Tidak ada data pengurus untuk periode ${currentPeriod}`
 												: `Tidak ada data pengurus untuk divisi ${selectedDivision} pada periode ${currentPeriod}`}

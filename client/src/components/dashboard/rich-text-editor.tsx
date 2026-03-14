@@ -16,6 +16,9 @@ export default function RichTextEditor({
 	articleId,
 }: RichTextEditorProps) {
 	const editorRef = useRef<HTMLDivElement>(null);
+	const editorIdRef = useRef(
+		`tinymce-editor-${Math.random().toString(36).slice(2, 11)}`
+	);
 
 	useEffect(() => {
 		const loadTinyMCE = async () => {
@@ -466,8 +469,11 @@ export default function RichTextEditor({
 								subtree: true,
 							});
 
-							// Also fix dialogs periodically for extra safety
-							const dialogFixInterval = setInterval(forceFixDialogs, 500);
+							// Also fix dialogs periodically for extra safety, but keep interval light.
+							const dialogFixInterval = setInterval(() => {
+								if (typeof document !== 'undefined' && document.hidden) return;
+								forceFixDialogs();
+							}, 2000);
 
 							// Clean up on editor destruction
 							editor.on('remove', () => {
@@ -580,7 +586,7 @@ export default function RichTextEditor({
 				}}>
 				<div
 					ref={editorRef}
-					id={`tinymce-editor-${Math.random().toString(36).substr(2, 9)}`}
+					id={editorIdRef.current}
 					style={{
 						minHeight: `${height}px`,
 						position: 'relative',

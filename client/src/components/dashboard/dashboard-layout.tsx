@@ -15,7 +15,7 @@ export default function DashboardLayout({
 	const [sidebarExpanded, setSidebarExpanded] = useState(true);
 
 	return (
-		<div className="min-h-screen bg-gray-50">
+		<div className="min-h-screen text-foreground" style={{ background: 'var(--gradient-dashboard)' }}>
 			<Sidebar
 				mobileOpen={mobileMenuOpen}
 				onMobileToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -23,14 +23,16 @@ export default function DashboardLayout({
 				onExpandedChange={setSidebarExpanded}
 			/>
 			<div
-				className={`flex flex-col ml-0 transition-all duration-300 ${
+				className={`flex flex-col ml-0 transition-all duration-300 ease-out ${
 					sidebarExpanded ? 'lg:ml-64' : 'lg:ml-20'
 				}`}>
 				<Header
 					title={title}
 					onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
 				/>
-				<main className="flex-1 p-4 lg:p-6">{children}</main>
+				<main className="flex-1 p-3 sm:p-4 lg:p-6">
+					<div className="max-w-7xl mx-auto">{children}</div>
+				</main>
 			</div>
 		</div>
 	);

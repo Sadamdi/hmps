@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import { usePagination } from '@/hooks/use-pagination';
+import Navbar from '@/components/public/navbar';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { ArrowLeft, Calendar, Search, Tag, User } from 'lucide-react';
@@ -31,7 +32,10 @@ export default function AllArticles() {
 	const [allTags, setAllTags] = useState<string[]>([]);
 	const articlesContainerRef = useRef<HTMLDivElement>(null);
 
-	// Pagination for articles
+	const scrollToSection = (id: string) => {
+		window.location.href = `/#${id}`;
+	};
+
 	const {
 		currentPage,
 		totalPages,
@@ -42,19 +46,16 @@ export default function AllArticles() {
 		itemsPerPageDesktop: 9,
 		itemsPerPageMobile: 6,
 	});
-	// Removed useLocation since we're using window.location.search directly
 
 	useEffect(() => {
-		// Initialize AOS
 		AOS.init({
-			duration: 800,
-			easing: 'ease-in-out',
+			duration: 500,
+			easing: 'ease-out',
 			once: true,
 		});
 		fetchArticles();
 	}, []);
 
-	// Handle URL query parameters for tags
 	useEffect(() => {
 		const urlParams = new URLSearchParams(window.location.search);
 		const tagParam = urlParams.get('tag');
@@ -71,22 +72,13 @@ export default function AllArticles() {
 		try {
 			setLoading(true);
 			setError(null);
-
 			const response = await fetch('/api/articles');
-
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-
+			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 			const data = await response.json();
 			setArticles(data);
-
-			// Extract all unique tags
 			const tags = new Set<string>();
 			data.forEach((article: Article) => {
-				if (article.tags) {
-					article.tags.forEach((tag) => tags.add(tag));
-				}
+				if (article.tags) article.tags.forEach((tag) => tags.add(tag));
 			});
 			setAllTags(Array.from(tags).sort());
 		} catch (error) {
@@ -99,8 +91,6 @@ export default function AllArticles() {
 
 	const filterArticles = () => {
 		let filtered = articles;
-
-		// Filter by search term
 		if (searchTerm) {
 			filtered = filtered.filter(
 				(article) =>
@@ -108,17 +98,14 @@ export default function AllArticles() {
 					article.excerpt.toLowerCase().includes(searchTerm.toLowerCase())
 			);
 		}
-
-		// Filter by selected tags
 		if (selectedTags.length > 0) {
 			filtered = filtered.filter(
 				(article) =>
 					article.tags && selectedTags.some((tag) => article.tags.includes(tag))
 			);
 		}
-
 		setFilteredArticles(filtered);
-		setCurrentPage(1); // Reset to first page when filtering
+		setCurrentPage(1);
 	};
 
 	const toggleTag = (tag: string) => {
@@ -132,9 +119,6 @@ export default function AllArticles() {
 		setSelectedTags([]);
 	};
 
-	// Pagination is now handled by usePagination hook
-
-	// Auto-scroll to articles container when page changes
 	useEffect(() => {
 		if (articlesContainerRef.current) {
 			articlesContainerRef.current.scrollIntoView({
@@ -155,11 +139,12 @@ export default function AllArticles() {
 
 	if (loading) {
 		return (
-			<div className="min-h-screen bg-gray-50">
+			<div className="min-h-screen bg-background">
+				<Navbar activeSection="articles" scrollToSection={scrollToSection} />
 				<div className="container mx-auto px-4 py-8">
-					<div className="text-center">
-						<div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-						<p className="mt-4 text-gray-600">Memuat artikel...</p>
+					<div className="text-center py-24">
+						<div className="animate-spin rounded-full h-14 w-14 border-b-2 border-primary mx-auto" />
+						<p className="mt-4 text-muted-foreground">Memuat artikel...</p>
 					</div>
 				</div>
 			</div>
@@ -168,13 +153,12 @@ export default function AllArticles() {
 
 	if (error) {
 		return (
-			<div className="min-h-screen bg-gray-50">
+			<div className="min-h-screen bg-background">
+				<Navbar activeSection="articles" scrollToSection={scrollToSection} />
 				<div className="container mx-auto px-4 py-8">
-					<div className="text-center">
-						<p className="text-red-600 mb-4">{error}</p>
-						<Button
-							onClick={fetchArticles}
-							variant="outline">
+					<div className="text-center py-24">
+						<p className="text-destructive mb-4">{error}</p>
+						<Button onClick={fetchArticles} variant="outline">
 							Coba Lagi
 						</Button>
 					</div>
@@ -184,39 +168,34 @@ export default function AllArticles() {
 	}
 
 	return (
-		<div className="min-h-screen bg-gray-50">
+		<div className="min-h-screen bg-background">
+			<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+
 			<div className="container mx-auto px-4 py-8">
 				{/* Header */}
-				<div
-					className="mb-8"
-					data-aos="fade-down">
+				<div className="mb-8" data-aos="fade-down">
 					<div className="flex items-center gap-4 mb-4">
 						<Link href="/">
-							<Button
-								variant="ghost"
-								size="sm">
+							<Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
 								<ArrowLeft className="h-4 w-4 mr-2" />
 								Kembali ke Beranda
 							</Button>
 						</Link>
 					</div>
-					<h1 className="text-3xl font-bold text-gray-900 mb-2">
-						All Articles
-					</h1>
-					<p className="text-gray-600">
-						Discover articles and latest information from HIMATIF ENCODER
+					<h1 className="text-3xl font-bold text-foreground mb-2">Semua Artikel</h1>
+					<p className="text-muted-foreground">
+						Temukan artikel dan informasi terkini dari Himatif Encoder
 					</p>
 				</div>
 
-				{/* Search and Filter Section */}
+				{/* Search and Filter */}
 				<div
-					className="bg-white rounded-lg shadow-sm p-6 mb-8"
+					className="bg-card border border-border rounded-xl shadow-sm p-6 mb-8"
 					data-aos="fade-up"
 					data-aos-delay="100">
 					<div className="space-y-4">
-						{/* Search Bar */}
 						<div className="relative">
-							<Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+							<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
 							<Input
 								placeholder="Cari artikel berdasarkan judul atau deskripsi..."
 								value={searchTerm}
@@ -225,12 +204,11 @@ export default function AllArticles() {
 							/>
 						</div>
 
-						{/* Tags Filter */}
 						{allTags.length > 0 && (
 							<div className="space-y-2">
 								<div className="flex items-center gap-2">
-									<Tag className="h-4 w-4 text-gray-600" />
-									<span className="text-sm font-medium text-gray-700">
+									<Tag className="h-4 w-4 text-muted-foreground" />
+									<span className="text-sm font-medium text-foreground/80">
 										Filter berdasarkan tags:
 									</span>
 								</div>
@@ -238,10 +216,8 @@ export default function AllArticles() {
 									{allTags.map((tag) => (
 										<Badge
 											key={tag}
-											variant={
-												selectedTags.includes(tag) ? 'default' : 'outline'
-											}
-											className="cursor-pointer hover:bg-gray-100"
+											variant={selectedTags.includes(tag) ? 'default' : 'outline'}
+											className="cursor-pointer"
 											onClick={() => toggleTag(tag)}>
 											{tag}
 										</Badge>
@@ -250,12 +226,8 @@ export default function AllArticles() {
 							</div>
 						)}
 
-						{/* Clear Filters */}
 						{(searchTerm || selectedTags.length > 0) && (
-							<Button
-								variant="outline"
-								size="sm"
-								onClick={clearFilters}>
+							<Button variant="outline" size="sm" onClick={clearFilters}>
 								Hapus Filter
 							</Button>
 						)}
@@ -264,22 +236,18 @@ export default function AllArticles() {
 
 				{/* Results Count */}
 				<div className="mb-6">
-					<p className="text-gray-600">
-						Menampilkan {paginatedArticles.length} dari{' '}
-						{filteredArticles.length} artikel
+					<p className="text-muted-foreground text-sm">
+						Menampilkan {paginatedArticles.length} dari {filteredArticles.length} artikel
 						{searchTerm && ` untuk "${searchTerm}"`}
-						{selectedTags.length > 0 &&
-							` dengan tags: ${selectedTags.join(', ')}`}
+						{selectedTags.length > 0 && ` dengan tags: ${selectedTags.join(', ')}`}
 					</p>
 				</div>
 
 				{/* Articles Grid */}
 				{paginatedArticles.length === 0 ? (
-					<div className="text-center py-12 bg-white rounded-lg shadow-sm">
-						<p className="text-gray-500 text-lg mb-2">
-							Tidak ada artikel ditemukan
-						</p>
-						<p className="text-gray-400">
+					<div className="text-center py-12 bg-card border border-border rounded-xl">
+						<p className="text-muted-foreground text-lg mb-2">Tidak ada artikel ditemukan</p>
+						<p className="text-muted-foreground/70 text-sm">
 							Coba sesuaikan pencarian atau filter Anda
 						</p>
 					</div>
@@ -287,12 +255,13 @@ export default function AllArticles() {
 					<div
 						ref={articlesContainerRef}
 						key={`page-${currentPage}`}
-						className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8 animate-page-transition">
+						className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
 						{paginatedArticles.map((article, index) => (
 							<Card
 								key={article._id}
-								className="overflow-hidden hover:shadow-lg transition-all duration-300 group hover:scale-105 animate-fade-in-up"
-								style={{ animationDelay: `${index * 50}ms` }}>
+								className="overflow-hidden hover:shadow-lg transition-all duration-300 group hover:scale-[1.02] bg-card border-border"
+								data-aos="fade-up"
+								data-aos-delay={`${index * 40}`}>
 								<CardHeader className="p-0">
 									<Link
 										href={
@@ -321,37 +290,30 @@ export default function AllArticles() {
 												? `/artikel/${article._id}/${article.slug}`
 												: `/artikel/${article._id}`
 										}>
-										<CardTitle className="text-lg mb-2 hover:text-blue-600 transition-colors line-clamp-2">
+										<CardTitle className="text-base mb-2 hover:text-primary transition-colors line-clamp-2 text-foreground">
 											{article.title}
 										</CardTitle>
 									</Link>
-									<p className="text-gray-600 text-sm mb-3 line-clamp-3">
+									<p className="text-muted-foreground text-sm mb-3 line-clamp-3">
 										{article.excerpt}
 									</p>
 
-									{/* Tags */}
 									{article.tags && article.tags.length > 0 && (
 										<div className="flex flex-wrap gap-1 mb-3">
 											{article.tags.slice(0, 3).map((tag: string) => (
-												<Badge
-													key={tag}
-													variant="secondary"
-													className="text-xs">
+												<Badge key={tag} variant="secondary" className="text-xs">
 													{tag}
 												</Badge>
 											))}
 											{article.tags.length > 3 && (
-												<Badge
-													variant="outline"
-													className="text-xs">
+												<Badge variant="outline" className="text-xs">
 													+{article.tags.length - 3} lagi
 												</Badge>
 											)}
 										</div>
 									)}
 
-									{/* Meta */}
-									<div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+									<div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
 										<div className="flex items-center gap-1">
 											<User className="h-3 w-3" />
 											<span>{article.author}</span>
@@ -362,7 +324,6 @@ export default function AllArticles() {
 										</div>
 									</div>
 
-									{/* Read More Button */}
 									<Link
 										href={
 											article.slug
@@ -381,7 +342,6 @@ export default function AllArticles() {
 					</div>
 				)}
 
-				{/* Pagination */}
 				<Pagination
 					currentPage={currentPage}
 					totalPages={totalPages}
