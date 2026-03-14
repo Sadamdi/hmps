@@ -11,7 +11,7 @@ import VisionMission from '@/components/public/vision-mission';
 import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 
 interface Settings {
@@ -79,6 +79,17 @@ export default function Home() {
 	});
 
 	const [activeSection, setActiveSection] = useState('home');
+
+	// Saat masuk beranda dengan hash (e.g. /#articles), scroll ke section dulu agar hero tidak ter-animate
+	useLayoutEffect(() => {
+		const hash = window.location.hash.slice(1);
+		if (!hash) return;
+		const el = document.getElementById(hash);
+		if (el) {
+			el.scrollIntoView({ behavior: 'auto', block: 'start' });
+		}
+	}, []);
+
 	const scrollToSection = (id: string) => {
 		setActiveSection(id);
 		const element = document.getElementById(id);

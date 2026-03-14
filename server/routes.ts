@@ -1107,6 +1107,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: 'Article not found' });
 			}
 
+			// Increment view count for analytics
+			try {
+				const currentViews = typeof (article as any).viewCount === 'number'
+					? (article as any).viewCount
+					: 0;
+				const nextViews = currentViews + 1;
+				await mongoStorage.updateArticle(String(article._id || articleId), {
+					viewCount: nextViews,
+				});
+				(article as any).viewCount = nextViews;
+			} catch (incError) {
+				console.warn('Failed to increment viewCount (id+slug):', incError);
+			}
+
 			// Verify slug matches (optional validation)
 			if (article.slug && article.slug !== slug) {
 				// Redirect to correct slug if different
@@ -1135,6 +1149,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: 'Article not found' });
 			}
 
+			// Increment view count for analytics
+			try {
+				const currentViews = typeof (article as any).viewCount === 'number'
+					? (article as any).viewCount
+					: 0;
+				const nextViews = currentViews + 1;
+				await mongoStorage.updateArticle(String(article._id), {
+					viewCount: nextViews,
+				});
+				(article as any).viewCount = nextViews;
+			} catch (incError) {
+				console.warn('Failed to increment viewCount (slug):', incError);
+			}
+
 			res.json(article);
 		} catch (error) {
 			console.error('Get article by slug error:', error);
@@ -1154,6 +1182,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// If article is not published, only authenticated users can view it
 			if (!article.published && !req.user) {
 				return res.status(404).json({ message: 'Article not found' });
+			}
+
+			// Increment view count for analytics
+			try {
+				const currentViews = typeof (article as any).viewCount === 'number'
+					? (article as any).viewCount
+					: 0;
+				const nextViews = currentViews + 1;
+				await mongoStorage.updateArticle(String(article._id || articleId), {
+					viewCount: nextViews,
+				});
+				(article as any).viewCount = nextViews;
+			} catch (incError) {
+				console.warn('Failed to increment viewCount (id):', incError);
 			}
 
 			res.json(article);
@@ -1473,6 +1515,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const { title, excerpt, content, published } = req.body;
 
+				// Parse tags (optional) from JSON string, similar to create handler
+				let tags: string[] | undefined = undefined;
+				if (req.body.tags) {
+					try {
+						const parsed = JSON.parse(req.body.tags);
+						if (Array.isArray(parsed)) {
+							tags = parsed;
+						}
+					} catch (error) {
+						console.error('Error parsing tags on update:', error);
+					}
+				}
+
 				// Get existing article
 				const existingArticle = await mongoStorage.getArticleById(articleId);
 				if (!existingArticle) {
@@ -1515,6 +1570,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					published: published === 'true',
 					updatedAt: new Date(),
 				};
+
+				if (Array.isArray(tags)) {
+					updates.tags = tags;
+				}
 
 				// Process image if uploaded (store inside uploads/articles/{articleId})
 				if (req.file) {

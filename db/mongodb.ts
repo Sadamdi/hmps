@@ -117,6 +117,7 @@ const articleSchema = new mongoose.Schema({
 	gdriveFileId: { type: String, default: '' },
 	tags: [{ type: String }], // Array of tags
 	published: { type: Boolean, default: false },
+	viewCount: { type: Number, default: 0 },
 	authorId: {
 		type: mongoose.Schema.Types.ObjectId,
 		ref: 'User',

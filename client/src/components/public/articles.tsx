@@ -27,6 +27,7 @@ interface Article {
 	createdAt: string;
 	published: boolean;
 	tags?: string[];
+	viewCount?: number;
 }
 
 interface PaginatedResponse<T> {
@@ -200,6 +201,9 @@ export default function Articles() {
 											<div className="flex items-center gap-1">
 												<Calendar className="h-4 w-4" />
 												<span>{formatDate(article.createdAt)}</span>
+											</div>
+											<div className="flex items-center gap-1">
+												<span>{article.viewCount ?? 0} pembaca</span>
 											</div>
 										</div>
 									</CardHeader>

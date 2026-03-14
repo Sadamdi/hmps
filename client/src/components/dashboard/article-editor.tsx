@@ -435,6 +435,8 @@ export default function ArticleEditor({
 		}
 
 		await saveArticleMutation.mutateAsync(formData);
+		// Refresh daftar tag global agar tag baru langsung muncul di Existing tags
+		await fetchAllTags();
 		setTitle('');
 		setExcerpt('');
 		setContent('');

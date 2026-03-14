@@ -1,12 +1,6 @@
 import MediaDisplay from '@/components/MediaDisplay';
 import { Pagination } from '@/components/ui/pagination';
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from '@/components/ui/select';
+import { SimpleSelect } from '@/components/public/SimpleSelect';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
 import { useQuery } from '@tanstack/react-query';
@@ -76,16 +70,18 @@ const OrgChartFlow = ({
 	onNodesChange,
 	onEdgesChange,
 	nodeTypes,
+	shouldRefitView,
 }: {
 	nodes: Node[];
 	edges: Edge[];
 	onNodesChange: any;
 	onEdgesChange: any;
 	nodeTypes: any;
+	shouldRefitView: number;
 }) => {
 	const { fitView } = useReactFlow();
 
-	// Auto-fit view setelah component mount
+	// Auto-fit view setelah nodes berubah (mis. data pertama kali masuk)
 	useEffect(() => {
 		if (nodes.length > 0) {
 			setTimeout(() => {
@@ -98,6 +94,22 @@ const OrgChartFlow = ({
 			}, 100);
 		}
 	}, [nodes, fitView]);
+
+	// Refitting tambahan yang disinkronkan dengan tab / animasi luar
+	useEffect(() => {
+		if (nodes.length > 0) {
+			const timeoutId = window.setTimeout(() => {
+				fitView({
+					padding: 0.1,
+					includeHiddenNodes: false,
+					minZoom: 0.1,
+					maxZoom: 1.5,
+				});
+			}, 500);
+
+			return () => window.clearTimeout(timeoutId);
+		}
+	}, [shouldRefitView, nodes, fitView]);
 
 	return (
 		<ReactFlow
@@ -206,6 +218,7 @@ export default function Structure() {
 	const [selectedDivision, setSelectedDivision] = useState<string>('all');
 	const [nodes, setNodes, onNodesChange] = useNodesState([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+	const [flowRefitCounter, setFlowRefitCounter] = useState<number>(0);
 	const membersContainerRef = useRef<HTMLDivElement>(null);
 
 	// Fetch organization members - always enabled with fallback
@@ -563,15 +576,44 @@ export default function Structure() {
 		[setNodes, setEdges],
 	);
 
-	// Update chart when members, positions, or period changes
+	// Update chart when members, positions, or period changes.
+	// Jangan clear nodes saat masih loading agar diagram tidak hilang setelah loading selesai.
 	useEffect(() => {
 		if (normalizedMembers.length > 0) {
 			createOrgChart(normalizedMembers);
-		} else {
+			setFlowRefitCounter((prev) => prev + 1);
+		} else if (!membersLoading && !positionsLoading) {
 			setNodes([]);
 			setEdges([]);
 		}
-	}, [normalizedMembers, createOrgChart, setNodes, setEdges]);
+	}, [normalizedMembers, createOrgChart, setNodes, setEdges, membersLoading, positionsLoading]);
+
+	// Recovery: bila data ada tapi nodes kosong (e.g. setelah race condition), isi ulang chart
+	useEffect(() => {
+		if (
+			sortedFilteredMembers.length > 0 &&
+			nodes.length === 0 &&
+			!membersLoading &&
+			!positionsLoading
+		) {
+			createOrgChart(normalizedMembers);
+			setFlowRefitCounter((prev) => prev + 1);
+		}
+	}, [
+		sortedFilteredMembers.length,
+		nodes.length,
+		membersLoading,
+		positionsLoading,
+		normalizedMembers,
+		createOrgChart,
+	]);
+
+	// Trigger refit ketika tab flow diaktifkan
+	useEffect(() => {
+		if (activeView === 'flow' && nodes.length > 0) {
+			setFlowRefitCounter((prev) => prev + 1);
+		}
+	}, [activeView, nodes.length]);
 
 	return (
 		<section
@@ -596,53 +638,44 @@ export default function Structure() {
 					data-aos="fade-up"
 					data-aos-delay="100">
 					<div className="w-full max-w-xs">
-							<Select
-								value={currentPeriod}
-								onValueChange={setCurrentPeriod}>
-								<SelectTrigger>
-									<SelectValue placeholder="Pilih Periode" />
-								</SelectTrigger>
-								<SelectContent className="z-[39]">
-								{periodsLoading ? (
-									<SelectItem value="loading">Loading periods...</SelectItem>
-								) : (
-									periods
-										.sort((a: string, b: string) => {
-											const yearA = parseInt(a.split('-')[0]);
-											const yearB = parseInt(b.split('-')[0]);
-											return yearB - yearA;
-										})
-										.map((period: string) => (
-											<SelectItem
-												key={period}
-												value={period}>
-												{period}
-											</SelectItem>
-										))
-								)}
-							</SelectContent>
-						</Select>
+						<SimpleSelect
+							value={currentPeriod}
+							onChange={setCurrentPeriod}
+							placeholder="Pilih Periode"
+							disabled={periodsLoading}
+							options={
+								periodsLoading
+									? [{ value: 'loading', label: 'Loading periods...' }]
+									: [...periods]
+											.sort((a: string, b: string) => {
+												const yearA = parseInt(a.split('-')[0]);
+												const yearB = parseInt(b.split('-')[0]);
+												return yearB - yearA;
+											})
+											.map((period: string) => ({
+												value: period,
+												label: period,
+											}))
+							}
+							contentClassName="z-[39]"
+						/>
 					</div>
 
 					{/* Division Filter */}
 					<div className="w-full max-w-xs">
-							<Select
-								value={selectedDivision}
-								onValueChange={setSelectedDivision}>
-								<SelectTrigger>
-									<SelectValue placeholder="Filter Divisi" />
-								</SelectTrigger>
-								<SelectContent className="z-[39]">
-								<SelectItem value="all">Semua Divisi</SelectItem>
-								{availableDivisions.map((division) => (
-									<SelectItem
-										key={division}
-										value={division}>
-										{division}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
+						<SimpleSelect
+							value={selectedDivision}
+							onChange={setSelectedDivision}
+							placeholder="Filter Divisi"
+							options={[
+								{ value: 'all', label: 'Semua Divisi' },
+								...availableDivisions.map((division) => ({
+									value: division,
+									label: division,
+								})),
+							]}
+							contentClassName="z-[39]"
+						/>
 					</div>
 				</div>
 
@@ -677,26 +710,28 @@ export default function Structure() {
 						<TabsContent
 							value="flow"
 							className="mt-0">
-							{sortedFilteredMembers.length > 0 ? (
+							{sortedFilteredMembers.length > 0 && nodes.length > 0 ? (
 								<div
-									className="w-full h-[700px] border border-border rounded-xl bg-card shadow-sm"
-									data-aos="zoom-in"
-									data-aos-delay="300">
-									<ReactFlowProvider>
+									className="w-full h-[700px] border border-border rounded-xl bg-card shadow-sm">
+									<ReactFlowProvider
+										key={`flow-${currentPeriod}-${selectedDivision}`}>
 										<OrgChartFlow
 											nodes={nodes}
 											edges={edges}
 											onNodesChange={onNodesChange}
 											onEdgesChange={onEdgesChange}
 											nodeTypes={nodeTypes}
+											shouldRefitView={flowRefitCounter}
 										/>
 									</ReactFlowProvider>
 								</div>
 							) : (
 								<div className="w-full py-20 text-center text-muted-foreground">
-									{selectedDivision === 'all'
-										? `Tidak ada data pengurus untuk periode ${currentPeriod}`
-										: `Tidak ada data pengurus untuk divisi ${selectedDivision} pada periode ${currentPeriod}`}
+									{sortedFilteredMembers.length === 0
+										? selectedDivision === 'all'
+											? `Tidak ada data pengurus untuk periode ${currentPeriod}`
+											: `Tidak ada data pengurus untuk divisi ${selectedDivision} pada periode ${currentPeriod}`
+										: 'Struktur organisasi sedang dimuat. Silakan tunggu sebentar atau coba scroll sedikit ke atas/bawah.'}
 								</div>
 							)}
 						</TabsContent>

@@ -21,6 +21,7 @@ interface Article {
 	author: string;
 	createdAt: string;
 	tags: string[];
+	viewCount?: number;
 }
 
 export default function AllArticles() {
@@ -176,7 +177,7 @@ export default function AllArticles() {
 				{/* Header */}
 				<div className="mb-8" data-aos="fade-down">
 					<div className="flex items-center gap-4 mb-4">
-						<Link href="/">
+						<Link href="/#articles">
 							<Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
 								<ArrowLeft className="h-4 w-4 mr-2" />
 								Kembali ke Beranda
@@ -322,6 +323,9 @@ export default function AllArticles() {
 										<div className="flex items-center gap-1">
 											<Calendar className="h-3 w-3" />
 											<span>{formatDate(article.createdAt)}</span>
+										</div>
+										<div className="flex items-center gap-1">
+											<span>{article.viewCount ?? 0} pembaca</span>
 										</div>
 									</div>
 

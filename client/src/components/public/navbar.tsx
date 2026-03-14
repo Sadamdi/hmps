@@ -105,12 +105,16 @@ export default function Navbar({
 				}`}>
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
 					<div className="flex justify-between items-center h-full">
-						{/* Brand */}
+						{/* Brand: selalu ke puncak beranda; dari halaman lain navigate dulu lalu scroll top */}
 						<button
 							onClick={() => {
 								if (location !== '/') {
 									navigate('/');
+									requestAnimationFrame(() => {
+										window.scrollTo({ top: 0, behavior: 'auto' });
+									});
 								} else {
+									window.history.replaceState(null, '', '/');
 									window.scrollTo({ top: 0, behavior: 'smooth' });
 								}
 							}}

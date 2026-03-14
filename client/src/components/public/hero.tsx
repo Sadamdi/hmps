@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { LocalBannerFull } from '../LocalAssets';
 
 interface HeroProps {
@@ -50,6 +50,9 @@ export default function Hero({
 	const [showPerson, setShowPerson] = useState(false);
 	const [currentMobileBanner, setCurrentMobileBanner] = useState(0);
 	const [isHeroVisible, setIsHeroVisible] = useState(true);
+	// Hanya jalankan animasi hero (banner/orang) saat scroll benar-benar di paling atas
+	const [isAtTop, setIsAtTop] = useState(false);
+	const hasAnimatedRef = useRef(false);
 
 	// Refs untuk direct DOM manipulation
 	const heroRef = useRef<HTMLDivElement>(null);
@@ -98,6 +101,22 @@ export default function Hero({
 		'/attached_assets/benner/medinfo.webp',
 		'/attached_assets/benner/religius.webp',
 	];
+
+	const TOP_THRESHOLD = 80;
+
+	// Set isAtTop setelah layout (termasuk scroll ke hash di parent) agar hero tidak animate saat masuk ke section
+	useLayoutEffect(() => {
+		setIsAtTop(typeof window !== 'undefined' && window.scrollY <= TOP_THRESHOLD);
+	}, []);
+
+	// Update isAtTop on scroll agar animasi bisa jalan saat user scroll ke atas
+	useEffect(() => {
+		const onScroll = () => {
+			setIsAtTop(window.scrollY <= TOP_THRESHOLD);
+		};
+		window.addEventListener('scroll', onScroll, { passive: true });
+		return () => window.removeEventListener('scroll', onScroll);
+	}, []);
 
 	// Observe visibility of hero section to pause effects when out of view
 	useEffect(() => {
@@ -175,9 +194,17 @@ export default function Hero({
 		return () => clearInterval(interval);
 	}, [mobileBanners.length]);
 
-	// Trigger animasi intro setiap kali assets siap dan introKey berubah
+	// Reset hasAnimated saat introKey berubah (e.g. navigasi balik ke beranda)
 	useEffect(() => {
-		if (!assetsLoaded || !introKey) return;
+		hasAnimatedRef.current = false;
+	}, [introKey]);
+
+	// Trigger animasi intro hanya saat scroll benar-benar di paling atas (banner/orang tidak jalan di section lain)
+	useEffect(() => {
+		if (!assetsLoaded || !introKey || !isAtTop) return;
+		if (hasAnimatedRef.current) return;
+
+		hasAnimatedRef.current = true;
 
 		// Reset state animasi
 		setShowBanner(false);
@@ -216,7 +243,7 @@ export default function Hero({
 			clearTimeout(personTimer);
 			clearTimeout(textTimer);
 		};
-	}, [assetsLoaded, introKey]);
+	}, [assetsLoaded, introKey, isAtTop]);
 
 	return (
 		<div

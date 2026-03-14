@@ -29,6 +29,7 @@ interface Article {
 	published: boolean;
 	tags?: string[];
 	slug?: string;
+	viewCount?: number;
 }
 
 interface RelatedArticle {
@@ -342,6 +343,11 @@ export default function ArticleDetail() {
 									<BookOpen className="w-3.5 h-3.5 text-primary" />
 									<span className="text-foreground">
 										{estimateReadingTime(article.content)} menit baca
+									</span>
+								</div>
+								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
+									<span className="text-foreground">
+										{article.viewCount ?? 0} pembaca
 									</span>
 								</div>
 							</div>
