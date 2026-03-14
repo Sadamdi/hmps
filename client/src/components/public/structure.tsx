@@ -1,15 +1,17 @@
 import MediaDisplay from '@/components/MediaDisplay';
-import { Pagination } from '@/components/ui/pagination';
 import { SimpleSelect } from '@/components/public/SimpleSelect';
+import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
 	Background,
 	Controls,
 	Edge,
+	EdgeChange,
 	Node,
+	NodeChange,
 	ReactFlowProvider,
 	useEdgesState,
 	useNodesState,
@@ -221,6 +223,26 @@ export default function Structure() {
 	const [flowRefitCounter, setFlowRefitCounter] = useState<number>(0);
 	const membersContainerRef = useRef<HTMLDivElement>(null);
 
+	// Cegah React Flow mengosongkan node/edge (mis. saat tab disembunyikan atau resize)
+	const onNodesChangeSafe = useCallback(
+		(changes: NodeChange[]) => {
+			const allowed = changes.filter(
+				(c) => c.type !== 'remove' && c.type !== 'reset',
+			);
+			if (allowed.length > 0) onNodesChange(allowed);
+		},
+		[onNodesChange],
+	);
+	const onEdgesChangeSafe = useCallback(
+		(changes: EdgeChange[]) => {
+			const allowed = changes.filter(
+				(c) => c.type !== 'remove' && c.type !== 'reset',
+			);
+			if (allowed.length > 0) onEdgesChange(allowed);
+		},
+		[onEdgesChange],
+	);
+
 	// Fetch organization members - always enabled with fallback
 	const {
 		data: membersData = [],
@@ -245,8 +267,8 @@ export default function Structure() {
 				throw error;
 			}
 		},
-		placeholderData: [],
-		// Remove enabled condition - always fetch with fallback period
+		placeholderData: (previousData) => previousData ?? [],
+		// Keep previous data when period changes so diagram never flashes empty
 	});
 
 	// Ensure members is always an array
@@ -295,21 +317,27 @@ export default function Structure() {
 	}, [periods]); // Remove currentPeriod dependency to avoid issues
 
 	// Get available divisions for filter
-	const availableDivisions = getAvailableDivisions(members);
+	const availableDivisions = useMemo(
+		() => getAvailableDivisions(members),
+		[members],
+	);
 
-	// Filter members based on selected division
-	const filteredMembers =
-		selectedDivision === 'all'
-			? members
-			: members.filter(
-					(member) =>
-						getDivisionFromPosition(member.position) === selectedDivision,
-				);
+	// Filter members based on selected division (memoized agar effect chart tidak jalan tiap render)
+	const filteredMembers = useMemo(
+		() =>
+			selectedDivision === 'all'
+				? members
+				: members.filter(
+						(member) =>
+							getDivisionFromPosition(member.position) === selectedDivision,
+					),
+		[members, selectedDivision],
+	);
 
 	// Sort filtered members by position order
-	const sortedFilteredMembers = sortMembersByPosition(
-		filteredMembers,
-		positions,
+	const sortedFilteredMembers = useMemo(
+		() => sortMembersByPosition(filteredMembers, positions),
+		[filteredMembers, positions],
 	);
 
 	// Pagination for grid view
@@ -334,12 +362,16 @@ export default function Structure() {
 		}
 	}, [currentPage, activeView]);
 
-	// Set up organization chart nodes and edges based on members data
-	// Normalize members data, dari backend _id jadi id
-	const normalizedMembers = sortedFilteredMembers.map((member: any) => ({
-		...member,
-		id: member._id,
-	}));
+	// Normalize members untuk chart (memoized agar reference stabil, effect tidak clear nodes sembarangan)
+	const normalizedMembers = useMemo(
+		() =>
+			sortedFilteredMembers.map((member: any, index: number) => {
+				const safeId =
+					member._id ?? member.id ?? `${member.name}-${member.position}-${index}`;
+				return { ...member, id: safeId };
+			}),
+		[sortedFilteredMembers],
+	);
 
 	const createOrgChart = useCallback(
 		(members: OrgMember[]) => {
@@ -576,36 +608,30 @@ export default function Structure() {
 		[setNodes, setEdges],
 	);
 
-	// Update chart when members, positions, or period changes.
-	// Jangan clear nodes saat masih loading agar diagram tidak hilang setelah loading selesai.
+	// Update chart hanya ketika data anggota/posisi benar-benar berubah (reference stabil pakai useMemo).
+	// Jangan pernah clear nodes saat masih loading atau saat data sementara kosong (refetch/transisi).
 	useEffect(() => {
+		if (membersLoading || positionsLoading) return;
+
 		if (normalizedMembers.length > 0) {
 			createOrgChart(normalizedMembers);
 			setFlowRefitCounter((prev) => prev + 1);
-		} else if (!membersLoading && !positionsLoading) {
+			return;
+		}
+
+		// Clear hanya bila memang tidak ada data untuk periode+divisi ini (bukan karena transisi/refetch).
+		if (sortedFilteredMembers.length === 0) {
 			setNodes([]);
 			setEdges([]);
 		}
-	}, [normalizedMembers, createOrgChart, setNodes, setEdges, membersLoading, positionsLoading]);
-
-	// Recovery: bila data ada tapi nodes kosong (e.g. setelah race condition), isi ulang chart
-	useEffect(() => {
-		if (
-			sortedFilteredMembers.length > 0 &&
-			nodes.length === 0 &&
-			!membersLoading &&
-			!positionsLoading
-		) {
-			createOrgChart(normalizedMembers);
-			setFlowRefitCounter((prev) => prev + 1);
-		}
 	}, [
+		normalizedMembers,
 		sortedFilteredMembers.length,
-		nodes.length,
 		membersLoading,
 		positionsLoading,
-		normalizedMembers,
 		createOrgChart,
+		setNodes,
+		setEdges,
 	]);
 
 	// Trigger refit ketika tab flow diaktifkan
@@ -710,16 +736,15 @@ export default function Structure() {
 						<TabsContent
 							value="flow"
 							className="mt-0">
-							{sortedFilteredMembers.length > 0 && nodes.length > 0 ? (
-								<div
-									className="w-full h-[700px] border border-border rounded-xl bg-card shadow-sm">
+							{sortedFilteredMembers.length > 0 ? (
+								<div className="w-full h-[700px] border border-border rounded-xl bg-card shadow-sm">
 									<ReactFlowProvider
 										key={`flow-${currentPeriod}-${selectedDivision}`}>
 										<OrgChartFlow
 											nodes={nodes}
 											edges={edges}
-											onNodesChange={onNodesChange}
-											onEdgesChange={onEdgesChange}
+											onNodesChange={onNodesChangeSafe}
+											onEdgesChange={onEdgesChangeSafe}
 											nodeTypes={nodeTypes}
 											shouldRefitView={flowRefitCounter}
 										/>
