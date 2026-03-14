@@ -596,13 +596,13 @@ export default function Structure() {
 					data-aos="fade-up"
 					data-aos-delay="100">
 					<div className="w-full max-w-xs">
-						<Select
-							value={currentPeriod}
-							onValueChange={setCurrentPeriod}>
-							<SelectTrigger>
-								<SelectValue placeholder="Pilih Periode" />
-							</SelectTrigger>
-							<SelectContent>
+							<Select
+								value={currentPeriod}
+								onValueChange={setCurrentPeriod}>
+								<SelectTrigger>
+									<SelectValue placeholder="Pilih Periode" />
+								</SelectTrigger>
+								<SelectContent className="z-[39]">
 								{periodsLoading ? (
 									<SelectItem value="loading">Loading periods...</SelectItem>
 								) : (
@@ -626,13 +626,13 @@ export default function Structure() {
 
 					{/* Division Filter */}
 					<div className="w-full max-w-xs">
-						<Select
-							value={selectedDivision}
-							onValueChange={setSelectedDivision}>
-							<SelectTrigger>
-								<SelectValue placeholder="Filter Divisi" />
-							</SelectTrigger>
-							<SelectContent>
+							<Select
+								value={selectedDivision}
+								onValueChange={setSelectedDivision}>
+								<SelectTrigger>
+									<SelectValue placeholder="Filter Divisi" />
+								</SelectTrigger>
+								<SelectContent className="z-[39]">
 								<SelectItem value="all">Semua Divisi</SelectItem>
 								{availableDivisions.map((division) => (
 									<SelectItem

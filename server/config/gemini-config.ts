@@ -223,83 +223,116 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	lines.push(`- Path halaman aktif: ${path}`);
 
 	// Info akses fitur berbasis permission
-	const canViewArticles = perms.has('articles.view') || perms.has('articles.create');
-	const canViewLibrary = perms.has('library.view') || perms.has('library.create');
+	const canViewArticles =
+		perms.has('articles.view') || perms.has('articles.create');
+	const canViewLibrary =
+		perms.has('library.view') || perms.has('library.create');
 	const canViewOrganization =
 		perms.has('organization.view') || perms.has('organization.edit');
-	const canViewSettings = perms.has('settings.view') || perms.has('settings.edit');
+	const canViewUsers =
+		perms.has('users.view') || perms.has('users.manage') || perms.has('users.edit');
+	const canViewRoles =
+		perms.has('roles.view') || perms.has('roles.manage') || perms.has('roles.edit');
+	const canViewSettings =
+		perms.has('settings.view') || perms.has('settings.edit');
 	const canViewDashboard = perms.has('dashboard.view');
+	const canViewDashboardStats = perms.has('dashboard.stats');
+	const canViewDashboardActivities = perms.has('dashboard.activities');
 
 	if (canViewDashboard) {
 		lines.push(
-			'- Pengguna memiliki akses ke Dashboard. Berikan panduan operasional fitur dashboard yang relevan.'
+			'- Pengguna memiliki akses ke Dashboard. Di halaman ini biasanya ada ringkasan statistik utama, recent activities, dan quick actions untuk berpindah ke modul lain.',
 		);
 	}
 
 	if (canViewArticles) {
 		lines.push(
-			'- Pengguna memiliki akses ke manajemen Artikel. Ia bisa membuat, mengedit, dan mengelola artikel sesuai perannya.'
+			'- Pengguna memiliki akses ke manajemen Artikel. Ia bisa: membuat artikel baru (tombol seperti "New Article"), mengedit artikel yang sudah ada, menghapus jika diizinkan, serta mengatur status publish/unpublish. Jelaskan langkah umum seperti: buka halaman Articles di dashboard, pilih artikel, lalu gunakan tombol Edit/Publish sesuai kebutuhan.',
 		);
 	}
 
 	if (canViewLibrary) {
 		lines.push(
-			'- Pengguna memiliki akses ke Library media (foto/video). Ia bisa mengelola media sesuai perannya.'
+			'- Pengguna memiliki akses ke Library media (foto/video). Ia bisa mengunggah media baru (upload), mengedit informasi media (judul/deskripsi), dan menghapus media tertentu jika diizinkan.',
 		);
 	}
 
 	if (canViewOrganization) {
 		lines.push(
-			'- Pengguna memiliki akses ke pengelolaan struktur organisasi/pengurus.'
+			'- Pengguna memiliki akses ke pengelolaan struktur organisasi/pengurus. Jelaskan bahwa di tab Members dapat: memilih periode, memfilter berdasarkan divisi, menambah/mengedit/menghapus anggota. Di tab Positions dapat mengatur urutan jabatan (drag & drop). Di tab Divisions dapat mengelola daftar divisi dan atributnya.',
+		);
+	}
+
+	if (canViewUsers) {
+		lines.push(
+			'- Pengguna memiliki akses ke manajemen Users. Ia dapat melihat daftar user, dan jika diizinkan dapat membuat user baru, mengubah data user, atau menonaktifkan user tertentu.',
+		);
+	}
+
+	if (canViewRoles) {
+		lines.push(
+			'- Pengguna memiliki akses ke manajemen Roles/Permissions. Ia dapat melihat daftar role dan, bila diizinkan, mengubah permission yang melekat pada setiap role.',
 		);
 	}
 
 	if (canViewSettings) {
 		lines.push(
-			'- Pengguna memiliki akses ke halaman Settings. Ia bisa mengatur konfigurasi situs sesuai permission-nya.'
+			'- Pengguna memiliki akses ke halaman Settings. Ia bisa mengatur konfigurasi situs seperti nama situs, logo, visi-misi, kontak, social links, mode maintenance, dan pengaturan lain sesuai permission-nya.',
+		);
+	}
+
+	if (canViewDashboardStats) {
+		lines.push(
+			'- Pengguna memiliki akses ke statistik Dashboard (total artikel, total media, total anggota, dll). Jelaskan cara membaca kartu statistik tersebut.',
+		);
+	}
+
+	if (canViewDashboardActivities) {
+		lines.push(
+			'- Pengguna memiliki akses ke Recent Activities di Dashboard. Ia bisa melihat riwayat aksi penting (misalnya artikel dibuat/diedit, anggota organisasi diubah) beserta siapa yang melakukan dan kapan.',
 		);
 	}
 
 	// Deskripsi khusus per path
 	if (path.startsWith('/dashboard/articles')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Manajemen Artikel. Jelaskan cara membuat, mengedit, mem-publish, dan mengelola artikel sesuai hak akses.'
+			'- Pengguna sedang berada di halaman Dashboard Manajemen Artikel. Di sini biasanya ada tabel daftar artikel dengan aksi seperti Edit, Delete, dan toggle Publish. Jelaskan langkah-langkah umum untuk membuat artikel baru, mengedit konten, mengatur status publish/unpublish, dan menggunakan filter/pencarian jika tersedia.',
 		);
 	} else if (path.startsWith('/dashboard/library')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Library Media. Jelaskan cara upload, mengedit, dan mengelola media sesuai hak akses.'
+			'- Pengguna sedang berada di halaman Dashboard Library Media. Jelaskan cara mengunggah media baru (misalnya melalui tombol Upload), mengubah detail media, serta menghapus media yang tidak diperlukan lagi.',
 		);
 	} else if (path.startsWith('/dashboard/organization')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Organization. Jelaskan cara mengelola data pengurus dan struktur organisasi.'
+			'- Pengguna sedang berada di halaman Dashboard Organization. Jelaskan cara: memilih periode kepengurusan, memfilter berdasarkan divisi, menambah/mengedit/menghapus anggota pengurus, mengatur urutan posisi, serta mengelola daftar divisi dan atributnya.',
 		);
 	} else if (path.startsWith('/dashboard/users')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Users. Jelaskan secara umum pengelolaan user jika ia memang punya izin yang cukup.'
+			'- Pengguna sedang berada di halaman Dashboard Users. Jelaskan secara umum cara mencari user, melihat detail user, dan (jika diizinkan) membuat, mengedit, atau menonaktifkan user.',
 		);
 	} else if (path.startsWith('/dashboard/roles')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Roles. Jelaskan secara umum pengelolaan role dan permission jika ia punya akses.'
+			'- Pengguna sedang berada di halaman Dashboard Roles. Jelaskan secara umum bagaimana role digunakan untuk mengatur permission dan langkah-langkah dasar mengubah atau membuat role baru jika diizinkan.',
 		);
 	} else if (path.startsWith('/dashboard/settings')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Settings. Jelaskan cara mengubah konfigurasi situs sesuai akses yang dimiliki.'
+			'- Pengguna sedang berada di halaman Dashboard Settings. Jelaskan cara mengubah konfigurasi situs (seperti nama situs, deskripsi, visi-misi, kontak, social links, dan opsi maintenance mode) sesuai akses yang dimiliki.',
 		);
 	} else if (path.startsWith('/dashboard/content')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Content. Jelaskan cara mengelola konten statis/dinamis yang tersedia di halaman ini.'
+			'- Pengguna sedang berada di halaman Dashboard Content. Jelaskan cara mengelola konten statis/dinamis seperti hero, about, visi-misi, dan struktur/divisi yang tampil di halaman publik.',
 		);
 	} else if (path.startsWith('/dashboard')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard utama. Berikan gambaran umum cara membaca statistik dan menggunakan quick actions.'
+			'- Pengguna sedang berada di halaman Dashboard utama. Berikan gambaran umum cara membaca kartu statistik, melihat Recent Activities, dan menggunakan tombol-tombol Quick Actions untuk berpindah ke modul lain (Articles, Library, Organization, Settings, dll).',
 		);
 	} else if (path.startsWith('/artikel/')) {
 		lines.push(
-			'- Pengguna sedang melihat halaman detail artikel publik. Bantu menjelaskan isi artikel dan cara kerjanya jika diperlukan.'
+			'- Pengguna sedang melihat halaman detail artikel publik. Bantu menjelaskan isi artikel dan cara kerjanya jika diperlukan.',
 		);
 	} else if (path === '/artikel') {
 		lines.push(
-			'- Pengguna sedang berada di halaman daftar artikel publik. Bantu jelaskan cara mencari dan membuka artikel.'
+			'- Pengguna sedang berada di halaman daftar artikel publik. Bantu jelaskan cara mencari dan membuka artikel.',
 		);
 	}
 
@@ -314,7 +347,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	}
 
 	lines.push(
-		'- Jangan pernah membocorkan informasi tentang fitur/halaman yang user tidak punya aksesnya. Jika ditanya tentang itu, jawab dengan sopan bahwa akses tidak tersedia.'
+		'- Jangan pernah membocorkan informasi tentang fitur/halaman yang user tidak punya aksesnya. Jika ditanya tentang itu, jawab dengan sopan bahwa akses tidak tersedia.',
 	);
 
 	return lines.join('\n');
@@ -331,7 +364,7 @@ export interface ApiKeyUsage {
 export function getLeastUsedApiKey(apiKeys: ApiKeyUsage[]): string {
 	if (apiKeys.length === 0) throw new Error('No Gemini API key available');
 	return apiKeys.reduce((prev, current) =>
-		current.usageCount < prev.usageCount ? current : prev
+		current.usageCount < prev.usageCount ? current : prev,
 	).key;
 }
 
