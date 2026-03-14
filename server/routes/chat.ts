@@ -117,7 +117,7 @@ router.post(
 				res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 			}
 
-			const { message, chatId } = req.body;
+			const { message, chatId, pageContext } = req.body;
 			const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
 
 			let chat;
@@ -135,7 +135,8 @@ router.post(
 				userId,
 				message,
 				imageUrl,
-				chat._id.toString()
+				chat._id.toString(),
+				pageContext
 			);
 			// Remove sensitive data before sending response
 			const { apiKey, ...safeChat } = updatedChat.toObject();

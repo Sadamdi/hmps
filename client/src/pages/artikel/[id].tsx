@@ -1,5 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import AIChat from '@/components/public/ai-chat';
 import Navbar from '@/components/public/navbar';
 import { apiRequest } from '@/lib/queryClient';
 import {
@@ -264,7 +265,7 @@ export default function ArticleDetail() {
 	}
 
 	return (
-		<div className="min-h-screen bg-background">
+		<div className="min-h-screen bg-background relative">
 			<Navbar activeSection="articles" scrollToSection={scrollToSection} />
 
 			{/* Breadcrumb bar */}
@@ -508,6 +509,18 @@ export default function ArticleDetail() {
 					</Suspense>
 				</div>
 			</div>
+
+			{/* AI Chat dengan context artikel yang sedang dibaca */}
+			<AIChat
+				pageContext={{
+					path: `/artikel/${article._id || article.id || id || ''}`,
+					permissions: [],
+					pageData: {
+						title: article.title,
+						excerpt: article.excerpt,
+					},
+				}}
+			/>
 		</div>
 	);
 }

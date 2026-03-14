@@ -204,6 +204,122 @@ export const GEMINI_PERSONALIZATION = {
 	},
 };
 
+export interface PageContext {
+	path: string;
+	permissions: string[];
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	pageData?: Record<string, any>;
+}
+
+// Membangun prompt konteks halaman berbasis path, permission, dan data halaman
+export function buildPageContextPrompt(context?: PageContext): string {
+	if (!context) return '';
+
+	const { path, permissions, pageData } = context;
+	const perms = new Set(permissions || []);
+
+	const lines: string[] = [];
+	lines.push('KONTEKS SISTEM (jangan dibaca sebagai pesan user):');
+	lines.push(`- Path halaman aktif: ${path}`);
+
+	// Info akses fitur berbasis permission
+	const canViewArticles = perms.has('articles.view') || perms.has('articles.create');
+	const canViewLibrary = perms.has('library.view') || perms.has('library.create');
+	const canViewOrganization =
+		perms.has('organization.view') || perms.has('organization.edit');
+	const canViewSettings = perms.has('settings.view') || perms.has('settings.edit');
+	const canViewDashboard = perms.has('dashboard.view');
+
+	if (canViewDashboard) {
+		lines.push(
+			'- Pengguna memiliki akses ke Dashboard. Berikan panduan operasional fitur dashboard yang relevan.'
+		);
+	}
+
+	if (canViewArticles) {
+		lines.push(
+			'- Pengguna memiliki akses ke manajemen Artikel. Ia bisa membuat, mengedit, dan mengelola artikel sesuai perannya.'
+		);
+	}
+
+	if (canViewLibrary) {
+		lines.push(
+			'- Pengguna memiliki akses ke Library media (foto/video). Ia bisa mengelola media sesuai perannya.'
+		);
+	}
+
+	if (canViewOrganization) {
+		lines.push(
+			'- Pengguna memiliki akses ke pengelolaan struktur organisasi/pengurus.'
+		);
+	}
+
+	if (canViewSettings) {
+		lines.push(
+			'- Pengguna memiliki akses ke halaman Settings. Ia bisa mengatur konfigurasi situs sesuai permission-nya.'
+		);
+	}
+
+	// Deskripsi khusus per path
+	if (path.startsWith('/dashboard/articles')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Manajemen Artikel. Jelaskan cara membuat, mengedit, mem-publish, dan mengelola artikel sesuai hak akses.'
+		);
+	} else if (path.startsWith('/dashboard/library')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Library Media. Jelaskan cara upload, mengedit, dan mengelola media sesuai hak akses.'
+		);
+	} else if (path.startsWith('/dashboard/organization')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Organization. Jelaskan cara mengelola data pengurus dan struktur organisasi.'
+		);
+	} else if (path.startsWith('/dashboard/users')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Users. Jelaskan secara umum pengelolaan user jika ia memang punya izin yang cukup.'
+		);
+	} else if (path.startsWith('/dashboard/roles')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Roles. Jelaskan secara umum pengelolaan role dan permission jika ia punya akses.'
+		);
+	} else if (path.startsWith('/dashboard/settings')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Settings. Jelaskan cara mengubah konfigurasi situs sesuai akses yang dimiliki.'
+		);
+	} else if (path.startsWith('/dashboard/content')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Content. Jelaskan cara mengelola konten statis/dinamis yang tersedia di halaman ini.'
+		);
+	} else if (path.startsWith('/dashboard')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard utama. Berikan gambaran umum cara membaca statistik dan menggunakan quick actions.'
+		);
+	} else if (path.startsWith('/artikel/')) {
+		lines.push(
+			'- Pengguna sedang melihat halaman detail artikel publik. Bantu menjelaskan isi artikel dan cara kerjanya jika diperlukan.'
+		);
+	} else if (path === '/artikel') {
+		lines.push(
+			'- Pengguna sedang berada di halaman daftar artikel publik. Bantu jelaskan cara mencari dan membuka artikel.'
+		);
+	}
+
+	// Data spesifik halaman (misalnya artikel yang sedang dibaca)
+	if (pageData) {
+		if (pageData.title) {
+			lines.push(`- Judul konten aktif: ${String(pageData.title)}`);
+		}
+		if (pageData.excerpt) {
+			lines.push(`- Ringkasan konten aktif: ${String(pageData.excerpt)}`);
+		}
+	}
+
+	lines.push(
+		'- Jangan pernah membocorkan informasi tentang fitur/halaman yang user tidak punya aksesnya. Jika ditanya tentang itu, jawab dengan sopan bahwa akses tidak tersedia.'
+	);
+
+	return lines.join('\n');
+}
+
 // Interface untuk tracking penggunaan API key
 export interface ApiKeyUsage {
 	key: string;

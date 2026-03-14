@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
+import AIChat from '@/components/public/ai-chat';
 import { usePagination } from '@/hooks/use-pagination';
 import Navbar from '@/components/public/navbar';
 import AOS from 'aos';
@@ -168,7 +169,7 @@ export default function AllArticles() {
 	}
 
 	return (
-		<div className="min-h-screen bg-background">
+		<div className="min-h-screen bg-background relative">
 			<Navbar activeSection="articles" scrollToSection={scrollToSection} />
 
 			<div className="container mx-auto px-4 py-8">
@@ -349,6 +350,14 @@ export default function AllArticles() {
 					className="mt-8"
 				/>
 			</div>
+
+			{/* AI Chat dengan context halaman daftar artikel */}
+			<AIChat
+				pageContext={{
+					path: '/artikel',
+					permissions: [],
+				}}
+			/>
 		</div>
 	);
 }

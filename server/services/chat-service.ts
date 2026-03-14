@@ -5,8 +5,10 @@ import {
 	GEMINI_MODEL,
 	GEMINI_MODELS,
 	GEMINI_PERSONALIZATION,
+	buildPageContextPrompt,
 	getLeastUsedApiKey,
 	initGeminiClient,
+	PageContext,
 } from '../config/gemini-config';
 import { ApiKeyUsage, Chat } from '../models/chat';
 import { AI_TOOLS, executeToolCall } from './ai-tools';
@@ -57,7 +59,8 @@ export class ChatService {
 		userId: string,
 		content: string,
 		imageUrl?: string,
-		chatId?: string
+		chatId?: string,
+		pageContext?: PageContext
 	) {
 		let chat;
 		if (chatId) {
@@ -78,8 +81,20 @@ export class ChatService {
 		const recentMessages = chat.messages.slice(-MAX_HISTORY);
 
 		// Selalu tambahkan system prompt di awal, tapi tidak masuk ke history
-		const history = [
+		const history: Content[] = [
 			{ role: 'user', parts: [{ text: GEMINI_PERSONALIZATION.systemPrompt }] },
+		];
+
+		// Tambahkan konteks halaman jika tersedia
+		const contextPrompt = buildPageContextPrompt(pageContext);
+		if (contextPrompt) {
+			history.push({
+				role: 'user',
+				parts: [{ text: contextPrompt }],
+			});
+		}
+
+		history.push(
 			...recentMessages.map((msg) => {
 				const parts = [];
 				if (msg.content) {
@@ -106,30 +121,31 @@ export class ChatService {
 					role: msg.role === 'user' ? 'user' : 'model',
 					parts,
 				};
-			}),
-			{
-				role: 'user',
-				parts: imageUrl
-					? [
-							{ text: content },
-							{
-								inlineData: {
-									mimeType: 'image/jpeg',
-									data: fs
-										.readFileSync(
-											path.join(
-												process.cwd(),
-												'uploads',
-												path.basename(imageUrl)
-											)
+			})
+		);
+
+		history.push({
+			role: 'user',
+			parts: imageUrl
+				? [
+						{ text: content },
+						{
+							inlineData: {
+								mimeType: 'image/jpeg',
+								data: fs
+									.readFileSync(
+										path.join(
+											process.cwd(),
+											'uploads',
+											path.basename(imageUrl)
 										)
-										.toString('base64'),
-								},
+									)
+									.toString('base64'),
 							},
-					  ]
-					: [{ text: content }],
-			},
-		];
+						},
+				  ]
+				: [{ text: content }],
+		});
 
 		// Dapatkan respons dari Gemini dengan fallback dan agentic tool-calling loop
 		const gemini = initGeminiClient(chat.apiKey);

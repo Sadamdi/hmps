@@ -1,6 +1,8 @@
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/auth';
 import { MessageSquare, PaperclipIcon, Send, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useLocation } from 'wouter';
 
 interface Message {
 	id: string;
@@ -10,7 +12,18 @@ interface Message {
 	imageUrl?: string;
 }
 
-export default function AIChat() {
+interface PageContext {
+	path: string;
+	permissions: string[];
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	pageData?: Record<string, any>;
+}
+
+interface AIChatProps {
+	pageContext?: PageContext;
+}
+
+export default function AIChat({ pageContext }: AIChatProps) {
 	const [isChatOpen, setIsChatOpen] = useState(false);
 	const [messages, setMessages] = useState<Message[]>([
 		{
@@ -26,6 +39,8 @@ export default function AIChat() {
 	const [imagePreview, setImagePreview] = useState<string | null>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
+	const { permissions } = useAuth();
+	const [locationPath] = useLocation();
 
 	useEffect(() => {
 		if (messagesEndRef.current) {
@@ -51,10 +66,19 @@ export default function AIChat() {
 
 		try {
 			let response, data, botText, botImageUrl;
+
+			// Bangun context yang akan dikirim ke backend
+			const effectiveContext: PageContext = {
+				path: pageContext?.path || locationPath,
+				permissions: pageContext?.permissions || permissions || [],
+				pageData: pageContext?.pageData,
+			};
+
 			if (imageFile) {
 				const formData = new FormData();
 				formData.append('message', userMessage.text);
 				formData.append('image', imageFile);
+				formData.append('pageContext', JSON.stringify(effectiveContext));
 				response = await fetch('/api/chat/message', {
 					method: 'POST',
 					body: formData,
@@ -64,7 +88,10 @@ export default function AIChat() {
 				response = await fetch('/api/chat/message', {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ message: userMessage.text }),
+					body: JSON.stringify({
+						message: userMessage.text,
+						pageContext: effectiveContext,
+					}),
 					credentials: 'include',
 				});
 			}
