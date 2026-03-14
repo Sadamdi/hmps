@@ -234,7 +234,7 @@ export default function DashboardArticles() {
 
 			<div className="mb-6 flex flex-col sm:flex-row gap-4">
 				<div className="relative flex-1">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 					<Input
 						placeholder="Search articles..."
 						className="pl-10"
@@ -261,7 +261,7 @@ export default function DashboardArticles() {
 			) : filteredArticles.length === 0 ? (
 				<Card>
 					<CardContent className="p-8 text-center">
-						<p className="text-gray-500 mb-4">No articles found.</p>
+						<p className="text-muted-foreground mb-4">No articles found.</p>
 						<Button onClick={handleNewArticle}>Create an Article</Button>
 					</CardContent>
 				</Card>
@@ -290,20 +290,20 @@ export default function DashboardArticles() {
 												<h2 className="text-xl font-bold mr-3">
 													{article.title}
 												</h2>
-												{article.published ? (
-													<span className="bg-green-100 text-green-800 text-xs px-2 py-1 rounded">
-														Published
-													</span>
-												) : (
-													<span className="bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded">
-														Draft
-													</span>
-												)}
+											{article.published ? (
+												<span className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 text-xs px-2 py-1 rounded">
+													Published
+												</span>
+											) : (
+												<span className="bg-muted text-muted-foreground text-xs px-2 py-1 rounded">
+													Draft
+												</span>
+											)}
 											</div>
-											<p className="text-gray-600 mb-4 line-clamp-2">
-												{article.excerpt}
-											</p>
-											<div className="flex items-center text-xs text-gray-500">
+										<p className="text-muted-foreground mb-4 line-clamp-2">
+											{article.excerpt}
+										</p>
+										<div className="flex items-center text-xs text-muted-foreground">
 												<span className="mr-4">By {article.author}</span>
 												<span>
 													{article.date} at {article.time}
@@ -361,7 +361,7 @@ export default function DashboardArticles() {
 							{editingArticle ? 'Edit Article' : 'Create New Article'}
 						</DialogTitle>
 						{/* Peringatan bahwa editor hanya bisa ditutup dengan tombol */}
-						<div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 rounded text-sm text-blue-700">
+						<div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded text-sm text-blue-700 dark:text-blue-300">
 							<span>🔒</span>
 							<span>
 								Editor can only be closed using <strong>Cancel</strong> or{' '}

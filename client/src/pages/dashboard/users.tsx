@@ -219,7 +219,7 @@ export default function UsersPage() {
 
 			<div className="mb-6 flex flex-col sm:flex-row gap-4">
 				<div className="relative flex-1">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 					<Input
 						placeholder="Search users..."
 						className="pl-10"
@@ -255,30 +255,30 @@ export default function UsersPage() {
 			) : filteredUsers.length === 0 ? (
 				<Card>
 					<CardContent className="p-8 text-center">
-						<p className="text-gray-500 mb-4">No users found.</p>
+						<p className="text-muted-foreground mb-4">No users found.</p>
 						{canCreate && <Button onClick={handleAddUser}>Add User</Button>}
 					</CardContent>
 				</Card>
 			) : (
-				<div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow">
-					<table className="w-full min-w-[720px] border-collapse text-left">
-						<thead className="bg-gray-50">
-							<tr>
-								<th className="px-6 py-4 text-sm font-medium text-gray-500">
-									User
-								</th>
-								<th className="px-6 py-4 text-sm font-medium text-gray-500">
-									Role
-								</th>
-								<th className="px-6 py-4 text-sm font-medium text-gray-500">
-									Last Login
-								</th>
-								<th className="px-6 py-4 text-sm font-medium text-gray-500 sticky right-0 bg-gray-50 z-10">
-									Actions
-								</th>
-							</tr>
-						</thead>
-						<tbody className="divide-y divide-gray-200">
+			<div className="overflow-x-auto rounded-lg border border-border bg-background shadow">
+				<table className="w-full min-w-[720px] border-collapse text-left">
+					<thead className="bg-muted">
+						<tr>
+							<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
+								User
+							</th>
+							<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
+								Role
+							</th>
+							<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
+								Last Login
+							</th>
+							<th className="px-6 py-4 text-sm font-medium text-muted-foreground sticky right-0 bg-muted z-10">
+								Actions
+							</th>
+						</tr>
+					</thead>
+					<tbody className="divide-y divide-border">
 							{filteredUsers.map((user: UserWithRole) => {
 								const targetLevel = getRoleOrder(user.role);
 								const canEditThis =
@@ -291,30 +291,30 @@ export default function UsersPage() {
 									user._id !== currentUser?._id &&
 									user.role !== 'owner';
 								return (
-									<tr
-										key={user._id}
-										className="hover:bg-gray-50">
-										<td className="px-6 py-4">
-											<div className="flex items-center">
-												<div className="h-10 w-10 flex-shrink-0 rounded-full bg-gray-100 flex items-center justify-center">
-													{user.name ? (
-														<span className="text-lg font-medium text-gray-700">
-															{user.name.charAt(0)}
-														</span>
-													) : (
-														<User className="h-5 w-5 text-gray-500" />
-													)}
+								<tr
+									key={user._id}
+									className="hover:bg-muted/50">
+									<td className="px-6 py-4">
+										<div className="flex items-center">
+											<div className="h-10 w-10 flex-shrink-0 rounded-full bg-muted flex items-center justify-center">
+												{user.name ? (
+													<span className="text-lg font-medium text-foreground">
+														{user.name.charAt(0)}
+													</span>
+												) : (
+													<User className="h-5 w-5 text-muted-foreground" />
+												)}
+											</div>
+											<div className="ml-4">
+												<div className="font-medium text-foreground">
+													{user.name || user.username}
 												</div>
-												<div className="ml-4">
-													<div className="font-medium text-gray-900">
-														{user.name || user.username}
-													</div>
-													<div className="text-sm text-gray-500">
-														{user.username}
-													</div>
+												<div className="text-sm text-muted-foreground">
+													{user.username}
 												</div>
 											</div>
-										</td>
+										</div>
+									</td>
 										<td className="px-6 py-4">
 											<Badge
 												variant={getRoleBadgeVariant(user.role)}
@@ -328,12 +328,12 @@ export default function UsersPage() {
 													: user.role}
 											</Badge>
 										</td>
-										<td className="px-6 py-4 text-sm text-gray-500">
-											{user.lastLogin
-												? new Date(user.lastLogin).toLocaleString()
-												: 'Never'}
-										</td>
-										<td className="px-6 py-4 sticky right-0 bg-white z-10">
+									<td className="px-6 py-4 text-sm text-muted-foreground">
+										{user.lastLogin
+											? new Date(user.lastLogin).toLocaleString()
+											: 'Never'}
+									</td>
+									<td className="px-6 py-4 sticky right-0 bg-background z-10">
 											<div className="flex items-center gap-2">
 												<Button
 													variant="ghost"

@@ -150,8 +150,8 @@ function SortableRoleItem({
 								<div
 									{...attributes}
 									{...listeners}
-									className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-100 rounded">
-									<GripVertical className="h-4 w-4 text-gray-400" />
+								className="cursor-grab active:cursor-grabbing p-1 hover:bg-accent rounded">
+								<GripVertical className="h-4 w-4 text-muted-foreground" />
 								</div>
 							)}
 						<div>
@@ -648,19 +648,19 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 	const getRoleBadgeColor = (level: number) => {
 		switch (level) {
 			case 1:
-				return 'bg-red-100 text-red-800';
+				return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
 			case 2:
-				return 'bg-orange-100 text-orange-800';
+				return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
 			case 3:
-				return 'bg-yellow-100 text-yellow-800';
+				return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
 			case 4:
-				return 'bg-blue-100 text-blue-800';
+				return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300';
 			case 5:
-				return 'bg-green-100 text-green-800';
+				return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
 			case 6:
-				return 'bg-gray-100 text-gray-800';
+				return 'bg-muted text-muted-foreground';
 			default:
-				return 'bg-gray-100 text-gray-800';
+				return 'bg-muted text-muted-foreground';
 		}
 	};
 
@@ -669,7 +669,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 			<div className="flex items-center justify-center p-8">
 				<div className="text-center">
 					<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-					<p className="mt-2 text-gray-600">Loading roles...</p>
+					<p className="mt-2 text-muted-foreground">Loading roles...</p>
 				</div>
 			</div>
 		);
@@ -679,7 +679,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 		<div className="space-y-6">
 			<div className="flex justify-between items-center">
 				<div>
-					<p className="text-gray-600">
+					<p className="text-muted-foreground">
 						Kelola roles dan permissions untuk user
 					</p>
 				</div>
@@ -769,7 +769,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 										{Object.entries(getPermissionsByCategory()).map(
 											([category, categoryPermissions]) => (
 												<div key={category}>
-													<h4 className="font-medium text-sm text-gray-700 mb-2">
+													<h4 className="font-medium text-sm text-foreground mb-2">
 														{category.toUpperCase()}
 													</h4>
 													{categoryPermissions.map((permission) => (
@@ -890,7 +890,7 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 									{Object.entries(getPermissionsByCategory()).map(
 										([category, categoryPermissions]) => (
 											<div key={category}>
-												<h4 className="font-medium text-sm text-gray-700 mb-2">
+												<h4 className="font-medium text-sm text-foreground mb-2">
 													{category.toUpperCase()}
 												</h4>
 												{categoryPermissions.map((permission) => (

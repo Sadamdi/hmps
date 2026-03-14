@@ -102,7 +102,7 @@ function SortablePositionItem({
 		<div
 			ref={setNodeRef}
 			style={style}
-			className={`flex items-center justify-between p-3 border rounded bg-gray-50 ${
+			className={`flex items-center justify-between p-3 border rounded bg-muted ${
 				isDragging ? 'shadow-lg opacity-50' : ''
 			}`}>
 			<div className="flex items-center gap-3">
@@ -110,7 +110,7 @@ function SortablePositionItem({
 					{...(canEdit ? { ...attributes, ...listeners } : {})}
 					className={`p-1 rounded ${
 						canEdit
-							? 'cursor-grab active:cursor-grabbing hover:bg-gray-200'
+							? 'cursor-grab active:cursor-grabbing hover:bg-accent'
 							: ''
 					}`}>
 					<GripVertical className="h-4 w-4 text-gray-400" />
@@ -118,7 +118,7 @@ function SortablePositionItem({
 				<span className="font-medium">{position.name}</span>
 			</div>
 			<div className="flex items-center gap-2">
-				<span className="text-sm text-gray-500">Order: {position.order}</span>
+				<span className="text-sm text-muted-foreground">Order: {position.order}</span>
 				{canEdit && (
 					<div className="flex items-center gap-1">
 						<Button
@@ -126,15 +126,15 @@ function SortablePositionItem({
 							size="sm"
 							onClick={onMoveUp}
 							disabled={position.order === 1}
-							className="h-auto p-1 text-gray-600 hover:text-gray-800">
-							<ChevronUp className="h-4 w-4" />
-						</Button>
-						<Button
-							variant="ghost"
-							size="sm"
-							onClick={onMoveDown}
-							disabled={position.order === totalPositions}
-							className="h-auto p-1 text-gray-600 hover:text-gray-800">
+						className="h-auto p-1 text-muted-foreground hover:text-foreground">
+						<ChevronUp className="h-4 w-4" />
+					</Button>
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={onMoveDown}
+						disabled={position.order === totalPositions}
+						className="h-auto p-1 text-muted-foreground hover:text-foreground">
 							<ChevronDown className="h-4 w-4" />
 						</Button>
 						<Button
@@ -861,7 +861,7 @@ export default function DashboardOrganization() {
 					className="space-y-6">
 					<div className="mb-6 flex flex-col gap-4">
 						<div className="relative flex-1">
-							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 							<Input
 								placeholder="Search members..."
 								className="pl-10"
@@ -927,7 +927,7 @@ export default function DashboardOrganization() {
 								{sortedFilteredMembers.length === 0 ? (
 									<Card>
 										<CardContent className="p-8 text-center">
-											<p className="text-gray-500">
+											<p className="text-muted-foreground">
 												{selectedDivision === 'all'
 													? `No members found for period ${selectedPeriod}`
 													: `No members found for division ${selectedDivision} in period ${selectedPeriod}`}
@@ -957,13 +957,13 @@ export default function DashboardOrganization() {
 															<h3 className="font-semibold transition-colors duration-200 group-hover:text-primary">
 																{member.name}
 															</h3>
-															<p className="text-sm text-gray-600">
-																{member.position}
-															</p>
-															<p className="text-xs text-gray-400">
-																{member.period} •{' '}
-																{getDivisionFromPosition(member.position)}
-															</p>
+								<p className="text-sm text-muted-foreground">
+									{member.position}
+								</p>
+								<p className="text-xs text-muted-foreground">
+									{member.period} •{' '}
+									{getDivisionFromPosition(member.position)}
+								</p>
 														</div>
 													</div>
 													<div className="flex space-x-2">
@@ -1079,7 +1079,7 @@ export default function DashboardOrganization() {
 										Current Positions for {selectedPeriod}
 									</h3>
 									{positions.length === 0 ? (
-										<p className="text-gray-500">
+										<p className="text-muted-foreground">
 											No positions defined for this period.
 										</p>
 									) : (
@@ -1199,30 +1199,30 @@ export default function DashboardOrganization() {
 										<Loader2 className="h-8 w-8 animate-spin" />
 									</div>
 								) : divisions.length === 0 ? (
-									<p className="text-gray-500">No divisions defined.</p>
-								) : (
-									<div className="space-y-4">
-										{divisions.map((division: any) => (
-											<div
-												key={division._id}
-												className="flex items-center justify-between p-4 border rounded-lg bg-gray-50">
-												<div className="flex items-center gap-4">
-													<div
-														className="w-4 h-4 rounded-full"
-														style={{ backgroundColor: division.color }}
-													/>
-													<div>
-														<h4 className="font-semibold">
-															{division.displayName}
-														</h4>
-														<p className="text-sm text-gray-600">
-															{division.description || 'No description'}
-														</p>
-														<div className="text-xs text-gray-500 mt-1">
-															Positions: {division.positions?.length || 0}
-														</div>
+								<p className="text-muted-foreground">No divisions defined.</p>
+							) : (
+								<div className="space-y-4">
+									{divisions.map((division: any) => (
+										<div
+											key={division._id}
+											className="flex items-center justify-between p-4 border rounded-lg bg-muted">
+											<div className="flex items-center gap-4">
+												<div
+													className="w-4 h-4 rounded-full"
+													style={{ backgroundColor: division.color }}
+												/>
+												<div>
+													<h4 className="font-semibold">
+														{division.displayName}
+													</h4>
+													<p className="text-sm text-muted-foreground">
+														{division.description || 'No description'}
+													</p>
+													<div className="text-xs text-muted-foreground mt-1">
+														Positions: {division.positions?.length || 0}
 													</div>
 												</div>
+											</div>
 												<div className="flex items-center gap-2">
 													{hasSpecificPermission('divisions.edit') && (
 														<Button
@@ -1371,7 +1371,7 @@ function DivisionEditor({
 
 	return (
 		<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-			<div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+			<div className="bg-background border border-border rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
 				<div className="flex justify-between items-center mb-6">
 					<h2 className="text-xl font-semibold">Edit Division</h2>
 					<Button
@@ -1528,15 +1528,15 @@ function SortableDivisionPositionItem({
 		<div
 			ref={setNodeRef}
 			style={style}
-			className={`flex items-center justify-between p-2 bg-gray-50 rounded ${
-				isDragging ? 'shadow-lg opacity-50' : ''
-			}`}>
-			<div className="flex items-center gap-2">
-				<div
-					{...attributes}
-					{...listeners}
-					className="cursor-grab active:cursor-grabbing p-1 hover:bg-gray-200 rounded">
-					<GripVertical className="h-4 w-4 text-gray-400" />
+		className={`flex items-center justify-between p-2 bg-muted rounded ${
+			isDragging ? 'shadow-lg opacity-50' : ''
+		}`}>
+		<div className="flex items-center gap-2">
+			<div
+				{...attributes}
+				{...listeners}
+				className="cursor-grab active:cursor-grabbing p-1 hover:bg-accent rounded">
+				<GripVertical className="h-4 w-4 text-muted-foreground" />
 				</div>
 				<span>{position}</span>
 			</div>

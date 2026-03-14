@@ -13,10 +13,15 @@ Disallow: /uploads/admin/
 Disallow: /_next/
 Disallow: /node_modules/
 
-# Allow important directories
+# Allow semua halaman dan section publik
 Allow: /artikel/
 Allow: /uploads/articles/
 Allow: /attached_assets/
+Allow: /#tentang-kami
+Allow: /#visi-misi
+Allow: /#struktur
+Allow: /#library
+Allow: /#artikel
 
 # Crawl delay
-Crawl-delay: 1 
+Crawl-delay: 1

@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent horizontal overflow without breaking position: sticky (clip doesn't create a scroll container) */
+html,
+body {
+	overflow-x: clip;
+}
+
 /* ============================================================
    Performance-first keyframes: only transform + opacity
    (GPU-composited, safe for low-end devices)
@@ -460,7 +466,7 @@
 		--gradient-card-bg: #ffffff;
 		--gradient-section-alt: #f8fafc;
 		--gradient-dashboard: linear-gradient(to bottom, #f8fafc, #ffffff, #f1f5f9);
-		--gradient-login: linear-gradient(135deg, #eff6ff 0%, #eef2ff 40%, #f0fdf4 100%);
+		--gradient-login: linear-gradient(135deg, #eff6ff 0%, #eef2ff 50%, #f0fdf4 100%);
 		--gradient-loading: linear-gradient(135deg, #eff6ff 0%, #eef2ff 50%, #f0fdf4 100%);
 		--gradient-vision-section: linear-gradient(to bottom, #eff6ff, #eef2ff, #ede9fe);
 		--orb-color-1: rgba(99, 102, 241, 0.10);
@@ -830,6 +836,76 @@
 		font-size: 1rem;
 	}
 }
+/* Dark mode overrides untuk .article-content agar teks terbaca di tema gelap */
+.dark .article-content h1,
+.dark .article-content h2,
+.dark .article-content h3,
+.dark .article-content h4,
+.dark .article-content h5,
+.dark .article-content h6 {
+	color: var(--foreground);
+}
+
+.dark .article-content h2 {
+	border-bottom-color: var(--border);
+}
+
+.dark .article-content h3 {
+	color: hsl(var(--foreground) / 0.9);
+}
+
+.dark .article-content h4,
+.dark .article-content h5,
+.dark .article-content h6 {
+	color: hsl(var(--foreground) / 0.8);
+}
+
+.dark .article-content p {
+	color: var(--foreground);
+}
+
+.dark .article-content li {
+	color: var(--foreground);
+}
+
+.dark .article-content blockquote {
+	background-color: var(--muted);
+	color: var(--muted-foreground);
+	border-left-color: var(--primary);
+}
+
+.dark .article-content code {
+	background-color: var(--muted);
+	color: #f87171;
+}
+
+.dark .article-content table {
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+
+.dark .article-content th,
+.dark .article-content td {
+	border-bottom-color: var(--border);
+}
+
+.dark .article-content th {
+	background-color: var(--muted);
+	color: var(--foreground);
+}
+
+.dark .article-content tr:hover {
+	background-color: var(--muted);
+}
+
+.dark .article-content a {
+	color: #60a5fa;
+	text-decoration-color: #93c5fd;
+}
+
+.dark .article-content a:hover {
+	color: #93c5fd;
+}
+
 /* Dark theme article content styling */
 .article-content-dark {
 	font-family: 'Georgia', 'Times New Roman', serif;

@@ -12,13 +12,7 @@ export function LocalBannerFull({
 	alt = 'Banner',
 	fallback,
 }: LocalAssetProps) {
-	const [imageLoaded, setImageLoaded] = useState(false);
 	const [imageError, setImageError] = useState(false);
-
-	const handleImageLoad = () => {
-		setImageLoaded(true);
-		setImageError(false);
-	};
 
 	const handleImageError = () => {
 		console.log('LocalBannerFull: Failed to load, showing fallback');
@@ -42,11 +36,7 @@ export function LocalBannerFull({
 		<img
 			src="/attached_assets/general/bennerfull.webp"
 			alt={alt}
-			className={`transition-opacity duration-800 ease-out ${
-				imageLoaded ? 'opacity-100' : 'opacity-0'
-			} ${className}`}
-			style={{ willChange: 'opacity' }}
-			onLoad={handleImageLoad}
+			className={className}
 			onError={handleImageError}
 			loading="eager"
 			decoding="async"

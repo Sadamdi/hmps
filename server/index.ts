@@ -1,4 +1,5 @@
 import express, { NextFunction, type Request, Response } from 'express';
+import fs from 'fs';
 import path from 'path';
 import { connectDB } from '../db/mongodb';
 import { registerRoutes } from './routes';
@@ -100,6 +101,31 @@ app.get('/sitemap.xml', async (_req, res) => {
 				loc: `${host}/artikel`,
 				changefreq: 'daily',
 				priority: '0.9',
+				lastmod: now,
+			},
+			// Sections beranda yang bersifat publik (untuk crawling bot)
+			{
+				loc: `${host}/#tentang-kami`,
+				changefreq: 'monthly',
+				priority: '0.7',
+				lastmod: now,
+			},
+			{
+				loc: `${host}/#visi-misi`,
+				changefreq: 'monthly',
+				priority: '0.7',
+				lastmod: now,
+			},
+			{
+				loc: `${host}/#struktur`,
+				changefreq: 'monthly',
+				priority: '0.7',
+				lastmod: now,
+			},
+			{
+				loc: `${host}/#library`,
+				changefreq: 'weekly',
+				priority: '0.8',
 				lastmod: now,
 			},
 		];
@@ -309,6 +335,156 @@ setInterval(
 		await setupVite(app, server);
 	} else {
 		console.log('📦 Setting up static files (production mode)');
+
+		// ==================== ARTICLE SEO PRERENDER MIDDLEWARE ====================
+		// Inject article meta tags server-side so crawlers (Googlebot, etc.)
+		// receive proper title/description/OG tags without needing JavaScript.
+		app.get(['/artikel/:id/:slug', '/artikel/:id'], async (req, res, next) => {
+			try {
+				const distPath = path.resolve(process.cwd(), 'dist', 'public');
+				const htmlPath = path.join(distPath, 'index.html');
+				if (!fs.existsSync(htmlPath)) return next();
+
+				let article: any = null;
+				try {
+					const { Article } = await import('../db/mongodb');
+					const mongoose = await import('mongoose');
+					const { id, slug } = req.params as { id?: string; slug?: string };
+
+					if (slug && id) {
+						article = await Article.findById(id)
+							.select('title excerpt image author createdAt updatedAt slug _id')
+							.lean();
+					} else if (id) {
+						if (mongoose.default.Types.ObjectId.isValid(id)) {
+							article = await Article.findById(id)
+								.select('title excerpt image author createdAt updatedAt slug _id')
+								.lean();
+						} else {
+							article = await Article.findOne({ slug: id })
+								.select('title excerpt image author createdAt updatedAt slug _id')
+								.lean();
+						}
+					}
+				} catch (dbErr) {
+					console.log('Article prerender DB fetch skipped:', dbErr);
+				}
+
+				let html = fs.readFileSync(htmlPath, 'utf-8');
+
+				if (article) {
+					const esc = (s: string) =>
+						String(s)
+							.replace(/&/g, '&amp;')
+							.replace(/"/g, '&quot;')
+							.replace(/</g, '&lt;')
+							.replace(/>/g, '&gt;');
+
+					const title = `${article.title} | Himatif Encoder`;
+					const description = String(
+						article.excerpt ||
+							'Artikel dari Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+					).slice(0, 160);
+					const canonicalUrl = `https://himatif-encoder.com/artikel/${article._id}/${article.slug || ''}`;
+					const defaultOgImage =
+						'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
+					const ogImage =
+						article.image && String(article.image).startsWith('http')
+							? article.image
+							: article.image
+								? `https://himatif-encoder.com${article.image}`
+								: defaultOgImage;
+
+					html = html
+						.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+						.replace(
+							/<meta\s[^>]*name="title"[^>]*>/,
+							`<meta name="title" content="${esc(title)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*name="description"[^>]*>/,
+							`<meta name="description" content="${esc(description)}" />`,
+						)
+						.replace(
+							/<link\s[^>]*rel="canonical"[^>]*>/,
+							`<link rel="canonical" href="${canonicalUrl}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:type"[^>]*>/,
+							`<meta property="og:type" content="article" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:url"[^>]*>/,
+							`<meta property="og:url" content="${canonicalUrl}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:title"[^>]*>/,
+							`<meta property="og:title" content="${esc(title)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:description"[^>]*>/,
+							`<meta property="og:description" content="${esc(description)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:image"[^>]*>/,
+							`<meta property="og:image" content="${ogImage}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="twitter:url"[^>]*>/,
+							`<meta property="twitter:url" content="${canonicalUrl}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="twitter:title"[^>]*>/,
+							`<meta property="twitter:title" content="${esc(title)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="twitter:description"[^>]*>/,
+							`<meta property="twitter:description" content="${esc(description)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="twitter:image"[^>]*>/,
+							`<meta property="twitter:image" content="${ogImage}" />`,
+						);
+
+					// Inject Article JSON-LD schema for rich results
+					const articleSchema = JSON.stringify({
+						'@context': 'https://schema.org',
+						'@type': 'Article',
+						headline: article.title,
+						description: article.excerpt || '',
+						image: ogImage,
+						author: {
+							'@type': 'Person',
+							name: article.author || 'Himatif Encoder',
+						},
+						publisher: {
+							'@type': 'Organization',
+							name: 'Himatif Encoder TI UIN Malang',
+							logo: {
+								'@type': 'ImageObject',
+								url: defaultOgImage,
+							},
+						},
+						datePublished: article.createdAt,
+						dateModified: article.updatedAt || article.createdAt,
+						mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
+						url: canonicalUrl,
+					});
+
+					html = html.replace(
+						'</head>',
+						`<script type="application/ld+json">${articleSchema}</script>\n</head>`,
+					);
+				}
+
+				res.set('Content-Type', 'text/html');
+				return res.send(html);
+			} catch (err) {
+				console.log('Article prerender error, falling back to SPA:', err);
+				return next();
+			}
+		});
+
 		serveStatic(app);
 	}
 

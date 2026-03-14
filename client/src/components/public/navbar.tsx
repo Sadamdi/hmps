@@ -23,7 +23,7 @@ import {
 	Users,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 
 interface NavbarProps {
 	activeSection: string;
@@ -35,16 +35,24 @@ interface NavbarSettings {
 }
 
 const navItems = [
-	{ id: 'home',           label: 'Beranda',        icon: <Home className="h-4 w-4" /> },
-	{ id: 'about',          label: 'Tentang Kami',   icon: <Info className="h-4 w-4" /> },
-	{ id: 'vision-mission', label: 'Visi & Misi',    icon: <Target className="h-4 w-4" /> },
-	{ id: 'structure',      label: 'Struktur',        icon: <Users className="h-4 w-4" /> },
-	{ id: 'articles',       label: 'Artikel',         icon: <FileText className="h-4 w-4" /> },
-	{ id: 'library',        label: 'Library',         icon: <BookOpen className="h-4 w-4" /> },
+	{ id: 'home', label: 'Beranda', icon: <Home className="h-4 w-4" /> },
+	{ id: 'about', label: 'Tentang Kami', icon: <Info className="h-4 w-4" /> },
+	{
+		id: 'vision-mission',
+		label: 'Visi & Misi',
+		icon: <Target className="h-4 w-4" />,
+	},
+	{ id: 'structure', label: 'Struktur', icon: <Users className="h-4 w-4" /> },
+	{ id: 'articles', label: 'Artikel', icon: <FileText className="h-4 w-4" /> },
+	{ id: 'library', label: 'Library', icon: <BookOpen className="h-4 w-4" /> },
 ];
 
-export default function Navbar({ activeSection, scrollToSection }: NavbarProps) {
+export default function Navbar({
+	activeSection,
+	scrollToSection,
+}: NavbarProps) {
 	const [scrolled, setScrolled] = useState(false);
+	const [location, navigate] = useLocation();
 	const { user, logout } = useAuth();
 	const { theme, toggleTheme } = useTheme();
 
@@ -66,6 +74,19 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 	};
 
 	const handleNavClick = (id: string) => {
+		// Jika sedang tidak di halaman home, arahkan ke route home terlebih dulu
+		// atau langsung ke anchor beranda/section publik.
+		if (location !== '/') {
+			if (id === 'home') {
+				navigate('/');
+			} else {
+				// Bawa user ke beranda dengan anchor section yang sesuai
+				window.location.href = `/#${id}`;
+			}
+			return;
+		}
+
+		// Jika sudah di halaman home, cukup scroll dengan halus
 		if (id === 'home') {
 			window.scrollTo({ top: 0, behavior: 'smooth' });
 		} else {
@@ -86,25 +107,33 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 					<div className="flex justify-between items-center h-full">
 						{/* Brand */}
 						<button
-							onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+							onClick={() => {
+								if (location !== '/') {
+									navigate('/');
+								} else {
+									window.scrollTo({ top: 0, behavior: 'smooth' });
+								}
+							}}
 							className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 bg-clip-text text-transparent hover:opacity-90 transition-opacity dark:from-blue-300 dark:via-cyan-200 dark:to-blue-100">
 							{settings?.navbarBrand || 'HMTI'}
 						</button>
 
 						{/* Desktop nav links */}
 						<nav className="hidden sm:flex items-center gap-1">
-							{navItems.filter(i => i.id !== 'home').map((item) => (
-								<button
-									key={item.id}
-									onClick={() => scrollToSection(item.id)}
-									className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
-										activeSection === item.id
-											? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
-											: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
-									}`}>
-									{item.label}
-								</button>
-							))}
+							{navItems
+								.filter((i) => i.id !== 'home')
+								.map((item) => (
+									<button
+										key={item.id}
+										onClick={() => scrollToSection(item.id)}
+										className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+											activeSection === item.id
+												? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
+												: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
+										}`}>
+										{item.label}
+									</button>
+								))}
 						</nav>
 
 						{/* Right side actions — desktop */}
@@ -113,7 +142,11 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 							<button
 								onClick={toggleTheme}
 								className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-								aria-label={theme === 'dark' ? 'Ganti ke mode siang' : 'Ganti ke mode malam'}>
+								aria-label={
+									theme === 'dark'
+										? 'Ganti ke mode siang'
+										: 'Ganti ke mode malam'
+								}>
 								{theme === 'dark' ? (
 									<Sun className="h-4 w-4 text-amber-400" />
 								) : (
@@ -123,7 +156,7 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 
 							{/* User dropdown */}
 							{user ? (
-								<DropdownMenu>
+								<DropdownMenu modal={false}>
 									<DropdownMenuTrigger asChild>
 										<button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary transition-colors">
 											<Avatar className="h-7 w-7">
@@ -138,14 +171,22 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 											</span>
 										</button>
 									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end" className="w-56 border-border bg-card text-foreground">
+									<DropdownMenuContent
+										align="end"
+										className="w-56 border-border bg-card text-foreground z-50">
 										<div className="px-3 py-2">
-											<p className="text-sm font-medium">{user.name || user.username}</p>
-											<p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+											<p className="text-sm font-medium">
+												{user.name || user.username}
+											</p>
+											<p className="text-xs text-muted-foreground capitalize">
+												{user.role}
+											</p>
 										</div>
 										<DropdownMenuSeparator />
 										<DropdownMenuItem asChild>
-											<Link href="/dashboard" className="cursor-pointer">
+											<Link
+												href="/dashboard"
+												className="cursor-pointer">
 												<Settings className="mr-2 h-4 w-4" />
 												Dashboard
 											</Link>
@@ -191,7 +232,6 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 				           flex flex-col gap-1.5 p-2 rounded-2xl
 				           bg-background/92 backdrop-blur-md
 				           border border-border/80 shadow-xl shadow-black/10">
-
 				{/* Nav section items */}
 				{navItems.map((item) => (
 					<button
@@ -200,10 +240,12 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 						aria-label={item.label}
 						className={`relative w-10 h-10 flex items-center justify-center rounded-xl
 						            transition-all duration-200 group
-						            ${activeSection === item.id || (item.id === 'home' && activeSection === '')
-							? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
-							: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-						}`}>
+						            ${
+													activeSection === item.id ||
+													(item.id === 'home' && activeSection === '')
+														? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
+														: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+												}`}>
 						{item.icon}
 
 						{/* Tooltip ke kiri */}
@@ -223,7 +265,7 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 
 				{/* Login / User icon */}
 				{user ? (
-					<DropdownMenu>
+					<DropdownMenu modal={false}>
 						<DropdownMenuTrigger asChild>
 							<button
 								aria-label="Akun"
@@ -247,14 +289,23 @@ export default function Navbar({ activeSection, scrollToSection }: NavbarProps) 
 								</span>
 							</button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent side="left" align="end" className="w-48 border-border bg-card text-foreground">
+						<DropdownMenuContent
+							side="left"
+							align="end"
+							className="w-48 border-border bg-card text-foreground z-50">
 							<div className="px-3 py-2">
-								<p className="text-sm font-medium">{user.name || user.username}</p>
-								<p className="text-xs text-muted-foreground capitalize">{user.role}</p>
+								<p className="text-sm font-medium">
+									{user.name || user.username}
+								</p>
+								<p className="text-xs text-muted-foreground capitalize">
+									{user.role}
+								</p>
 							</div>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem asChild>
-								<Link href="/dashboard" className="cursor-pointer">
+								<Link
+									href="/dashboard"
+									className="cursor-pointer">
 									<Settings className="mr-2 h-4 w-4" />
 									Dashboard
 								</Link>

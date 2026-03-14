@@ -4,12 +4,14 @@ interface LoadingScreenProps {
 	onLoadingComplete: () => void;
 	forceComplete?: () => void;
 	assetsLoaded?: boolean;
+	onExitStart?: () => void;
 }
 
 export function LoadingScreen({
 	onLoadingComplete,
 	forceComplete,
 	assetsLoaded,
+	onExitStart,
 }: LoadingScreenProps) {
 	const [progress, setProgress] = useState(0);
 	const [currentStep, setCurrentStep] = useState(0);
@@ -23,6 +25,7 @@ export function LoadingScreen({
 
 	const handleSkip = () => {
 		setIsExiting(true);
+		onExitStart?.();
 		setTimeout(() => {
 			setIsComplete(true);
 			if (forceComplete) {
@@ -48,6 +51,7 @@ export function LoadingScreen({
 				// Tunggu asset siap sebelum hilang
 				if (assetsLoaded) {
 					setIsExiting(true);
+					onExitStart?.();
 					setTimeout(() => {
 						setIsComplete(true);
 						onLoadingComplete();
@@ -79,15 +83,16 @@ export function LoadingScreen({
 			const elapsedTime = Date.now() - (window as any).loadingStartTime || 0;
 			const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
 
+		setTimeout(() => {
+			setIsExiting(true);
+			onExitStart?.();
 			setTimeout(() => {
-				setIsExiting(true);
-				setTimeout(() => {
-					setIsComplete(true);
-					onLoadingComplete();
-				}, 500);
-			}, remainingTime);
+				setIsComplete(true);
+				onLoadingComplete();
+			}, 500);
+		}, remainingTime);
 		}
-	}, [assetsLoaded, progress, onLoadingComplete]);
+	}, [assetsLoaded, progress, onLoadingComplete, onExitStart]);
 
 	// Fallback jika loading terlalu lama (minimal 2 detik)
 	useEffect(() => {
@@ -99,13 +104,14 @@ export function LoadingScreen({
 				const elapsedTime = Date.now() - (window as any).loadingStartTime || 0;
 				const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
 
+			setTimeout(() => {
+				setIsExiting(true);
+				onExitStart?.();
 				setTimeout(() => {
-					setIsExiting(true);
-					setTimeout(() => {
-						setIsComplete(true);
-						onLoadingComplete();
-					}, 500);
-				}, remainingTime);
+					setIsComplete(true);
+					onLoadingComplete();
+				}, 500);
+			}, remainingTime);
 			}
 		}, 3000); // Max 3 detik (tapi minimal 2 detik)
 

@@ -5,6 +5,7 @@ import { LocalBannerFull } from '../LocalAssets';
 interface HeroProps {
 	scrollToSection: (id: string) => void;
 	assetsLoaded?: boolean;
+	introKey?: number;
 }
 
 interface Settings {
@@ -41,6 +42,7 @@ interface Settings {
 export default function Hero({
 	scrollToSection,
 	assetsLoaded = false,
+	introKey,
 }: HeroProps) {
 	const [showText, setShowText] = useState(false);
 	const [textMoveUp, setTextMoveUp] = useState(false);
@@ -173,15 +175,48 @@ export default function Hero({
 		return () => clearInterval(interval);
 	}, [mobileBanners.length]);
 
+	// Trigger animasi intro setiap kali assets siap dan introKey berubah
 	useEffect(() => {
-		// Trigger semua animasi langsung saat assets loaded (tanpa delay)
-		if (assetsLoaded) {
-			setShowText(true);
-			setShowBanner(true);
-			setShowPerson(true);
-			setTextMoveUp(true);
+		if (!assetsLoaded || !introKey) return;
+
+		// Reset state animasi
+		setShowBanner(false);
+		setShowPerson(false);
+		setShowText(false);
+		setTextMoveUp(false);
+
+		// Reset style langsung untuk menghindari sisa opacity/transform
+		if (bannerRef.current) {
+			bannerRef.current.style.opacity = '0';
 		}
-	}, [assetsLoaded]);
+		if (textRef.current) {
+			textRef.current.style.opacity = '0';
+			textRef.current.style.transform = 'translate3d(-50%, -50%, 0)';
+		}
+		if (personRef.current) {
+			personRef.current.style.opacity = '0';
+		}
+
+		// Banner muncul duluan sebagai latar
+		const bannerTimer = setTimeout(() => {
+			setShowBanner(true);
+		}, 0);
+
+		// Gambar orang muncul 300ms setelah banner
+		const personTimer = setTimeout(() => setShowPerson(true), 300);
+
+		// Text box dan scroll indicator muncul 600ms setelah banner
+		const textTimer = setTimeout(() => {
+			setShowText(true);
+			setTextMoveUp(true);
+		}, 600);
+
+		return () => {
+			clearTimeout(bannerTimer);
+			clearTimeout(personTimer);
+			clearTimeout(textTimer);
+		};
+	}, [assetsLoaded, introKey]);
 
 	return (
 		<div
@@ -196,6 +231,7 @@ export default function Hero({
 					className="fixed top-0 left-0 w-full h-[400px] z-0 pointer-events-none"
 					style={{
 						opacity: showBanner ? 1 : 0,
+						transition: 'opacity 0.7s ease-out',
 						transform: 'translate3d(0, 0, 0)',
 						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
@@ -220,6 +256,7 @@ export default function Hero({
 					top: textMoveUp ? '35%' : '50%',
 					transform: 'translate3d(-50%, -50%, 0)',
 					opacity: showText ? 1 : 0,
+					transition: 'opacity 0.6s ease-out, top 0.5s ease-out',
 					willChange: 'opacity, transform',
 					backfaceVisibility: 'hidden',
 					minWidth: '340px',
@@ -258,7 +295,7 @@ export default function Hero({
 			{/* Desktop scroll indicator */}
 			<div
 				className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[5] flex flex-col items-center gap-1.5 pointer-events-auto"
-				style={{ opacity: showText ? 1 : 0 }}>
+				style={{ opacity: showText ? 1 : 0, transition: 'opacity 0.6s ease-out' }}>
 			<span className="text-xs text-muted-foreground tracking-widest uppercase">Scroll</span>
 			<div className="w-px h-10 bg-gradient-to-b from-primary/60 to-transparent relative overflow-hidden">
 				<div
@@ -275,6 +312,7 @@ export default function Hero({
 					style={{
 						transform: 'translate3d(0, 0, 0)',
 						opacity: showPerson ? 1 : 0,
+						transition: 'opacity 0.7s ease-out',
 						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
 					}}>

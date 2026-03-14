@@ -126,7 +126,7 @@
 			name="msapplication-config"
 			content="/browserconfig.xml" />
 
-		<!-- Structured Data -->
+		<!-- Structured Data: Organization -->
 		<script type="application/ld+json">
 			{
 				"@context": "https://schema.org",
@@ -162,6 +162,87 @@
 					"@type": "Organization",
 					"name": "Universitas Islam Negeri Maulana Malik Ibrahim Malang",
 					"url": "https://uin-malang.ac.id"
+				}
+			}
+		</script>
+
+		<!-- Structured Data: WebSite (enables Google Sitelinks Search Box) -->
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@type": "WebSite",
+				"name": "Himatif Encoder",
+				"url": "https://himatif-encoder.com",
+				"description": "Website resmi Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang",
+				"inLanguage": "id-ID",
+				"potentialAction": {
+					"@type": "SearchAction",
+					"target": {
+						"@type": "EntryPoint",
+						"urlTemplate": "https://himatif-encoder.com/artikel?q={search_term_string}"
+					},
+					"query-input": "required name=search_term_string"
+				}
+			}
+		</script>
+
+		<!-- Structured Data: CollectionPage untuk Library -->
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@type": "CollectionPage",
+				"name": "Library Himatif Encoder",
+				"description": "Koleksi buku, modul, dan referensi akademik dari Himpunan Mahasiswa Teknik Informatika UIN Malang",
+				"url": "https://himatif-encoder.com/#library",
+				"isPartOf": {
+					"@type": "WebSite",
+					"name": "Himatif Encoder",
+					"url": "https://himatif-encoder.com"
+				},
+				"about": {
+					"@type": "Thing",
+					"name": "Library Mahasiswa Teknik Informatika",
+					"description": "Referensi dan sumber belajar untuk mahasiswa Teknik Informatika UIN Malang"
+				}
+			}
+		</script>
+
+		<!-- Structured Data: AboutPage untuk Struktur Pengurus -->
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@type": "AboutPage",
+				"name": "Struktur Pengurus Himatif Encoder",
+				"description": "Daftar pengurus dan anggota aktif Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang",
+				"url": "https://himatif-encoder.com/#struktur",
+				"isPartOf": {
+					"@type": "WebSite",
+					"name": "Himatif Encoder",
+					"url": "https://himatif-encoder.com"
+				},
+				"about": {
+					"@type": "Organization",
+					"name": "Himatif Encoder TI UIN Malang"
+				}
+			}
+		</script>
+
+		<!-- Structured Data: Blog untuk halaman Artikel -->
+		<script type="application/ld+json">
+			{
+				"@context": "https://schema.org",
+				"@type": "Blog",
+				"name": "Artikel Himatif Encoder",
+				"description": "Artikel, berita, dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Malang",
+				"url": "https://himatif-encoder.com/artikel",
+				"inLanguage": "id-ID",
+				"publisher": {
+					"@type": "Organization",
+					"name": "Himatif Encoder TI UIN Malang",
+					"logo": {
+						"@type": "ImageObject",
+						"url": "https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp"
+					}
 				}
 			}
 		</script>

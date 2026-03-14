@@ -409,7 +409,7 @@ export default function ContentEditor({
 	};
 
 	return (
-		<div className="p-6 bg-white rounded-lg shadow-md">
+		<div className="p-6 bg-background rounded-lg shadow-md border border-border">
 			<h2 className="text-2xl font-bold mb-6">Edit Konten Halaman</h2>
 
 			<Tabs
@@ -427,7 +427,7 @@ export default function ContentEditor({
 					className="space-y-4">
 					<div>
 						<Label htmlFor="aboutUs">Konten Tentang Kami</Label>
-						<div className="text-sm text-gray-500 mb-2">
+						<div className="text-sm text-muted-foreground mb-2">
 							Gunakan editor rich text untuk membuat konten yang menarik. Anda
 							dapat menambahkan formatting, link, dan gambar.
 						</div>
@@ -453,7 +453,7 @@ export default function ContentEditor({
 					className="space-y-4">
 					<div>
 						<Label htmlFor="visionMission">Konten Visi & Misi</Label>
-						<div className="text-sm text-gray-500 mb-2">
+						<div className="text-sm text-muted-foreground mb-2">
 							Gunakan format khusus seperti contoh di bawah ini untuk struktur
 							Visi & Misi
 						</div>
@@ -463,7 +463,7 @@ export default function ContentEditor({
 								Petunjuk Format:
 							</h4>
 							<p className="text-sm text-blue-700">Gunakan format berikut:</p>
-							<pre className="text-xs bg-white p-2 rounded mt-1 text-blue-900 overflow-auto">
+							<pre className="text-xs bg-muted p-2 rounded mt-1 text-foreground overflow-auto">
 								{`VISI MISI
 
 - VISI
@@ -682,7 +682,7 @@ Mewujudkan Himpunan Mahasiswa Teknik Informatika yang berintegritas, progresif, 
 					<Card>
 						<CardContent className="pt-6">
 							<h3 className="text-lg font-medium mb-4">Warna Divisi</h3>
-							<p className="text-sm text-gray-500 mb-4">
+							<p className="text-sm text-muted-foreground mb-4">
 								Sesuaikan warna latar belakang untuk tiap divisi di hero section
 							</p>
 							<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

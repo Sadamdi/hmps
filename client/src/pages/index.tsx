@@ -12,6 +12,7 @@ import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
+import { useLocation } from 'wouter';
 
 interface Settings {
 	siteName: string;
@@ -44,6 +45,27 @@ const Structure = lazy(() => import('@/components/public/structure'));
 export default function Home() {
 	const { isLoading, completeLoading, forceComplete, assetsLoaded } =
 		useAppLoading();
+
+	// heroReady diset saat loading screen mulai exit (onExitStart),
+	// bukan setelah selesai — agar Hero animation berjalan bersamaan dengan loading screen fade out
+	const [heroReady, setHeroReady] = useState(false);
+	const [heroTrigger, setHeroTrigger] = useState(() => Date.now());
+	const [location] = useLocation();
+
+	// Restore judul tab dan canonical saat kembali ke beranda dari halaman lain
+	useEffect(() => {
+		document.title =
+			'Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang | Fakultas Saintek';
+		const canonical = document.querySelector('link[rel="canonical"]');
+		if (canonical) canonical.setAttribute('href', 'https://himatif-encoder.com');
+		const metaDescription = document.querySelector('meta[name="description"]');
+		if (metaDescription) {
+			metaDescription.setAttribute(
+				'content',
+				'Himatif Encoder adalah Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang. Wadah pengembangan akademik, organisasi, kepemimpinan mahasiswa TI, dan kegiatan teknologi di Fakultas Sains dan Teknologi UIN Malang.',
+			);
+		}
+	}, []);
 
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
@@ -100,29 +122,42 @@ export default function Home() {
 		return () => window.removeEventListener('scroll', handleScroll);
 	}, []);
 
+	// Setiap kali route berubah ke '/', trigger ulang animasi Hero
+	useEffect(() => {
+		if (location === '/') {
+			setHeroTrigger(Date.now());
+		}
+	}, [location]);
+
 	if (settings?.maintenanceMode) {
 		return <MaintenanceMode />;
 	}
 
-	if (isLoading) {
-		return (
-			<LoadingScreen
-				onLoadingComplete={completeLoading}
-				forceComplete={forceComplete}
-				assetsLoaded={assetsLoaded}
-			/>
-		);
-	}
-
 	return (
 		<div className="min-h-screen bg-background text-foreground">
+			{/* LoadingScreen sebagai overlay fixed z-50 agar Hero di-render di background
+			    sehingga gambar sudah selesai load sebelum intro animation dimulai */}
+			{isLoading && (
+				<LoadingScreen
+					onLoadingComplete={completeLoading}
+					forceComplete={forceComplete}
+					assetsLoaded={assetsLoaded}
+					onExitStart={() => {
+						setHeroReady(true);
+						setHeroTrigger(Date.now());
+					}}
+				/>
+			)}
 			<Navbar
 				activeSection={activeSection}
 				scrollToSection={scrollToSection}
 			/>
+			{/* heroReady diset saat loading screen mulai fade out (onExitStart),
+			    sehingga banner/orang sudah mulai muncul sebelum loading screen sepenuhnya hilang */}
 			<Hero
 				scrollToSection={scrollToSection}
-				assetsLoaded={assetsLoaded}
+				assetsLoaded={heroReady || !isLoading}
+				introKey={heroTrigger}
 			/>
 			<About />
 			<VisionMission />

@@ -595,7 +595,7 @@ export default function RichTextEditor({
 			</div>
 
 			{/* API Key Status & Shortcuts help */}
-			<div className="text-xs text-gray-500 mt-2 p-2 bg-gray-50 rounded">
+			<div className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">
 				<div className="mb-1">
 					<strong>🔑 API Status:</strong>
 					<span className="ml-1">

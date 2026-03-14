@@ -721,7 +721,7 @@ export default function SettingsPage() {
 				<h1 className="text-2xl font-bold">
 					{canViewSettings ? 'Site Settings' : 'Account Settings'}
 				</h1>
-				<p className="text-gray-600 mt-1">
+				<p className="text-muted-foreground mt-1">
 					{canViewSettings
 						? canEditSettings
 							? 'Manage your website configuration'
@@ -799,7 +799,7 @@ export default function SettingsPage() {
 											onChange={handleInputChange}
 											disabled={!canEditSettings}
 										/>
-										<p className="text-sm text-gray-500">
+										<p className="text-sm text-muted-foreground">
 											Text displayed in the navigation bar
 										</p>
 									</div>
@@ -813,7 +813,7 @@ export default function SettingsPage() {
 											onChange={handleInputChange}
 											disabled={!canEditSettings}
 										/>
-										<p className="text-sm text-gray-500">
+										<p className="text-sm text-muted-foreground">
 											Displayed on the homepage hero section
 										</p>
 									</div>
@@ -851,7 +851,7 @@ export default function SettingsPage() {
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-4">
-									<p className="text-sm text-gray-500">
+									<p className="text-sm text-muted-foreground">
 										These settings control the visual appearance of your
 										website. Additional appearance settings can be configured by
 										the administrator.
@@ -1018,7 +1018,7 @@ export default function SettingsPage() {
 												<Label htmlFor="enableRegistration">
 													Enable Registration
 												</Label>
-												<p className="text-sm text-gray-500">
+												<p className="text-sm text-muted-foreground">
 													Allow new users to register
 												</p>
 											</div>
@@ -1036,7 +1036,7 @@ export default function SettingsPage() {
 												<Label htmlFor="maintenanceMode">
 													Maintenance Mode
 												</Label>
-												<p className="text-sm text-gray-500">
+												<p className="text-sm text-muted-foreground">
 													Put the site in maintenance mode
 												</p>
 											</div>
@@ -1062,7 +1062,7 @@ export default function SettingsPage() {
 										</CardHeader>
 										<CardContent>
 											<div className="space-y-2">
-												<p className="text-sm text-gray-500">
+												<p className="text-sm text-muted-foreground">
 													Reset all settings to their default values. This
 													action cannot be undone.
 												</p>
@@ -1136,7 +1136,7 @@ export default function SettingsPage() {
 											<div className="flex items-center justify-between">
 												<div className="space-y-0.5">
 													<Label className="text-base">API Protection</Label>
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Protects API endpoints from unauthorized access and
 														direct browser calls
 													</p>
@@ -1157,7 +1157,7 @@ export default function SettingsPage() {
 											<div className="flex items-center justify-between">
 												<div className="space-y-0.5">
 													<Label className="text-base">API Rate Limiting</Label>
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Limits API requests per IP address (100
 														requests/minute)
 													</p>
@@ -1178,7 +1178,7 @@ export default function SettingsPage() {
 											<div className="flex items-center justify-between">
 												<div className="space-y-0.5">
 													<Label className="text-base">DDoS Protection</Label>
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Multi-tier DDoS protection system with automatic
 														blocking
 													</p>
@@ -1201,7 +1201,7 @@ export default function SettingsPage() {
 													<Label className="text-base">
 														SQL Injection Protection
 													</Label>
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Detects and blocks SQL injection attempts in
 														requests
 													</p>
@@ -1226,7 +1226,7 @@ export default function SettingsPage() {
 													<Label className="text-base">
 														NoSQL Injection Protection
 													</Label>
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Detects and blocks NoSQL injection attempts in
 														MongoDB queries
 													</p>
@@ -1251,7 +1251,7 @@ export default function SettingsPage() {
 													<Label className="text-base">
 														Anti-Spoofing Protection
 													</Label>
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Detects and blocks IP spoofing, user-agent spoofing,
 														and referrer spoofing attempts
 													</p>
@@ -1276,7 +1276,7 @@ export default function SettingsPage() {
 													<Label className="text-base">
 														DNS Layer Protection
 													</Label>
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Protects against DNS rebinding, cache poisoning, and
 														suspicious domain attacks
 													</p>
@@ -1299,7 +1299,7 @@ export default function SettingsPage() {
 													<Label className="text-base">
 														Port Scanning Protection
 													</Label>
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Detects and blocks port scanning attempts and
 														suspicious request patterns
 													</p>
@@ -1321,7 +1321,7 @@ export default function SettingsPage() {
 											{/* Last Updated Info */}
 											{middlewareFormData.updatedAt && (
 												<div className="pt-4 border-t">
-													<p className="text-sm text-gray-500">
+													<p className="text-sm text-muted-foreground">
 														Last updated:{' '}
 														{new Date(
 															middlewareFormData.updatedAt
@@ -1374,7 +1374,7 @@ export default function SettingsPage() {
 												/>
 												<button
 													type="button"
-													className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+													className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
 													onClick={() => setShowCurrent((v) => !v)}
 													aria-label={
 														showCurrent ? 'Hide password' : 'Show password'
@@ -1399,7 +1399,7 @@ export default function SettingsPage() {
 												/>
 												<button
 													type="button"
-													className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+													className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
 													onClick={() => setShowNew((v) => !v)}
 													aria-label={
 														showNew ? 'Hide password' : 'Show password'
@@ -1426,7 +1426,7 @@ export default function SettingsPage() {
 												/>
 												<button
 													type="button"
-													className="absolute inset-y-0 right-2 flex items-center text-gray-500 hover:text-gray-700"
+													className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
 													onClick={() => setShowConfirm((v) => !v)}
 													aria-label={
 														showConfirm ? 'Hide password' : 'Show password'
@@ -1511,7 +1511,7 @@ export default function SettingsPage() {
 								{/* Custom Confirm Dialog */}
 								{showRevokeDialog && (
 									<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-										<div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
+										<div className="w-full max-w-md rounded-lg bg-background border border-border p-6 shadow-lg">
 											<h3 className="text-lg font-semibold">
 												Revoke All Sessions
 											</h3>
