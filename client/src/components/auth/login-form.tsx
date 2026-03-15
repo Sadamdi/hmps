@@ -21,6 +21,19 @@ export default function LoginForm() {
 	const [, navigate] = useLocation();
 	const [showPassword, setShowPassword] = useState(false);
 
+	useEffect(() => {
+		document.title =
+			'Login | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
+		const desc =
+			'Masuk ke akun Anda untuk mengakses dashboard Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.';
+		const meta = document.querySelector('meta[name="description"]');
+		if (meta) meta.setAttribute('content', desc);
+		return () => {
+			document.title =
+				'Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang | Fakultas Saintek';
+		};
+	}, []);
+
 	// Redirect ke dashboard jika sudah login
 	useEffect(() => {
 		if (user) {

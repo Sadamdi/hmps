@@ -485,6 +485,157 @@ setInterval(
 			}
 		});
 
+		// ==================== PAGE META INJECTION (per halaman untuk embed & mesin pencari) ====================
+		// Setiap halaman punya meta sendiri (og:*, twitter:*, canonical) — terbaca semua mesin pencari
+		const injectPageMeta = (
+			html: string,
+			opts: {
+				title: string;
+				description: string;
+				canonicalUrl: string;
+				ogImage?: string;
+				robots?: string;
+			},
+		) => {
+			const esc = (s: string) =>
+				String(s)
+					.replace(/&/g, '&amp;')
+					.replace(/"/g, '&quot;')
+					.replace(/</g, '&lt;')
+					.replace(/>/g, '&gt;');
+			const { title, description, canonicalUrl, ogImage, robots } = opts;
+			const img =
+				ogImage ||
+				'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
+			let out = html
+				.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+				.replace(
+					/<meta\s[^>]*name="title"[^>]*>/,
+					`<meta name="title" content="${esc(title)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*name="description"[^>]*>/,
+					`<meta name="description" content="${esc(description)}" />`,
+				)
+				.replace(
+					/<link\s[^>]*rel="canonical"[^>]*>/,
+					`<link rel="canonical" href="${canonicalUrl}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:type"[^>]*>/,
+					`<meta property="og:type" content="website" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:url"[^>]*>/,
+					`<meta property="og:url" content="${canonicalUrl}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:title"[^>]*>/,
+					`<meta property="og:title" content="${esc(title)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:description"[^>]*>/,
+					`<meta property="og:description" content="${esc(description)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:image"[^>]*>/,
+					`<meta property="og:image" content="${img}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="twitter:url"[^>]*>/,
+					`<meta property="twitter:url" content="${canonicalUrl}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="twitter:title"[^>]*>/,
+					`<meta property="twitter:title" content="${esc(title)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="twitter:description"[^>]*>/,
+					`<meta property="twitter:description" content="${esc(description)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="twitter:image"[^>]*>/,
+					`<meta property="twitter:image" content="${img}" />`,
+				);
+			if (robots != null && robots !== '') {
+				out = out.replace(
+					/<meta\s[^>]*name="robots"[^>]*>/,
+					`<meta name="robots" content="${esc(robots)}" />`,
+				);
+			}
+			return out;
+		};
+
+		const serveHtmlWithMeta = (opts: {
+			title: string;
+			description: string;
+			canonicalUrl: string;
+			robots?: string;
+		}) => {
+			return async (_req: Request, res: Response, next: NextFunction) => {
+				try {
+					const distPath = path.resolve(process.cwd(), 'dist', 'public');
+					const htmlPath = path.join(distPath, 'index.html');
+					if (!fs.existsSync(htmlPath)) return next();
+					let html = fs.readFileSync(htmlPath, 'utf-8');
+					html = injectPageMeta(html, opts);
+					res.set('Content-Type', 'text/html');
+					return res.send(html);
+				} catch (err) {
+					console.log('Page meta injection error:', err);
+					return next();
+				}
+			};
+		};
+
+		app.get(
+			'/tentang-kami',
+			serveHtmlWithMeta({
+				title: 'Tentang Kami | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				description:
+					'Sejarah, Track Record Ketua Himpunan & Divisi, serta Lambang Filosofi HIMATIF Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/tentang-kami',
+			}),
+		);
+
+		app.get(
+			'/artikel',
+			serveHtmlWithMeta({
+				title: 'Artikel | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				description:
+					'Daftar artikel, berita, dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/artikel',
+			}),
+		);
+
+		app.get(
+			'/login',
+			serveHtmlWithMeta({
+				title: 'Login | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				description:
+					'Masuk ke akun Anda untuk mengakses dashboard Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/login',
+				robots: 'noindex, nofollow',
+			}),
+		);
+
+		app.get(
+			'/error',
+			serveHtmlWithMeta({
+				title: 'Error | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				description:
+					'Halaman error - Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/error',
+				robots: 'noindex, nofollow',
+			}),
+		);
+
+		// Dashboard: redirect ke login (tanpa akses login, meta/isi dashboard tidak di-expose)
+		// Crawler & user yang share link dashboard akan diarahkan ke login; meta yang tampil = login
+		app.get(/^\/dashboard(\/.*)?$/, (_req, res) => {
+			res.redirect(302, '/login');
+		});
+
 		serveStatic(app);
 	}
 

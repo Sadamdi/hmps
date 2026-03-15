@@ -59,6 +59,19 @@ export default function AllArticles() {
 	}, []);
 
 	useEffect(() => {
+		document.title =
+			'Artikel | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
+		const desc =
+			'Daftar artikel, berita, dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.';
+		const meta = document.querySelector('meta[name="description"]');
+		if (meta) meta.setAttribute('content', desc);
+		return () => {
+			document.title =
+				'Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang | Fakultas Saintek';
+		};
+	}, []);
+
+	useEffect(() => {
 		const urlParams = new URLSearchParams(window.location.search);
 		const tagParam = urlParams.get('tag');
 		if (tagParam) {

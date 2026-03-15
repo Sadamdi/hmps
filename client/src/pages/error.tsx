@@ -7,6 +7,21 @@ export default function Error() {
 	const [error, setError] = useState<any>(null);
 
 	useEffect(() => {
+		document.title =
+			'Error | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
+		const meta = document.querySelector('meta[name="description"]');
+		if (meta)
+			meta.setAttribute(
+				'content',
+				'Halaman error - Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.',
+			);
+		return () => {
+			document.title =
+				'Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang | Fakultas Saintek';
+		};
+	}, []);
+
+	useEffect(() => {
 		// Coba ambil error dari URL parameters atau localStorage
 		const urlParams = new URLSearchParams(window.location.search);
 		const errorParam = urlParams.get('error');
