@@ -103,6 +103,12 @@ app.get('/sitemap.xml', async (_req, res) => {
 				priority: '0.9',
 				lastmod: now,
 			},
+			{
+				loc: `${host}/tentang-kami`,
+				changefreq: 'monthly',
+				priority: '0.9',
+				lastmod: now,
+			},
 			// Sections beranda yang bersifat publik (untuk crawling bot)
 			{
 				loc: `${host}/#tentang-kami`,
