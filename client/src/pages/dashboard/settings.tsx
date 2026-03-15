@@ -94,7 +94,7 @@ export default function SettingsPage() {
 	const canViewSettings = hasSpecificPermission('settings.view');
 	const { toast } = useToast();
 	const [activeTab, setActiveTab] = useState(
-		canViewSettings ? 'general' : 'profile'
+		canViewSettings ? 'general' : 'profile',
 	);
 	const [isResetting, setIsResetting] = useState(false);
 
@@ -241,28 +241,28 @@ export default function SettingsPage() {
 			const loadedData = {
 				allEnabled: Boolean(middlewareData.allEnabled ?? true),
 				apiProtectionEnabled: Boolean(
-					middlewareData.apiProtectionEnabled ?? true
+					middlewareData.apiProtectionEnabled ?? true,
 				),
 				apiRateLimitEnabled: Boolean(
-					middlewareData.apiRateLimitEnabled ?? true
+					middlewareData.apiRateLimitEnabled ?? true,
 				),
 				ddosProtectionEnabled: Boolean(
-					middlewareData.ddosProtectionEnabled ?? true
+					middlewareData.ddosProtectionEnabled ?? true,
 				),
 				sqlInjectionProtectionEnabled: Boolean(
-					middlewareData.sqlInjectionProtectionEnabled ?? true
+					middlewareData.sqlInjectionProtectionEnabled ?? true,
 				),
 				noSqlInjectionProtectionEnabled: Boolean(
-					middlewareData.noSqlInjectionProtectionEnabled ?? true
+					middlewareData.noSqlInjectionProtectionEnabled ?? true,
 				),
 				antiSpoofingProtectionEnabled: Boolean(
-					middlewareData.antiSpoofingProtectionEnabled ?? true
+					middlewareData.antiSpoofingProtectionEnabled ?? true,
 				),
 				dnsLayerProtectionEnabled: Boolean(
-					middlewareData.dnsLayerProtectionEnabled ?? true
+					middlewareData.dnsLayerProtectionEnabled ?? true,
 				),
 				portScanningProtectionEnabled: Boolean(
-					middlewareData.portScanningProtectionEnabled ?? true
+					middlewareData.portScanningProtectionEnabled ?? true,
 				),
 				updatedBy: middlewareData.updatedBy || (user ? user._id : ''),
 				updatedAt: middlewareData.updatedAt
@@ -288,7 +288,7 @@ export default function SettingsPage() {
 			const firstToggleValue = loadedData.apiProtectionEnabled;
 			const allSame = individualToggles.every(
 				(toggle) =>
-					loadedData[toggle as keyof MiddlewareSettings] === firstToggleValue
+					loadedData[toggle as keyof MiddlewareSettings] === firstToggleValue,
 			);
 
 			// Update allEnabled if all toggles are the same
@@ -327,14 +327,14 @@ export default function SettingsPage() {
 					activeTab === 'general'
 						? 'General'
 						: activeTab === 'contact'
-						? 'Contact & Social Media'
-						: activeTab === 'links'
-						? 'Links'
-						: activeTab === 'security'
-						? 'Security'
-						: activeTab === 'profile'
-						? 'Profile'
-						: 'Settings';
+							? 'Contact & Social Media'
+							: activeTab === 'links'
+								? 'Links'
+								: activeTab === 'security'
+									? 'Security'
+									: activeTab === 'profile'
+										? 'Profile'
+										: 'Settings';
 				await logActivity(ActivityTemplates.settingsUpdated(settingSection));
 			} catch (error) {
 				console.warn('Failed to log settings activity:', error);
@@ -360,7 +360,7 @@ export default function SettingsPage() {
 			const response = await apiRequest(
 				'PUT',
 				'/api/settings/middleware',
-				data
+				data,
 			);
 			const responseData = await response.json();
 			return responseData;
@@ -475,7 +475,7 @@ export default function SettingsPage() {
 
 	// Handle input changes
 	const handleInputChange = (
-		e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+		e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
 	) => {
 		if (!formData) return;
 
@@ -566,7 +566,7 @@ export default function SettingsPage() {
 				updatedData[individualToggles[0] as keyof MiddlewareSettings];
 			const allSame = individualToggles.every(
 				(toggle) =>
-					updatedData[toggle as keyof MiddlewareSettings] === firstToggleValue
+					updatedData[toggle as keyof MiddlewareSettings] === firstToggleValue,
 			);
 
 			// Update state with synced allEnabled
@@ -603,19 +603,19 @@ export default function SettingsPage() {
 			apiRateLimitEnabled: Boolean(middlewareFormData.apiRateLimitEnabled),
 			ddosProtectionEnabled: Boolean(middlewareFormData.ddosProtectionEnabled),
 			sqlInjectionProtectionEnabled: Boolean(
-				middlewareFormData.sqlInjectionProtectionEnabled
+				middlewareFormData.sqlInjectionProtectionEnabled,
 			),
 			noSqlInjectionProtectionEnabled: Boolean(
-				middlewareFormData.noSqlInjectionProtectionEnabled
+				middlewareFormData.noSqlInjectionProtectionEnabled,
 			),
 			antiSpoofingProtectionEnabled: Boolean(
-				middlewareFormData.antiSpoofingProtectionEnabled
+				middlewareFormData.antiSpoofingProtectionEnabled,
 			),
 			dnsLayerProtectionEnabled: Boolean(
-				middlewareFormData.dnsLayerProtectionEnabled
+				middlewareFormData.dnsLayerProtectionEnabled,
 			),
 			portScanningProtectionEnabled: Boolean(
-				middlewareFormData.portScanningProtectionEnabled
+				middlewareFormData.portScanningProtectionEnabled,
 			),
 			updatedBy: user._id, // Always use current user ID
 		};
@@ -653,7 +653,7 @@ export default function SettingsPage() {
 			const defaultSettings = await apiRequest(
 				'POST',
 				'/api/settings/reset',
-				{}
+				{},
 			);
 
 			// Log activity
@@ -1013,8 +1013,8 @@ export default function SettingsPage() {
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="space-y-4">
-										<div className="flex items-center justify-between">
-											<div>
+										<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+											<div className="min-w-0">
 												<Label htmlFor="enableRegistration">
 													Enable Registration
 												</Label>
@@ -1023,6 +1023,7 @@ export default function SettingsPage() {
 												</p>
 											</div>
 											<Switch
+												className="flex-shrink-0"
 												id="enableRegistration"
 												checked={formData.enableRegistration || false}
 												onCheckedChange={(checked) =>
@@ -1031,8 +1032,8 @@ export default function SettingsPage() {
 												disabled={!canEditSettings}
 											/>
 										</div>
-										<div className="flex items-center justify-between">
-											<div>
+										<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+											<div className="min-w-0">
 												<Label htmlFor="maintenanceMode">
 													Maintenance Mode
 												</Label>
@@ -1041,6 +1042,7 @@ export default function SettingsPage() {
 												</p>
 											</div>
 											<Switch
+												className="flex-shrink-0"
 												id="maintenanceMode"
 												checked={formData.maintenanceMode}
 												onCheckedChange={(checked) =>
@@ -1071,7 +1073,7 @@ export default function SettingsPage() {
 													onClick={() => {
 														if (
 															window.confirm(
-																'Are you sure you want to reset all settings to their default values? This action cannot be undone.'
+																'Are you sure you want to reset all settings to their default values? This action cannot be undone.',
 															)
 														) {
 															resetToDefault();
@@ -1110,10 +1112,10 @@ export default function SettingsPage() {
 										</CardHeader>
 										<CardContent className="space-y-6">
 											{/* Master Toggle for All Middleware */}
-											<div className="flex items-center justify-between p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+												<div className="min-w-0 space-y-0.5">
 													<div className="flex items-center gap-2">
-														<Settings className="h-4 w-4 text-blue-600" />
+														<Settings className="h-4 w-4 flex-shrink-0 text-blue-600" />
 														<label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
 															Enable All Security Middleware
 														</label>
@@ -1124,6 +1126,7 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={middlewareFormData.allEnabled}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange('allEnabled', checked)
@@ -1133,8 +1136,8 @@ export default function SettingsPage() {
 											</div>
 
 											{/* API Protection */}
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0 space-y-0.5">
 													<Label className="text-base">API Protection</Label>
 													<p className="text-sm text-muted-foreground">
 														Protects API endpoints from unauthorized access and
@@ -1142,11 +1145,12 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={middlewareFormData.apiProtectionEnabled}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange(
 															'apiProtectionEnabled',
-															checked
+															checked,
 														)
 													}
 													disabled={updateMiddlewareSettingsMutation.isPending}
@@ -1154,8 +1158,8 @@ export default function SettingsPage() {
 											</div>
 
 											{/* API Rate Limiting */}
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0 space-y-0.5">
 													<Label className="text-base">API Rate Limiting</Label>
 													<p className="text-sm text-muted-foreground">
 														Limits API requests per IP address (100
@@ -1163,11 +1167,12 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={middlewareFormData.apiRateLimitEnabled}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange(
 															'apiRateLimitEnabled',
-															checked
+															checked,
 														)
 													}
 													disabled={updateMiddlewareSettingsMutation.isPending}
@@ -1175,8 +1180,8 @@ export default function SettingsPage() {
 											</div>
 
 											{/* DDoS Protection */}
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0 space-y-0.5">
 													<Label className="text-base">DDoS Protection</Label>
 													<p className="text-sm text-muted-foreground">
 														Multi-tier DDoS protection system with automatic
@@ -1184,11 +1189,12 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={middlewareFormData.ddosProtectionEnabled}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange(
 															'ddosProtectionEnabled',
-															checked
+															checked,
 														)
 													}
 													disabled={updateMiddlewareSettingsMutation.isPending}
@@ -1196,8 +1202,8 @@ export default function SettingsPage() {
 											</div>
 
 											{/* SQL Injection Protection */}
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0 space-y-0.5">
 													<Label className="text-base">
 														SQL Injection Protection
 													</Label>
@@ -1207,13 +1213,14 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={
 														middlewareFormData.sqlInjectionProtectionEnabled
 													}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange(
 															'sqlInjectionProtectionEnabled',
-															checked
+															checked,
 														)
 													}
 													disabled={updateMiddlewareSettingsMutation.isPending}
@@ -1221,8 +1228,8 @@ export default function SettingsPage() {
 											</div>
 
 											{/* NoSQL Injection Protection */}
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0 space-y-0.5">
 													<Label className="text-base">
 														NoSQL Injection Protection
 													</Label>
@@ -1232,13 +1239,14 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={
 														middlewareFormData.noSqlInjectionProtectionEnabled
 													}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange(
 															'noSqlInjectionProtectionEnabled',
-															checked
+															checked,
 														)
 													}
 													disabled={updateMiddlewareSettingsMutation.isPending}
@@ -1246,8 +1254,8 @@ export default function SettingsPage() {
 											</div>
 
 											{/* Anti-Spoofing Protection */}
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0 space-y-0.5">
 													<Label className="text-base">
 														Anti-Spoofing Protection
 													</Label>
@@ -1257,13 +1265,14 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={
 														middlewareFormData.antiSpoofingProtectionEnabled
 													}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange(
 															'antiSpoofingProtectionEnabled',
-															checked
+															checked,
 														)
 													}
 													disabled={updateMiddlewareSettingsMutation.isPending}
@@ -1271,8 +1280,8 @@ export default function SettingsPage() {
 											</div>
 
 											{/* DNS Layer Protection */}
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0 space-y-0.5">
 													<Label className="text-base">
 														DNS Layer Protection
 													</Label>
@@ -1282,11 +1291,12 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={middlewareFormData.dnsLayerProtectionEnabled}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange(
 															'dnsLayerProtectionEnabled',
-															checked
+															checked,
 														)
 													}
 													disabled={updateMiddlewareSettingsMutation.isPending}
@@ -1294,8 +1304,8 @@ export default function SettingsPage() {
 											</div>
 
 											{/* Port Scanning Protection */}
-											<div className="flex items-center justify-between">
-												<div className="space-y-0.5">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0 space-y-0.5">
 													<Label className="text-base">
 														Port Scanning Protection
 													</Label>
@@ -1305,13 +1315,14 @@ export default function SettingsPage() {
 													</p>
 												</div>
 												<Switch
+													className="flex-shrink-0"
 													checked={
 														middlewareFormData.portScanningProtectionEnabled
 													}
 													onCheckedChange={(checked) =>
 														handleMiddlewareSwitchChange(
 															'portScanningProtectionEnabled',
-															checked
+															checked,
 														)
 													}
 													disabled={updateMiddlewareSettingsMutation.isPending}
@@ -1324,7 +1335,7 @@ export default function SettingsPage() {
 													<p className="text-sm text-muted-foreground">
 														Last updated:{' '}
 														{new Date(
-															middlewareFormData.updatedAt
+															middlewareFormData.updatedAt,
 														).toLocaleString()}
 														{middlewareFormData.updatedBy &&
 															` by ${middlewareFormData.updatedBy}`}
@@ -1556,7 +1567,7 @@ export default function SettingsPage() {
 						disabled={
 							activeTab === 'middleware'
 								? updateMiddlewareSettingsMutation.isPending ||
-								  isMiddlewareLoading
+									isMiddlewareLoading
 								: updateSettingsMutation.isPending || isLoading || !formData
 						}>
 						{(
@@ -1630,10 +1641,10 @@ function SessionsList() {
 				return (
 					<div
 						key={s.sessionId}
-						className="flex items-center justify-between rounded border p-2">
-						<div className="flex items-center gap-2">
-							<Laptop className="h-4 w-4" />
-							<div className="text-sm">
+						className="flex flex-col gap-2 rounded border p-2 sm:flex-row sm:items-center sm:justify-between">
+						<div className="min-w-0 flex items-center gap-2">
+							<Laptop className="h-4 w-4 flex-shrink-0" />
+							<div className="min-w-0 text-sm">
 								<div className="font-medium">
 									{s.device || 'Device'} • {s.os || 'OS'} •{' '}
 									{s.browser || 'Browser'}
@@ -1646,7 +1657,7 @@ function SessionsList() {
 								</div>
 							</div>
 						</div>
-						<div className="flex items-center gap-2">
+						<div className="flex flex-shrink-0 items-center gap-2">
 							{isRevoked ? (
 								<span className="text-xs text-red-600">revoked</span>
 							) : (

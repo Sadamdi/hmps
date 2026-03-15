@@ -103,7 +103,7 @@ export default function UsersPage() {
 				user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
 				(user.name &&
 					user.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-				user.role.toLowerCase().includes(searchQuery.toLowerCase())
+				user.role.toLowerCase().includes(searchQuery.toLowerCase()),
 		)
 		.filter((user: UserWithRole) => {
 			if (selectedRole === 'all') return true;
@@ -260,25 +260,25 @@ export default function UsersPage() {
 					</CardContent>
 				</Card>
 			) : (
-			<div className="overflow-x-auto rounded-lg border border-border bg-background shadow">
-				<table className="w-full min-w-[720px] border-collapse text-left">
-					<thead className="bg-muted">
-						<tr>
-							<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
-								User
-							</th>
-							<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
-								Role
-							</th>
-							<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
-								Last Login
-							</th>
-							<th className="px-6 py-4 text-sm font-medium text-muted-foreground sticky right-0 bg-muted z-10">
-								Actions
-							</th>
-						</tr>
-					</thead>
-					<tbody className="divide-y divide-border">
+				<div className="overflow-x-auto rounded-lg border border-border bg-background shadow">
+					<table className="w-full min-w-[720px] border-collapse text-left">
+						<thead className="bg-muted">
+							<tr>
+								<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
+									User
+								</th>
+								<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
+									Role
+								</th>
+								<th className="px-6 py-4 text-sm font-medium text-muted-foreground">
+									Last Login
+								</th>
+								<th className="px-6 py-4 text-sm font-medium text-muted-foreground sticky right-0 bg-muted z-10">
+									Actions
+								</th>
+							</tr>
+						</thead>
+						<tbody className="divide-y divide-border">
 							{filteredUsers.map((user: UserWithRole) => {
 								const targetLevel = getRoleOrder(user.role);
 								const canEditThis =
@@ -291,30 +291,30 @@ export default function UsersPage() {
 									user._id !== currentUser?._id &&
 									user.role !== 'owner';
 								return (
-								<tr
-									key={user._id}
-									className="hover:bg-muted/50">
-									<td className="px-6 py-4">
-										<div className="flex items-center">
-											<div className="h-10 w-10 flex-shrink-0 rounded-full bg-muted flex items-center justify-center">
-												{user.name ? (
-													<span className="text-lg font-medium text-foreground">
-														{user.name.charAt(0)}
-													</span>
-												) : (
-													<User className="h-5 w-5 text-muted-foreground" />
-												)}
-											</div>
-											<div className="ml-4">
-												<div className="font-medium text-foreground">
-													{user.name || user.username}
+									<tr
+										key={user._id}
+										className="hover:bg-muted/50">
+										<td className="px-6 py-4">
+											<div className="flex items-center">
+												<div className="h-10 w-10 flex-shrink-0 rounded-full bg-muted flex items-center justify-center">
+													{user.name ? (
+														<span className="text-lg font-medium text-foreground">
+															{user.name.charAt(0)}
+														</span>
+													) : (
+														<User className="h-5 w-5 text-muted-foreground" />
+													)}
 												</div>
-												<div className="text-sm text-muted-foreground">
-													{user.username}
+												<div className="ml-4">
+													<div className="font-medium text-foreground">
+														{user.name || user.username}
+													</div>
+													<div className="text-sm text-muted-foreground">
+														{user.username}
+													</div>
 												</div>
 											</div>
-										</div>
-									</td>
+										</td>
 										<td className="px-6 py-4">
 											<Badge
 												variant={getRoleBadgeVariant(user.role)}
@@ -322,18 +322,18 @@ export default function UsersPage() {
 												{user.role === 'wakil_ketua'
 													? 'Wakil Ketua'
 													: user.role === 'ketua'
-													? 'Ketua Himpunan'
-													: user.role === 'division_head'
-													? 'Division Head'
-													: user.role}
+														? 'Ketua Himpunan'
+														: user.role === 'division_head'
+															? 'Division Head'
+															: user.role}
 											</Badge>
 										</td>
-									<td className="px-6 py-4 text-sm text-muted-foreground">
-										{user.lastLogin
-											? new Date(user.lastLogin).toLocaleString()
-											: 'Never'}
-									</td>
-									<td className="px-6 py-4 sticky right-0 bg-background z-10">
+										<td className="px-6 py-4 text-sm text-muted-foreground">
+											{user.lastLogin
+												? new Date(user.lastLogin).toLocaleString()
+												: 'Never'}
+										</td>
+										<td className="px-6 py-4 sticky right-0 bg-background z-10">
 											<div className="flex items-center gap-2">
 												<Button
 													variant="ghost"

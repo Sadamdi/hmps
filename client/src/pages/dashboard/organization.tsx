@@ -109,16 +109,16 @@ function SortablePositionItem({
 				<div
 					{...(canEdit ? { ...attributes, ...listeners } : {})}
 					className={`p-1 rounded ${
-						canEdit
-							? 'cursor-grab active:cursor-grabbing hover:bg-accent'
-							: ''
+						canEdit ? 'cursor-grab active:cursor-grabbing hover:bg-accent' : ''
 					}`}>
 					<GripVertical className="h-4 w-4 text-gray-400" />
 				</div>
 				<span className="font-medium">{position.name}</span>
 			</div>
 			<div className="flex items-center gap-2">
-				<span className="text-sm text-muted-foreground">Order: {position.order}</span>
+				<span className="text-sm text-muted-foreground">
+					Order: {position.order}
+				</span>
 				{canEdit && (
 					<div className="flex items-center gap-1">
 						<Button
@@ -126,15 +126,15 @@ function SortablePositionItem({
 							size="sm"
 							onClick={onMoveUp}
 							disabled={position.order === 1}
-						className="h-auto p-1 text-muted-foreground hover:text-foreground">
-						<ChevronUp className="h-4 w-4" />
-					</Button>
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={onMoveDown}
-						disabled={position.order === totalPositions}
-						className="h-auto p-1 text-muted-foreground hover:text-foreground">
+							className="h-auto p-1 text-muted-foreground hover:text-foreground">
+							<ChevronUp className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="sm"
+							onClick={onMoveDown}
+							disabled={position.order === totalPositions}
+							className="h-auto p-1 text-muted-foreground hover:text-foreground">
 							<ChevronDown className="h-4 w-4" />
 						</Button>
 						<Button
@@ -193,7 +193,7 @@ const getAvailableDivisions = (members: OrgMember[]): string[] => {
 // Helper function to sort members by position order
 const sortMembersByPosition = (
 	members: OrgMember[],
-	positions: { name: string; order: number }[]
+	positions: { name: string; order: number }[],
 ): OrgMember[] => {
 	if (!Array.isArray(positions) || positions.length === 0) {
 		return members;
@@ -221,7 +221,7 @@ export default function DashboardOrganization() {
 	const [activeTab, setActiveTab] = useState('members');
 	const [newPosition, setNewPosition] = useState('');
 	const [positions, setPositions] = useState<{ name: string; order: number }[]>(
-		[]
+		[],
 	);
 	const { hasSpecificPermission } = useAuth();
 	const [newDivision, setNewDivision] = useState('');
@@ -244,7 +244,7 @@ export default function DashboardOrganization() {
 		queryKey: ['/api/organization/members', selectedPeriod],
 		queryFn: async () => {
 			const response = await fetch(
-				`/api/organization/members?period=${selectedPeriod}`
+				`/api/organization/members?period=${selectedPeriod}`,
 			);
 			const data = await response.json();
 			return data;
@@ -300,12 +300,12 @@ export default function DashboardOrganization() {
 				const yearA = parseInt(a.split('-')[0]);
 				const yearB = parseInt(b.split('-')[0]);
 				return yearB - yearA; // Descending order (newest first)
-		  })
+			})
 		: [];
 
 	// Get available divisions for filter
 	const availableDivisions = getAvailableDivisions(
-		Array.isArray(members) ? members : []
+		Array.isArray(members) ? members : [],
 	);
 
 	// Filter members based on search and division
@@ -320,13 +320,13 @@ export default function DashboardOrganization() {
 				getDivisionFromPosition(member.position) === selectedDivision;
 
 			return matchesSearch && matchesDivision;
-		}
+		},
 	);
 
 	// Sort filtered members by position order
 	const sortedFilteredMembers = sortMembersByPosition(
 		filteredMembers,
-		positions
+		positions,
 	);
 
 	// Pagination for members
@@ -361,13 +361,13 @@ export default function DashboardOrganization() {
 		mutationFn: async (memberId: string | number) => {
 			return await apiRequest(
 				'DELETE',
-				`/api/organization/members/${memberId}`
+				`/api/organization/members/${memberId}`,
 			);
 		},
 		onSuccess: async (_, memberId) => {
 			// Find the deleted member for logging
 			const deletedMember = members.find(
-				(member) => ((member as any)._id || member.id) === memberId
+				(member) => ((member as any)._id || member.id) === memberId,
 			);
 
 			// Invalidate queries
@@ -384,8 +384,8 @@ export default function DashboardOrganization() {
 					await logActivity(
 						ActivityTemplates.organizationMemberDeleted(
 							deletedMember.name,
-							String(memberId)
-						)
+							String(memberId),
+						),
 					);
 				} catch (error) {
 					console.warn('Failed to log delete activity:', error);
@@ -438,7 +438,7 @@ export default function DashboardOrganization() {
 		mutationFn: async (period: string) => {
 			return await apiRequest(
 				'DELETE',
-				`/api/organization/periods/${encodeURIComponent(period)}`
+				`/api/organization/periods/${encodeURIComponent(period)}`,
 			);
 		},
 		onSuccess: async (_, period) => {
@@ -483,7 +483,7 @@ export default function DashboardOrganization() {
 		queryFn: async () => {
 			if (!selectedPeriod) return [];
 			const response = await fetch(
-				`/api/organization/positions/${selectedPeriod}`
+				`/api/organization/positions/${selectedPeriod}`,
 			);
 			const data = await response.json();
 			return data;
@@ -519,7 +519,7 @@ export default function DashboardOrganization() {
 		if (Array.isArray(positionData)) {
 			// Sort by order
 			const sortedPositions = positionData.sort(
-				(a: any, b: any) => a.order - b.order
+				(a: any, b: any) => a.order - b.order,
 			);
 			setPositions(sortedPositions);
 		}
@@ -688,7 +688,7 @@ export default function DashboardOrganization() {
 
 	const handleRemovePosition = (positionToRemove: string) => {
 		const updatedPositions = positions.filter(
-			(pos) => pos.name !== positionToRemove
+			(pos) => pos.name !== positionToRemove,
 		);
 		updatePositionsMutation.mutate({
 			period: selectedPeriod,
@@ -744,7 +744,7 @@ export default function DashboardOrganization() {
 		useSensor(PointerSensor),
 		useSensor(KeyboardSensor, {
 			coordinateGetter: sortableKeyboardCoordinates,
-		})
+		}),
 	);
 
 	const handleDragEnd = (event: DragEndEvent) => {
@@ -766,7 +766,7 @@ export default function DashboardOrganization() {
 				// Update local state immediately for real-time UI
 				queryClient.setQueryData(
 					['/api/organization/positions', selectedPeriod],
-					newPositions
+					newPositions,
 				);
 
 				// Then update backend
@@ -780,10 +780,10 @@ export default function DashboardOrganization() {
 
 	const handleMovePosition = (
 		positionName: string,
-		direction: 'up' | 'down'
+		direction: 'up' | 'down',
 	) => {
 		const currentIndex = positions.findIndex(
-			(pos) => pos.name === positionName
+			(pos) => pos.name === positionName,
 		);
 		if (currentIndex === -1) return;
 
@@ -943,8 +943,8 @@ export default function DashboardOrganization() {
 												animationDelay: `${index * 100}ms`,
 											}}>
 											<CardContent className="p-4">
-												<div className="flex items-center justify-between">
-													<div className="flex items-center space-x-4">
+												<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+													<div className="min-w-0 flex items-center space-x-4">
 														<div className="w-12 h-12 rounded-full overflow-hidden group">
 															<MediaDisplay
 																src={member.imageUrl}
@@ -957,18 +957,18 @@ export default function DashboardOrganization() {
 															<h3 className="font-semibold transition-colors duration-200 group-hover:text-primary">
 																{member.name}
 															</h3>
-								<p className="text-sm text-muted-foreground">
-									{member.position}
-								</p>
-								<p className="text-xs text-muted-foreground">
-									{member.period} •{' '}
-									{getDivisionFromPosition(member.position)}
-								</p>
+															<p className="text-sm text-muted-foreground">
+																{member.position}
+															</p>
+															<p className="text-xs text-muted-foreground">
+																{member.period} •{' '}
+																{getDivisionFromPosition(member.position)}
+															</p>
 														</div>
 													</div>
 													<div className="flex space-x-2">
 														{hasSpecificPermission(
-															'organization.manage_members'
+															'organization.manage_members',
 														) && (
 															<Button
 																variant="outline"
@@ -979,14 +979,14 @@ export default function DashboardOrganization() {
 															</Button>
 														)}
 														{hasSpecificPermission(
-															'organization.manage_members'
+															'organization.manage_members',
 														) && (
 															<Button
 																variant="outline"
 																size="sm"
 																onClick={() =>
 																	handleDeleteMember(
-																		(member as any)._id || member.id
+																		(member as any)._id || member.id,
 																	)
 																}
 																className="text-red-600 hover:text-red-700 hover:bg-red-50 transition-all duration-200 hover:scale-105">
@@ -1106,7 +1106,7 @@ export default function DashboardOrganization() {
 																handleRemovePosition(position.name)
 															}
 															canEdit={hasSpecificPermission(
-																'organization.manage_positions'
+																'organization.manage_positions',
 															)}
 														/>
 													))}
@@ -1129,9 +1129,10 @@ export default function DashboardOrganization() {
 											.map((period) => (
 												<div
 													key={period}
-													className="flex items-center justify-between p-3 border rounded">
-													<span>{period}</span>
+													className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between border rounded">
+													<span className="min-w-0">{period}</span>
 													<Button
+														className="flex-shrink-0"
 														variant="outline"
 														size="sm"
 														onClick={() => handleCopyPositions(period)}
@@ -1199,31 +1200,31 @@ export default function DashboardOrganization() {
 										<Loader2 className="h-8 w-8 animate-spin" />
 									</div>
 								) : divisions.length === 0 ? (
-								<p className="text-muted-foreground">No divisions defined.</p>
-							) : (
-								<div className="space-y-4">
-									{divisions.map((division: any) => (
-										<div
-											key={division._id}
-											className="flex items-center justify-between p-4 border rounded-lg bg-muted">
-											<div className="flex items-center gap-4">
-												<div
-													className="w-4 h-4 rounded-full"
-													style={{ backgroundColor: division.color }}
-												/>
-												<div>
-													<h4 className="font-semibold">
-														{division.displayName}
-													</h4>
-													<p className="text-sm text-muted-foreground">
-														{division.description || 'No description'}
-													</p>
-													<div className="text-xs text-muted-foreground mt-1">
-														Positions: {division.positions?.length || 0}
+									<p className="text-muted-foreground">No divisions defined.</p>
+								) : (
+									<div className="space-y-4">
+										{divisions.map((division: any) => (
+											<div
+												key={division._id}
+												className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between border rounded-lg bg-muted">
+												<div className="min-w-0 flex items-center gap-4">
+													<div
+														className="w-4 h-4 rounded-full"
+														style={{ backgroundColor: division.color }}
+													/>
+													<div>
+														<h4 className="font-semibold">
+															{division.displayName}
+														</h4>
+														<p className="text-sm text-muted-foreground">
+															{division.description || 'No description'}
+														</p>
+														<div className="text-xs text-muted-foreground mt-1">
+															Positions: {division.positions?.length || 0}
+														</div>
 													</div>
 												</div>
-											</div>
-												<div className="flex items-center gap-2">
+												<div className="flex flex-shrink-0 items-center gap-2">
 													{hasSpecificPermission('divisions.edit') && (
 														<Button
 															variant="outline"
@@ -1301,7 +1302,7 @@ function DivisionEditor({
 		useSensor(PointerSensor),
 		useSensor(KeyboardSensor, {
 			coordinateGetter: sortableKeyboardCoordinates,
-		})
+		}),
 	);
 
 	useEffect(() => {
@@ -1528,15 +1529,15 @@ function SortableDivisionPositionItem({
 		<div
 			ref={setNodeRef}
 			style={style}
-		className={`flex items-center justify-between p-2 bg-muted rounded ${
-			isDragging ? 'shadow-lg opacity-50' : ''
-		}`}>
-		<div className="flex items-center gap-2">
-			<div
-				{...attributes}
-				{...listeners}
-				className="cursor-grab active:cursor-grabbing p-1 hover:bg-accent rounded">
-				<GripVertical className="h-4 w-4 text-muted-foreground" />
+			className={`flex items-center justify-between p-2 bg-muted rounded ${
+				isDragging ? 'shadow-lg opacity-50' : ''
+			}`}>
+			<div className="flex items-center gap-2">
+				<div
+					{...attributes}
+					{...listeners}
+					className="cursor-grab active:cursor-grabbing p-1 hover:bg-accent rounded">
+					<GripVertical className="h-4 w-4 text-muted-foreground" />
 				</div>
 				<span>{position}</span>
 			</div>
@@ -1544,8 +1545,8 @@ function SortableDivisionPositionItem({
 				type="button"
 				variant="ghost"
 				size="sm"
-				onClick={onRemove}
-				className="text-red-600 hover:text-red-700">
+				className="flex-shrink-0 text-red-600 hover:text-red-700"
+				onClick={onRemove}>
 				<X className="h-4 w-4" />
 			</Button>
 		</div>

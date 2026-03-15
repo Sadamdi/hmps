@@ -55,8 +55,17 @@ interface Settings {
 		youtube: string;
 	};
 	aboutPageIntro?: string;
-	aboutPageTrackRecord?: { year: string; chairpersonName: string; divisions: string[] }[];
-	aboutPageLambang?: { key: string; title: string; description: string; imageUrl?: string }[];
+	aboutPageTrackRecord?: {
+		year: string;
+		chairpersonName: string;
+		divisions: string[];
+	}[];
+	aboutPageLambang?: {
+		key: string;
+		title: string;
+		description: string;
+		imageUrl?: string;
+	}[];
 }
 
 export default function Content() {
@@ -181,18 +190,26 @@ export default function Content() {
 								<CardHeader>
 									<CardTitle>Halaman Lengkap Tentang Kami</CardTitle>
 									<CardDescription>
-										Konten ini ditampilkan di halaman /tentang-kami. Sejarah, Track Record, dan Lambang.
+										Konten ini ditampilkan di halaman /tentang-kami. Sejarah,
+										Track Record, dan Lambang.
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-6">
-									<a href="/tentang-kami" target="_blank" rel="noopener noreferrer">
-										<Button variant="outline" size="sm">
+									<a
+										href="/tentang-kami"
+										target="_blank"
+										rel="noopener noreferrer">
+										<Button
+											variant="outline"
+											size="sm">
 											Lihat halaman publik →
 										</Button>
 									</a>
 									{settings?.aboutUs ? (
 										<div>
-											<h4 className="font-medium mb-2">Intro / Sejarah (sama dengan Tentang Kami)</h4>
+											<h4 className="font-medium mb-2">
+												Intro / Sejarah (sama dengan Tentang Kami)
+											</h4>
 											<div
 												className="prose max-w-none border rounded-md p-4 bg-muted/30 text-sm"
 												dangerouslySetInnerHTML={{ __html: settings.aboutUs }}
@@ -213,7 +230,9 @@ export default function Content() {
 													</thead>
 													<tbody>
 														{settings.aboutPageTrackRecord.map((r, i) => (
-															<tr key={i} className="border-b">
+															<tr
+																key={i}
+																className="border-b">
 																<td className="p-2">{r.year}</td>
 																<td className="p-2">{r.chairpersonName}</td>
 																<td className="p-2 text-muted-foreground">
@@ -231,13 +250,19 @@ export default function Content() {
 											<h4 className="font-medium mb-2">Lambang</h4>
 											<div className="grid grid-cols-2 md:grid-cols-3 gap-4">
 												{settings.aboutPageLambang.map((item, i) => (
-													<div key={i} className="border rounded-md p-3">
+													<div
+														key={i}
+														className="border rounded-md p-3">
 														<img
-															src={item.imageUrl || `/attached_assets/filosofi/${item.key}.png`}
+															src={
+																item.imageUrl ||
+																`/attached_assets/filosofi/${item.key}.png`
+															}
 															alt={item.title}
 															className="w-16 h-16 object-contain mx-auto mb-2"
 															onError={(e) => {
-																(e.target as HTMLImageElement).style.display = 'none';
+																(e.target as HTMLImageElement).style.display =
+																	'none';
 															}}
 														/>
 														<p className="font-medium text-sm">{item.title}</p>
@@ -250,7 +275,8 @@ export default function Content() {
 										</div>
 									) : (
 										<div className="text-muted-foreground italic">
-											Belum ada konten halaman Tentang Kami. Klik Edit untuk mengisi.
+											Belum ada konten halaman Tentang Kami. Klik Edit untuk
+											mengisi.
 										</div>
 									)}
 								</CardContent>

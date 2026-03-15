@@ -520,7 +520,7 @@ export default function ContentEditor({
 	};
 
 	return (
-		<div className="p-6 bg-background rounded-lg shadow-md border border-border">
+		<div className="max-w-full overflow-x-hidden p-6 bg-background rounded-lg shadow-md border border-border">
 			<h2 className="text-2xl font-bold mb-6">Edit Konten Halaman</h2>
 
 			<Tabs

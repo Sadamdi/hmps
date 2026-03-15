@@ -180,13 +180,19 @@ export default function AIChat({ pageContext }: AIChatProps) {
 							</svg>
 						</div>
 						<div>
-							<h3 className="font-semibold text-slate-100 text-sm leading-none">Spyro AI</h3>
-							<p className="text-xs text-cyan-300/80 mt-0.5">Powered by Spyro</p>
+							<h3 className="font-semibold text-slate-100 text-sm leading-none">
+								Spyro AI
+							</h3>
+							<p className="text-xs text-cyan-300/80 mt-0.5">
+								Powered by Spyro
+							</p>
 						</div>
 						{/* Online indicator */}
 						<div className="ml-auto flex items-center gap-1.5">
 							<span className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" />
-							<span className="text-xs text-teal-300/80 font-medium">Online</span>
+							<span className="text-xs text-teal-300/80 font-medium">
+								Online
+							</span>
 						</div>
 					</div>
 
@@ -280,9 +286,14 @@ export default function AIChat({ pageContext }: AIChatProps) {
 								alt="Preview"
 								className="h-10 w-10 object-cover rounded-lg border border-border/60"
 							/>
-							<span className="text-xs text-muted-foreground flex-1 truncate">Gambar terlampir</span>
+							<span className="text-xs text-muted-foreground flex-1 truncate">
+								Gambar terlampir
+							</span>
 							<button
-								onClick={() => { setImageFile(null); setImagePreview(null); }}
+								onClick={() => {
+									setImageFile(null);
+									setImagePreview(null);
+								}}
 								className="text-red-400 hover:text-red-300 text-xs font-medium transition-colors">
 								Hapus
 							</button>
@@ -327,7 +338,9 @@ export default function AIChat({ pageContext }: AIChatProps) {
 								<Send className="h-4 w-4" />
 							</button>
 						</div>
-						<p className="text-center text-xs text-muted-foreground/60 pb-2">Powered by Spyro</p>
+						<p className="text-center text-xs text-muted-foreground/60 pb-2">
+							Powered by Spyro
+						</p>
 					</div>
 				</div>
 			)}

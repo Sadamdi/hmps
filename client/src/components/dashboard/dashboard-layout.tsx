@@ -1,6 +1,6 @@
-import { useState } from 'react';
 import AIChat from '@/components/public/ai-chat';
 import { useAuth } from '@/lib/auth';
+import { useState } from 'react';
 import { useLocation } from 'wouter';
 import Header from './header';
 import Sidebar from './sidebar';
@@ -20,7 +20,9 @@ export default function DashboardLayout({
 	const [locationPath] = useLocation();
 
 	return (
-		<div className="min-h-screen text-foreground" style={{ background: 'var(--gradient-dashboard)' }}>
+		<div
+			className="min-h-screen text-foreground"
+			style={{ background: 'var(--gradient-dashboard)' }}>
 			<Sidebar
 				mobileOpen={mobileMenuOpen}
 				onMobileToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -35,8 +37,8 @@ export default function DashboardLayout({
 					title={title}
 					onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
 				/>
-				<main className="flex-1 p-3 sm:p-4 lg:p-6 relative">
-					<div className="max-w-7xl mx-auto">{children}</div>
+				<main className="flex-1 min-w-0 p-3 sm:p-4 lg:p-6 relative">
+					<div className="mx-auto max-w-7xl min-w-0">{children}</div>
 					{/* AI Chat untuk semua halaman dashboard, dengan context path + permissions */}
 					<AIChat
 						pageContext={{

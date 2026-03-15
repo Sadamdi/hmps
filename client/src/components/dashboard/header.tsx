@@ -198,7 +198,9 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 					<button
 						onClick={toggleTheme}
 						className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-						aria-label={theme === 'dark' ? 'Ganti ke mode siang' : 'Ganti ke mode malam'}>
+						aria-label={
+							theme === 'dark' ? 'Ganti ke mode siang' : 'Ganti ke mode malam'
+						}>
 						{theme === 'dark' ? (
 							<Sun className="h-4 w-4 text-amber-400" />
 						) : (
@@ -253,11 +255,11 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 											<div className="flex items-start space-x-3 w-full">
 												<div
 													className={`p-1.5 rounded-full ${getActivityColor(
-														notification.type
+														notification.type,
 													)}`}>
 													{getActivityIcon(
 														notification.type,
-														notification.action
+														notification.action,
 													)}
 												</div>
 												<div className="flex-1 min-w-0">
@@ -325,7 +327,7 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 										className="flex items-start space-x-3 p-3 rounded-lg hover:bg-secondary">
 										<div
 											className={`p-2 rounded-full ${getActivityColor(
-												notification.type
+												notification.type,
 											)}`}>
 											{getActivityIcon(notification.type, notification.action)}
 										</div>
