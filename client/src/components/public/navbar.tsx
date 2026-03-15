@@ -62,7 +62,15 @@ const navItems: NavItem[] = [
 		icon: <Target className="h-4 w-4" />,
 	},
 	{ id: 'structure', label: 'Struktur', icon: <Users className="h-4 w-4" /> },
-	{ id: 'articles', label: 'Artikel', icon: <FileText className="h-4 w-4" /> },
+	{
+		id: 'articles',
+		label: 'Artikel',
+		icon: <FileText className="h-4 w-4" />,
+		children: [
+			{ label: 'Artikel', href: '/#articles' },
+			{ label: 'Lihat semua artikel', href: '/artikel' },
+		],
+	},
 	{ id: 'library', label: 'Library', icon: <BookOpen className="h-4 w-4" /> },
 ];
 
@@ -110,6 +118,30 @@ export default function Navbar({
 	};
 
 	const handleChildNav = (href: string) => {
+		// Parse pathname dan hash dari href
+		const url = new URL(href, window.location.origin);
+		const targetPath = url.pathname;
+		const targetHash = url.hash; // mis. "#sejarah"
+
+		// Skenario 1: Sudah di halaman yang sama dan ada hash
+		// → update URL + smooth scroll tanpa reload (tanpa loncat instan)
+		if (targetPath === location && targetHash) {
+			window.history.pushState(null, '', href);
+			setTimeout(() => {
+				const el = document.getElementById(targetHash.slice(1));
+				el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}, 50);
+			return;
+		}
+
+		// Skenario 2: Target adalah beranda (/) dengan hash section
+		// → jika sudah di beranda, cukup smooth scroll via scrollToSection
+		if (targetPath === '/' && targetHash && location === '/') {
+			scrollToSection(targetHash.slice(1));
+			return;
+		}
+
+		// Skenario lain: navigasi ke halaman lain, animasi scroll from-top ditangani di halaman tujuan
 		window.location.href = href;
 	};
 

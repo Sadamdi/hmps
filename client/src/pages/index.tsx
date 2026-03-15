@@ -80,14 +80,27 @@ export default function Home() {
 
 	const [activeSection, setActiveSection] = useState('home');
 
-	// Saat masuk beranda dengan hash (e.g. /#articles), scroll ke section dulu agar hero tidak ter-animate
+	const validSections = ['about', 'vision-mission', 'structure', 'articles', 'library'];
+
+	// Saat beranda dimuat dengan hash (mis. /#about dari halaman lain):
+	// Cegah browser loncat langsung ke section — tampilkan dari atas dulu
 	useLayoutEffect(() => {
 		const hash = window.location.hash.slice(1);
-		if (!hash) return;
-		const el = document.getElementById(hash);
-		if (el) {
-			el.scrollIntoView({ behavior: 'auto', block: 'start' });
+		if (hash && validSections.includes(hash)) {
+			window.scrollTo(0, 0);
 		}
+	}, []);
+
+	// Lalu smooth scroll ke section setelah delay singkat (animasi dari atas ke section)
+	useEffect(() => {
+		const hash = window.location.hash.slice(1);
+		if (!hash || !validSections.includes(hash)) return;
+		const t = setTimeout(() => {
+			const el = document.getElementById(hash);
+			el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}, 350);
+		return () => clearTimeout(t);
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
 
 	const scrollToSection = (id: string) => {
