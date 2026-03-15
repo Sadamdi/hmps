@@ -15,6 +15,7 @@ import { queryClient } from './lib/queryClient';
 const Home = lazy(() => import('@/pages/index'));
 const AllArticles = lazy(() => import('@/pages/artikel/index'));
 const ArticleDetail = lazy(() => import('@/pages/artikel/[id]'));
+const TentangKamiPage = lazy(() => import('@/pages/tentang-kami'));
 const Dashboard = lazy(() => import('@/pages/dashboard/index'));
 const DashboardArticles = lazy(() => import('@/pages/dashboard/articles'));
 const DashboardLibrary = lazy(() => import('@/pages/dashboard/library'));
@@ -63,6 +64,10 @@ function Router() {
 				<Route
 					path="/error"
 					component={Error}
+				/>
+				<Route
+					path="/tentang-kami"
+					component={TentangKamiPage}
 				/>
 
 				{/* Dashboard Routes - Protected */}

@@ -280,6 +280,57 @@ const settingsSchema = new mongoose.Schema({
 			default: 'https://library.uin-malang.ac.id/',
 		},
 	},
+	// Halaman lengkap Tentang Kami (sejarah, track record, lambang)
+	aboutPageIntro: {
+		type: String,
+		default:
+			'<p>HIMATIF "Encoder" didirikan atas kesepakatan bersama antar-pengurus Himpunan Mahasiswa Program Studi Teknik Informatika Universitas Islam Negeri Maulana Malik Ibrahim Malang, pada tanggal 18 Mei 2013 di Pasuruan dan disahkan di Pasuruan pada tanggal 18 Mei 2013 untuk jangka waktu yang tidak ditentukan. Sebelum itu organisasi ini masih sebuah himpunan persiapan.</p><p>HIMATIF "Encoder" terdiri dari beberapa divisi yang memiliki tugas dan wewenang masing-masing. Sejak 2013 hingga 2017 nama per-divisi yang ada masih berubah ubah, hingga pada tahun 2018 nama-nama divisi tersebut menjadi tetap hingga sekarang. Pada tahun 2021 terdapat perubahan nama atau penyebutan. Hal tersebut sesuai Surat Ketetapan Direktorat Jenderal Pendidikan Islam Kemenag RI yang menetapkan tentang perubahan nomenklatur pada awalnya "Jurusan" menjadi "Program Studi". Oleh karena itu pada periode tersebut dilakukan MUBES (Musyawarah Besar) untuk mengganti nomenklatur sekaligus logo yang masih terdapat kata "Jurusan".</p>',
+	},
+	aboutPageTrackRecord: {
+		type: [
+			{
+				year: { type: String },
+				chairpersonName: { type: String },
+				divisions: [{ type: String }],
+			},
+		],
+		default: [
+			{ year: '2013', chairpersonName: 'Willdan Pramanda W.', divisions: ['Public Relation', 'Multimedia', 'Jaringan & Hardware', 'Keagamaan', 'Pemrograman', 'Softskill'] },
+			{ year: '2014', chairpersonName: 'Saiful Rizal', divisions: ['Public Relation', 'Multimedia', 'Jaringan', 'Keagamaan', 'Pemrograman', 'Softskill'] },
+			{ year: '2015', chairpersonName: 'M. Fairuz Zumar Rounnaqi', divisions: ['Public Relation', 'Multimedia', 'Jaringan', 'Open Source', 'Pemrograman', 'Softskill & Jurnalistik', 'Keagamaan & Enterpreneurship'] },
+			{ year: '2016', chairpersonName: 'M. Wildan Taufiqurrahman', divisions: ['Public Relation', 'Multimedia', 'Intelektual', 'Softskill', 'Jurnalistik', 'Technopreneurship', 'Religius'] },
+			{ year: '2017', chairpersonName: 'Zakiya Ramadhan', divisions: ['Public Relation', 'Multimedia', 'Intelektual', 'Softskill', 'Jurnalistik', 'Technopreneurship', 'Religius'] },
+			{ year: '2018', chairpersonName: 'Muhammad Fahmi Abidin', divisions: ['Public Relation', 'Intelektual', 'Softskill', 'Jurnalistik', 'Technopreneurship', 'Religius'] },
+			{ year: '2019', chairpersonName: 'Aqilarik Nugra Rezkanintio', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
+			{ year: '2020', chairpersonName: 'M. Ibram Gusti Childrabahti', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
+			{ year: '2021', chairpersonName: 'Bisyri Syamsuri', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
+			{ year: '2022', chairpersonName: 'Rafi Aulia Prasetya', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
+			{ year: '2023', chairpersonName: 'M. Reyhan Aditya Hendrawan', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
+			{ year: '2024', chairpersonName: 'Mohammad Aulia Syamsul Hadi', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
+		],
+	},
+	aboutPageLambang: {
+		type: [
+			{
+				key: { type: String },
+				title: { type: String },
+				description: { type: String },
+				imageUrl: { type: String, default: '' },
+			},
+		],
+		default: [
+			{ key: 'Lingkaran', title: 'Lingkaran', description: 'Lingkaran menandakan bahwa jurusan Teknik Informatika memiliki solidaritas tanpa ujung.', imageUrl: '/attached_assets/filosofi/Lingkaran.png' },
+			{ key: 'Bidikan', title: 'Bidikan', description: 'Merepresentasikan bahwa Himpunan memiliki sebuah tujuan yang jelas untuk dicapai, dengan mengedepankan karakter yang dinamis dan kuat.', imageUrl: '/attached_assets/filosofi/Bidikan.png' },
+			{ key: 'Tulisan TI Berbentuk Puzzle', title: 'Tulisan TI Berbentuk Puzzle', description: 'Merepresentasikan penyelesaian setiap masalah dengan langkah-langkah yang harus diambil dengan benar.', imageUrl: '/attached_assets/filosofi/Tulisan TI Berbentuk Puzzle.png' },
+			{ key: 'Mata', title: 'Mata', description: 'Fokus menghadapi masa depan dengan penuh perhitungan dan percaya diri.', imageUrl: '/attached_assets/filosofi/Mata.png' },
+			{ key: 'Kurung Kurawal', title: 'Kurung Kurawal', description: 'Menandakan elemen penting dalam pembentuk gambar mata yang memiliki arti fokus, loyal, dan memiliki jiwa tanggung jawab.', imageUrl: '/attached_assets/filosofi/Kurung Kurawal.png' },
+			{ key: 'Grafik Linier', title: 'Grafik Linier', description: 'Menandakan Himpunan yang selalu berkembang, namun tetap adil.', imageUrl: '/attached_assets/filosofi/Grafik Linier.png' },
+			{ key: 'Biru 81BFE8', title: 'Biru', description: 'Bermakna intelektual, loyalitas, dan tanggung jawab. Hex Color: 81BFE8', imageUrl: '/attached_assets/filosofi/Biru 81BFE8.png' },
+			{ key: 'Jingga E75B1D', title: 'Jingga', description: 'Melambangkan kehangatan dan kenyamanan. Hex Color: E75B1D.', imageUrl: '/attached_assets/filosofi/Jingga E75B1D.png' },
+			{ key: 'Abu Abu A1A5A6', title: 'Abu-abu', description: 'Menggambarkan keseriusan, kestabilan, kemandirian, dan memberikan kesan tanggung jawab. Hex Color: A1A5A6.', imageUrl: '/attached_assets/filosofi/Abu Abu A1A5A6.png' },
+			{ key: 'Putih FFFFFF', title: 'Putih', description: 'Melambangkan kebebasan dan keterbukaan. Hex Color: FFFFFF.', imageUrl: '/attached_assets/filosofi/Putih FFFFFF.png' },
+		],
+	},
 });
 
 // Position Schema - untuk mengelola position per tahun

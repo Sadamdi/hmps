@@ -118,7 +118,24 @@ export interface Settings {
 		instagram: string;
 		youtube: string;
 	};
+	// Halaman lengkap Tentang Kami
+	aboutPageIntro?: string;
+	aboutPageTrackRecord?: AboutPageTrackRecordItem[];
+	aboutPageLambang?: AboutPageLambangItem[];
 	updatedAt: Date;
+}
+
+export interface AboutPageTrackRecordItem {
+	year: string;
+	chairpersonName: string;
+	divisions: string[];
+}
+
+export interface AboutPageLambangItem {
+	key: string;
+	title: string;
+	description: string;
+	imageUrl?: string;
 }
 
 // Position Types

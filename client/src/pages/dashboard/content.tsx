@@ -54,6 +54,9 @@ interface Settings {
 		instagram: string;
 		youtube: string;
 	};
+	aboutPageIntro?: string;
+	aboutPageTrackRecord?: { year: string; chairpersonName: string; divisions: string[] }[];
+	aboutPageLambang?: { key: string; title: string; description: string; imageUrl?: string }[];
 }
 
 export default function Content() {
@@ -142,6 +145,7 @@ export default function Content() {
 					<Tabs defaultValue="about">
 						<TabsList>
 							<TabsTrigger value="about">Tentang Kami</TabsTrigger>
+							<TabsTrigger value="about-page">Halaman Tentang Kami</TabsTrigger>
 							<TabsTrigger value="vision">Visi & Misi</TabsTrigger>
 						</TabsList>
 
@@ -166,6 +170,87 @@ export default function Content() {
 									) : (
 										<div className="text-gray-500 italic">
 											Belum ada konten.
+										</div>
+									)}
+								</CardContent>
+							</Card>
+						</TabsContent>
+
+						<TabsContent value="about-page">
+							<Card>
+								<CardHeader>
+									<CardTitle>Halaman Lengkap Tentang Kami</CardTitle>
+									<CardDescription>
+										Konten ini ditampilkan di halaman /tentang-kami. Sejarah, Track Record, dan Lambang.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-6">
+									<a href="/tentang-kami" target="_blank" rel="noopener noreferrer">
+										<Button variant="outline" size="sm">
+											Lihat halaman publik →
+										</Button>
+									</a>
+									{settings?.aboutUs ? (
+										<div>
+											<h4 className="font-medium mb-2">Intro / Sejarah (sama dengan Tentang Kami)</h4>
+											<div
+												className="prose max-w-none border rounded-md p-4 bg-muted/30 text-sm"
+												dangerouslySetInnerHTML={{ __html: settings.aboutUs }}
+											/>
+										</div>
+									) : null}
+									{settings?.aboutPageTrackRecord?.length ? (
+										<div>
+											<h4 className="font-medium mb-2">Track Record</h4>
+											<div className="overflow-x-auto border rounded-md">
+												<table className="w-full text-sm">
+													<thead>
+														<tr className="border-b bg-muted/50">
+															<th className="text-left p-2">Tahun</th>
+															<th className="text-left p-2">Ketua</th>
+															<th className="text-left p-2">Divisi</th>
+														</tr>
+													</thead>
+													<tbody>
+														{settings.aboutPageTrackRecord.map((r, i) => (
+															<tr key={i} className="border-b">
+																<td className="p-2">{r.year}</td>
+																<td className="p-2">{r.chairpersonName}</td>
+																<td className="p-2 text-muted-foreground">
+																	{r.divisions?.join(', ')}
+																</td>
+															</tr>
+														))}
+													</tbody>
+												</table>
+											</div>
+										</div>
+									) : null}
+									{settings?.aboutPageLambang?.length ? (
+										<div>
+											<h4 className="font-medium mb-2">Lambang</h4>
+											<div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+												{settings.aboutPageLambang.map((item, i) => (
+													<div key={i} className="border rounded-md p-3">
+														<img
+															src={item.imageUrl || `/attached_assets/filosofi/${item.key}.png`}
+															alt={item.title}
+															className="w-16 h-16 object-contain mx-auto mb-2"
+															onError={(e) => {
+																(e.target as HTMLImageElement).style.display = 'none';
+															}}
+														/>
+														<p className="font-medium text-sm">{item.title}</p>
+														<p className="text-xs text-muted-foreground line-clamp-2">
+															{item.description}
+														</p>
+													</div>
+												))}
+											</div>
+										</div>
+									) : (
+										<div className="text-muted-foreground italic">
+											Belum ada konten halaman Tentang Kami. Klik Edit untuk mengisi.
 										</div>
 									)}
 								</CardContent>

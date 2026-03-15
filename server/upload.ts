@@ -27,6 +27,7 @@ export type UploadCategory =
 	| 'content' // Konten halaman (hero, about, vision-mission)
 	| 'articles' // Gambar artikel dan thumbnail
 	| 'library' // Media library (foto/video kegiatan)
+	| 'filosofi' // Gambar filosofi lambang HIMATIF (attached_assets/filosofi)
 	| 'general'; // File umum lainnya
 
 // Membuat subfolder jika belum ada
@@ -229,6 +230,49 @@ export async function uploadOrganizationMemberImage(
 	} catch (error) {
 		console.error('Error processing organization member image:', error);
 		throw new Error('Failed to process organization member image');
+	}
+}
+
+/**
+ * Upload gambar filosofi ke attached_assets/filosofi/{key}.{ext}
+ * Menggantikan file lama dengan key yang sama (tanpa memandang ekstensi)
+ */
+export async function uploadFilosofiImage(
+	file: Express.Multer.File,
+	key: string
+): Promise<string> {
+	try {
+		const filosofiDir = await ensureUploadDirectory('filosofi', true);
+		const fileExtension = path.extname(file.originalname) || '.png';
+		const safeKey = key.replace(/[/\\?*:<>|]/g, '_').trim();
+		if (!safeKey) {
+			throw new Error('Key is required for filosofi upload');
+		}
+		const fileName = `${safeKey}${fileExtension}`;
+
+		// Hapus file lama dengan key yang sama (berbagai ekstensi)
+		if (fs.existsSync(filosofiDir)) {
+			const files = fs.readdirSync(filosofiDir);
+			for (const f of files) {
+				const baseName = path.basename(f, path.extname(f));
+				if (baseName === safeKey) {
+					const oldPath = path.join(filosofiDir, f);
+					try {
+						fs.unlinkSync(oldPath);
+					} catch (e) {
+						console.warn('Could not delete old filosofi file:', oldPath, e);
+					}
+				}
+			}
+		}
+
+		const filePath = path.join(filosofiDir, fileName);
+		await writeFile(filePath, file.buffer);
+
+		return `/attached_assets/filosofi/${fileName}`;
+	} catch (error) {
+		console.error('Error uploading filosofi image:', error);
+		throw new Error('Filosofi image upload failed');
 	}
 }
 

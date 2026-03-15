@@ -1,6 +1,7 @@
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
+import { Link } from 'wouter';
 
 interface Settings {
 	siteName: string;
@@ -267,7 +268,7 @@ export default function About() {
 
 			<div className="container mx-auto px-4 relative z-10">
 			<div ref={headingRef} className="text-center mb-12">
-				<span className={`inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-widest rounded-full bg-cyan-500/12 border border-cyan-400/30 text-cyan-300 uppercase ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
+				<span className={`inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
 					Tentang Kami
 				</span>
 				<h1 className={`text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}>
@@ -286,21 +287,45 @@ export default function About() {
 					data-aos="fade-up"
 					data-aos-delay="200">
 					{settings?.aboutUs ? (
-						<div className="prose prose-lg lg:prose-xl prose-invert leading-relaxed space-y-4 bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm mx-auto">
-							<div
-								dangerouslySetInnerHTML={{ __html: settings.aboutUs }}
-								className="text-justify" // Back to justify alignment
-							/>
+						<div className="space-y-4">
+							<div className="prose prose-lg lg:prose-xl max-w-none leading-relaxed bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm mx-auto prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
+								<div
+									dangerouslySetInnerHTML={{ __html: settings.aboutUs }}
+									className="text-justify text-foreground"
+								/>
+							</div>
+							<div className="flex justify-center mt-6">
+								<Link href="/tentang-kami">
+									<button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary/70 transition-all duration-200">
+										Baca selengkapnya
+										<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+										</svg>
+									</button>
+								</Link>
+							</div>
 						</div>
 					) : (
-						<div className="text-center text-muted-foreground bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm">
-							<div className="text-4xl mb-4">📝</div>
-							<p className="text-lg mb-2">
-								Informasi tentang himpunan belum tersedia
-							</p>
-							<p className="text-sm text-muted-foreground/80">
-								Konten sedang dalam proses pengembangan
-							</p>
+						<div className="space-y-4">
+							<div className="text-center text-muted-foreground bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm">
+								<div className="text-4xl mb-4">📝</div>
+								<p className="text-lg mb-2 text-foreground">
+									Informasi tentang himpunan belum tersedia
+								</p>
+								<p className="text-sm text-muted-foreground/80">
+									Konten sedang dalam proses pengembangan
+								</p>
+							</div>
+							<div className="flex justify-center mt-6">
+								<Link href="/tentang-kami">
+									<button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary/70 transition-all duration-200">
+										Baca selengkapnya
+										<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+										</svg>
+									</button>
+								</Link>
+							</div>
 						</div>
 					)}
 				</div>

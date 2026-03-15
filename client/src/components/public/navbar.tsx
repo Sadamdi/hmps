@@ -11,6 +11,7 @@ import { useTheme } from '@/lib/theme';
 import { useQuery } from '@tanstack/react-query';
 import {
 	BookOpen,
+	ChevronDown,
 	FileText,
 	Home,
 	Info,
@@ -34,9 +35,27 @@ interface NavbarSettings {
 	navbarBrand?: string;
 }
 
-const navItems = [
+type NavItem =
+	| { id: string; label: string; icon: React.ReactNode; children?: undefined }
+	| {
+			id: string;
+			label: string;
+			icon: React.ReactNode;
+			children: { label: string; href: string }[];
+	  };
+
+const navItems: NavItem[] = [
 	{ id: 'home', label: 'Beranda', icon: <Home className="h-4 w-4" /> },
-	{ id: 'about', label: 'Tentang Kami', icon: <Info className="h-4 w-4" /> },
+	{
+		id: 'about',
+		label: 'Tentang Kami',
+		icon: <Info className="h-4 w-4" />,
+		children: [
+			{ label: 'Tentang Kami', href: '/#about' },
+			{ label: 'Sejarah', href: '/tentang-kami#sejarah' },
+			{ label: 'Lambang', href: '/tentang-kami#lambang' },
+		],
+	},
 	{
 		id: 'vision-mission',
 		label: 'Visi & Misi',
@@ -74,24 +93,24 @@ export default function Navbar({
 	};
 
 	const handleNavClick = (id: string) => {
-		// Jika sedang tidak di halaman home, arahkan ke route home terlebih dulu
-		// atau langsung ke anchor beranda/section publik.
 		if (location !== '/') {
 			if (id === 'home') {
 				navigate('/');
 			} else {
-				// Bawa user ke beranda dengan anchor section yang sesuai
 				window.location.href = `/#${id}`;
 			}
 			return;
 		}
 
-		// Jika sudah di halaman home, cukup scroll dengan halus
 		if (id === 'home') {
 			window.scrollTo({ top: 0, behavior: 'smooth' });
 		} else {
 			scrollToSection(id);
 		}
+	};
+
+	const handleChildNav = (href: string) => {
+		window.location.href = href;
 	};
 
 	return (
@@ -105,7 +124,7 @@ export default function Navbar({
 				}`}>
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
 					<div className="flex justify-between items-center h-full">
-						{/* Brand: selalu ke puncak beranda; dari halaman lain navigate dulu lalu scroll top */}
+						{/* Brand */}
 						<button
 							onClick={() => {
 								if (location !== '/') {
@@ -126,18 +145,49 @@ export default function Navbar({
 						<nav className="hidden sm:flex items-center gap-1">
 							{navItems
 								.filter((i) => i.id !== 'home')
-								.map((item) => (
-									<button
-										key={item.id}
-										onClick={() => scrollToSection(item.id)}
-										className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
-											activeSection === item.id
-												? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
-												: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
-										}`}>
-										{item.label}
-									</button>
-								))}
+								.map((item) => {
+									if (item.children) {
+										return (
+											<DropdownMenu key={item.id} modal={false}>
+												<DropdownMenuTrigger asChild>
+													<button
+														className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+															activeSection === item.id
+																? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
+																: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
+														}`}>
+														{item.label}
+														<ChevronDown className="h-3 w-3 opacity-60" />
+													</button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent
+													align="center"
+													className="w-44 border-border bg-card text-foreground z-50">
+													{item.children.map((child) => (
+														<DropdownMenuItem
+															key={child.href}
+															onClick={() => handleChildNav(child.href)}
+															className="cursor-pointer">
+															{child.label}
+														</DropdownMenuItem>
+													))}
+												</DropdownMenuContent>
+											</DropdownMenu>
+										);
+									}
+									return (
+										<button
+											key={item.id}
+											onClick={() => scrollToSection(item.id)}
+											className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+												activeSection === item.id
+													? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
+													: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
+											}`}>
+											{item.label}
+										</button>
+									);
+								})}
 						</nav>
 
 						{/* Right side actions — desktop */}
@@ -237,32 +287,76 @@ export default function Navbar({
 				           bg-background/92 backdrop-blur-md
 				           border border-border/80 shadow-xl shadow-black/10">
 				{/* Nav section items */}
-				{navItems.map((item) => (
-					<button
-						key={item.id}
-						onClick={() => handleNavClick(item.id)}
-						aria-label={item.label}
-						className={`relative w-10 h-10 flex items-center justify-center rounded-xl
-						            transition-all duration-200 group
-						            ${
-													activeSection === item.id ||
-													(item.id === 'home' && activeSection === '')
-														? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
-														: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-												}`}>
-						{item.icon}
+				{navItems.map((item) => {
+					if (item.children) {
+						return (
+							<DropdownMenu key={item.id} modal={false}>
+								<DropdownMenuTrigger asChild>
+									<button
+										aria-label={item.label}
+										className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+										            transition-all duration-200 group
+										            ${
+																	activeSection === item.id
+																		? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
+																		: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+																}`}>
+										{item.icon}
+										{/* Tooltip ke kiri */}
+										<span
+											className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+											           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
+											           bg-foreground/90 text-background
+											           opacity-0 pointer-events-none group-hover:opacity-100
+											           transition-opacity duration-150">
+											{item.label}
+										</span>
+									</button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent
+									side="left"
+									align="center"
+									className="w-44 border-border bg-card text-foreground z-50">
+									{item.children.map((child) => (
+										<DropdownMenuItem
+											key={child.href}
+											onClick={() => handleChildNav(child.href)}
+											className="cursor-pointer">
+											{child.label}
+										</DropdownMenuItem>
+									))}
+								</DropdownMenuContent>
+							</DropdownMenu>
+						);
+					}
 
-						{/* Tooltip ke kiri */}
-						<span
-							className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
-							           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
-							           bg-foreground/90 text-background
-							           opacity-0 pointer-events-none group-hover:opacity-100
-							           transition-opacity duration-150">
-							{item.label}
-						</span>
-					</button>
-				))}
+					return (
+						<button
+							key={item.id}
+							onClick={() => handleNavClick(item.id)}
+							aria-label={item.label}
+							className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+							            transition-all duration-200 group
+							            ${
+												activeSection === item.id ||
+												(item.id === 'home' && activeSection === '')
+													? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
+													: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+											}`}>
+							{item.icon}
+
+							{/* Tooltip ke kiri */}
+							<span
+								className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+								           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
+								           bg-foreground/90 text-background
+								           opacity-0 pointer-events-none group-hover:opacity-100
+								           transition-opacity duration-150">
+								{item.label}
+							</span>
+						</button>
+					);
+				})}
 
 				{/* Divider */}
 				<div className="h-px bg-border/60 mx-1" />

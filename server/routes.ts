@@ -24,6 +24,7 @@ import {
 	deleteFile,
 	extractImageUrlsFromContent,
 	uploadArticleImage,
+	uploadFilosofiImage,
 	uploadHandler,
 	uploadMiddleware,
 	uploadOrganizationMemberImage,
@@ -2775,6 +2776,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				.json({ message: 'Internal server error', error: String(error) });
 		}
 	});
+
+	// Endpoint upload gambar filosofi (menggantikan file di attached_assets/filosofi)
+	app.post(
+		'/api/upload/filosofi',
+		authenticate,
+		uploadLimiter,
+		uploadMiddleware.single('file'),
+		validateFileUpload,
+		async (req, res) => {
+			try {
+				if (!req.file) {
+					return res.status(400).json({ message: 'File is required' });
+				}
+				const key = (req.body.key || '').toString().trim();
+				if (!key) {
+					return res.status(400).json({ message: 'Key is required (e.g. Lingkaran, Bidikan)' });
+				}
+				const url = await uploadFilosofiImage(req.file, key);
+				res.json({ url });
+			} catch (error) {
+				console.error('Upload filosofi error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		}
+	);
 
 	// Endpoint upload logo himpunan & logo divisi
 	app.post(
