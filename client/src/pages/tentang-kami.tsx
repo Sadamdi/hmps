@@ -5,7 +5,7 @@ import Footer from '@/components/public/footer';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useLayoutEffect } from 'react';
 import { useLocation } from 'wouter';
 import type { AboutPageLambangItem, AboutPageTrackRecordItem } from '@/shared/schema';
 
@@ -41,15 +41,27 @@ export default function TentangKamiPage() {
 		}
 	}, []);
 
-	// Hash scroll setelah data dimuat
+	const sectionHash = /^#(sejarah|lambang|track-record)$/;
+
+	// Cegah scroll instan browser ke hash: mulai dari atas dulu
+	useLayoutEffect(() => {
+		if (sectionHash.test(window.location.hash)) {
+			window.scrollTo(0, 0);
+		}
+	}, []);
+
+	// Setelah data & layout siap, smooth scroll ke section (animasi dari atas)
 	useEffect(() => {
 		if (!isLoading && settings) {
 			const hash = window.location.hash;
-			if (hash === '#sejarah' || hash === '#lambang' || hash === '#track-record') {
-				setTimeout(() => {
-					const el = document.getElementById(hash.slice(1));
+			if (sectionHash.test(hash)) {
+				const id = hash.slice(1);
+				// Delay singkat agar layout selesai, lalu animasi smooth
+				const t = setTimeout(() => {
+					const el = document.getElementById(id);
 					el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-				}, 200);
+				}, 350);
+				return () => clearTimeout(t);
 			}
 		}
 	}, [isLoading, settings]);
