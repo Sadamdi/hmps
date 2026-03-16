@@ -426,6 +426,20 @@ async function getOrganizationMembersCount(): Promise<number> {
 	return await Organization.countDocuments();
 }
 
+async function getOrganizationActiveMembersCount(): Promise<number> {
+	const periods = await getOrganizationPeriods();
+	if (periods.length === 0) return 0;
+	const latestPeriod = periods[0];
+	return await Organization.countDocuments({ period: latestPeriod });
+}
+
+async function getOrganizationAlumniMembersCount(): Promise<number> {
+	const periods = await getOrganizationPeriods();
+	if (periods.length <= 1) return 0;
+	const latestPeriod = periods[0];
+	return await Organization.countDocuments({ period: { $ne: latestPeriod } });
+}
+
 // Position functions
 async function getPositionsByPeriod(
 	period: string
@@ -580,6 +594,8 @@ const mongoDBStorage = {
 	updateOrganizationMember,
 	deleteOrganizationMember,
 	getOrganizationMembersCount,
+	getOrganizationActiveMembersCount,
+	getOrganizationAlumniMembersCount,
 
 	// Position functions
 	getPositionsByPeriod,

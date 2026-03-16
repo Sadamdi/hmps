@@ -2691,12 +2691,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const articleCount = await mongoStorage.getArticlesCount();
 			const libraryCount = await mongoStorage.getLibraryItemsCount();
-			const memberCount = await mongoStorage.getOrganizationMembersCount();
+			const activeMemberCount = await mongoStorage.getOrganizationActiveMembersCount();
 
 			res.json({
 				articles: articleCount,
 				libraryItems: libraryCount,
-				organizationMembers: memberCount,
+				organizationMembers: activeMemberCount,
 			});
 		} catch (error) {
 			console.error('Get stats error:', error);
@@ -2719,16 +2719,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 			}
 
-			const [articleCount, libraryCount, memberCount] = await Promise.all([
+			const [articleCount, libraryCount, activeMemberCount, alumniMemberCount] = await Promise.all([
 				mongoStorage.getArticlesCount(),
 				mongoStorage.getLibraryItemsCount(),
-				mongoStorage.getOrganizationMembersCount(),
+				mongoStorage.getOrganizationActiveMembersCount(),
+				mongoStorage.getOrganizationAlumniMembersCount(),
 			]);
 
 			res.json({
 				totalArticles: articleCount,
 				totalMediaItems: libraryCount,
-				totalMembers: memberCount,
+				activeMemberCount,
+				alumniMemberCount,
 			});
 		} catch (error) {
 			console.error('Get dashboard stats error:', error);

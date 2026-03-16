@@ -88,7 +88,7 @@ export default function Dashboard() {
 			} catch (error) {
 				console.error('❌ Failed to fetch dashboard stats:', error);
 				// Return placeholder data instead of throwing
-				return { totalArticles: 0, totalMediaItems: 0, totalMembers: 0 };
+				return { totalArticles: 0, totalMediaItems: 0, activeMemberCount: 0, alumniMemberCount: 0 };
 			}
 		},
 		refetchInterval: 30000,
@@ -97,7 +97,7 @@ export default function Dashboard() {
 		staleTime: 20000,
 		retry: 3,
 		retryDelay: 2000,
-		placeholderData: { totalArticles: 0, totalMediaItems: 0, totalMembers: 0 },
+		placeholderData: { totalArticles: 0, totalMediaItems: 0, activeMemberCount: 0, alumniMemberCount: 0 },
 		enabled: hasSpecificPermission('dashboard.stats'), // Only fetch if user has permission
 	});
 
@@ -274,50 +274,63 @@ export default function Dashboard() {
 					<Loader2 className="h-8 w-8 animate-spin text-primary" />
 				</div>
 			) : (
-				<div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
-				<Card className="border-border/70 bg-card/95">
-					<CardHeader className="pb-2 p-3 sm:p-6">
-						<CardTitle className="text-sm sm:text-lg">Total Articles</CardTitle>
-						<CardDescription className="text-xs sm:text-sm">Published content</CardDescription>
-					</CardHeader>
-					<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-						<p className="text-2xl sm:text-3xl font-bold">
-							{stats?.totalArticles || '0'}
-						</p>
-						{statsError && (
-							<p className="text-xs text-red-500 mt-1">Error loading data</p>
-						)}
-					</CardContent>
-				</Card>
+			<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
+			<Card className="border-border/70 bg-card/95">
+				<CardHeader className="pb-2 p-3 sm:p-6">
+					<CardTitle className="text-sm sm:text-lg">Total Articles</CardTitle>
+					<CardDescription className="text-xs sm:text-sm">Published content</CardDescription>
+				</CardHeader>
+				<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+					<p className="text-2xl sm:text-3xl font-bold">
+						{stats?.totalArticles || '0'}
+					</p>
+					{statsError && (
+						<p className="text-xs text-red-500 mt-1">Error loading data</p>
+					)}
+				</CardContent>
+			</Card>
 
-				<Card className="border-border/70 bg-card/95">
-					<CardHeader className="pb-2 p-3 sm:p-6">
-						<CardTitle className="text-sm sm:text-lg">Galeri Media</CardTitle>
-						<CardDescription className="text-xs sm:text-sm">Photos and videos</CardDescription>
-					</CardHeader>
-					<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-						<p className="text-2xl sm:text-3xl font-bold">
-							{stats?.totalMediaItems || '0'}
-						</p>
-						{statsError && (
-							<p className="text-xs text-red-500 mt-1">Error loading data</p>
-						)}
-					</CardContent>
-				</Card>
+			<Card className="border-border/70 bg-card/95">
+				<CardHeader className="pb-2 p-3 sm:p-6">
+					<CardTitle className="text-sm sm:text-lg">Galeri Media</CardTitle>
+					<CardDescription className="text-xs sm:text-sm">Photos and videos</CardDescription>
+				</CardHeader>
+				<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+					<p className="text-2xl sm:text-3xl font-bold">
+						{stats?.totalMediaItems || '0'}
+					</p>
+					{statsError && (
+						<p className="text-xs text-red-500 mt-1">Error loading data</p>
+					)}
+				</CardContent>
+			</Card>
 
-				<Card className="border-border/70 bg-card/95 col-span-2 md:col-span-1">
-					<CardHeader className="pb-2 p-3 sm:p-6">
-						<CardTitle className="text-sm sm:text-lg">Organization Members</CardTitle>
-						<CardDescription className="text-xs sm:text-sm">Active members</CardDescription>
-					</CardHeader>
-					<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
-						<p className="text-2xl sm:text-3xl font-bold">{stats?.totalMembers || '0'}</p>
-						{statsError && (
-							<p className="text-xs text-red-500 mt-1">Error loading data</p>
-						)}
-					</CardContent>
-				</Card>
-				</div>
+			<Card className="border-border/70 bg-card/95">
+				<CardHeader className="pb-2 p-3 sm:p-6">
+					<CardTitle className="text-sm sm:text-lg">Active Members</CardTitle>
+					<CardDescription className="text-xs sm:text-sm">Anggota periode terbaru</CardDescription>
+				</CardHeader>
+				<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+					<p className="text-2xl sm:text-3xl font-bold">{stats?.activeMemberCount || '0'}</p>
+					{statsError && (
+						<p className="text-xs text-red-500 mt-1">Error loading data</p>
+					)}
+				</CardContent>
+			</Card>
+
+			<Card className="border-border/70 bg-card/95">
+				<CardHeader className="pb-2 p-3 sm:p-6">
+					<CardTitle className="text-sm sm:text-lg">Alumni Members</CardTitle>
+					<CardDescription className="text-xs sm:text-sm">Anggota periode sebelumnya</CardDescription>
+				</CardHeader>
+				<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
+					<p className="text-2xl sm:text-3xl font-bold">{stats?.alumniMemberCount || '0'}</p>
+					{statsError && (
+						<p className="text-xs text-red-500 mt-1">Error loading data</p>
+					)}
+				</CardContent>
+			</Card>
+			</div>
 			)}
 
 			<div className="mt-6 sm:mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
