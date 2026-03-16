@@ -4,12 +4,19 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { useMutation } from '@tanstack/react-query';
-import { Image, Loader2, Upload } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { CalendarDays, Copy, Image, Link2, Loader2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import RichTextEditor from './rich-text-editor';
 
@@ -56,6 +63,12 @@ export default function ArticleEditor({
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [imagePreview, setImagePreview] = useState<string>('');
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+	// Copy → Event state
+	const [showCopyToEventDialog, setShowCopyToEventDialog] = useState(false);
+	const [copyToEventYear, setCopyToEventYear] = useState(new Date().getFullYear());
+	const [copyAttachments, setCopyAttachmentsState] = useState(false);
+	const [selectedParentEventId, setSelectedParentEventId] = useState<string>('');
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -234,6 +247,85 @@ export default function ArticleEditor({
 				}`,
 				variant: 'destructive',
 			});
+		},
+	});
+
+	const articleId = (article as any)?._id || article?.id;
+
+	// Linked events query
+	const { data: linkedEvents = [], refetch: refetchLinkedEvents } = useQuery<any[]>({
+		queryKey: [`/api/articles/${articleId}/events`],
+		queryFn: async () => {
+			if (!articleId) return [];
+			const res = await fetch(`/api/articles/${articleId}/events`);
+			if (!res.ok) return [];
+			return res.json();
+		},
+		enabled: !!articleId,
+	});
+
+	// Event years query (for copy dialog)
+	const { data: eventYears = [] } = useQuery<{ _id: string; year: number }[]>({
+		queryKey: ['/api/event-years'],
+		queryFn: async () => {
+			const res = await fetch('/api/event-years');
+			if (!res.ok) return [];
+			return res.json();
+		},
+		enabled: showCopyToEventDialog,
+	});
+
+	// Fetch parent events for the selected year (event utama saja, parentId=null)
+	const selectedYearDoc = eventYears.find((y) => y.year === copyToEventYear);
+	const { data: parentEventOptions = [], isFetching: isFetchingParentEvents } = useQuery<{ _id: string; title: string; month: number; startDate: string }[]>({
+		queryKey: ['/api/events-parent-options', selectedYearDoc?._id],
+		queryFn: async () => {
+			if (!selectedYearDoc) return [];
+			const res = await fetch(`/api/events?yearId=${selectedYearDoc._id}&parentId=null`);
+			if (!res.ok) return [];
+			return res.json();
+		},
+		enabled: showCopyToEventDialog && !!selectedYearDoc,
+	});
+
+	const MONTH_NAMES_SHORT = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+
+	const copyToEventMut = useMutation({
+		mutationFn: async ({ year, parentEventId, copyAtts }: { year: number; parentEventId?: string; copyAtts: boolean }) => {
+			if (!articleId) throw new Error('Save article first before copying to event.');
+			const res = await apiRequest('POST', `/api/articles/${articleId}/copy-to-event`, {
+				year,
+				parentEventId: parentEventId || undefined,
+				copyAttachments: copyAtts,
+			});
+			return res.json();
+		},
+		onSuccess: (data: any) => {
+			setShowCopyToEventDialog(false);
+			const parentName = selectedParentEventId
+				? parentEventOptions.find((e) => e._id === selectedParentEventId)?.title
+				: undefined;
+			toast({
+				title: 'Event berhasil dibuat dari artikel!',
+				description: parentName
+					? `Draft sub-event "${data.event?.title}" dibuat di bawah "${parentName}" (${data.year}).`
+					: `Draft event "${data.event?.title}" dibuat di tahun ${data.year}. Silakan edit di dashboard event.`,
+			});
+			setSelectedParentEventId('');
+		},
+		onError: (err: any) => {
+			toast({ title: 'Gagal membuat event', description: err.message, variant: 'destructive' });
+		},
+	});
+
+	const detachEventMut = useMutation({
+		mutationFn: async (eventId: string) => {
+			if (!articleId) return;
+			await apiRequest('DELETE', `/api/articles/${articleId}/attach-event/${eventId}`);
+		},
+		onSuccess: () => {
+			refetchLinkedEvents();
+			toast({ title: 'Event berhasil dilepas dari artikel' });
 		},
 	});
 
@@ -680,25 +772,171 @@ export default function ArticleEditor({
 				</div>
 			</div>
 
-			<div className="flex justify-end space-x-4">
-				<Button
-					variant="outline"
-					onClick={onCancel}>
-					Cancel
-				</Button>
-				<Button
-					onClick={handleSave}
-					disabled={saveArticleMutation.isPending}>
-					{saveArticleMutation.isPending ? (
-						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-							Saving...
-						</>
-					) : (
-						'Save Article'
-					)}
-				</Button>
+		{/* Linked Events Section */}
+		{articleId && (
+			<div className="border rounded-lg p-4 space-y-3">
+				<div className="flex items-center justify-between">
+					<div className="flex items-center gap-2">
+						<CalendarDays className="h-4 w-4 text-primary" />
+						<h3 className="font-medium text-sm">Event Terkait</h3>
+					</div>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => { setCopyToEventYear(new Date().getFullYear()); setCopyAttachmentsState(false); setSelectedParentEventId(''); setShowCopyToEventDialog(true); }}
+					>
+						<Copy className="h-3.5 w-3.5 mr-1" />
+						Copy → Event
+					</Button>
+				</div>
+				{linkedEvents.length === 0 ? (
+					<p className="text-xs text-muted-foreground">Belum ada event yang terhubung ke artikel ini.</p>
+				) : (
+					<div className="flex flex-wrap gap-2">
+						{linkedEvents.map((ev: any) => (
+							<Badge key={ev._id} variant="outline" className="gap-1.5 text-xs py-1 px-2">
+								<Link2 className="h-3 w-3" />
+								{ev.title}
+								{ev.yearId?.year && <span className="text-muted-foreground">({ev.yearId.year})</span>}
+								<button
+									type="button"
+									onClick={() => detachEventMut.mutate(ev._id)}
+									className="ml-0.5 hover:text-destructive transition-colors"
+									title="Lepas dari event"
+								>
+									<X className="h-2.5 w-2.5" />
+								</button>
+							</Badge>
+						))}
+					</div>
+				)}
 			</div>
+		)}
+
+		<div className="flex justify-end space-x-4">
+			<Button
+				variant="outline"
+				onClick={onCancel}>
+				Cancel
+			</Button>
+			<Button
+				onClick={handleSave}
+				disabled={saveArticleMutation.isPending}>
+				{saveArticleMutation.isPending ? (
+					<>
+						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+						Saving...
+					</>
+				) : (
+					'Save Article'
+				)}
+			</Button>
 		</div>
+
+		{/* Dialog Copy → Event */}
+		<Dialog
+			open={showCopyToEventDialog}
+			onOpenChange={(open) => {
+				setShowCopyToEventDialog(open);
+				if (!open) { setSelectedParentEventId(''); setCopyAttachmentsState(false); }
+			}}
+		>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Copy Artikel ke Event</DialogTitle>
+				</DialogHeader>
+				<div className="space-y-4">
+					<p className="text-sm text-muted-foreground">
+						Akan dibuat event baru (draft) dari artikel ini. Anda bisa mengedit di halaman dashboard event.
+					</p>
+					<div className="space-y-1">
+						<Label>Tahun Event</Label>
+						{eventYears.length > 0 ? (
+							<select
+								className="w-full border rounded px-3 py-2 text-sm bg-background"
+								value={copyToEventYear}
+								onChange={(e) => { setCopyToEventYear(parseInt(e.target.value, 10)); setSelectedParentEventId(''); }}
+							>
+								{eventYears.map((y) => (
+									<option key={y._id} value={y.year}>{y.year}</option>
+								))}
+							</select>
+						) : (
+							<Input
+								type="number"
+								value={copyToEventYear}
+								onChange={(e) => { setCopyToEventYear(parseInt(e.target.value, 10) || new Date().getFullYear()); setSelectedParentEventId(''); }}
+								min={2000}
+								max={2100}
+							/>
+						)}
+					</div>
+
+					{/* Parent event dropdown */}
+					<div className="space-y-1">
+						<Label>Jadikan Sub-event dari (opsional)</Label>
+						{isFetchingParentEvents ? (
+							<div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+								<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								Memuat daftar event...
+							</div>
+						) : !selectedYearDoc ? (
+							<p className="text-xs text-muted-foreground py-1">Pilih tahun terlebih dahulu.</p>
+						) : parentEventOptions.length === 0 ? (
+							<p className="text-xs text-muted-foreground py-1">
+								Belum ada event utama di tahun ini — artikel akan dibuat sebagai event utama baru.
+							</p>
+						) : (
+							<select
+								className="w-full border rounded px-3 py-2 text-sm bg-background"
+								value={selectedParentEventId}
+								onChange={(e) => setSelectedParentEventId(e.target.value)}
+							>
+								<option value="">(Buat event utama baru)</option>
+								{parentEventOptions.map((ev) => {
+									const monthLabel = ev.month >= 1 && ev.month <= 12 ? MONTH_NAMES_SHORT[ev.month - 1] : '';
+									return (
+										<option key={ev._id} value={ev._id}>
+											{ev.title}{monthLabel ? ` — ${monthLabel}` : ''}
+										</option>
+									);
+								})}
+							</select>
+						)}
+					</div>
+
+					<div className="flex items-center gap-2">
+						<input
+							type="checkbox"
+							id="copy-atts-event"
+							checked={copyAttachments}
+							onChange={(e) => setCopyAttachmentsState(e.target.checked)}
+							className="rounded"
+						/>
+						<Label htmlFor="copy-atts-event" className="cursor-pointer">
+							Sertakan gambar artikel ke lampiran event
+						</Label>
+					</div>
+					<div className="flex gap-2 pt-2">
+						<Button
+							className="flex-1"
+							onClick={() => copyToEventMut.mutate({
+								year: copyToEventYear,
+								parentEventId: selectedParentEventId || undefined,
+								copyAtts: copyAttachments,
+							})}
+							disabled={copyToEventMut.isPending || isFetchingParentEvents}
+						>
+							{copyToEventMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+							<Copy className="h-4 w-4 mr-2" />
+							{selectedParentEventId ? 'Buat Sub-event' : 'Buat Event'}
+						</Button>
+						<Button variant="outline" onClick={() => setShowCopyToEventDialog(false)}>Batal</Button>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
+	</div>
 	);
 }

@@ -28,6 +28,7 @@ export type UploadCategory =
 	| 'articles' // Gambar artikel dan thumbnail
 	| 'library' // Media library (foto/video kegiatan)
 	| 'filosofi' // Gambar filosofi lambang HIMATIF (attached_assets/filosofi)
+	| 'events' // Thumbnail dan attachment event
 	| 'general'; // File umum lainnya
 
 // Membuat subfolder jika belum ada

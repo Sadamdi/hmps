@@ -9,9 +9,9 @@ import {
 	formatContentForDisplay as formatContentForDisplayFn,
 } from '@/utils/formatContent';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, BookOpen, Calendar, Share2, Tag, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, Calendar, CalendarDays, Share2, Tag, User } from 'lucide-react';
 import { Suspense, lazy, useEffect } from 'react';
-import { useLocation, useParams } from 'wouter';
+import { Link, useLocation, useParams } from 'wouter';
 
 const TableOfContents = lazy(
 	() => import('@/components/article/table-of-contents')
@@ -92,6 +92,19 @@ export default function ArticleDetail() {
 			return response.json();
 		},
 		enabled: !!relatedEndpoint,
+		placeholderData: [],
+	});
+
+	const articleId = id || null;
+
+	const { data: linkedEvents = [] } = useQuery<{ _id: string; title: string; yearId: { year: number }; startDate: string; endDate: string }[]>({
+		queryKey: [`/api/articles/${articleId}/events`],
+		queryFn: async () => {
+			const response = await fetch(`/api/articles/${articleId}/events`);
+			if (!response.ok) return [];
+			return response.json();
+		},
+		enabled: !!articleId,
 		placeholderData: [],
 	});
 
@@ -410,11 +423,44 @@ export default function ArticleDetail() {
 							</div>
 						)}
 
-						{/* Footer */}
+					{/* Event Badge */}
+					{linkedEvents && linkedEvents.length > 0 && (
 						<div
-							className="mt-12 pt-6 border-t border-border"
+							className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
 							data-aos="fade-up"
-							data-aos-delay="300">
+							data-aos-delay="260">
+							<div className="flex items-center gap-2 mb-3">
+								<CalendarDays className="w-4 h-4 text-primary" />
+								<h3 className="text-base font-semibold text-foreground">Bagian dari Event</h3>
+							</div>
+							<div className="flex flex-wrap gap-2">
+								{linkedEvents.map((ev) => {
+									const year = ev.yearId?.year;
+									return (
+										<Link
+											key={ev._id}
+											href={year ? `/events/${year}/${ev._id}` : '/events'}
+										>
+											<Badge
+												variant="outline"
+												className="cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors gap-1.5 text-sm py-1 px-3"
+											>
+												<CalendarDays className="w-3 h-3" />
+												{ev.title}
+												{year && <span className="text-muted-foreground">({year})</span>}
+											</Badge>
+										</Link>
+									);
+								})}
+							</div>
+						</div>
+					)}
+
+					{/* Footer */}
+					<div
+						className="mt-12 pt-6 border-t border-border"
+						data-aos="fade-up"
+						data-aos-delay="300">
 							<div className="flex flex-col sm:flex-row items-center justify-between gap-4">
 								<div className="text-sm text-muted-foreground">
 									Dipublikasikan pada {formatDate(article.createdAt)}

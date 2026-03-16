@@ -124,6 +124,11 @@ const articleSchema = new mongoose.Schema({
 		required: true,
 	},
 	author: { type: String, required: true },
+	sourceEventId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'Event',
+		default: null,
+	},
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
 });
@@ -295,18 +300,153 @@ const settingsSchema = new mongoose.Schema({
 			},
 		],
 		default: [
-			{ year: '2013', chairpersonName: 'Willdan Pramanda W.', divisions: ['Public Relation', 'Multimedia', 'Jaringan & Hardware', 'Keagamaan', 'Pemrograman', 'Softskill'] },
-			{ year: '2014', chairpersonName: 'Saiful Rizal', divisions: ['Public Relation', 'Multimedia', 'Jaringan', 'Keagamaan', 'Pemrograman', 'Softskill'] },
-			{ year: '2015', chairpersonName: 'M. Fairuz Zumar Rounnaqi', divisions: ['Public Relation', 'Multimedia', 'Jaringan', 'Open Source', 'Pemrograman', 'Softskill & Jurnalistik', 'Keagamaan & Enterpreneurship'] },
-			{ year: '2016', chairpersonName: 'M. Wildan Taufiqurrahman', divisions: ['Public Relation', 'Multimedia', 'Intelektual', 'Softskill', 'Jurnalistik', 'Technopreneurship', 'Religius'] },
-			{ year: '2017', chairpersonName: 'Zakiya Ramadhan', divisions: ['Public Relation', 'Multimedia', 'Intelektual', 'Softskill', 'Jurnalistik', 'Technopreneurship', 'Religius'] },
-			{ year: '2018', chairpersonName: 'Muhammad Fahmi Abidin', divisions: ['Public Relation', 'Intelektual', 'Softskill', 'Jurnalistik', 'Technopreneurship', 'Religius'] },
-			{ year: '2019', chairpersonName: 'Aqilarik Nugra Rezkanintio', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
-			{ year: '2020', chairpersonName: 'M. Ibram Gusti Childrabahti', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
-			{ year: '2021', chairpersonName: 'Bisyri Syamsuri', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
-			{ year: '2022', chairpersonName: 'Rafi Aulia Prasetya', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
-			{ year: '2023', chairpersonName: 'M. Reyhan Aditya Hendrawan', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
-			{ year: '2024', chairpersonName: 'Mohammad Aulia Syamsul Hadi', divisions: ['Public Relation', 'Intelektual', 'Seni dan Olahraga', 'Media dan Informasi', 'Technopreneurship', 'Religius'] },
+			{
+				year: '2013',
+				chairpersonName: 'Willdan Pramanda W.',
+				divisions: [
+					'Public Relation',
+					'Multimedia',
+					'Jaringan & Hardware',
+					'Keagamaan',
+					'Pemrograman',
+					'Softskill',
+				],
+			},
+			{
+				year: '2014',
+				chairpersonName: 'Saiful Rizal',
+				divisions: [
+					'Public Relation',
+					'Multimedia',
+					'Jaringan',
+					'Keagamaan',
+					'Pemrograman',
+					'Softskill',
+				],
+			},
+			{
+				year: '2015',
+				chairpersonName: 'M. Fairuz Zumar Rounnaqi',
+				divisions: [
+					'Public Relation',
+					'Multimedia',
+					'Jaringan',
+					'Open Source',
+					'Pemrograman',
+					'Softskill & Jurnalistik',
+					'Keagamaan & Enterpreneurship',
+				],
+			},
+			{
+				year: '2016',
+				chairpersonName: 'M. Wildan Taufiqurrahman',
+				divisions: [
+					'Public Relation',
+					'Multimedia',
+					'Intelektual',
+					'Softskill',
+					'Jurnalistik',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
+			{
+				year: '2017',
+				chairpersonName: 'Zakiya Ramadhan',
+				divisions: [
+					'Public Relation',
+					'Multimedia',
+					'Intelektual',
+					'Softskill',
+					'Jurnalistik',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
+			{
+				year: '2018',
+				chairpersonName: 'Muhammad Fahmi Abidin',
+				divisions: [
+					'Public Relation',
+					'Intelektual',
+					'Softskill',
+					'Jurnalistik',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
+			{
+				year: '2019',
+				chairpersonName: 'Aqilarik Nugra Rezkanintio',
+				divisions: [
+					'Public Relation',
+					'Intelektual',
+					'Seni dan Olahraga',
+					'Media dan Informasi',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
+			{
+				year: '2020',
+				chairpersonName: 'M. Ibram Gusti Childrabahti',
+				divisions: [
+					'Public Relation',
+					'Intelektual',
+					'Seni dan Olahraga',
+					'Media dan Informasi',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
+			{
+				year: '2021',
+				chairpersonName: 'Bisyri Syamsuri',
+				divisions: [
+					'Public Relation',
+					'Intelektual',
+					'Seni dan Olahraga',
+					'Media dan Informasi',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
+			{
+				year: '2022',
+				chairpersonName: 'Rafi Aulia Prasetya',
+				divisions: [
+					'Public Relation',
+					'Intelektual',
+					'Seni dan Olahraga',
+					'Media dan Informasi',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
+			{
+				year: '2023',
+				chairpersonName: 'M. Reyhan Aditya Hendrawan',
+				divisions: [
+					'Public Relation',
+					'Intelektual',
+					'Seni dan Olahraga',
+					'Media dan Informasi',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
+			{
+				year: '2024',
+				chairpersonName: 'Mohammad Aulia Syamsul Hadi',
+				divisions: [
+					'Public Relation',
+					'Intelektual',
+					'Seni dan Olahraga',
+					'Media dan Informasi',
+					'Technopreneurship',
+					'Religius',
+				],
+			},
 		],
 	},
 	aboutPageLambang: {
@@ -319,16 +459,76 @@ const settingsSchema = new mongoose.Schema({
 			},
 		],
 		default: [
-			{ key: 'Lingkaran', title: 'Lingkaran', description: 'Lingkaran menandakan bahwa jurusan Teknik Informatika memiliki solidaritas tanpa ujung.', imageUrl: '/attached_assets/filosofi/Lingkaran.png' },
-			{ key: 'Bidikan', title: 'Bidikan', description: 'Merepresentasikan bahwa Himpunan memiliki sebuah tujuan yang jelas untuk dicapai, dengan mengedepankan karakter yang dinamis dan kuat.', imageUrl: '/attached_assets/filosofi/Bidikan.png' },
-			{ key: 'Tulisan TI Berbentuk Puzzle', title: 'Tulisan TI Berbentuk Puzzle', description: 'Merepresentasikan penyelesaian setiap masalah dengan langkah-langkah yang harus diambil dengan benar.', imageUrl: '/attached_assets/filosofi/Tulisan TI Berbentuk Puzzle.png' },
-			{ key: 'Mata', title: 'Mata', description: 'Fokus menghadapi masa depan dengan penuh perhitungan dan percaya diri.', imageUrl: '/attached_assets/filosofi/Mata.png' },
-			{ key: 'Kurung Kurawal', title: 'Kurung Kurawal', description: 'Menandakan elemen penting dalam pembentuk gambar mata yang memiliki arti fokus, loyal, dan memiliki jiwa tanggung jawab.', imageUrl: '/attached_assets/filosofi/Kurung Kurawal.png' },
-			{ key: 'Grafik Linier', title: 'Grafik Linier', description: 'Menandakan Himpunan yang selalu berkembang, namun tetap adil.', imageUrl: '/attached_assets/filosofi/Grafik Linier.png' },
-			{ key: 'Biru 81BFE8', title: 'Biru', description: 'Bermakna intelektual, loyalitas, dan tanggung jawab. Hex Color: 81BFE8', imageUrl: '/attached_assets/filosofi/Biru 81BFE8.png' },
-			{ key: 'Jingga E75B1D', title: 'Jingga', description: 'Melambangkan kehangatan dan kenyamanan. Hex Color: E75B1D.', imageUrl: '/attached_assets/filosofi/Jingga E75B1D.png' },
-			{ key: 'Abu Abu A1A5A6', title: 'Abu-abu', description: 'Menggambarkan keseriusan, kestabilan, kemandirian, dan memberikan kesan tanggung jawab. Hex Color: A1A5A6.', imageUrl: '/attached_assets/filosofi/Abu Abu A1A5A6.png' },
-			{ key: 'Putih FFFFFF', title: 'Putih', description: 'Melambangkan kebebasan dan keterbukaan. Hex Color: FFFFFF.', imageUrl: '/attached_assets/filosofi/Putih FFFFFF.png' },
+			{
+				key: 'Lingkaran',
+				title: 'Lingkaran',
+				description:
+					'Lingkaran menandakan bahwa jurusan Teknik Informatika memiliki solidaritas tanpa ujung.',
+				imageUrl: '/attached_assets/filosofi/Lingkaran.png',
+			},
+			{
+				key: 'Bidikan',
+				title: 'Bidikan',
+				description:
+					'Merepresentasikan bahwa Himpunan memiliki sebuah tujuan yang jelas untuk dicapai, dengan mengedepankan karakter yang dinamis dan kuat.',
+				imageUrl: '/attached_assets/filosofi/Bidikan.png',
+			},
+			{
+				key: 'Tulisan TI Berbentuk Puzzle',
+				title: 'Tulisan TI Berbentuk Puzzle',
+				description:
+					'Merepresentasikan penyelesaian setiap masalah dengan langkah-langkah yang harus diambil dengan benar.',
+				imageUrl: '/attached_assets/filosofi/Tulisan TI Berbentuk Puzzle.png',
+			},
+			{
+				key: 'Mata',
+				title: 'Mata',
+				description:
+					'Fokus menghadapi masa depan dengan penuh perhitungan dan percaya diri.',
+				imageUrl: '/attached_assets/filosofi/Mata.png',
+			},
+			{
+				key: 'Kurung Kurawal',
+				title: 'Kurung Kurawal',
+				description:
+					'Menandakan elemen penting dalam pembentuk gambar mata yang memiliki arti fokus, loyal, dan memiliki jiwa tanggung jawab.',
+				imageUrl: '/attached_assets/filosofi/Kurung Kurawal.png',
+			},
+			{
+				key: 'Grafik Linier',
+				title: 'Grafik Linier',
+				description:
+					'Menandakan Himpunan yang selalu berkembang, namun tetap adil.',
+				imageUrl: '/attached_assets/filosofi/Grafik Linier.png',
+			},
+			{
+				key: 'Biru 81BFE8',
+				title: 'Biru',
+				description:
+					'Bermakna intelektual, loyalitas, dan tanggung jawab. Hex Color: 81BFE8',
+				imageUrl: '/attached_assets/filosofi/Biru 81BFE8.png',
+			},
+			{
+				key: 'Jingga E75B1D',
+				title: 'Jingga',
+				description:
+					'Melambangkan kehangatan dan kenyamanan. Hex Color: E75B1D.',
+				imageUrl: '/attached_assets/filosofi/Jingga E75B1D.png',
+			},
+			{
+				key: 'Abu Abu A1A5A6',
+				title: 'Abu-abu',
+				description:
+					'Menggambarkan keseriusan, kestabilan, kemandirian, dan memberikan kesan tanggung jawab. Hex Color: A1A5A6.',
+				imageUrl: '/attached_assets/filosofi/Abu Abu A1A5A6.png',
+			},
+			{
+				key: 'Putih FFFFFF',
+				title: 'Putih',
+				description:
+					'Melambangkan kebebasan dan keterbukaan. Hex Color: FFFFFF.',
+				imageUrl: '/attached_assets/filosofi/Putih FFFFFF.png',
+			},
 		],
 	},
 });
@@ -359,6 +559,68 @@ const divisionSchema = new mongoose.Schema({
 	updatedAt: { type: Date, default: Date.now },
 });
 
+// Model EventYear — container event per tahun
+const eventYearSchema = new mongoose.Schema(
+	{
+		year: { type: Number, required: true, unique: true },
+		isActiveOnHome: { type: Boolean, default: false },
+	},
+	{ timestamps: true },
+);
+
+// Model Event — event utama & sub-event (nested via parentId)
+const eventSchema = new mongoose.Schema(
+	{
+		yearId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'EventYear',
+			required: true,
+		},
+		parentId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'Event',
+			default: null,
+		},
+		title: { type: String, required: true },
+		description: { type: String, default: '' },
+		thumbnail: { type: String, default: '' },
+		thumbnailSource: { type: String, enum: ['local', 'gdrive'], default: 'local' },
+		gdriveFileId: { type: String, default: '' },
+		startDate: { type: Date, required: true },
+		endDate: { type: Date, required: true },
+		month: { type: Number, required: true, min: 1, max: 12 },
+		attachments: [
+			{
+				name: { type: String, required: true },
+				url: { type: String, required: true },
+				type: { type: String, default: 'file' },
+				source: { type: String, enum: ['local', 'gdrive'], default: 'local' },
+			},
+		],
+		published: { type: Boolean, default: false },
+		createdBy: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+		relatedArticles: [
+			{
+				type: mongoose.Schema.Types.ObjectId,
+				ref: 'Article',
+			},
+		],
+		sourceArticleId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'Article',
+			default: null,
+		},
+	},
+	{ timestamps: true },
+);
+
+eventSchema.index({ yearId: 1, month: 1 });
+eventSchema.index({ parentId: 1 });
+
 // Model HomeImages — per-year home page banner/image sets
 const homeImagesSchema = new mongoose.Schema(
 	{
@@ -386,9 +648,12 @@ const homeImagesSchema = new mongoose.Schema(
 );
 
 // Create models
+const EventYear =
+	mongoose.models.EventYear || mongoose.model('EventYear', eventYearSchema);
+const Event =
+	mongoose.models.Event || mongoose.model('Event', eventSchema);
 const HomeImages =
-	mongoose.models.HomeImages ||
-	mongoose.model('HomeImages', homeImagesSchema);
+	mongoose.models.HomeImages || mongoose.model('HomeImages', homeImagesSchema);
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Article =
 	mongoose.models.Article || mongoose.model('Article', articleSchema);
@@ -415,7 +680,8 @@ export const Division =
 
 export {
 	Article,
-	connectDB,
+	Event,
+	EventYear,
 	HomeImages,
 	Library,
 	Organization,
@@ -424,4 +690,5 @@ export {
 	Session,
 	Settings,
 	User,
+	connectDB,
 };

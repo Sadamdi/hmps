@@ -28,6 +28,7 @@ export interface Article {
 	published: boolean;
 	authorId: string;
 	author: string;
+	sourceEventId?: string | null;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -150,6 +151,54 @@ export interface Position {
 	updatedAt: Date;
 }
 
+// EventYear Types
+export interface EventYear {
+	_id: string;
+	year: number;
+	isActiveOnHome: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+// Event Attachment Type
+export interface EventAttachment {
+	name: string;
+	url: string;
+	type: string;
+	source: 'local' | 'gdrive';
+}
+
+// Event Types
+export interface EventItem {
+	_id: string;
+	yearId: string;
+	parentId: string | null;
+	title: string;
+	description: string;
+	thumbnail: string;
+	thumbnailSource: 'local' | 'gdrive';
+	gdriveFileId?: string;
+	startDate: Date;
+	endDate: Date;
+	month: number;
+	attachments: EventAttachment[];
+	published: boolean;
+	createdBy: string;
+	relatedArticles?: EventRelatedArticle[];
+	sourceArticleId?: string | null;
+	children?: EventItem[];
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface EventRelatedArticle {
+	_id: string;
+	title: string;
+	slug?: string;
+}
+
+export type EventStatus = 'ongoing' | 'soon' | 'expired';
+
 // Insert/Update Types (for API operations)
 export type InsertUser = Omit<UserWithRole, '_id' | 'createdAt' | 'updatedAt'>;
 export type UpdateUser = Partial<Omit<UserWithRole, '_id' | 'createdAt' | 'updatedAt'>>;
@@ -168,3 +217,9 @@ export type UpdateSettings = Partial<Omit<Settings, '_id' | 'updatedAt'>>;
 
 export type InsertPosition = Omit<Position, '_id' | 'createdAt' | 'updatedAt'>;
 export type UpdatePosition = Partial<Omit<Position, '_id' | 'createdAt' | 'updatedAt'>>;
+
+export type InsertEventYear = Omit<EventYear, '_id' | 'createdAt' | 'updatedAt'>;
+export type UpdateEventYear = Partial<Omit<EventYear, '_id' | 'createdAt' | 'updatedAt'>>;
+
+export type InsertEvent = Omit<EventItem, '_id' | 'children' | 'createdAt' | 'updatedAt'>;
+export type UpdateEvent = Partial<Omit<EventItem, '_id' | 'children' | 'createdAt' | 'updatedAt'>>;

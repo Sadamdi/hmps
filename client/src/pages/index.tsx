@@ -41,6 +41,7 @@ interface Settings {
 }
 
 const Structure = lazy(() => import('@/components/public/structure'));
+const EventsTree = lazy(() => import('@/components/public/events-tree'));
 
 export default function Home() {
 	const { isLoading, completeLoading, forceComplete, assetsLoaded } =
@@ -80,7 +81,7 @@ export default function Home() {
 
 	const [activeSection, setActiveSection] = useState('home');
 
-	const validSections = ['about', 'vision-mission', 'structure', 'articles', 'library'];
+	const validSections = ['about', 'events', 'vision-mission', 'structure', 'articles', 'library'];
 
 	// Saat beranda dimuat dengan hash (mis. /#about dari halaman lain):
 	// Cegah browser loncat langsung ke section — tampilkan dari atas dulu
@@ -120,6 +121,7 @@ export default function Home() {
 			const sections = [
 				{ id: 'home', navId: 'home' },
 				{ id: 'about', navId: 'profil' },
+				{ id: 'events', navId: 'events' },
 				{ id: 'vision-mission', navId: 'kelembagaan' },
 				{ id: 'structure', navId: 'kelembagaan' },
 				{ id: 'articles', navId: 'articles' },
@@ -184,6 +186,9 @@ export default function Home() {
 				introKey={heroTrigger}
 			/>
 			<About />
+			<Suspense fallback={null}>
+				<EventsTree />
+			</Suspense>
 			<VisionMission />
 			<Suspense
 				fallback={

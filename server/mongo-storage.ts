@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import {
 	Article,
 	Division,
+	Event,
+	EventYear,
 	HomeImages,
 	Library,
 	Organization,
@@ -670,6 +672,411 @@ async function seedDefaultHomeImages() {
 	});
 }
 
+// ── EventYear functions ──
+
+async function getAllEventYears(): Promise<any[]> {
+	return await EventYear.find().sort({ year: -1 }).lean();
+}
+
+async function getEventYearById(id: string): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	return await EventYear.findById(objectId).lean();
+}
+
+async function getActiveEventYear(): Promise<any | null> {
+	return await EventYear.findOne({ isActiveOnHome: true }).lean();
+}
+
+async function createEventYear(data: any): Promise<any> {
+	const doc = new EventYear(data);
+	return await doc.save();
+}
+
+async function updateEventYear(id: string, data: any): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	return await EventYear.findByIdAndUpdate(
+		objectId,
+		{ $set: data },
+		{ new: true, runValidators: true },
+	).lean();
+}
+
+async function deleteEventYear(id: string): Promise<void> {
+	const objectId = toObjectId(id);
+	if (!objectId) return;
+	await Event.deleteMany({ yearId: objectId });
+	await EventYear.findByIdAndDelete(objectId);
+}
+
+async function setActiveEventYear(id: string): Promise<any | null> {
+	await EventYear.updateMany({}, { $set: { isActiveOnHome: false } });
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	return await EventYear.findByIdAndUpdate(
+		objectId,
+		{ $set: { isActiveOnHome: true } },
+		{ new: true },
+	).lean();
+}
+
+// ── Event functions ──
+
+async function getEventsByYear(year: number, parentOnly = false, publishedOnly = true): Promise<{ yearDoc: any; events: any[] } | null> {
+	const yearDoc = await EventYear.findOne({ year }).lean();
+	if (!yearDoc) return null;
+	const filter: any = { yearId: (yearDoc as any)._id };
+	if (parentOnly) filter.parentId = null;
+	if (publishedOnly) filter.published = true;
+	const events = await Event.find(filter)
+		.populate('relatedArticles', '_id title slug')
+		.sort({ month: 1, startDate: 1 })
+		.lean();
+	return { yearDoc, events };
+}
+
+async function getEventsByYearId(
+	yearId: string,
+	parentId?: string | null,
+): Promise<any[]> {
+	const yOid = toObjectId(yearId);
+	if (!yOid) return [];
+	const filter: any = { yearId: yOid };
+	if (parentId === null || parentId === undefined) {
+		filter.parentId = null;
+	} else if (parentId) {
+		const pOid = toObjectId(parentId);
+		if (!pOid) return [];
+		filter.parentId = pOid;
+	}
+	return await Event.find(filter)
+		.populate('relatedArticles', '_id title slug')
+		.sort({ month: 1, startDate: 1 })
+		.lean();
+}
+
+async function getEventById(id: string): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	return await Event.findById(objectId)
+		.populate('relatedArticles', '_id title slug')
+		.lean();
+}
+
+async function getEventWithChildren(id: string): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	const event = await Event.findById(objectId)
+		.populate('relatedArticles', '_id title slug')
+		.lean();
+	if (!event) return null;
+	const children = await Event.find({ parentId: objectId })
+		.populate('relatedArticles', '_id title slug')
+		.sort({ startDate: 1 })
+		.lean();
+	return { ...event, children };
+}
+
+async function getEventsForHome(): Promise<any | null> {
+	const activeYear = await EventYear.findOne({ isActiveOnHome: true }).lean();
+	if (!activeYear) return null;
+
+	const topEvents = await Event.find({
+		yearId: (activeYear as any)._id,
+		parentId: null,
+		published: true,
+	})
+		.populate('relatedArticles', '_id title slug')
+		.sort({ month: 1, startDate: 1 })
+		.lean();
+
+	const topIds = topEvents.map((e: any) => e._id);
+	const children = await Event.find({
+		parentId: { $in: topIds },
+		published: true,
+	})
+		.populate('relatedArticles', '_id title slug')
+		.sort({ startDate: 1 })
+		.lean();
+
+	const childMap = new Map<string, any[]>();
+	for (const c of children) {
+		const pid = (c as any).parentId.toString();
+		if (!childMap.has(pid)) childMap.set(pid, []);
+		childMap.get(pid)!.push(c);
+	}
+
+	const eventsWithChildren = topEvents.map((e: any) => ({
+		...e,
+		children: childMap.get(e._id.toString()) || [],
+	}));
+
+	return { year: activeYear, events: eventsWithChildren };
+}
+
+async function getEventsByArticleId(articleId: string): Promise<any[]> {
+	const aOid = toObjectId(articleId);
+	if (!aOid) return [];
+	const events = await Event.find({ relatedArticles: aOid, published: true })
+		.populate('yearId', 'year')
+		.select('_id title yearId startDate endDate')
+		.lean();
+	return events;
+}
+
+async function createEvent(data: any): Promise<any> {
+	if (data.yearId) {
+		const yOid = toObjectId(data.yearId);
+		if (yOid) data.yearId = yOid;
+	}
+	if (data.parentId) {
+		const pOid = toObjectId(data.parentId);
+		if (pOid) data.parentId = pOid;
+	}
+	if (data.createdBy) {
+		const uOid = toObjectId(data.createdBy);
+		if (uOid) data.createdBy = uOid;
+	}
+	if (Array.isArray(data.relatedArticles)) {
+		data.relatedArticles = data.relatedArticles
+			.map((id: string) => toObjectId(id))
+			.filter(Boolean);
+	}
+	const doc = new Event(data);
+	return await doc.save();
+}
+
+async function updateEvent(id: string, data: any): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	return await Event.findByIdAndUpdate(
+		objectId,
+		{ $set: data },
+		{ new: true, runValidators: true },
+	).lean();
+}
+
+async function deleteEvent(id: string): Promise<void> {
+	const objectId = toObjectId(id);
+	if (!objectId) return;
+	await Event.deleteMany({ parentId: objectId });
+	await Event.findByIdAndDelete(objectId);
+}
+
+async function getEventsCount(yearId?: string): Promise<number> {
+	if (yearId) {
+		const yOid = toObjectId(yearId);
+		if (!yOid) return 0;
+		return await Event.countDocuments({ yearId: yOid });
+	}
+	return await Event.countDocuments();
+}
+
+// ── Copy & Attach helpers ──
+
+/**
+ * Parses Indonesian-format date strings from article content.
+ * Returns { startDate, endDate, month } or null if not found.
+ */
+function parseIndonesianDateFromContent(content: string, fallback: Date): { startDate: Date; endDate: Date; month: number } {
+	const MONTHS: Record<string, number> = {
+		januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+		juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+	};
+
+	// Try range pattern: "1–31 Maret 2025" or "1-31 Maret 2025"
+	const rangeRegex = /(\d{1,2})\s*[-–]\s*(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+(\d{4})/i;
+	const rangeMatch = content.replace(/<[^>]*>/g, ' ').match(rangeRegex);
+	if (rangeMatch) {
+		const day1 = parseInt(rangeMatch[1], 10);
+		const day2 = parseInt(rangeMatch[2], 10);
+		const monthIdx = MONTHS[rangeMatch[3].toLowerCase()];
+		const year = parseInt(rangeMatch[4], 10);
+		if (monthIdx !== undefined) {
+			const start = new Date(year, monthIdx, day1);
+			const end = new Date(year, monthIdx, day2);
+			return { startDate: start, endDate: end, month: monthIdx + 1 };
+		}
+	}
+
+	// Try single date: "1 Maret 2025"
+	const singleRegex = /(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+(\d{4})/i;
+	const singleMatch = content.replace(/<[^>]*>/g, ' ').match(singleRegex);
+	if (singleMatch) {
+		const day = parseInt(singleMatch[1], 10);
+		const monthIdx = MONTHS[singleMatch[2].toLowerCase()];
+		const year = parseInt(singleMatch[3], 10);
+		if (monthIdx !== undefined) {
+			const d = new Date(year, monthIdx, day);
+			return { startDate: d, endDate: d, month: monthIdx + 1 };
+		}
+	}
+
+	// Fallback
+	const m = fallback.getMonth() + 1;
+	return { startDate: fallback, endDate: fallback, month: m };
+}
+
+async function copyEventToArticle(
+	eventId: string,
+	userId: string,
+	userDisplayName: string,
+	options: { copyAttachments?: boolean } = {},
+): Promise<any> {
+	const event = await Event.findById(toObjectId(eventId))
+		.populate('relatedArticles', '_id title slug')
+		.lean() as any;
+	if (!event) throw new Error('Event not found');
+
+	// Build excerpt from description (strip HTML, max 200 chars)
+	const plainDesc = (event.description || '').replace(/<[^>]*>/g, '').trim();
+	const excerpt = plainDesc.length > 200 ? plainDesc.slice(0, 197) + '...' : plainDesc || event.title;
+
+	// Derive year from startDate
+	const startYear = event.startDate ? new Date(event.startDate).getFullYear() : new Date().getFullYear();
+	const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+	const monthName = MONTH_NAMES[(event.month || 1) - 1] || '';
+
+	// Build content including date info header
+	let contentHeader = `<p><strong>Tanggal:</strong> ${event.startDate ? new Date(event.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}`
+		+ (event.endDate && event.endDate.toString() !== event.startDate?.toString() ? ` – ${new Date(event.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}` : '')
+		+ `</p>`;
+
+	if (options.copyAttachments && event.attachments && event.attachments.length > 0) {
+		contentHeader += `<p><strong>Lampiran:</strong></p><ul>`;
+		for (const att of event.attachments) {
+			contentHeader += `<li><a href="${att.url}" target="_blank">${att.name}</a></li>`;
+		}
+		contentHeader += `</ul>`;
+	}
+
+	const content = contentHeader + (event.description || '');
+
+	// Generate unique slug
+	const baseSlug = event.title
+		.toLowerCase()
+		.replace(/[^a-z0-9\s-]/g, '')
+		.replace(/\s+/g, '-')
+		.slice(0, 80);
+	const slug = `${baseSlug}-event-${startYear}-${Date.now()}`;
+
+	const uOid = toObjectId(userId);
+
+	const articleData: any = {
+		title: event.title,
+		slug,
+		excerpt,
+		content,
+		image: event.thumbnail || '',
+		imageSource: event.thumbnailSource || 'local',
+		tags: [`event-${startYear}`, monthName.toLowerCase()].filter(Boolean),
+		published: false,
+		authorId: uOid,
+		author: userDisplayName,
+		sourceEventId: event._id,
+		createdAt: event.startDate || new Date(),
+		updatedAt: new Date(),
+	};
+
+	const newArticle = new Article(articleData);
+	const saved = await newArticle.save();
+
+	// Automatically link article back to event
+	await Event.findByIdAndUpdate(event._id, { $addToSet: { relatedArticles: saved._id } });
+
+	return saved;
+}
+
+async function copyArticleToEvent(
+	articleId: string,
+	userId: string,
+	options: { year?: number; parentEventId?: string; copyAttachments?: boolean } = {},
+): Promise<any> {
+	const article = await Article.findById(toObjectId(articleId)).lean() as any;
+	if (!article) throw new Error('Article not found');
+
+	const targetYear = options.year || new Date(article.createdAt).getFullYear();
+
+	// Find or create EventYear
+	let yearDoc = await EventYear.findOne({ year: targetYear }).lean() as any;
+	if (!yearDoc) {
+		const newYear = new EventYear({ year: targetYear, isActiveOnHome: false });
+		yearDoc = await newYear.save();
+	}
+
+	const { startDate, endDate, month } = parseIndonesianDateFromContent(article.content, new Date(article.createdAt));
+
+	const parentId = options.parentEventId ? toObjectId(options.parentEventId) : null;
+	const uOid = toObjectId(userId);
+
+	const attachments: any[] = [];
+	if (options.copyAttachments && article.image) {
+		attachments.push({
+			name: 'Gambar Artikel',
+			url: article.image,
+			type: 'image',
+			source: article.imageSource || 'local',
+		});
+	}
+
+	const eventData: any = {
+		yearId: (yearDoc as any)._id,
+		parentId,
+		title: article.title,
+		description: article.content,
+		thumbnail: article.image || '',
+		thumbnailSource: article.imageSource || 'local',
+		startDate,
+		endDate,
+		month,
+		attachments,
+		published: false,
+		createdBy: uOid,
+		relatedArticles: [toObjectId(articleId)],
+		sourceArticleId: toObjectId(articleId),
+	};
+
+	const newEvent = new Event(eventData);
+	const saved = await newEvent.save();
+	return { event: saved, year: (yearDoc as any).year };
+}
+
+async function attachArticleToEvent(
+	eventId: string,
+	articleId: string,
+	options: { copyFiles?: boolean } = {},
+): Promise<any> {
+	const aOid = toObjectId(articleId);
+	const eOid = toObjectId(eventId);
+	if (!aOid || !eOid) throw new Error('Invalid IDs');
+
+	const update: any = { $addToSet: { relatedArticles: aOid } };
+
+	if (options.copyFiles) {
+		const article = await Article.findById(aOid).lean() as any;
+		if (article?.image) {
+			update.$push = {
+				attachments: {
+					name: `Gambar: ${article.title}`,
+					url: article.image,
+					type: 'image',
+					source: article.imageSource || 'local',
+				},
+			};
+		}
+	}
+
+	return await Event.findByIdAndUpdate(eOid, update, { new: true }).lean();
+}
+
+async function detachArticleFromEvent(eventId: string, articleId: string): Promise<any> {
+	const aOid = toObjectId(articleId);
+	const eOid = toObjectId(eventId);
+	if (!aOid || !eOid) throw new Error('Invalid IDs');
+	return await Event.findByIdAndUpdate(eOid, { $pull: { relatedArticles: aOid } }, { new: true }).lean();
+}
+
 // Define MongoDB-specific storage functions
 const mongoDBStorage = {
 	// User functions
@@ -725,6 +1132,31 @@ const mongoDBStorage = {
 	getSettings,
 	updateSettings,
 	resetSettings,
+
+	// EventYear functions
+	getAllEventYears,
+	getEventYearById,
+	getActiveEventYear,
+	createEventYear,
+	updateEventYear,
+	deleteEventYear,
+	setActiveEventYear,
+
+	// Event functions
+	getEventsByYear,
+	getEventsByYearId,
+	getEventsByArticleId,
+	getEventById,
+	getEventWithChildren,
+	getEventsForHome,
+	createEvent,
+	updateEvent,
+	deleteEvent,
+	getEventsCount,
+	copyEventToArticle,
+	copyArticleToEvent,
+	attachArticleToEvent,
+	detachArticleFromEvent,
 
 	// HomeImages functions
 	getAllHomeImages,
@@ -1264,6 +1696,38 @@ async function initializeDefaultPermissions() {
 			description: 'Mengedit konten kelembagaan',
 			category: 'kelembagaan',
 		},
+
+		// Event permissions
+		{
+			name: 'events.view',
+			displayName: 'View Events',
+			description: 'Melihat daftar event',
+			category: 'events',
+		},
+		{
+			name: 'events.create',
+			displayName: 'Create Events',
+			description: 'Membuat event baru',
+			category: 'events',
+		},
+		{
+			name: 'events.edit',
+			displayName: 'Edit Events',
+			description: 'Mengedit event',
+			category: 'events',
+		},
+		{
+			name: 'events.delete',
+			displayName: 'Delete Events',
+			description: 'Menghapus event',
+			category: 'events',
+		},
+		{
+			name: 'events.publish',
+			displayName: 'Publish Events',
+			description: 'Mempublikasikan event',
+			category: 'events',
+		},
 	];
 
 		// Upsert: tambahkan permission yang belum ada (tidak hapus yang sudah ada)
@@ -1305,9 +1769,15 @@ async function initializeDefaultPermissions() {
 			const hasOrg = perms.some((p: string) => p.startsWith('organization.'));
 			const hasProfil = perms.some((p: string) => p.startsWith('profil.'));
 			const hasKelembagaan = perms.some((p: string) => p.startsWith('kelembagaan.'));
+			const hasEvents = perms.some((p: string) => p.startsWith('events.'));
 
 			const newPerms = [...perms];
 			let changed = false;
+
+			if ((hasContent || hasOrg) && !hasEvents) {
+				newPerms.push('events.view', 'events.create', 'events.edit', 'events.delete', 'events.publish');
+				changed = true;
+			}
 
 			if (hasContent && !hasProfil) {
 				// Jika punya content.edit, tambahkan profil.edit juga
@@ -1419,6 +1889,11 @@ async function initializeDefaultRoles() {
 				'profil.edit',
 				'kelembagaan.view',
 				'kelembagaan.edit',
+				'events.view',
+				'events.create',
+				'events.edit',
+				'events.delete',
+				'events.publish',
 			],
 			isActive: true,
 			createdBy: null,
@@ -1449,6 +1924,10 @@ async function initializeDefaultRoles() {
 				'content.view_others',
 				'profil.view',
 				'kelembagaan.view',
+				'events.view',
+				'events.create',
+				'events.edit',
+				'events.publish',
 			],
 			isActive: true,
 			createdBy: null,
@@ -1479,6 +1958,10 @@ async function initializeDefaultRoles() {
 				'content.view_others',
 				'profil.view',
 				'kelembagaan.view',
+				'events.view',
+				'events.create',
+				'events.edit',
+				'events.publish',
 			],
 			isActive: true,
 			createdBy: null,
@@ -1508,6 +1991,10 @@ async function initializeDefaultRoles() {
 				'content.view_others',
 				'profil.view',
 				'kelembagaan.view',
+				'events.view',
+				'events.create',
+				'events.edit',
+				'events.publish',
 			],
 			isActive: true,
 			createdBy: null,

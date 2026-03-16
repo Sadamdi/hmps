@@ -13,13 +13,13 @@ import {
 	requirePermission,
 	verifyPassword,
 } from './auth';
+import { isProcessableImage, processImage } from './image-processor';
 import {
 	getMiddlewareSettings,
 	updateMiddlewareSettings,
 } from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
 import chatRouter from './routes/chat';
-import { isProcessableImage, processImage } from './image-processor';
 import {
 	cleanupArticleImages,
 	deleteFile,
@@ -58,7 +58,10 @@ function getPaginationParams(query: any) {
 	const pageRaw = query?.page;
 	const limitRaw = query?.limit;
 	const page = Math.max(1, parseInt(String(pageRaw || '1'), 10));
-	const limit = Math.min(100, Math.max(1, parseInt(String(limitRaw || '10'), 10)));
+	const limit = Math.min(
+		100,
+		Math.max(1, parseInt(String(limitRaw || '10'), 10)),
+	);
 	const isPaginated = pageRaw !== undefined || limitRaw !== undefined;
 	return { page, limit, isPaginated };
 }
@@ -67,13 +70,13 @@ function getPaginationParams(query: any) {
 async function checkArticlePermission(
 	user: UserWithRole,
 	article: any,
-	action: 'edit' | 'delete' | 'publish'
+	action: 'edit' | 'delete' | 'publish',
 ): Promise<boolean> {
 	try {
 		console.log(
 			`🔍 Checking ${action} permission for user:`,
 			user.role,
-			user._id
+			user._id,
 		);
 		console.log(`📄 Article author:`, article.authorId);
 
@@ -131,13 +134,13 @@ async function checkArticlePermission(
 async function checkLibraryPermission(
 	user: UserWithRole,
 	libraryItem: any,
-	action: 'edit' | 'delete'
+	action: 'edit' | 'delete',
 ): Promise<boolean> {
 	try {
 		console.log(
 			`🔍 Checking library ${action} permission for user:`,
 			user.role,
-			user._id
+			user._id,
 		);
 		console.log(`📚 Library item author:`, libraryItem.authorId);
 
@@ -498,7 +501,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						const ids = toRevoke.map((s: any) => s._id);
 						await Session.updateMany(
 							{ _id: { $in: ids }, revokedAt: null },
-							{ $set: { revokedAt: new Date() } }
+							{ $set: { revokedAt: new Date() } },
 						);
 					}
 				} catch (e) {
@@ -508,7 +511,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Login error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.post('/api/auth/logout', (req, res) => {
@@ -540,7 +543,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { Session } = await import('../db/mongodb');
 				await Session.updateMany(
 					{ userId },
-					{ $set: { revokedAt: new Date() } }
+					{ $set: { revokedAt: new Date() } },
 				);
 			} catch (e) {
 				console.warn('Failed to revoke session records:', e);
@@ -596,7 +599,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const ids = toRevoke.map((s: any) => s._id);
 				await Session.updateMany(
 					{ _id: { $in: ids }, revokedAt: null },
-					{ $set: { revokedAt: new Date() } }
+					{ $set: { revokedAt: new Date() } },
 				);
 			}
 			const sessions = await Session.find({ userId })
@@ -624,7 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!sess) return res.status(404).json({ message: 'Session not found' });
 			await Session.updateOne(
 				{ _id: sess._id },
-				{ $set: { revokedAt: new Date() } }
+				{ $set: { revokedAt: new Date() } },
 			);
 			res.json({ message: 'Session revoked' });
 		} catch (e) {
@@ -651,7 +654,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Verify current password
 			const isPasswordValid = await verifyPassword(
 				currentPassword,
-				user.password
+				user.password,
 			);
 			if (!isPasswordValid) {
 				return res
@@ -687,9 +690,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Check for unique username (excluding current user)
 			if (username && username !== currentUser.username) {
-				const userWithSameUsername = await mongoStorage.getUserByUsername(
-					username
-				);
+				const userWithSameUsername =
+					await mongoStorage.getUserByUsername(username);
 				if (
 					userWithSameUsername &&
 					userWithSameUsername._id.toString() !== userId
@@ -704,8 +706,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.getAllUsers()
 					.then((users) =>
 						users.find(
-							(user) => user.email === email && user._id.toString() !== userId
-						)
+							(user) => user.email === email && user._id.toString() !== userId,
+						),
 					);
 				if (userWithSameEmail) {
 					return res.status(400).json({ message: 'Email already exists' });
@@ -763,14 +765,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Role update error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// User management routes
 	app.get('/api/users', authenticate, async (req, res) => {
 		try {
 			const requesterRole = await mongoStorage.getRoleByName(
-				(req.user as any)?.role || ''
+				(req.user as any)?.role || '',
 			);
 			const permissions: string[] = requesterRole?.permissions || [];
 
@@ -785,7 +787,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const { page, limit, isPaginated } = getPaginationParams(req.query);
 			let users = await mongoStorage.getAllUsers(
-				isPaginated ? { page, limit } : undefined
+				isPaginated ? { page, limit } : undefined,
 			);
 			if (
 				permissions.includes('users.view') &&
@@ -852,7 +854,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Create user error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.put(
@@ -875,13 +877,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const allRoles = await mongoStorage.getAllRoles();
 				const requesterRole = allRoles.find(
 					(r: any) =>
-						(r?.name || '').toString() === requesterRoleName.toString()
+						(r?.name || '').toString() === requesterRoleName.toString(),
 				);
 				const requesterLevel =
 					typeof requesterRole?.level === 'number' ? requesterRole.level : 999;
 				const targetRoleObj = allRoles.find(
 					(r: any) =>
-						(r?.name || '').toString() === (existingUser.role || '').toString()
+						(r?.name || '').toString() === (existingUser.role || '').toString(),
 				);
 				const targetLevel =
 					typeof targetRoleObj?.level === 'number' ? targetRoleObj.level : 999;
@@ -904,7 +906,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Update user error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.delete(
@@ -927,13 +929,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const allRoles = await mongoStorage.getAllRoles();
 				const requesterRole = allRoles.find(
 					(r: any) =>
-						(r?.name || '').toString() === requesterRoleName.toString()
+						(r?.name || '').toString() === requesterRoleName.toString(),
 				);
 				const requesterLevel =
 					typeof requesterRole?.level === 'number' ? requesterRole.level : 999;
 				const targetRoleObj = allRoles.find(
 					(r: any) =>
-						(r?.name || '').toString() === (existingUser.role || '').toString()
+						(r?.name || '').toString() === (existingUser.role || '').toString(),
 				);
 				const targetLevel =
 					typeof targetRoleObj?.level === 'number' ? targetRoleObj.level : 999;
@@ -955,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Delete user error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Upload images for article content
@@ -982,7 +984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					req.file,
 					undefined,
 					articleId,
-					false
+					false,
 				);
 
 				// Return the URL to be used in the article content
@@ -991,7 +993,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Upload content image error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Articles routes
@@ -999,7 +1001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const { page, limit, isPaginated } = getPaginationParams(req.query);
 			const allArticles = await mongoStorage.getPublishedArticles(
-				isPaginated ? { page, limit } : undefined
+				isPaginated ? { page, limit } : undefined,
 			);
 			if (isPaginated) {
 				const total = await mongoStorage.getArticlesCount();
@@ -1020,13 +1022,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	// Events linked to an article (PLACE BEFORE /api/articles/:id/:slug)
+	app.get('/api/articles/:id/events', async (req, res) => {
+		try {
+			const { id } = req.params;
+			const events = await mongoStorage.getEventsByArticleId(id);
+			res.json(events);
+		} catch (error) {
+			console.error('Get article events error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	// Related articles (PLACE BEFORE /api/articles/:id/:slug to avoid 302 redirect)
 	app.get('/api/articles/:id/related', async (req, res) => {
 		try {
 			const articleId = req.params.id;
 			const limit = Math.max(
 				1,
-				Math.min(5, parseInt((req.query.limit as string) || '2'))
+				Math.min(5, parseInt((req.query.limit as string) || '2')),
 			);
 
 			const base = await mongoStorage.getArticleById(articleId);
@@ -1034,12 +1048,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: 'Article not found' });
 			}
 
-			const { RecommendationService } = await import(
-				'./services/recommendation'
-			);
+			const { RecommendationService } =
+				await import('./services/recommendation');
 			const relatedDocs = await RecommendationService.getRelatedById(
 				String(base._id),
-				limit
+				limit,
 			);
 
 			res.json(
@@ -1052,7 +1065,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					createdAt: r.createdAt,
 					slug: r.slug,
 					tags: r.tags || [],
-				}))
+				})),
 			);
 		} catch (error) {
 			console.error('Get related articles error:', error);
@@ -1064,7 +1077,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			// Get user permissions
 			const userRole = await mongoStorage.getRoleByName(
-				(req.user as UserWithRole)?.role || ''
+				(req.user as UserWithRole)?.role || '',
 			);
 			const permissions = userRole?.permissions || [];
 
@@ -1076,7 +1089,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			} else if (permissions.includes('articles.view')) {
 				// Can only see their own articles
 				articles = await mongoStorage.getArticlesByAuthorId(
-					(req.user as UserWithRole)?._id || ''
+					(req.user as UserWithRole)?._id || '',
 				);
 			} else {
 				// No articles view permission
@@ -1111,9 +1124,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Increment view count for analytics
 			try {
-				const currentViews = typeof (article as any).viewCount === 'number'
-					? (article as any).viewCount
-					: 0;
+				const currentViews =
+					typeof (article as any).viewCount === 'number'
+						? (article as any).viewCount
+						: 0;
 				const nextViews = currentViews + 1;
 				await mongoStorage.updateArticle(String(article._id || articleId), {
 					viewCount: nextViews,
@@ -1153,9 +1167,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Increment view count for analytics
 			try {
-				const currentViews = typeof (article as any).viewCount === 'number'
-					? (article as any).viewCount
-					: 0;
+				const currentViews =
+					typeof (article as any).viewCount === 'number'
+						? (article as any).viewCount
+						: 0;
 				const nextViews = currentViews + 1;
 				await mongoStorage.updateArticle(String(article._id), {
 					viewCount: nextViews,
@@ -1188,9 +1203,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Increment view count for analytics
 			try {
-				const currentViews = typeof (article as any).viewCount === 'number'
-					? (article as any).viewCount
-					: 0;
+				const currentViews =
+					typeof (article as any).viewCount === 'number'
+						? (article as any).viewCount
+						: 0;
 				const nextViews = currentViews + 1;
 				await mongoStorage.updateArticle(String(article._id || articleId), {
 					viewCount: nextViews,
@@ -1213,7 +1229,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const articleId = req.params.id;
 			const limit = Math.max(
 				1,
-				Math.min(5, parseInt((req.query.limit as string) || '2'))
+				Math.min(5, parseInt((req.query.limit as string) || '2')),
 			);
 
 			const base = await mongoStorage.getArticleById(articleId);
@@ -1222,12 +1238,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			// Use RecommendationService (TF-IDF)
-			const { RecommendationService } = await import(
-				'./services/recommendation'
-			);
+			const { RecommendationService } =
+				await import('./services/recommendation');
 			const relatedDocs = await RecommendationService.getRelatedById(
 				String(base._id),
-				limit
+				limit,
 			);
 
 			// Remove legacy in-route scoring; RecommendationService result is used
@@ -1242,7 +1257,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					createdAt: r.createdAt,
 					slug: r.slug,
 					tags: r.tags || [],
-				}))
+				})),
 			);
 		} catch (error) {
 			console.error('Get related articles error:', error);
@@ -1258,16 +1273,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!article)
 				return res.status(404).json({ message: 'Article not found' });
 			// Use RecommendationService as well
-			const { RecommendationService } = await import(
-				'./services/recommendation'
-			);
+			const { RecommendationService } =
+				await import('./services/recommendation');
 			const limit = Math.max(
 				1,
-				Math.min(5, parseInt((req.query.limit as string) || '2'))
+				Math.min(5, parseInt((req.query.limit as string) || '2')),
 			);
 			const relatedDocs = await RecommendationService.getRelatedById(
 				String(article._id),
-				limit
+				limit,
 			);
 			res.json(
 				relatedDocs.map((r: any) => ({
@@ -1279,7 +1293,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					createdAt: r.createdAt,
 					slug: r.slug,
 					tags: r.tags || [],
-				}))
+				})),
 			);
 		} catch (error) {
 			console.error('Get related articles by slug error:', error);
@@ -1313,7 +1327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Check create permission
 				const userRole = await mongoStorage.getRoleByName(
-					(req.user as UserWithRole)?.role || ''
+					(req.user as UserWithRole)?.role || '',
 				);
 				if (!userRole || !userRole.permissions.includes('articles.create')) {
 					return res.status(403).json({
@@ -1391,7 +1405,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { generateUniqueSlug } = await import('../shared/utils');
 				const existingArticles = await mongoStorage.getPublishedArticles();
 				const existingSlugs = existingArticles.map(
-					(article: any) => article.slug || ''
+					(article: any) => article.slug || '',
 				);
 				const slug = generateUniqueSlug(title.trim(), existingSlugs);
 
@@ -1419,7 +1433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							req.file,
 							undefined,
 							articleId,
-							false
+							false,
 						);
 						finalArticle = await mongoStorage.updateArticle(articleId, {
 							image: processedThumbUrl,
@@ -1429,7 +1443,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					} catch (thumbErr) {
 						console.error(
 							'Thumbnail processing after create failed:',
-							thumbErr
+							thumbErr,
 						);
 					}
 				}
@@ -1438,7 +1452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (articleId) {
 					try {
 						const tempIdMatch = (content || '').match(
-							/\/uploads\/articles\/(temp-[^/]+)\//
+							/\/uploads\/articles\/(temp-[^/]+)\//,
 						);
 						if (tempIdMatch && tempIdMatch[1]) {
 							const tempId = tempIdMatch[1];
@@ -1446,13 +1460,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								process.cwd(),
 								'uploads',
 								'articles',
-								tempId
+								tempId,
 							);
 							const targetDir = path.join(
 								process.cwd(),
 								'uploads',
 								'articles',
-								articleId
+								articleId,
 							);
 							if (fs.existsSync(tempDir)) {
 								if (!fs.existsSync(targetDir))
@@ -1468,7 +1482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							// Replace URLs in content
 							const updatedContent = (content || '').replace(
 								new RegExp(`/uploads/articles/${tempId}/`, 'g'),
-								`/uploads/articles/${articleId}/`
+								`/uploads/articles/${articleId}/`,
 							);
 							if (updatedContent !== content) {
 								finalArticle = await mongoStorage.updateArticle(articleId, {
@@ -1480,7 +1494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					} catch (migrateErr) {
 						console.warn(
 							'Optional migration from temp folder failed:',
-							migrateErr
+							migrateErr,
 						);
 					}
 				}
@@ -1499,7 +1513,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Create article error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.put(
@@ -1540,7 +1554,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const canEdit = await checkArticlePermission(
 					req.user as UserWithRole,
 					existingArticle,
-					'edit'
+					'edit',
 				);
 
 				if (!canEdit) {
@@ -1554,7 +1568,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					const canPublish = await checkArticlePermission(
 						req.user as UserWithRole,
 						existingArticle,
-						'publish'
+						'publish',
 					);
 
 					if (!canPublish) {
@@ -1589,7 +1603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						req.file,
 						oldImageUrl,
 						articleId,
-						false
+						false,
 					);
 					updates.image = imageUrl;
 					updates.imageSource = 'local';
@@ -1598,7 +1612,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Update article
 				const updatedArticle = await mongoStorage.updateArticle(
 					articleId,
-					updates
+					updates,
 				);
 
 				// Cleanup unused images in article folder after update (keep thumbnail too)
@@ -1620,7 +1634,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Update article error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.delete('/api/articles/:id', authenticate, async (req, res) => {
@@ -1642,7 +1656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const canDelete = await checkArticlePermission(
 				req.user as UserWithRole,
 				existingArticle,
-				'delete'
+				'delete',
 			);
 
 			if (!canDelete) {
@@ -1663,7 +1677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					process.cwd(),
 					'attached_assets',
 					'articles',
-					articleId
+					articleId,
 				);
 				if (fs.existsSync(assetsDir)) {
 					for (const f of fs.readdirSync(assetsDir)) {
@@ -1692,7 +1706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const { page, limit, isPaginated } = getPaginationParams(req.query);
 			const allItems = await mongoStorage.getAllLibraryItems(
-				isPaginated ? { page, limit } : undefined
+				isPaginated ? { page, limit } : undefined,
 			);
 			if (isPaginated) {
 				const total = await mongoStorage.getLibraryItemsCount();
@@ -1717,7 +1731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			// Get user permissions
 			const userRole = await mongoStorage.getRoleByName(
-				(req.user as UserWithRole)?.role || ''
+				(req.user as UserWithRole)?.role || '',
 			);
 			const permissions = userRole?.permissions || [];
 
@@ -1729,7 +1743,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			} else if (permissions.includes('library.view')) {
 				// Can only see their own items
 				items = await mongoStorage.getLibraryItemsByAuthorId(
-					(req.user as UserWithRole)?._id || ''
+					(req.user as UserWithRole)?._id || '',
 				);
 			} else {
 				// No library view permission
@@ -1866,7 +1880,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const files = req.files as Express.Multer.File[];
 				if (files && files.length > 0) {
 					const uploadedUrls = await Promise.all(
-						files.map((file) => uploadHandler(file, true))
+						files.map((file) => uploadHandler(file, true)),
 					);
 
 					imageUrls.push(...uploadedUrls);
@@ -1898,7 +1912,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Create library item error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.put(
@@ -1927,7 +1941,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const canEdit = await checkLibraryPermission(
 					req.user as UserWithRole,
 					existingItem,
-					'edit'
+					'edit',
 				);
 
 				if (!canEdit) {
@@ -1987,7 +2001,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						} catch (error) {
 							console.warn(
 								'Accessibility check failed, continuing anyway:',
-								error
+								error,
 							);
 						}
 
@@ -2024,7 +2038,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const files = req.files as Express.Multer.File[];
 				if (files && files.length > 0) {
 					const uploadedUrls = await Promise.all(
-						files.map((file) => uploadHandler(file, true))
+						files.map((file) => uploadHandler(file, true)),
 					);
 
 					imageUrls.push(...uploadedUrls);
@@ -2049,7 +2063,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Update library item
 				const updatedItem = await mongoStorage.updateLibraryItem(
 					itemId,
-					updates
+					updates,
 				);
 
 				res.json(updatedItem);
@@ -2057,7 +2071,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Update library item error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.delete('/api/library/:id', authenticate, async (req, res) => {
@@ -2079,7 +2093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const canDelete = await checkLibraryPermission(
 				req.user as UserWithRole,
 				existingItem,
-				'delete'
+				'delete',
 			);
 
 			if (!canDelete) {
@@ -2142,7 +2156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Create organization period error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.delete(
@@ -2170,7 +2184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Delete organization period error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Position management endpoints
@@ -2204,14 +2218,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { period, positions } = req.body;
 				const result = await mongoStorage.createPositionsForPeriod(
 					period,
-					positions
+					positions,
 				);
 				res.status(201).json(result);
 			} catch (error) {
 				console.error('Create positions error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.post(
@@ -2223,14 +2237,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { sourcePeriod, targetPeriod } = req.body;
 				const result = await mongoStorage.copyPositionsFromPeriod(
 					sourcePeriod,
-					targetPeriod
+					targetPeriod,
 				);
 				res.status(201).json(result);
 			} catch (error) {
 				console.error('Copy positions error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.delete(
@@ -2246,7 +2260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Delete positions error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.get('/api/organization/members', async (req, res) => {
@@ -2265,12 +2279,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const members = await mongoStorage.getOrganizationMembersByPeriod(
 					latestPeriod,
-					isPaginated ? { page, limit } : undefined
+					isPaginated ? { page, limit } : undefined,
 				);
 				if (isPaginated) {
-					const allMembers = await mongoStorage.getOrganizationMembersByPeriod(
-						latestPeriod
-					);
+					const allMembers =
+						await mongoStorage.getOrganizationMembersByPeriod(latestPeriod);
 					return res.json({
 						data: members,
 						meta: {
@@ -2286,11 +2299,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const members = await mongoStorage.getOrganizationMembersByPeriod(
 				period as string,
-				isPaginated ? { page, limit } : undefined
+				isPaginated ? { page, limit } : undefined,
 			);
 			if (isPaginated) {
 				const allMembers = await mongoStorage.getOrganizationMembersByPeriod(
-					period as string
+					period as string,
 				);
 				return res.json({
 					data: members,
@@ -2384,7 +2397,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Create organization member error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.put(
@@ -2399,9 +2412,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const gdriveUrl = (req.body.gdriveUrl || '').toString();
 
 				// Get existing member
-				const existingMember = await mongoStorage.getOrganizationMemberById(
-					memberId
-				);
+				const existingMember =
+					await mongoStorage.getOrganizationMemberById(memberId);
 				if (!existingMember) {
 					return res
 						.status(404)
@@ -2456,7 +2468,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						}
 					} catch (e) {
 						console.warn(
-							'GDrive accessibility check failed, continuing update'
+							'GDrive accessibility check failed, continuing update',
 						);
 					}
 
@@ -2465,7 +2477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					// Process the uploaded image with WebP conversion, compression and cleanup of old file
 					const imageUrl = await uploadOrganizationMemberImage(
 						req.file,
-						oldImageUrl || undefined
+						oldImageUrl || undefined,
 					);
 					updates.imageUrl = imageUrl;
 					oldImageUrl = null; // uploadOrganizationMemberImage already handled cleanup
@@ -2483,7 +2495,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Update organization member
 				const updatedMember = await mongoStorage.updateOrganizationMember(
 					memberId,
-					updates
+					updates,
 				);
 
 				res.json(updatedMember);
@@ -2491,7 +2503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Update organization member error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.delete(
@@ -2510,9 +2522,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Check if member exists
-				const existingMember = await mongoStorage.getOrganizationMemberById(
-					memberId
-				);
+				const existingMember =
+					await mongoStorage.getOrganizationMemberById(memberId);
 				if (!existingMember) {
 					return res
 						.status(404)
@@ -2542,7 +2553,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Delete organization member error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Settings routes
@@ -2568,7 +2579,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Update settings error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.post(
@@ -2583,15 +2594,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Reset settings error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// ── Home Images routes ──
 
 	// Seed default data on startup
-	mongoStorage.seedDefaultHomeImages().catch((err: any) =>
-		console.warn('HomeImages seed skipped:', err.message),
-	);
+	mongoStorage
+		.seedDefaultHomeImages()
+		.catch((err: any) => console.warn('HomeImages seed skipped:', err.message));
 
 	// Public: get active year images
 	app.get('/api/home-images/active', async (_req, res) => {
@@ -2628,9 +2639,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 				const existing = await mongoStorage.getHomeImagesByYear(year);
 				if (existing) {
-					return res.status(409).json({ message: `Year ${year} already exists` });
+					return res
+						.status(409)
+						.json({ message: `Year ${year} already exists` });
 				}
-				const doc = await mongoStorage.createHomeImages({ year, isActive: false });
+				const doc = await mongoStorage.createHomeImages({
+					year,
+					isActive: false,
+				});
 				res.status(201).json(doc);
 			} catch (error) {
 				console.error('Create home images error:', error);
@@ -2668,7 +2684,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const doc = await mongoStorage.getHomeImagesByYear(year);
 				if (!doc) return res.status(404).json({ message: 'Year not found' });
 				if (doc.isActive) {
-					return res.status(400).json({ message: 'Cannot delete the active year' });
+					return res
+						.status(400)
+						.json({ message: 'Cannot delete the active year' });
 				}
 				await mongoStorage.deleteHomeImages(year);
 				res.json({ message: 'Deleted' });
@@ -2707,7 +2725,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const sourceYear = parseInt(req.params.year, 10);
 				const { targetYear, overwrite } = req.body;
 				if (!targetYear || typeof targetYear !== 'number') {
-					return res.status(400).json({ message: 'Valid targetYear is required' });
+					return res
+						.status(400)
+						.json({ message: 'Valid targetYear is required' });
 				}
 				const doc = await mongoStorage.copyHomeImages(
 					sourceYear,
@@ -2766,13 +2786,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Process image → webp
 				const processedBuffer = await processImage(req.file.buffer, {
 					quality: 82,
-					maxWidth: slot === 'bennerfull' ? 3840 : slot === 'orang' ? 3840 : 1920,
-					maxHeight: slot === 'bennerfull' ? 2160 : slot === 'orang' ? 2160 : 2400,
+					maxWidth:
+						slot === 'bennerfull' ? 3840 : slot === 'orang' ? 3840 : 1920,
+					maxHeight:
+						slot === 'bennerfull' ? 2160 : slot === 'orang' ? 2160 : 2400,
 					format: 'webp',
 				});
 
 				// Save to attached_assets/benner/{year}/
-				const assetsDir = path.join(process.cwd(), 'attached_assets', 'benner', String(year));
+				const assetsDir = path.join(
+					process.cwd(),
+					'attached_assets',
+					'benner',
+					String(year),
+				);
 				if (!fs.existsSync(assetsDir)) {
 					fs.mkdirSync(assetsDir, { recursive: true });
 				}
@@ -2782,7 +2809,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				try {
 					const resolvedBase = path.resolve(assetsDir);
 					const resolvedFile = path.resolve(filePath);
-					if (resolvedFile.startsWith(resolvedBase) && fs.existsSync(filePath)) {
+					if (
+						resolvedFile.startsWith(resolvedBase) &&
+						fs.existsSync(filePath)
+					) {
 						fs.unlinkSync(filePath);
 					}
 				} catch (e) {
@@ -2827,7 +2857,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				const existing = await mongoStorage.getHomeImagesByYear(year);
-				if (!existing) return res.status(404).json({ message: 'Year not found' });
+				if (!existing)
+					return res.status(404).json({ message: 'Year not found' });
 
 				const assetsDir = path.join(
 					process.cwd(),
@@ -2840,7 +2871,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				try {
 					const resolvedBase = path.resolve(assetsDir);
 					const resolvedFile = path.resolve(filePath);
-					if (resolvedFile.startsWith(resolvedBase) && fs.existsSync(filePath)) {
+					if (
+						resolvedFile.startsWith(resolvedBase) &&
+						fs.existsSync(filePath)
+					) {
 						fs.unlinkSync(filePath);
 					}
 				} catch (e) {
@@ -2870,7 +2904,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 					if (!userRole?.permissions?.includes('middleware.manage')) {
 						console.log(
-							'🚨 Emergency: Owner missing middleware.manage permission, fixing...'
+							'🚨 Emergency: Owner missing middleware.manage permission, fixing...',
 						);
 						const allPermissionNames = allPermissions.map((p: any) => p.name);
 						const { Role } = await import('../db/mongodb');
@@ -2881,7 +2915,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									permissions: allPermissionNames,
 									updatedAt: new Date(),
 								},
-							}
+							},
 						);
 						console.log('✅ Fixed owner permissions');
 					}
@@ -2902,7 +2936,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Get middleware settings error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.put(
@@ -2918,7 +2952,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 					if (!userRole?.permissions?.includes('middleware.manage')) {
 						console.log(
-							'🚨 Emergency: Owner missing middleware.manage permission, fixing...'
+							'🚨 Emergency: Owner missing middleware.manage permission, fixing...',
 						);
 						const allPermissionNames = allPermissions.map((p: any) => p.name);
 						const { Role } = await import('../db/mongodb');
@@ -2929,7 +2963,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									permissions: allPermissionNames,
 									updatedAt: new Date(),
 								},
-							}
+							},
 						);
 						console.log('✅ Fixed owner permissions');
 					}
@@ -2954,7 +2988,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Update middleware settings error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Public stats (no auth required for public home page)
@@ -2962,7 +2996,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const articleCount = await mongoStorage.getArticlesCount();
 			const libraryCount = await mongoStorage.getLibraryItemsCount();
-			const activeMemberCount = await mongoStorage.getOrganizationActiveMembersCount();
+			const activeMemberCount =
+				await mongoStorage.getOrganizationActiveMembersCount();
 
 			res.json({
 				articles: articleCount,
@@ -2980,7 +3015,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			// Check if user has dashboard stats permission
 			const userRole = await mongoStorage.getRoleByName(
-				(req.user as UserWithRole)?.role || ''
+				(req.user as UserWithRole)?.role || '',
 			);
 			const permissions = userRole?.permissions || [];
 
@@ -2990,12 +3025,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 			}
 
-			const [articleCount, libraryCount, activeMemberCount, alumniMemberCount] = await Promise.all([
-				mongoStorage.getArticlesCount(),
-				mongoStorage.getLibraryItemsCount(),
-				mongoStorage.getOrganizationActiveMembersCount(),
-				mongoStorage.getOrganizationAlumniMembersCount(),
-			]);
+			const [articleCount, libraryCount, activeMemberCount, alumniMemberCount] =
+				await Promise.all([
+					mongoStorage.getArticlesCount(),
+					mongoStorage.getLibraryItemsCount(),
+					mongoStorage.getOrganizationActiveMembersCount(),
+					mongoStorage.getOrganizationAlumniMembersCount(),
+				]);
 
 			res.json({
 				totalArticles: articleCount,
@@ -3064,7 +3100,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 				const key = (req.body.key || '').toString().trim();
 				if (!key) {
-					return res.status(400).json({ message: 'Key is required (e.g. Lingkaran, Bidikan)' });
+					return res
+						.status(400)
+						.json({ message: 'Key is required (e.g. Lingkaran, Bidikan)' });
 				}
 				const url = await uploadFilosofiImage(req.file, key);
 				res.json({ url });
@@ -3072,7 +3110,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Upload filosofi error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Endpoint upload logo himpunan & logo divisi
@@ -3099,14 +3137,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					req.file,
 					true,
 					category,
-					oldFileUrl
+					oldFileUrl,
 				);
 				res.json({ url: imageUrl });
 			} catch (error) {
 				console.error('Upload logo error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Folder contents endpoint - kept for potential future use
@@ -3205,7 +3243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error getting roles:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Public (authenticated) role levels: expose minimal info for UI hierarchy and filtering
@@ -3238,7 +3276,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			let requesterRole = allRoles.find(
 				(r: any) =>
 					(r?.name || '').toString().toLowerCase() ===
-					requesterRoleName.toLowerCase()
+					requesterRoleName.toLowerCase(),
 			);
 
 			// Fallback: gunakan storage lookup bila tidak ketemu di cache lokal
@@ -3286,7 +3324,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (
 					!canManageRole(
 						(req.user as UserWithRole)?.role || '',
-						`level_${level}`
+						`level_${level}`,
 					)
 				) {
 					return res
@@ -3309,7 +3347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error creating role:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Create role with automatic level shifting (requires only roles.create)
@@ -3333,7 +3371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const allRolesForLevel = await mongoStorage.getAllRoles();
 				const foundUserRole = allRolesForLevel.find(
 					(r: any) =>
-						(r?.name || '').toString() === currentUserRoleName.toString()
+						(r?.name || '').toString() === currentUserRoleName.toString(),
 				);
 				const userLevel =
 					typeof foundUserRole?.level === 'number' ? foundUserRole.level : 999;
@@ -3374,7 +3412,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Create role with shift error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.put(
@@ -3388,7 +3426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Get current role to check level
 				const currentRole = await mongoStorage.getRoleByName(
-					(req.user as UserWithRole)?.role || ''
+					(req.user as UserWithRole)?.role || '',
 				);
 				if (!currentRole) {
 					return res
@@ -3418,7 +3456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error updating role:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.delete(
@@ -3439,7 +3477,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error deleting role:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Permission Management API endpoints
@@ -3455,7 +3493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error getting permissions:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.post(
@@ -3485,7 +3523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error creating permission:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Division Management API endpoints
@@ -3501,7 +3539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error getting divisions:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Get available positions (positions that are not assigned to any division)
@@ -3539,7 +3577,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Remove duplicates
 				const uniqueAvailablePositions = Array.from(
-					new Set(availablePositions)
+					new Set(availablePositions),
 				);
 
 				res.json(uniqueAvailablePositions);
@@ -3547,7 +3585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error getting available positions:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.post(
@@ -3587,7 +3625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error creating division:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.put(
@@ -3618,7 +3656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error updating division:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	app.delete(
@@ -3639,7 +3677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error deleting division:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// User Role Assignment API
@@ -3673,14 +3711,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Error assigning role:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
-		}
+		},
 	);
 
 	// Get current user permissions
 	app.get('/api/auth/permissions', authenticate, async (req, res) => {
 		try {
 			const permissions = await mongoStorage.getUserPermissions(
-				(req.user as UserWithRole)?._id || ''
+				(req.user as UserWithRole)?._id || '',
 			);
 			res.json({ permissions });
 		} catch (error) {
@@ -3693,7 +3731,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post('/api/auth/refresh-permissions', authenticate, async (req, res) => {
 		try {
 			const permissions = await mongoStorage.getUserPermissions(
-				(req.user as UserWithRole)?._id || ''
+				(req.user as UserWithRole)?._id || '',
 			);
 			res.json({ permissions });
 		} catch (error) {
@@ -3701,6 +3739,532 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
+
+	// ══════════════════════════════════════════════════════════════
+	// EVENT YEAR API
+	// ══════════════════════════════════════════════════════════════
+
+	app.get('/api/event-years', async (_req, res) => {
+		try {
+			const years = await mongoStorage.getAllEventYears();
+			res.json(years);
+		} catch (error) {
+			console.error('Error getting event years:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.post(
+		'/api/event-years',
+		authenticate,
+		requirePermission('events.create'),
+		async (req, res) => {
+			try {
+				const { year } = req.body;
+				if (!year || typeof year !== 'number') {
+					return res.status(400).json({ message: 'Year (number) is required' });
+				}
+				const doc = await mongoStorage.createEventYear({
+					year,
+					isActiveOnHome: false,
+				});
+				res.status(201).json(doc);
+			} catch (error: any) {
+				if (error?.code === 11000) {
+					return res.status(409).json({ message: 'Year already exists' });
+				}
+				console.error('Error creating event year:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.patch(
+		'/api/event-years/:id',
+		authenticate,
+		requirePermission('events.edit'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const doc = await mongoStorage.updateEventYear(id, req.body);
+				if (!doc)
+					return res.status(404).json({ message: 'Event year not found' });
+				res.json(doc);
+			} catch (error) {
+				console.error('Error updating event year:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.patch(
+		'/api/event-years/:id/activate',
+		authenticate,
+		requirePermission('events.edit'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const doc = await mongoStorage.setActiveEventYear(id);
+				if (!doc)
+					return res.status(404).json({ message: 'Event year not found' });
+				res.json(doc);
+			} catch (error) {
+				console.error('Error activating event year:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.delete(
+		'/api/event-years/:id',
+		authenticate,
+		requirePermission('events.delete'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				await mongoStorage.deleteEventYear(id);
+				res.json({ message: 'Event year deleted' });
+			} catch (error) {
+				console.error('Error deleting event year:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	// ══════════════════════════════════════════════════════════════
+	// EVENT API
+	// ══════════════════════════════════════════════════════════════
+
+	app.get('/api/events/active-home', async (_req, res) => {
+		try {
+			const data = await mongoStorage.getEventsForHome();
+			if (!data) return res.json({ year: null, events: [] });
+			res.json(data);
+		} catch (error) {
+			console.error('Error getting active home events:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.get('/api/events/by-year/:year', async (req, res) => {
+		try {
+			const year = parseInt(req.params.year, 10);
+			if (isNaN(year)) return res.status(400).json({ message: 'Invalid year' });
+			const parentOnly = req.query.parentOnly === 'true';
+			const data = await mongoStorage.getEventsByYear(year, parentOnly);
+			if (!data) return res.status(404).json({ message: 'Year not found' });
+			res.json(data);
+		} catch (error) {
+			console.error('Error getting events by year:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.get('/api/events', async (req, res) => {
+		try {
+			const { yearId, parentId } = req.query;
+			if (!yearId)
+				return res.status(400).json({ message: 'yearId is required' });
+			const pId =
+				parentId === 'null' || parentId === ''
+					? null
+					: (parentId as string | undefined);
+			const events = await mongoStorage.getEventsByYearId(
+				yearId as string,
+				pId,
+			);
+			res.json(events);
+		} catch (error) {
+			console.error('Error getting events:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.get('/api/events/:id', async (req, res) => {
+		try {
+			const { id } = req.params;
+			const withChildren = req.query.children === 'true';
+			const event = withChildren
+				? await mongoStorage.getEventWithChildren(id)
+				: await mongoStorage.getEventById(id);
+			if (!event) return res.status(404).json({ message: 'Event not found' });
+			res.json(event);
+		} catch (error) {
+			console.error('Error getting event:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.post(
+		'/api/events',
+		authenticate,
+		requirePermission('events.create'),
+		uploadMiddleware.fields([
+			{ name: 'thumbnail', maxCount: 1 },
+			{ name: 'attachmentFiles', maxCount: 10 },
+		]),
+		async (req, res) => {
+			try {
+				const user = req.user as UserWithRole;
+				const files = req.files as
+					| { [fieldname: string]: Express.Multer.File[] }
+					| undefined;
+				const body = req.body;
+
+				let thumbnail = '';
+				let thumbnailSource: 'local' | 'gdrive' = 'local';
+
+				if (files?.thumbnail?.[0]) {
+					const { uploadHandler: doUpload } = await import('./upload');
+					thumbnail = await doUpload(files.thumbnail[0], false, 'events');
+					thumbnailSource = 'local';
+				} else if (body.thumbnailGdrive) {
+					thumbnail = body.thumbnailGdrive;
+					thumbnailSource = 'gdrive';
+				}
+
+				let attachments: any[] = [];
+				if (body.attachments) {
+					try {
+						attachments = JSON.parse(body.attachments);
+					} catch {
+						/* ignore */
+					}
+				}
+
+				if (files?.attachmentFiles) {
+					const { uploadHandler: doUpload } = await import('./upload');
+					for (const f of files.attachmentFiles) {
+						const url = await doUpload(f, false, 'events');
+						attachments.push({
+							name: f.originalname,
+							url,
+							type: f.mimetype,
+							source: 'local' as const,
+						});
+					}
+				}
+
+				const startDate = new Date(body.startDate);
+				const month = startDate.getMonth() + 1;
+
+				let relatedArticles: string[] = [];
+				if (body.relatedArticleIds) {
+					try {
+						relatedArticles = JSON.parse(body.relatedArticleIds);
+					} catch {
+						/* ignore */
+					}
+				}
+
+				const eventData = {
+					yearId: body.yearId,
+					parentId: body.parentId || null,
+					title: body.title,
+					description: body.description || '',
+					thumbnail,
+					thumbnailSource,
+					gdriveFileId: body.gdriveFileId || '',
+					startDate,
+					endDate: new Date(body.endDate),
+					month,
+					attachments,
+					published: body.published === 'true' || body.published === true,
+					createdBy: user._id,
+					relatedArticles,
+				};
+
+				const event = await mongoStorage.createEvent(eventData);
+				res.status(201).json(event);
+			} catch (error) {
+				console.error('Error creating event:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.patch(
+		'/api/events/:id',
+		authenticate,
+		requirePermission('events.edit'),
+		uploadMiddleware.fields([
+			{ name: 'thumbnail', maxCount: 1 },
+			{ name: 'attachmentFiles', maxCount: 10 },
+		]),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const files = req.files as
+					| { [fieldname: string]: Express.Multer.File[] }
+					| undefined;
+				const body = req.body;
+
+				const updateData: any = {};
+
+				if (body.title !== undefined) updateData.title = body.title;
+				if (body.description !== undefined)
+					updateData.description = body.description;
+				if (body.published !== undefined)
+					updateData.published =
+						body.published === 'true' || body.published === true;
+
+				if (files?.thumbnail?.[0]) {
+					const { uploadHandler: doUpload } = await import('./upload');
+					const existing = await mongoStorage.getEventById(id);
+					updateData.thumbnail = await doUpload(
+						files.thumbnail[0],
+						false,
+						'events',
+						existing?.thumbnail,
+					);
+					updateData.thumbnailSource = 'local';
+				} else if (body.thumbnailGdrive) {
+					updateData.thumbnail = body.thumbnailGdrive;
+					updateData.thumbnailSource = 'gdrive';
+				}
+
+				if (body.startDate) {
+					updateData.startDate = new Date(body.startDate);
+					updateData.month = updateData.startDate.getMonth() + 1;
+				}
+				if (body.endDate) updateData.endDate = new Date(body.endDate);
+
+				if (body.attachments) {
+					try {
+						updateData.attachments = JSON.parse(body.attachments);
+					} catch {
+						/* ignore */
+					}
+				}
+
+				if (files?.attachmentFiles) {
+					const { uploadHandler: doUpload } = await import('./upload');
+					if (!updateData.attachments) {
+						const existing = await mongoStorage.getEventById(id);
+						updateData.attachments = existing?.attachments || [];
+					}
+					for (const f of files.attachmentFiles) {
+						const url = await doUpload(f, false, 'events');
+						updateData.attachments.push({
+							name: f.originalname,
+							url,
+							type: f.mimetype,
+							source: 'local' as const,
+						});
+					}
+				}
+
+				if (body.relatedArticleIds !== undefined) {
+					try {
+						updateData.relatedArticles = JSON.parse(body.relatedArticleIds);
+					} catch {
+						/* ignore */
+					}
+				}
+
+				const event = await mongoStorage.updateEvent(id, updateData);
+				if (!event) return res.status(404).json({ message: 'Event not found' });
+				res.json(event);
+			} catch (error) {
+				console.error('Error updating event:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.delete(
+		'/api/events/:id',
+		authenticate,
+		requirePermission('events.delete'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const event = await mongoStorage.getEventById(id);
+				if (!event) return res.status(404).json({ message: 'Event not found' });
+
+				if (event.thumbnail && event.thumbnailSource === 'local') {
+					try {
+						const { deleteFile: delFile } = await import('./upload');
+						await delFile(event.thumbnail);
+					} catch {
+						/* ignore */
+					}
+				}
+				for (const att of event.attachments || []) {
+					if (att.source === 'local') {
+						try {
+							const { deleteFile: delFile } = await import('./upload');
+							await delFile(att.url);
+						} catch {
+							/* ignore */
+						}
+					}
+				}
+
+				await mongoStorage.deleteEvent(id);
+				res.json({ message: 'Event deleted' });
+			} catch (error) {
+				console.error('Error deleting event:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	// ── Copy Event → Article ──
+	app.post(
+		'/api/events/:id/copy-to-article',
+		authenticate,
+		requirePermission('events.view'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const user = req.user as UserWithRole;
+				const { copyAttachments } = req.body;
+				const article = await mongoStorage.copyEventToArticle(
+					id,
+					String(user._id),
+					user.name || user.username,
+					{
+						copyAttachments:
+							copyAttachments === true || copyAttachments === 'true',
+					},
+				);
+				res.status(201).json(article);
+			} catch (error: any) {
+				console.error('Error copying event to article:', error);
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
+
+	// ── Copy Article → Event ──
+	app.post(
+		'/api/articles/:id/copy-to-event',
+		authenticate,
+		requirePermission('events.create'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const user = req.user as UserWithRole;
+				const { year, parentEventId, copyAttachments } = req.body;
+				const result = await mongoStorage.copyArticleToEvent(
+					id,
+					String(user._id),
+					{
+						year: year ? parseInt(year, 10) : undefined,
+						parentEventId: parentEventId || undefined,
+						copyAttachments:
+							copyAttachments === true || copyAttachments === 'true',
+					},
+				);
+				res.status(201).json(result);
+			} catch (error: any) {
+				console.error('Error copying article to event:', error);
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
+
+	// ── Attach Article to Event ──
+	app.post(
+		'/api/events/:id/attach-article',
+		authenticate,
+		requirePermission('events.edit'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const { articleId, copyFiles } = req.body;
+				if (!articleId)
+					return res.status(400).json({ message: 'articleId required' });
+				const event = await mongoStorage.attachArticleToEvent(id, articleId, {
+					copyFiles: copyFiles === true || copyFiles === 'true',
+				});
+				if (!event) return res.status(404).json({ message: 'Event not found' });
+				res.json(event);
+			} catch (error: any) {
+				console.error('Error attaching article to event:', error);
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
+
+	// ── Detach Article from Event ──
+	app.delete(
+		'/api/events/:id/attach-article/:articleId',
+		authenticate,
+		requirePermission('events.edit'),
+		async (req, res) => {
+			try {
+				const { id, articleId } = req.params;
+				const event = await mongoStorage.detachArticleFromEvent(id, articleId);
+				if (!event) return res.status(404).json({ message: 'Event not found' });
+				res.json(event);
+			} catch (error: any) {
+				console.error('Error detaching article from event:', error);
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
+
+	// ── Attach Event to Article (same effect: update event.relatedArticles) ──
+	app.post(
+		'/api/articles/:id/attach-event',
+		authenticate,
+		requirePermission('events.edit'),
+		async (req, res) => {
+			try {
+				const { id: articleId } = req.params;
+				const { eventId, copyFiles } = req.body;
+				if (!eventId)
+					return res.status(400).json({ message: 'eventId required' });
+				const event = await mongoStorage.attachArticleToEvent(
+					eventId,
+					articleId,
+					{
+						copyFiles: copyFiles === true || copyFiles === 'true',
+					},
+				);
+				if (!event) return res.status(404).json({ message: 'Event not found' });
+				res.json(event);
+			} catch (error: any) {
+				console.error('Error attaching event to article:', error);
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
+
+	// ── Detach Event from Article ──
+	app.delete(
+		'/api/articles/:id/attach-event/:eventId',
+		authenticate,
+		requirePermission('events.edit'),
+		async (req, res) => {
+			try {
+				const { id: articleId, eventId } = req.params;
+				const event = await mongoStorage.detachArticleFromEvent(
+					eventId,
+					articleId,
+				);
+				if (!event) return res.status(404).json({ message: 'Event not found' });
+				res.json(event);
+			} catch (error: any) {
+				console.error('Error detaching event from article:', error);
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
 
 	const server = createServer(app);
 	return server;

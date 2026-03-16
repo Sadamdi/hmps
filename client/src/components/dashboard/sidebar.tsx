@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import {
 	Building2,
+	Calendar,
 	ChevronLeft,
 	ChevronRight,
 	FileText,
@@ -86,6 +87,13 @@ export default function Sidebar({
 			href: '/dashboard/kelembagaan',
 			active: location.startsWith('/dashboard/kelembagaan'),
 			requirePermission: 'kelembagaan.view',
+		},
+		{
+			label: 'Events',
+			icon: <Calendar className="h-5 w-5" />,
+			href: '/dashboard/events',
+			active: location.startsWith('/dashboard/events'),
+			requirePermission: 'events.view',
 		},
 		{
 			label: 'User Management',

@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
 	BookOpen,
 	Building2,
+	Calendar,
 	ChevronDown,
 	FileText,
 	Home,
@@ -23,7 +24,7 @@ import {
 	Settings,
 	Sun,
 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
 interface NavbarProps {
@@ -48,17 +49,23 @@ type NavItem =
 			label: string;
 			icon: React.ReactNode;
 			homeSection: string;
-			children: { label: string; href: string }[];
+			children: { label: string; href?: string; month?: number }[];
 	  };
 
 // Peta item navbar → section beranda untuk scroll otomatis
+const MONTH_NAMES = [
+	'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+	'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+];
+
 const sectionMap: Record<string, string> = {
 	profil: 'about',
+	events: 'events',
 	kelembagaan: 'vision-mission',
 	articles: 'articles',
 };
 
-const navItems: NavItem[] = [
+const baseNavItemsWithoutEvents: NavItem[] = [
 	{ id: 'home', label: 'Beranda', icon: <Home className="h-4 w-4" /> },
 	{
 		id: 'profil',
@@ -226,6 +233,42 @@ export default function Navbar({
 		refetchOnMount: true,
 	});
 
+	const { data: eventsData } = useQuery<{ year: { year: number } | null; events: { month?: number; startDate?: string }[] }>({
+		queryKey: ['/api/events/active-home'],
+		staleTime: 60 * 1000,
+	});
+
+	const eventMonths = useMemo(() => {
+		if (!eventsData?.events?.length) return [];
+		const months = new Set<number>();
+		for (const ev of eventsData.events) {
+			const m = ev.month ?? (ev.startDate ? new Date(ev.startDate).getMonth() + 1 : 0);
+			if (m) months.add(m);
+		}
+		return Array.from(months).sort((a, b) => a - b);
+	}, [eventsData]);
+
+	const navItems = useMemo(() => {
+		const items: NavItem[] = [];
+		const eventYear = eventsData?.year?.year;
+		for (const item of baseNavItemsWithoutEvents) {
+			if (item.id === 'kelembagaan' && eventMonths.length > 0 && eventYear) {
+				items.push({
+					id: 'events',
+					label: 'Event',
+					icon: <Calendar className="h-4 w-4" />,
+					homeSection: 'events',
+					children: [
+						{ label: `Lihat semua event ${eventYear}`, href: `/events/${eventYear}` },
+						...eventMonths.map((m: number) => ({ label: MONTH_NAMES[m - 1], month: m })),
+					],
+				});
+			}
+			items.push(item);
+		}
+		return items;
+	}, [eventMonths, eventsData?.year?.year]);
+
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.
 	useEffect(() => {
@@ -379,7 +422,7 @@ export default function Navbar({
 
 						{/* Desktop nav links */}
 						<nav className="hidden sm:flex items-center gap-1">
-							{navItems.map((item) => {
+							{navItems.map((item: NavItem) => {
 								if (item.children) {
 									const dropdownId = item.id;
 									return (
@@ -415,10 +458,32 @@ export default function Navbar({
 											<DropdownMenuContent
 												align="center"
 												className="w-48 border-border bg-card text-foreground z-50">
-												{item.children.map((child) => (
+												{item.children.map((child: { label: string; href?: string; month?: number }) => (
 													<DropdownMenuItem
-														key={child.href}
-														onClick={() => handleChildNav(child.href)}
+														key={child.href ?? `month-${child.month}`}
+														onClick={() => {
+															if (child.month != null) {
+																if (location !== '/') {
+																	sessionStorage.setItem('eventsScrollToMonth', String(child.month));
+																	window.location.href = `/#events`;
+																} else {
+																	programmaticScrollRef.current = true;
+																	if (programmaticScrollTimerRef.current)
+																		clearTimeout(programmaticScrollTimerRef.current);
+																	programmaticScrollTimerRef.current = setTimeout(() => {
+																		programmaticScrollRef.current = false;
+																	}, 2000);
+																	scrollToSection('events');
+																	setTimeout(() => {
+																		window.dispatchEvent(new CustomEvent('events-scroll-to-month', { detail: { month: child.month } }));
+																	}, 500);
+																}
+																openDropdownIdRef.current = null;
+																setOpenDropdownId(null);
+															} else if (child.href) {
+																handleChildNav(child.href);
+															}
+														}}
 														className="cursor-pointer">
 														{child.label}
 													</DropdownMenuItem>
@@ -585,7 +650,7 @@ export default function Navbar({
 
 							return (
 								<>
-									{allItems.map((item, index) => {
+									{allItems.map((item: NavItem, index: number) => {
 										const delay = isAnimatingCollapse
 											? index * 55 // icons merge top-to-bottom
 											: isAnimatingExpand
@@ -649,10 +714,26 @@ export default function Navbar({
 														side="left"
 														align="center"
 														className="w-48 border-border bg-card text-foreground z-50">
-														{item.children.map((child) => (
+														{item.children.map((child: { label: string; href?: string; month?: number }) => (
 															<DropdownMenuItem
-																key={child.href}
-																onClick={() => handleChildNav(child.href)}
+																key={child.href ?? `month-${child.month}`}
+																onClick={() => {
+																	if (child.month != null) {
+																		if (location !== '/') {
+																			sessionStorage.setItem('eventsScrollToMonth', String(child.month));
+																			window.location.href = `/#events`;
+																		} else {
+																			scrollToSection('events');
+																			setTimeout(() => {
+																				window.dispatchEvent(new CustomEvent('events-scroll-to-month', { detail: { month: child.month } }));
+																			}, 500);
+																		}
+																		openDropdownIdRef.current = null;
+																		setOpenDropdownId(null);
+																	} else if (child.href) {
+																		handleChildNav(child.href);
+																	}
+																}}
 																className="cursor-pointer">
 																{child.label}
 															</DropdownMenuItem>

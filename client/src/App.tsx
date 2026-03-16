@@ -25,6 +25,10 @@ const DashboardRoles = lazy(() => import('@/pages/dashboard/roles'));
 const DashboardSettings = lazy(() => import('@/pages/dashboard/settings'));
 const DashboardProfil = lazy(() => import('@/pages/dashboard/profil'));
 const DashboardKelembagaan = lazy(() => import('@/pages/dashboard/kelembagaan'));
+const DashboardEvents = lazy(() => import('@/pages/dashboard/events'));
+const EventsIndex = lazy(() => import('@/pages/events/index'));
+const EventsYear = lazy(() => import('@/pages/events/[year]'));
+const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
 
 function RouteLoadingFallback() {
 	return (
@@ -74,6 +78,9 @@ function Router() {
 					path="/kelembagaan"
 					component={KelembagaanPage}
 				/>
+				<Route path="/events" component={EventsIndex} />
+				<Route path="/events/:year/:eventId" component={EventDetail} />
+				<Route path="/events/:year" component={EventsYear} />
 
 				{/* Dashboard Routes - Protected */}
 				<Route path="/dashboard">
@@ -125,15 +132,22 @@ function Router() {
 					</ProtectedRoute>
 				)}
 			</Route>
-			<Route path="/dashboard/kelembagaan">
-				{() => (
-					<ProtectedRoute>
-						<DashboardKelembagaan />
-					</ProtectedRoute>
-				)}
-			</Route>
+		<Route path="/dashboard/kelembagaan">
+			{() => (
+				<ProtectedRoute>
+					<DashboardKelembagaan />
+				</ProtectedRoute>
+			)}
+		</Route>
+		<Route path="/dashboard/events">
+			{() => (
+				<ProtectedRoute>
+					<DashboardEvents />
+				</ProtectedRoute>
+			)}
+		</Route>
 
-			{/* Fallback to 404 */}
+		{/* Fallback to 404 */}
 				<Route component={NotFound} />
 			</Switch>
 		</Suspense>
