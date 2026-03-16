@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import AIChat from '@/components/public/ai-chat';
+import Footer from '@/components/public/footer';
 import { usePagination } from '@/hooks/use-pagination';
 import Navbar from '@/components/public/navbar';
 import AOS from 'aos';
@@ -368,13 +369,15 @@ export default function AllArticles() {
 				/>
 			</div>
 
-			{/* AI Chat dengan context halaman daftar artikel */}
-			<AIChat
-				pageContext={{
-					path: '/artikel',
-					permissions: [],
-				}}
-			/>
-		</div>
-	);
+		<Footer />
+
+		{/* AI Chat dengan context halaman daftar artikel */}
+		<AIChat
+			pageContext={{
+				path: '/artikel',
+				permissions: [],
+			}}
+		/>
+	</div>
+);
 }

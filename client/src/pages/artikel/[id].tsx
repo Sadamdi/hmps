@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AIChat from '@/components/public/ai-chat';
+import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import { apiRequest } from '@/lib/queryClient';
 import {
@@ -516,17 +517,19 @@ export default function ArticleDetail() {
 				</div>
 			</div>
 
-			{/* AI Chat dengan context artikel yang sedang dibaca */}
-			<AIChat
-				pageContext={{
-					path: `/artikel/${article._id || article.id || id || ''}`,
-					permissions: [],
-					pageData: {
-						title: article.title,
-						excerpt: article.excerpt,
-					},
-				}}
-			/>
-		</div>
-	);
+		<Footer />
+
+		{/* AI Chat dengan context artikel yang sedang dibaca */}
+		<AIChat
+			pageContext={{
+				path: `/artikel/${article._id || article.id || id || ''}`,
+				permissions: [],
+				pageData: {
+					title: article.title,
+					excerpt: article.excerpt,
+				},
+			}}
+		/>
+	</div>
+);
 }

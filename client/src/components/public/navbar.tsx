@@ -17,13 +17,14 @@ import {
 	Info,
 	LogIn,
 	LogOut,
+	Menu,
 	Moon,
 	Settings,
 	Sun,
 	Target,
 	Users,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
 interface NavbarProps {
@@ -82,6 +83,97 @@ export default function Navbar({
 	const [location, navigate] = useLocation();
 	const { user, logout } = useAuth();
 	const { theme, toggleTheme } = useTheme();
+
+	// Dropdown open state (desktop + mobile)
+	const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+	const openDropdownIdRef = useRef<string | null>(null);
+
+	// Mobile floating nav state
+	const [isMobileNavCollapsed, setIsMobileNavCollapsed] = useState(false);
+	const [isAnimatingCollapse, setIsAnimatingCollapse] = useState(false);
+	const [isAnimatingExpand, setIsAnimatingExpand] = useState(false);
+	const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const collapseAnimTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const expandAnimTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	// Refs to read current state values inside event listeners without stale closure
+	const isCollapsedRef = useRef(false);
+	const isAnimatingCollapseRef = useRef(false);
+	const IDLE_DELAY = 3000;
+	const ANIM_DURATION = 600;
+
+	useEffect(() => {
+		openDropdownIdRef.current = openDropdownId;
+	}, [openDropdownId]);
+
+	const triggerCollapse = () => {
+		isAnimatingCollapseRef.current = true;
+		setIsAnimatingCollapse(true);
+		setIsAnimatingExpand(false);
+		if (collapseAnimTimeoutRef.current) clearTimeout(collapseAnimTimeoutRef.current);
+		collapseAnimTimeoutRef.current = setTimeout(() => {
+			isCollapsedRef.current = true;
+			isAnimatingCollapseRef.current = false;
+			setIsMobileNavCollapsed(true);
+			setIsAnimatingCollapse(false);
+		}, ANIM_DURATION);
+	};
+
+	const triggerExpand = () => {
+		isCollapsedRef.current = false;
+		isAnimatingCollapseRef.current = false;
+		setIsMobileNavCollapsed(false);
+		setIsAnimatingCollapse(false);
+		if (collapseAnimTimeoutRef.current) clearTimeout(collapseAnimTimeoutRef.current);
+		setIsAnimatingExpand(true);
+		if (expandAnimTimeoutRef.current) clearTimeout(expandAnimTimeoutRef.current);
+		expandAnimTimeoutRef.current = setTimeout(() => {
+			setIsAnimatingExpand(false);
+		}, ANIM_DURATION + 200);
+	};
+
+	const scheduleCollapse = () => {
+		// Pause idle collapse while any dropdown is open
+		if (openDropdownIdRef.current) return;
+		if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+		idleTimeoutRef.current = setTimeout(() => {
+			triggerCollapse();
+		}, IDLE_DELAY);
+	};
+
+	useEffect(() => {
+		const handleScrollActivity = () => {
+			// Close any open dropdown on scroll (desktop + mobile)
+			if (openDropdownIdRef.current) {
+				openDropdownIdRef.current = null;
+				setOpenDropdownId(null);
+			}
+
+			// Cancel any in-progress collapse animation
+			if (isAnimatingCollapseRef.current) {
+				isAnimatingCollapseRef.current = false;
+				if (collapseAnimTimeoutRef.current) clearTimeout(collapseAnimTimeoutRef.current);
+				setIsAnimatingCollapse(false);
+			}
+			// Expand if currently collapsed
+			if (isCollapsedRef.current) {
+				triggerExpand();
+			}
+			// Reset idle timer
+			scheduleCollapse();
+		};
+
+		// Start idle timer on mount
+		scheduleCollapse();
+		window.addEventListener('scroll', handleScrollActivity, { passive: true });
+
+		return () => {
+			window.removeEventListener('scroll', handleScrollActivity);
+			if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+			if (collapseAnimTimeoutRef.current) clearTimeout(collapseAnimTimeoutRef.current);
+			if (expandAnimTimeoutRef.current) clearTimeout(expandAnimTimeoutRef.current);
+		};
+	// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
 
 	const { data: settings } = useQuery<NavbarSettings>({
 		queryKey: ['/api/settings'],
@@ -179,8 +271,22 @@ export default function Navbar({
 								.filter((i) => i.id !== 'home')
 								.map((item) => {
 									if (item.children) {
+										const dropdownId = item.id;
 										return (
-											<DropdownMenu key={item.id} modal={false}>
+											<DropdownMenu
+												key={item.id}
+												modal={false}
+												open={openDropdownId === dropdownId}
+												onOpenChange={(nextOpen) => {
+													if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+													if (nextOpen) {
+														setOpenDropdownId(dropdownId);
+													} else {
+														openDropdownIdRef.current = null;
+														setOpenDropdownId(null);
+														scheduleCollapse();
+													}
+												}}>
 												<DropdownMenuTrigger asChild>
 													<button
 														className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
@@ -242,7 +348,19 @@ export default function Navbar({
 
 							{/* User dropdown */}
 							{user ? (
-								<DropdownMenu modal={false}>
+								<DropdownMenu
+									modal={false}
+									open={openDropdownId === 'user-desktop'}
+									onOpenChange={(nextOpen) => {
+										if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+										if (nextOpen) {
+											setOpenDropdownId('user-desktop');
+										} else {
+											openDropdownIdRef.current = null;
+											setOpenDropdownId(null);
+											scheduleCollapse();
+										}
+									}}>
 									<DropdownMenuTrigger asChild>
 										<button className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-secondary transition-colors">
 											<Avatar className="h-7 w-7">
@@ -312,163 +430,271 @@ export default function Navbar({
 				</div>
 			</header>
 
-			{/* ============ MOBILE FLOATING RIGHT ICON NAV ============ */}
-			<div
-				className="fixed right-3 top-1/2 -translate-y-1/2 z-40 sm:hidden
-				           flex flex-col gap-1.5 p-2 rounded-2xl
-				           bg-background/92 backdrop-blur-md
-				           border border-border/80 shadow-xl shadow-black/10">
-				{/* Nav section items */}
-				{navItems.map((item) => {
-					if (item.children) {
+		{/* ============ MOBILE FLOATING RIGHT ICON NAV ============ */}
+		<div className="fixed right-3 top-1/2 -translate-y-1/2 z-40 sm:hidden">
+			{/* Collapsed bubble mode */}
+			{isMobileNavCollapsed ? (
+				<button
+					aria-label="Buka navigasi"
+					onClick={() => {
+						triggerExpand();
+						scheduleCollapse();
+					}}
+					className="w-12 h-12 flex items-center justify-center rounded-full
+					           bg-gradient-to-br from-blue-500 to-cyan-500 text-white
+					           shadow-[0_4px_20px_rgba(37,99,235,0.5)]
+					           animate-mobile-nav-bubble-in
+					           transition-transform duration-500 ease-out
+					           hover:scale-105 active:scale-95">
+					<Menu className="h-5 w-5" />
+				</button>
+			) : (
+				/* Expanded mode — panel statis, hanya ikon yang dianimasikan */
+				<div
+					className={`flex flex-col gap-1.5 p-2 rounded-2xl
+					           bg-background/92 backdrop-blur-md
+					           border border-border/80 shadow-xl shadow-black/10
+					           ${isAnimatingCollapse ? 'pointer-events-none' : ''}`}>
+
+					{/* All nav items with stagger animation */}
+					{(() => {
+						// Build flat list of all items including user/login at end
+						const allItems = [...navItems];
+						// Extra slot index for divider + user
+						const totalItems = allItems.length + 1; // +1 for user/login
+
 						return (
-							<DropdownMenu key={item.id} modal={false}>
-								<DropdownMenuTrigger asChild>
-									<button
-										aria-label={item.label}
-										className={`relative w-10 h-10 flex items-center justify-center rounded-xl
-										            transition-all duration-200 group
-										            ${
-																	activeSection === item.id
-																		? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
-																		: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-																}`}>
-										{item.icon}
-										{/* Tooltip ke kiri */}
-										<span
-											className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
-											           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
-											           bg-foreground/90 text-background
-											           opacity-0 pointer-events-none group-hover:opacity-100
-											           transition-opacity duration-150">
-											{item.label}
-										</span>
-									</button>
-								</DropdownMenuTrigger>
-								<DropdownMenuContent
-									side="left"
-									align="center"
-									className="w-44 border-border bg-card text-foreground z-50">
-									{item.children.map((child) => (
-										<DropdownMenuItem
-											key={child.href}
-											onClick={() => handleChildNav(child.href)}
-											className="cursor-pointer">
-											{child.label}
-										</DropdownMenuItem>
-									))}
-								</DropdownMenuContent>
-							</DropdownMenu>
+							<>
+								{allItems.map((item, index) => {
+								const delay = isAnimatingCollapse
+									? index * 55 // icons merge top-to-bottom
+									: isAnimatingExpand
+											? index * 60 // icons spread top-to-bottom (mirror of merge)
+										: 0;
+
+									const iconClass = isAnimatingCollapse
+										? 'nav-icon-merging'
+										: isAnimatingExpand
+											? 'nav-icon-spreading'
+											: '';
+
+									if (item.children) {
+										const dropdownId = `${item.id}-mobile`;
+										return (
+											<DropdownMenu
+												key={item.id}
+												modal={false}
+												open={openDropdownId === dropdownId}
+												onOpenChange={(nextOpen) => {
+													if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+													if (nextOpen) {
+														setOpenDropdownId(dropdownId);
+													} else {
+														openDropdownIdRef.current = null;
+														setOpenDropdownId(null);
+														scheduleCollapse();
+													}
+												}}>
+												<DropdownMenuTrigger asChild>
+													<button
+														aria-label={item.label}
+														style={{
+															animationDelay: `${delay}ms`,
+															transitionDelay: `${delay}ms`,
+															opacity: isAnimatingExpand ? 0 : undefined,
+														}}
+														className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+														            transition-all duration-200 group ${iconClass}
+														            ${
+																				activeSection === item.id
+																					? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
+																					: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+																			}`}>
+														{item.icon}
+														<span
+															className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+															           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
+															           bg-foreground/90 text-background
+															           opacity-0 pointer-events-none group-hover:opacity-100
+															           transition-opacity duration-150">
+															{item.label}
+														</span>
+													</button>
+												</DropdownMenuTrigger>
+												<DropdownMenuContent
+													side="left"
+													align="center"
+													className="w-44 border-border bg-card text-foreground z-50">
+													{item.children.map((child) => (
+														<DropdownMenuItem
+															key={child.href}
+															onClick={() => handleChildNav(child.href)}
+															className="cursor-pointer">
+															{child.label}
+														</DropdownMenuItem>
+													))}
+												</DropdownMenuContent>
+											</DropdownMenu>
+										);
+									}
+
+									return (
+										<button
+											key={item.id}
+											onClick={() => handleNavClick(item.id)}
+											aria-label={item.label}
+											style={{
+												animationDelay: `${delay}ms`,
+												transitionDelay: `${delay}ms`,
+												opacity: isAnimatingExpand ? 0 : undefined,
+											}}
+											className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+											            transition-all duration-200 group ${iconClass}
+											            ${
+														activeSection === item.id ||
+														(item.id === 'home' && activeSection === '')
+															? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
+															: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+													}`}>
+											{item.icon}
+											<span
+												className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+												           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
+												           bg-foreground/90 text-background
+												           opacity-0 pointer-events-none group-hover:opacity-100
+												           transition-opacity duration-150">
+												{item.label}
+											</span>
+										</button>
+									);
+								})}
+
+								{/* Divider */}
+								<div
+									style={{
+										animationDelay: `${isAnimatingCollapse ? allItems.length * 55 : isAnimatingExpand ? 0 : 0}ms`,
+										opacity: isAnimatingCollapse ? 0 : 1,
+										transition: 'opacity 0.3s ease',
+									}}
+									className="h-px bg-border/60 mx-1"
+								/>
+
+							{/* Login / User icon */}
+							{(() => {
+								const userDelay = isAnimatingCollapse
+									? allItems.length * 55 + 30
+									: isAnimatingExpand
+										? allItems.length * 60 // last item spreads last (consistent with top-to-bottom)
+										: 0;
+									const userIconClass = isAnimatingCollapse
+										? 'nav-icon-merging'
+										: isAnimatingExpand
+											? 'nav-icon-spreading'
+											: '';
+
+									return user ? (
+										<DropdownMenu
+											modal={false}
+											open={openDropdownId === 'user-mobile'}
+											onOpenChange={(nextOpen) => {
+												if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+												if (nextOpen) {
+													setOpenDropdownId('user-mobile');
+												} else {
+													openDropdownIdRef.current = null;
+													setOpenDropdownId(null);
+													scheduleCollapse();
+												}
+											}}>
+											<DropdownMenuTrigger asChild>
+												<button
+													aria-label="Akun"
+													style={{
+														animationDelay: `${userDelay}ms`,
+														transitionDelay: `${userDelay}ms`,
+														opacity: isAnimatingExpand ? 0 : undefined,
+													}}
+													className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+													           text-muted-foreground hover:bg-secondary hover:text-foreground
+													           transition-all duration-200 group ${userIconClass}`}>
+													<Avatar className="h-6 w-6">
+														<AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
+															{user.name
+																? user.name.charAt(0).toUpperCase()
+																: user.username.charAt(0).toUpperCase()}
+														</AvatarFallback>
+													</Avatar>
+													<span
+														className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+														           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
+														           bg-foreground/90 text-background
+														           opacity-0 pointer-events-none group-hover:opacity-100
+														           transition-opacity duration-150">
+														{user.name || user.username}
+													</span>
+												</button>
+											</DropdownMenuTrigger>
+											<DropdownMenuContent
+												side="left"
+												align="end"
+												className="w-48 border-border bg-card text-foreground z-50">
+												<div className="px-3 py-2">
+													<p className="text-sm font-medium">
+														{user.name || user.username}
+													</p>
+													<p className="text-xs text-muted-foreground capitalize">
+														{user.role}
+													</p>
+												</div>
+												<DropdownMenuSeparator />
+												<DropdownMenuItem asChild>
+													<Link
+														href="/dashboard"
+														className="cursor-pointer">
+														<Settings className="mr-2 h-4 w-4" />
+														Dashboard
+													</Link>
+												</DropdownMenuItem>
+												<DropdownMenuSeparator />
+												<DropdownMenuItem
+													onClick={handleLogout}
+													className="cursor-pointer text-red-500 focus:text-red-500">
+													<LogOut className="mr-2 h-4 w-4" />
+													Logout
+												</DropdownMenuItem>
+											</DropdownMenuContent>
+										</DropdownMenu>
+									) : (
+										<Link
+											href="/login"
+											aria-label="Login"
+											style={{
+												animationDelay: `${userDelay}ms`,
+												transitionDelay: `${userDelay}ms`,
+												opacity: isAnimatingExpand ? 0 : undefined,
+											}}
+											className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+											           bg-gradient-to-br from-blue-500 to-cyan-500 text-white
+											           shadow-[0_2px_8px_rgba(37,99,235,0.4)] hover:scale-105
+											           transition-all duration-200 group ${userIconClass}`}>
+											<LogIn className="h-4 w-4" />
+											<span
+												className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+												           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
+												           bg-foreground/90 text-background
+												           opacity-0 pointer-events-none group-hover:opacity-100
+												           transition-opacity duration-150">
+												Login
+											</span>
+										</Link>
+									);
+								})()}
+							</>
 						);
-					}
-
-					return (
-						<button
-							key={item.id}
-							onClick={() => handleNavClick(item.id)}
-							aria-label={item.label}
-							className={`relative w-10 h-10 flex items-center justify-center rounded-xl
-							            transition-all duration-200 group
-							            ${
-												activeSection === item.id ||
-												(item.id === 'home' && activeSection === '')
-													? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
-													: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
-											}`}>
-							{item.icon}
-
-							{/* Tooltip ke kiri */}
-							<span
-								className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
-								           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
-								           bg-foreground/90 text-background
-								           opacity-0 pointer-events-none group-hover:opacity-100
-								           transition-opacity duration-150">
-								{item.label}
-							</span>
-						</button>
-					);
-				})}
-
-				{/* Divider */}
-				<div className="h-px bg-border/60 mx-1" />
-
-				{/* Login / User icon */}
-				{user ? (
-					<DropdownMenu modal={false}>
-						<DropdownMenuTrigger asChild>
-							<button
-								aria-label="Akun"
-								className="relative w-10 h-10 flex items-center justify-center rounded-xl
-								           text-muted-foreground hover:bg-secondary hover:text-foreground
-								           transition-all duration-200 group">
-								<Avatar className="h-6 w-6">
-									<AvatarFallback className="bg-primary text-primary-foreground text-[10px] font-semibold">
-										{user.name
-											? user.name.charAt(0).toUpperCase()
-											: user.username.charAt(0).toUpperCase()}
-									</AvatarFallback>
-								</Avatar>
-								<span
-									className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
-									           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
-									           bg-foreground/90 text-background
-									           opacity-0 pointer-events-none group-hover:opacity-100
-									           transition-opacity duration-150">
-									{user.name || user.username}
-								</span>
-							</button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent
-							side="left"
-							align="end"
-							className="w-48 border-border bg-card text-foreground z-50">
-							<div className="px-3 py-2">
-								<p className="text-sm font-medium">
-									{user.name || user.username}
-								</p>
-								<p className="text-xs text-muted-foreground capitalize">
-									{user.role}
-								</p>
-							</div>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem asChild>
-								<Link
-									href="/dashboard"
-									className="cursor-pointer">
-									<Settings className="mr-2 h-4 w-4" />
-									Dashboard
-								</Link>
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								onClick={handleLogout}
-								className="cursor-pointer text-red-500 focus:text-red-500">
-								<LogOut className="mr-2 h-4 w-4" />
-								Logout
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
-				) : (
-					<Link
-						href="/login"
-						aria-label="Login"
-						className="relative w-10 h-10 flex items-center justify-center rounded-xl
-						           bg-gradient-to-br from-blue-500 to-cyan-500 text-white
-						           shadow-[0_2px_8px_rgba(37,99,235,0.4)] hover:scale-105
-						           transition-all duration-200 group">
-						<LogIn className="h-4 w-4" />
-						<span
-							className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
-							           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
-							           bg-foreground/90 text-background
-							           opacity-0 pointer-events-none group-hover:opacity-100
-							           transition-opacity duration-150">
-							Login
-						</span>
-					</Link>
-				)}
-			</div>
+					})()}
+				</div>
+			)}
+		</div>
 		</>
 	);
 }
