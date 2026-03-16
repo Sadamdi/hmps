@@ -21,16 +21,23 @@ import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
+	Calendar,
+	CheckCircle2,
+	Copy,
 	Eye,
 	EyeOff,
+	Image,
 	Laptop,
 	Loader2,
 	LogOut,
+	Plus,
 	Save,
 	Settings,
 	Shield,
+	Trash2,
+	Upload,
 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface SiteSettings {
 	siteName: string;
@@ -755,6 +762,9 @@ export default function SettingsPage() {
 					{canViewSettings && (
 						<TabsTrigger value="security">Security</TabsTrigger>
 					)}
+					{canViewSettings && (
+						<TabsTrigger value="home-images">Home Images</TabsTrigger>
+					)}
 					{user && user.role === 'owner' && (
 						<TabsTrigger value="middleware">Middleware</TabsTrigger>
 					)}
@@ -1094,6 +1104,10 @@ export default function SettingsPage() {
 									</Card>
 								)}
 							</div>
+						</TabsContent>
+
+						<TabsContent value="home-images">
+							<HomeImagesTab canEdit={canEditSettings} />
 						</TabsContent>
 
 						<TabsContent value="middleware">
@@ -1557,6 +1571,7 @@ export default function SettingsPage() {
 			{(activeTab !== 'security' &&
 				activeTab !== 'profile' &&
 				activeTab !== 'middleware' &&
+				activeTab !== 'home-images' &&
 				canEditSettings) ||
 			(activeTab === 'middleware' && user && user.role === 'owner') ? (
 				<div className="mt-6 flex justify-end">
@@ -1673,6 +1688,620 @@ function SessionsList() {
 					</div>
 				);
 			})}
+		</div>
+	);
+}
+
+// ── Home Images Tab ──
+
+interface HomeImagesData {
+	_id?: string;
+	year: number;
+	isActive: boolean;
+	desktopMode: 'bennerfull' | 'combined';
+	bennerfull: string;
+	orang: string;
+	banners: Record<string, string>;
+}
+
+const SLOT_LABELS: Record<string, string> = {
+	bennerfull: 'Banner Full (Desktop)',
+	orang: 'Foto Orang (Desktop)',
+	public_relation: 'Public Relation',
+	technopreneurship: 'Technopreneurship',
+	intelektual: 'Intelektual',
+	wakil_ketua: 'Wakil Ketua',
+	ketua: 'Ketua',
+	medinfo: 'Medinfo',
+	religius: 'Religius',
+	senor: 'Senor',
+};
+
+const BANNER_SLOTS = [
+	'public_relation',
+	'technopreneurship',
+	'intelektual',
+	'wakil_ketua',
+	'ketua',
+	'medinfo',
+	'religius',
+	'senor',
+] as const;
+
+function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
+	const { toast } = useToast();
+	const [selectedYear, setSelectedYear] = useState<number | null>(null);
+	const [newYear, setNewYear] = useState('');
+	const [showNewYearInput, setShowNewYearInput] = useState(false);
+	const [copyTargetYear, setCopyTargetYear] = useState('');
+	const [copyOverwrite, setCopyOverwrite] = useState(false);
+	const [showCopyDialog, setShowCopyDialog] = useState(false);
+
+	const {
+		data: yearsList,
+		isLoading,
+		refetch: refetchYears,
+	} = useQuery<HomeImagesData[]>({
+		queryKey: ['/api/home-images'],
+		staleTime: 0,
+		refetchOnMount: true,
+	});
+
+	useEffect(() => {
+		if (yearsList && yearsList.length > 0 && selectedYear === null) {
+			const active = yearsList.find((y) => y.isActive);
+			setSelectedYear(active ? active.year : yearsList[0].year);
+		}
+	}, [yearsList, selectedYear]);
+
+	const currentData = yearsList?.find((y) => y.year === selectedYear);
+
+	const refresh = useCallback(() => {
+		refetchYears();
+		queryClient.invalidateQueries({ queryKey: ['/api/home-images/active'] });
+	}, [refetchYears]);
+
+	const createYearMutation = useMutation({
+		mutationFn: async (year: number) => {
+			const res = await apiRequest('POST', '/api/home-images', { year });
+			return res.json();
+		},
+		onSuccess: () => {
+			refresh();
+			setShowNewYearInput(false);
+			setNewYear('');
+			toast({ title: 'Tahun baru ditambahkan' });
+		},
+		onError: (err: any) => {
+			toast({
+				title: 'Gagal',
+				description: err.message || 'Tahun sudah ada atau tidak valid',
+				variant: 'destructive',
+			});
+		},
+	});
+
+	const setActiveMutation = useMutation({
+		mutationFn: async (year: number) => {
+			const res = await apiRequest(
+				'POST',
+				`/api/home-images/${year}/set-active`,
+			);
+			return res.json();
+		},
+		onSuccess: () => {
+			refresh();
+			toast({ title: 'Tahun aktif berhasil diubah' });
+		},
+	});
+
+	const deleteYearMutation = useMutation({
+		mutationFn: async (year: number) => {
+			await apiRequest('DELETE', `/api/home-images/${year}`);
+		},
+		onSuccess: () => {
+			setSelectedYear(null);
+			refresh();
+			toast({ title: 'Tahun dihapus' });
+		},
+		onError: (err: any) => {
+			toast({
+				title: 'Gagal',
+				description: err.message || 'Tidak bisa menghapus tahun aktif',
+				variant: 'destructive',
+			});
+		},
+	});
+
+	const updateModeMutation = useMutation({
+		mutationFn: async ({
+			year,
+			desktopMode,
+		}: {
+			year: number;
+			desktopMode: string;
+		}) => {
+			const res = await apiRequest('PUT', `/api/home-images/${year}`, {
+				desktopMode,
+			});
+			return res.json();
+		},
+		onSuccess: () => {
+			refresh();
+			toast({ title: 'Mode desktop diperbarui' });
+		},
+	});
+
+	const copyMutation = useMutation({
+		mutationFn: async ({
+			sourceYear,
+			targetYear,
+			overwrite,
+		}: {
+			sourceYear: number;
+			targetYear: number;
+			overwrite: boolean;
+		}) => {
+			const res = await apiRequest(
+				'POST',
+				`/api/home-images/${sourceYear}/copy`,
+				{ targetYear, overwrite },
+			);
+			return res.json();
+		},
+		onSuccess: () => {
+			refresh();
+			setShowCopyDialog(false);
+			setCopyTargetYear('');
+			setCopyOverwrite(false);
+			toast({ title: 'Gambar berhasil di-copy' });
+		},
+		onError: (err: any) => {
+			toast({
+				title: 'Gagal copy',
+				description: err.message,
+				variant: 'destructive',
+			});
+		},
+	});
+
+	if (isLoading) {
+		return (
+			<div className="flex justify-center items-center h-64">
+				<Loader2 className="h-8 w-8 animate-spin text-primary" />
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-6">
+			{/* Year selector header */}
+			<Card>
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2">
+						<Image className="h-5 w-5" />
+						Home Image Settings
+					</CardTitle>
+					<CardDescription>
+						Kelola gambar banner dan foto homepage per tahun kepengurusan
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="flex flex-wrap items-center gap-2">
+						<Label className="mr-2">Tahun:</Label>
+						{yearsList?.map((y) => (
+							<Button
+								key={y.year}
+								variant={selectedYear === y.year ? 'default' : 'outline'}
+								size="sm"
+								onClick={() => setSelectedYear(y.year)}
+								className="relative">
+								<Calendar className="h-3.5 w-3.5 mr-1" />
+								{y.year}
+								{y.isActive && (
+									<span className="ml-1.5 inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/40 dark:text-green-300">
+										AKTIF
+									</span>
+								)}
+							</Button>
+						))}
+						{canEdit && (
+							<>
+								{showNewYearInput ? (
+									<div className="flex items-center gap-1">
+										<Input
+											type="number"
+											placeholder="2026"
+											value={newYear}
+											onChange={(e) => setNewYear(e.target.value)}
+											className="w-24 h-8 text-sm"
+										/>
+										<Button
+											size="sm"
+											variant="ghost"
+											disabled={createYearMutation.isPending}
+											onClick={() => {
+												const y = parseInt(newYear, 10);
+												if (y >= 2020 && y <= 2099) {
+													createYearMutation.mutate(y);
+												}
+											}}>
+											{createYearMutation.isPending ? (
+												<Loader2 className="h-3.5 w-3.5 animate-spin" />
+											) : (
+												<CheckCircle2 className="h-3.5 w-3.5" />
+											)}
+										</Button>
+									</div>
+								) : (
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => setShowNewYearInput(true)}>
+										<Plus className="h-3.5 w-3.5 mr-1" />
+										Tahun Baru
+									</Button>
+								)}
+							</>
+						)}
+					</div>
+
+					{currentData && canEdit && (
+						<div className="flex flex-wrap items-center gap-2 pt-2 border-t">
+							{!currentData.isActive && (
+								<Button
+									size="sm"
+									variant="outline"
+									disabled={setActiveMutation.isPending}
+									onClick={() => setActiveMutation.mutate(currentData.year)}>
+									{setActiveMutation.isPending ? (
+										<Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+									) : (
+										<CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+									)}
+									Set Aktif
+								</Button>
+							)}
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => setShowCopyDialog(true)}>
+								<Copy className="h-3.5 w-3.5 mr-1" />
+								Copy ke Tahun Lain
+							</Button>
+							{!currentData.isActive && (
+								<Button
+									size="sm"
+									variant="destructive"
+									disabled={deleteYearMutation.isPending}
+									onClick={() => {
+										if (
+											window.confirm(
+												`Hapus semua data gambar tahun ${currentData.year}?`,
+											)
+										) {
+											deleteYearMutation.mutate(currentData.year);
+										}
+									}}>
+									<Trash2 className="h-3.5 w-3.5 mr-1" />
+									Hapus Tahun
+								</Button>
+							)}
+						</div>
+					)}
+				</CardContent>
+			</Card>
+
+			{/* Desktop mode toggle */}
+			{currentData && (
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">Mode Desktop Banner</CardTitle>
+						<CardDescription>
+							Pilih tampilan banner desktop: satu gambar gabungan (bennerfull)
+							atau gabungan card per-divisi
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="flex items-center gap-4">
+							<Button
+								variant={
+									currentData.desktopMode === 'bennerfull'
+										? 'default'
+										: 'outline'
+								}
+								size="sm"
+								disabled={!canEdit}
+								onClick={() =>
+									updateModeMutation.mutate({
+										year: currentData.year,
+										desktopMode: 'bennerfull',
+									})
+								}>
+								Banner Full
+							</Button>
+							<Button
+								variant={
+									currentData.desktopMode === 'combined'
+										? 'default'
+										: 'outline'
+								}
+								size="sm"
+								disabled={!canEdit}
+								onClick={() =>
+									updateModeMutation.mutate({
+										year: currentData.year,
+										desktopMode: 'combined',
+									})
+								}>
+								Combined Cards
+							</Button>
+							{updateModeMutation.isPending && (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							)}
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Desktop uploads: bennerfull + orang */}
+			{currentData && (
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">
+							Gambar Desktop ({currentData.year})
+						</CardTitle>
+						<CardDescription>
+							Upload banner full dan foto orang untuk tampilan desktop
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+							<SlotUploader
+								year={currentData.year}
+								slot="bennerfull"
+								currentUrl={currentData.bennerfull}
+								canEdit={canEdit}
+								onUploaded={refresh}
+							/>
+							<SlotUploader
+								year={currentData.year}
+								slot="orang"
+								currentUrl={currentData.orang}
+								canEdit={canEdit}
+								onUploaded={refresh}
+							/>
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Mobile banner uploads */}
+			{currentData && (
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">
+							Banner Mobile / Per-Divisi ({currentData.year})
+						</CardTitle>
+						<CardDescription>
+							Upload foto per-divisi untuk slideshow mobile (urutan: kiri ke
+							kanan). Juga dipakai mode &quot;Combined Cards&quot; di desktop.
+						</CardDescription>
+					</CardHeader>
+					<CardContent>
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+							{BANNER_SLOTS.map((slot) => (
+								<SlotUploader
+									key={slot}
+									year={currentData.year}
+									slot={slot}
+									currentUrl={currentData.banners?.[slot] || ''}
+									canEdit={canEdit}
+									onUploaded={refresh}
+								/>
+							))}
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Copy dialog */}
+			{showCopyDialog && currentData && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+					<div className="w-full max-w-md rounded-lg bg-background border border-border p-6 shadow-lg">
+						<h3 className="text-lg font-semibold mb-2">
+							Copy Gambar dari {currentData.year}
+						</h3>
+						<p className="text-sm text-muted-foreground mb-4">
+							Semua gambar akan di-copy ke tahun tujuan. URL gambar tetap sama
+							(shared).
+						</p>
+						<div className="space-y-3">
+							<div>
+								<Label>Tahun Tujuan</Label>
+								<Input
+									type="number"
+									placeholder="2026"
+									value={copyTargetYear}
+									onChange={(e) => setCopyTargetYear(e.target.value)}
+								/>
+							</div>
+							<div className="flex items-center gap-2">
+								<Switch
+									checked={copyOverwrite}
+									onCheckedChange={setCopyOverwrite}
+								/>
+								<Label>Timpa jika tahun tujuan sudah ada</Label>
+							</div>
+						</div>
+						<div className="mt-4 flex justify-end gap-2">
+							<Button
+								variant="outline"
+								onClick={() => setShowCopyDialog(false)}>
+								Batal
+							</Button>
+							<Button
+								disabled={copyMutation.isPending}
+								onClick={() => {
+									const t = parseInt(copyTargetYear, 10);
+									if (t >= 2020 && t <= 2099) {
+										copyMutation.mutate({
+											sourceYear: currentData.year,
+											targetYear: t,
+											overwrite: copyOverwrite,
+										});
+									}
+								}}>
+								{copyMutation.isPending ? (
+									<Loader2 className="h-4 w-4 mr-1 animate-spin" />
+								) : (
+									<Copy className="h-4 w-4 mr-1" />
+								)}
+								Copy
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
+function SlotUploader({
+	year,
+	slot,
+	currentUrl,
+	canEdit,
+	onUploaded,
+}: {
+	year: number;
+	slot: string;
+	currentUrl: string;
+	canEdit: boolean;
+	onUploaded: () => void;
+}) {
+	const { toast } = useToast();
+	const fileRef = useRef<HTMLInputElement>(null);
+	const [uploading, setUploading] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+
+	const handleUpload = async (file: File) => {
+		setUploading(true);
+		try {
+			const form = new FormData();
+			form.append('image', file);
+			const res = await fetch(`/api/home-images/${year}/upload/${slot}`, {
+				method: 'POST',
+				body: form,
+				credentials: 'include',
+			});
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.message || 'Upload gagal');
+			}
+			onUploaded();
+			toast({ title: `${SLOT_LABELS[slot] || slot} berhasil diupload` });
+		} catch (err: any) {
+			toast({
+				title: 'Upload Gagal',
+				description: err.message,
+				variant: 'destructive',
+			});
+		} finally {
+			setUploading(false);
+			if (fileRef.current) fileRef.current.value = '';
+		}
+	};
+
+	const handleDelete = async () => {
+		if (!currentUrl) return;
+		if (!window.confirm(`Hapus gambar untuk ${SLOT_LABELS[slot] || slot}?`)) return;
+		setDeleting(true);
+		try {
+			const res = await fetch(`/api/home-images/${year}/slot/${slot}`, {
+				method: 'DELETE',
+				credentials: 'include',
+			});
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.message || 'Hapus gagal');
+			}
+			onUploaded();
+			toast({ title: `${SLOT_LABELS[slot] || slot} berhasil dihapus` });
+		} catch (err: any) {
+			toast({
+				title: 'Hapus Gagal',
+				description: err.message,
+				variant: 'destructive',
+			});
+		} finally {
+			setDeleting(false);
+		}
+	};
+
+	const handleDrop = (e: React.DragEvent) => {
+		e.preventDefault();
+		const file = e.dataTransfer.files[0];
+		if (file && file.type.startsWith('image/')) handleUpload(file);
+	};
+
+	return (
+		<div className="space-y-2">
+			<Label className="text-sm font-medium">
+				{SLOT_LABELS[slot] || slot}
+			</Label>
+			<div
+				className="relative border-2 border-dashed rounded-lg overflow-hidden group"
+				onDragOver={(e) => e.preventDefault()}
+				onDrop={canEdit ? handleDrop : undefined}>
+				{currentUrl ? (
+					<img
+						src={`${currentUrl}?t=${Date.now()}`}
+						alt={slot}
+						className="w-full h-32 object-cover bg-muted"
+					/>
+				) : (
+					<div className="w-full h-32 bg-muted flex items-center justify-center text-muted-foreground text-sm">
+						Belum ada gambar
+					</div>
+				)}
+				{canEdit && (
+					<div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+						{uploading || deleting ? (
+							<Loader2 className="h-6 w-6 text-white animate-spin" />
+						) : (
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									className="flex items-center gap-1.5 text-white text-sm font-medium bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 hover:bg-white/30 transition"
+									onClick={() => fileRef.current?.click()}>
+									<Upload className="h-4 w-4" />
+									Upload
+								</button>
+								{currentUrl && (
+									<button
+										type="button"
+										className="flex items-center gap-1.5 text-white text-sm font-medium bg-red-500/70 backdrop-blur-sm rounded-lg px-3 py-1.5 hover:bg-red-500/85 transition"
+										onClick={handleDelete}>
+										<Trash2 className="h-4 w-4" />
+										Hapus
+									</button>
+								)}
+							</div>
+						)}
+					</div>
+				)}
+			</div>
+			<input
+				ref={fileRef}
+				type="file"
+				accept="image/*"
+				className="hidden"
+				onChange={(e) => {
+					const file = e.target.files?.[0];
+					if (file) handleUpload(file);
+				}}
+			/>
 		</div>
 	);
 }

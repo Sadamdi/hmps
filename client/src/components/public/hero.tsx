@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { LocalBannerFull } from '../LocalAssets';
 
 interface HeroProps {
@@ -39,6 +39,46 @@ interface Settings {
 	};
 }
 
+interface HomeImagesData {
+	year: number;
+	isActive: boolean;
+	desktopMode: 'bennerfull' | 'combined';
+	bennerfull: string;
+	orang: string;
+	banners: {
+		public_relation: string;
+		technopreneurship: string;
+		intelektual: string;
+		wakil_ketua: string;
+		ketua: string;
+		medinfo: string;
+		religius: string;
+		senor: string;
+	};
+}
+
+const DEFAULT_BANNERS = {
+	ketua: '/attached_assets/benner/ketua.webp',
+	wakil_ketua: '/attached_assets/benner/wakil.webp',
+	intelektual: '/attached_assets/benner/intelek.webp',
+	public_relation: '/attached_assets/benner/pr.webp',
+	technopreneurship: '/attached_assets/benner/techno.webp',
+	senor: '/attached_assets/benner/senor.webp',
+	medinfo: '/attached_assets/benner/medinfo.webp',
+	religius: '/attached_assets/benner/religius.webp',
+};
+
+const MOBILE_BANNER_ORDER = [
+	'public_relation',
+	'technopreneurship',
+	'intelektual',
+	'wakil_ketua',
+	'ketua',
+	'medinfo',
+	'religius',
+	'senor',
+] as const;
+
 export default function Hero({
 	scrollToSection,
 	assetsLoaded = false,
@@ -66,6 +106,13 @@ export default function Hero({
 		refetchOnMount: false,
 	});
 
+	const { data: homeImages } = useQuery<HomeImagesData>({
+		queryKey: ['/api/home-images/active'],
+		staleTime: 5 * 60 * 1000,
+		refetchOnWindowFocus: false,
+		refetchOnMount: false,
+	});
+
 	// Get real-time stats for mobile stats section
 	const { data: stats } = useQuery({
 		queryKey: ['/api/stats'],
@@ -78,11 +125,9 @@ export default function Hero({
 				organizationMembers: number;
 			}>;
 		},
-		// Refresh every 30 seconds for public stats
 		refetchInterval: 60000,
 		refetchOnWindowFocus: false,
 		staleTime: 60 * 1000,
-		// Default fallback data
 		placeholderData: {
 			articles: 50,
 			libraryItems: 100,
@@ -90,17 +135,18 @@ export default function Hero({
 		},
 	});
 
-	// Mobile banner images from benner folder
-	const mobileBanners = [
-		'/attached_assets/benner/ketua.webp',
-		'/attached_assets/benner/wakil.webp',
-		'/attached_assets/benner/intelek.webp',
-		'/attached_assets/benner/pr.webp',
-		'/attached_assets/benner/techno.webp',
-		'/attached_assets/benner/senor.webp',
-		'/attached_assets/benner/medinfo.webp',
-		'/attached_assets/benner/religius.webp',
-	];
+	const desktopMode = homeImages?.desktopMode || 'bennerfull';
+	const bennerfullSrc =
+		homeImages?.bennerfull || '/attached_assets/general/bennerfull.webp';
+	const orangSrc =
+		homeImages?.orang || '/attached_assets/general/orang.webp';
+
+	const mobileBanners = useMemo(() => {
+		const b = homeImages?.banners;
+		return MOBILE_BANNER_ORDER.map(
+			(key) => (b && b[key]) || DEFAULT_BANNERS[key],
+		);
+	}, [homeImages?.banners]);
 
 	const TOP_THRESHOLD = 80;
 
@@ -263,10 +309,30 @@ export default function Hero({
 						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
 					}}>
-					<LocalBannerFull
-						alt="Banner"
-						className="w-full h-full object-cover"
-					/>
+					{desktopMode === 'combined' ? (
+						<div className="flex w-full h-full">
+							{MOBILE_BANNER_ORDER.map((key) => {
+								const b = homeImages?.banners;
+								const src = (b && b[key]) || DEFAULT_BANNERS[key];
+								return (
+									<img
+										key={key}
+										src={src}
+										alt={key}
+										className="h-full flex-1 object-cover min-w-0"
+										loading="eager"
+										decoding="async"
+									/>
+								);
+							})}
+						</div>
+					) : (
+						<LocalBannerFull
+							alt="Banner"
+							className="w-full h-full object-cover"
+							src={bennerfullSrc}
+						/>
+					)}
 					{/* Fog belakang — full height, tipis */}
 					<div
 						className="absolute bottom-0 w-full h-full pointer-events-none"
@@ -345,7 +411,7 @@ export default function Hero({
 					}}>
 					<div style={{ transform: 'translateZ(0)', width: '100%', height: '100%' }}>
 						<img
-							src="/attached_assets/general/orang.webp"
+							src={orangSrc}
 							alt="Orang"
 							className="w-full h-full object-contain"
 							loading="eager"

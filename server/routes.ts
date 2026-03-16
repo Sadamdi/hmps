@@ -19,6 +19,7 @@ import {
 } from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
 import chatRouter from './routes/chat';
+import { isProcessableImage, processImage } from './image-processor';
 import {
 	cleanupArticleImages,
 	deleteFile,
@@ -2583,6 +2584,276 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		}
+	);
+
+	// ── Home Images routes ──
+
+	// Seed default data on startup
+	mongoStorage.seedDefaultHomeImages().catch((err: any) =>
+		console.warn('HomeImages seed skipped:', err.message),
+	);
+
+	// Public: get active year images
+	app.get('/api/home-images/active', async (_req, res) => {
+		try {
+			const data = await mongoStorage.getActiveHomeImages();
+			res.json(data || {});
+		} catch (error) {
+			console.error('Get active home images error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Auth: list all years
+	app.get('/api/home-images', authenticate, async (_req, res) => {
+		try {
+			const list = await mongoStorage.getAllHomeImages();
+			res.json(list);
+		} catch (error) {
+			console.error('Get all home images error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Create a new year
+	app.post(
+		'/api/home-images',
+		authenticate,
+		requirePermission('settings.edit'),
+		async (req, res) => {
+			try {
+				const { year } = req.body;
+				if (!year || typeof year !== 'number') {
+					return res.status(400).json({ message: 'Valid year is required' });
+				}
+				const existing = await mongoStorage.getHomeImagesByYear(year);
+				if (existing) {
+					return res.status(409).json({ message: `Year ${year} already exists` });
+				}
+				const doc = await mongoStorage.createHomeImages({ year, isActive: false });
+				res.status(201).json(doc);
+			} catch (error) {
+				console.error('Create home images error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	// Update year metadata (desktopMode etc.)
+	app.put(
+		'/api/home-images/:year',
+		authenticate,
+		requirePermission('settings.edit'),
+		async (req, res) => {
+			try {
+				const year = parseInt(req.params.year, 10);
+				const doc = await mongoStorage.updateHomeImages(year, req.body);
+				if (!doc) return res.status(404).json({ message: 'Year not found' });
+				res.json(doc);
+			} catch (error) {
+				console.error('Update home images error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	// Delete a year
+	app.delete(
+		'/api/home-images/:year',
+		authenticate,
+		requirePermission('settings.edit'),
+		async (req, res) => {
+			try {
+				const year = parseInt(req.params.year, 10);
+				const doc = await mongoStorage.getHomeImagesByYear(year);
+				if (!doc) return res.status(404).json({ message: 'Year not found' });
+				if (doc.isActive) {
+					return res.status(400).json({ message: 'Cannot delete the active year' });
+				}
+				await mongoStorage.deleteHomeImages(year);
+				res.json({ message: 'Deleted' });
+			} catch (error) {
+				console.error('Delete home images error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	// Set active year
+	app.post(
+		'/api/home-images/:year/set-active',
+		authenticate,
+		requirePermission('settings.edit'),
+		async (req, res) => {
+			try {
+				const year = parseInt(req.params.year, 10);
+				const doc = await mongoStorage.setActiveHomeImages(year);
+				if (!doc) return res.status(404).json({ message: 'Year not found' });
+				res.json(doc);
+			} catch (error) {
+				console.error('Set active home images error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	// Copy images from one year to another
+	app.post(
+		'/api/home-images/:year/copy',
+		authenticate,
+		requirePermission('settings.edit'),
+		async (req, res) => {
+			try {
+				const sourceYear = parseInt(req.params.year, 10);
+				const { targetYear, overwrite } = req.body;
+				if (!targetYear || typeof targetYear !== 'number') {
+					return res.status(400).json({ message: 'Valid targetYear is required' });
+				}
+				const doc = await mongoStorage.copyHomeImages(
+					sourceYear,
+					targetYear,
+					!!overwrite,
+				);
+				res.json(doc);
+			} catch (error: any) {
+				console.error('Copy home images error:', error);
+				res.status(400).json({ message: error.message || 'Copy failed' });
+			}
+		},
+	);
+
+	// Upload image for a specific slot
+	app.post(
+		'/api/home-images/:year/upload/:slot',
+		authenticate,
+		requirePermission('settings.edit'),
+		uploadLimiter,
+		uploadMiddleware.single('image'),
+		async (req, res) => {
+			try {
+				const year = parseInt(req.params.year, 10);
+				const slot = req.params.slot;
+
+				const validSlots = [
+					'bennerfull',
+					'orang',
+					'public_relation',
+					'technopreneurship',
+					'intelektual',
+					'wakil_ketua',
+					'ketua',
+					'medinfo',
+					'religius',
+					'senor',
+				];
+				if (!validSlots.includes(slot)) {
+					return res.status(400).json({ message: `Invalid slot: ${slot}` });
+				}
+
+				const existing = await mongoStorage.getHomeImagesByYear(year);
+				if (!existing) {
+					return res.status(404).json({ message: 'Year not found' });
+				}
+
+				if (!req.file) {
+					return res.status(400).json({ message: 'Image file is required' });
+				}
+
+				if (!isProcessableImage(req.file.mimetype)) {
+					return res.status(400).json({ message: 'File type not supported' });
+				}
+
+				// Process image → webp
+				const processedBuffer = await processImage(req.file.buffer, {
+					quality: 82,
+					maxWidth: slot === 'bennerfull' ? 3840 : slot === 'orang' ? 3840 : 1920,
+					maxHeight: slot === 'bennerfull' ? 2160 : slot === 'orang' ? 2160 : 2400,
+					format: 'webp',
+				});
+
+				// Save to attached_assets/benner/{year}/
+				const assetsDir = path.join(process.cwd(), 'attached_assets', 'benner', String(year));
+				if (!fs.existsSync(assetsDir)) {
+					fs.mkdirSync(assetsDir, { recursive: true });
+				}
+				const fileName = `${slot}.webp`;
+				const filePath = path.join(assetsDir, fileName);
+				// Hapus file lama jika memang file milik slot+tahun ini (biar hemat storage)
+				try {
+					const resolvedBase = path.resolve(assetsDir);
+					const resolvedFile = path.resolve(filePath);
+					if (resolvedFile.startsWith(resolvedBase) && fs.existsSync(filePath)) {
+						fs.unlinkSync(filePath);
+					}
+				} catch (e) {
+					console.warn('Could not delete old home image file:', e);
+				}
+				fs.writeFileSync(filePath, processedBuffer);
+
+				const url = `/attached_assets/benner/${year}/${fileName}`;
+				const doc = await mongoStorage.updateHomeImageSlot(year, slot, url);
+				res.json(doc);
+			} catch (error) {
+				console.error('Upload home image error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	// Delete image for a specific slot (clear DB + delete file if owned)
+	app.delete(
+		'/api/home-images/:year/slot/:slot',
+		authenticate,
+		requirePermission('settings.edit'),
+		async (req, res) => {
+			try {
+				const year = parseInt(req.params.year, 10);
+				const slot = req.params.slot;
+
+				const validSlots = [
+					'bennerfull',
+					'orang',
+					'public_relation',
+					'technopreneurship',
+					'intelektual',
+					'wakil_ketua',
+					'ketua',
+					'medinfo',
+					'religius',
+					'senor',
+				];
+				if (!validSlots.includes(slot)) {
+					return res.status(400).json({ message: `Invalid slot: ${slot}` });
+				}
+
+				const existing = await mongoStorage.getHomeImagesByYear(year);
+				if (!existing) return res.status(404).json({ message: 'Year not found' });
+
+				const assetsDir = path.join(
+					process.cwd(),
+					'attached_assets',
+					'benner',
+					String(year),
+				);
+				const fileName = `${slot}.webp`;
+				const filePath = path.join(assetsDir, fileName);
+				try {
+					const resolvedBase = path.resolve(assetsDir);
+					const resolvedFile = path.resolve(filePath);
+					if (resolvedFile.startsWith(resolvedBase) && fs.existsSync(filePath)) {
+						fs.unlinkSync(filePath);
+					}
+				} catch (e) {
+					console.warn('Could not delete home image file:', e);
+				}
+
+				const doc = await mongoStorage.updateHomeImageSlot(year, slot, '');
+				res.json(doc);
+			} catch (error) {
+				console.error('Delete home image slot error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
 	);
 
 	// Middleware Settings endpoints

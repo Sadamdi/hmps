@@ -4,13 +4,14 @@ interface LocalAssetProps {
 	className?: string;
 	alt?: string;
 	fallback?: React.ReactNode;
+	src?: string;
 }
 
-// Komponen untuk banner dari local path
 export function LocalBannerFull({
 	className = '',
 	alt = 'Banner',
 	fallback,
+	src,
 }: LocalAssetProps) {
 	const [imageError, setImageError] = useState(false);
 
@@ -34,7 +35,7 @@ export function LocalBannerFull({
 
 	return (
 		<img
-			src="/attached_assets/general/bennerfull.webp"
+			src={src || '/attached_assets/general/bennerfull.webp'}
 			alt={alt}
 			className={className}
 			onError={handleImageError}

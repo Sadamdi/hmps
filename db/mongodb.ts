@@ -359,7 +359,36 @@ const divisionSchema = new mongoose.Schema({
 	updatedAt: { type: Date, default: Date.now },
 });
 
+// Model HomeImages — per-year home page banner/image sets
+const homeImagesSchema = new mongoose.Schema(
+	{
+		year: { type: Number, required: true, unique: true },
+		isActive: { type: Boolean, default: false },
+		desktopMode: {
+			type: String,
+			enum: ['bennerfull', 'combined'],
+			default: 'bennerfull',
+		},
+		bennerfull: { type: String, default: '' },
+		orang: { type: String, default: '' },
+		banners: {
+			public_relation: { type: String, default: '' },
+			technopreneurship: { type: String, default: '' },
+			intelektual: { type: String, default: '' },
+			wakil_ketua: { type: String, default: '' },
+			ketua: { type: String, default: '' },
+			medinfo: { type: String, default: '' },
+			religius: { type: String, default: '' },
+			senor: { type: String, default: '' },
+		},
+	},
+	{ timestamps: true },
+);
+
 // Create models
+const HomeImages =
+	mongoose.models.HomeImages ||
+	mongoose.model('HomeImages', homeImagesSchema);
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Article =
 	mongoose.models.Article || mongoose.model('Article', articleSchema);
@@ -387,6 +416,7 @@ export const Division =
 export {
 	Article,
 	connectDB,
+	HomeImages,
 	Library,
 	Organization,
 	Permission,

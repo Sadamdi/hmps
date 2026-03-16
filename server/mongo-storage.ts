@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import {
 	Article,
 	Division,
+	HomeImages,
 	Library,
 	Organization,
 	Permission,
@@ -553,6 +554,122 @@ async function resetSettings(): Promise<any> {
 	return await defaultSettings.save();
 }
 
+// ── HomeImages functions ──
+
+async function getAllHomeImages() {
+	return await HomeImages.find().sort({ year: -1 });
+}
+
+async function getActiveHomeImages() {
+	const active = await HomeImages.findOne({ isActive: true });
+	if (active) return active;
+	// Fallback: return the latest year
+	return await HomeImages.findOne().sort({ year: -1 });
+}
+
+async function getHomeImagesByYear(year: number) {
+	return await HomeImages.findOne({ year });
+}
+
+async function createHomeImages(data: any) {
+	const doc = new HomeImages(data);
+	return await doc.save();
+}
+
+async function updateHomeImages(year: number, data: any) {
+	return await HomeImages.findOneAndUpdate({ year }, { $set: data }, { new: true });
+}
+
+async function deleteHomeImages(year: number) {
+	return await HomeImages.findOneAndDelete({ year });
+}
+
+async function setActiveHomeImages(year: number) {
+	await HomeImages.updateMany({}, { $set: { isActive: false } });
+	return await HomeImages.findOneAndUpdate(
+		{ year },
+		{ $set: { isActive: true } },
+		{ new: true },
+	);
+}
+
+async function copyHomeImages(
+	sourceYear: number,
+	targetYear: number,
+	overwrite: boolean,
+) {
+	const source = await HomeImages.findOne({ year: sourceYear });
+	if (!source) throw new Error(`Source year ${sourceYear} not found`);
+
+	const existing = await HomeImages.findOne({ year: targetYear });
+	if (existing && !overwrite)
+		throw new Error(`Target year ${targetYear} already exists`);
+
+	const copyData = {
+		year: targetYear,
+		isActive: false,
+		desktopMode: source.desktopMode,
+		bennerfull: source.bennerfull,
+		orang: source.orang,
+		banners: source.banners ? { ...source.banners.toObject() } : {},
+	};
+
+	if (existing) {
+		return await HomeImages.findOneAndUpdate(
+			{ year: targetYear },
+			{ $set: copyData },
+			{ new: true },
+		);
+	}
+	return await createHomeImages(copyData);
+}
+
+async function updateHomeImageSlot(year: number, slot: string, url: string) {
+	const bannerSlots = [
+		'public_relation',
+		'technopreneurship',
+		'intelektual',
+		'wakil_ketua',
+		'ketua',
+		'medinfo',
+		'religius',
+		'senor',
+	];
+
+	const updateField = bannerSlots.includes(slot)
+		? { [`banners.${slot}`]: url }
+		: { [slot]: url };
+
+	return await HomeImages.findOneAndUpdate(
+		{ year },
+		{ $set: updateField },
+		{ new: true },
+	);
+}
+
+async function seedDefaultHomeImages() {
+	const existing = await HomeImages.findOne({ year: 2025 });
+	if (existing) return existing;
+
+	return await createHomeImages({
+		year: 2025,
+		isActive: true,
+		desktopMode: 'bennerfull',
+		bennerfull: '/attached_assets/general/bennerfull.webp',
+		orang: '/attached_assets/general/orang.webp',
+		banners: {
+			ketua: '/attached_assets/benner/ketua.webp',
+			wakil_ketua: '/attached_assets/benner/wakil.webp',
+			intelektual: '/attached_assets/benner/intelek.webp',
+			public_relation: '/attached_assets/benner/pr.webp',
+			technopreneurship: '/attached_assets/benner/techno.webp',
+			senor: '/attached_assets/benner/senor.webp',
+			medinfo: '/attached_assets/benner/medinfo.webp',
+			religius: '/attached_assets/benner/religius.webp',
+		},
+	});
+}
+
 // Define MongoDB-specific storage functions
 const mongoDBStorage = {
 	// User functions
@@ -608,6 +725,18 @@ const mongoDBStorage = {
 	getSettings,
 	updateSettings,
 	resetSettings,
+
+	// HomeImages functions
+	getAllHomeImages,
+	getActiveHomeImages,
+	getHomeImagesByYear,
+	createHomeImages,
+	updateHomeImages,
+	deleteHomeImages,
+	setActiveHomeImages,
+	copyHomeImages,
+	updateHomeImageSlot,
+	seedDefaultHomeImages,
 
 	// Role and Permission functions
 	getAllRoles,
