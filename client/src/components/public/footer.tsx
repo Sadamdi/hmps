@@ -48,14 +48,14 @@ export default function Footer() {
 	};
 
 	return (
-		<footer className="bg-gradient-to-b from-[#07122d] to-[#050b1c] text-slate-100 py-12 border-t border-border/60">
+		<footer className="bg-background dark:bg-gradient-to-b dark:from-[#07122d] dark:to-[#050b1c] text-foreground dark:text-slate-100 py-12 border-t border-border">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div className="grid md:grid-cols-4 sm:grid-cols-2 gap-8">
 				<div
 					data-aos="fade-up"
 					data-aos-delay="100">
 					<h3 className="text-lg font-semibold mb-4">Lokasi</h3>
-					<div className="w-full h-48 md:h-56 lg:h-64 rounded-lg overflow-hidden border border-slate-700/60 shadow-md">
+					<div className="w-full h-48 md:h-56 lg:h-64 rounded-lg overflow-hidden border border-border shadow-md">
 						<iframe
 							title="Lokasi Fakultas Sains dan Teknologi UIN Malang"
 							src={
@@ -77,11 +77,11 @@ export default function Footer() {
 						data-aos="fade-up"
 						data-aos-delay="200">
 						<h3 className="text-lg font-semibold mb-4">Kontak</h3>
-						<ul className="space-y-2 text-slate-300/80">
+						<ul className="space-y-2 text-muted-foreground dark:text-slate-300/80">
 							<li className="flex items-start">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5 mr-2 text-slate-300"
+									className="h-5 w-5 mr-2 text-foreground/70 dark:text-slate-300"
 									fill="none"
 									viewBox="0 0 24 24"
 									stroke="currentColor">
@@ -97,7 +97,7 @@ export default function Footer() {
 							<li className="flex items-start">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
-									className="h-5 w-5 mr-2 text-slate-300"
+									className="h-5 w-5 mr-2 text-foreground/70 dark:text-slate-300 shrink-0 mt-0.5"
 									fill="none"
 									viewBox="0 0 24 24"
 									stroke="currentColor">
@@ -123,7 +123,7 @@ export default function Footer() {
 						data-aos="fade-up"
 						data-aos-delay="300">
 						<h3 className="text-lg font-semibold mb-4">Tautan</h3>
-						<ul className="space-y-2 text-slate-300/80">
+						<ul className="space-y-2 text-muted-foreground dark:text-slate-300/80">
 							<li>
 								<a
 									href={links.uinMalang}
@@ -172,7 +172,7 @@ export default function Footer() {
 								href={socialLinks.instagram}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-slate-300/80 hover:text-primary transition-colors">
+								className="text-muted-foreground dark:text-slate-300/80 hover:text-primary transition-colors">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-6 w-6"
@@ -185,7 +185,7 @@ export default function Footer() {
 								href={socialLinks.tiktok}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-slate-300/80 hover:text-primary transition-colors">
+								className="text-muted-foreground dark:text-slate-300/80 hover:text-primary transition-colors">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-6 w-6"
@@ -198,7 +198,7 @@ export default function Footer() {
 								href={socialLinks.youtube}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-slate-300/80 hover:text-primary transition-colors">
+								className="text-muted-foreground dark:text-slate-300/80 hover:text-primary transition-colors">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-6 w-6"
@@ -211,7 +211,7 @@ export default function Footer() {
 								href={socialLinks.facebook}
 								target="_blank"
 								rel="noopener noreferrer"
-								className="text-slate-300/80 hover:text-primary transition-colors">
+								className="text-muted-foreground dark:text-slate-300/80 hover:text-primary transition-colors">
 								<svg
 									xmlns="http://www.w3.org/2000/svg"
 									className="h-6 w-6"
@@ -225,7 +225,7 @@ export default function Footer() {
 				</div>
 
 				<div
-					className="mt-12 pt-8 border-t border-border text-center text-slate-300/70 text-sm"
+					className="mt-12 pt-8 border-t border-border text-center text-muted-foreground dark:text-slate-300/70 text-sm"
 					data-aos="fade-up"
 					data-aos-delay="500">
 					<p>{footerText}</p>
