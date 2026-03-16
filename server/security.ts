@@ -92,12 +92,12 @@ export const securityMiddleware = {
 				defaultSrc: ["'self'"],
 				styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tiny.cloud'],
 				scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tiny.cloud'],
-				imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
-				connectSrc: ["'self'", 'https://cdn.tiny.cloud'],
+				imgSrc: ["'self'", 'data:', 'https:', 'blob:', 'https://*.google.com', 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://*.ggpht.com'],
+				connectSrc: ["'self'", 'https://cdn.tiny.cloud', 'https://*.googleapis.com'],
 				fontSrc: ["'self'", 'https://fonts.gstatic.com'],
 				objectSrc: ["'none'"],
 				mediaSrc: ["'self'", 'data:', 'blob:'],
-				frameSrc: ["'none'"],
+				frameSrc: ["'self'", 'https://www.google.com', 'https://maps.google.com'],
 			},
 		},
 		hsts: {
@@ -265,7 +265,7 @@ export const securityLogger = (req: any, res: any, next: any) => {
 	console.log(
 		`✅ ${req.method} ${req.path} - ${res.statusCode} (${
 			Date.now() - start
-		}ms) - IP: ${ip}`
+		}ms) - IP: ${ip}`,
 	);
 
 	// Log suspicious activity
@@ -275,7 +275,7 @@ export const securityLogger = (req: any, res: any, next: any) => {
 		req.path.includes('upload')
 	) {
 		console.log(
-			`🔍 Security Check: ${req.method} ${req.path} from IP: ${ip}, User-Agent: ${userAgent}`
+			`🔍 Security Check: ${req.method} ${req.path} from IP: ${ip}, User-Agent: ${userAgent}`,
 		);
 	}
 

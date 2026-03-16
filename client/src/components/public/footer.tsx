@@ -51,18 +51,27 @@ export default function Footer() {
 		<footer className="bg-gradient-to-b from-[#07122d] to-[#050b1c] text-slate-100 py-12 border-t border-border/60">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div className="grid md:grid-cols-4 sm:grid-cols-2 gap-8">
-					<div
-						data-aos="fade-up"
-						data-aos-delay="100">
-						<h3 className="text-lg font-semibold mb-4">
-							Tentang Himatif Encoder Teknik Informatika
-						</h3>
-						<p className="text-slate-300/80">
-							Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim
-							Malang
-						</p>
-						<p className="mt-4 text-slate-300/80">Salam Satu Saudara Informatika</p>
+				<div
+					data-aos="fade-up"
+					data-aos-delay="100">
+					<h3 className="text-lg font-semibold mb-4">Lokasi</h3>
+					<div className="w-full h-48 md:h-56 lg:h-64 rounded-lg overflow-hidden border border-slate-700/60 shadow-md">
+						<iframe
+							title="Lokasi Fakultas Sains dan Teknologi UIN Malang"
+							src={
+								'https://www.google.com/maps?q=' +
+								encodeURIComponent(
+									'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang',
+								) +
+								'&output=embed'
+							}
+							loading="lazy"
+							referrerPolicy="no-referrer-when-downgrade"
+							className="w-full h-full border-0"
+							allowFullScreen
+						/>
 					</div>
+				</div>
 
 					<div
 						data-aos="fade-up"
