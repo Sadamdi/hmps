@@ -812,19 +812,6 @@ async function deleteDivision(id: string) {
 // Initialize default permissions
 async function initializeDefaultPermissions() {
 	try {
-		const existingPermissions = await Permission.countDocuments();
-		if (existingPermissions > 0) {
-			const deleteOthersExists = await Permission.findOne({
-				name: 'articles.delete_others',
-			});
-			if (deleteOthersExists) {
-				return;
-			} else {
-				// Clear existing permissions and re-initialize
-				await Permission.deleteMany({});
-			}
-		}
-
 		const defaultPermissions = [
 			// Dashboard permissions
 			{
@@ -1096,23 +1083,62 @@ async function initializeDefaultPermissions() {
 				category: 'content',
 			},
 
-			// Middleware management permissions (Owner only)
-			{
-				name: 'middleware.manage',
-				displayName: 'Manage Middleware',
-				description:
-					'Mengatur pengaktifan/nonaktifkan middleware (API protection, DDOS, SQL injection)',
-				category: 'system',
-			},
-		];
+		// Middleware management permissions (Owner only)
+		{
+			name: 'middleware.manage',
+			displayName: 'Manage Middleware',
+			description:
+				'Mengatur pengaktifan/nonaktifkan middleware (API protection, DDOS, SQL injection)',
+			category: 'system',
+		},
 
-		await Permission.insertMany(defaultPermissions);
-		console.log(
-			`✅ Initialized ${defaultPermissions.length} default permissions`
-		);
+		// Profil permissions
+		{
+			name: 'profil.view',
+			displayName: 'View Profil',
+			description: 'Melihat konten halaman profil',
+			category: 'profil',
+		},
+		{
+			name: 'profil.edit',
+			displayName: 'Edit Profil',
+			description: 'Mengedit konten halaman profil',
+			category: 'profil',
+		},
 
-		// Force update owner role with all permissions
-		const allPermissionNames = defaultPermissions.map((p: any) => p.name);
+		// Kelembagaan permissions
+		{
+			name: 'kelembagaan.view',
+			displayName: 'View Kelembagaan',
+			description: 'Melihat konten kelembagaan',
+			category: 'kelembagaan',
+		},
+		{
+			name: 'kelembagaan.edit',
+			displayName: 'Edit Kelembagaan',
+			description: 'Mengedit konten kelembagaan',
+			category: 'kelembagaan',
+		},
+	];
+
+		// Upsert: tambahkan permission yang belum ada (tidak hapus yang sudah ada)
+		let addedCount = 0;
+		for (const perm of defaultPermissions) {
+			const exists = await Permission.findOne({ name: perm.name });
+			if (!exists) {
+				await Permission.create({ ...perm, isActive: true });
+				addedCount++;
+			}
+		}
+		if (addedCount > 0) {
+			console.log(`✅ Added ${addedCount} new permissions`);
+		} else {
+			console.log('✅ All permissions already exist, skipping insert');
+		}
+
+		// Force update owner role with ALL permissions (including newly added ones)
+		const allPermissionsInDb = await Permission.find({ isActive: true });
+		const allPermissionNames = allPermissionsInDb.map((p: any) => p.name);
 		await Role.updateOne(
 			{ name: 'owner' },
 			{
@@ -1123,16 +1149,55 @@ async function initializeDefaultPermissions() {
 		console.log(
 			`🔧 Updated owner role with ${allPermissionNames.length} permissions`
 		);
-		console.log(
-			`🔍 Owner has articles.delete_others: ${allPermissionNames.includes(
-				'articles.delete_others'
-			)}`
-		);
-		console.log(
-			`🔍 Owner has middleware.manage: ${allPermissionNames.includes(
-				'middleware.manage'
-			)}`
-		);
+
+		// Migrasi: tambahkan profil.* dan kelembagaan.* ke role yang punya content.* atau organization.*
+		// Ini memastikan user eksisting langsung mendapat akses ke fitur baru
+		const rolesToMigrate = await Role.find({ name: { $ne: 'owner' } });
+		let migratedCount = 0;
+		for (const role of rolesToMigrate) {
+			const perms: string[] = role.permissions || [];
+			const hasContent = perms.some((p: string) => p.startsWith('content.'));
+			const hasOrg = perms.some((p: string) => p.startsWith('organization.'));
+			const hasProfil = perms.some((p: string) => p.startsWith('profil.'));
+			const hasKelembagaan = perms.some((p: string) => p.startsWith('kelembagaan.'));
+
+			const newPerms = [...perms];
+			let changed = false;
+
+			if (hasContent && !hasProfil) {
+				// Jika punya content.edit, tambahkan profil.edit juga
+				if (perms.includes('content.edit')) {
+					newPerms.push('profil.view', 'profil.edit');
+				} else {
+					newPerms.push('profil.view');
+				}
+				changed = true;
+			}
+
+			if ((hasContent || hasOrg) && !hasKelembagaan) {
+				// Jika punya content.edit atau organization.edit, tambahkan kelembagaan.edit
+				if (perms.includes('content.edit') || perms.includes('organization.edit')) {
+					newPerms.push('kelembagaan.view', 'kelembagaan.edit');
+				} else {
+					newPerms.push('kelembagaan.view');
+				}
+				changed = true;
+			}
+
+			if (changed) {
+				// Deduplicate
+				const uniquePerms = newPerms.filter((p, i, arr) => arr.indexOf(p) === i);
+				await Role.updateOne(
+					{ _id: role._id },
+					{ permissions: uniquePerms, updatedAt: new Date() }
+				);
+				migratedCount++;
+				console.log(`🔄 Migrated permissions for role: ${role.name}`);
+			}
+		}
+		if (migratedCount > 0) {
+			console.log(`✅ Migrated ${migratedCount} roles with new profil/kelembagaan permissions`);
+		}
 	} catch (error) {
 		console.error('Error initializing default permissions:', error);
 	}
@@ -1194,23 +1259,27 @@ async function initializeDefaultRoles() {
 					'library.create',
 					'library.edit',
 					'library.view_others',
-					'organization.view',
-					'organization.edit',
-					'organization.manage_periods',
-					'organization.manage_positions',
-					'organization.manage_members',
-					'divisions.view',
-					'divisions.edit',
-					'settings.view',
-					'content.view',
-					'content.edit',
-					'content.view_others',
-				],
-				isActive: true,
-				createdBy: null,
-			},
-			{
-				name: 'vice_chair',
+				'organization.view',
+				'organization.edit',
+				'organization.manage_periods',
+				'organization.manage_positions',
+				'organization.manage_members',
+				'divisions.view',
+				'divisions.edit',
+				'settings.view',
+				'content.view',
+				'content.edit',
+				'content.view_others',
+				'profil.view',
+				'profil.edit',
+				'kelembagaan.view',
+				'kelembagaan.edit',
+			],
+			isActive: true,
+			createdBy: null,
+		},
+		{
+			name: 'vice_chair',
 				displayName: 'Vice Chair',
 				description: 'Vice chairperson with limited management access',
 				level: 4,
@@ -1228,17 +1297,19 @@ async function initializeDefaultRoles() {
 					'library.create',
 					'library.edit',
 					'library.view_others',
-					'organization.view',
-					'divisions.view',
-					'settings.view',
-					'content.view',
-					'content.view_others',
-				],
-				isActive: true,
-				createdBy: null,
-			},
-			{
-				name: 'bph',
+				'organization.view',
+				'divisions.view',
+				'settings.view',
+				'content.view',
+				'content.view_others',
+				'profil.view',
+				'kelembagaan.view',
+			],
+			isActive: true,
+			createdBy: null,
+		},
+		{
+			name: 'bph',
 				displayName: 'BPH',
 				description: 'Badan Pengurus Harian',
 				level: 5,
@@ -1256,17 +1327,19 @@ async function initializeDefaultRoles() {
 					'library.create',
 					'library.edit',
 					'library.view_others',
-					'organization.view',
-					'divisions.view',
-					'settings.view',
-					'content.view',
-					'content.view_others',
-				],
-				isActive: true,
-				createdBy: null,
-			},
-			{
-				name: 'division_head',
+				'organization.view',
+				'divisions.view',
+				'settings.view',
+				'content.view',
+				'content.view_others',
+				'profil.view',
+				'kelembagaan.view',
+			],
+			isActive: true,
+			createdBy: null,
+		},
+		{
+			name: 'division_head',
 				displayName: 'Division Head',
 				description: 'Division head with basic access',
 				level: 6,
@@ -1283,18 +1356,20 @@ async function initializeDefaultRoles() {
 					'library.create',
 					'library.edit',
 					'library.view_others',
-					'organization.view',
-					'divisions.view',
-					'settings.view',
-					'content.view',
-					'content.view_others',
-				],
-				isActive: true,
-				createdBy: null,
-			},
-		];
+				'organization.view',
+				'divisions.view',
+				'settings.view',
+				'content.view',
+				'content.view_others',
+				'profil.view',
+				'kelembagaan.view',
+			],
+			isActive: true,
+			createdBy: null,
+		},
+	];
 
-		await Role.insertMany(defaultRoles);
+	await Role.insertMany(defaultRoles);
 		console.log(`✅ Initialized ${defaultRoles.length} default roles`);
 	} catch (error) {
 		console.error('Error initializing default roles:', error);

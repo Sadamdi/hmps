@@ -118,16 +118,16 @@ export default function Home() {
 			ticking = true;
 			requestAnimationFrame(() => {
 			const sections = [
-				'home',
-				'about',
-				'vision-mission',
-				'structure',
-				'articles',
-				'library',
+				{ id: 'home', navId: 'home' },
+				{ id: 'about', navId: 'profil' },
+				{ id: 'vision-mission', navId: 'kelembagaan' },
+				{ id: 'structure', navId: 'kelembagaan' },
+				{ id: 'articles', navId: 'articles' },
+				{ id: 'library', navId: 'library' },
 			];
 			const currentPosition = window.scrollY + 200;
 			for (const section of sections) {
-				const element = document.getElementById(section);
+				const element = document.getElementById(section.id);
 				if (!element) continue;
 				const offsetTop = element.offsetTop;
 				const offsetHeight = element.offsetHeight;
@@ -135,7 +135,7 @@ export default function Home() {
 					currentPosition >= offsetTop &&
 					currentPosition < offsetTop + offsetHeight
 				) {
-					setActiveSection(section);
+					setActiveSection(section.navId);
 					break;
 				}
 			}

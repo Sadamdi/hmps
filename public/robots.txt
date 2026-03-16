@@ -17,7 +17,8 @@ Disallow: /node_modules/
 Allow: /artikel/
 Allow: /uploads/articles/
 Allow: /attached_assets/
-Allow: /#tentang-kami
+Allow: /#profil
+Allow: /kelembagaan
 Allow: /#visi-misi
 Allow: /#struktur
 Allow: /#library

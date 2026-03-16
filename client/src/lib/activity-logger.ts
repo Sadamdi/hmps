@@ -86,7 +86,7 @@ export const ActivityTemplates = {
 	libraryItemCreated: (title: string, id?: string) => ({
 		type: 'library' as const,
 		action: 'create' as const,
-		title: 'Item library baru ditambahkan',
+		title: 'Item galeri baru ditambahkan',
 		entityId: id,
 		entityTitle: title,
 	}),
@@ -94,7 +94,7 @@ export const ActivityTemplates = {
 	libraryItemUpdated: (title: string, id?: string) => ({
 		type: 'library' as const,
 		action: 'update' as const,
-		title: 'Item library diperbarui',
+		title: 'Item galeri diperbarui',
 		entityId: id,
 		entityTitle: title,
 	}),
@@ -102,7 +102,7 @@ export const ActivityTemplates = {
 	libraryItemDeleted: (title: string, id?: string) => ({
 		type: 'library' as const,
 		action: 'delete' as const,
-		title: 'Item library dihapus',
+		title: 'Item galeri dihapus',
 		entityId: id,
 		entityTitle: title,
 	}),

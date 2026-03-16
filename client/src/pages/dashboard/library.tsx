@@ -183,7 +183,7 @@ export default function DashboardLibrary() {
 	// Show loading jika permission masih loading
 	if (isPermissionLoading) {
 		return (
-			<DashboardLayout title="Library">
+			<DashboardLayout title="Galeri">
 				<div className="flex items-center justify-center h-64">
 					<div className="flex items-center space-x-2">
 						<Loader2 className="h-6 w-6 animate-spin" />
@@ -201,9 +201,9 @@ export default function DashboardLibrary() {
 	}
 
 	return (
-		<DashboardLayout title="Library">
+		<DashboardLayout title="Galeri">
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-				<h1 className="text-2xl font-bold">Media Library</h1>
+				<h1 className="text-2xl font-bold">Galeri Media</h1>
 				{hasSpecificPermission('library.create') && (
 					<Button onClick={handleNewItem}>
 						<Plus className="h-4 w-4 mr-2" />
@@ -216,7 +216,7 @@ export default function DashboardLibrary() {
 				<div className="relative flex-1">
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
 					<Input
-						placeholder="Search library..."
+						placeholder="Cari galeri..."
 						className="pl-10"
 						value={searchQuery}
 						onChange={(e) => setSearchQuery(e.target.value)}

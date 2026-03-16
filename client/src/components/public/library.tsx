@@ -85,7 +85,7 @@ export default function Library() {
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 			<div ref={headingRef} className="text-center mb-12">
 				<h2 className={`text-3xl font-bold text-foreground font-serif ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
-					Library
+					Galeri
 				</h2>
 				<div className={`mt-2 h-1 w-20 bg-primary mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`} />
 				<p className={`mt-4 text-lg text-muted-foreground ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
@@ -106,7 +106,7 @@ export default function Library() {
 							onChange={(e) => setSearchQuery(e.target.value)}
 							type="text"
 							className="block w-full pl-10 pr-3 py-2 border border-border rounded-md leading-5 bg-card text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm"
-							placeholder="Cari di library..."
+							placeholder="Cari di galeri..."
 						/>
 					</div>
 				</div>

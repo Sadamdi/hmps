@@ -295,7 +295,7 @@ export default function About() {
 								/>
 							</div>
 							<div className="flex justify-center mt-6">
-								<Link href="/tentang-kami">
+								<Link href="/profil">
 									<button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary/70 transition-all duration-200">
 										Baca selengkapnya
 										<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -317,7 +317,7 @@ export default function About() {
 								</p>
 							</div>
 							<div className="flex justify-center mt-6">
-								<Link href="/tentang-kami">
+								<Link href="/profil">
 									<button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary/70 transition-all duration-200">
 										Baca selengkapnya
 										<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

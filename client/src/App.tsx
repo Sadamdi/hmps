@@ -15,15 +15,16 @@ import { queryClient } from './lib/queryClient';
 const Home = lazy(() => import('@/pages/index'));
 const AllArticles = lazy(() => import('@/pages/artikel/index'));
 const ArticleDetail = lazy(() => import('@/pages/artikel/[id]'));
-const TentangKamiPage = lazy(() => import('@/pages/tentang-kami'));
+const ProfilPage = lazy(() => import('@/pages/profil'));
+const KelembagaanPage = lazy(() => import('@/pages/kelembagaan'));
 const Dashboard = lazy(() => import('@/pages/dashboard/index'));
 const DashboardArticles = lazy(() => import('@/pages/dashboard/articles'));
 const DashboardLibrary = lazy(() => import('@/pages/dashboard/library'));
-const DashboardOrganization = lazy(() => import('@/pages/dashboard/organization'));
 const DashboardUsers = lazy(() => import('@/pages/dashboard/users'));
 const DashboardRoles = lazy(() => import('@/pages/dashboard/roles'));
 const DashboardSettings = lazy(() => import('@/pages/dashboard/settings'));
-const DashboardContent = lazy(() => import('@/pages/dashboard/content'));
+const DashboardProfil = lazy(() => import('@/pages/dashboard/profil'));
+const DashboardKelembagaan = lazy(() => import('@/pages/dashboard/kelembagaan'));
 
 function RouteLoadingFallback() {
 	return (
@@ -66,8 +67,12 @@ function Router() {
 					component={Error}
 				/>
 				<Route
-					path="/tentang-kami"
-					component={TentangKamiPage}
+					path="/profil"
+					component={ProfilPage}
+				/>
+				<Route
+					path="/kelembagaan"
+					component={KelembagaanPage}
 				/>
 
 				{/* Dashboard Routes - Protected */}
@@ -92,15 +97,7 @@ function Router() {
 						</ProtectedRoute>
 					)}
 				</Route>
-				<Route path="/dashboard/organization">
-					{() => (
-						<ProtectedRoute>
-							<DashboardOrganization />
-						</ProtectedRoute>
-					)}
-				</Route>
-
-				<Route path="/dashboard/users">
+			<Route path="/dashboard/users">
 					{() => (
 						<ProtectedRoute>
 							<DashboardUsers />
@@ -121,15 +118,22 @@ function Router() {
 						</ProtectedRoute>
 					)}
 				</Route>
-				<Route path="/dashboard/content">
-					{() => (
-						<ProtectedRoute>
-							<DashboardContent />
-						</ProtectedRoute>
-					)}
-				</Route>
+		<Route path="/dashboard/profil">
+				{() => (
+					<ProtectedRoute>
+						<DashboardProfil />
+					</ProtectedRoute>
+				)}
+			</Route>
+			<Route path="/dashboard/kelembagaan">
+				{() => (
+					<ProtectedRoute>
+						<DashboardKelembagaan />
+					</ProtectedRoute>
+				)}
+			</Route>
 
-				{/* Fallback to 404 */}
+			{/* Fallback to 404 */}
 				<Route component={NotFound} />
 			</Switch>
 		</Suspense>

@@ -1,6 +1,7 @@
 import { useRevealAnimation } from "@/hooks/use-reveal-animation";
 import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
+import { Link } from "wouter";
 
 interface Settings {
   siteName: string;
@@ -39,7 +40,11 @@ interface Settings {
   };
 }
 
-export default function VisionMission() {
+interface VisionMissionProps {
+  showLink?: boolean;
+}
+
+export default function VisionMission({ showLink = true }: VisionMissionProps) {
   const { data: settings } = useQuery<Settings>({
     queryKey: ["/api/settings"],
   });
@@ -145,6 +150,18 @@ export default function VisionMission() {
                   ))}
             </div>
           </div>
+          {showLink && (
+            <div className="flex justify-center mt-10">
+              <Link href="/kelembagaan">
+                <button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 hover:border-cyan-400/70 transition-all duration-200">
+                  Lihat kelembagaan lengkap
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
       {/* Bottom connector gradient */}

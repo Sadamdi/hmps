@@ -4,17 +4,17 @@ import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import {
+	Building2,
 	ChevronLeft,
 	ChevronRight,
-	FileEdit,
 	FileText,
 	Image,
+	Info,
 	LayoutDashboard,
 	LogOut,
 	Settings,
 	Shield,
 	UserCog,
-	Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
@@ -67,27 +67,26 @@ export default function Sidebar({
 			requirePermission: 'articles.view',
 		},
 		{
-			label: 'Library',
+			label: 'Galeri',
 			icon: <Image className="h-5 w-5" />,
 			href: '/dashboard/library',
 			active: location.startsWith('/dashboard/library'),
 			requirePermission: 'library.view',
 		},
 		{
-			label: 'Organization',
-			icon: <Users className="h-5 w-5" />,
-			href: '/dashboard/organization',
-			active: location.startsWith('/dashboard/organization'),
-			requirePermission: 'organization.view',
+			label: 'Profil',
+			icon: <Info className="h-5 w-5" />,
+			href: '/dashboard/profil',
+			active: location.startsWith('/dashboard/profil'),
+			requirePermission: 'profil.view',
 		},
 		{
-			label: 'Content',
-			icon: <FileEdit className="h-5 w-5" />,
-			href: '/dashboard/content',
-			active: location.startsWith('/dashboard/content'),
-			requirePermission: 'content.view',
+			label: 'Kelembagaan',
+			icon: <Building2 className="h-5 w-5" />,
+			href: '/dashboard/kelembagaan',
+			active: location.startsWith('/dashboard/kelembagaan'),
+			requirePermission: 'kelembagaan.view',
 		},
-
 		{
 			label: 'User Management',
 			icon: <UserCog className="h-5 w-5" />,
@@ -159,21 +158,25 @@ export default function Sidebar({
 							// Check permission-based access
 							if (item.requirePermission) {
 								// Handle multiple permissions for some items
-								if (item.requirePermission === 'content.view') {
-									if (
-										!hasSpecificPermission('content.view') &&
-										!hasSpecificPermission('content.edit')
-									) {
-										return null;
-									}
-								} else if (item.requirePermission === 'organization.view') {
-									if (
-										!hasSpecificPermission('organization.view') &&
-										!hasSpecificPermission('organization.edit')
-									) {
-										return null;
-									}
-								} else if (item.requirePermission === 'settings.view') {
+							if (item.requirePermission === 'profil.view') {
+								if (
+									!hasSpecificPermission('profil.view') &&
+									!hasSpecificPermission('profil.edit') &&
+									!hasSpecificPermission('content.view') &&
+									!hasSpecificPermission('content.edit')
+								) {
+									return null;
+								}
+							} else if (item.requirePermission === 'kelembagaan.view') {
+								if (
+									!hasSpecificPermission('kelembagaan.view') &&
+									!hasSpecificPermission('kelembagaan.edit') &&
+									!hasSpecificPermission('content.view') &&
+									!hasSpecificPermission('content.edit')
+								) {
+									return null;
+								}
+						} else if (item.requirePermission === 'settings.view') {
 									// Settings selalu bisa diakses (minimal untuk profile)
 									// Tidak perlu permission check karena semua user bisa akses profile
 								} else if (item.requirePermission === 'users.view') {

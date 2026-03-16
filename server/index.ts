@@ -104,14 +104,20 @@ app.get('/sitemap.xml', async (_req, res) => {
 				lastmod: now,
 			},
 			{
-				loc: `${host}/tentang-kami`,
+				loc: `${host}/profil`,
+				changefreq: 'monthly',
+				priority: '0.9',
+				lastmod: now,
+			},
+			{
+				loc: `${host}/kelembagaan`,
 				changefreq: 'monthly',
 				priority: '0.9',
 				lastmod: now,
 			},
 			// Sections beranda yang bersifat publik (untuk crawling bot)
 			{
-				loc: `${host}/#tentang-kami`,
+				loc: `${host}/#profil`,
 				changefreq: 'monthly',
 				priority: '0.7',
 				lastmod: now,
@@ -595,12 +601,22 @@ setInterval(
 		};
 
 		app.get(
-			'/tentang-kami',
+			'/profil',
 			serveHtmlWithMeta({
-				title: 'Tentang Kami | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				title: 'Profil | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 				description:
-					'Sejarah, Track Record Ketua Himpunan & Divisi, serta Lambang Filosofi HIMATIF Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.',
-				canonicalUrl: 'https://himatif-encoder.com/tentang-kami',
+					'Profil HIMATIF Encoder - Tentang Kami, Sejarah Rekam Jejak Ketua Himpunan & Divisi, serta Filosofi Lambang - Himpunan Mahasiswa Teknik Informatika UIN Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/profil',
+			}),
+		);
+
+		app.get(
+			'/kelembagaan',
+			serveHtmlWithMeta({
+				title: 'Kelembagaan | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				description:
+					'Visi dan Misi serta Struktur Organisasi HIMATIF Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/kelembagaan',
 			}),
 		);
 
