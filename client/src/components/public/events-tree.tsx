@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { EventItem, EventYear, EventStatus } from '@shared/schema';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Download, ExternalLink, FileText } from 'lucide-react';
+import { Calendar, Download, ExternalLink, Eye, FileText } from 'lucide-react';
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
 
@@ -315,8 +315,13 @@ export default function EventsTree({ scrollToMonthRef }: { scrollToMonthRef?: Re
 							)}
 							<div className="flex items-center gap-3 flex-wrap">
 								<StatusBadge status={getEventStatus(showSubEvents.startDate, showSubEvents.endDate)} />
-								<span className="text-sm text-gray-400">
+								<span className="text-sm text-gray-400 flex items-center gap-1">
+									<Calendar className="h-3.5 w-3.5" />
 									{formatEventDate(showSubEvents.startDate)} - {formatEventDate(showSubEvents.endDate)} {new Date(showSubEvents.startDate).getFullYear()}
+								</span>
+								<span className="text-xs text-gray-400 flex items-center gap-1">
+									<Eye className="h-3 w-3" />
+									{showSubEvents.viewCount ?? 0} kali dilihat
 								</span>
 							</div>
 							{showSubEvents.description && (
@@ -430,6 +435,10 @@ export default function EventsTree({ scrollToMonthRef }: { scrollToMonthRef?: Re
 								<span className="text-sm text-gray-400 flex items-center gap-1">
 									<Calendar className="h-3.5 w-3.5" />
 									{formatEventDate(selectedEvent.startDate)} - {formatEventDate(selectedEvent.endDate)} {new Date(selectedEvent.startDate).getFullYear()}
+								</span>
+								<span className="text-xs text-gray-400 flex items-center gap-1">
+									<Eye className="h-3 w-3" />
+									{selectedEvent.viewCount ?? 0} kali dilihat
 								</span>
 							</div>
 							{selectedEvent.description && (
