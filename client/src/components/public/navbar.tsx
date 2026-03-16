@@ -22,7 +22,6 @@ import {
 	Moon,
 	Settings,
 	Sun,
-	Users,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
@@ -37,7 +36,13 @@ interface NavbarSettings {
 }
 
 type NavItem =
-	| { id: string; label: string; icon: React.ReactNode; children?: undefined; homeSection?: undefined }
+	| {
+			id: string;
+			label: string;
+			icon: React.ReactNode;
+			children?: undefined;
+			homeSection?: undefined;
+	  }
 	| {
 			id: string;
 			label: string;
@@ -104,7 +109,9 @@ export default function Navbar({
 	// Tracks whether the current scroll was triggered programmatically by a navbar click
 	// (smooth scroll to section). While true, scroll events must NOT close the dropdown.
 	const programmaticScrollRef = useRef<boolean>(false);
-	const programmaticScrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const programmaticScrollTimerRef = useRef<ReturnType<
+		typeof setTimeout
+	> | null>(null);
 	// Track klik terakhir pada parent dropdown (id + timestamp) untuk mendeteksi \"klik kedua\"
 	const lastParentClickRef = useRef<{ id: string; time: number } | null>(null);
 
@@ -264,7 +271,7 @@ export default function Navbar({
 			if (
 				lastParentClickRef.current &&
 				lastParentClickRef.current.id === item.id &&
-				now - lastParentClickRef.current.time < 5000 &&
+				now - lastParentClickRef.current.time < 1000 &&
 				item.homeSection
 			) {
 				// Klik kedua dalam waktu 600ms → redirect ke beranda section terkait
@@ -393,7 +400,9 @@ export default function Navbar({
 											}}>
 											<DropdownMenuTrigger asChild>
 												<button
-													onClick={() => handleDropdownParentClick(item, dropdownId)}
+													onClick={() =>
+														handleDropdownParentClick(item, dropdownId)
+													}
 													className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
 														activeSection === item.id
 															? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
@@ -430,7 +439,8 @@ export default function Navbar({
 										}}
 										className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
 											activeSection === item.id ||
-											(item.id === 'home' && (activeSection === '' || activeSection === 'home'))
+											(item.id === 'home' &&
+												(activeSection === '' || activeSection === 'home'))
 												? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
 												: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
 										}`}>
@@ -609,7 +619,9 @@ export default function Navbar({
 													<DropdownMenuTrigger asChild>
 														<button
 															aria-label={item.label}
-															onClick={() => handleDropdownParentClick(item, dropdownId)}
+															onClick={() =>
+																handleDropdownParentClick(item, dropdownId)
+															}
 															style={{
 																animationDelay: `${delay}ms`,
 																transitionDelay: `${delay}ms`,
