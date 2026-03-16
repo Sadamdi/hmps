@@ -3888,6 +3888,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				? await mongoStorage.getEventWithChildren(id)
 				: await mongoStorage.getEventById(id);
 			if (!event) return res.status(404).json({ message: 'Event not found' });
+
+			// Increment view count (fire-and-forget, mirroring article logic)
+			try {
+				const currentViews = typeof (event as any).viewCount === 'number' ? (event as any).viewCount : 0;
+				const nextViews = currentViews + 1;
+				await mongoStorage.updateEvent(id, { viewCount: nextViews });
+				(event as any).viewCount = nextViews;
+			} catch (incError) {
+				console.warn('Failed to increment event viewCount:', incError);
+			}
+
 			res.json(event);
 		} catch (error) {
 			console.error('Error getting event:', error);

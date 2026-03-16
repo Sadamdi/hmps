@@ -186,6 +186,7 @@ export interface EventItem {
 	createdBy: string;
 	relatedArticles?: EventRelatedArticle[];
 	sourceArticleId?: string | null;
+	viewCount?: number;
 	children?: EventItem[];
 	createdAt: Date;
 	updatedAt: Date;

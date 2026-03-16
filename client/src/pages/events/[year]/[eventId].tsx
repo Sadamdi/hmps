@@ -1,12 +1,22 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import AIChat from '@/components/public/ai-chat';
+import {
+	formatEventDate,
+	getEventStatus,
+	StatusBadge,
+} from '@/components/public/events-tree';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
-import { getEventStatus, formatEventDate, StatusBadge } from '@/components/public/events-tree';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Download, ExternalLink, FileText } from 'lucide-react';
+import {
+	ArrowLeft,
+	Calendar,
+	Download,
+	ExternalLink,
+	Eye,
+	FileText,
+} from 'lucide-react';
 import { Link, useParams } from 'wouter';
 
 interface RelatedArticle {
@@ -26,12 +36,17 @@ interface EventItem {
 	attachments?: { name: string; url: string; type?: string }[];
 	children?: EventItem[];
 	relatedArticles?: RelatedArticle[];
+	viewCount?: number;
 }
 
 export default function EventDetailPage() {
 	const { year, eventId } = useParams<{ year: string; eventId: string }>();
 
-	const { data: event, isLoading, error } = useQuery<EventItem>({
+	const {
+		data: event,
+		isLoading,
+		error,
+	} = useQuery<EventItem>({
 		queryKey: ['/api/events', eventId],
 		queryFn: async () => {
 			const res = await fetch(`/api/events/${eventId}?children=true`);
@@ -48,7 +63,10 @@ export default function EventDetailPage() {
 	if (error || (!isLoading && !event)) {
 		return (
 			<div className="min-h-screen flex flex-col">
-				<Navbar activeSection="" scrollToSection={scrollToSection} />
+				<Navbar
+					activeSection=""
+					scrollToSection={scrollToSection}
+				/>
 				<main className="flex-1 flex items-center justify-center p-8">
 					<div className="text-center">
 						<p className="text-muted-foreground mb-4">Event tidak ditemukan.</p>
@@ -67,11 +85,17 @@ export default function EventDetailPage() {
 
 	return (
 		<div className="min-h-screen flex flex-col bg-background">
-			<Navbar activeSection="" scrollToSection={scrollToSection} />
+			<Navbar
+				activeSection=""
+				scrollToSection={scrollToSection}
+			/>
 			<main className="flex-1 py-12 px-4">
 				<div className="max-w-3xl mx-auto">
 					<Link href={year ? `/events/${year}` : '/'}>
-						<Button variant="ghost" size="sm" className="mb-6">
+						<Button
+							variant="ghost"
+							size="sm"
+							className="mb-6">
 							<ArrowLeft className="h-4 w-4 mr-2" />
 							Kembali ke Daftar Event
 						</Button>
@@ -91,13 +115,21 @@ export default function EventDetailPage() {
 								</div>
 							)}
 
-							<div className="flex items-center gap-3 flex-wrap">
-								<StatusBadge status={getEventStatus(event.startDate, event.endDate)} />
-								<span className="text-sm text-muted-foreground flex items-center gap-1">
-									<Calendar className="h-4 w-4" />
-									{formatEventDate(event.startDate)} - {formatEventDate(event.endDate)} {new Date(event.startDate).getFullYear()}
-								</span>
-							</div>
+						<div className="flex items-center gap-3 flex-wrap">
+							<StatusBadge
+								status={getEventStatus(event.startDate, event.endDate)}
+							/>
+							<span className="text-sm text-muted-foreground flex items-center gap-1">
+								<Calendar className="h-4 w-4" />
+								{formatEventDate(event.startDate)} -{' '}
+								{formatEventDate(event.endDate)}{' '}
+								{new Date(event.startDate).getFullYear()}
+							</span>
+							<span className="text-sm text-muted-foreground flex items-center gap-1">
+								<Eye className="h-4 w-4" />
+								{event.viewCount ?? 0} kali dilihat
+							</span>
+						</div>
 
 							<h1 className="text-3xl font-bold">{event.title}</h1>
 
@@ -118,8 +150,7 @@ export default function EventDetailPage() {
 												href={att.url}
 												target="_blank"
 												rel="noopener noreferrer"
-												className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors"
-											>
+												className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors">
 												<Download className="h-4 w-4 flex-shrink-0 text-primary" />
 												<span className="flex-1 truncate">{att.name}</span>
 												<ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
@@ -130,33 +161,36 @@ export default function EventDetailPage() {
 							)}
 
 							{event.relatedArticles && event.relatedArticles.length > 0 && (
-							<div>
-								<h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
-									<FileText className="h-5 w-5 text-primary" />
-									Artikel Terkait
-								</h2>
-								<div className="space-y-2">
-									{event.relatedArticles.map((art) => (
-										<Link
-											key={art._id}
-											href={`/artikel/${art._id}${art.slug ? `/${art.slug}` : ''}`}
-											className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors"
-										>
-											<FileText className="h-4 w-4 flex-shrink-0 text-primary" />
-											<span className="flex-1 truncate font-medium">{art.title}</span>
-											<ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-										</Link>
-									))}
+								<div>
+									<h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+										<FileText className="h-5 w-5 text-primary" />
+										Artikel Terkait
+									</h2>
+									<div className="space-y-2">
+										{event.relatedArticles.map((art) => (
+											<Link
+												key={art._id}
+												href={`/artikel/${art._id}${art.slug ? `/${art.slug}` : ''}`}
+												className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+												<FileText className="h-4 w-4 flex-shrink-0 text-primary" />
+												<span className="flex-1 truncate font-medium">
+													{art.title}
+												</span>
+												<ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+											</Link>
+										))}
+									</div>
 								</div>
-							</div>
-						)}
+							)}
 
-						{event.children && event.children.length > 0 && (
+							{event.children && event.children.length > 0 && (
 								<div>
 									<h2 className="text-lg font-semibold mb-3">Sub-Event</h2>
 									<div className="space-y-3">
 										{event.children.map((child) => (
-											<Link key={child._id} href={`/events/${year}/${child._id}`}>
+											<Link
+												key={child._id}
+												href={`/events/${year}/${child._id}`}>
 												<Card className="hover:shadow-md transition-shadow cursor-pointer">
 													<CardContent className="p-4 flex items-center gap-4">
 														{child.thumbnail && (
@@ -169,11 +203,19 @@ export default function EventDetailPage() {
 														<div className="flex-1 min-w-0">
 															<h3 className="font-medium">{child.title}</h3>
 															<p className="text-sm text-muted-foreground">
-																{formatEventDate(child.startDate)} - {formatEventDate(child.endDate)}
+																{formatEventDate(child.startDate)} -{' '}
+																{formatEventDate(child.endDate)}
 															</p>
 														</div>
-														<StatusBadge status={getEventStatus(child.startDate, child.endDate)} />
-														<Button variant="ghost" size="sm">
+														<StatusBadge
+															status={getEventStatus(
+																child.startDate,
+																child.endDate,
+															)}
+														/>
+														<Button
+															variant="ghost"
+															size="sm">
 															Lihat Detail
 														</Button>
 													</CardContent>
@@ -188,7 +230,9 @@ export default function EventDetailPage() {
 				</div>
 			</main>
 			<Footer />
-			<AIChat pageContext={{ path: `/events/${year}/${eventId}`, permissions: [] }} />
+			<AIChat
+				pageContext={{ path: `/events/${year}/${eventId}`, permissions: [] }}
+			/>
 		</div>
 	);
 }

@@ -7,7 +7,7 @@ import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import { getEventStatus, formatEventDate, StatusBadge } from '@/components/public/events-tree';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, FileText } from 'lucide-react';
+import { ArrowLeft, Calendar, Eye, FileText } from 'lucide-react';
 import { Link, useParams } from 'wouter';
 
 const MONTH_NAMES = [
@@ -26,6 +26,7 @@ interface EventItem {
 	published: boolean;
 	attachments?: { name: string; url: string }[];
 	relatedArticles?: { _id: string; title: string; slug?: string }[];
+	viewCount?: number;
 }
 
 interface EventsByYearResponse {
@@ -134,6 +135,10 @@ export default function EventsYearPage() {
 																<p className="text-sm text-muted-foreground flex items-center gap-1">
 																	<Calendar className="h-3.5 w-3.5" />
 																	{formatEventDate(ev.startDate)} - {formatEventDate(ev.endDate)} {data?.yearDoc?.year}
+																</p>
+																<p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+																	<Eye className="h-3 w-3" />
+																	{ev.viewCount ?? 0} kali dilihat
 																</p>
 																{ev.description && (
 																	<p className="text-sm text-muted-foreground mt-2 line-clamp-2">
