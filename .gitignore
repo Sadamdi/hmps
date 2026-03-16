@@ -1,3 +1,6 @@
+logs/
+*.log
+**/logs/
 node_modules
 dist
 .DS_Store
@@ -11,3 +14,4 @@ vite.config.ts.*
 server/gen-lang-client-0095636115-aab30f032fed.json
 server/gen-lang-client-0095636115-01e39d148e40.json
 server/gen-lang-client-0095636115-aab30f032fed - Copy.json
+logs/
