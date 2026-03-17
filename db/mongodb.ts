@@ -285,6 +285,8 @@ const settingsSchema = new mongoose.Schema({
 			default: 'https://library.uin-malang.ac.id/',
 		},
 	},
+	eventsAutoScrollEnabled: { type: Boolean, default: true },
+	eventsAllowMultipleYearsOnHome: { type: Boolean, default: false },
 	// Halaman lengkap Tentang Kami (sejarah, track record, lambang)
 	aboutPageIntro: {
 		type: String,

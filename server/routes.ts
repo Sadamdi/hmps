@@ -3804,12 +3804,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const { id } = req.params;
-				const doc = await mongoStorage.setActiveEventYear(id);
+				// Check multi-year mode from settings
+				const settings = await mongoStorage.getSettings();
+				const multiYear = settings?.eventsAllowMultipleYearsOnHome === true;
+				let doc;
+				if (multiYear) {
+					// Multi-year: just toggle ON this year without deactivating others
+					doc = await mongoStorage.toggleEventYearActive(id, true);
+				} else {
+					// Single-year: deactivate all, then activate this one
+					doc = await mongoStorage.setActiveEventYear(id);
+				}
 				if (!doc)
 					return res.status(404).json({ message: 'Event year not found' });
 				res.json(doc);
 			} catch (error) {
 				console.error('Error activating event year:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.patch(
+		'/api/event-years/:id/deactivate',
+		authenticate,
+		requirePermission('events.edit'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const doc = await mongoStorage.toggleEventYearActive(id, false);
+				if (!doc)
+					return res.status(404).json({ message: 'Event year not found' });
+				res.json(doc);
+			} catch (error) {
+				console.error('Error deactivating event year:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		},
@@ -3834,6 +3862,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// ══════════════════════════════════════════════════════════════
 	// EVENT API
 	// ══════════════════════════════════════════════════════════════
+
+	app.get('/api/events/published', async (_req, res) => {
+		try {
+			const events = await mongoStorage.getPublishedEventsAllYears();
+			res.json(events);
+		} catch (error) {
+			console.error('Error getting published events:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
 
 	app.get('/api/events/active-home', async (_req, res) => {
 		try {

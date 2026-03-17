@@ -26,6 +26,8 @@ interface Settings {
 	maintenanceMode: boolean;
 	footerText: string;
 	logoUrl: string;
+	eventsAutoScrollEnabled?: boolean;
+	eventsAllowMultipleYearsOnHome?: boolean;
 	socialLinks: {
 		facebook: string;
 		twitter: string;
@@ -187,7 +189,7 @@ export default function Home() {
 			/>
 			<About />
 			<Suspense fallback={null}>
-				<EventsTree />
+				<EventsTree autoScrollEnabled={settings?.eventsAutoScrollEnabled ?? true} />
 			</Suspense>
 			<VisionMission />
 			<Suspense

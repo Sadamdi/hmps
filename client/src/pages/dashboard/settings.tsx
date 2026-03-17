@@ -49,6 +49,7 @@ interface SiteSettings {
 	enableRegistration: boolean;
 	maintenanceMode: boolean;
 	footerText: string;
+	eventsAutoScrollEnabled: boolean;
 	socialLinks: {
 		facebook: string;
 		tiktok: string;
@@ -136,6 +137,9 @@ export default function SettingsPage() {
 		return () => clearInterval(id);
 	}, []);
 
+	// Check if user can manage animations
+	const canManageAnimations = hasSpecificPermission('settings.animations');
+
 	// Create default settings
 	const defaultSettings: SiteSettings = {
 		siteName: 'HMTI UIN Malang',
@@ -148,6 +152,7 @@ export default function SettingsPage() {
 			'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang',
 		enableRegistration: false,
 		maintenanceMode: false,
+		eventsAutoScrollEnabled: true,
 		footerText:
 			'© 2023 Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.',
 		socialLinks: {
@@ -852,23 +857,42 @@ export default function SettingsPage() {
 							</Card>
 						</TabsContent>
 
-						<TabsContent value="appearance">
-							<Card>
-								<CardHeader>
-									<CardTitle>Appearance Settings</CardTitle>
-									<CardDescription>
-										Customize how your website looks
-									</CardDescription>
-								</CardHeader>
-								<CardContent className="space-y-4">
-									<p className="text-sm text-muted-foreground">
-										These settings control the visual appearance of your
-										website. Additional appearance settings can be configured by
-										the administrator.
+					<TabsContent value="appearance">
+						<Card>
+							<CardHeader>
+								<CardTitle>Appearance Settings</CardTitle>
+								<CardDescription>
+									Customize how your website looks and behaves
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-4">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+									<div className="min-w-0">
+										<Label htmlFor="eventsAutoScrollEnabled">
+											Event Section: Auto-scroll
+										</Label>
+										<p className="text-sm text-muted-foreground">
+											Aktifkan animasi scroll otomatis (marquee) pada section event di halaman utama
+										</p>
+									</div>
+									<Switch
+										className="flex-shrink-0"
+										id="eventsAutoScrollEnabled"
+										checked={formData.eventsAutoScrollEnabled ?? true}
+										onCheckedChange={(checked) =>
+											handleSwitchChange('eventsAutoScrollEnabled', checked)
+										}
+										disabled={!canManageAnimations}
+									/>
+								</div>
+								{!canManageAnimations && (
+									<p className="text-xs text-muted-foreground">
+										Kamu tidak memiliki permission <strong>settings.animations</strong> untuk mengubah pengaturan animasi. Hubungi owner/admin.
 									</p>
-								</CardContent>
-							</Card>
-						</TabsContent>
+								)}
+							</CardContent>
+						</Card>
+					</TabsContent>
 
 						<TabsContent value="contact">
 							<Card>
@@ -1568,12 +1592,14 @@ export default function SettingsPage() {
 				)}
 			</Tabs>
 
-			{(activeTab !== 'security' &&
-				activeTab !== 'profile' &&
-				activeTab !== 'middleware' &&
-				activeTab !== 'home-images' &&
-				canEditSettings) ||
-			(activeTab === 'middleware' && user && user.role === 'owner') ? (
+		{(activeTab !== 'security' &&
+			activeTab !== 'profile' &&
+			activeTab !== 'middleware' &&
+			activeTab !== 'home-images' &&
+			activeTab !== 'appearance' &&
+			canEditSettings) ||
+		(activeTab === 'appearance' && (canEditSettings || canManageAnimations)) ||
+		(activeTab === 'middleware' && user && user.role === 'owner') ? (
 				<div className="mt-6 flex justify-end">
 					<Button
 						onClick={

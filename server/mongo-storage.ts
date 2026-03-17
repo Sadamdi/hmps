@@ -779,40 +779,73 @@ async function getEventWithChildren(id: string): Promise<any | null> {
 }
 
 async function getEventsForHome(): Promise<any | null> {
-	const activeYear = await EventYear.findOne({ isActiveOnHome: true }).lean();
-	if (!activeYear) return null;
+	const activeYears = await EventYear.find({ isActiveOnHome: true }).sort({ year: 1 }).lean();
+	if (!activeYears || activeYears.length === 0) return null;
 
-	const topEvents = await Event.find({
-		yearId: (activeYear as any)._id,
-		parentId: null,
-		published: true,
-	})
+	const buildYearEntry = async (activeYear: any) => {
+		const topEvents = await Event.find({
+			yearId: activeYear._id,
+			parentId: null,
+			published: true,
+		})
+			.populate('relatedArticles', '_id title slug')
+			.sort({ month: 1, startDate: 1 })
+			.lean();
+
+		const topIds = topEvents.map((e: any) => e._id);
+		const children = await Event.find({
+			parentId: { $in: topIds },
+			published: true,
+		})
+			.populate('relatedArticles', '_id title slug')
+			.sort({ startDate: 1 })
+			.lean();
+
+		const childMap = new Map<string, any[]>();
+		for (const c of children) {
+			const pid = (c as any).parentId.toString();
+			if (!childMap.has(pid)) childMap.set(pid, []);
+			childMap.get(pid)!.push(c);
+		}
+
+		const eventsWithChildren = topEvents.map((e: any) => ({
+			...e,
+			children: childMap.get(e._id.toString()) || [],
+		}));
+
+		return { year: activeYear, events: eventsWithChildren };
+	};
+
+	const yearEntries = await Promise.all(activeYears.map(buildYearEntry));
+
+	// Return both legacy shape (single) and new multi-year shape
+	// Client handles both
+	return {
+		// Legacy compat: use the most recent year
+		year: activeYears[activeYears.length - 1],
+		events: yearEntries[yearEntries.length - 1]?.events || [],
+		// New multi-year
+		years: yearEntries,
+	};
+}
+
+async function toggleEventYearActive(id: string, active: boolean): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	return await EventYear.findByIdAndUpdate(
+		objectId,
+		{ $set: { isActiveOnHome: active } },
+		{ new: true },
+	).lean();
+}
+
+async function getPublishedEventsAllYears(): Promise<any[]> {
+	const events = await Event.find({ published: true, parentId: null })
+		.populate('yearId', 'year')
 		.populate('relatedArticles', '_id title slug')
-		.sort({ month: 1, startDate: 1 })
+		.sort({ startDate: -1 })
 		.lean();
-
-	const topIds = topEvents.map((e: any) => e._id);
-	const children = await Event.find({
-		parentId: { $in: topIds },
-		published: true,
-	})
-		.populate('relatedArticles', '_id title slug')
-		.sort({ startDate: 1 })
-		.lean();
-
-	const childMap = new Map<string, any[]>();
-	for (const c of children) {
-		const pid = (c as any).parentId.toString();
-		if (!childMap.has(pid)) childMap.set(pid, []);
-		childMap.get(pid)!.push(c);
-	}
-
-	const eventsWithChildren = topEvents.map((e: any) => ({
-		...e,
-		children: childMap.get(e._id.toString()) || [],
-	}));
-
-	return { year: activeYear, events: eventsWithChildren };
+	return events;
 }
 
 async function getEventsByArticleId(articleId: string): Promise<any[]> {
@@ -1141,11 +1174,13 @@ const mongoDBStorage = {
 	updateEventYear,
 	deleteEventYear,
 	setActiveEventYear,
+	toggleEventYearActive,
 
 	// Event functions
 	getEventsByYear,
 	getEventsByYearId,
 	getEventsByArticleId,
+	getPublishedEventsAllYears,
 	getEventById,
 	getEventWithChildren,
 	getEventsForHome,
@@ -1659,6 +1694,14 @@ async function initializeDefaultPermissions() {
 				description: 'Melihat konten dari user lain',
 				category: 'content',
 			},
+
+		// Animation settings permission
+		{
+			name: 'settings.animations',
+			displayName: 'Manage Animation Settings',
+			description: 'Mengatur animasi pada halaman publik (mis. event auto-scroll)',
+			category: 'settings',
+		},
 
 		// Middleware management permissions (Owner only)
 		{

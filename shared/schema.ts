@@ -119,6 +119,8 @@ export interface Settings {
 		instagram: string;
 		youtube: string;
 	};
+	eventsAutoScrollEnabled?: boolean;
+	eventsAllowMultipleYearsOnHome?: boolean;
 	// Halaman lengkap Tentang Kami
 	aboutPageIntro?: string;
 	aboutPageTrackRecord?: AboutPageTrackRecordItem[];

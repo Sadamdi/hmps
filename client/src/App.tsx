@@ -27,6 +27,7 @@ const DashboardProfil = lazy(() => import('@/pages/dashboard/profil'));
 const DashboardKelembagaan = lazy(() => import('@/pages/dashboard/kelembagaan'));
 const DashboardEvents = lazy(() => import('@/pages/dashboard/events'));
 const EventsIndex = lazy(() => import('@/pages/events/index'));
+const EventsAll = lazy(() => import('@/pages/events/all'));
 const EventsYear = lazy(() => import('@/pages/events/[year]'));
 const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
 
@@ -79,6 +80,7 @@ function Router() {
 					component={KelembagaanPage}
 				/>
 				<Route path="/events" component={EventsIndex} />
+				<Route path="/events/all" component={EventsAll} />
 				<Route path="/events/:year/:eventId" component={EventDetail} />
 				<Route path="/events/:year" component={EventsYear} />
 

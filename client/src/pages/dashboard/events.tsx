@@ -26,13 +26,14 @@ import {
 	Copy,
 	Edit,
 	Eye,
+	EyeOff,
 	FileText,
 	GitBranch,
 	Loader2,
 	Plus,
 	Search,
 	Trash2,
-	Upload,
+
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -66,6 +67,11 @@ const MONTH_NAMES = [
 function formatDate(d: string | Date) {
 	const date = new Date(d);
 	return `${date.getDate()} ${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+interface SiteSettings {
+	eventsAllowMultipleYearsOnHome?: boolean;
+	[key: string]: unknown;
 }
 
 export default function DashboardEvents() {
@@ -106,6 +112,13 @@ export default function DashboardEvents() {
 		enabled: hasAccess,
 	});
 
+	const { data: siteSettings } = useQuery<SiteSettings>({
+		queryKey: ['/api/settings'],
+		enabled: hasAccess,
+	});
+
+	const multiYearMode = siteSettings?.eventsAllowMultipleYearsOnHome === true;
+
 	const { data: publishedArticles = [] } = useQuery<{ _id: string; title: string; slug?: string }[]>({
 		queryKey: ['/api/articles/manage'],
 		queryFn: async () => {
@@ -133,7 +146,21 @@ export default function DashboardEvents() {
 		[eventYears, selectedYearId],
 	);
 
-	// Mutations
+	// ─── Settings mutations ──────────────────────────────────────────
+	const updateSettingsMut = useMutation({
+		mutationFn: async (patch: Partial<SiteSettings>) => {
+			const res = await apiRequest('PUT', '/api/settings', patch);
+			return res.json();
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+		},
+		onError: (err: any) => {
+			toast({ title: 'Gagal update settings', description: err.message, variant: 'destructive' });
+		},
+	});
+
+	// ─── Year mutations ────────────────────────────────────────────
 	const createYearMut = useMutation({
 		mutationFn: async (year: number) => {
 			const res = await apiRequest('POST', '/api/event-years', { year });
@@ -171,6 +198,18 @@ export default function DashboardEvents() {
 		},
 	});
 
+	const deactivateYearMut = useMutation({
+		mutationFn: async (id: string) => {
+			const res = await apiRequest('PATCH', `/api/event-years/${id}/deactivate`);
+			return res.json();
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/event-years'] });
+			toast({ title: 'Tahun event disembunyikan dari Home' });
+		},
+	});
+
+	// ─── Event mutations ───────────────────────────────────────────
 	const saveEventMut = useMutation({
 		mutationFn: async ({ formData, isEditing }: { formData: FormData; isEditing: boolean }) => {
 			if (isEditing && editingEvent) {
@@ -208,7 +247,6 @@ export default function DashboardEvents() {
 			return res.json();
 		},
 		onSuccess: (data: any) => {
-			// Invalidate both articles AND events (copy modifies event.relatedArticles in DB)
 			queryClient.invalidateQueries({ queryKey: ['/api/articles'], exact: false });
 			queryClient.invalidateQueries({ queryKey: ['/api/events'], exact: false });
 			setCopyToArticleEvent(null);
@@ -253,7 +291,6 @@ export default function DashboardEvents() {
 		setExistingAttachments(event.attachments || []);
 		setFormThumbnail(null);
 		setFormAttachments([]);
-		// relatedArticles may be populated objects { _id, title } or raw ObjectId strings depending on fetch
 		const articleIds = (event.relatedArticles || [])
 			.map((a: any) => (typeof a === 'object' && a !== null ? a._id : typeof a === 'string' ? a : null))
 			.filter((id): id is string => typeof id === 'string' && id.length > 0);
@@ -290,7 +327,6 @@ export default function DashboardEvents() {
 			fd.append('attachmentFiles', f);
 		}
 		fd.append('attachments', JSON.stringify(existingAttachments));
-		// Filter out any null/undefined that may appear if relatedArticles were returned unpopulated
 		const cleanArticleIds = selectedArticleIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
 		fd.append('relatedArticleIds', JSON.stringify(cleanArticleIds));
 
@@ -317,23 +353,48 @@ export default function DashboardEvents() {
 		);
 	}
 
-	// ─── Year List View ─────────────────────────────────────────
+	// ─── Year List View ──────────────────────────────────────────────
 	if (!selectedYearId) {
 		return (
 			<DashboardLayout title="Manajemen Event">
 				<div className="space-y-6">
-					<div className="flex items-center justify-between">
+					{/* Header */}
+					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
-							<h2 className="text-2xl font-bold">Event Tahunan</h2>
-							<p className="text-muted-foreground mt-1">Kelola event per tahun dan pilih yang ditampilkan di Home</p>
+							<h2 className="text-xl sm:text-2xl font-bold">Event Tahunan</h2>
+							<p className="text-muted-foreground mt-1 text-sm">Kelola event per tahun dan pilih yang ditampilkan di Home</p>
 						</div>
 						{hasSpecificPermission('events.create') && (
-							<Button onClick={() => setIsYearDialogOpen(true)}>
+							<Button onClick={() => setIsYearDialogOpen(true)} className="w-full sm:w-auto">
 								<Plus className="h-4 w-4 mr-2" />
 								Tambah Tahun
 							</Button>
 						)}
 					</div>
+
+					{/* Multi-year toggle */}
+					{(hasSpecificPermission('settings.edit') || hasSpecificPermission('settings.animations')) && (
+						<Card className="border-primary/20 bg-primary/5">
+							<CardContent className="p-4">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+									<div>
+										<p className="font-medium text-sm">Tampilkan Lebih dari 1 Tahun di Home</p>
+										<p className="text-xs text-muted-foreground mt-0.5">
+											Jika aktif, beberapa tahun bisa ditampilkan sekaligus dalam satu track di halaman utama.
+										</p>
+									</div>
+									<Switch
+										checked={multiYearMode}
+										onCheckedChange={(checked) =>
+											updateSettingsMut.mutate({ eventsAllowMultipleYearsOnHome: checked })
+										}
+										disabled={updateSettingsMut.isPending}
+										className="flex-shrink-0"
+									/>
+								</div>
+							</CardContent>
+						</Card>
+					)}
 
 					{isYearsLoading ? (
 						<div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -359,24 +420,62 @@ export default function DashboardEvents() {
 										</div>
 									</CardHeader>
 									<CardContent>
-										<div className="flex items-center justify-between">
+										<div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+											{/* Status badge */}
 											{y.isActiveOnHome ? (
-												<Badge className="bg-green-600 text-white">Ditampilkan di Home</Badge>
+												<Badge className="bg-green-600 text-white w-fit">Ditampilkan di Home</Badge>
 											) : (
-												<Badge variant="outline">Tidak aktif</Badge>
+												<Badge variant="outline" className="w-fit">Tidak aktif</Badge>
 											)}
-											<div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-												{!y.isActiveOnHome && hasSpecificPermission('events.edit') && (
+
+											{/* Action buttons */}
+											<div className="flex flex-wrap gap-1.5">
+												{/* Multi-year mode: switch toggle per year */}
+												{multiYearMode && hasSpecificPermission('events.edit') ? (
+													<div className="flex items-center gap-2">
+														<Switch
+															checked={y.isActiveOnHome}
+															onCheckedChange={(checked) => {
+																if (checked) {
+																	activateYearMut.mutate(y._id);
+																} else {
+																	deactivateYearMut.mutate(y._id);
+																}
+															}}
+															disabled={activateYearMut.isPending || deactivateYearMut.isPending}
+														/>
+														<span className="text-xs text-muted-foreground">
+															{y.isActiveOnHome ? 'Aktif di Home' : 'Nonaktif'}
+														</span>
+													</div>
+												) : (
+													/* Single-year mode: Tampilkan button */
+													!y.isActiveOnHome && hasSpecificPermission('events.edit') && (
+														<Button
+															variant="outline"
+															size="sm"
+															onClick={() => activateYearMut.mutate(y._id)}
+															disabled={activateYearMut.isPending}
+														>
+															<Eye className="h-3 w-3 mr-1" />
+															Tampilkan
+														</Button>
+													)
+												)}
+
+												{/* Hide button for single-year mode */}
+												{!multiYearMode && y.isActiveOnHome && hasSpecificPermission('events.edit') && (
 													<Button
 														variant="outline"
 														size="sm"
-														onClick={() => activateYearMut.mutate(y._id)}
-														disabled={activateYearMut.isPending}
+														onClick={() => deactivateYearMut.mutate(y._id)}
+														disabled={deactivateYearMut.isPending}
 													>
-														<Eye className="h-3 w-3 mr-1" />
-														Tampilkan
+														<EyeOff className="h-3 w-3 mr-1" />
+														Sembunyikan
 													</Button>
 												)}
+
 												{hasSpecificPermission('events.delete') && (
 													<Button
 														variant="destructive"
@@ -402,7 +501,7 @@ export default function DashboardEvents() {
 
 				{/* Dialog Tambah Tahun */}
 				<Dialog open={isYearDialogOpen} onOpenChange={setIsYearDialogOpen}>
-					<DialogContent className="sm:max-w-md">
+					<DialogContent className="w-[calc(100vw-2rem)] max-w-md">
 						<DialogHeader>
 							<DialogTitle>Tambah Tahun Event</DialogTitle>
 						</DialogHeader>
@@ -432,43 +531,43 @@ export default function DashboardEvents() {
 		);
 	}
 
-	// ─── Event List View (inside a year) ─────────────────────────
+	// ─── Event List View (inside a year) ────────────────────────────
 	return (
 		<DashboardLayout title={`Event ${selectedYear?.year || ''}`}>
 			<div className="space-y-6">
 				{/* Breadcrumb */}
-				<div className="flex items-center gap-2 text-sm flex-wrap">
-					<Button variant="ghost" size="sm" onClick={() => { setSelectedYearId(null); setSelectedParentEvent(null); }}>
+				<div className="flex items-center gap-1 text-sm flex-wrap">
+					<Button variant="ghost" size="sm" className="px-2" onClick={() => { setSelectedYearId(null); setSelectedParentEvent(null); }}>
 						<ArrowLeft className="h-4 w-4 mr-1" /> Semua Tahun
 					</Button>
 					{selectedParentEvent && (
 						<>
-							<ChevronRight className="h-4 w-4 text-muted-foreground" />
-							<Button variant="ghost" size="sm" onClick={() => setSelectedParentEvent(null)}>
+							<ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+							<Button variant="ghost" size="sm" className="px-2" onClick={() => setSelectedParentEvent(null)}>
 								Event {selectedYear?.year}
 							</Button>
-							<ChevronRight className="h-4 w-4 text-muted-foreground" />
-							<span className="font-medium">{selectedParentEvent.title}</span>
+							<ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+							<span className="font-medium text-sm truncate max-w-[180px]">{selectedParentEvent.title}</span>
 						</>
 					)}
 				</div>
 
-				<div className="flex items-center justify-between">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 					<div>
-						<h2 className="text-2xl font-bold">
+						<h2 className="text-xl sm:text-2xl font-bold">
 							{selectedParentEvent
 								? `Sub-event: ${selectedParentEvent.title}`
 								: `Event Tahun ${selectedYear?.year}`}
 						</h2>
 						{selectedParentEvent && (
-							<p className="text-muted-foreground mt-1">
+							<p className="text-muted-foreground mt-1 text-sm flex flex-wrap items-center gap-1">
 								{formatDate(selectedParentEvent.startDate)} - {formatDate(selectedParentEvent.endDate)}
-								<span className="ml-2">{statusBadge(getEventStatus(selectedParentEvent.startDate, selectedParentEvent.endDate))}</span>
+								<span>{statusBadge(getEventStatus(selectedParentEvent.startDate, selectedParentEvent.endDate))}</span>
 							</p>
 						)}
 					</div>
 					{hasSpecificPermission('events.create') && (
-						<Button onClick={openCreateEvent}>
+						<Button onClick={openCreateEvent} className="w-full sm:w-auto">
 							<Plus className="h-4 w-4 mr-2" />
 							{selectedParentEvent ? 'Tambah Sub-event' : 'Tambah Event'}
 						</Button>
@@ -498,18 +597,19 @@ export default function DashboardEvents() {
 										const status = getEventStatus(ev.startDate, ev.endDate);
 										return (
 											<Card key={ev._id} className="hover:shadow-md transition-shadow">
-												<CardContent className="p-4">
-													<div className="flex items-start gap-4">
+												<CardContent className="p-3 sm:p-4">
+													<div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+														{/* Thumbnail — only show on sm+ inline, or stacked on mobile */}
 														{ev.thumbnail && (
 															<img
 																src={ev.thumbnail}
 																alt={ev.title}
-																className="w-20 h-20 rounded-lg object-cover flex-shrink-0"
+																className="w-full h-40 rounded-lg object-cover sm:w-20 sm:h-20 flex-shrink-0"
 															/>
 														)}
 														<div className="flex-1 min-w-0">
-															<div className="flex items-center gap-2 flex-wrap">
-																<h4 className="font-semibold text-lg truncate">{ev.title}</h4>
+															<div className="flex items-start gap-2 flex-wrap">
+																<h4 className="font-semibold text-base sm:text-lg break-words min-w-0 flex-1">{ev.title}</h4>
 																{statusBadge(status)}
 																{!ev.published && <Badge variant="outline">Draft</Badge>}
 															</div>
@@ -533,11 +633,13 @@ export default function DashboardEvents() {
 																</p>
 															)}
 														</div>
-														<div className="flex flex-col gap-1 flex-shrink-0">
+														{/* Action buttons — full-width row on mobile, column on sm+ */}
+														<div className="flex flex-row flex-wrap gap-1.5 sm:flex-col sm:flex-nowrap sm:items-stretch">
 															{!selectedParentEvent && (
 																<Button
 																	variant="outline"
 																	size="sm"
+																	className="flex-1 sm:flex-none text-xs"
 																	onClick={() => setSelectedParentEvent(ev)}
 																>
 																	<GitBranch className="h-3 w-3 mr-1" />
@@ -545,7 +647,7 @@ export default function DashboardEvents() {
 																</Button>
 															)}
 															{hasSpecificPermission('events.edit') && (
-																<Button variant="outline" size="sm" onClick={() => openEditEvent(ev)}>
+																<Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs" onClick={() => openEditEvent(ev)}>
 																	<Edit className="h-3 w-3 mr-1" />
 																	Edit
 																</Button>
@@ -553,16 +655,18 @@ export default function DashboardEvents() {
 															<Button
 																variant="outline"
 																size="sm"
+																className="flex-1 sm:flex-none text-xs"
 																title="Copy ke Artikel"
 																onClick={() => { setCopyToArticleEvent(ev); setCopyAttachments(false); }}
 															>
 																<Copy className="h-3 w-3 mr-1" />
-																Copy → Artikel
+																<span className="hidden xs:inline">Copy → </span>Artikel
 															</Button>
 															{hasSpecificPermission('events.delete') && (
 																<Button
 																	variant="destructive"
 																	size="sm"
+																	className="flex-1 sm:flex-none text-xs"
 																	onClick={() => {
 																		if (confirm(`Hapus event "${ev.title}"?`)) {
 																			deleteEventMut.mutate(ev._id);
@@ -570,8 +674,8 @@ export default function DashboardEvents() {
 																	}}
 																	disabled={deleteEventMut.isPending}
 																>
-																	<Trash2 className="h-3 w-3 mr-1" />
-																	Hapus
+																	<Trash2 className="h-3 w-3 mr-1 sm:mr-0" />
+																	<span className="sm:hidden">Hapus</span>
 																</Button>
 															)}
 														</div>
@@ -589,7 +693,7 @@ export default function DashboardEvents() {
 
 			{/* Dialog Create / Edit Event */}
 			<Dialog open={isEventDialogOpen} onOpenChange={(open) => { setIsEventDialogOpen(open); if (!open) resetForm(); }}>
-				<DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+				<DialogContent className="w-[calc(100vw-1rem)] max-w-2xl max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>
 							{editingEvent ? 'Edit Event' : selectedParentEvent ? 'Tambah Sub-event' : 'Tambah Event'}
@@ -600,18 +704,18 @@ export default function DashboardEvents() {
 							<Label>Judul Event *</Label>
 							<Input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="Nama event..." />
 						</div>
-					<div>
-						<Label>Deskripsi</Label>
-						<div className="mt-1">
-							<RichTextEditor
-								value={formDesc}
-								onChange={setFormDesc}
-								placeholder="Deskripsi event..."
-								height={300}
-							/>
+						<div>
+							<Label>Deskripsi</Label>
+							<div className="mt-1 min-w-0 overflow-hidden">
+								<RichTextEditor
+									value={formDesc}
+									onChange={setFormDesc}
+									placeholder="Deskripsi event..."
+									height={300}
+								/>
+							</div>
 						</div>
-					</div>
-						<div className="grid grid-cols-2 gap-4">
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 							<div>
 								<Label>Tanggal Mulai *</Label>
 								<Input type="date" value={formStartDate} onChange={(e) => setFormStartDate(e.target.value)} />
@@ -637,14 +741,14 @@ export default function DashboardEvents() {
 						<div>
 							<Label>Lampiran (file rundown, poster, dokumen, dsb.)</Label>
 							{existingAttachments.length > 0 && (
-								<div className="mt-2 space-y-1">
+								<div className="mt-2 space-y-1 max-h-36 overflow-y-auto">
 									{existingAttachments.map((att, idx) => (
-										<div key={idx} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1">
-											<span className="flex-1 truncate">{att.name}</span>
+										<div key={idx} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1 min-w-0">
+											<span className="flex-1 truncate min-w-0">{att.name}</span>
 											<Button
 												variant="ghost"
 												size="sm"
-												className="h-6 w-6 p-0"
+												className="h-6 w-6 p-0 flex-shrink-0"
 												onClick={() => setExistingAttachments((prev) => prev.filter((_, i) => i !== idx))}
 											>
 												<Trash2 className="h-3 w-3" />
@@ -665,104 +769,104 @@ export default function DashboardEvents() {
 								<p className="text-xs text-muted-foreground mt-1">{formAttachments.length} file baru akan diupload</p>
 							)}
 						</div>
-					{hasSpecificPermission('events.edit') && (
-						<div>
-							<Label className="flex items-center gap-1 mb-2">
-								<FileText className="h-4 w-4" />
-								Artikel Terkait
-							</Label>
-							<p className="text-xs text-muted-foreground mb-2">
-								Pilih artikel publish yang berkaitan dengan event ini.
-							</p>
-							<div className="relative mb-2">
-								<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-								<Input
-									className="pl-8 h-8 text-sm"
-									placeholder="Cari judul artikel..."
-									value={articleSearch}
-									onChange={(e) => setArticleSearch(e.target.value)}
-								/>
-							</div>
-							{selectedArticleIds.length > 0 && (
-								<div className="flex flex-wrap gap-1 mb-2">
-									{selectedArticleIds.map((id) => {
-										const art = publishedArticles.find((a) => a._id === id);
-										return art ? (
-											<Badge key={id} variant="secondary" className="text-xs gap-1">
-												{art.title.length > 30 ? art.title.slice(0, 30) + '…' : art.title}
-												<button
-													type="button"
-													className="ml-1 text-muted-foreground hover:text-destructive"
-													onClick={() => setSelectedArticleIds((prev) => prev.filter((i) => i !== id))}
-												>
-													×
-												</button>
-											</Badge>
-										) : null;
-									})}
+						{hasSpecificPermission('events.edit') && (
+							<div>
+								<Label className="flex items-center gap-1 mb-2">
+									<FileText className="h-4 w-4" />
+									Artikel Terkait
+								</Label>
+								<p className="text-xs text-muted-foreground mb-2">
+									Pilih artikel publish yang berkaitan dengan event ini.
+								</p>
+								<div className="relative mb-2">
+									<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+									<Input
+										className="pl-8 h-8 text-sm"
+										placeholder="Cari judul artikel..."
+										value={articleSearch}
+										onChange={(e) => setArticleSearch(e.target.value)}
+									/>
 								</div>
-							)}
-							<div className="border rounded-md max-h-40 overflow-y-auto">
-								{publishedArticles
-									.filter((a) =>
+								{selectedArticleIds.length > 0 && (
+									<div className="flex flex-wrap gap-1 mb-2">
+										{selectedArticleIds.map((id) => {
+											const art = publishedArticles.find((a) => a._id === id);
+											return art ? (
+												<Badge key={id} variant="secondary" className="text-xs gap-1">
+													{art.title.length > 30 ? art.title.slice(0, 30) + '…' : art.title}
+													<button
+														type="button"
+														className="ml-1 text-muted-foreground hover:text-destructive"
+														onClick={() => setSelectedArticleIds((prev) => prev.filter((i) => i !== id))}
+													>
+														×
+													</button>
+												</Badge>
+											) : null;
+										})}
+									</div>
+								)}
+								<div className="border rounded-md max-h-40 overflow-y-auto">
+									{publishedArticles
+										.filter((a) =>
+											articleSearch
+												? a.title.toLowerCase().includes(articleSearch.toLowerCase())
+												: true
+										)
+										.map((a) => {
+											const checked = selectedArticleIds.includes(a._id);
+											return (
+												<label
+													key={a._id}
+													className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm"
+												>
+													<input
+														type="checkbox"
+														checked={checked}
+														onChange={() => {
+															setSelectedArticleIds((prev) =>
+																checked
+																	? prev.filter((i) => i !== a._id)
+																	: [...prev, a._id]
+															);
+														}}
+														className="rounded"
+													/>
+													<span className="flex-1 truncate">{a.title}</span>
+												</label>
+											);
+										})}
+									{publishedArticles.filter((a) =>
 										articleSearch
 											? a.title.toLowerCase().includes(articleSearch.toLowerCase())
 											: true
-									)
-									.map((a) => {
-										const checked = selectedArticleIds.includes(a._id);
-										return (
-											<label
-												key={a._id}
-												className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm"
-											>
-												<input
-													type="checkbox"
-													checked={checked}
-													onChange={() => {
-														setSelectedArticleIds((prev) =>
-															checked
-																? prev.filter((i) => i !== a._id)
-																: [...prev, a._id]
-														);
-													}}
-													className="rounded"
-												/>
-												<span className="flex-1 truncate">{a.title}</span>
-											</label>
-										);
-									})}
-								{publishedArticles.filter((a) =>
-									articleSearch
-										? a.title.toLowerCase().includes(articleSearch.toLowerCase())
-										: true
-								).length === 0 && (
-									<p className="text-center text-sm text-muted-foreground py-4">
-										{articleSearch ? 'Tidak ada artikel yang cocok' : 'Belum ada artikel publish'}
-									</p>
-								)}
+									).length === 0 && (
+										<p className="text-center text-sm text-muted-foreground py-4">
+											{articleSearch ? 'Tidak ada artikel yang cocok' : 'Belum ada artikel publish'}
+										</p>
+									)}
+								</div>
 							</div>
+						)}
+						<div className="flex items-center gap-2">
+							<Switch checked={formPublished} onCheckedChange={setFormPublished} />
+							<Label>Publikasikan (tampil di Home)</Label>
 						</div>
-					)}
-					<div className="flex items-center gap-2">
-						<Switch checked={formPublished} onCheckedChange={setFormPublished} />
-						<Label>Publikasikan (tampil di Home)</Label>
-					</div>
-					<Button
-						className="w-full"
-						onClick={handleSaveEvent}
-						disabled={saveEventMut.isPending}
-					>
-						{saveEventMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-						{editingEvent ? 'Simpan Perubahan' : 'Buat Event'}
-					</Button>
+						<Button
+							className="w-full"
+							onClick={handleSaveEvent}
+							disabled={saveEventMut.isPending}
+						>
+							{saveEventMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+							{editingEvent ? 'Simpan Perubahan' : 'Buat Event'}
+						</Button>
 					</div>
 				</DialogContent>
 			</Dialog>
 
 			{/* Dialog Copy Event ke Artikel */}
 			<Dialog open={!!copyToArticleEvent} onOpenChange={(o) => { if (!o) setCopyToArticleEvent(null); }}>
-				<DialogContent className="sm:max-w-md">
+				<DialogContent className="w-[calc(100vw-1rem)] max-w-md">
 					<DialogHeader>
 						<DialogTitle>Copy Event ke Artikel</DialogTitle>
 					</DialogHeader>
@@ -784,7 +888,7 @@ export default function DashboardEvents() {
 									Sertakan lampiran/gambar ke konten artikel
 								</Label>
 							</div>
-							<div className="flex gap-2 pt-2">
+							<div className="flex flex-col gap-2 sm:flex-row pt-2">
 								<Button
 									className="flex-1"
 									onClick={() => copyToArticleMut.mutate({ eventId: copyToArticleEvent._id, copyAtts: copyAttachments })}

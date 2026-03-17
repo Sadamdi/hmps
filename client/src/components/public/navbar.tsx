@@ -233,15 +233,38 @@ export default function Navbar({
 		refetchOnMount: true,
 	});
 
-	const { data: eventsData } = useQuery<{ year: { year: number } | null; events: { month?: number; startDate?: string }[] }>({
+	const { data: eventsData } = useQuery<{
+		year?: { year: number } | null;
+		years?: { year: { year: number }; events: { month?: number; startDate?: string }[] }[];
+		events?: { month?: number; startDate?: string }[];
+	}>({
 		queryKey: ['/api/events/active-home'],
 		staleTime: 60 * 1000,
 	});
 
+	// Normalise ke array tahun aktif (mendukung multi-year + legacy single)
+	const activeYears = useMemo(() => {
+		if (!eventsData) return [];
+		if (eventsData.years && eventsData.years.length > 0) {
+			return eventsData.years.map((y) => y.year.year).sort((a, b) => a - b);
+		}
+		if (eventsData.year) return [eventsData.year.year];
+		return [];
+	}, [eventsData]);
+
+	// Bulan dari tahun terbaru (untuk month-jump di section home)
 	const eventMonths = useMemo(() => {
-		if (!eventsData?.events?.length) return [];
+		if (!eventsData) return [];
+		let evs: { month?: number; startDate?: string }[] = [];
+		if (eventsData.years && eventsData.years.length > 0) {
+			// Ambil bulan dari tahun terbaru
+			const latest = [...eventsData.years].sort((a, b) => b.year.year - a.year.year)[0];
+			evs = latest?.events ?? [];
+		} else if (eventsData.events) {
+			evs = eventsData.events;
+		}
 		const months = new Set<number>();
-		for (const ev of eventsData.events) {
+		for (const ev of evs) {
 			const m = ev.month ?? (ev.startDate ? new Date(ev.startDate).getMonth() + 1 : 0);
 			if (m) months.add(m);
 		}
@@ -250,24 +273,42 @@ export default function Navbar({
 
 	const navItems = useMemo(() => {
 		const items: NavItem[] = [];
-		const eventYear = eventsData?.year?.year;
+		const yearCount = activeYears.length;
+		if (yearCount === 0) return baseNavItemsWithoutEvents;
+
 		for (const item of baseNavItemsWithoutEvents) {
-			if (item.id === 'kelembagaan' && eventMonths.length > 0 && eventYear) {
+			if (item.id === 'kelembagaan') {
+				let children: { label: string; href?: string; month?: number }[];
+
+				if (yearCount === 1) {
+					// 1 tahun: link tahun + bulan-bulan
+					children = [
+						{ label: `Lihat semua event ${activeYears[0]}`, href: `/events/${activeYears[0]}` },
+						...eventMonths.map((m: number) => ({ label: MONTH_NAMES[m - 1], month: m })),
+					];
+				} else if (yearCount <= 5) {
+					// 2-5 tahun: list tahun saja (tanpa bulan)
+					children = activeYears.map((yr) => ({
+						label: `Lihat semua event ${yr}`,
+						href: `/events/${yr}`,
+					}));
+				} else {
+					// >5 tahun: hanya 1 link ke pilih tahun
+					children = [{ label: 'Lihat semua event', href: '/events' }];
+				}
+
 				items.push({
 					id: 'events',
 					label: 'Event',
 					icon: <Calendar className="h-4 w-4" />,
 					homeSection: 'events',
-					children: [
-						{ label: `Lihat semua event ${eventYear}`, href: `/events/${eventYear}` },
-						...eventMonths.map((m: number) => ({ label: MONTH_NAMES[m - 1], month: m })),
-					],
+					children,
 				});
 			}
 			items.push(item);
 		}
 		return items;
-	}, [eventMonths, eventsData?.year?.year]);
+	}, [activeYears, eventMonths]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.
