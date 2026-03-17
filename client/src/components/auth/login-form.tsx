@@ -172,10 +172,10 @@ export default function LoginForm() {
 					)}
 
 					<form onSubmit={handleSubmit} className="space-y-5">
-						{/* Username */}
+						{/* Username or Email */}
 						<div className="space-y-1.5">
 							<Label htmlFor="username" className="text-slate-700 dark:text-slate-300 text-sm font-medium">
-								Username
+								Username atau Email
 							</Label>
 							<div className="relative">
 								<User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
@@ -186,7 +186,7 @@ export default function LoginForm() {
 									onChange={(e) => setUsername(e.target.value)}
 									required
 									autoComplete="username"
-									placeholder="Masukkan username"
+									placeholder="Masukkan username atau email"
 									disabled={isRateLimited}
 									className="pl-9 bg-white dark:bg-white/5 border-slate-200 dark:border-white/15 text-slate-900 dark:text-slate-100 placeholder:text-slate-500 focus:border-cyan-400/60 focus:ring-cyan-400/30"
 								/>

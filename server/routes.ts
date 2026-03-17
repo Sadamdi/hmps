@@ -459,8 +459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						.json({ message: 'Username and password are required' });
 				}
 
-				// Find user by username
-				const user = await mongoStorage.getUserByUsername(username);
+				const user = await mongoStorage.getUserByUsernameOrEmail(username);
 				if (!user) {
 					return res
 						.status(401)

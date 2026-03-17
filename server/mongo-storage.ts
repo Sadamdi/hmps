@@ -88,6 +88,13 @@ async function getUserByUsername(username: string): Promise<any | null> {
 	return await User.findOne({ username }).lean();
 }
 
+async function getUserByUsernameOrEmail(identifier: string): Promise<any | null> {
+	if (!identifier) return null;
+	const byUsername = await User.findOne({ username: identifier }).lean();
+	if (byUsername) return byUsername;
+	return await User.findOne({ email: identifier.trim().toLowerCase() }).lean();
+}
+
 async function createUser(userData: any): Promise<any> {
 	// Hash password if provided
 	if (userData.password) {
@@ -1116,6 +1123,7 @@ const mongoDBStorage = {
 	getAllUsers,
 	getUserById,
 	getUserByUsername,
+	getUserByUsernameOrEmail,
 	createUser,
 	updateUser,
 	deleteUser,
