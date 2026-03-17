@@ -29,6 +29,7 @@ import {
 	EyeOff,
 	Key,
 	Loader2,
+	Mail,
 	Search,
 	Shield,
 	Trash2,
@@ -79,12 +80,19 @@ export default function UsersPage() {
 	const [showPw, setShowPw] = useState(false);
 	const [pwLoading, setPwLoading] = useState(false);
 
+	// Edit Email dialog state
+	const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+	const [emailTarget, setEmailTarget] = useState<UserWithRole | null>(null);
+	const [newEmail, setNewEmail] = useState('');
+	const [emailLoading, setEmailLoading] = useState(false);
+
 	// Permission flags
 	const canCreate = hasSpecificPermission('users.create');
 	const canEdit = hasSpecificPermission('users.edit');
 	const canDelete = hasSpecificPermission('users.delete');
 	const canViewOthers = hasSpecificPermission('users.view_others');
 	const canEditPassword = hasSpecificPermission('users.edit_password');
+	const canEditEmail = hasSpecificPermission('users.edit_email');
 
 	// Fetch users
 	const { data: users = [], isLoading } = useQuery({
@@ -228,6 +236,32 @@ export default function UsersPage() {
 		}
 	};
 
+	const handleEditEmail = (user: UserWithRole) => {
+		setEmailTarget(user);
+		setNewEmail(user.email || '');
+		setIsEmailDialogOpen(true);
+	};
+
+	const handleSubmitEmail = async () => {
+		if (!emailTarget) return;
+		if (!newEmail || !newEmail.includes('@')) {
+			toast({ title: 'Error', description: 'Masukkan email yang valid.', variant: 'destructive' });
+			return;
+		}
+		setEmailLoading(true);
+		try {
+			await apiRequest('POST', `/api/users/${emailTarget._id}/email`, { newEmail: newEmail.trim() });
+			toast({ title: 'Berhasil', description: `Email ${emailTarget.name || emailTarget.username} berhasil diubah.` });
+			setIsEmailDialogOpen(false);
+			setEmailTarget(null);
+			queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+		} catch (e: any) {
+			toast({ title: 'Gagal', description: e?.message || 'Gagal mengubah email.', variant: 'destructive' });
+		} finally {
+			setEmailLoading(false);
+		}
+	};
+
 	// Show loading jika permission masih loading
 	if (isPermissionLoading) {
 		return (
@@ -337,6 +371,10 @@ export default function UsersPage() {
 									canEditPassword &&
 									targetLevel > currentUserLevel &&
 									user._id !== currentUser?._id;
+								const canEditEmailThis =
+									canEditEmail &&
+									targetLevel > currentUserLevel &&
+									user._id !== currentUser?._id;
 								return (
 									<tr
 										key={user._id}
@@ -401,6 +439,15 @@ export default function UsersPage() {
 														className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
 														onClick={() => handleEditPassword(user)}>
 														<Key className="h-4 w-4" />
+													</Button>
+												)}
+												{canEditEmailThis && (
+													<Button
+														variant="ghost"
+														size="sm"
+														className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950"
+														onClick={() => handleEditEmail(user)}>
+														<Mail className="h-4 w-4" />
 													</Button>
 												)}
 												{canDeleteThis && (
@@ -508,6 +555,54 @@ export default function UsersPage() {
 									</>
 								) : (
 									'Simpan Password'
+								)}
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			{/* Edit Email Dialog */}
+			<Dialog
+				open={isEmailDialogOpen}
+				onOpenChange={setIsEmailDialogOpen}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<Mail className="h-5 w-5" />
+							Edit Email
+						</DialogTitle>
+						<p className="text-sm text-muted-foreground">
+							Ubah email untuk{' '}
+							<span className="font-medium text-foreground">
+								{emailTarget?.name || emailTarget?.username}
+							</span>
+						</p>
+					</DialogHeader>
+					<div className="space-y-4 pt-2">
+						<div className="space-y-2">
+							<label className="text-sm font-medium">Email Baru</label>
+							<Input
+								type="email"
+								value={newEmail}
+								onChange={(e) => setNewEmail(e.target.value)}
+								placeholder="Masukkan email baru"
+							/>
+						</div>
+						<div className="flex justify-end gap-2 pt-2">
+							<Button
+								variant="outline"
+								onClick={() => setIsEmailDialogOpen(false)}>
+								Batal
+							</Button>
+							<Button onClick={handleSubmitEmail} disabled={emailLoading}>
+								{emailLoading ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										Menyimpan...
+									</>
+								) : (
+									'Simpan Email'
 								)}
 							</Button>
 						</div>

@@ -1482,6 +1482,12 @@ async function initializeDefaultPermissions() {
 				description: 'Mengubah password user lain (tanpa OTP, hanya untuk role di bawahnya)',
 				category: 'users',
 			},
+			{
+				name: 'users.edit_email',
+				displayName: 'Edit Email',
+				description: 'Mengubah email user lain (tanpa OTP, hanya untuk role di bawahnya)',
+				category: 'users',
+			},
 
 			// Role management permissions
 			{

@@ -908,23 +908,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// Edit user profile route
+	// Edit user profile route (email change is handled separately via OTP)
 	app.put('/api/auth/profile', authenticate, async (req, res) => {
 		try {
 			const userId = (req.user as UserWithRole)?._id;
-			const { username, name, email } = req.body;
+			const { username, name } = req.body;
 
 			if (!userId) {
 				return res.status(401).json({ message: 'Authentication required' });
 			}
 
-			// Get current user
 			const currentUser = await mongoStorage.getUserById(userId);
 			if (!currentUser) {
 				return res.status(404).json({ message: 'User not found' });
 			}
 
-			// Check for unique username (excluding current user)
 			if (username && username !== currentUser.username) {
 				const userWithSameUsername =
 					await mongoStorage.getUserByUsername(username);
@@ -936,29 +934,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 			}
 
-			// Check for unique email (excluding current user)
-			if (email && email !== currentUser.email) {
-				const userWithSameEmail = await mongoStorage
-					.getAllUsers()
-					.then((users) =>
-						users.find(
-							(user) => user.email === email && user._id.toString() !== userId,
-						),
-					);
-				if (userWithSameEmail) {
-					return res.status(400).json({ message: 'Email already exists' });
-				}
-			}
-
-			// Update user profile
 			const updateData: any = {};
 			if (username) updateData.username = username;
 			if (name) updateData.name = name;
-			if (email) updateData.email = email;
 
 			const updatedUser = await mongoStorage.updateUser(userId, updateData);
 
-			// Return user info without password
 			const { password: _, ...userWithoutPassword } = updatedUser;
 			res.json(userWithoutPassword);
 		} catch (error) {
@@ -966,6 +947,129 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
+
+	// --- Change email with OTP (authenticated, self only) ---
+	app.post('/api/auth/change-email/request-otp', authenticate, async (req, res) => {
+		try {
+			const userId = (req.user as UserWithRole)?._id;
+			if (!userId) {
+				return res.status(401).json({ message: 'Authentication required' });
+			}
+
+			const user = await mongoStorage.getUserById(userId);
+			if (!user) {
+				return res.status(404).json({ message: 'User tidak ditemukan' });
+			}
+
+			const { challengeId } = await createOtpChallenge({
+				purpose: 'change_email',
+				email: user.email,
+				userId: userId.toString(),
+				ttlMinutes: 10,
+				requestIp: getRequestIp(req),
+			});
+
+			res.json({ message: 'Kode OTP telah dikirim ke email saat ini.', challengeId });
+		} catch (error: any) {
+			if (error instanceof RateLimitError) {
+				return res.status(429).json({ message: error.message, retryAfterSeconds: error.retryAfterSeconds });
+			}
+			console.error('Change email OTP error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.post('/api/auth/change-email/confirm', authenticate, async (req, res) => {
+		try {
+			const { challengeId, otpCode, newEmail } = req.body;
+			if (!challengeId || !otpCode || !newEmail) {
+				return res.status(400).json({ message: 'challengeId, otpCode, dan newEmail diperlukan' });
+			}
+			if (typeof newEmail !== 'string' || !newEmail.includes('@')) {
+				return res.status(400).json({ message: 'Format email tidak valid' });
+			}
+
+			const userId = (req.user as UserWithRole)?._id;
+			if (!userId) {
+				return res.status(401).json({ message: 'Authentication required' });
+			}
+
+			await verifyOtpChallenge({
+				challengeId,
+				code: otpCode,
+				purpose: 'change_email',
+			});
+
+			const { User } = await import('../db/mongodb');
+			const emailTaken = await User.findOne({ email: newEmail.trim().toLowerCase(), _id: { $ne: userId } }).lean();
+			if (emailTaken) {
+				return res.status(400).json({ message: 'Email sudah digunakan oleh user lain' });
+			}
+
+			await mongoStorage.updateUser(userId, { email: newEmail.trim().toLowerCase() });
+
+			res.json({ message: 'Email berhasil diubah' });
+		} catch (error: any) {
+			if (error instanceof OtpError) {
+				return res.status(400).json({ message: error.message });
+			}
+			console.error('Change email confirm error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// --- Admin edit email user lain (no OTP, requires permission + hierarchy) ---
+	app.post(
+		'/api/users/:id/email',
+		authenticate,
+		requirePermission('users.edit_email'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const { newEmail } = req.body;
+
+				if (!newEmail || typeof newEmail !== 'string' || !newEmail.includes('@')) {
+					return res.status(400).json({ message: 'Format email tidak valid' });
+				}
+
+				const requester = req.user as UserWithRole;
+				const targetUser = await mongoStorage.getUserById(id);
+				if (!targetUser) {
+					return res.status(404).json({ message: 'User tidak ditemukan' });
+				}
+
+				if (targetUser._id.toString() === requester._id.toString()) {
+					return res.status(400).json({ message: 'Gunakan fitur change email untuk akun sendiri' });
+				}
+
+				const { Role } = await import('../db/mongodb');
+				const requesterRole = await Role.findOne({ name: requester.role }).lean() as any;
+				const targetRole = await Role.findOne({ name: targetUser.role }).lean() as any;
+
+				const requesterLevel = requesterRole?.level ?? 999;
+				const targetLevel = targetRole?.level ?? 999;
+
+				if (requesterLevel >= targetLevel) {
+					return res.status(403).json({
+						message: 'Anda hanya bisa mengubah email user dengan role di bawah Anda',
+					});
+				}
+
+				const { User } = await import('../db/mongodb');
+				const emailTaken = await User.findOne({ email: newEmail.trim().toLowerCase(), _id: { $ne: targetUser._id } }).lean();
+				if (emailTaken) {
+					return res.status(400).json({ message: 'Email sudah digunakan oleh user lain' });
+				}
+
+				await mongoStorage.updateUser(id, { email: newEmail.trim().toLowerCase() });
+
+				res.json({ message: 'Email user berhasil diubah' });
+			} catch (error) {
+				console.error('Admin edit email error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
 
 	// Edit user role and division (admin only)
 	app.put(

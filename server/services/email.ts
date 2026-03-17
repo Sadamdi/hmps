@@ -25,6 +25,7 @@ function getTransporter(): nodemailer.Transporter {
 const PURPOSE_LABELS: Record<string, string> = {
 	forgot_password: 'Reset Password',
 	change_password: 'Verifikasi Ganti Password',
+	change_email: 'Verifikasi Ganti Email',
 };
 
 export async function sendOtpEmail(params: {

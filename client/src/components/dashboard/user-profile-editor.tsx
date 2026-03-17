@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AtSign, Loader2, Mail, User } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import { AtSign, Clock, Loader2, Mail, User } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../hooks/use-toast';
 import { logActivity } from '../../lib/activity-logger';
 import { useAuth } from '../../lib/auth';
@@ -14,6 +14,11 @@ import {
 	CardTitle,
 } from '../ui/card';
 import { Input } from '../ui/input';
+import {
+	InputOTP,
+	InputOTPGroup,
+	InputOTPSlot,
+} from '../ui/input-otp';
 import { Label } from '../ui/label';
 import {
 	Select,
@@ -26,7 +31,6 @@ import {
 interface UserProfileData {
 	username: string;
 	name: string;
-	email: string;
 }
 
 interface UserRoleData {
@@ -47,7 +51,6 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 	const [profileData, setProfileData] = useState<UserProfileData>({
 		username: user?.username || '',
 		name: user?.name || '',
-		email: user?.email || '',
 	});
 
 	const [roleData, setRoleData] = useState<UserRoleData>({
@@ -55,7 +58,25 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 		division: user?.division || '',
 	});
 
-	// Fetch roles untuk mendapatkan level
+	// Change email OTP state
+	const [emailStep, setEmailStep] = useState<'idle' | 'otp'>('idle');
+	const [newEmail, setNewEmail] = useState('');
+	const [emailChallengeId, setEmailChallengeId] = useState('');
+	const [emailOtpCode, setEmailOtpCode] = useState('');
+	const [emailLoading, setEmailLoading] = useState(false);
+	const [emailCountdown, setEmailCountdown] = useState(0);
+
+	useEffect(() => {
+		if (emailCountdown <= 0) return;
+		const timer = setInterval(() => {
+			setEmailCountdown((prev) => {
+				if (prev <= 1) { clearInterval(timer); return 0; }
+				return prev - 1;
+			});
+		}, 1000);
+		return () => clearInterval(timer);
+	}, [emailCountdown]);
+
 	const { data: roles = [] as any[] } = useQuery({
 		queryKey: ['/api/roles/levels'],
 		placeholderData: [],
@@ -70,7 +91,6 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 		return currentUser ? getRoleLevel(currentUser.role as string) : 999;
 	}, [currentUser, roles]);
 
-	// Role yang boleh di-assign: level lebih rendah dari current user (angka level lebih besar)
 	const assignableRoles = useMemo(() => {
 		return roles
 			.filter((r: any) => typeof r?.level === 'number')
@@ -78,20 +98,17 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 			.sort((a: any, b: any) => a.level - b.level);
 	}, [roles, currentUserLevel]);
 
-	// Check if current user can edit role/division
 	const canEditRole =
 		currentUser?.role === 'owner' ||
 		currentUser?.role === 'admin' ||
 		currentUser?.role === 'chair' ||
 		currentUser?.role === 'vice_chair';
 
-	// Update profile mutation
 	const updateProfileMutation = useMutation({
 		mutationFn: async (data: UserProfileData) => {
 			return await apiRequest('PUT', '/api/auth/profile', data);
 		},
 		onSuccess: async () => {
-			// Log activity
 			try {
 				await logActivity({
 					type: 'user',
@@ -108,7 +125,6 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 				description: 'Your profile has been updated successfully.',
 			});
 
-			// Refresh user data
 			queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
 			onUpdate?.();
 		},
@@ -122,13 +138,11 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 		},
 	});
 
-	// Update role mutation
 	const updateRoleMutation = useMutation({
 		mutationFn: async (data: UserRoleData) => {
 			return await apiRequest('PUT', `/api/users/${user._id}/role`, data);
 		},
 		onSuccess: async () => {
-			// Log activity
 			try {
 				await logActivity({
 					type: 'user',
@@ -145,7 +159,6 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 				description: 'User role has been updated successfully.',
 			});
 
-			// Refresh users list
 			queryClient.invalidateQueries({ queryKey: ['/api/users'] });
 			onUpdate?.();
 		},
@@ -175,10 +188,10 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 	};
 
 	const handleProfileSubmit = async () => {
-		if (!profileData.username || !profileData.name || !profileData.email) {
+		if (!profileData.username || !profileData.name) {
 			toast({
 				title: 'Error',
-				description: 'All fields are required.',
+				description: 'Username dan nama wajib diisi.',
 				variant: 'destructive',
 			});
 			return;
@@ -198,6 +211,79 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 		}
 
 		await updateRoleMutation.mutateAsync(roleData);
+	};
+
+	const handleRequestEmailOtp = async () => {
+		if (!newEmail || !newEmail.includes('@')) {
+			toast({ title: 'Error', description: 'Masukkan email baru yang valid.', variant: 'destructive' });
+			return;
+		}
+		setEmailLoading(true);
+		try {
+			const res = await fetch('/api/auth/change-email/request-otp', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				if (res.status === 429 && data.retryAfterSeconds) {
+					setEmailCountdown(data.retryAfterSeconds);
+				}
+				toast({ title: 'Error', description: data.message || 'Gagal mengirim OTP', variant: 'destructive' });
+				return;
+			}
+			if (data.challengeId) setEmailChallengeId(data.challengeId);
+			setEmailStep('otp');
+			toast({ title: 'OTP Dikirim', description: 'Cek email lama Anda untuk kode OTP.' });
+		} catch {
+			toast({ title: 'Error', description: 'Gagal mengirim OTP', variant: 'destructive' });
+		} finally {
+			setEmailLoading(false);
+		}
+	};
+
+	const handleConfirmEmailChange = async () => {
+		if (emailOtpCode.length !== 6) {
+			toast({ title: 'Error', description: 'Masukkan 6 digit kode OTP.', variant: 'destructive' });
+			return;
+		}
+		setEmailLoading(true);
+		try {
+			const res = await fetch('/api/auth/change-email/confirm', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					challengeId: emailChallengeId,
+					otpCode: emailOtpCode,
+					newEmail: newEmail.trim(),
+				}),
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				toast({ title: 'Error', description: data.message || 'Gagal mengubah email', variant: 'destructive' });
+				return;
+			}
+			toast({ title: 'Berhasil', description: 'Email berhasil diubah.' });
+			setEmailStep('idle');
+			setNewEmail('');
+			setEmailOtpCode('');
+			setEmailChallengeId('');
+			queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
+			onUpdate?.();
+		} catch {
+			toast({ title: 'Error', description: 'Gagal mengubah email', variant: 'destructive' });
+		} finally {
+			setEmailLoading(false);
+		}
+	};
+
+	const formatTime = (seconds: number) => {
+		const mins = Math.floor(seconds / 60);
+		const secs = seconds % 60;
+		if (mins > 0) return `${mins}:${secs.toString().padStart(2, '0')}`;
+		return `${secs} detik`;
 	};
 
 	return (
@@ -243,20 +329,18 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 						/>
 					</div>
 					<div className="space-y-2">
-						<Label
-							htmlFor="email"
-							className="flex items-center gap-2">
+						<Label className="flex items-center gap-2">
 							<Mail className="h-4 w-4" />
 							Email
 						</Label>
 						<Input
-							id="email"
-							name="email"
-							type="email"
-							value={profileData.email}
-							onChange={handleProfileChange}
-							placeholder="Enter email address"
+							value={user?.email || ''}
+							disabled
+							className="opacity-60"
 						/>
+						<p className="text-xs text-muted-foreground">
+							Untuk mengubah email, gunakan bagian "Ubah Email" di bawah.
+						</p>
 					</div>
 					<Button
 						onClick={handleProfileSubmit}
@@ -271,6 +355,90 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 							'Update Profile'
 						)}
 					</Button>
+				</CardContent>
+			</Card>
+
+			{/* Change Email */}
+			<Card>
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2">
+						<Mail className="h-5 w-5" />
+						Ubah Email
+					</CardTitle>
+					<CardDescription>
+						Kode OTP akan dikirim ke email saat ini ({user?.email}) untuk verifikasi
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="space-y-2">
+						<Label htmlFor="newEmail">Email Baru</Label>
+						<Input
+							id="newEmail"
+							type="email"
+							value={newEmail}
+							onChange={(e) => setNewEmail(e.target.value)}
+							placeholder="Masukkan email baru"
+							disabled={emailStep === 'otp'}
+						/>
+					</div>
+
+					{emailStep === 'otp' && (
+						<div className="space-y-3">
+							<Label>Kode OTP (cek email lama)</Label>
+							<div className="flex justify-center">
+								<InputOTP
+									maxLength={6}
+									value={emailOtpCode}
+									onChange={(value) => setEmailOtpCode(value)}>
+									<InputOTPGroup>
+										<InputOTPSlot index={0} />
+										<InputOTPSlot index={1} />
+										<InputOTPSlot index={2} />
+										<InputOTPSlot index={3} />
+										<InputOTPSlot index={4} />
+										<InputOTPSlot index={5} />
+									</InputOTPGroup>
+								</InputOTP>
+							</div>
+							<p className="text-xs text-muted-foreground text-center">
+								Kode berlaku 10 menit
+							</p>
+						</div>
+					)}
+
+					<div className="flex gap-2">
+						{emailStep === 'otp' && (
+							<Button
+								variant="outline"
+								onClick={() => {
+									setEmailStep('idle');
+									setEmailOtpCode('');
+									setEmailChallengeId('');
+								}}>
+								Batal
+							</Button>
+						)}
+						<Button
+							className="flex-1"
+							onClick={emailStep === 'idle' ? handleRequestEmailOtp : handleConfirmEmailChange}
+							disabled={emailLoading || emailCountdown > 0}>
+							{emailLoading ? (
+								<>
+									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+									{emailStep === 'idle' ? 'Mengirim OTP...' : 'Mengubah email...'}
+								</>
+							) : emailCountdown > 0 ? (
+								<>
+									<Clock className="mr-2 h-4 w-4" />
+									Tunggu {formatTime(emailCountdown)}
+								</>
+							) : emailStep === 'idle' ? (
+								'Kirim OTP'
+							) : (
+								'Konfirmasi & Ubah Email'
+							)}
+						</Button>
+					</div>
 				</CardContent>
 			</Card>
 
