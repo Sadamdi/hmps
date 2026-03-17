@@ -1432,18 +1432,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			);
 			const permissions = userRole?.permissions || [];
 
-			// Filter by permissions
+			// Filter by permissions: view_others = lihat semua, view/edit/create = hanya milik sendiri
 			let articles;
 			if (permissions.includes('articles.view_others')) {
-				// Can see all articles
 				articles = await mongoStorage.getAllArticles();
-			} else if (permissions.includes('articles.view')) {
-				// Can only see their own articles
+			} else if (
+				permissions.includes('articles.view') ||
+				permissions.includes('articles.edit') ||
+				permissions.includes('articles.create')
+			) {
 				articles = await mongoStorage.getArticlesByAuthorId(
 					(req.user as UserWithRole)?._id || '',
 				);
 			} else {
-				// No articles view permission
 				return res
 					.status(403)
 					.json({ message: 'You do not have permission to view articles' });
@@ -2119,18 +2120,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			);
 			const permissions = userRole?.permissions || [];
 
-			// Filter by permissions
+			// Filter by permissions: view_others = lihat semua, view/edit/create = hanya milik sendiri
 			let items;
 			if (permissions.includes('library.view_others')) {
-				// Can see all items
 				items = await mongoStorage.getAllLibraryItems();
-			} else if (permissions.includes('library.view')) {
-				// Can only see their own items
+			} else if (
+				permissions.includes('library.view') ||
+				permissions.includes('library.edit') ||
+				permissions.includes('library.create')
+			) {
 				items = await mongoStorage.getLibraryItemsByAuthorId(
 					(req.user as UserWithRole)?._id || '',
 				);
 			} else {
-				// No library view permission
 				return res.status(403).json({
 					message: 'You do not have permission to view library items',
 				});
@@ -4327,9 +4329,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				(req.user as UserWithRole).role || '',
 			);
 			const permissions = userRole?.permissions || [];
+			// view_others = lihat semua, view/edit/create = hanya milik sendiri
 			let authorIdFilter: string | null = null;
 			if (!permissions.includes('events.view_others')) {
-				if (permissions.includes('events.view')) {
+				if (
+					permissions.includes('events.view') ||
+					permissions.includes('events.edit') ||
+					permissions.includes('events.create')
+				) {
 					authorIdFilter = (req.user as UserWithRole)._id;
 				} else {
 					return res.status(403).json({
