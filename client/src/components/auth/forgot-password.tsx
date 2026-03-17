@@ -7,8 +7,8 @@ import {
 	InputOTPSlot,
 } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, CheckCircle2, Eye, EyeOff, Loader2, Mail } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, CheckCircle2, Clock, Eye, EyeOff, Loader2, Mail } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 
 type Step = 'email' | 'otp' | 'new-password' | 'done';
@@ -19,11 +19,34 @@ export default function ForgotPassword() {
 	const [email, setEmail] = useState('');
 	const [challengeId, setChallengeId] = useState('');
 	const [otpCode, setOtpCode] = useState('');
+	const [resetToken, setResetToken] = useState('');
 	const [newPassword, setNewPassword] = useState('');
 	const [confirmPassword, setConfirmPassword] = useState('');
 	const [showPassword, setShowPassword] = useState(false);
 	const [error, setError] = useState('');
 	const [loading, setLoading] = useState(false);
+	const [countdown, setCountdown] = useState(0);
+
+	useEffect(() => {
+		if (countdown <= 0) return;
+		const timer = setInterval(() => {
+			setCountdown((prev) => {
+				if (prev <= 1) {
+					clearInterval(timer);
+					return 0;
+				}
+				return prev - 1;
+			});
+		}, 1000);
+		return () => clearInterval(timer);
+	}, [countdown]);
+
+	const formatTime = (seconds: number) => {
+		const mins = Math.floor(seconds / 60);
+		const secs = seconds % 60;
+		if (mins > 0) return `${mins}:${secs.toString().padStart(2, '0')}`;
+		return `${secs} detik`;
+	};
 
 	const handleRequestOtp = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -37,6 +60,9 @@ export default function ForgotPassword() {
 			});
 			const data = await res.json();
 			if (!res.ok) {
+				if (res.status === 429 && data.retryAfterSeconds) {
+					setCountdown(data.retryAfterSeconds);
+				}
 				setError(data.message || 'Gagal mengirim OTP');
 				return;
 			}
@@ -51,7 +77,34 @@ export default function ForgotPassword() {
 		}
 	};
 
-	const handleVerifyAndReset = async (e: React.FormEvent) => {
+	const handleVerifyOtp = async () => {
+		setError('');
+		if (otpCode.length !== 6) {
+			setError('Masukkan 6 digit kode OTP');
+			return;
+		}
+		setLoading(true);
+		try {
+			const res = await fetch('/api/auth/forgot-password/verify-otp', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ challengeId, otpCode }),
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				setError(data.message || 'Kode OTP tidak valid');
+				return;
+			}
+			setResetToken(data.resetToken);
+			setStep('new-password');
+		} catch {
+			setError('Terjadi kesalahan. Coba lagi.');
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const handleResetPassword = async (e: React.FormEvent) => {
 		e.preventDefault();
 		setError('');
 		if (newPassword.length < 8) {
@@ -67,7 +120,7 @@ export default function ForgotPassword() {
 			const res = await fetch('/api/auth/forgot-password/confirm', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ challengeId, otpCode, newPassword }),
+				body: JSON.stringify({ challengeId, resetToken, newPassword }),
 			});
 			const data = await res.json();
 			if (!res.ok) {
@@ -122,6 +175,12 @@ export default function ForgotPassword() {
 					{error && (
 						<div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-500/40 rounded-lg">
 							<span className="text-red-700 dark:text-red-300 text-sm">{error}</span>
+							{countdown > 0 && (
+								<div className="mt-1.5 text-xs text-red-600 dark:text-red-400/80 flex items-center gap-1">
+									<Clock className="h-3 w-3" />
+									<span>Coba lagi dalam {formatTime(countdown)}</span>
+								</div>
+							)}
 						</div>
 					)}
 
@@ -136,12 +195,15 @@ export default function ForgotPassword() {
 									onChange={(e) => setEmail(e.target.value)}
 									placeholder="Masukkan email akun"
 									required
+									disabled={countdown > 0}
 									className="bg-white dark:bg-white/5"
 								/>
 							</div>
-							<Button type="submit" className="w-full" disabled={loading}>
+							<Button type="submit" className="w-full" disabled={loading || countdown > 0}>
 								{loading ? (
 									<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mengirim...</>
+								) : countdown > 0 ? (
+									<><Clock className="mr-2 h-4 w-4" />Tunggu {formatTime(countdown)}</>
 								) : (
 									'Kirim Kode OTP'
 								)}
@@ -171,15 +233,19 @@ export default function ForgotPassword() {
 							</p>
 							<Button
 								className="w-full"
-								disabled={otpCode.length !== 6}
-								onClick={() => { setError(''); setStep('new-password'); }}>
-								Lanjutkan
+								disabled={otpCode.length !== 6 || loading}
+								onClick={handleVerifyOtp}>
+								{loading ? (
+									<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Memverifikasi...</>
+								) : (
+									'Verifikasi OTP'
+								)}
 							</Button>
 						</div>
 					)}
 
 					{step === 'new-password' && (
-						<form onSubmit={handleVerifyAndReset} className="space-y-4">
+						<form onSubmit={handleResetPassword} className="space-y-4">
 							<div className="space-y-1.5">
 								<Label htmlFor="newPassword" className="text-sm font-medium">Password Baru</Label>
 								<div className="relative">

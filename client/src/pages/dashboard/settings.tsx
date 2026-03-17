@@ -444,7 +444,8 @@ export default function SettingsPage() {
 			});
 			const data = await res.json();
 			if (!res.ok) {
-				toast({ title: 'Error', description: data.message || 'Gagal mengirim OTP', variant: 'destructive' });
+				const retryInfo = data.retryAfterSeconds ? ` (tunggu ${data.retryAfterSeconds} detik)` : '';
+				toast({ title: 'Error', description: (data.message || 'Gagal mengirim OTP') + retryInfo, variant: 'destructive' });
 				return;
 			}
 			if (data.challengeId) setPwChallengeId(data.challengeId);

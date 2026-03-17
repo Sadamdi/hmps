@@ -14,9 +14,11 @@ import {
 	verifyPassword,
 } from './auth';
 import {
+	confirmWithResetToken,
 	createOtpChallenge,
 	OtpError,
 	RateLimitError,
+	verifyAndIssueResetToken,
 	verifyOtpChallenge,
 } from './services/otp';
 import { isProcessableImage, processImage } from './image-processor';
@@ -682,6 +684,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// OTP-BASED PASSWORD FLOWS
 	// ══════════════════════════════════════════════════════════════
 
+	function getRequestIp(req: any): string {
+		return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
+			|| req.socket?.remoteAddress
+			|| '';
+	}
+
 	// --- Forgot password (no auth required) ---
 	app.post('/api/auth/forgot-password/request-otp', async (req, res) => {
 		try {
@@ -701,31 +709,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				email: user.email,
 				userId: user._id.toString(),
 				ttlMinutes: 10,
+				requestIp: getRequestIp(req),
 			});
 
 			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
 		} catch (error: any) {
 			if (error instanceof RateLimitError) {
-				return res.status(429).json({ message: error.message });
+				return res.status(429).json({ message: error.message, retryAfterSeconds: error.retryAfterSeconds });
 			}
 			console.error('Forgot password OTP error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
 
+	app.post('/api/auth/forgot-password/verify-otp', async (req, res) => {
+		try {
+			const { challengeId, otpCode } = req.body;
+			if (!challengeId || !otpCode) {
+				return res.status(400).json({ message: 'challengeId dan otpCode diperlukan' });
+			}
+
+			const result = await verifyAndIssueResetToken({
+				challengeId,
+				code: otpCode,
+				purpose: 'forgot_password',
+				resetTokenTtlMinutes: 10,
+			});
+
+			res.json({
+				message: 'Kode OTP valid.',
+				resetToken: result.resetToken,
+				resetTokenExpiresInSeconds: result.resetTokenExpiresInSeconds,
+			});
+		} catch (error: any) {
+			if (error instanceof OtpError) {
+				return res.status(400).json({ message: error.message });
+			}
+			console.error('Forgot password verify-otp error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
 	app.post('/api/auth/forgot-password/confirm', async (req, res) => {
 		try {
-			const { challengeId, otpCode, newPassword } = req.body;
-			if (!challengeId || !otpCode || !newPassword) {
-				return res.status(400).json({ message: 'challengeId, otpCode, dan newPassword diperlukan' });
+			const { challengeId, resetToken, newPassword } = req.body;
+			if (!challengeId || !resetToken || !newPassword) {
+				return res.status(400).json({ message: 'challengeId, resetToken, dan newPassword diperlukan' });
 			}
 			if (typeof newPassword !== 'string' || newPassword.length < 8) {
 				return res.status(400).json({ message: 'Password minimal 8 karakter' });
 			}
 
-			const result = await verifyOtpChallenge({
+			const result = await confirmWithResetToken({
 				challengeId,
-				code: otpCode,
+				resetToken,
 				purpose: 'forgot_password',
 			});
 
@@ -765,12 +802,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				email: user.email,
 				userId: userId.toString(),
 				ttlMinutes: 10,
+				requestIp: getRequestIp(req),
 			});
 
 			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
 		} catch (error: any) {
 			if (error instanceof RateLimitError) {
-				return res.status(429).json({ message: error.message });
+				return res.status(429).json({ message: error.message, retryAfterSeconds: error.retryAfterSeconds });
 			}
 			console.error('Change password OTP error:', error);
 			res.status(500).json({ message: 'Internal server error' });

@@ -655,16 +655,21 @@ const otpChallengeSchema = new mongoose.Schema({
 	purpose: { type: String, required: true },
 	email: { type: String, required: true },
 	userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+	requestIp: { type: String, default: '' },
 	codeHash: { type: String, required: true },
 	attempts: { type: Number, default: 0 },
 	maxAttempts: { type: Number, default: 5 },
 	consumedAt: { type: Date, default: null },
+	verifiedAt: { type: Date, default: null },
+	resetTokenHash: { type: String, default: null },
+	resetTokenExpiresAt: { type: Date, default: null },
 	expiresAt: { type: Date, required: true },
 	createdAt: { type: Date, default: Date.now },
 });
 
 otpChallengeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
-otpChallengeSchema.index({ email: 1, purpose: 1, createdAt: -1 });
+otpChallengeSchema.index({ email: 1, createdAt: -1 });
+otpChallengeSchema.index({ requestIp: 1, createdAt: -1 });
 
 // Create models
 const EventYear =
