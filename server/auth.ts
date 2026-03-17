@@ -121,6 +121,49 @@ export async function authenticate(
 	}
 }
 
+/**
+ * Optional authentication: populates req.user when valid token is present,
+ * but does NOT fail when token is missing or invalid (continues without req.user).
+ */
+export async function authenticateOptional(
+	req: Request,
+	res: Response,
+	next: NextFunction
+) {
+	try {
+		const token = req.cookies?.authToken;
+		if (!token) {
+			return next();
+		}
+		// @ts-ignore
+		const decoded = jwt.verify(token, JWT_SECRET_KEY) as { id: string } & {
+			sid?: string;
+			tv?: number;
+		};
+		const user = await mongoStorage.getUserById(decoded.id);
+		if (!user) return next();
+		const tokenVersionFromDb = (user as any).tokenVersion || 0;
+		const tokenVersionFromToken = decoded.tv || 0;
+		if (tokenVersionFromDb !== tokenVersionFromToken) return next();
+		try {
+			if (decoded.sid) {
+				const { Session } = await import('../db/mongodb');
+				const sess: any = await Session.findOne({
+					sessionId: decoded.sid,
+					userId: (user as any)._id,
+				}).lean();
+				if (!sess || sess.revokedAt) return next();
+			}
+		} catch {
+			/* ignore */
+		}
+		req.user = user as UserWithRole;
+		next();
+	} catch {
+		next();
+	}
+}
+
 async function resolveGeoLocation(ip: string): Promise<string> {
 	try {
 		if (!ip) return '';

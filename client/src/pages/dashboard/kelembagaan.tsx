@@ -44,7 +44,7 @@ export default function DashboardKelembagaan() {
 	usePermissionRefresh();
 
 	const { hasPermission: hasAccess, isLoading: isPermissionLoading } =
-		usePermissionGuardAny(['kelembagaan.view', 'kelembagaan.edit', 'content.view', 'content.edit']);
+		usePermissionGuardAny(['kelembagaan.view', 'kelembagaan.edit']);
 
 	const { data: settings, isPending } = useQuery<Settings>({
 		queryKey: ['/api/settings'],

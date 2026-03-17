@@ -281,7 +281,9 @@ export default function ArticleEditor({
 		queryKey: ['/api/events-parent-options', selectedYearDoc?._id],
 		queryFn: async () => {
 			if (!selectedYearDoc) return [];
-			const res = await fetch(`/api/events?yearId=${selectedYearDoc._id}&parentId=null`);
+			const res = await fetch(`/api/events?yearId=${selectedYearDoc._id}&parentId=null`, {
+				credentials: 'include',
+			});
 			if (!res.ok) return [];
 			return res.json();
 		},

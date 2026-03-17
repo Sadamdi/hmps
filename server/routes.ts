@@ -5,6 +5,7 @@ import { createServer, type Server } from 'http';
 import path from 'path';
 import {
 	authenticate,
+	authenticateOptional,
 	authorize,
 	canManageRole,
 	createSessionRecord,
@@ -81,54 +82,25 @@ async function checkArticlePermission(
 	action: 'edit' | 'delete' | 'publish',
 ): Promise<boolean> {
 	try {
-		console.log(
-			`🔍 Checking ${action} permission for user:`,
-			user.role,
-			user._id,
-		);
-		console.log(`📄 Article author:`, article.authorId);
-
-		// Get user's role and permissions
 		const userRole = await mongoStorage.getRoleByName(user.role);
-		if (!userRole) {
-			console.log('❌ User role not found:', user.role);
-			return false;
-		}
+		if (!userRole) return false;
 
 		const permissions = userRole.permissions;
-		const isOwner = user._id.toString() === article.authorId.toString();
+		const isOwner = user._id.toString() === (article.authorId || '').toString();
 
-		console.log(`👤 User permissions:`, permissions);
-		console.log(`🔐 Is owner:`, isOwner);
-		console.log(`🔍 User ID:`, user._id.toString());
-		console.log(`🔍 Article Author ID:`, article.authorId.toString());
-
-		// Check specific permissions
 		switch (action) {
 			case 'edit':
-				// Can edit if has articles.edit permission and it's their own article
-				// OR has articles.edit_others permission
-				const canEdit =
+				return (
 					(permissions.includes('articles.edit') && isOwner) ||
-					permissions.includes('articles.edit_others');
-				console.log(`✏️ Can edit:`, canEdit);
-				return canEdit;
-
+					permissions.includes('articles.edit_others')
+				);
 			case 'delete':
-				// Can delete if has articles.delete permission and it's their own article
-				// OR has articles.delete_others permission
-				const canDelete =
+				return (
 					(permissions.includes('articles.delete') && isOwner) ||
-					permissions.includes('articles.delete_others');
-				console.log(`🗑️ Can delete:`, canDelete);
-				return canDelete;
-
+					permissions.includes('articles.delete_others')
+				);
 			case 'publish':
-				// Can publish if has articles.publish permission
-				const canPublish = permissions.includes('articles.publish');
-				console.log(`📢 Can publish:`, canPublish);
-				return canPublish;
-
+				return permissions.includes('articles.publish');
 			default:
 				return false;
 		}
@@ -138,6 +110,64 @@ async function checkArticlePermission(
 	}
 }
 
+// Helper function to check event permissions (own vs others)
+async function checkEventPermission(
+	user: UserWithRole,
+	event: any,
+	action: 'view' | 'edit' | 'delete' | 'publish',
+): Promise<boolean> {
+	try {
+		const userRole = await mongoStorage.getRoleByName(user.role);
+		if (!userRole) return false;
+
+		const permissions = userRole.permissions;
+		const isOwner =
+			user._id.toString() === (event.createdBy || '').toString();
+
+		switch (action) {
+			case 'view':
+				return (
+					(permissions.includes('events.view') && isOwner) ||
+					permissions.includes('events.view_others')
+				);
+			case 'edit':
+				return (
+					(permissions.includes('events.edit') && isOwner) ||
+					permissions.includes('events.edit_others')
+				);
+			case 'delete':
+				return (
+					(permissions.includes('events.delete') && isOwner) ||
+					permissions.includes('events.delete_others')
+				);
+			case 'publish':
+				return permissions.includes('events.publish');
+			default:
+				return false;
+		}
+	} catch (error) {
+		console.error('Error checking event permission:', error);
+		return false;
+	}
+}
+
+// Helper function to check if user can view article (for draft/unpublished)
+async function canViewArticle(
+	user: UserWithRole | undefined,
+	article: any,
+): Promise<boolean> {
+	if (!user) return false;
+	if (article.published) return true;
+	const userRole = await mongoStorage.getRoleByName(user.role);
+	if (!userRole) return false;
+	const permissions = userRole.permissions;
+	const isOwner = user._id.toString() === (article.authorId || '').toString();
+	return (
+		(permissions.includes('articles.view') && isOwner) ||
+		permissions.includes('articles.view_others')
+	);
+}
+
 // Helper function to check library permissions
 async function checkLibraryPermission(
 	user: UserWithRole,
@@ -145,42 +175,24 @@ async function checkLibraryPermission(
 	action: 'edit' | 'delete',
 ): Promise<boolean> {
 	try {
-		console.log(
-			`🔍 Checking library ${action} permission for user:`,
-			user.role,
-			user._id,
-		);
-		console.log(`📚 Library item author:`, libraryItem.authorId);
-
 		const userRole = await mongoStorage.getRoleByName(user.role);
-		if (!userRole) {
-			console.log('❌ User role not found:', user.role);
-			return false;
-		}
+		if (!userRole) return false;
 
 		const permissions = userRole.permissions;
-		const isOwner = user._id.toString() === libraryItem.authorId.toString();
-
-		console.log(`👤 User permissions:`, permissions);
-		console.log(`🔐 Is owner:`, isOwner);
-		console.log(`🔍 User ID:`, user._id.toString());
-		console.log(`🔍 Library Author ID:`, libraryItem.authorId.toString());
+		const isOwner =
+			user._id.toString() === (libraryItem.authorId || '').toString();
 
 		switch (action) {
 			case 'edit':
-				const canEdit =
+				return (
 					(permissions.includes('library.edit') && isOwner) ||
-					permissions.includes('library.edit_others');
-				console.log(`✏️ Can edit library:`, canEdit);
-				return canEdit;
-
+					permissions.includes('library.edit_others')
+				);
 			case 'delete':
-				const canDelete =
+				return (
 					(permissions.includes('library.delete') && isOwner) ||
-					permissions.includes('library.delete_others');
-				console.log(`🗑️ Can delete library:`, canDelete);
-				return canDelete;
-
+					permissions.includes('library.delete_others')
+				);
 			default:
 				return false;
 		}
@@ -1445,21 +1457,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Hybrid route: /artikel/:id/:slug (for SEO-friendly URLs)
-	app.get('/api/articles/:id/:slug', async (req, res) => {
-		try {
-			const articleId = req.params.id;
-			const slug = req.params.slug;
+	app.get(
+		'/api/articles/:id/:slug',
+		authenticateOptional,
+		async (req, res) => {
+			try {
+				const articleId = req.params.id;
+				const slug = req.params.slug;
 
-			const article = await mongoStorage.getArticleById(articleId);
+				const article = await mongoStorage.getArticleById(articleId);
 
-			if (!article) {
-				return res.status(404).json({ message: 'Article not found' });
-			}
+				if (!article) {
+					return res.status(404).json({ message: 'Article not found' });
+				}
 
-			// If article is not published, only authenticated users can view it
-			if (!article.published && !req.user) {
-				return res.status(404).json({ message: 'Article not found' });
-			}
+				// Published: anyone can view
+				if (article.published) {
+					// continue to response below
+				} else {
+					// Draft: only owner or users with articles.view_others
+					const canView = await canViewArticle(
+						req.user as UserWithRole | undefined,
+						article,
+					);
+					if (!canView) {
+						return res.status(403).json({
+							message: 'You do not have permission to view this article',
+						});
+					}
+				}
 
 			// Increment view count for analytics
 			try {
@@ -1487,22 +1513,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			console.error('Get article by ID and slug error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
-	});
+		},
+	);
 
 	// Get article by slug for SEO-friendly URLs (MUST BE BEFORE /:id route)
-	app.get('/api/articles/slug/:slug', async (req, res) => {
-		try {
-			const slug = req.params.slug;
-			const article = await mongoStorage.getArticleBySlug(slug);
+	app.get(
+		'/api/articles/slug/:slug',
+		authenticateOptional,
+		async (req, res) => {
+			try {
+				const slug = req.params.slug;
+				const article = await mongoStorage.getArticleBySlug(slug);
 
-			if (!article) {
-				return res.status(404).json({ message: 'Article not found' });
-			}
+				if (!article) {
+					return res.status(404).json({ message: 'Article not found' });
+				}
 
-			// If article is not published, only authenticated users can view it
-			if (!article.published && !req.user) {
-				return res.status(404).json({ message: 'Article not found' });
-			}
+				if (!article.published) {
+					const canView = await canViewArticle(
+						req.user as UserWithRole | undefined,
+						article,
+					);
+					if (!canView) {
+						return res.status(403).json({
+							message: 'You do not have permission to view this article',
+						});
+					}
+				}
 
 			// Increment view count for analytics
 			try {
@@ -1524,9 +1561,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			console.error('Get article by slug error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
-	});
+		},
+	);
 
-	app.get('/api/articles/:id', async (req, res) => {
+	app.get('/api/articles/:id', authenticateOptional, async (req, res) => {
 		try {
 			const articleId = req.params.id;
 			const article = await mongoStorage.getArticleById(articleId);
@@ -1535,9 +1573,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: 'Article not found' });
 			}
 
-			// If article is not published, only authenticated users can view it
-			if (!article.published && !req.user) {
-				return res.status(404).json({ message: 'Article not found' });
+			if (!article.published) {
+				const canView = await canViewArticle(
+					req.user as UserWithRole | undefined,
+					article,
+				);
+				if (!canView) {
+					return res.status(403).json({
+						message: 'You do not have permission to view this article',
+					});
+				}
 			}
 
 			// Increment view count for analytics
@@ -2117,6 +2162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/library',
 		authenticate,
+		requirePermission('library.create'),
 		uploadMiddleware.array('images', 10),
 		async (req, res) => {
 			try {
@@ -4237,7 +4283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	app.get('/api/events', async (req, res) => {
+	app.get('/api/events', authenticate, async (req, res) => {
 		try {
 			const { yearId, parentId } = req.query;
 			if (!yearId)
@@ -4246,9 +4292,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				parentId === 'null' || parentId === ''
 					? null
 					: (parentId as string | undefined);
+
+			const userRole = await mongoStorage.getRoleByName(
+				(req.user as UserWithRole).role || '',
+			);
+			const permissions = userRole?.permissions || [];
+			let authorIdFilter: string | null = null;
+			if (!permissions.includes('events.view_others')) {
+				if (permissions.includes('events.view')) {
+					authorIdFilter = (req.user as UserWithRole)._id;
+				} else {
+					return res.status(403).json({
+						message: 'You do not have permission to view events',
+					});
+				}
+			}
+
 			const events = await mongoStorage.getEventsByYearId(
 				yearId as string,
 				pId,
+				authorIdFilter,
 			);
 			res.json(events);
 		} catch (error) {
@@ -4374,7 +4437,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.patch(
 		'/api/events/:id',
 		authenticate,
-		requirePermission('events.edit'),
 		uploadMiddleware.fields([
 			{ name: 'thumbnail', maxCount: 1 },
 			{ name: 'attachmentFiles', maxCount: 10 },
@@ -4382,10 +4444,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const { id } = req.params;
+				const existingEvent = await mongoStorage.getEventById(id);
+				if (!existingEvent)
+					return res.status(404).json({ message: 'Event not found' });
+
+				const body = req.body;
+				const canEdit = await checkEventPermission(
+					req.user as UserWithRole,
+					existingEvent,
+					'edit',
+				);
+				if (!canEdit) {
+					return res.status(403).json({
+						message: 'You do not have permission to edit this event',
+					});
+				}
+				if (
+					body.published === 'true' ||
+					body.published === true
+				) {
+					const canPublish = await checkEventPermission(
+						req.user as UserWithRole,
+						existingEvent,
+						'publish',
+					);
+					if (!canPublish) {
+						return res.status(403).json({
+							message:
+								'You do not have permission to publish events',
+						});
+					}
+				}
+
 				const files = req.files as
 					| { [fieldname: string]: Express.Multer.File[] }
 					| undefined;
-				const body = req.body;
 
 				const updateData: any = {};
 
@@ -4460,53 +4553,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	app.delete(
-		'/api/events/:id',
-		authenticate,
-		requirePermission('events.delete'),
-		async (req, res) => {
-			try {
-				const { id } = req.params;
-				const event = await mongoStorage.getEventById(id);
-				if (!event) return res.status(404).json({ message: 'Event not found' });
+	app.delete('/api/events/:id', authenticate, async (req, res) => {
+		try {
+			const { id } = req.params;
+			const event = await mongoStorage.getEventById(id);
+			if (!event)
+				return res.status(404).json({ message: 'Event not found' });
 
-				if (event.thumbnail && event.thumbnailSource === 'local') {
+			const canDelete = await checkEventPermission(
+				req.user as UserWithRole,
+				event,
+				'delete',
+			);
+			if (!canDelete) {
+				return res.status(403).json({
+					message: 'You do not have permission to delete this event',
+				});
+			}
+
+			if (event.thumbnail && event.thumbnailSource === 'local') {
+				try {
+					const { deleteFile: delFile } = await import('./upload');
+					await delFile(event.thumbnail);
+				} catch {
+					/* ignore */
+				}
+			}
+			for (const att of event.attachments || []) {
+				if (att.source === 'local') {
 					try {
 						const { deleteFile: delFile } = await import('./upload');
-						await delFile(event.thumbnail);
+						await delFile(att.url);
 					} catch {
 						/* ignore */
 					}
 				}
-				for (const att of event.attachments || []) {
-					if (att.source === 'local') {
-						try {
-							const { deleteFile: delFile } = await import('./upload');
-							await delFile(att.url);
-						} catch {
-							/* ignore */
-						}
-					}
-				}
-
-				await mongoStorage.deleteEvent(id);
-				res.json({ message: 'Event deleted' });
-			} catch (error) {
-				console.error('Error deleting event:', error);
-				res.status(500).json({ message: 'Internal server error' });
 			}
-		},
-	);
+
+			await mongoStorage.deleteEvent(id);
+			res.json({ message: 'Event deleted' });
+		} catch (error) {
+			console.error('Error deleting event:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
 
 	// ── Copy Event → Article ──
 	app.post(
 		'/api/events/:id/copy-to-article',
 		authenticate,
-		requirePermission('events.view'),
 		async (req, res) => {
 			try {
 				const { id } = req.params;
 				const user = req.user as UserWithRole;
+				const event = await mongoStorage.getEventById(id);
+				if (!event)
+					return res.status(404).json({ message: 'Event not found' });
+				const canView = await checkEventPermission(
+					user,
+					event,
+					'view',
+				);
+				if (!canView) {
+					return res.status(403).json({
+						message:
+							'You do not have permission to view this event',
+					});
+				}
 				const { copyAttachments } = req.body;
 				const article = await mongoStorage.copyEventToArticle(
 					id,
@@ -4561,10 +4674,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/events/:id/attach-article',
 		authenticate,
-		requirePermission('events.edit'),
 		async (req, res) => {
 			try {
 				const { id } = req.params;
+				const user = req.user as UserWithRole;
+				const existingEvent = await mongoStorage.getEventById(id);
+				if (!existingEvent)
+					return res.status(404).json({ message: 'Event not found' });
+				const canEdit = await checkEventPermission(
+					user,
+					existingEvent,
+					'edit',
+				);
+				if (!canEdit) {
+					return res.status(403).json({
+						message:
+							'You do not have permission to edit this event',
+					});
+				}
 				const { articleId, copyFiles } = req.body;
 				if (!articleId)
 					return res.status(400).json({ message: 'articleId required' });
@@ -4586,10 +4713,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.delete(
 		'/api/events/:id/attach-article/:articleId',
 		authenticate,
-		requirePermission('events.edit'),
 		async (req, res) => {
 			try {
 				const { id, articleId } = req.params;
+				const user = req.user as UserWithRole;
+				const existingEvent = await mongoStorage.getEventById(id);
+				if (!existingEvent)
+					return res.status(404).json({ message: 'Event not found' });
+				const canEdit = await checkEventPermission(
+					user,
+					existingEvent,
+					'edit',
+				);
+				if (!canEdit) {
+					return res.status(403).json({
+						message:
+							'You do not have permission to edit this event',
+					});
+				}
 				const event = await mongoStorage.detachArticleFromEvent(id, articleId);
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
@@ -4606,13 +4747,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/articles/:id/attach-event',
 		authenticate,
-		requirePermission('events.edit'),
 		async (req, res) => {
 			try {
 				const { id: articleId } = req.params;
+				const user = req.user as UserWithRole;
 				const { eventId, copyFiles } = req.body;
 				if (!eventId)
 					return res.status(400).json({ message: 'eventId required' });
+				const existingEvent = await mongoStorage.getEventById(eventId);
+				if (!existingEvent)
+					return res.status(404).json({ message: 'Event not found' });
+				const canEdit = await checkEventPermission(
+					user,
+					existingEvent,
+					'edit',
+				);
+				if (!canEdit) {
+					return res.status(403).json({
+						message:
+							'You do not have permission to edit this event',
+					});
+				}
 				const event = await mongoStorage.attachArticleToEvent(
 					eventId,
 					articleId,
@@ -4635,10 +4790,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.delete(
 		'/api/articles/:id/attach-event/:eventId',
 		authenticate,
-		requirePermission('events.edit'),
 		async (req, res) => {
 			try {
 				const { id: articleId, eventId } = req.params;
+				const user = req.user as UserWithRole;
+				const existingEvent = await mongoStorage.getEventById(eventId);
+				if (!existingEvent)
+					return res.status(404).json({ message: 'Event not found' });
+				const canEdit = await checkEventPermission(
+					user,
+					existingEvent,
+					'edit',
+				);
+				if (!canEdit) {
+					return res.status(403).json({
+						message:
+							'You do not have permission to edit this event',
+					});
+				}
 				const event = await mongoStorage.detachArticleFromEvent(
 					eventId,
 					articleId,

@@ -67,7 +67,7 @@ export default function DashboardProfil() {
 	usePermissionRefresh();
 
 	const { hasPermission: hasAccess, isLoading: isPermissionLoading } =
-		usePermissionGuardAny(['profil.view', 'profil.edit', 'content.view', 'content.edit']);
+		usePermissionGuardAny(['profil.view', 'profil.edit']);
 
 	const { data: settings, isPending } = useQuery<Settings>({
 		queryKey: ['/api/settings'],

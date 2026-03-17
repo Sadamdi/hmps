@@ -77,11 +77,33 @@ interface SiteSettings {
 export default function DashboardEvents() {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
-	const { hasSpecificPermission } = useAuth();
+	const { user, hasSpecificPermission } = useAuth();
 	usePermissionRefresh();
 
 	const { hasPermission: hasAccess, isLoading: isPermLoading } =
-		usePermissionGuardAny(['events.view', 'events.create', 'events.edit']);
+		usePermissionGuardAny(['events.view', 'events.view_others', 'events.create', 'events.edit']);
+
+	const canEditEvent = (ev: EventItem) => {
+		const isOwner = user?._id === ev.createdBy;
+		return (
+			(hasSpecificPermission('events.edit') && isOwner) ||
+			hasSpecificPermission('events.edit_others')
+		);
+	};
+	const canDeleteEvent = (ev: EventItem) => {
+		const isOwner = user?._id === ev.createdBy;
+		return (
+			(hasSpecificPermission('events.delete') && isOwner) ||
+			hasSpecificPermission('events.delete_others')
+		);
+	};
+	const canViewEvent = (ev: EventItem) => {
+		const isOwner = user?._id === ev.createdBy;
+		return (
+			(hasSpecificPermission('events.view') && isOwner) ||
+			hasSpecificPermission('events.view_others')
+		);
+	};
 
 	const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
 	const [selectedParentEvent, setSelectedParentEvent] = useState<EventItem | null>(null);
@@ -122,7 +144,7 @@ export default function DashboardEvents() {
 	const { data: publishedArticles = [] } = useQuery<{ _id: string; title: string; slug?: string }[]>({
 		queryKey: ['/api/articles/manage'],
 		queryFn: async () => {
-			const res = await fetch('/api/articles/manage');
+			const res = await fetch('/api/articles/manage', { credentials: 'include' });
 			if (!res.ok) return [];
 			const data = await res.json();
 			return (data.articles || data || []).filter((a: any) => a.published);
@@ -134,7 +156,9 @@ export default function DashboardEvents() {
 		queryKey: ['/api/events', selectedYearId, selectedParentEvent?._id],
 		queryFn: async () => {
 			const parentParam = selectedParentEvent ? selectedParentEvent._id : 'null';
-			const res = await fetch(`/api/events?yearId=${selectedYearId}&parentId=${parentParam}`);
+			const res = await fetch(`/api/events?yearId=${selectedYearId}&parentId=${parentParam}`, {
+				credentials: 'include',
+			});
 			if (!res.ok) throw new Error('Failed to fetch events');
 			return res.json();
 		},
@@ -646,23 +670,25 @@ export default function DashboardEvents() {
 																	Sub-event
 																</Button>
 															)}
-															{hasSpecificPermission('events.edit') && (
+															{canEditEvent(ev) && (
 																<Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs" onClick={() => openEditEvent(ev)}>
 																	<Edit className="h-3 w-3 mr-1" />
 																	Edit
 																</Button>
 															)}
-															<Button
-																variant="outline"
-																size="sm"
-																className="flex-1 sm:flex-none text-xs"
-																title="Copy ke Artikel"
-																onClick={() => { setCopyToArticleEvent(ev); setCopyAttachments(false); }}
-															>
-																<Copy className="h-3 w-3 mr-1" />
-																<span className="hidden xs:inline">Copy → </span>Artikel
-															</Button>
-															{hasSpecificPermission('events.delete') && (
+															{canViewEvent(ev) && (
+																<Button
+																	variant="outline"
+																	size="sm"
+																	className="flex-1 sm:flex-none text-xs"
+																	title="Copy ke Artikel"
+																	onClick={() => { setCopyToArticleEvent(ev); setCopyAttachments(false); }}
+																>
+																	<Copy className="h-3 w-3 mr-1" />
+																	<span className="hidden xs:inline">Copy → </span>Artikel
+																</Button>
+															)}
+															{canDeleteEvent(ev) && (
 																<Button
 																	variant="destructive"
 																	size="sm"

@@ -746,6 +746,7 @@ async function getEventsByYear(year: number, parentOnly = false, publishedOnly =
 async function getEventsByYearId(
 	yearId: string,
 	parentId?: string | null,
+	authorId?: string | null,
 ): Promise<any[]> {
 	const yOid = toObjectId(yearId);
 	if (!yOid) return [];
@@ -756,6 +757,10 @@ async function getEventsByYearId(
 		const pOid = toObjectId(parentId);
 		if (!pOid) return [];
 		filter.parentId = pOid;
+	}
+	if (authorId) {
+		const aOid = toObjectId(authorId);
+		if (aOid) filter.createdBy = aOid;
 	}
 	return await Event.find(filter)
 		.populate('relatedArticles', '_id title slug')
@@ -1695,26 +1700,6 @@ async function initializeDefaultPermissions() {
 				category: 'settings',
 			},
 
-			// Content permissions
-			{
-				name: 'content.view',
-				displayName: 'View Content',
-				description: 'Melihat konten umum',
-				category: 'content',
-			},
-			{
-				name: 'content.edit',
-				displayName: 'Edit Content',
-				description: 'Mengedit konten umum',
-				category: 'content',
-			},
-			{
-				name: 'content.view_others',
-				displayName: 'View Others Content',
-				description: 'Melihat konten dari user lain',
-				category: 'content',
-			},
-
 		// Animation settings permission
 		{
 			name: 'settings.animations',
@@ -1791,6 +1776,24 @@ async function initializeDefaultPermissions() {
 			description: 'Mempublikasikan event',
 			category: 'events',
 		},
+		{
+			name: 'events.view_others',
+			displayName: 'View Others Events',
+			description: 'Melihat event dari user lain',
+			category: 'events',
+		},
+		{
+			name: 'events.edit_others',
+			displayName: 'Edit Others Events',
+			description: 'Mengedit event dari user lain',
+			category: 'events',
+		},
+		{
+			name: 'events.delete_others',
+			displayName: 'Delete Others Events',
+			description: 'Menghapus event dari user lain',
+			category: 'events',
+		},
 	];
 
 		// Upsert: tambahkan permission yang belum ada (tidak hapus yang sudah ada)
@@ -1822,8 +1825,8 @@ async function initializeDefaultPermissions() {
 			`🔧 Updated owner role with ${allPermissionNames.length} permissions`
 		);
 
-		// Migrasi: tambahkan profil.* dan kelembagaan.* ke role yang punya content.* atau organization.*
-		// Ini memastikan user eksisting langsung mendapat akses ke fitur baru
+		// Migrasi: tambahkan profil.* dan kelembagaan.* ke role yang dulu punya content.* atau organization.*
+		// (content.* sudah tidak digunakan lagi, tapi masih dihormati untuk role lama yang tersisa di DB)
 		const rolesToMigrate = await Role.find({ name: { $ne: 'owner' } });
 		let migratedCount = 0;
 		for (const role of rolesToMigrate) {
@@ -1840,6 +1843,28 @@ async function initializeDefaultPermissions() {
 			if ((hasContent || hasOrg) && !hasEvents) {
 				newPerms.push('events.view', 'events.create', 'events.edit', 'events.delete', 'events.publish');
 				changed = true;
+			}
+
+			// Migrasi: tambahkan events.*_others ke role yang punya events.*
+			const hasEventsOthers = perms.some((p: string) =>
+				['events.view_others', 'events.edit_others', 'events.delete_others'].includes(p)
+			);
+			if (hasEvents && !hasEventsOthers) {
+				newPerms.push('events.view_others', 'events.edit_others', 'events.delete_others');
+				changed = true;
+			}
+
+			// Migrasi: pastikan role dengan articles.view punya articles.view_others (untuk chair, vice_chair, bph, division_head)
+			const managementRoles = ['chair', 'vice_chair', 'bph', 'division_head', 'admin'];
+			if (managementRoles.includes(role.name)) {
+				if (perms.includes('articles.view') && !perms.includes('articles.view_others')) {
+					newPerms.push('articles.view_others');
+					changed = true;
+				}
+				if (perms.includes('library.view') && !perms.includes('library.view_others')) {
+					newPerms.push('library.view_others');
+					changed = true;
+				}
 			}
 
 			if (hasContent && !hasProfil) {
@@ -1875,6 +1900,21 @@ async function initializeDefaultPermissions() {
 		}
 		if (migratedCount > 0) {
 			console.log(`✅ Migrated ${migratedCount} roles with new profil/kelembagaan permissions`);
+		}
+
+		// Cleanup: hapus permission content.* yang sudah tidak digunakan lagi
+		try {
+			await Permission.deleteMany({ name: { $regex: /^content\./ } });
+			await Role.updateMany(
+				{ permissions: { $elemMatch: { $regex: /^content\./ } } },
+				{
+					$pull: { permissions: { $regex: /^content\./ } },
+					$set: { updatedAt: new Date() },
+				},
+			);
+			console.log('🧹 Cleaned up legacy content.* permissions from DB');
+		} catch (cleanupError) {
+			console.warn('Failed to cleanup legacy content.* permissions:', cleanupError);
 		}
 	} catch (error) {
 		console.error('Error initializing default permissions:', error);
@@ -1945,9 +1985,6 @@ async function initializeDefaultRoles() {
 				'divisions.view',
 				'divisions.edit',
 				'settings.view',
-				'content.view',
-				'content.edit',
-				'content.view_others',
 				'profil.view',
 				'profil.edit',
 				'kelembagaan.view',
@@ -1957,6 +1994,9 @@ async function initializeDefaultRoles() {
 				'events.edit',
 				'events.delete',
 				'events.publish',
+				'events.view_others',
+				'events.edit_others',
+				'events.delete_others',
 			],
 			isActive: true,
 			createdBy: null,
@@ -1983,14 +2023,15 @@ async function initializeDefaultRoles() {
 				'organization.view',
 				'divisions.view',
 				'settings.view',
-				'content.view',
-				'content.view_others',
 				'profil.view',
 				'kelembagaan.view',
 				'events.view',
 				'events.create',
 				'events.edit',
 				'events.publish',
+				'events.view_others',
+				'events.edit_others',
+				'events.delete_others',
 			],
 			isActive: true,
 			createdBy: null,
@@ -2017,14 +2058,15 @@ async function initializeDefaultRoles() {
 				'organization.view',
 				'divisions.view',
 				'settings.view',
-				'content.view',
-				'content.view_others',
 				'profil.view',
 				'kelembagaan.view',
 				'events.view',
 				'events.create',
 				'events.edit',
 				'events.publish',
+				'events.view_others',
+				'events.edit_others',
+				'events.delete_others',
 			],
 			isActive: true,
 			createdBy: null,
@@ -2050,14 +2092,15 @@ async function initializeDefaultRoles() {
 				'organization.view',
 				'divisions.view',
 				'settings.view',
-				'content.view',
-				'content.view_others',
 				'profil.view',
 				'kelembagaan.view',
 				'events.view',
 				'events.create',
 				'events.edit',
 				'events.publish',
+				'events.view_others',
+				'events.edit_others',
+				'events.delete_others',
 			],
 			isActive: true,
 			createdBy: null,

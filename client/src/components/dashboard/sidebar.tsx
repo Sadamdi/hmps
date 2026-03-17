@@ -166,25 +166,21 @@ export default function Sidebar({
 							// Check permission-based access
 							if (item.requirePermission) {
 								// Handle multiple permissions for some items
-							if (item.requirePermission === 'profil.view') {
-								if (
-									!hasSpecificPermission('profil.view') &&
-									!hasSpecificPermission('profil.edit') &&
-									!hasSpecificPermission('content.view') &&
-									!hasSpecificPermission('content.edit')
-								) {
-									return null;
-								}
-							} else if (item.requirePermission === 'kelembagaan.view') {
-								if (
-									!hasSpecificPermission('kelembagaan.view') &&
-									!hasSpecificPermission('kelembagaan.edit') &&
-									!hasSpecificPermission('content.view') &&
-									!hasSpecificPermission('content.edit')
-								) {
-									return null;
-								}
-						} else if (item.requirePermission === 'settings.view') {
+								if (item.requirePermission === 'profil.view') {
+									if (
+										!hasSpecificPermission('profil.view') &&
+										!hasSpecificPermission('profil.edit')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'kelembagaan.view') {
+									if (
+										!hasSpecificPermission('kelembagaan.view') &&
+										!hasSpecificPermission('kelembagaan.edit')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'settings.view') {
 									// Settings selalu bisa diakses (minimal untuk profile)
 									// Tidak perlu permission check karena semua user bisa akses profile
 								} else if (item.requirePermission === 'users.view') {
