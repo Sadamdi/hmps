@@ -650,6 +650,22 @@ const homeImagesSchema = new mongoose.Schema(
 	{ timestamps: true },
 );
 
+// Model OtpChallenge — reusable OTP verification
+const otpChallengeSchema = new mongoose.Schema({
+	purpose: { type: String, required: true },
+	email: { type: String, required: true },
+	userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+	codeHash: { type: String, required: true },
+	attempts: { type: Number, default: 0 },
+	maxAttempts: { type: Number, default: 5 },
+	consumedAt: { type: Date, default: null },
+	expiresAt: { type: Date, required: true },
+	createdAt: { type: Date, default: Date.now },
+});
+
+otpChallengeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+otpChallengeSchema.index({ email: 1, purpose: 1, createdAt: -1 });
+
 // Create models
 const EventYear =
 	mongoose.models.EventYear || mongoose.model('EventYear', eventYearSchema);
@@ -672,6 +688,8 @@ const Permission =
 	mongoose.models.Permission || mongoose.model('Permission', permissionSchema);
 const Session =
 	mongoose.models.Session || mongoose.model('Session', sessionSchema);
+const OtpChallenge =
+	mongoose.models.OtpChallenge || mongoose.model('OtpChallenge', otpChallengeSchema);
 
 // Create Position model
 export const Position =
@@ -688,6 +706,7 @@ export {
 	HomeImages,
 	Library,
 	Organization,
+	OtpChallenge,
 	Permission,
 	Role,
 	Session,

@@ -25,6 +25,9 @@ import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import {
 	Edit,
+	Eye,
+	EyeOff,
+	Key,
 	Loader2,
 	Search,
 	Shield,
@@ -68,11 +71,20 @@ export default function UsersPage() {
 	const [editingUser, setEditingUser] = useState<UserWithRole | null>(null);
 	const [selectedRole, setSelectedRole] = useState('all');
 
+	// Edit Password dialog state
+	const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+	const [passwordTarget, setPasswordTarget] = useState<UserWithRole | null>(null);
+	const [newPw, setNewPw] = useState('');
+	const [confirmPw, setConfirmPw] = useState('');
+	const [showPw, setShowPw] = useState(false);
+	const [pwLoading, setPwLoading] = useState(false);
+
 	// Permission flags
 	const canCreate = hasSpecificPermission('users.create');
 	const canEdit = hasSpecificPermission('users.edit');
 	const canDelete = hasSpecificPermission('users.delete');
 	const canViewOthers = hasSpecificPermission('users.view_others');
+	const canEditPassword = hasSpecificPermission('users.edit_password');
 
 	// Fetch users
 	const { data: users = [], isLoading } = useQuery({
@@ -185,6 +197,37 @@ export default function UsersPage() {
 		setEditingUser(null);
 	};
 
+	const handleEditPassword = (user: UserWithRole) => {
+		setPasswordTarget(user);
+		setNewPw('');
+		setConfirmPw('');
+		setShowPw(false);
+		setIsPasswordDialogOpen(true);
+	};
+
+	const handleSubmitPassword = async () => {
+		if (!passwordTarget) return;
+		if (newPw.length < 8) {
+			toast({ title: 'Error', description: 'Password minimal 8 karakter.', variant: 'destructive' });
+			return;
+		}
+		if (newPw !== confirmPw) {
+			toast({ title: 'Error', description: 'Konfirmasi password tidak cocok.', variant: 'destructive' });
+			return;
+		}
+		setPwLoading(true);
+		try {
+			await apiRequest('POST', `/api/users/${passwordTarget._id}/password`, { newPassword: newPw });
+			toast({ title: 'Berhasil', description: `Password ${passwordTarget.name || passwordTarget.username} berhasil diubah.` });
+			setIsPasswordDialogOpen(false);
+			setPasswordTarget(null);
+		} catch (e: any) {
+			toast({ title: 'Gagal', description: e?.message || 'Gagal mengubah password.', variant: 'destructive' });
+		} finally {
+			setPwLoading(false);
+		}
+	};
+
 	// Show loading jika permission masih loading
 	if (isPermissionLoading) {
 		return (
@@ -290,6 +333,10 @@ export default function UsersPage() {
 									targetLevel > currentUserLevel &&
 									user._id !== currentUser?._id &&
 									user.role !== 'owner';
+								const canEditPwThis =
+									canEditPassword &&
+									targetLevel > currentUserLevel &&
+									user._id !== currentUser?._id;
 								return (
 									<tr
 										key={user._id}
@@ -347,6 +394,15 @@ export default function UsersPage() {
 													)}
 													{canEditThis ? 'Edit' : 'View'}
 												</Button>
+												{canEditPwThis && (
+													<Button
+														variant="ghost"
+														size="sm"
+														className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950"
+														onClick={() => handleEditPassword(user)}>
+														<Key className="h-4 w-4" />
+													</Button>
+												)}
 												{canDeleteThis && (
 													<Button
 														variant="ghost"
@@ -390,6 +446,72 @@ export default function UsersPage() {
 						onSave={closeUserDialog}
 						onCancel={closeUserDialog}
 					/>
+				</DialogContent>
+			</Dialog>
+
+			{/* Edit Password Dialog */}
+			<Dialog
+				open={isPasswordDialogOpen}
+				onOpenChange={setIsPasswordDialogOpen}>
+				<DialogContent className="sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle className="flex items-center gap-2">
+							<Key className="h-5 w-5" />
+							Edit Password
+						</DialogTitle>
+						<p className="text-sm text-muted-foreground">
+							Ubah password untuk{' '}
+							<span className="font-medium text-foreground">
+								{passwordTarget?.name || passwordTarget?.username}
+							</span>
+						</p>
+					</DialogHeader>
+					<div className="space-y-4 pt-2">
+						<div className="space-y-2">
+							<label className="text-sm font-medium">Password Baru</label>
+							<div className="relative">
+								<Input
+									type={showPw ? 'text' : 'password'}
+									value={newPw}
+									onChange={(e) => setNewPw(e.target.value)}
+									placeholder="Minimal 8 karakter"
+									className="pr-10"
+								/>
+								<button
+									type="button"
+									className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground"
+									onClick={() => setShowPw((v) => !v)}>
+									{showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+								</button>
+							</div>
+						</div>
+						<div className="space-y-2">
+							<label className="text-sm font-medium">Konfirmasi Password</label>
+							<Input
+								type="password"
+								value={confirmPw}
+								onChange={(e) => setConfirmPw(e.target.value)}
+								placeholder="Masukkan ulang password"
+							/>
+						</div>
+						<div className="flex justify-end gap-2 pt-2">
+							<Button
+								variant="outline"
+								onClick={() => setIsPasswordDialogOpen(false)}>
+								Batal
+							</Button>
+							<Button onClick={handleSubmitPassword} disabled={pwLoading}>
+								{pwLoading ? (
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										Menyimpan...
+									</>
+								) : (
+									'Simpan Password'
+								)}
+							</Button>
+						</div>
+					</div>
 				</DialogContent>
 			</Dialog>
 		</DashboardLayout>

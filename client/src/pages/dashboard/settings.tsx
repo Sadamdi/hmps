@@ -9,6 +9,11 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import {
+	InputOTP,
+	InputOTPGroup,
+	InputOTPSlot,
+} from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -123,6 +128,12 @@ export default function SettingsPage() {
 	const [showNew, setShowNew] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
 	const [showRevokeDialog, setShowRevokeDialog] = useState(false);
+
+	// OTP flow state for change password
+	const [pwOtpStep, setPwOtpStep] = useState<'form' | 'otp'>('form');
+	const [pwChallengeId, setPwChallengeId] = useState('');
+	const [pwOtpCode, setPwOtpCode] = useState('');
+	const [pwOtpLoading, setPwOtpLoading] = useState(false);
 
 	// Sessions polling (heartbeat) every 15s to trigger 401 handling automatically
 	useEffect(() => {
@@ -414,13 +425,57 @@ export default function SettingsPage() {
 		},
 	});
 
-	// Change password mutation
+	// Request OTP for change password
+	const requestPasswordOtp = async () => {
+		if (passwordData.newPassword !== passwordData.confirmPassword) {
+			toast({ title: 'Error', description: 'New passwords do not match.', variant: 'destructive' });
+			return;
+		}
+		if (passwordData.newPassword.length < 8) {
+			toast({ title: 'Error', description: 'Password should be at least 8 characters long.', variant: 'destructive' });
+			return;
+		}
+		setPwOtpLoading(true);
+		try {
+			const res = await fetch('/api/auth/change-password/request-otp', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+			});
+			const data = await res.json();
+			if (!res.ok) {
+				toast({ title: 'Error', description: data.message || 'Gagal mengirim OTP', variant: 'destructive' });
+				return;
+			}
+			if (data.challengeId) setPwChallengeId(data.challengeId);
+			setPwOtpStep('otp');
+			toast({ title: 'OTP Dikirim', description: 'Cek email Anda untuk kode OTP.' });
+		} catch {
+			toast({ title: 'Error', description: 'Gagal mengirim OTP', variant: 'destructive' });
+		} finally {
+			setPwOtpLoading(false);
+		}
+	};
+
+	// Confirm change password with OTP
 	const changePasswordMutation = useMutation({
-		mutationFn: async (data: PasswordChangeData) => {
-			return await apiRequest('POST', '/api/auth/change-password', data);
+		mutationFn: async (data: PasswordChangeData & { challengeId: string; otpCode: string }) => {
+			const res = await fetch('/api/auth/change-password/confirm', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					challengeId: data.challengeId,
+					otpCode: data.otpCode,
+					currentPassword: data.currentPassword,
+					newPassword: data.newPassword,
+				}),
+			});
+			const result = await res.json();
+			if (!res.ok) throw new Error(result.message || 'Gagal mengubah password');
+			return result;
 		},
 		onSuccess: async () => {
-			// Log activity
 			try {
 				await logActivity({
 					type: 'settings',
@@ -437,21 +492,16 @@ export default function SettingsPage() {
 				description: 'Your password has been updated successfully.',
 			});
 
-			// Reset password form
-			setPasswordData({
-				currentPassword: '',
-				newPassword: '',
-				confirmPassword: '',
-			});
-
-			// Refresh user data to ensure cache is updated
+			setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+			setPwOtpStep('form');
+			setPwOtpCode('');
+			setPwChallengeId('');
 			queryClient.invalidateQueries({ queryKey: ['/api/auth/me'] });
 		},
 		onError: (error: any) => {
 			toast({
 				title: 'Password Change Failed',
-				description:
-					error.message || 'There was a problem changing your password.',
+				description: error.message || 'There was a problem changing your password.',
 				variant: 'destructive',
 			});
 		},
@@ -635,27 +685,21 @@ export default function SettingsPage() {
 		await updateMiddlewareSettingsMutation.mutateAsync(updatedFormData);
 	};
 
-	// Change password
+	// Change password: step 1 = request OTP, step 2 = confirm with OTP
 	const changePassword = async () => {
-		if (passwordData.newPassword !== passwordData.confirmPassword) {
-			toast({
-				title: 'Error',
-				description: 'New passwords do not match.',
-				variant: 'destructive',
+		if (pwOtpStep === 'form') {
+			await requestPasswordOtp();
+		} else {
+			if (pwOtpCode.length !== 6) {
+				toast({ title: 'Error', description: 'Masukkan 6 digit kode OTP.', variant: 'destructive' });
+				return;
+			}
+			await changePasswordMutation.mutateAsync({
+				...passwordData,
+				challengeId: pwChallengeId,
+				otpCode: pwOtpCode,
 			});
-			return;
 		}
-
-		if (passwordData.newPassword.length < 8) {
-			toast({
-				title: 'Error',
-				description: 'Password should be at least 8 characters long.',
-				variant: 'destructive',
-			});
-			return;
-		}
-
-		await changePasswordMutation.mutateAsync(passwordData);
 	};
 
 	// Reset settings to default
@@ -1488,19 +1532,56 @@ export default function SettingsPage() {
 												</button>
 											</div>
 										</div>
-										<Button
-											onClick={changePassword}
-											disabled={changePasswordMutation.isPending}
-											className="mt-2">
-											{changePasswordMutation.isPending ? (
-												<>
-													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-													Changing...
-												</>
-											) : (
-												'Change Password'
+										{pwOtpStep === 'otp' && (
+											<div className="space-y-2">
+												<Label>Kode OTP (cek email)</Label>
+												<div className="flex justify-center">
+													<InputOTP
+														maxLength={6}
+														value={pwOtpCode}
+														onChange={(value) => setPwOtpCode(value)}>
+														<InputOTPGroup>
+															<InputOTPSlot index={0} />
+															<InputOTPSlot index={1} />
+															<InputOTPSlot index={2} />
+															<InputOTPSlot index={3} />
+															<InputOTPSlot index={4} />
+															<InputOTPSlot index={5} />
+														</InputOTPGroup>
+													</InputOTP>
+												</div>
+												<p className="text-xs text-muted-foreground text-center">
+													Kode berlaku 10 menit
+												</p>
+											</div>
+										)}
+										<div className="flex gap-2 mt-2">
+											{pwOtpStep === 'otp' && (
+												<Button
+													variant="outline"
+													onClick={() => {
+														setPwOtpStep('form');
+														setPwOtpCode('');
+														setPwChallengeId('');
+													}}>
+													Batal
+												</Button>
 											)}
-										</Button>
+											<Button
+												onClick={changePassword}
+												disabled={changePasswordMutation.isPending || pwOtpLoading}>
+												{changePasswordMutation.isPending || pwOtpLoading ? (
+													<>
+														<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+														{pwOtpStep === 'form' ? 'Mengirim OTP...' : 'Mengubah...'}
+													</>
+												) : pwOtpStep === 'form' ? (
+													'Kirim OTP & Ubah Password'
+												) : (
+													'Konfirmasi & Ubah Password'
+												)}
+											</Button>
+										</div>
 									</CardContent>
 								</Card>
 

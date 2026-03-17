@@ -1476,6 +1476,12 @@ async function initializeDefaultPermissions() {
 				description: 'Melihat profil user lain',
 				category: 'users',
 			},
+			{
+				name: 'users.edit_password',
+				displayName: 'Edit Password',
+				description: 'Mengubah password user lain (tanpa OTP, hanya untuk role di bawahnya)',
+				category: 'users',
+			},
 
 			// Role management permissions
 			{

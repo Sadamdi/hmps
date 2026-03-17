@@ -13,6 +13,12 @@ import {
 	requirePermission,
 	verifyPassword,
 } from './auth';
+import {
+	createOtpChallenge,
+	OtpError,
+	RateLimitError,
+	verifyOtpChallenge,
+} from './services/otp';
 import { isProcessableImage, processImage } from './image-processor';
 import {
 	getMiddlewareSettings,
@@ -671,6 +677,198 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
+
+	// ══════════════════════════════════════════════════════════════
+	// OTP-BASED PASSWORD FLOWS
+	// ══════════════════════════════════════════════════════════════
+
+	// --- Forgot password (no auth required) ---
+	app.post('/api/auth/forgot-password/request-otp', async (req, res) => {
+		try {
+			const { email } = req.body;
+			if (!email || typeof email !== 'string') {
+				return res.status(400).json({ message: 'Email diperlukan' });
+			}
+
+			const { User } = await import('../db/mongodb');
+			const user = await User.findOne({ email: email.trim().toLowerCase() }).lean() as any;
+			if (!user) {
+				return res.json({ message: 'Jika email terdaftar, kode OTP telah dikirim.' });
+			}
+
+			const { challengeId } = await createOtpChallenge({
+				purpose: 'forgot_password',
+				email: user.email,
+				userId: user._id.toString(),
+				ttlMinutes: 10,
+			});
+
+			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
+		} catch (error: any) {
+			if (error instanceof RateLimitError) {
+				return res.status(429).json({ message: error.message });
+			}
+			console.error('Forgot password OTP error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.post('/api/auth/forgot-password/confirm', async (req, res) => {
+		try {
+			const { challengeId, otpCode, newPassword } = req.body;
+			if (!challengeId || !otpCode || !newPassword) {
+				return res.status(400).json({ message: 'challengeId, otpCode, dan newPassword diperlukan' });
+			}
+			if (typeof newPassword !== 'string' || newPassword.length < 8) {
+				return res.status(400).json({ message: 'Password minimal 8 karakter' });
+			}
+
+			const result = await verifyOtpChallenge({
+				challengeId,
+				code: otpCode,
+				purpose: 'forgot_password',
+			});
+
+			const { User } = await import('../db/mongodb');
+			const user = await User.findOne({ email: result.email }).lean() as any;
+			if (!user) {
+				return res.status(404).json({ message: 'User tidak ditemukan' });
+			}
+
+			await mongoStorage.updateUser(user._id.toString(), { password: newPassword });
+
+			res.json({ message: 'Password berhasil direset' });
+		} catch (error: any) {
+			if (error instanceof OtpError) {
+				return res.status(400).json({ message: error.message });
+			}
+			console.error('Forgot password confirm error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// --- Change password with OTP (authenticated) ---
+	app.post('/api/auth/change-password/request-otp', authenticate, async (req, res) => {
+		try {
+			const userId = (req.user as UserWithRole)?._id;
+			if (!userId) {
+				return res.status(401).json({ message: 'Authentication required' });
+			}
+
+			const user = await mongoStorage.getUserById(userId);
+			if (!user) {
+				return res.status(404).json({ message: 'User tidak ditemukan' });
+			}
+
+			const { challengeId } = await createOtpChallenge({
+				purpose: 'change_password',
+				email: user.email,
+				userId: userId.toString(),
+				ttlMinutes: 10,
+			});
+
+			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
+		} catch (error: any) {
+			if (error instanceof RateLimitError) {
+				return res.status(429).json({ message: error.message });
+			}
+			console.error('Change password OTP error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.post('/api/auth/change-password/confirm', authenticate, async (req, res) => {
+		try {
+			const { challengeId, otpCode, currentPassword, newPassword } = req.body;
+			if (!challengeId || !otpCode || !newPassword) {
+				return res.status(400).json({ message: 'challengeId, otpCode, dan newPassword diperlukan' });
+			}
+			if (typeof newPassword !== 'string' || newPassword.length < 8) {
+				return res.status(400).json({ message: 'Password minimal 8 karakter' });
+			}
+
+			const userId = (req.user as UserWithRole)?._id;
+			if (!userId) {
+				return res.status(401).json({ message: 'Authentication required' });
+			}
+
+			const user = await mongoStorage.getUserById(userId);
+			if (!user) {
+				return res.status(404).json({ message: 'User tidak ditemukan' });
+			}
+
+			if (currentPassword) {
+				const isPasswordValid = await verifyPassword(currentPassword, user.password);
+				if (!isPasswordValid) {
+					return res.status(400).json({ message: 'Password saat ini salah' });
+				}
+			}
+
+			await verifyOtpChallenge({
+				challengeId,
+				code: otpCode,
+				purpose: 'change_password',
+			});
+
+			await mongoStorage.updateUser(userId, { password: newPassword });
+
+			res.json({ message: 'Password berhasil diubah' });
+		} catch (error: any) {
+			if (error instanceof OtpError) {
+				return res.status(400).json({ message: error.message });
+			}
+			console.error('Change password confirm error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// --- Admin edit password (no OTP, requires permission + hierarchy) ---
+	app.post(
+		'/api/users/:id/password',
+		authenticate,
+		requirePermission('users.edit_password'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const { newPassword } = req.body;
+
+				if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+					return res.status(400).json({ message: 'Password minimal 8 karakter' });
+				}
+
+				const requester = req.user as UserWithRole;
+				const targetUser = await mongoStorage.getUserById(id);
+				if (!targetUser) {
+					return res.status(404).json({ message: 'User tidak ditemukan' });
+				}
+
+				if (targetUser._id.toString() === requester._id.toString()) {
+					return res.status(400).json({ message: 'Gunakan fitur change password untuk akun sendiri' });
+				}
+
+				// Hierarchy check via Role.level from DB
+				const { Role } = await import('../db/mongodb');
+				const requesterRole = await Role.findOne({ name: requester.role }).lean() as any;
+				const targetRole = await Role.findOne({ name: targetUser.role }).lean() as any;
+
+				const requesterLevel = requesterRole?.level ?? 999;
+				const targetLevel = targetRole?.level ?? 999;
+
+				if (requesterLevel >= targetLevel) {
+					return res.status(403).json({
+						message: 'Anda hanya bisa mengubah password user dengan role di bawah Anda',
+					});
+				}
+
+				await mongoStorage.updateUser(id, { password: newPassword });
+
+				res.json({ message: 'Password user berhasil diubah' });
+			} catch (error) {
+				console.error('Admin edit password error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
 
 	// Edit user profile route
 	app.put('/api/auth/profile', authenticate, async (req, res) => {

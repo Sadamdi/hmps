@@ -39,8 +39,12 @@ const InputOTPSlot = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        "relative flex h-10 w-10 items-center justify-center border-y border-r border-input text-sm transition-all first:rounded-l-md first:border-l last:rounded-r-md",
-        isActive && "z-10 ring-2 ring-ring ring-offset-background",
+        // Make slots visually distinct in both light/dark modes
+        "relative flex h-11 w-11 items-center justify-center rounded-md border border-border bg-background/80 text-base font-semibold text-foreground shadow-sm transition-all",
+        "backdrop-blur supports-[backdrop-filter]:bg-background/60",
+        "focus-within:z-10 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 focus-within:ring-offset-background",
+        !char && "text-muted-foreground",
+        isActive && "z-10 ring-2 ring-ring ring-offset-2 ring-offset-background",
         className
       )}
       {...props}

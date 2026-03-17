@@ -1,3 +1,4 @@
+import ForgotPassword from '@/components/auth/forgot-password';
 import LoginForm from '@/components/auth/login-form';
 import ProtectedRoute from '@/components/auth/protected-route';
 import { Toaster } from '@/components/ui/toaster';
@@ -66,6 +67,10 @@ function Router() {
 				<Route
 					path="/login"
 					component={LoginForm}
+				/>
+				<Route
+					path="/forgot-password"
+					component={ForgotPassword}
 				/>
 				<Route
 					path="/error"

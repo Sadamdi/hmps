@@ -226,18 +226,26 @@ export default function LoginForm() {
 							</div>
 						</div>
 
-						{/* Remember Me */}
-						<div className="flex items-center space-x-2">
-							<Checkbox
-								id="remember"
-								checked={rememberMe}
-								onCheckedChange={(checked) => setRememberMe(!!checked)}
-								disabled={isRateLimited}
-								className="border-slate-300 dark:border-white/20 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500"
-							/>
-							<Label htmlFor="remember" className="text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
-								Ingat saya
-							</Label>
+						{/* Remember Me + Forgot Password */}
+						<div className="flex items-center justify-between">
+							<div className="flex items-center space-x-2">
+								<Checkbox
+									id="remember"
+									checked={rememberMe}
+									onCheckedChange={(checked) => setRememberMe(!!checked)}
+									disabled={isRateLimited}
+									className="border-slate-300 dark:border-white/20 data-[state=checked]:bg-cyan-500 data-[state=checked]:border-cyan-500"
+								/>
+								<Label htmlFor="remember" className="text-sm text-slate-600 dark:text-slate-400 cursor-pointer">
+									Ingat saya
+								</Label>
+							</div>
+							<button
+								type="button"
+								onClick={() => navigate('/forgot-password')}
+								className="text-sm text-blue-600 dark:text-cyan-400 hover:underline">
+								Lupa Password?
+							</button>
 						</div>
 
 						{/* Submit Button */}

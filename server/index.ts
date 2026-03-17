@@ -1,3 +1,6 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express, { NextFunction, type Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
