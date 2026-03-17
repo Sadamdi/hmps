@@ -1825,94 +1825,20 @@ async function initializeDefaultPermissions() {
 			`🔧 Updated owner role with ${allPermissionNames.length} permissions`
 		);
 
-		// Migrasi: tambahkan profil.* dan kelembagaan.* ke role yang dulu punya content.* atau organization.*
-		// (content.* sudah tidak digunakan lagi, tapi masih dihormati untuk role lama yang tersisa di DB)
-		const rolesToMigrate = await Role.find({ name: { $ne: 'owner' } });
-		let migratedCount = 0;
-		for (const role of rolesToMigrate) {
-			const perms: string[] = role.permissions || [];
-			const hasContent = perms.some((p: string) => p.startsWith('content.'));
-			const hasOrg = perms.some((p: string) => p.startsWith('organization.'));
-			const hasProfil = perms.some((p: string) => p.startsWith('profil.'));
-			const hasKelembagaan = perms.some((p: string) => p.startsWith('kelembagaan.'));
-			const hasEvents = perms.some((p: string) => p.startsWith('events.'));
-
-			const newPerms = [...perms];
-			let changed = false;
-
-			if ((hasContent || hasOrg) && !hasEvents) {
-				newPerms.push('events.view', 'events.create', 'events.edit', 'events.delete', 'events.publish');
-				changed = true;
-			}
-
-			// Migrasi: tambahkan events.*_others ke role yang punya events.*
-			const hasEventsOthers = perms.some((p: string) =>
-				['events.view_others', 'events.edit_others', 'events.delete_others'].includes(p)
-			);
-			if (hasEvents && !hasEventsOthers) {
-				newPerms.push('events.view_others', 'events.edit_others', 'events.delete_others');
-				changed = true;
-			}
-
-			// Migrasi: pastikan role dengan articles.view punya articles.view_others (untuk chair, vice_chair, bph, division_head)
-			const managementRoles = ['chair', 'vice_chair', 'bph', 'division_head', 'admin'];
-			if (managementRoles.includes(role.name)) {
-				if (perms.includes('articles.view') && !perms.includes('articles.view_others')) {
-					newPerms.push('articles.view_others');
-					changed = true;
-				}
-				if (perms.includes('library.view') && !perms.includes('library.view_others')) {
-					newPerms.push('library.view_others');
-					changed = true;
-				}
-			}
-
-			if (hasContent && !hasProfil) {
-				// Jika punya content.edit, tambahkan profil.edit juga
-				if (perms.includes('content.edit')) {
-					newPerms.push('profil.view', 'profil.edit');
-				} else {
-					newPerms.push('profil.view');
-				}
-				changed = true;
-			}
-
-			if ((hasContent || hasOrg) && !hasKelembagaan) {
-				// Jika punya content.edit atau organization.edit, tambahkan kelembagaan.edit
-				if (perms.includes('content.edit') || perms.includes('organization.edit')) {
-					newPerms.push('kelembagaan.view', 'kelembagaan.edit');
-				} else {
-					newPerms.push('kelembagaan.view');
-				}
-				changed = true;
-			}
-
-			if (changed) {
-				// Deduplicate
-				const uniquePerms = newPerms.filter((p, i, arr) => arr.indexOf(p) === i);
-				await Role.updateOne(
-					{ _id: role._id },
-					{ permissions: uniquePerms, updatedAt: new Date() }
-				);
-				migratedCount++;
-				console.log(`🔄 Migrated permissions for role: ${role.name}`);
-			}
-		}
-		if (migratedCount > 0) {
-			console.log(`✅ Migrated ${migratedCount} roles with new profil/kelembagaan permissions`);
-		}
-
 		// Cleanup: hapus permission content.* yang sudah tidak digunakan lagi
 		try {
-			await Permission.deleteMany({ name: { $regex: /^content\./ } });
-			await Role.updateMany(
-				{ permissions: { $elemMatch: { $regex: /^content\./ } } },
-				{
-					$pull: { permissions: { $regex: /^content\./ } },
-					$set: { updatedAt: new Date() },
-				},
-			);
-			console.log('🧹 Cleaned up legacy content.* permissions from DB');
+			const contentPermsCount = await Permission.countDocuments({ name: { $regex: /^content\./ } });
+			if (contentPermsCount > 0) {
+				await Permission.deleteMany({ name: { $regex: /^content\./ } });
+				await Role.updateMany(
+					{ permissions: { $elemMatch: { $regex: /^content\./ } } },
+					{
+						$pull: { permissions: { $regex: /^content\./ } },
+						$set: { updatedAt: new Date() },
+					},
+				);
+				console.log('🧹 Cleaned up legacy content.* permissions from DB');
+			}
 		} catch (cleanupError) {
 			console.warn('Failed to cleanup legacy content.* permissions:', cleanupError);
 		}

@@ -4125,6 +4125,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	// Owner-only: recompute owner role permissions (add any newly defined permissions)
+	app.post(
+		'/api/admin/permissions/recompute-owner',
+		authenticate,
+		async (req, res) => {
+			try {
+				const user = req.user as UserWithRole;
+				if (user.role !== 'owner') {
+					return res
+						.status(403)
+						.json({ message: 'Only owner can run this action' });
+				}
+				const allPerms = await mongoStorage.getAllPermissions();
+				const allNames = allPerms.map((p: any) => p.name);
+				const { Role } = await import('../db/mongodb');
+				await Role.updateOne(
+					{ name: 'owner' },
+					{ $set: { permissions: allNames, updatedAt: new Date() } },
+				);
+				res.json({
+					message: `Owner role updated with ${allNames.length} permissions`,
+					permissions: allNames,
+				});
+			} catch (error) {
+				console.error('Error recomputing owner permissions:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
 	// ══════════════════════════════════════════════════════════════
 	// EVENT YEAR API
 	// ══════════════════════════════════════════════════════════════
