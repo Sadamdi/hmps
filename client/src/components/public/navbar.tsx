@@ -437,7 +437,7 @@ export default function Navbar({
 		<>
 			{/* ============ DESKTOP HEADER BAR ============ */}
 			<header
-				className={`sticky top-0 z-40 border-b transition-all duration-300 ${
+				className={`sticky top-0 z-[55] border-b transition-all duration-300 events-navbar-header ${
 					scrolled
 						? 'h-12 border-border bg-background shadow-sm'
 						: 'h-16 border-border/60 bg-background/95 backdrop-blur-md shadow-[0_2px_12px_rgba(0,0,0,0.06)]'
@@ -660,7 +660,7 @@ export default function Navbar({
 			</header>
 
 			{/* ============ MOBILE FLOATING RIGHT ICON NAV ============ */}
-			<div className="fixed right-3 top-1/2 -translate-y-1/2 z-40 sm:hidden">
+			<div className="fixed right-3 top-1/2 -translate-y-1/2 z-[55] sm:hidden events-mobile-nav">
 				{/* Collapsed bubble mode */}
 				{isMobileNavCollapsed ? (
 					<button
@@ -942,6 +942,15 @@ export default function Navbar({
 					</div>
 				)}
 			</div>
+
+			<style>{`
+				@media (max-width: 639px) {
+					html.events-modal-open .events-navbar-header,
+					html.events-modal-open .events-mobile-nav {
+						display: none !important;
+					}
+				}
+			`}</style>
 		</>
 	);
 }

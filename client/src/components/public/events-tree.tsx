@@ -15,6 +15,7 @@ import { Link } from 'wouter';
 const BASE_SPEED_PPS = 100;
 const EASING_K = 3;
 const INIT_DELAY_MS = 600;
+const ENTER_TRACK_MS = 750;
 const HOVER_GRACE_MS = 1200;
 const EDGE_ZONE_PX = 80;
 const VIEWPORT_BUFFER_PX = 120;
@@ -306,7 +307,11 @@ export default function EventsTree({
 	const ignoreHoverUntilRef = useRef(0);
 	const isInViewRef = useRef(false);
 	const animStartedRef = useRef(false);
+	const modalOpenRef = useRef(false);
 	const sectionRef = useRef<HTMLElement>(null);
+	const lastViewedEventIdRef = useRef<string | null>(null);
+
+	const [trackEntered, setTrackEntered] = useState(false);
 
 	const prefersReducedMotion =
 		typeof window !== 'undefined' &&
@@ -403,6 +408,7 @@ export default function EventsTree({
 		targetSpeedRef.current = 0;
 	}, []);
 	const onNodePointerLeave = useCallback(() => {
+		if (modalOpenRef.current) return;
 		targetSpeedRef.current = BASE_SPEED_PPS;
 	}, []);
 
@@ -420,12 +426,22 @@ export default function EventsTree({
 		const section = sectionRef.current;
 		if (!section) return;
 		const io = new IntersectionObserver(
-			([entry]) => { isInViewRef.current = entry.isIntersecting; },
+			([entry]) => {
+				isInViewRef.current = entry.isIntersecting;
+				if (entry.isIntersecting && !prefersReducedMotion) {
+					setTrackEntered(true);
+				}
+			},
 			{ threshold: 0.05 },
 		);
 		io.observe(section);
 		return () => io.disconnect();
-	}, []);
+	}, [prefersReducedMotion]);
+
+	// If reduced motion, skip intro animation entirely
+	useEffect(() => {
+		if (prefersReducedMotion) setTrackEntered(true);
+	}, [prefersReducedMotion]);
 
 	// ── Animation loop (always-on rAF, visibility-gated movement) ────
 	useEffect(() => {
@@ -459,7 +475,8 @@ export default function EventsTree({
 
 			if (!initDone) {
 				if (!initTimerId) {
-					initTimerId = setTimeout(() => { initDone = true; }, INIT_DELAY_MS);
+					const extraDelay = trackEntered ? ENTER_TRACK_MS : 0;
+					initTimerId = setTimeout(() => { initDone = true; }, INIT_DELAY_MS + extraDelay);
 				}
 				// Still render positions but don't move
 				const wrapped = wrapOffset(offsetRef.current, partWidth);
@@ -514,7 +531,7 @@ export default function EventsTree({
 			if (initTimerId) clearTimeout(initTimerId);
 			animStartedRef.current = false;
 		};
-	}, [autoScrollEnabled, hasContent, prefersReducedMotion, measureLayouts, wrapOffset]);
+	}, [autoScrollEnabled, hasContent, prefersReducedMotion, measureLayouts, trackEntered, wrapOffset]);
 
 	// ── Drag handlers (threshold-based so clicks pass through) ────────
 	const handlePointerDown = useCallback((e: React.PointerEvent) => {
@@ -553,7 +570,40 @@ export default function EventsTree({
 		dragTargetRef.current = null;
 	}, []);
 
+	// Pause marquee saat modal open, resume saat close
+	useEffect(() => {
+		const isOpen = selectedEvent !== null || showSubEvents !== null;
+		modalOpenRef.current = isOpen;
+		if (typeof document !== 'undefined') {
+			document.documentElement.classList.toggle('events-modal-open', isOpen);
+		}
+		if (isOpen) {
+			targetSpeedRef.current = 0;
+		} else {
+			targetSpeedRef.current = BASE_SPEED_PPS;
+			lastViewedEventIdRef.current = null;
+		}
+	}, [selectedEvent, showSubEvents]);
+
 	const handleEventClick = useCallback((event: EventWithChildren) => {
+		// ViewCount +1 sekali per open
+		if (lastViewedEventIdRef.current !== event._id) {
+			lastViewedEventIdRef.current = event._id;
+			// Fire-and-forget: increment viewCount + fetch latest data with children
+			fetch(`/api/events/${event._id}?children=true`)
+				.then((r) => (r.ok ? r.json() : null))
+				.then((fresh) => {
+					if (!fresh) return;
+					if (fresh.children && fresh.children.length > 0) {
+						setShowSubEvents(fresh);
+					} else {
+						setSelectedEvent(fresh);
+					}
+				})
+				.catch(() => {});
+		}
+
+		// Show immediately with current data (will be replaced once fetch completes)
 		if (event.children && event.children.length > 0) {
 			setShowSubEvents(event);
 		} else {
@@ -588,11 +638,27 @@ export default function EventsTree({
 
 			<div className="max-w-7xl mx-auto relative">
 				<div className="text-center mb-10">
-					<h2 className="text-3xl sm:text-4xl font-bold text-white mb-2">Event</h2>
-					<p className="text-gray-400 text-sm">Kegiatan dan acara sepanjang tahun</p>
+					<h2
+						className="text-3xl sm:text-4xl font-bold text-white mb-2"
+						data-aos="fade-up"
+					>
+						Event
+					</h2>
+					<p
+						className="text-gray-400 text-sm"
+						data-aos="fade-up"
+						data-aos-delay="100"
+					>
+						Kegiatan dan acara sepanjang tahun
+					</p>
 				</div>
 
-				<div className="relative">
+				<div
+					className={`relative eventsTrackEnter ${trackEntered ? 'eventsTrackEntered' : ''}`}
+					data-aos="zoom-in"
+					data-aos-delay="200"
+					data-aos-duration="700"
+				>
 					<div className="absolute left-0 top-0 bottom-0 w-16 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
 					<div className="absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
@@ -638,11 +704,11 @@ export default function EventsTree({
 					</div>
 
 					{autoScrollEnabled && !prefersReducedMotion && (
-						<p className="text-center text-xs text-gray-500 mt-2">Geser untuk melihat lebih banyak</p>
+						<p className="text-center text-xs text-gray-500 mt-2" data-aos="fade" data-aos-delay="500">Geser untuk melihat lebih banyak</p>
 					)}
 				</div>
 
-				<div className="mt-8 text-center">
+				<div className="mt-8 text-center" data-aos="fade-up" data-aos-delay="400">
 					{yearEntries.length <= 1 ? (
 						<Link href={`/events/${primaryYear}`}>
 							<Button variant="outline" className="border-primary/40 text-primary hover:bg-primary/10">
@@ -843,6 +909,17 @@ export default function EventsTree({
 			</Dialog>
 
 			<style>{`
+				.eventsTrackEnter {
+					opacity: 0;
+					transform: translateY(10px) scale(0.98);
+					transition: opacity ${ENTER_TRACK_MS}ms cubic-bezier(0.22, 1, 0.36, 1),
+						transform ${ENTER_TRACK_MS}ms cubic-bezier(0.22, 1, 0.36, 1);
+					will-change: opacity, transform;
+				}
+				.eventsTrackEntered {
+					opacity: 1;
+					transform: translateY(0) scale(1);
+				}
 				@keyframes slideInLeft {
 					from { opacity: 0; transform: translateX(-16px); }
 					to { opacity: 1; transform: translateX(0); }
