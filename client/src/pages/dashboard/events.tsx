@@ -142,9 +142,9 @@ export default function DashboardEvents() {
 	const multiYearMode = siteSettings?.eventsAllowMultipleYearsOnHome === true;
 
 	const { data: publishedArticles = [] } = useQuery<{ _id: string; title: string; slug?: string }[]>({
-		queryKey: ['/api/articles/manage'],
+		queryKey: ['/api/berita/manage'],
 		queryFn: async () => {
-			const res = await fetch('/api/articles/manage', { credentials: 'include' });
+			const res = await fetch('/api/berita/manage', { credentials: 'include' });
 			if (!res.ok) return [];
 			const data = await res.json();
 			return (data.articles || data || []).filter((a: any) => a.published);
@@ -271,7 +271,7 @@ export default function DashboardEvents() {
 			return res.json();
 		},
 		onSuccess: (data: any) => {
-			queryClient.invalidateQueries({ queryKey: ['/api/articles'], exact: false });
+			queryClient.invalidateQueries({ queryKey: ['/api/berita'], exact: false });
 			queryClient.invalidateQueries({ queryKey: ['/api/events'], exact: false });
 			setCopyToArticleEvent(null);
 			toast({
@@ -315,7 +315,7 @@ export default function DashboardEvents() {
 		setExistingAttachments(event.attachments || []);
 		setFormThumbnail(null);
 		setFormAttachments([]);
-		const articleIds = (event.relatedArticles || [])
+		const articleIds = (event.relatedBerita || [])
 			.map((a: any) => (typeof a === 'object' && a !== null ? a._id : typeof a === 'string' ? a : null))
 			.filter((id): id is string => typeof id === 'string' && id.length > 0);
 		setSelectedArticleIds(articleIds);
@@ -352,7 +352,7 @@ export default function DashboardEvents() {
 		}
 		fd.append('attachments', JSON.stringify(existingAttachments));
 		const cleanArticleIds = selectedArticleIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
-		fd.append('relatedArticleIds', JSON.stringify(cleanArticleIds));
+		fd.append('relatedBeritaIds', JSON.stringify(cleanArticleIds));
 
 		saveEventMut.mutate({ formData: fd, isEditing });
 	}, [formTitle, formDesc, formStartDate, formEndDate, formPublished, formThumbnail, formAttachments, existingAttachments, selectedArticleIds, selectedYearId, selectedParentEvent, editingEvent, saveEventMut, toast]);
@@ -650,10 +650,10 @@ export default function DashboardEvents() {
 																	{ev.attachments.length} file terlampir
 																</p>
 															)}
-															{ev.relatedArticles && ev.relatedArticles.length > 0 && (
+															{ev.relatedBerita && ev.relatedBerita.length > 0 && (
 																<p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
 																	<FileText className="h-3 w-3" />
-																	{ev.relatedArticles.length} artikel terkait
+																	{ev.relatedBerita.length} berita terkait
 																</p>
 															)}
 														</div>

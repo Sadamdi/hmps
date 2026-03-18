@@ -224,7 +224,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 
 	// Info akses fitur berbasis permission
 	const canViewArticles =
-		perms.has('articles.view') || perms.has('articles.create');
+		perms.has('berita.view') || perms.has('berita.create');
 	const canViewLibrary =
 		perms.has('library.view') || perms.has('library.create');
 	const canViewOrganization =
@@ -283,18 +283,18 @@ export function buildPageContextPrompt(context?: PageContext): string {
 
 	if (canViewDashboardStats) {
 		lines.push(
-			'- Pengguna memiliki akses ke statistik Dashboard (total artikel, total media, total anggota, dll). Jelaskan cara membaca kartu statistik tersebut.',
+			'- Pengguna memiliki akses ke statistik Dashboard (total berita, total media, total anggota, dll). Jelaskan cara membaca kartu statistik tersebut.',
 		);
 	}
 
 	if (canViewDashboardActivities) {
 		lines.push(
-			'- Pengguna memiliki akses ke Recent Activities di Dashboard. Ia bisa melihat riwayat aksi penting (misalnya artikel dibuat/diedit, anggota organisasi diubah) beserta siapa yang melakukan dan kapan.',
+			'- Pengguna memiliki akses ke Recent Activities di Dashboard. Ia bisa melihat riwayat aksi penting (misalnya berita dibuat/diedit, anggota organisasi diubah) beserta siapa yang melakukan dan kapan.',
 		);
 	}
 
 	// Deskripsi khusus per path
-	if (path.startsWith('/dashboard/articles')) {
+	if (path.startsWith('/dashboard/berita')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Manajemen Artikel. Di sini biasanya ada tabel daftar artikel dengan aksi seperti Edit, Delete, dan toggle Publish. Jelaskan langkah-langkah umum untuk membuat artikel baru, mengedit konten, mengatur status publish/unpublish, dan menggunakan filter/pencarian jika tersedia.',
 		);
@@ -324,19 +324,19 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		);
 	} else if (path.startsWith('/dashboard')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard utama. Berikan gambaran umum cara membaca kartu statistik, melihat Recent Activities, dan menggunakan tombol-tombol Quick Actions untuk berpindah ke modul lain (Articles, Library, Organization, Settings, dll).',
+			'- Pengguna sedang berada di halaman Dashboard utama. Berikan gambaran umum cara membaca kartu statistik, melihat Recent Activities, dan menggunakan tombol-tombol Quick Actions untuk berpindah ke modul lain (Berita, Library, Organization, Settings, dll).',
 		);
-	} else if (path.startsWith('/artikel/')) {
+	} else if (path.startsWith('/berita/')) {
 		lines.push(
-			'- Pengguna sedang melihat halaman detail artikel publik. Bantu menjelaskan isi artikel dan cara kerjanya jika diperlukan.',
+			'- Pengguna sedang melihat halaman detail berita publik. Bantu menjelaskan isi berita dan cara kerjanya jika diperlukan.',
 		);
-	} else if (path === '/artikel') {
+	} else if (path === '/berita') {
 		lines.push(
-			'- Pengguna sedang berada di halaman daftar artikel publik. Bantu jelaskan cara mencari dan membuka artikel.',
+			'- Pengguna sedang berada di halaman daftar berita publik. Bantu jelaskan cara mencari dan membuka berita.',
 		);
 	}
 
-	// Data spesifik halaman (misalnya artikel yang sedang dibaca)
+	// Data spesifik halaman (misalnya berita yang sedang dibaca)
 	if (pageData) {
 		if (pageData.title) {
 			lines.push(`- Judul konten aktif: ${String(pageData.title)}`);

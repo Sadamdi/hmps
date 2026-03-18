@@ -200,7 +200,7 @@ export default function About() {
 
 	// Fetch published articles (for article images)
 	const { data: articles } = useQuery<Article[]>({
-		queryKey: ['/api/articles'],
+		queryKey: ['/api/berita'],
 	});
 
 	// Combine and process images from both sources

@@ -3,6 +3,7 @@ import { model, Schema, Types } from 'mongoose';
 export interface IActivity {
 	_id?: Types.ObjectId;
 	type:
+		| 'berita'
 		| 'article'
 		| 'library'
 		| 'organization'
@@ -27,6 +28,7 @@ const activitySchema = new Schema<IActivity>(
 			type: String,
 			required: true,
 			enum: [
+				'berita',
 				'article',
 				'library',
 				'organization',

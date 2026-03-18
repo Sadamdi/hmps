@@ -91,16 +91,16 @@ async function checkArticlePermission(
 		switch (action) {
 			case 'edit':
 				return (
-					(permissions.includes('articles.edit') && isOwner) ||
-					permissions.includes('articles.edit_others')
+					(permissions.includes('berita.edit') && isOwner) ||
+					permissions.includes('berita.edit_others')
 				);
 			case 'delete':
 				return (
-					(permissions.includes('articles.delete') && isOwner) ||
-					permissions.includes('articles.delete_others')
+					(permissions.includes('berita.delete') && isOwner) ||
+					permissions.includes('berita.delete_others')
 				);
 			case 'publish':
-				return permissions.includes('articles.publish');
+				return permissions.includes('berita.publish');
 			default:
 				return false;
 		}
@@ -163,8 +163,8 @@ async function canViewArticle(
 	const permissions = userRole.permissions;
 	const isOwner = user._id.toString() === (article.authorId || '').toString();
 	return (
-		(permissions.includes('articles.view') && isOwner) ||
-		permissions.includes('articles.view_others')
+		(permissions.includes('berita.view') && isOwner) ||
+		permissions.includes('berita.view_others')
 	);
 }
 
@@ -1330,7 +1330,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Article ID is required' });
 				}
 
-				// Process the uploaded image (compress + WebP) under uploads/articles/{articleId}
+				// Process the uploaded image (compress + WebP) under uploads/berita/{articleId}
 				const imageUrl = await uploadArticleImage(
 					req.file,
 					undefined,
@@ -1348,7 +1348,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	);
 
 	// Articles routes
-	app.get('/api/articles', async (req, res) => {
+	app.get('/api/berita', async (req, res) => {
 		try {
 			const { page, limit, isPaginated } = getPaginationParams(req.query);
 			const allArticles = await mongoStorage.getPublishedArticles(
@@ -1374,7 +1374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Events linked to an article (PLACE BEFORE /api/articles/:id/:slug)
-	app.get('/api/articles/:id/events', async (req, res) => {
+	app.get('/api/berita/:id/events', async (req, res) => {
 		try {
 			const { id } = req.params;
 			const events = await mongoStorage.getEventsByArticleId(id);
@@ -1386,7 +1386,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Related articles (PLACE BEFORE /api/articles/:id/:slug to avoid 302 redirect)
-	app.get('/api/articles/:id/related', async (req, res) => {
+	app.get('/api/berita/:id/related', async (req, res) => {
 		try {
 			const articleId = req.params.id;
 			const limit = Math.max(
@@ -1424,7 +1424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	app.get('/api/articles/manage', authenticate, async (req, res) => {
+	app.get('/api/berita/manage', authenticate, async (req, res) => {
 		try {
 			// Get user permissions
 			const userRole = await mongoStorage.getRoleByName(
@@ -1434,12 +1434,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Filter by permissions: view_others = lihat semua, view/edit/create = hanya milik sendiri
 			let articles;
-			if (permissions.includes('articles.view_others')) {
+			if (permissions.includes('berita.view_others')) {
 				articles = await mongoStorage.getAllArticles();
 			} else if (
-				permissions.includes('articles.view') ||
-				permissions.includes('articles.edit') ||
-				permissions.includes('articles.create')
+				permissions.includes('berita.view') ||
+				permissions.includes('berita.edit') ||
+				permissions.includes('berita.create')
 			) {
 				articles = await mongoStorage.getArticlesByAuthorId(
 					(req.user as UserWithRole)?._id || '',
@@ -1457,9 +1457,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// Hybrid route: /artikel/:id/:slug (for SEO-friendly URLs)
+	// Hybrid route: /berita/:id/:slug (for SEO-friendly URLs)
 	app.get(
-		'/api/articles/:id/:slug',
+		'/api/berita/:id/:slug',
 		authenticateOptional,
 		async (req, res) => {
 			try {
@@ -1506,7 +1506,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Verify slug matches (optional validation)
 			if (article.slug && article.slug !== slug) {
 				// Redirect to correct slug if different
-				return res.redirect(`/artikel/${articleId}/${article.slug}`);
+				return res.redirect(`/berita/${articleId}/${article.slug}`);
 			}
 
 			res.json(article);
@@ -1519,7 +1519,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	// Get article by slug for SEO-friendly URLs (MUST BE BEFORE /:id route)
 	app.get(
-		'/api/articles/slug/:slug',
+		'/api/berita/slug/:slug',
 		authenticateOptional,
 		async (req, res) => {
 			try {
@@ -1565,7 +1565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	app.get('/api/articles/:id', authenticateOptional, async (req, res) => {
+	app.get('/api/berita/:id', authenticateOptional, async (req, res) => {
 		try {
 			const articleId = req.params.id;
 			const article = await mongoStorage.getArticleById(articleId);
@@ -1609,7 +1609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Related articles by similarity (tags + simple text overlap)
-	app.get('/api/articles/:id/related', async (req, res) => {
+	app.get('/api/berita/:id/related', async (req, res) => {
 		try {
 			const articleId = req.params.id;
 			const limit = Math.max(
@@ -1651,7 +1651,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Related by slug as convenience
-	app.get('/api/articles/slug/:slug/related', async (req, res) => {
+	app.get('/api/berita/slug/:slug/related', async (req, res) => {
 		try {
 			const slug = req.params.slug;
 			const article = await mongoStorage.getArticleBySlug(slug);
@@ -1687,7 +1687,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	app.post(
-		'/api/articles',
+		'/api/berita',
 		authenticate,
 		uploadMiddleware.single('image'),
 		async (req, res) => {
@@ -1714,7 +1714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const userRole = await mongoStorage.getRoleByName(
 					(req.user as UserWithRole)?.role || '',
 				);
-				if (!userRole || !userRole.permissions.includes('articles.create')) {
+				if (!userRole || !userRole.permissions.includes('berita.create')) {
 					return res.status(403).json({
 						message: 'You do not have permission to create articles',
 					});
@@ -1722,7 +1722,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Check publish permission if trying to publish
 				if (published === 'true') {
-					if (!userRole.permissions.includes('articles.publish')) {
+					if (!userRole.permissions.includes('berita.publish')) {
 						return res.status(403).json({
 							message: 'You do not have permission to publish articles',
 						});
@@ -1809,7 +1809,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					author: authorName,
 				});
 
-				// If local file uploaded (not GDrive), process thumbnail into uploads/articles/{articleId}
+				// If local file uploaded (not GDrive), process thumbnail into uploads/berita/{articleId}
 				const articleId = (newArticle._id || newArticle.id)?.toString();
 				let finalArticle = newArticle;
 				if (!gdriveUrl && req.file && articleId) {
@@ -1833,24 +1833,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-				// Migrate temp content images to article folder if any (replace URLs in content)
+				// Migrate temp content images to berita folder if any (replace URLs in content)
 				if (articleId) {
 					try {
 						const tempIdMatch = (content || '').match(
-							/\/uploads\/articles\/(temp-[^/]+)\//,
+							/\/uploads\/berita\/(temp-[^/]+)\//,
 						);
 						if (tempIdMatch && tempIdMatch[1]) {
 							const tempId = tempIdMatch[1];
 							const tempDir = path.join(
 								process.cwd(),
 								'uploads',
-								'articles',
+								'berita',
 								tempId,
 							);
 							const targetDir = path.join(
 								process.cwd(),
 								'uploads',
-								'articles',
+								'berita',
 								articleId,
 							);
 							if (fs.existsSync(tempDir)) {
@@ -1866,8 +1866,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 							// Replace URLs in content
 							const updatedContent = (content || '').replace(
-								new RegExp(`/uploads/articles/${tempId}/`, 'g'),
-								`/uploads/articles/${articleId}/`,
+								new RegExp(`/uploads/berita/${tempId}/`, 'g'),
+								`/uploads/berita/${articleId}/`,
 							);
 							if (updatedContent !== content) {
 								finalArticle = await mongoStorage.updateArticle(articleId, {
@@ -1902,7 +1902,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	);
 
 	app.put(
-		'/api/articles/:id',
+		'/api/berita/:id',
 		authenticate,
 		uploadMiddleware.single('image'),
 		async (req, res) => {
@@ -1976,7 +1976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updates.tags = tags;
 				}
 
-				// Process image if uploaded (store inside uploads/articles/{articleId})
+				// Process image if uploaded (store inside uploads/berita/{articleId})
 				if (req.file) {
 					// Hapus gambar lama jika ada dan berbeda dari default
 					const oldImageUrl =
@@ -2022,7 +2022,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	app.delete('/api/articles/:id', authenticate, async (req, res) => {
+	app.delete('/api/berita/:id', authenticate, async (req, res) => {
 		try {
 			const articleId = req.params.id;
 
@@ -2053,7 +2053,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Delete article
 			await mongoStorage.deleteArticle(articleId);
 
-			// Cleanup entire article folder (uploads/articles/{articleId})
+			// Cleanup entire berita folder (uploads/berita/{articleId})
 			await cleanupArticleImages(articleId, []); // Empty array means delete all
 
 			// Also cleanup attached_assets/articles/{articleId} if exists (legacy/misplaced)
@@ -4436,10 +4436,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const startDate = new Date(body.startDate);
 				const month = startDate.getMonth() + 1;
 
-				let relatedArticles: string[] = [];
-				if (body.relatedArticleIds) {
+				let relatedBerita: string[] = [];
+				if (body.relatedBeritaIds) {
 					try {
-						relatedArticles = JSON.parse(body.relatedArticleIds);
+						relatedBerita = JSON.parse(body.relatedBeritaIds);
 					} catch {
 						/* ignore */
 					}
@@ -4459,7 +4459,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					attachments,
 					published: body.published === 'true' || body.published === true,
 					createdBy: user._id,
-					relatedArticles,
+					relatedBerita,
 				};
 
 				const event = await mongoStorage.createEvent(eventData);
@@ -4572,9 +4572,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-				if (body.relatedArticleIds !== undefined) {
+				if (body.relatedBeritaIds !== undefined) {
 					try {
-						updateData.relatedArticles = JSON.parse(body.relatedArticleIds);
+						updateData.relatedBerita = JSON.parse(body.relatedBeritaIds);
 					} catch {
 						/* ignore */
 					}
@@ -4679,7 +4679,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	// ── Copy Article → Event ──
 	app.post(
-		'/api/articles/:id/copy-to-event',
+		'/api/berita/:id/copy-to-event',
 		authenticate,
 		requirePermission('events.create'),
 		async (req, res) => {
@@ -4780,9 +4780,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// ── Attach Event to Article (same effect: update event.relatedArticles) ──
+	// ── Attach Event to Article (same effect: update event.relatedBerita) ──
 	app.post(
-		'/api/articles/:id/attach-event',
+		'/api/berita/:id/attach-event',
 		authenticate,
 		async (req, res) => {
 			try {
@@ -4825,7 +4825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	// ── Detach Event from Article ──
 	app.delete(
-		'/api/articles/:id/attach-event/:eventId',
+		'/api/berita/:id/attach-event/:eventId',
 		authenticate,
 		async (req, res) => {
 			try {

@@ -100,12 +100,12 @@ app.get('/sitemap.xml', async (_req, res) => {
 		// Always include base URLs
 		const baseUrls = [
 			{ loc: `${host}/`, changefreq: 'daily', priority: '1.0', lastmod: now },
-			{
-				loc: `${host}/artikel`,
-				changefreq: 'daily',
-				priority: '0.9',
-				lastmod: now,
-			},
+		{
+			loc: `${host}/berita`,
+			changefreq: 'daily',
+			priority: '0.9',
+			lastmod: now,
+		},
 			{
 				loc: `${host}/profil`,
 				changefreq: 'monthly',
@@ -154,7 +154,8 @@ app.get('/sitemap.xml', async (_req, res) => {
 
 			if (isConnected) {
 				// Attempt to load articles
-				const { Article } = await import('../db/mongodb');
+				const { Berita } = await import('../db/mongodb');
+				const Article = Berita;
 
 				if (Article) {
 					// Ambil semua artikel yang published (tanpa sort, tanpa limit)
@@ -164,9 +165,9 @@ app.get('/sitemap.xml', async (_req, res) => {
 
 					console.log(`📄 Found ${articles.length} published articles`);
 
-					articleUrls = articles.map((a: any) => {
-						const url = `${host}/artikel/${a._id}/${a.slug}`;
-						console.log(`📝 Adding article URL: ${url}`);
+				articleUrls = articles.map((a: any) => {
+					const url = `${host}/berita/${a._id}/${a.slug}`;
+					console.log(`📝 Adding berita URL: ${url}`);
 						return {
 							loc: url,
 							lastmod:
@@ -351,10 +352,14 @@ setInterval(
 	} else {
 		console.log('📦 Setting up static files (production mode)');
 
-		// ==================== ARTICLE SEO PRERENDER MIDDLEWARE ====================
-		// Inject article meta tags server-side so crawlers (Googlebot, etc.)
-		// receive proper title/description/OG tags without needing JavaScript.
-		app.get(['/artikel/:id/:slug', '/artikel/:id'], async (req, res, next) => {
+		// Redirect old /artikel/* URLs to /berita/*
+		app.get('/artikel/:rest*', (req, res) => {
+			const rest = req.params.rest + (req.params[0] || '');
+			res.redirect(301, `/berita/${rest}`);
+		});
+
+		// ==================== BERITA SEO PRERENDER MIDDLEWARE ====================
+		app.get(['/berita/:id/:slug', '/berita/:id'], async (req, res, next) => {
 			try {
 				const distPath = path.resolve(process.cwd(), 'dist', 'public');
 				const htmlPath = path.join(distPath, 'index.html');
@@ -362,7 +367,8 @@ setInterval(
 
 				let article: any = null;
 				try {
-					const { Article } = await import('../db/mongodb');
+					const { Berita } = await import('../db/mongodb');
+					const Article = Berita;
 					const mongoose = await import('mongoose');
 					const { id, slug } = req.params as { id?: string; slug?: string };
 
@@ -398,9 +404,9 @@ setInterval(
 					const title = `${article.title} | Himatif Encoder`;
 					const description = String(
 						article.excerpt ||
-							'Artikel dari Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+							'Berita dari Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 					).slice(0, 160);
-					const canonicalUrl = `https://himatif-encoder.com/artikel/${article._id}/${article.slug || ''}`;
+					const canonicalUrl = `https://himatif-encoder.com/berita/${article._id}/${article.slug || ''}`;
 					const defaultOgImage =
 						'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
 					const ogImage =
@@ -624,12 +630,12 @@ setInterval(
 		);
 
 		app.get(
-			'/artikel',
+			'/berita',
 			serveHtmlWithMeta({
-				title: 'Artikel | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				title: 'Berita | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 				description:
-					'Daftar artikel, berita, dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.',
-				canonicalUrl: 'https://himatif-encoder.com/artikel',
+					'Daftar berita dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/berita',
 			}),
 		);
 

@@ -100,7 +100,7 @@ export default function ArticleEditor({
 
 	const fetchAllTags = async () => {
 		try {
-			const response = await fetch('/api/articles');
+			const response = await fetch('/api/berita');
 			const articles = await response.json();
 			const tags = new Set<string>();
 			articles.forEach((article: any) => {
@@ -128,13 +128,13 @@ export default function ArticleEditor({
 		mutationFn: async (formData: FormData) => {
 			const articleId = (article as any)?._id || article?.id;
 			return articleId
-				? apiRequest('PUT', `/api/articles/${articleId}`, formData)
-				: apiRequest('POST', '/api/articles', formData);
+				? apiRequest('PUT', `/api/berita/${articleId}`, formData)
+				: apiRequest('POST', '/api/berita', formData);
 		},
 		onSuccess: async (response) => {
 			// Invalidate queries
-			queryClient.invalidateQueries({ queryKey: ['/api/articles'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/articles/manage'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/berita'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/berita/manage'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 
 			// Log activity
@@ -254,10 +254,10 @@ export default function ArticleEditor({
 
 	// Linked events query
 	const { data: linkedEvents = [], refetch: refetchLinkedEvents } = useQuery<any[]>({
-		queryKey: [`/api/articles/${articleId}/events`],
+		queryKey: [`/api/berita/${articleId}/events`],
 		queryFn: async () => {
 			if (!articleId) return [];
-			const res = await fetch(`/api/articles/${articleId}/events`);
+			const res = await fetch(`/api/berita/${articleId}/events`);
 			if (!res.ok) return [];
 			return res.json();
 		},
@@ -295,7 +295,7 @@ export default function ArticleEditor({
 	const copyToEventMut = useMutation({
 		mutationFn: async ({ year, parentEventId, copyAtts }: { year: number; parentEventId?: string; copyAtts: boolean }) => {
 			if (!articleId) throw new Error('Save article first before copying to event.');
-			const res = await apiRequest('POST', `/api/articles/${articleId}/copy-to-event`, {
+			const res = await apiRequest('POST', `/api/berita/${articleId}/copy-to-event`, {
 				year,
 				parentEventId: parentEventId || undefined,
 				copyAttachments: copyAtts,
@@ -308,7 +308,7 @@ export default function ArticleEditor({
 				? parentEventOptions.find((e) => e._id === selectedParentEventId)?.title
 				: undefined;
 			toast({
-				title: 'Event berhasil dibuat dari artikel!',
+				title: 'Event berhasil dibuat dari berita!',
 				description: parentName
 					? `Draft sub-event "${data.event?.title}" dibuat di bawah "${parentName}" (${data.year}).`
 					: `Draft event "${data.event?.title}" dibuat di tahun ${data.year}. Silakan edit di dashboard event.`,
@@ -323,7 +323,7 @@ export default function ArticleEditor({
 	const detachEventMut = useMutation({
 		mutationFn: async (eventId: string) => {
 			if (!articleId) return;
-			await apiRequest('DELETE', `/api/articles/${articleId}/attach-event/${eventId}`);
+			await apiRequest('DELETE', `/api/berita/${articleId}/attach-event/${eventId}`);
 		},
 		onSuccess: () => {
 			refetchLinkedEvents();
@@ -571,10 +571,10 @@ export default function ArticleEditor({
 		<div className="space-y-6">
 			<div className="space-y-4">
 				<div className="space-y-2">
-					<Label htmlFor="title">Article Title</Label>
+					<Label htmlFor="title">Judul Berita</Label>
 					<Input
 						id="title"
-						placeholder="Enter article title"
+						placeholder="Masukkan judul berita"
 						value={title}
 						onChange={(e) => setTitle(e.target.value)}
 					/>
@@ -584,7 +584,7 @@ export default function ArticleEditor({
 					<Label htmlFor="excerpt">Short Excerpt</Label>
 					<Textarea
 						id="excerpt"
-						placeholder="Brief description (shown in article previews)"
+						placeholder="Deskripsi singkat (ditampilkan di preview berita)"
 						value={excerpt}
 						onChange={(e) => setExcerpt(e.target.value)}
 						rows={2}
@@ -740,7 +740,7 @@ export default function ArticleEditor({
 							<RichTextEditor
 								value={content}
 								onChange={setContent}
-								placeholder="Write your article content here..."
+								placeholder="Tulis konten berita di sini..."
 								height={500}
 								articleId={
 									(article as any)?._id || article?.id || 'temp-' + Date.now()
@@ -793,7 +793,7 @@ export default function ArticleEditor({
 					</Button>
 				</div>
 				{linkedEvents.length === 0 ? (
-					<p className="text-xs text-muted-foreground">Belum ada event yang terhubung ke artikel ini.</p>
+					<p className="text-xs text-muted-foreground">Belum ada event yang terhubung ke berita ini.</p>
 				) : (
 					<div className="flex flex-wrap gap-2">
 						{linkedEvents.map((ev: any) => (
@@ -831,7 +831,7 @@ export default function ArticleEditor({
 						Saving...
 					</>
 				) : (
-					'Save Article'
+					'Simpan Berita'
 				)}
 			</Button>
 		</div>
@@ -846,7 +846,7 @@ export default function ArticleEditor({
 		>
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
-					<DialogTitle>Copy Artikel ke Event</DialogTitle>
+					<DialogTitle>Copy Berita ke Event</DialogTitle>
 				</DialogHeader>
 				<div className="space-y-4">
 					<p className="text-sm text-muted-foreground">
@@ -887,7 +887,7 @@ export default function ArticleEditor({
 							<p className="text-xs text-muted-foreground py-1">Pilih tahun terlebih dahulu.</p>
 						) : parentEventOptions.length === 0 ? (
 							<p className="text-xs text-muted-foreground py-1">
-								Belum ada event utama di tahun ini — artikel akan dibuat sebagai event utama baru.
+								Belum ada event utama di tahun ini — berita akan dibuat sebagai event utama baru.
 							</p>
 						) : (
 							<select
@@ -917,7 +917,7 @@ export default function ArticleEditor({
 							className="rounded"
 						/>
 						<Label htmlFor="copy-atts-event" className="cursor-pointer">
-							Sertakan gambar artikel ke lampiran event
+							Sertakan gambar berita ke lampiran event
 						</Label>
 					</div>
 					<div className="flex gap-2 pt-2">

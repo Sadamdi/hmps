@@ -106,8 +106,8 @@ const permissionSchema = new mongoose.Schema({
 	createdAt: { type: Date, default: Date.now },
 });
 
-// Model Article
-const articleSchema = new mongoose.Schema({
+// Model Berita (formerly Article)
+const beritaSchema = new mongoose.Schema({
 	title: { type: String, required: true },
 	slug: { type: String, required: true, unique: true }, // SEO-friendly URL
 	excerpt: { type: String, required: true },
@@ -133,8 +133,7 @@ const articleSchema = new mongoose.Schema({
 	updatedAt: { type: Date, default: Date.now },
 });
 
-// Index untuk slug
-articleSchema.index({ slug: 1 });
+beritaSchema.index({ slug: 1 });
 
 // Model Library
 const librarySchema = new mongoose.Schema({
@@ -606,17 +605,17 @@ const eventSchema = new mongoose.Schema(
 			ref: 'User',
 			required: true,
 		},
-		relatedArticles: [
-			{
-				type: mongoose.Schema.Types.ObjectId,
-				ref: 'Article',
-			},
-		],
-		sourceArticleId: {
+	relatedBerita: [
+		{
 			type: mongoose.Schema.Types.ObjectId,
-			ref: 'Article',
-			default: null,
+			ref: 'Berita',
 		},
+	],
+	sourceBeritaId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'Berita',
+		default: null,
+	},
 	},
 	{ timestamps: true },
 );
@@ -679,8 +678,9 @@ const Event =
 const HomeImages =
 	mongoose.models.HomeImages || mongoose.model('HomeImages', homeImagesSchema);
 const User = mongoose.models.User || mongoose.model('User', userSchema);
-const Article =
-	mongoose.models.Article || mongoose.model('Article', articleSchema);
+const Berita =
+	mongoose.models.Berita || mongoose.model('Berita', beritaSchema, 'berita');
+const Article = Berita;
 const Library =
 	mongoose.models.Library || mongoose.model('Library', librarySchema);
 const Organization =
@@ -706,6 +706,7 @@ export const Division =
 
 export {
 	Article,
+	Berita,
 	Event,
 	EventYear,
 	HomeImages,

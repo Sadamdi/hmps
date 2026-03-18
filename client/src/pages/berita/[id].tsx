@@ -57,12 +57,12 @@ export default function ArticleDetail() {
 	let isHybridRoute = false;
 
 	if (id && slug) {
-		apiEndpoint = `/api/articles/${id}/${slug}`;
+		apiEndpoint = `/api/berita/${id}/${slug}`;
 		isHybridRoute = true;
 	} else if (slug && !id) {
-		apiEndpoint = `/api/articles/slug/${slug}`;
+		apiEndpoint = `/api/berita/slug/${slug}`;
 	} else {
-		apiEndpoint = `/api/articles/${id}`;
+		apiEndpoint = `/api/berita/${id}`;
 	}
 
 	const {
@@ -80,9 +80,9 @@ export default function ArticleDetail() {
 
 	let relatedEndpoint: string | null = null;
 	if (id) {
-		relatedEndpoint = `/api/articles/${id}/related?limit=2`;
+		relatedEndpoint = `/api/berita/${id}/related?limit=2`;
 	} else if (slug && !id) {
-		relatedEndpoint = `/api/articles/slug/${slug}/related?limit=2`;
+		relatedEndpoint = `/api/berita/slug/${slug}/related?limit=2`;
 	}
 
 	const { data: related = [] } = useQuery<RelatedArticle[]>({
@@ -98,9 +98,9 @@ export default function ArticleDetail() {
 	const articleId = id || null;
 
 	const { data: linkedEvents = [] } = useQuery<{ _id: string; title: string; yearId: { year: number }; startDate: string; endDate: string }[]>({
-		queryKey: [`/api/articles/${articleId}/events`],
+		queryKey: [`/api/berita/${articleId}/events`],
 		queryFn: async () => {
-			const response = await fetch(`/api/articles/${articleId}/events`);
+			const response = await fetch(`/api/berita/${articleId}/events`);
 			if (!response.ok) return [];
 			return response.json();
 		},
@@ -115,7 +115,7 @@ export default function ArticleDetail() {
 			const metaDescription = document.querySelector('meta[name="description"]');
 			const descContent =
 				article.excerpt ||
-				`${article.title} - Artikel dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang.`;
+				`${article.title} - Berita dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang.`;
 			if (metaDescription) {
 				metaDescription.setAttribute('content', descContent);
 			} else {
@@ -125,7 +125,7 @@ export default function ArticleDetail() {
 				document.head.appendChild(newMeta);
 			}
 
-			const canonicalUrl = `https://himatif-encoder.com/artikel/${
+			const canonicalUrl = `https://himatif-encoder.com/berita/${
 				article._id || article.id
 			}/${article.slug || slug || ''}`;
 			const canonical = document.querySelector('link[rel="canonical"]');
@@ -215,7 +215,7 @@ export default function ArticleDetail() {
 	};
 
 	const navigateToTaggedArticles = (tag: string) => {
-		setLocation(`/artikel?tag=${encodeURIComponent(tag)}`);
+		setLocation(`/berita?tag=${encodeURIComponent(tag)}`);
 	};
 
 	const formatForDisplay = (html: string) => {
@@ -231,7 +231,7 @@ export default function ArticleDetail() {
 	if (isLoading) {
 		return (
 			<div className="min-h-screen bg-background">
-				<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+				<Navbar activeSection="berita" scrollToSection={scrollToSection} />
 				<div className="max-w-7xl mx-auto px-4 py-8">
 					<div className="flex gap-8">
 						<div className="hidden lg:block w-80 flex-shrink-0">
@@ -263,11 +263,11 @@ export default function ArticleDetail() {
 	if (error || !article) {
 		return (
 			<div className="min-h-screen bg-background flex flex-col">
-				<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+				<Navbar activeSection="berita" scrollToSection={scrollToSection} />
 				<div className="flex-1 flex items-center justify-center">
 					<div className="text-center">
 						<h1 className="text-2xl font-bold text-foreground mb-4">
-							Artikel tidak ditemukan
+							Berita tidak ditemukan
 						</h1>
 						<Button onClick={() => setLocation('/')} variant="outline">
 							<ArrowLeft className="w-4 h-4 mr-2" />
@@ -281,7 +281,7 @@ export default function ArticleDetail() {
 
 	return (
 		<div className="min-h-screen bg-background relative">
-			<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+			<Navbar activeSection="berita" scrollToSection={scrollToSection} />
 
 			{/* Breadcrumb bar */}
 			<div className="bg-card border-b border-border">
@@ -296,7 +296,7 @@ export default function ArticleDetail() {
 						</Button>
 						<span className="text-border">/</span>
 						<Button
-							onClick={() => setLocation('/artikel')}
+							onClick={() => setLocation('/berita')}
 							variant="ghost"
 							size="sm"
 							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
@@ -308,12 +308,12 @@ export default function ArticleDetail() {
 						</span>
 					</div>
 					<Button
-						onClick={() => setLocation('/artikel')}
+						onClick={() => setLocation('/berita')}
 						variant="ghost"
 						size="sm"
 						className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
 						<ArrowLeft className="w-4 h-4 mr-2" />
-						Kembali ke Artikel
+						Kembali ke Berita
 					</Button>
 				</div>
 			</div>
@@ -474,7 +474,7 @@ export default function ArticleDetail() {
 									size="sm"
 									className="text-muted-foreground hover:text-foreground border-border">
 									<Share2 className="w-4 h-4 mr-2" />
-									Bagikan Artikel
+									Bagikan Berita
 								</Button>
 							</div>
 						</div>
@@ -484,15 +484,15 @@ export default function ArticleDetail() {
 							className="mt-10 bg-card rounded-xl shadow-sm border border-border p-6"
 							data-aos="fade-up"
 							data-aos-delay="350">
-							<h3 className="text-xl font-bold text-foreground mb-5">Artikel Terkait</h3>
+							<h3 className="text-xl font-bold text-foreground mb-5">Berita Terkait</h3>
 							{related && related.length > 0 ? (
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 									{related.slice(0, 2).map((r, idx) => {
 										const rid = (r._id || r.id) as string | number;
 										const href =
 											r.slug && rid
-												? `/artikel/${rid}/${r.slug}`
-												: `/artikel/${rid}`;
+												? `/berita/${rid}/${r.slug}`
+												: `/berita/${rid}`;
 										return (
 											<div
 												key={String(rid) + '-' + idx}
@@ -531,7 +531,7 @@ export default function ArticleDetail() {
 									})}
 								</div>
 							) : (
-								<div className="text-muted-foreground text-sm">Belum ada artikel terkait.</div>
+								<div className="text-muted-foreground text-sm">Belum ada Berita Terkait.</div>
 							)}
 						</div>
 
@@ -565,10 +565,10 @@ export default function ArticleDetail() {
 
 		<Footer />
 
-		{/* AI Chat dengan context artikel yang sedang dibaca */}
+		{/* AI Chat dengan context berita yang sedang dibaca */}
 		<AIChat
 			pageContext={{
-				path: `/artikel/${article._id || article.id || id || ''}`,
+				path: `/berita/${article._id || article.id || id || ''}`,
 				permissions: [],
 				pageData: {
 					title: article.title,

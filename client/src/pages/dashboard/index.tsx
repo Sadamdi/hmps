@@ -414,9 +414,9 @@ export default function Dashboard() {
 					</CardHeader>
 					<CardContent>
 						<div className="grid grid-cols-2 gap-4">
-							{hasSpecificPermission('articles.create') && (
-								<button
-									onClick={() => setLocation('/dashboard/articles')}
+						{hasSpecificPermission('berita.create') && (
+							<button
+								onClick={() => setLocation('/dashboard/berita')}
 									className="p-4 border border-border rounded-lg hover:bg-secondary transition-colors text-left">
 									<svg
 										xmlns="http://www.w3.org/2000/svg"
@@ -431,7 +431,7 @@ export default function Dashboard() {
 											d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
 										/>
 									</svg>
-									<p className="font-medium text-sm">New Article</p>
+									<p className="font-medium text-sm">Berita Baru</p>
 								</button>
 							)}
 

@@ -55,32 +55,32 @@ export default function DashboardArticles() {
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasArticleAccess, isLoading: isPermissionLoading } =
 		usePermissionGuardAny([
-			'articles.view',
-			'articles.view_others',
-			'articles.edit',
-			'articles.create',
+			'berita.view',
+			'berita.view_others',
+			'berita.edit',
+			'berita.create',
 		]);
 
 	// Helper function to check if user can edit/delete article
 	const canEditArticle = (article: Article) => {
 		const isOwner = user?._id === article.authorId;
 		return (
-			(hasSpecificPermission('articles.edit') && isOwner) ||
-			hasSpecificPermission('articles.edit_others')
+			(hasSpecificPermission('berita.edit') && isOwner) ||
+			hasSpecificPermission('berita.edit_others')
 		);
 	};
 
 	const canDeleteArticle = (article: Article) => {
 		const isOwner = user?._id === article.authorId;
 		return (
-			(hasSpecificPermission('articles.delete') && isOwner) ||
-			hasSpecificPermission('articles.delete_others')
+			(hasSpecificPermission('berita.delete') && isOwner) ||
+			hasSpecificPermission('berita.delete_others')
 		);
 	};
 
 	// Query articles with proper typing
 	const { data: articlesData = [], isLoading } = useQuery({
-		queryKey: ['/api/articles/manage'],
+		queryKey: ['/api/berita/manage'],
 		refetchOnWindowFocus: false,
 		refetchOnMount: false,
 		staleTime: 60000,
@@ -118,7 +118,7 @@ export default function DashboardArticles() {
 	// Delete article mutation
 	const deleteArticleMutation = useMutation({
 		mutationFn: async (articleId: string | number) => {
-			await apiRequest('DELETE', `/api/articles/${articleId}`, {});
+			await apiRequest('DELETE', `/api/berita/${articleId}`, {});
 		},
 		onSuccess: async (_, articleId) => {
 			// Find the deleted article for logging
@@ -126,7 +126,7 @@ export default function DashboardArticles() {
 				(article) => (article as any)._id === articleId
 			);
 
-			queryClient.invalidateQueries({ queryKey: ['/api/articles/manage'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/berita/manage'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 
 			// Log activity
@@ -145,13 +145,13 @@ export default function DashboardArticles() {
 
 			toast({
 				title: 'Success',
-				description: 'Article deleted successfully',
+				description: 'Berita berhasil dihapus',
 			});
 		},
 		onError: (error) => {
 			toast({
 				title: 'Error',
-				description: 'Failed to delete article',
+				description: 'Gagal menghapus berita',
 				variant: 'destructive',
 			});
 			console.error('Delete error:', error);
@@ -179,7 +179,7 @@ export default function DashboardArticles() {
 	};
 
 	const handleDeleteArticle = async (articleId: string | number) => {
-		if (window.confirm('Are you sure you want to delete this article?')) {
+		if (window.confirm('Yakin ingin menghapus berita ini?')) {
 			await deleteArticleMutation.mutateAsync(articleId);
 		}
 	};
@@ -190,21 +190,21 @@ export default function DashboardArticles() {
 	};
 
 	const handleArticleSaved = () => {
-		queryClient.invalidateQueries({ queryKey: ['/api/articles/manage'] });
+		queryClient.invalidateQueries({ queryKey: ['/api/berita/manage'] });
 		closeEditor();
 		toast({
 			title: 'Success',
-			description: `Article ${
-				editingArticle ? 'updated' : 'created'
-			} successfully`,
+			description: `Berita berhasil ${
+				editingArticle ? 'diperbarui' : 'dibuat'
+			}`,
 		});
 	};
 
 	// Show loading jika permission masih loading
 	if (isPermissionLoading) {
 		return (
-			<DashboardLayout title="Articles">
-				<div className="flex items-center justify-center h-64">
+		<DashboardLayout title="Berita">
+			<div className="flex items-center justify-center h-64">
 					<div className="flex items-center space-x-2">
 						<Loader2 className="h-6 w-6 animate-spin" />
 						<span>Loading permissions...</span>
@@ -221,13 +221,13 @@ export default function DashboardArticles() {
 	}
 
 	return (
-		<DashboardLayout title="Articles">
+		<DashboardLayout title="Berita">
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-				<h1 className="text-2xl font-bold">Articles Management</h1>
-				{hasSpecificPermission('articles.create') && (
+				<h1 className="text-2xl font-bold">Kelola Berita</h1>
+				{hasSpecificPermission('berita.create') && (
 					<Button onClick={handleNewArticle}>
 						<Plus className="h-4 w-4 mr-2" />
-						New Article
+						Berita Baru
 					</Button>
 				)}
 			</div>
@@ -236,7 +236,7 @@ export default function DashboardArticles() {
 				<div className="relative flex-1">
 					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 					<Input
-						placeholder="Search articles..."
+						placeholder="Cari berita..."
 						className="pl-10"
 						value={searchQuery}
 						onChange={(e) => setSearchQuery(e.target.value)}
@@ -261,8 +261,8 @@ export default function DashboardArticles() {
 			) : filteredArticles.length === 0 ? (
 				<Card>
 					<CardContent className="p-8 text-center">
-						<p className="text-muted-foreground mb-4">No articles found.</p>
-						<Button onClick={handleNewArticle}>Create an Article</Button>
+					<p className="text-muted-foreground mb-4">Belum ada berita.</p>
+					<Button onClick={handleNewArticle}>Buat Berita</Button>
 					</CardContent>
 				</Card>
 			) : (
@@ -358,7 +358,7 @@ export default function DashboardArticles() {
 					onInteractOutside={(e) => e.preventDefault()}>
 					<DialogHeader>
 						<DialogTitle>
-							{editingArticle ? 'Edit Article' : 'Create New Article'}
+							{editingArticle ? 'Edit Berita' : 'Buat Berita Baru'}
 						</DialogTitle>
 						{/* Peringatan bahwa editor hanya bisa ditutup dengan tombol */}
 						<div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded text-sm text-blue-700 dark:text-blue-300">

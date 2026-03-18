@@ -61,9 +61,9 @@ export default function AllArticles() {
 
 	useEffect(() => {
 		document.title =
-			'Artikel | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
+			'Berita | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
 		const desc =
-			'Daftar artikel, berita, dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.';
+			'Daftar berita dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.';
 		const meta = document.querySelector('meta[name="description"]');
 		if (meta) meta.setAttribute('content', desc);
 		return () => {
@@ -88,7 +88,7 @@ export default function AllArticles() {
 		try {
 			setLoading(true);
 			setError(null);
-			const response = await fetch('/api/articles');
+			const response = await fetch('/api/berita');
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 			const data = await response.json();
 			setArticles(data);
@@ -99,7 +99,7 @@ export default function AllArticles() {
 			setAllTags(Array.from(tags).sort());
 		} catch (error) {
 			console.error('Error fetching articles:', error);
-			setError('Gagal memuat artikel. Silakan coba lagi.');
+			setError('Gagal memuat berita. Silakan coba lagi.');
 		} finally {
 			setLoading(false);
 		}
@@ -156,11 +156,11 @@ export default function AllArticles() {
 	if (loading) {
 		return (
 			<div className="min-h-screen bg-background">
-				<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+				<Navbar activeSection="berita" scrollToSection={scrollToSection} />
 				<div className="container mx-auto px-4 py-8">
 					<div className="text-center py-24">
 						<div className="animate-spin rounded-full h-14 w-14 border-b-2 border-primary mx-auto" />
-						<p className="mt-4 text-muted-foreground">Memuat artikel...</p>
+						<p className="mt-4 text-muted-foreground">Memuat berita...</p>
 					</div>
 				</div>
 			</div>
@@ -170,7 +170,7 @@ export default function AllArticles() {
 	if (error) {
 		return (
 			<div className="min-h-screen bg-background">
-				<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+				<Navbar activeSection="berita" scrollToSection={scrollToSection} />
 				<div className="container mx-auto px-4 py-8">
 					<div className="text-center py-24">
 						<p className="text-destructive mb-4">{error}</p>
@@ -185,23 +185,23 @@ export default function AllArticles() {
 
 	return (
 		<div className="min-h-screen bg-background relative">
-			<Navbar activeSection="articles" scrollToSection={scrollToSection} />
+			<Navbar activeSection="berita" scrollToSection={scrollToSection} />
 
 			<div className="container mx-auto px-4 py-8">
 				{/* Header */}
 				<div className="mb-8" data-aos="fade-down">
 					<div className="flex items-center gap-4 mb-4">
-						<Link href="/#articles">
+						<Link href="/#berita">
 							<Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
 								<ArrowLeft className="h-4 w-4 mr-2" />
 								Kembali ke Beranda
 							</Button>
 						</Link>
 					</div>
-					<h1 className="text-3xl font-bold text-foreground mb-2">Semua Artikel</h1>
-					<p className="text-muted-foreground">
-						Temukan artikel dan informasi terkini dari Himatif Encoder
-					</p>
+				<h1 className="text-3xl font-bold text-foreground mb-2">Semua Berita</h1>
+				<p className="text-muted-foreground">
+					Temukan berita dan informasi terkini dari Himatif Encoder
+				</p>
 				</div>
 
 				{/* Search and Filter */}
@@ -213,7 +213,7 @@ export default function AllArticles() {
 						<div className="relative">
 							<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
 							<Input
-								placeholder="Cari artikel berdasarkan judul atau deskripsi..."
+								placeholder="Cari berita berdasarkan judul atau deskripsi..."
 								value={searchTerm}
 								onChange={(e) => setSearchTerm(e.target.value)}
 								className="pl-10"
@@ -253,7 +253,7 @@ export default function AllArticles() {
 				{/* Results Count */}
 				<div className="mb-6">
 					<p className="text-muted-foreground text-sm">
-						Menampilkan {paginatedArticles.length} dari {filteredArticles.length} artikel
+						Menampilkan {paginatedArticles.length} dari {filteredArticles.length} berita
 						{searchTerm && ` untuk "${searchTerm}"`}
 						{selectedTags.length > 0 && ` dengan tags: ${selectedTags.join(', ')}`}
 					</p>
@@ -262,7 +262,7 @@ export default function AllArticles() {
 				{/* Articles Grid */}
 				{paginatedArticles.length === 0 ? (
 					<div className="text-center py-12 bg-card border border-border rounded-xl">
-						<p className="text-muted-foreground text-lg mb-2">Tidak ada artikel ditemukan</p>
+						<p className="text-muted-foreground text-lg mb-2">Tidak ada berita ditemukan</p>
 						<p className="text-muted-foreground/70 text-sm">
 							Coba sesuaikan pencarian atau filter Anda
 						</p>
@@ -282,8 +282,8 @@ export default function AllArticles() {
 									<Link
 										href={
 											article.slug
-												? `/artikel/${article._id}/${article.slug}`
-												: `/artikel/${article._id}`
+												? `/berita/${article._id}/${article.slug}`
+												: `/berita/${article._id}`
 										}>
 										<div className="relative h-48 overflow-hidden">
 											<img
@@ -303,8 +303,8 @@ export default function AllArticles() {
 									<Link
 										href={
 											article.slug
-												? `/artikel/${article._id}/${article.slug}`
-												: `/artikel/${article._id}`
+												? `/berita/${article._id}/${article.slug}`
+												: `/berita/${article._id}`
 										}>
 										<CardTitle className="text-base mb-2 hover:text-primary transition-colors line-clamp-2 text-foreground">
 											{article.title}
@@ -346,8 +346,8 @@ export default function AllArticles() {
 									<Link
 										href={
 											article.slug
-												? `/artikel/${article._id}/${article.slug}`
-												: `/artikel/${article._id}`
+												? `/berita/${article._id}/${article.slug}`
+												: `/berita/${article._id}`
 										}>
 										<Button
 											variant="link"
@@ -371,10 +371,10 @@ export default function AllArticles() {
 
 		<Footer />
 
-		{/* AI Chat dengan context halaman daftar artikel */}
+		{/* AI Chat */}
 		<AIChat
 			pageContext={{
-				path: '/artikel',
+				path: '/berita',
 				permissions: [],
 			}}
 		/>

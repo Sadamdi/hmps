@@ -775,14 +775,14 @@ export default function EventsTree({
 									Detail Event Utama
 								</Button>
 							</div>
-							{showSubEvents.relatedArticles && showSubEvents.relatedArticles.length > 0 && (
+							{showSubEvents.relatedBerita && showSubEvents.relatedBerita.length > 0 && (
 								<div>
 									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Artikel Terkait</h4>
 									<div className="space-y-1.5">
-										{showSubEvents.relatedArticles.map((art) => (
+										{showSubEvents.relatedBerita.map((art) => (
 											<Link
 												key={art._id}
-												href={`/artikel/${art._id}${art.slug ? `/${art.slug}` : ''}`}
+												href={`/berita/${art._id}${art.slug ? `/${art.slug}` : ''}`}
 												className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-primary"
 											>
 												<FileText className="h-4 w-4 flex-shrink-0" />
@@ -879,14 +879,14 @@ export default function EventsTree({
 									</div>
 								</div>
 							)}
-							{selectedEvent.relatedArticles && selectedEvent.relatedArticles.length > 0 && (
+							{selectedEvent.relatedBerita && selectedEvent.relatedBerita.length > 0 && (
 								<div>
 									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Artikel Terkait</h4>
 									<div className="space-y-1.5">
-										{selectedEvent.relatedArticles.map((art) => (
+										{selectedEvent.relatedBerita.map((art) => (
 											<Link
 												key={art._id}
-												href={`/artikel/${art._id}${art.slug ? `/${art.slug}` : ''}`}
+												href={`/berita/${art._id}${art.slug ? `/${art.slug}` : ''}`}
 												className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-primary"
 											>
 												<FileText className="h-4 w-4 flex-shrink-0" />

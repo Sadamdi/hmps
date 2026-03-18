@@ -375,7 +375,7 @@ export default function Hero({
 						<span className="relative z-10">Tentang Kami</span>
 					</button>
 				<button
-					onClick={() => scrollToSection('articles')}
+					onClick={() => scrollToSection('berita')}
 					className="px-5 py-2 border border-blue-400/60 dark:border-cyan-300/50 text-blue-600 dark:text-cyan-200 rounded-full font-medium text-sm hover:bg-blue-50 dark:hover:bg-cyan-400/10 hover:border-blue-500 dark:hover:border-cyan-300/80 hover:scale-105 transition-all duration-250">
 					Lihat Artikel
 				</button>
@@ -494,7 +494,7 @@ export default function Hero({
 									Tentang Kami
 								</button>
 								<button
-									onClick={() => scrollToSection('articles')}
+									onClick={() => scrollToSection('berita')}
 									className="border-2 border-blue-200/70 text-blue-100 hover:bg-blue-100 hover:text-slate-900 px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300">
 									Artikel Terbaru
 								</button>

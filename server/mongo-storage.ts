@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import {
-	Article,
+	Berita,
+	Berita as Article,
 	Division,
 	Event,
 	EventYear,
@@ -737,7 +738,7 @@ async function getEventsByYear(year: number, parentOnly = false, publishedOnly =
 	if (parentOnly) filter.parentId = null;
 	if (publishedOnly) filter.published = true;
 	const events = await Event.find(filter)
-		.populate('relatedArticles', '_id title slug')
+		.populate('relatedBerita', '_id title slug')
 		.sort({ month: 1, startDate: 1 })
 		.lean();
 	return { yearDoc, events };
@@ -763,7 +764,7 @@ async function getEventsByYearId(
 		if (aOid) filter.createdBy = aOid;
 	}
 	return await Event.find(filter)
-		.populate('relatedArticles', '_id title slug')
+		.populate('relatedBerita', '_id title slug')
 		.sort({ month: 1, startDate: 1 })
 		.lean();
 }
@@ -772,7 +773,7 @@ async function getEventById(id: string): Promise<any | null> {
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 	return await Event.findById(objectId)
-		.populate('relatedArticles', '_id title slug')
+		.populate('relatedBerita', '_id title slug')
 		.lean();
 }
 
@@ -780,11 +781,11 @@ async function getEventWithChildren(id: string): Promise<any | null> {
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 	const event = await Event.findById(objectId)
-		.populate('relatedArticles', '_id title slug')
+		.populate('relatedBerita', '_id title slug')
 		.lean();
 	if (!event) return null;
 	const children = await Event.find({ parentId: objectId })
-		.populate('relatedArticles', '_id title slug')
+		.populate('relatedBerita', '_id title slug')
 		.sort({ startDate: 1 })
 		.lean();
 	return { ...event, children };
@@ -800,7 +801,7 @@ async function getEventsForHome(): Promise<any | null> {
 			parentId: null,
 			published: true,
 		})
-			.populate('relatedArticles', '_id title slug')
+			.populate('relatedBerita', '_id title slug')
 			.sort({ month: 1, startDate: 1 })
 			.lean();
 
@@ -809,7 +810,7 @@ async function getEventsForHome(): Promise<any | null> {
 			parentId: { $in: topIds },
 			published: true,
 		})
-			.populate('relatedArticles', '_id title slug')
+			.populate('relatedBerita', '_id title slug')
 			.sort({ startDate: 1 })
 			.lean();
 
@@ -854,7 +855,7 @@ async function toggleEventYearActive(id: string, active: boolean): Promise<any |
 async function getPublishedEventsAllYears(): Promise<any[]> {
 	const events = await Event.find({ published: true, parentId: null })
 		.populate('yearId', 'year')
-		.populate('relatedArticles', '_id title slug')
+		.populate('relatedBerita', '_id title slug')
 		.sort({ startDate: -1 })
 		.lean();
 	return events;
@@ -863,7 +864,7 @@ async function getPublishedEventsAllYears(): Promise<any[]> {
 async function getEventsByArticleId(articleId: string): Promise<any[]> {
 	const aOid = toObjectId(articleId);
 	if (!aOid) return [];
-	const events = await Event.find({ relatedArticles: aOid, published: true })
+	const events = await Event.find({ relatedBerita: aOid, published: true })
 		.populate('yearId', 'year')
 		.select('_id title yearId startDate endDate')
 		.lean();
@@ -883,8 +884,8 @@ async function createEvent(data: any): Promise<any> {
 		const uOid = toObjectId(data.createdBy);
 		if (uOid) data.createdBy = uOid;
 	}
-	if (Array.isArray(data.relatedArticles)) {
-		data.relatedArticles = data.relatedArticles
+	if (Array.isArray(data.relatedBerita)) {
+		data.relatedBerita = data.relatedBerita
 			.map((id: string) => toObjectId(id))
 			.filter(Boolean);
 	}
@@ -970,7 +971,7 @@ async function copyEventToArticle(
 	options: { copyAttachments?: boolean } = {},
 ): Promise<any> {
 	const event = await Event.findById(toObjectId(eventId))
-		.populate('relatedArticles', '_id title slug')
+		.populate('relatedBerita', '_id title slug')
 		.lean() as any;
 	if (!event) throw new Error('Event not found');
 
@@ -1028,7 +1029,7 @@ async function copyEventToArticle(
 	const saved = await newArticle.save();
 
 	// Automatically link article back to event
-	await Event.findByIdAndUpdate(event._id, { $addToSet: { relatedArticles: saved._id } });
+	await Event.findByIdAndUpdate(event._id, { $addToSet: { relatedBerita: saved._id } });
 
 	return saved;
 }
@@ -1078,8 +1079,8 @@ async function copyArticleToEvent(
 		attachments,
 		published: false,
 		createdBy: uOid,
-		relatedArticles: [toObjectId(articleId)],
-		sourceArticleId: toObjectId(articleId),
+		relatedBerita: [toObjectId(articleId)],
+		sourceBeritaId: toObjectId(articleId),
 	};
 
 	const newEvent = new Event(eventData);
@@ -1096,7 +1097,7 @@ async function attachArticleToEvent(
 	const eOid = toObjectId(eventId);
 	if (!aOid || !eOid) throw new Error('Invalid IDs');
 
-	const update: any = { $addToSet: { relatedArticles: aOid } };
+	const update: any = { $addToSet: { relatedBerita: aOid } };
 
 	if (options.copyFiles) {
 		const article = await Article.findById(aOid).lean() as any;
@@ -1119,7 +1120,7 @@ async function detachArticleFromEvent(eventId: string, articleId: string): Promi
 	const aOid = toObjectId(articleId);
 	const eOid = toObjectId(eventId);
 	if (!aOid || !eOid) throw new Error('Invalid IDs');
-	return await Event.findByIdAndUpdate(eOid, { $pull: { relatedArticles: aOid } }, { new: true }).lean();
+	return await Event.findByIdAndUpdate(eOid, { $pull: { relatedBerita: aOid } }, { new: true }).lean();
 }
 
 // Define MongoDB-specific storage functions
@@ -1534,55 +1535,55 @@ async function initializeDefaultPermissions() {
 				category: 'roles',
 			},
 
-			// Article permissions
-			{
-				name: 'articles.view',
-				displayName: 'View Articles',
-				description: 'Melihat artikel',
-				category: 'articles',
-			},
-			{
-				name: 'articles.create',
-				displayName: 'Create Articles',
-				description: 'Membuat artikel baru',
-				category: 'articles',
-			},
-			{
-				name: 'articles.edit',
-				displayName: 'Edit Articles',
-				description: 'Mengedit artikel',
-				category: 'articles',
-			},
-			{
-				name: 'articles.delete',
-				displayName: 'Delete Articles',
-				description: 'Menghapus artikel',
-				category: 'articles',
-			},
-			{
-				name: 'articles.publish',
-				displayName: 'Publish Articles',
-				description: 'Mempublikasikan artikel',
-				category: 'articles',
-			},
-			{
-				name: 'articles.view_others',
-				displayName: 'View Others Articles',
-				description: 'Melihat artikel dari user lain',
-				category: 'articles',
-			},
-			{
-				name: 'articles.edit_others',
-				displayName: 'Edit Others Articles',
-				description: 'Mengedit artikel dari user lain',
-				category: 'articles',
-			},
-			{
-				name: 'articles.delete_others',
-				displayName: 'Delete Others Articles',
-				description: 'Menghapus artikel dari user lain',
-				category: 'articles',
-			},
+		// Berita permissions
+		{
+			name: 'berita.view',
+			displayName: 'View Berita',
+			description: 'Melihat berita',
+			category: 'berita',
+		},
+		{
+			name: 'berita.create',
+			displayName: 'Create Berita',
+			description: 'Membuat berita baru',
+			category: 'berita',
+		},
+		{
+			name: 'berita.edit',
+			displayName: 'Edit Berita',
+			description: 'Mengedit berita',
+			category: 'berita',
+		},
+		{
+			name: 'berita.delete',
+			displayName: 'Delete Berita',
+			description: 'Menghapus berita',
+			category: 'berita',
+		},
+		{
+			name: 'berita.publish',
+			displayName: 'Publish Berita',
+			description: 'Mempublikasikan berita',
+			category: 'berita',
+		},
+		{
+			name: 'berita.view_others',
+			displayName: 'View Others Berita',
+			description: 'Melihat berita dari user lain',
+			category: 'berita',
+		},
+		{
+			name: 'berita.edit_others',
+			displayName: 'Edit Others Berita',
+			description: 'Mengedit berita dari user lain',
+			category: 'berita',
+		},
+		{
+			name: 'berita.delete_others',
+			displayName: 'Delete Others Berita',
+			description: 'Menghapus berita dari user lain',
+			category: 'berita',
+		},
 
 			// Library permissions
 			{
@@ -1894,11 +1895,11 @@ async function initializeDefaultRoles() {
 					'dashboard.stats',
 					'users.view',
 					'users.view_others',
-					'articles.view',
-					'articles.create',
-					'articles.edit',
-					'articles.publish',
-					'articles.view_others',
+'berita.view',
+				'berita.create',
+				'berita.edit',
+				'berita.publish',
+				'berita.view_others',
 					'library.view',
 					'library.create',
 					'library.edit',
@@ -1938,10 +1939,10 @@ async function initializeDefaultRoles() {
 					'dashboard.stats',
 					'users.view',
 					'users.view_others',
-					'articles.view',
-					'articles.create',
-					'articles.edit',
-					'articles.view_others',
+					'berita.view',
+					'berita.create',
+					'berita.edit',
+					'berita.view_others',
 					'library.view',
 					'library.create',
 					'library.edit',
@@ -1973,10 +1974,10 @@ async function initializeDefaultRoles() {
 					'dashboard.stats',
 					'users.view',
 					'users.view_others',
-					'articles.view',
-					'articles.create',
-					'articles.edit',
-					'articles.view_others',
+					'berita.view',
+					'berita.create',
+					'berita.edit',
+					'berita.view_others',
 					'library.view',
 					'library.create',
 					'library.edit',
@@ -2007,10 +2008,10 @@ async function initializeDefaultRoles() {
 					'dashboard.activities',
 					'dashboard.stats',
 					'users.view_others',
-					'articles.view',
-					'articles.create',
-					'articles.edit',
-					'articles.view_others',
+					'berita.view',
+					'berita.create',
+					'berita.edit',
+					'berita.view_others',
 					'library.view',
 					'library.create',
 					'library.edit',

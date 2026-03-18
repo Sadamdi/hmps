@@ -83,7 +83,7 @@ export default function Home() {
 
 	const [activeSection, setActiveSection] = useState('home');
 
-	const validSections = ['about', 'events', 'vision-mission', 'structure', 'articles', 'library'];
+	const validSections = ['about', 'events', 'vision-mission', 'structure', 'berita', 'library'];
 
 	// Saat beranda dimuat dengan hash (mis. /#about dari halaman lain):
 	// Cegah browser loncat langsung ke section — tampilkan dari atas dulu
@@ -126,7 +126,7 @@ export default function Home() {
 				{ id: 'events', navId: 'events' },
 				{ id: 'vision-mission', navId: 'kelembagaan' },
 				{ id: 'structure', navId: 'kelembagaan' },
-				{ id: 'articles', navId: 'articles' },
+				{ id: 'berita', navId: 'berita' },
 				{ id: 'library', navId: 'library' },
 			];
 			const currentPosition = window.scrollY + 200;

@@ -15,8 +15,8 @@ export interface UserWithRole {
 	updatedAt?: Date;
 }
 
-// Article Types
-export interface Article {
+// Berita Types (formerly Article)
+export interface Berita {
 	_id: string;
 	title: string;
 	excerpt: string;
@@ -32,6 +32,9 @@ export interface Article {
 	createdAt: Date;
 	updatedAt: Date;
 }
+
+/** @deprecated Use Berita instead */
+export type Article = Berita;
 
 // Library Types
 export interface LibraryItem {
@@ -186,19 +189,22 @@ export interface EventItem {
 	attachments: EventAttachment[];
 	published: boolean;
 	createdBy: string;
-	relatedArticles?: EventRelatedArticle[];
-	sourceArticleId?: string | null;
+	relatedBerita?: EventRelatedBerita[];
+	sourceBeritaId?: string | null;
 	viewCount?: number;
 	children?: EventItem[];
 	createdAt: Date;
 	updatedAt: Date;
 }
 
-export interface EventRelatedArticle {
+export interface EventRelatedBerita {
 	_id: string;
 	title: string;
 	slug?: string;
 }
+
+/** @deprecated Use EventRelatedBerita instead */
+export type EventRelatedArticle = EventRelatedBerita;
 
 export type EventStatus = 'ongoing' | 'soon' | 'expired';
 
@@ -206,8 +212,13 @@ export type EventStatus = 'ongoing' | 'soon' | 'expired';
 export type InsertUser = Omit<UserWithRole, '_id' | 'createdAt' | 'updatedAt'>;
 export type UpdateUser = Partial<Omit<UserWithRole, '_id' | 'createdAt' | 'updatedAt'>>;
 
-export type InsertArticle = Omit<Article, '_id' | 'createdAt' | 'updatedAt'>;
-export type UpdateArticle = Partial<Omit<Article, '_id' | 'createdAt' | 'updatedAt'>>;
+export type InsertBerita = Omit<Berita, '_id' | 'createdAt' | 'updatedAt'>;
+export type UpdateBerita = Partial<Omit<Berita, '_id' | 'createdAt' | 'updatedAt'>>;
+
+/** @deprecated Use InsertBerita instead */
+export type InsertArticle = InsertBerita;
+/** @deprecated Use UpdateBerita instead */
+export type UpdateArticle = UpdateBerita;
 
 export type InsertLibraryItem = Omit<LibraryItem, '_id' | 'createdAt' | 'updatedAt'>;
 export type UpdateLibraryItem = Partial<Omit<LibraryItem, '_id' | 'createdAt' | 'updatedAt'>>;

@@ -46,9 +46,9 @@ export default function Articles() {
 	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
 
 	const { data: articles = [], isLoading } = useQuery<Article[]>({
-		queryKey: ['/api/articles'],
+		queryKey: ['/api/berita'],
 		queryFn: async () => {
-			const response = await apiRequest('GET', '/api/articles?page=1&limit=12');
+			const response = await apiRequest('GET', '/api/berita?page=1&limit=12');
 			const payload = (await response.json()) as Article[] | PaginatedResponse<Article>;
 			return Array.isArray(payload) ? payload : payload.data;
 		},
@@ -81,11 +81,9 @@ export default function Articles() {
 	const getArticleUrl = (article: Article) => {
 		const articleId = article.id || article._id;
 		if (article.slug && articleId) {
-			// Hybrid URL: /artikel/:id/:slug (SEO-friendly + unique)
-			return `/artikel/${articleId}/${article.slug}`;
+			return `/berita/${articleId}/${article.slug}`;
 		}
-		// Fallback to ID-only if no slug
-		return `/artikel/${articleId}`;
+		return `/berita/${articleId}`;
 	};
 
 	const truncateText = (text: string, maxLength: number = 150) => {
@@ -105,7 +103,7 @@ export default function Articles() {
 	if (isLoading) {
 		return (
 			<section
-				id="articles"
+				id="berita"
 				className="py-16 bg-background">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="text-center mb-12">
@@ -140,7 +138,7 @@ export default function Articles() {
 	}
 	return (
 		<section
-			id="articles"
+			id="berita"
 			className="py-16 bg-background">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div ref={headingRef} className="text-center mb-12">
@@ -157,7 +155,7 @@ export default function Articles() {
 				{articles.length === 0 ? (
 						<div className="text-center py-12">
 							<div className="text-muted-foreground text-lg">
-							Belum ada artikel yang dipublikasikan
+							Belum ada berita yang dipublikasikan
 						</div>
 					</div>
 				) : (
@@ -259,7 +257,7 @@ export default function Articles() {
 									className="px-8 py-2">
 									{showAll
 										? 'Tampilkan Lebih Sedikit'
-										: 'Lihat Lebih Banyak Artikel'}
+										: 'Lihat Lebih Banyak Berita'}
 								</Button>
 							</div>
 						)}
@@ -269,11 +267,11 @@ export default function Articles() {
 							className="text-center mt-8"
 							data-aos="fade-up"
 							data-aos-delay="300">
-							<Link href="/artikel">
-								<Button
-									variant="default"
-									className="px-8 py-2">
-									Lihat Semua Artikel
+						<Link href="/berita">
+							<Button
+								variant="default"
+								className="px-8 py-2">
+								Lihat Semua Berita
 								</Button>
 							</Link>
 						</div>

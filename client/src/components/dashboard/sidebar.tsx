@@ -61,11 +61,11 @@ export default function Sidebar({
 			requirePermission: 'dashboard.view',
 		},
 		{
-			label: 'Articles',
+			label: 'Berita',
 			icon: <FileText className="h-5 w-5" />,
-			href: '/dashboard/articles',
-			active: location.startsWith('/dashboard/articles'),
-			requirePermission: 'articles.view',
+			href: '/dashboard/berita',
+			active: location.startsWith('/dashboard/berita'),
+			requirePermission: 'berita.view',
 		},
 		{
 			label: 'Galeri',
@@ -200,13 +200,13 @@ export default function Sidebar({
 									) {
 										return null;
 									}
-								} else if (item.requirePermission === 'articles.view') {
-									if (
-										!hasSpecificPermission('articles.view') &&
-										!hasSpecificPermission('articles.view_others') &&
-										!hasSpecificPermission('articles.edit') &&
-										!hasSpecificPermission('articles.create')
-									) {
+							} else if (item.requirePermission === 'berita.view') {
+								if (
+									!hasSpecificPermission('berita.view') &&
+									!hasSpecificPermission('berita.view_others') &&
+									!hasSpecificPermission('berita.edit') &&
+									!hasSpecificPermission('berita.create')
+								) {
 										return null;
 									}
 								} else if (item.requirePermission === 'library.view') {

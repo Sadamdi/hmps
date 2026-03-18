@@ -122,8 +122,9 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 		if (action === 'delete') return <Users className={iconClass} />;
 
 		switch (type) {
-			case 'article':
-				return <FileText className={iconClass} />;
+		case 'berita':
+		case 'article':
+			return <FileText className={iconClass} />;
 			case 'library':
 				return <ImageIcon className={iconClass} />;
 			case 'organization':
@@ -141,8 +142,9 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 
 	const getActivityColor = (type: string) => {
 		switch (type) {
-			case 'article':
-				return 'text-blue-300 bg-blue-500/15';
+		case 'berita':
+		case 'article':
+			return 'text-blue-300 bg-blue-500/15';
 			case 'library':
 				return 'text-emerald-300 bg-emerald-500/15';
 			case 'organization':

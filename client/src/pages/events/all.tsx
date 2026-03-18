@@ -26,7 +26,7 @@ interface EventItem {
 	published: boolean;
 	yearId: { year: number } | null;
 	attachments?: { name: string; url: string }[];
-	relatedArticles?: { _id: string; title: string; slug?: string }[];
+	relatedBerita?: { _id: string; title: string; slug?: string }[];
 	viewCount?: number;
 }
 
@@ -155,12 +155,12 @@ export default function EventsAllPage() {
 																			{ev.description.replace(/<[^>]*>/g, '')}
 																		</p>
 																	)}
-																	{ev.relatedArticles && ev.relatedArticles.length > 0 && (
+																	{ev.relatedBerita && ev.relatedBerita.length > 0 && (
 																		<div className="mt-2 flex flex-wrap gap-1" onClick={(e) => e.preventDefault()}>
-																			{ev.relatedArticles.map((art) => (
+																			{ev.relatedBerita.map((art) => (
 																				<Link
 																					key={art._id}
-																					href={`/artikel/${art._id}${art.slug ? `/${art.slug}` : ''}`}
+																					href={`/berita/${art._id}${art.slug ? `/${art.slug}` : ''}`}
 																				>
 																					<Badge variant="secondary" className="text-xs gap-1 cursor-pointer hover:bg-secondary/80">
 																						<FileText className="h-2.5 w-2.5" />

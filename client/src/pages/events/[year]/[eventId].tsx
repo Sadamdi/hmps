@@ -35,7 +35,7 @@ interface EventItem {
 	month: number;
 	attachments?: { name: string; url: string; type?: string }[];
 	children?: EventItem[];
-	relatedArticles?: RelatedArticle[];
+	relatedBerita?: RelatedArticle[];
 	viewCount?: number;
 }
 
@@ -160,17 +160,17 @@ export default function EventDetailPage() {
 								</div>
 							)}
 
-							{event.relatedArticles && event.relatedArticles.length > 0 && (
+							{event.relatedBerita && event.relatedBerita.length > 0 && (
 								<div>
 									<h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
 										<FileText className="h-5 w-5 text-primary" />
 										Artikel Terkait
 									</h2>
 									<div className="space-y-2">
-										{event.relatedArticles.map((art) => (
+										{event.relatedBerita.map((art) => (
 											<Link
 												key={art._id}
-												href={`/artikel/${art._id}${art.slug ? `/${art.slug}` : ''}`}
+												href={`/berita/${art._id}${art.slug ? `/${art.slug}` : ''}`}
 												className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors">
 												<FileText className="h-4 w-4 flex-shrink-0 text-primary" />
 												<span className="flex-1 truncate font-medium">

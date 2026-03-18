@@ -11,18 +11,18 @@
         <priority>1.0</priority>
     </url>
 
-    <!-- Halaman daftar artikel -->
+    <!-- Halaman daftar berita -->
     <url>
-        <loc>https://himatif-encoder.com/artikel</loc>
+        <loc>https://himatif-encoder.com/berita</loc>
         <lastmod>2025-01-21</lastmod>
         <changefreq>daily</changefreq>
         <priority>0.9</priority>
     </url>
 
-    <!-- Artikel contoh (akan diganti dengan artikel yang benar-benar ada) -->
+    <!-- Berita contoh (akan diganti dengan berita yang benar-benar ada) -->
     <!-- 
     <url>
-        <loc>https://himatif-encoder.com/artikel/{id}/{slug}</loc>
+        <loc>https://himatif-encoder.com/berita/{id}/{slug}</loc>
         <lastmod>2025-01-21</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>

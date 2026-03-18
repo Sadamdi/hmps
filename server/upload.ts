@@ -25,7 +25,8 @@ if (!fs.existsSync(assetsDir)) {
 export type UploadCategory =
 	| 'organization' // Logo himpunan, foto ketua, divisi, dll
 	| 'content' // Konten halaman (hero, about, vision-mission)
-	| 'articles' // Gambar artikel dan thumbnail
+	| 'berita' // Gambar berita dan thumbnail
+	| 'articles' // Legacy alias
 	| 'library' // Media library (foto/video kegiatan)
 	| 'filosofi' // Gambar filosofi lambang HIMATIF (attached_assets/filosofi)
 	| 'events' // Thumbnail dan attachment event
@@ -124,10 +125,9 @@ export async function uploadArticleImage(
 	file: Express.Multer.File,
 	oldFileUrl?: string,
 	subFolder?: string,
-	useAssetsDir: boolean = false // default uploads/, set true to save under attached_assets/
+	useAssetsDir: boolean = false
 ): Promise<string> {
 	try {
-		// Hapus file lama jika ada
 		if (oldFileUrl) {
 			await deleteFile(oldFileUrl);
 		}
@@ -136,7 +136,6 @@ export async function uploadArticleImage(
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
-		// Generate a unique filename with .webp extension
 		const timestamp = Date.now();
 		const randomName = crypto.randomBytes(8).toString('hex');
 		const safeOriginalName = file.originalname
@@ -144,8 +143,7 @@ export async function uploadArticleImage(
 			.substring(0, 20);
 		const fileName = `${timestamp}_${safeOriginalName}_${randomName}.webp`;
 
-		// Ensure articles directory exists (uploads or attached_assets)
-		let categoryDir = await ensureUploadDirectory('articles', useAssetsDir);
+		let categoryDir = await ensureUploadDirectory('berita', useAssetsDir);
 		if (subFolder) {
 			categoryDir = path.join(categoryDir, subFolder);
 			if (!fs.existsSync(categoryDir)) {
@@ -153,18 +151,16 @@ export async function uploadArticleImage(
 			}
 		}
 
-		// Full target path (URL)
 		const targetPath = subFolder
 			? useAssetsDir
-				? `/attached_assets/articles/${subFolder}`
-				: `/uploads/articles/${subFolder}`
+				? `/attached_assets/berita/${subFolder}`
+				: `/uploads/berita/${subFolder}`
 			: useAssetsDir
-			? `/attached_assets/articles`
-			: `/uploads/articles`;
+			? `/attached_assets/berita`
+			: `/uploads/berita`;
 
 		const filePath = path.join(categoryDir, fileName);
 
-		// Process image to WebP
 		const processedBuffer = await processImage(file.buffer, {
 			quality: 80,
 			maxWidth: 1920,
@@ -176,8 +172,8 @@ export async function uploadArticleImage(
 
 		return `${targetPath}/${fileName}`;
 	} catch (error) {
-		console.error('Error processing article image:', error);
-		throw new Error('Failed to process article image');
+		console.error('Error processing berita image:', error);
+		throw new Error('Failed to process berita image');
 	}
 }
 
@@ -327,58 +323,53 @@ export async function deleteFile(fileUrl: string): Promise<void> {
 }
 
 /**
- * Cleanup unused images from article folder
+ * Cleanup unused images from berita folder.
+ * Also checks legacy `uploads/articles/` path for backward compatibility.
  */
 export async function cleanupArticleImages(
 	articleId: string,
 	usedImageUrls: string[]
 ): Promise<void> {
-	try {
-		const articleDir = path.join(uploadDir, 'articles', articleId);
+	const dirs = [
+		path.join(uploadDir, 'berita', articleId),
+		path.join(uploadDir, 'articles', articleId),
+	];
 
-		if (!fs.existsSync(articleDir)) {
-			console.log(`📁 Article directory not found: ${articleDir}`);
-			return;
-		}
+	for (const dir of dirs) {
+		try {
+			if (!fs.existsSync(dir)) continue;
 
-		// Get all files in article directory
-		const files = fs.readdirSync(articleDir);
-		console.log(`📂 Found ${files.length} files in article ${articleId}`);
+			const files = fs.readdirSync(dir);
+			console.log(`📂 Found ${files.length} files in ${dir}`);
 
-		if (usedImageUrls.length === 0) {
-			// Delete all files (article deletion case)
-			console.log(`🗑️ Deleting entire article folder: ${articleId}`);
-			for (const file of files) {
-				const filePath = path.join(articleDir, file);
-				await promisify(fs.unlink)(filePath);
-				console.log(`Deleted: ${filePath}`);
-			}
-		} else {
-			// Extract filenames from used URLs
-			const usedFilenames = usedImageUrls
-				.filter((url) => url.includes(`/uploads/articles/${articleId}/`))
-				.map((url) => path.basename(url));
-
-			console.log(`🔍 Used filenames:`, usedFilenames);
-
-			// Delete files that are not in the used list
-			for (const file of files) {
-				if (!usedFilenames.includes(file)) {
-					const filePath = path.join(articleDir, file);
+			if (usedImageUrls.length === 0) {
+				for (const file of files) {
+					const filePath = path.join(dir, file);
 					await promisify(fs.unlink)(filePath);
-					console.log(`🧹 Cleaned up unused image: ${filePath}`);
+					console.log(`Deleted: ${filePath}`);
+				}
+			} else {
+				const usedFilenames = usedImageUrls
+					.filter((url) => url.includes(`/uploads/berita/${articleId}/`) || url.includes(`/uploads/articles/${articleId}/`))
+					.map((url) => path.basename(url));
+
+				for (const file of files) {
+					if (!usedFilenames.includes(file)) {
+						const filePath = path.join(dir, file);
+						await promisify(fs.unlink)(filePath);
+						console.log(`🧹 Cleaned up unused image: ${filePath}`);
+					}
 				}
 			}
-		}
 
-		// Remove empty directory if no files left
-		const remainingFiles = fs.readdirSync(articleDir);
-		if (remainingFiles.length === 0) {
-			fs.rmdirSync(articleDir);
-			console.log(`📁 Removed empty article directory: ${articleDir}`);
+			const remainingFiles = fs.readdirSync(dir);
+			if (remainingFiles.length === 0) {
+				fs.rmdirSync(dir);
+				console.log(`📁 Removed empty directory: ${dir}`);
+			}
+		} catch (error) {
+			console.error(`Error cleaning up images in ${dir}:`, error);
 		}
-	} catch (error) {
-		console.error('Error cleaning up article images:', error);
 	}
 }
 

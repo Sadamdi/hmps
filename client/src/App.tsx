@@ -10,16 +10,16 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { lazy, Suspense, useEffect } from 'react';
-import { Route, Switch } from 'wouter';
+import { Route, Switch, useLocation } from 'wouter';
 import { queryClient } from './lib/queryClient';
 
 const Home = lazy(() => import('@/pages/index'));
-const AllArticles = lazy(() => import('@/pages/artikel/index'));
-const ArticleDetail = lazy(() => import('@/pages/artikel/[id]'));
+const AllBerita = lazy(() => import('@/pages/berita/index'));
+const BeritaDetail = lazy(() => import('@/pages/berita/[id]'));
 const ProfilPage = lazy(() => import('@/pages/profil'));
 const KelembagaanPage = lazy(() => import('@/pages/kelembagaan'));
 const Dashboard = lazy(() => import('@/pages/dashboard/index'));
-const DashboardArticles = lazy(() => import('@/pages/dashboard/articles'));
+const DashboardBerita = lazy(() => import('@/pages/dashboard/berita'));
 const DashboardLibrary = lazy(() => import('@/pages/dashboard/library'));
 const DashboardUsers = lazy(() => import('@/pages/dashboard/users'));
 const DashboardRoles = lazy(() => import('@/pages/dashboard/roles'));
@@ -31,6 +31,12 @@ const EventsIndex = lazy(() => import('@/pages/events/index'));
 const EventsAll = lazy(() => import('@/pages/events/all'));
 const EventsYear = lazy(() => import('@/pages/events/[year]'));
 const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
+
+function RedirectTo({ to }: { to: string }) {
+	const [, setLocation] = useLocation();
+	useEffect(() => { setLocation(to, { replace: true }); }, [to, setLocation]);
+	return null;
+}
 
 function RouteLoadingFallback() {
 	return (
@@ -48,26 +54,37 @@ function Router() {
 					path="/"
 					component={Home}
 				/>
-				<Route
-					path="/artikel"
-					component={AllArticles}
-				/>
-				<Route
-					path="/artikel/:id/:slug"
-					component={ArticleDetail}
-				/>
-				<Route
-					path="/artikel/slug/:slug"
-					component={ArticleDetail}
-				/>
-				<Route
-					path="/artikel/:id"
-					component={ArticleDetail}
-				/>
-				<Route
-					path="/login"
-					component={LoginForm}
-				/>
+			<Route
+				path="/berita"
+				component={AllBerita}
+			/>
+			<Route
+				path="/berita/:id/:slug"
+				component={BeritaDetail}
+			/>
+			<Route
+				path="/berita/slug/:slug"
+				component={BeritaDetail}
+			/>
+			<Route
+				path="/berita/:id"
+				component={BeritaDetail}
+			/>
+			{/* Legacy /artikel → /berita redirects */}
+			<Route path="/artikel/:id/:slug">
+				{(params) => <RedirectTo to={`/berita/${params.id}/${params.slug}`} />}
+			</Route>
+			<Route path="/artikel/:id">
+				{(params) => <RedirectTo to={`/berita/${params.id}`} />}
+			</Route>
+			<Route path="/artikel">
+				{() => <RedirectTo to="/berita" />}
+			</Route>
+
+			<Route
+				path="/login"
+				component={LoginForm}
+			/>
 				<Route
 					path="/forgot-password"
 					component={ForgotPassword}
@@ -97,13 +114,16 @@ function Router() {
 						</ProtectedRoute>
 					)}
 				</Route>
-				<Route path="/dashboard/articles">
-					{() => (
-						<ProtectedRoute>
-							<DashboardArticles />
-						</ProtectedRoute>
-					)}
-				</Route>
+			<Route path="/dashboard/articles">
+				{() => <RedirectTo to="/dashboard/berita" />}
+			</Route>
+			<Route path="/dashboard/berita">
+				{() => (
+					<ProtectedRoute>
+						<DashboardBerita />
+					</ProtectedRoute>
+				)}
+			</Route>
 				<Route path="/dashboard/library">
 					{() => (
 						<ProtectedRoute>

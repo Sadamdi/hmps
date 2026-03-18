@@ -14,15 +14,15 @@ Disallow: /_next/
 Disallow: /node_modules/
 
 # Allow semua halaman dan section publik
-Allow: /artikel/
-Allow: /uploads/articles/
+Allow: /berita/
+Allow: /uploads/berita/
 Allow: /attached_assets/
 Allow: /#profil
 Allow: /kelembagaan
 Allow: /#visi-misi
 Allow: /#struktur
 Allow: /#library
-Allow: /#artikel
+Allow: /#berita
 
 # Crawl delay
 Crawl-delay: 1

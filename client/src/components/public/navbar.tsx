@@ -62,7 +62,7 @@ const sectionMap: Record<string, string> = {
 	profil: 'about',
 	events: 'events',
 	kelembagaan: 'vision-mission',
-	articles: 'articles',
+	berita: 'berita',
 };
 
 const baseNavItemsWithoutEvents: NavItem[] = [
@@ -89,13 +89,13 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 		],
 	},
 	{
-		id: 'articles',
-		label: 'Artikel',
+		id: 'berita',
+		label: 'Berita',
 		icon: <FileText className="h-4 w-4" />,
-		homeSection: 'articles',
+		homeSection: 'berita',
 		children: [
-			{ label: 'Artikel', href: '/#articles' },
-			{ label: 'Lihat semua artikel', href: '/artikel' },
+			{ label: 'Berita', href: '/#berita' },
+			{ label: 'Lihat semua berita', href: '/berita' },
 		],
 	},
 	{ id: 'library', label: 'Galeri', icon: <BookOpen className="h-4 w-4" /> },

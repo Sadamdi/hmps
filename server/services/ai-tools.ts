@@ -1,5 +1,5 @@
 import {
-	Article,
+	Berita as Article,
 	Library,
 	Organization,
 	Settings,
@@ -20,7 +20,7 @@ export const AI_TOOLS = [
 	{
 		name: 'search_articles',
 		description:
-			'Cari dan ambil daftar artikel Himatif Encoder dari database. Bisa filter berdasarkan kata kunci judul. Gunakan saat user bertanya tentang artikel, berita, atau tulisan Himatif Encoder.',
+			'Cari dan ambil daftar berita Himatif Encoder dari database. Bisa filter berdasarkan kata kunci judul. Gunakan saat user bertanya tentang berita atau tulisan Himatif Encoder.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -40,7 +40,7 @@ export const AI_TOOLS = [
 	{
 		name: 'get_article_detail',
 		description:
-			'Ambil detail lengkap satu artikel berdasarkan ID atau slug. Gunakan setelah search_articles untuk mendapatkan konten penuh artikel.',
+			'Ambil detail lengkap satu berita berdasarkan ID atau slug. Gunakan setelah search_articles untuk mendapatkan konten penuh berita.',
 		parameters: {
 			type: 'object',
 			properties: {
