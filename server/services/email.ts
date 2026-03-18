@@ -33,18 +33,25 @@ export async function sendOtpEmail(params: {
 	code: string;
 	purpose: string;
 	ttlMinutes: number;
+	username?: string;
 }): Promise<void> {
-	const { to, code, purpose, ttlMinutes } = params;
+	const { to, code, purpose, ttlMinutes, username } = params;
 	const label = PURPOSE_LABELS[purpose] || 'Verifikasi OTP';
 	const transport = getTransporter();
+
+	const subjectSuffix = username ? ` (${username})` : '';
+	const usernameRow = username
+		? `<p style="color: #555; margin-bottom: 16px;">Untuk akun: <strong>${username}</strong></p>`
+		: '';
 
 	await transport.sendMail({
 		from: `"HMTI System" <${process.env.EMAIL}>`,
 		to,
-		subject: `[HMTI] Kode OTP - ${label}`,
+		subject: `[HMTI] Kode OTP - ${label}${subjectSuffix}`,
 		html: `
 			<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
 				<h2 style="color: #1a1a1a; margin-bottom: 8px;">${label}</h2>
+				${usernameRow}
 				<p style="color: #555; margin-bottom: 24px;">Gunakan kode OTP berikut untuk melanjutkan proses ${label.toLowerCase()}:</p>
 				<div style="background: #f4f4f5; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 24px;">
 					<span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #111;">${code}</span>

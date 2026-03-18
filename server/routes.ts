@@ -719,6 +719,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				userId: user._id.toString(),
 				ttlMinutes: 10,
 				requestIp: getRequestIp(req),
+				username: user.username,
 			});
 
 			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
@@ -812,6 +813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				userId: userId.toString(),
 				ttlMinutes: 10,
 				requestIp: getRequestIp(req),
+				username: (user as any).username,
 			});
 
 			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
@@ -976,6 +978,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				userId: userId.toString(),
 				ttlMinutes: 10,
 				requestIp: getRequestIp(req),
+				username: (user as any).username,
 			});
 
 			res.json({ message: 'Kode OTP telah dikirim ke email saat ini.', challengeId });

@@ -85,7 +85,6 @@ interface MiddlewareSettings {
 }
 
 interface PasswordChangeData {
-	currentPassword: string;
 	newPassword: string;
 	confirmPassword: string;
 }
@@ -120,11 +119,9 @@ export default function SettingsPage() {
 
 	// Password change form
 	const [passwordData, setPasswordData] = useState<PasswordChangeData>({
-		currentPassword: '',
 		newPassword: '',
-		confirmPassword: '',
+			confirmPassword: '',
 	});
-	const [showCurrent, setShowCurrent] = useState(false);
 	const [showNew, setShowNew] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
 	const [showRevokeDialog, setShowRevokeDialog] = useState(false);
@@ -468,7 +465,6 @@ export default function SettingsPage() {
 				body: JSON.stringify({
 					challengeId: data.challengeId,
 					otpCode: data.otpCode,
-					currentPassword: data.currentPassword,
 					newPassword: data.newPassword,
 				}),
 			});
@@ -493,7 +489,7 @@ export default function SettingsPage() {
 				description: 'Your password has been updated successfully.',
 			});
 
-			setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+			setPasswordData({ newPassword: '', confirmPassword: '' });
 			setPwOtpStep('form');
 			setPwOtpCode('');
 			setPwChallengeId('');
@@ -1459,33 +1455,8 @@ export default function SettingsPage() {
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="space-y-4">
-										<div className="space-y-2">
-											<Label htmlFor="currentPassword">Current Password</Label>
-											<div className="relative">
-												<Input
-													id="currentPassword"
-													name="currentPassword"
-													type={showCurrent ? 'text' : 'password'}
-													value={passwordData.currentPassword}
-													onChange={handlePasswordChange}
-												/>
-												<button
-													type="button"
-													className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
-													onClick={() => setShowCurrent((v) => !v)}
-													aria-label={
-														showCurrent ? 'Hide password' : 'Show password'
-													}>
-													{showCurrent ? (
-														<EyeOff className="h-4 w-4" />
-													) : (
-														<Eye className="h-4 w-4" />
-													)}
-												</button>
-											</div>
-										</div>
-										<div className="space-y-2">
-											<Label htmlFor="newPassword">New Password</Label>
+									<div className="space-y-2">
+										<Label htmlFor="newPassword">New Password</Label>
 											<div className="relative">
 												<Input
 													id="newPassword"

@@ -91,6 +91,7 @@ export async function createOtpChallenge(params: {
 	userId?: string;
 	ttlMinutes?: number;
 	requestIp?: string;
+	username?: string;
 }): Promise<{ challengeId: string }> {
 	const { purpose, email, userId } = params;
 	const requestIp = params.requestIp || '';
@@ -116,7 +117,7 @@ export async function createOtpChallenge(params: {
 		expiresAt,
 	});
 
-	await sendOtpEmail({ to: email, code, purpose, ttlMinutes });
+	await sendOtpEmail({ to: email, code, purpose, ttlMinutes, username: params.username });
 
 	return { challengeId: (challenge as any)._id.toString() };
 }
