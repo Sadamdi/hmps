@@ -1187,6 +1187,28 @@ export default function SettingsPage() {
 										</CardContent>
 									</Card>
 								)}
+
+								{canEditSettings && (
+									<div className="flex justify-end">
+										<Button
+											onClick={saveSettings}
+											disabled={
+												updateSettingsMutation.isPending || isLoading || !formData
+											}>
+											{updateSettingsMutation.isPending ? (
+												<>
+													<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+													Saving...
+												</>
+											) : (
+												<>
+													<Save className="mr-2 h-4 w-4" />
+													Save Changes
+												</>
+											)}
+										</Button>
+									</div>
+								)}
 							</div>
 						</TabsContent>
 
