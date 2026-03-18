@@ -4231,7 +4231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/event-years',
 		authenticate,
-		requirePermission('events.create'),
+		requirePermission('events.years_admin'),
 		async (req, res) => {
 			try {
 				const { year } = req.body;
@@ -4256,7 +4256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.patch(
 		'/api/event-years/:id',
 		authenticate,
-		requirePermission('events.edit'),
+		requirePermission('events.years_admin'),
 		async (req, res) => {
 			try {
 				const { id } = req.params;
@@ -4274,7 +4274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.patch(
 		'/api/event-years/:id/activate',
 		authenticate,
-		requirePermission('events.edit'),
+		requirePermission('events.years_admin'),
 		async (req, res) => {
 			try {
 				const { id } = req.params;
@@ -4302,7 +4302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.patch(
 		'/api/event-years/:id/deactivate',
 		authenticate,
-		requirePermission('events.edit'),
+		requirePermission('events.years_admin'),
 		async (req, res) => {
 			try {
 				const { id } = req.params;
@@ -4320,7 +4320,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.delete(
 		'/api/event-years/:id',
 		authenticate,
-		requirePermission('events.delete'),
+		requirePermission('events.years_admin'),
 		async (req, res) => {
 			try {
 				const { id } = req.params;

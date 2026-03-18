@@ -388,7 +388,7 @@ export default function DashboardEvents() {
 							<h2 className="text-xl sm:text-2xl font-bold">Event Tahunan</h2>
 							<p className="text-muted-foreground mt-1 text-sm">Kelola event per tahun dan pilih yang ditampilkan di Home</p>
 						</div>
-						{hasSpecificPermission('events.create') && (
+						{hasSpecificPermission('events.years_admin') && (
 							<Button onClick={() => setIsYearDialogOpen(true)} className="w-full sm:w-auto">
 								<Plus className="h-4 w-4 mr-2" />
 								Tambah Tahun
@@ -397,7 +397,7 @@ export default function DashboardEvents() {
 					</div>
 
 					{/* Multi-year toggle */}
-					{(hasSpecificPermission('settings.edit') || hasSpecificPermission('settings.animations')) && (
+					{hasSpecificPermission('events.years_admin') && (
 						<Card className="border-primary/20 bg-primary/5">
 							<CardContent className="p-4">
 								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -455,7 +455,7 @@ export default function DashboardEvents() {
 											{/* Action buttons */}
 											<div className="flex flex-wrap gap-1.5">
 												{/* Multi-year mode: switch toggle per year */}
-												{multiYearMode && hasSpecificPermission('events.edit') ? (
+												{multiYearMode && hasSpecificPermission('events.years_admin') ? (
 													<div className="flex items-center gap-2">
 														<Switch
 															checked={y.isActiveOnHome}
@@ -474,7 +474,7 @@ export default function DashboardEvents() {
 													</div>
 												) : (
 													/* Single-year mode: Tampilkan button */
-													!y.isActiveOnHome && hasSpecificPermission('events.edit') && (
+													!y.isActiveOnHome && hasSpecificPermission('events.years_admin') && (
 														<Button
 															variant="outline"
 															size="sm"
@@ -488,7 +488,7 @@ export default function DashboardEvents() {
 												)}
 
 												{/* Hide button for single-year mode */}
-												{!multiYearMode && y.isActiveOnHome && hasSpecificPermission('events.edit') && (
+												{!multiYearMode && y.isActiveOnHome && hasSpecificPermission('events.years_admin') && (
 													<Button
 														variant="outline"
 														size="sm"
@@ -500,9 +500,9 @@ export default function DashboardEvents() {
 													</Button>
 												)}
 
-												{hasSpecificPermission('events.delete') && (
-													<Button
-														variant="destructive"
+											{hasSpecificPermission('events.years_admin') && (
+												<Button
+													variant="destructive"
 														size="sm"
 														onClick={() => {
 															if (confirm(`Hapus tahun ${y.year} dan semua eventnya?`)) {

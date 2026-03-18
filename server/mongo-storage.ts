@@ -1784,6 +1784,12 @@ async function initializeDefaultPermissions() {
 			description: 'Menghapus event dari user lain',
 			category: 'events',
 		},
+		{
+			name: 'events.years_admin',
+			displayName: 'Manage Event Years',
+			description: 'Membuat/menghapus tahun event dan mengatur tahun yang tampil di Home',
+			category: 'events',
+		},
 	];
 
 		// Upsert: tambahkan permission yang belum ada (tidak hapus yang sudah ada)
