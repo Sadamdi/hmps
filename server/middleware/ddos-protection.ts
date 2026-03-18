@@ -428,6 +428,7 @@ export const ddosProtectionMiddleware = async (
 		// ==================== PUBLIC VS PRIVATE CONTENT DETECTION ====================
 		const isPublicContent =
 			path === '/' ||
+			path.startsWith('/berita') ||
 			path.startsWith('/artikel') ||
 			path === '/sitemap.xml' ||
 			path === '/robots.txt';
@@ -460,6 +461,7 @@ export const ddosProtectionMiddleware = async (
 			path === '/' ||
 			path === '/sitemap.xml' ||
 			path === '/robots.txt' ||
+			path.startsWith('/berita') ||
 			path.startsWith('/artikel');
 
 		if (
@@ -672,6 +674,7 @@ export const ddosProtectionMiddleware = async (
 			path === '/' ||
 			path === '/sitemap.xml' ||
 			path === '/robots.txt' ||
+			path.startsWith('/berita') ||
 			path.startsWith('/artikel');
 
 		if (!isSeoCriticalPath) {

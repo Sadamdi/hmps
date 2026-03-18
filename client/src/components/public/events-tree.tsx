@@ -777,7 +777,7 @@ export default function EventsTree({
 							</div>
 							{showSubEvents.relatedBerita && showSubEvents.relatedBerita.length > 0 && (
 								<div>
-									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Artikel Terkait</h4>
+									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Berita Terkait</h4>
 									<div className="space-y-1.5">
 										{showSubEvents.relatedBerita.map((art) => (
 											<Link
@@ -881,7 +881,7 @@ export default function EventsTree({
 							)}
 							{selectedEvent.relatedBerita && selectedEvent.relatedBerita.length > 0 && (
 								<div>
-									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Artikel Terkait</h4>
+									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Berita Terkait</h4>
 									<div className="space-y-1.5">
 										{selectedEvent.relatedBerita.map((art) => (
 											<Link

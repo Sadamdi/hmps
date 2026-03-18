@@ -1,7 +1,6 @@
 interface ActivityLog {
 	type:
 		| 'berita'
-		| 'article'
 		| 'library'
 		| 'organization'
 		| 'content'
@@ -51,7 +50,7 @@ export async function logActivity(activityData: ActivityLog) {
 // Pre-defined activity templates for common operations
 export const ActivityTemplates = {
 	// Berita activities
-	articleCreated: (title: string, id?: string) => ({
+	beritaCreated: (title: string, id?: string) => ({
 		type: 'berita' as const,
 		action: 'create' as const,
 		title: 'Berita baru dibuat',
@@ -59,7 +58,7 @@ export const ActivityTemplates = {
 		entityTitle: title,
 	}),
 
-	articleUpdated: (title: string, id?: string) => ({
+	beritaUpdated: (title: string, id?: string) => ({
 		type: 'berita' as const,
 		action: 'update' as const,
 		title: 'Berita diperbarui',
@@ -67,7 +66,7 @@ export const ActivityTemplates = {
 		entityTitle: title,
 	}),
 
-	articlePublished: (title: string, id?: string) => ({
+	beritaPublished: (title: string, id?: string) => ({
 		type: 'berita' as const,
 		action: 'publish' as const,
 		title: 'Berita dipublikasikan',
@@ -75,7 +74,7 @@ export const ActivityTemplates = {
 		entityTitle: title,
 	}),
 
-	articleDeleted: (title: string, id?: string) => ({
+	beritaDeleted: (title: string, id?: string) => ({
 		type: 'berita' as const,
 		action: 'delete' as const,
 		title: 'Berita dihapus',

@@ -236,7 +236,7 @@ export default function About() {
 						// Use Google Drive direct image URL
 						const directUrl = `https://drive.google.com/uc?export=view&id=${article.gdriveFileId}`;
 						images.push(directUrl);
-					} else if (!article.image.includes('default-article-image')) {
+					} else if (!article.image.includes('default-berita-image')) {
 						// Only add non-default article images
 						images.push(article.image);
 					}

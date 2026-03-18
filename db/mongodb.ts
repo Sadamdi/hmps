@@ -101,7 +101,7 @@ const permissionSchema = new mongoose.Schema({
 	name: { type: String, required: true, unique: true },
 	displayName: { type: String, required: true },
 	description: { type: String, default: '' },
-	category: { type: String, required: true }, // 'dashboard', 'articles', 'users', etc.
+	category: { type: String, required: true }, // 'dashboard', 'berita', 'users', etc.
 	isActive: { type: Boolean, default: true },
 	createdAt: { type: Date, default: Date.now },
 });
@@ -680,6 +680,7 @@ const HomeImages =
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Berita =
 	mongoose.models.Berita || mongoose.model('Berita', beritaSchema, 'berita');
+/** @deprecated Use Berita directly */
 const Article = Berita;
 const Library =
 	mongoose.models.Library || mongoose.model('Library', librarySchema);

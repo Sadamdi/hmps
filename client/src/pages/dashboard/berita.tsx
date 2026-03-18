@@ -133,7 +133,7 @@ export default function DashboardArticles() {
 			if (deletedArticle) {
 				try {
 					await logActivity(
-						ActivityTemplates.articleDeleted(
+						ActivityTemplates.beritaDeleted(
 							deletedArticle.title,
 							String(articleId)
 						)
@@ -364,8 +364,8 @@ export default function DashboardArticles() {
 						<div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded text-sm text-blue-700 dark:text-blue-300">
 							<span>🔒</span>
 							<span>
-								Editor can only be closed using <strong>Cancel</strong> or{' '}
-								<strong>Save Article</strong> buttons below
+								Editor hanya bisa ditutup menggunakan tombol <strong>Batal</strong> atau{' '}
+								<strong>Simpan Berita</strong> di bawah
 							</span>
 						</div>
 					</DialogHeader>

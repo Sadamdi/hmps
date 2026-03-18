@@ -33,7 +33,7 @@ interface Article {
 	viewCount?: number;
 }
 
-interface RelatedArticle {
+interface RelatedBerita {
 	_id?: string;
 	id?: number;
 	title: string;
@@ -85,7 +85,7 @@ export default function ArticleDetail() {
 		relatedEndpoint = `/api/berita/slug/${slug}/related?limit=2`;
 	}
 
-	const { data: related = [] } = useQuery<RelatedArticle[]>({
+	const { data: related = [] } = useQuery<RelatedBerita[]>({
 		queryKey: [relatedEndpoint || ''],
 		queryFn: async () => {
 			const response = await apiRequest('GET', relatedEndpoint as string);
@@ -335,7 +335,7 @@ export default function ArticleDetail() {
 
 					{/* Main Content */}
 					<div className="flex-1 max-w-4xl">
-						{/* Article Header */}
+						{/* Header Berita */}
 						<div className="mb-8" data-aos="fade-up">
 							<h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight mb-5">
 								{article.title}
@@ -376,13 +376,13 @@ export default function ArticleDetail() {
 									className="w-full h-80 md:h-[400px] object-cover"
 									onError={(e) => {
 										const target = e.target as HTMLImageElement;
-										target.src = '/placeholder-article.jpg';
+										target.src = '/placeholder-berita.jpg';
 									}}
 								/>
 							</div>
 						</div>
 
-						{/* Article Content */}
+						{/* Konten Berita */}
 						<div
 							className="bg-card rounded-xl shadow-sm border border-border overflow-hidden"
 							data-aos="fade-up"
@@ -479,7 +479,7 @@ export default function ArticleDetail() {
 							</div>
 						</div>
 
-						{/* Related Articles */}
+						{/* Berita Terkait */}
 						<div
 							className="mt-10 bg-card rounded-xl shadow-sm border border-border p-6"
 							data-aos="fade-up"
@@ -505,7 +505,7 @@ export default function ArticleDetail() {
 														className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
 														onError={(e) => {
 															(e.target as HTMLImageElement).src =
-																'/placeholder-article.jpg';
+																'/placeholder-berita.jpg';
 														}}
 													/>
 												</div>

@@ -26,7 +26,6 @@ export type UploadCategory =
 	| 'organization' // Logo himpunan, foto ketua, divisi, dll
 	| 'content' // Konten halaman (hero, about, vision-mission)
 	| 'berita' // Gambar berita dan thumbnail
-	| 'articles' // Legacy alias
 	| 'library' // Media library (foto/video kegiatan)
 	| 'filosofi' // Gambar filosofi lambang HIMATIF (attached_assets/filosofi)
 	| 'events' // Thumbnail dan attachment event
@@ -66,7 +65,7 @@ export async function uploadHandler(
 	useAssetsDir: boolean = false,
 	category: UploadCategory = 'general',
 	oldFileUrl?: string, // URL file lama yang akan dihapus
-	subFolder?: string // Subfolder tambahan (contoh: articleId)
+	subFolder?: string // Subfolder tambahan (contoh: beritaId)
 ): Promise<string> {
 	try {
 		// Hapus file lama jika ada
@@ -86,7 +85,7 @@ export async function uploadHandler(
 		// Ensure category directory exists
 		let categoryDir = await ensureUploadDirectory(category, useAssetsDir);
 
-		// Add subfolder if specified (for article-specific folders)
+		// Add subfolder if specified (for berita-specific folders)
 		if (subFolder) {
 			categoryDir = path.join(categoryDir, subFolder);
 			if (!fs.existsSync(categoryDir)) {
@@ -118,8 +117,8 @@ export async function uploadHandler(
 }
 
 /**
- * Handles article image upload with automatic processing to WebP
- * Supports optional subFolder (e.g., articleId) to organize content images
+ * Handles berita image upload with automatic processing to WebP
+ * Supports optional subFolder (e.g., beritaId) to organize content images
  */
 export async function uploadArticleImage(
 	file: Express.Multer.File,
@@ -324,7 +323,7 @@ export async function deleteFile(fileUrl: string): Promise<void> {
 
 /**
  * Cleanup unused images from berita folder.
- * Also checks legacy `uploads/articles/` path for backward compatibility.
+ * Cleanup unused images from berita folder.
  */
 export async function cleanupArticleImages(
 	articleId: string,
@@ -374,7 +373,7 @@ export async function cleanupArticleImages(
 }
 
 /**
- * Extract image URLs from article content
+ * Extract image URLs from berita content
  */
 export function extractImageUrlsFromContent(content: string): string[] {
 	const imgRegex = /<img[^>]+src="([^"]+)"[^>]*>/g;

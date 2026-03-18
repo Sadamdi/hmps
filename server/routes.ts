@@ -1327,7 +1327,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const articleId = req.body.articleId;
 
 				if (!articleId) {
-					return res.status(400).json({ message: 'Article ID is required' });
+					return res.status(400).json({ message: 'Berita ID is required' });
 				}
 
 				// Process the uploaded image (compress + WebP) under uploads/berita/{articleId}
@@ -1396,7 +1396,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const base = await mongoStorage.getArticleById(articleId);
 			if (!base) {
-				return res.status(404).json({ message: 'Article not found' });
+				return res.status(404).json({ message: 'Berita not found' });
 			}
 
 			const { RecommendationService } =
@@ -1447,7 +1447,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			} else {
 				return res
 					.status(403)
-					.json({ message: 'You do not have permission to view articles' });
+					.json({ message: 'You do not have permission to view berita' });
 			}
 
 			res.json(articles);
@@ -1469,7 +1469,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const article = await mongoStorage.getArticleById(articleId);
 
 				if (!article) {
-					return res.status(404).json({ message: 'Article not found' });
+					return res.status(404).json({ message: 'Berita not found' });
 				}
 
 				// Published: anyone can view
@@ -1483,7 +1483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					);
 					if (!canView) {
 						return res.status(403).json({
-							message: 'You do not have permission to view this article',
+							message: 'You do not have permission to view this berita',
 						});
 					}
 				}
@@ -1527,7 +1527,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const article = await mongoStorage.getArticleBySlug(slug);
 
 				if (!article) {
-					return res.status(404).json({ message: 'Article not found' });
+					return res.status(404).json({ message: 'Berita not found' });
 				}
 
 				if (!article.published) {
@@ -1537,7 +1537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					);
 					if (!canView) {
 						return res.status(403).json({
-							message: 'You do not have permission to view this article',
+							message: 'You do not have permission to view this berita',
 						});
 					}
 				}
@@ -1571,7 +1571,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const article = await mongoStorage.getArticleById(articleId);
 
 			if (!article) {
-				return res.status(404).json({ message: 'Article not found' });
+				return res.status(404).json({ message: 'Berita not found' });
 			}
 
 			if (!article.published) {
@@ -1581,7 +1581,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				);
 				if (!canView) {
 					return res.status(403).json({
-						message: 'You do not have permission to view this article',
+						message: 'You do not have permission to view this berita',
 					});
 				}
 			}
@@ -1619,7 +1619,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const base = await mongoStorage.getArticleById(articleId);
 			if (!base) {
-				return res.status(404).json({ message: 'Article not found' });
+				return res.status(404).json({ message: 'Berita not found' });
 			}
 
 			// Use RecommendationService (TF-IDF)
@@ -1656,7 +1656,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const slug = req.params.slug;
 			const article = await mongoStorage.getArticleBySlug(slug);
 			if (!article)
-				return res.status(404).json({ message: 'Article not found' });
+				return res.status(404).json({ message: 'Berita not found' });
 			// Use RecommendationService as well
 			const { RecommendationService } =
 				await import('./services/recommendation');
@@ -1716,7 +1716,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				);
 				if (!userRole || !userRole.permissions.includes('berita.create')) {
 					return res.status(403).json({
-						message: 'You do not have permission to create articles',
+						message: 'You do not have permission to create berita',
 					});
 				}
 
@@ -1724,7 +1724,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (published === 'true') {
 					if (!userRole.permissions.includes('berita.publish')) {
 						return res.status(403).json({
-							message: 'You do not have permission to publish articles',
+							message: 'You do not have permission to publish berita',
 						});
 					}
 				}
@@ -1751,7 +1751,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(401).json({ message: 'Authentication required' });
 				}
 
-				let imageUrl = '/uploads/default-article-image.jpg';
+				let imageUrl = '/uploads/default-berita-image.jpg';
 				let imageSource = 'local';
 				let gdriveFileId = null;
 
@@ -1932,7 +1932,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Get existing article
 				const existingArticle = await mongoStorage.getArticleById(articleId);
 				if (!existingArticle) {
-					return res.status(404).json({ message: 'Article not found' });
+					return res.status(404).json({ message: 'Berita not found' });
 				}
 
 				// Check permissions using new permission system
@@ -1944,7 +1944,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				if (!canEdit) {
 					return res.status(403).json({
-						message: 'You do not have permission to edit this article',
+						message: 'You do not have permission to edit this berita',
 					});
 				}
 
@@ -1958,7 +1958,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 					if (!canPublish) {
 						return res.status(403).json({
-							message: 'You do not have permission to publish articles',
+							message: 'You do not have permission to publish berita',
 						});
 					}
 				}
@@ -1980,7 +1980,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (req.file) {
 					// Hapus gambar lama jika ada dan berbeda dari default
 					const oldImageUrl =
-						existingArticle.image !== '/uploads/default-article-image.jpg'
+						existingArticle.image !== '/uploads/default-berita-image.jpg'
 							? existingArticle.image
 							: undefined;
 
@@ -2034,7 +2034,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Get existing article
 			const existingArticle = await mongoStorage.getArticleById(articleId);
 			if (!existingArticle) {
-				return res.status(404).json({ message: 'Article not found' });
+				return res.status(404).json({ message: 'Berita not found' });
 			}
 
 			// Check permissions using new permission system
@@ -2046,7 +2046,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			if (!canDelete) {
 				return res.status(403).json({
-					message: 'You do not have permission to delete this article',
+					message: 'You do not have permission to delete this berita',
 				});
 			}
 
@@ -2079,7 +2079,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.warn('Optional cleanup of attached_assets failed:', cleanupErr);
 			}
 
-			res.json({ message: 'Article deleted successfully' });
+			res.json({ message: 'Berita deleted successfully' });
 		} catch (error) {
 			console.error('Delete article error:', error);
 			res.status(500).json({ message: 'Internal server error' });
@@ -4635,9 +4635,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// ── Copy Event → Article ──
+	// ── Copy Event → Berita ──
 	app.post(
-		'/api/events/:id/copy-to-article',
+		'/api/events/:id/copy-to-berita',
 		authenticate,
 		async (req, res) => {
 			try {
@@ -4677,7 +4677,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// ── Copy Article → Event ──
+	// ── Copy Berita → Event ──
 	app.post(
 		'/api/berita/:id/copy-to-event',
 		authenticate,
@@ -4699,7 +4699,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				);
 				res.status(201).json(result);
 			} catch (error: any) {
-				console.error('Error copying article to event:', error);
+				console.error('Error copying berita to event:', error);
 				res
 					.status(500)
 					.json({ message: error.message || 'Internal server error' });
@@ -4738,7 +4738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
 			} catch (error: any) {
-				console.error('Error attaching article to event:', error);
+				console.error('Error attaching berita to event:', error);
 				res
 					.status(500)
 					.json({ message: error.message || 'Internal server error' });
@@ -4746,13 +4746,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// ── Detach Article from Event ──
+	// ── Detach Berita from Event ──
 	app.delete(
-		'/api/events/:id/attach-article/:articleId',
+		'/api/events/:id/attach-berita/:beritaId',
 		authenticate,
 		async (req, res) => {
 			try {
-				const { id, articleId } = req.params;
+				const { id, beritaId } = req.params;
 				const user = req.user as UserWithRole;
 				const existingEvent = await mongoStorage.getEventById(id);
 				if (!existingEvent)
@@ -4768,11 +4768,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							'You do not have permission to edit this event',
 					});
 				}
-				const event = await mongoStorage.detachArticleFromEvent(id, articleId);
+				const event = await mongoStorage.detachArticleFromEvent(id, beritaId);
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
 			} catch (error: any) {
-				console.error('Error detaching article from event:', error);
+				console.error('Error detaching berita from event:', error);
 				res
 					.status(500)
 					.json({ message: error.message || 'Internal server error' });
@@ -4780,7 +4780,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// ── Attach Event to Article (same effect: update event.relatedBerita) ──
+	// ── Attach Event to Berita (same effect: update event.relatedBerita) ──
 	app.post(
 		'/api/berita/:id/attach-event',
 		authenticate,
@@ -4815,7 +4815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
 			} catch (error: any) {
-				console.error('Error attaching event to article:', error);
+				console.error('Error attaching event to berita:', error);
 				res
 					.status(500)
 					.json({ message: error.message || 'Internal server error' });
@@ -4823,7 +4823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// ── Detach Event from Article ──
+	// ── Detach Event from Berita ──
 	app.delete(
 		'/api/berita/:id/attach-event/:eventId',
 		authenticate,
@@ -4852,7 +4852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
 			} catch (error: any) {
-				console.error('Error detaching event from article:', error);
+				console.error('Error detaching event from berita:', error);
 				res
 					.status(500)
 					.json({ message: error.message || 'Internal server error' });

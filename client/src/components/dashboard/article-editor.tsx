@@ -152,15 +152,15 @@ export default function ArticleEditor({
 				const articleId = responseData?._id || responseData?.id || 'unknown';
 
 				if (isEdit) {
-					await logActivity(ActivityTemplates.articleUpdated(title, articleId));
+					await logActivity(ActivityTemplates.beritaUpdated(title, articleId));
 				} else {
-					await logActivity(ActivityTemplates.articleCreated(title, articleId));
+					await logActivity(ActivityTemplates.beritaCreated(title, articleId));
 				}
 
 				// Log publish activity if published
 				if (isPublished) {
 					await logActivity(
-						ActivityTemplates.articlePublished(title, articleId)
+						ActivityTemplates.beritaPublished(title, articleId)
 					);
 				}
 			} catch (error) {
@@ -172,7 +172,7 @@ export default function ArticleEditor({
 		onError: () => {
 			toast({
 				title: 'Error',
-				description: 'Failed to save the article. Please try again.',
+				description: 'Gagal menyimpan berita. Coba lagi.',
 				variant: 'destructive',
 			});
 		},
@@ -210,7 +210,7 @@ export default function ArticleEditor({
 
 			// Dapatkan posisi cursor di textarea
 			const textarea = document.querySelector(
-				'textarea[placeholder*="Write your article"]'
+				'textarea[placeholder*="Tulis konten berita"]'
 			) as HTMLTextAreaElement;
 
 			let insertPosition = content.length; // Default di akhir
@@ -294,7 +294,7 @@ export default function ArticleEditor({
 
 	const copyToEventMut = useMutation({
 		mutationFn: async ({ year, parentEventId, copyAtts }: { year: number; parentEventId?: string; copyAtts: boolean }) => {
-			if (!articleId) throw new Error('Save article first before copying to event.');
+			if (!articleId) throw new Error('Simpan berita terlebih dahulu sebelum copy ke event.');
 			const res = await apiRequest('POST', `/api/berita/${articleId}/copy-to-event`, {
 				year,
 				parentEventId: parentEventId || undefined,
@@ -348,7 +348,7 @@ export default function ArticleEditor({
 
 	const applyFormatting = (format: string) => {
 		const textarea = document.querySelector(
-			'textarea[placeholder*="Write your article"]'
+			'textarea[placeholder*="Tulis konten berita"]'
 		) as HTMLTextAreaElement;
 		if (!textarea) return;
 
@@ -432,7 +432,7 @@ export default function ArticleEditor({
 	// Fungsi untuk memindahkan gambar
 	const moveImageInContent = (direction: 'up' | 'down') => {
 		const textarea = document.querySelector(
-			'textarea[placeholder*="Write your article"]'
+			'textarea[placeholder*="Tulis konten berita"]'
 		) as HTMLTextAreaElement;
 
 		if (!textarea) return;
@@ -536,7 +536,7 @@ export default function ArticleEditor({
 		setContent('');
 		setImagePreview('');
 		setSelectedFile(null); // Reset selected file
-		toast({ title: 'Success', description: 'Article saved.' });
+		toast({ title: 'Berhasil', description: 'Berita disimpan.' });
 	};
 
 	// Load article data saat edit mode
@@ -736,7 +736,7 @@ export default function ArticleEditor({
 
 						{/* Rich Text Editor */}
 						<div className="space-y-2">
-							<Label>Article Content</Label>
+							<Label>Konten Berita</Label>
 							<RichTextEditor
 								value={content}
 								onChange={setContent}

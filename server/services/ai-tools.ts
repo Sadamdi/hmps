@@ -1,5 +1,5 @@
 import {
-	Berita as Article,
+	Berita,
 	Library,
 	Organization,
 	Settings,
@@ -18,7 +18,7 @@ export const AI_TOOLS = [
 		},
 	},
 	{
-		name: 'search_articles',
+		name: 'search_berita',
 		description:
 			'Cari dan ambil daftar berita Himatif Encoder dari database. Bisa filter berdasarkan kata kunci judul. Gunakan saat user bertanya tentang berita atau tulisan Himatif Encoder.',
 		parameters: {
@@ -27,7 +27,7 @@ export const AI_TOOLS = [
 				keyword: {
 					type: 'string',
 					description:
-						'Kata kunci pencarian pada judul artikel (opsional). Biarkan kosong untuk mendapatkan semua artikel.',
+						'Kata kunci pencarian pada judul berita (opsional). Biarkan kosong untuk mendapatkan semua berita.',
 				},
 				limit: {
 					type: 'number',
@@ -38,9 +38,9 @@ export const AI_TOOLS = [
 		},
 	},
 	{
-		name: 'get_article_detail',
+		name: 'get_berita_detail',
 		description:
-			'Ambil detail lengkap satu berita berdasarkan ID atau slug. Gunakan setelah search_articles untuk mendapatkan konten penuh berita.',
+			'Ambil detail lengkap satu berita berdasarkan ID atau slug. Gunakan setelah search_berita untuk mendapatkan konten penuh berita.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -104,21 +104,21 @@ export async function executeToolCall(
 				};
 			}
 
-			case 'search_articles': {
+			case 'search_berita': {
 				const keyword = args.keyword as string | undefined;
 				const limit = (args.limit as number) || 10;
 				const query: Record<string, unknown> = { published: true };
 				if (keyword && keyword.trim()) {
 					query.title = { $regex: keyword.trim(), $options: 'i' };
 				}
-				const articles = await Article.find(query)
+				const items = await Berita.find(query)
 					.select('title excerpt author createdAt tags slug _id')
 					.sort({ createdAt: -1 })
 					.limit(Math.min(limit, 20))
 					.lean();
 				return {
-					count: articles.length,
-					articles: articles.map((a) => ({
+					count: items.length,
+					berita: items.map((a) => ({
 						id: a._id?.toString(),
 						title: a.title,
 						excerpt: a.excerpt,
@@ -130,38 +130,37 @@ export async function executeToolCall(
 				};
 			}
 
-			case 'get_article_detail': {
+			case 'get_berita_detail': {
 				const id = args.id as string;
-				if (!id) return { error: 'ID artikel diperlukan' };
+				if (!id) return { error: 'ID berita diperlukan' };
 
-				let article = null;
-				// Coba cari by slug dulu, lalu by _id jika gagal
-				article = await Article.findOne({ slug: id, published: true })
+				let item = null;
+				item = await Berita.findOne({ slug: id, published: true })
 					.select('title content excerpt author createdAt tags slug')
 					.lean();
 
-				if (!article) {
+				if (!item) {
 					try {
-						article = await Article.findById(id)
+						item = await Berita.findById(id)
 							.select('title content excerpt author createdAt tags slug')
 							.lean();
 					} catch {
-						// Invalid ObjectId format, artikel tidak ditemukan
+						// Invalid ObjectId format
 					}
 				}
 
-				if (!article) {
-					return { error: `Artikel dengan ID/slug "${id}" tidak ditemukan` };
+				if (!item) {
+					return { error: `Berita dengan ID/slug "${id}" tidak ditemukan` };
 				}
 				return {
-					id: (article as any)._id?.toString(),
-					title: (article as any).title,
-					content: (article as any).content,
-					excerpt: (article as any).excerpt,
-					author: (article as any).author,
-					tags: (article as any).tags,
-					slug: (article as any).slug,
-					createdAt: (article as any).createdAt,
+					id: (item as any)._id?.toString(),
+					title: (item as any).title,
+					content: (item as any).content,
+					excerpt: (item as any).excerpt,
+					author: (item as any).author,
+					tags: (item as any).tags,
+					slug: (item as any).slug,
+					createdAt: (item as any).createdAt,
 				};
 			}
 

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { Link, useParams } from 'wouter';
 
-interface RelatedArticle {
+interface RelatedBerita {
 	_id: string;
 	title: string;
 	slug?: string;
@@ -35,7 +35,7 @@ interface EventItem {
 	month: number;
 	attachments?: { name: string; url: string; type?: string }[];
 	children?: EventItem[];
-	relatedBerita?: RelatedArticle[];
+	relatedBerita?: RelatedBerita[];
 	viewCount?: number;
 }
 
@@ -164,7 +164,7 @@ export default function EventDetailPage() {
 								<div>
 									<h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
 										<FileText className="h-5 w-5 text-primary" />
-										Artikel Terkait
+										Berita Terkait
 									</h2>
 									<div className="space-y-2">
 										{event.relatedBerita.map((art) => (

@@ -167,7 +167,7 @@ export default function Articles() {
 									className="overflow-hidden border border-border/70 bg-card hover:shadow-lg hover:border-primary/40 transition-all duration-300 group"
 									data-aos="fade-up"
 									data-aos-delay={index * 100}>
-									{/* Article Image */}
+									{/* Berita Image */}
 									<Link href={getArticleUrl(article)}>
 										<div className="relative h-48 overflow-hidden cursor-pointer">
 											<OptimizedImage
@@ -178,13 +178,13 @@ export default function Articles() {
 												sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
 												onError={(e) => {
 													const target = e.target as HTMLImageElement;
-													target.src = '/placeholder-article.jpg';
+													target.src = '/placeholder-berita.jpg';
 												}}
 											/>
 											<div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 										</div>
 									</Link>
-									{/* Article Content */}
+									{/* Berita Content */}
 									<CardHeader className="pb-3">
 										<Link href={getArticleUrl(article)}>
 											<h3 className="font-bold text-xl leading-tight line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">

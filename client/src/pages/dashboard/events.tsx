@@ -267,7 +267,7 @@ export default function DashboardEvents() {
 
 	const copyToArticleMut = useMutation({
 		mutationFn: async ({ eventId, copyAtts }: { eventId: string; copyAtts: boolean }) => {
-			const res = await apiRequest('POST', `/api/events/${eventId}/copy-to-article`, { copyAttachments: copyAtts });
+			const res = await apiRequest('POST', `/api/events/${eventId}/copy-to-berita`, { copyAttachments: copyAtts });
 			return res.json();
 		},
 		onSuccess: (data: any) => {
@@ -275,8 +275,8 @@ export default function DashboardEvents() {
 			queryClient.invalidateQueries({ queryKey: ['/api/events'], exact: false });
 			setCopyToArticleEvent(null);
 			toast({
-				title: 'Artikel berhasil dibuat dari event!',
-				description: `"${data.title}" – silakan edit di halaman artikel.`,
+				title: 'Berita berhasil dibuat dari event!',
+				description: `"${data.title}" – silakan edit di halaman berita.`,
 			});
 		},
 		onError: (err: any) => {
@@ -681,11 +681,11 @@ export default function DashboardEvents() {
 																	variant="outline"
 																	size="sm"
 																	className="flex-1 sm:flex-none text-xs"
-																	title="Copy ke Artikel"
+																	title="Copy ke Berita"
 																	onClick={() => { setCopyToArticleEvent(ev); setCopyAttachments(false); }}
 																>
 																	<Copy className="h-3 w-3 mr-1" />
-																	<span className="hidden xs:inline">Copy → </span>Artikel
+																	<span className="hidden xs:inline">Copy → </span>Berita
 																</Button>
 															)}
 															{canDeleteEvent(ev) && (
@@ -799,16 +799,16 @@ export default function DashboardEvents() {
 							<div>
 								<Label className="flex items-center gap-1 mb-2">
 									<FileText className="h-4 w-4" />
-									Artikel Terkait
+									Berita Terkait
 								</Label>
 								<p className="text-xs text-muted-foreground mb-2">
-									Pilih artikel publish yang berkaitan dengan event ini.
+									Pilih berita publish yang berkaitan dengan event ini.
 								</p>
 								<div className="relative mb-2">
 									<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 									<Input
 										className="pl-8 h-8 text-sm"
-										placeholder="Cari judul artikel..."
+										placeholder="Cari judul berita..."
 										value={articleSearch}
 										onChange={(e) => setArticleSearch(e.target.value)}
 									/>
@@ -868,7 +868,7 @@ export default function DashboardEvents() {
 											: true
 									).length === 0 && (
 										<p className="text-center text-sm text-muted-foreground py-4">
-											{articleSearch ? 'Tidak ada artikel yang cocok' : 'Belum ada artikel publish'}
+											{articleSearch ? 'Tidak ada berita yang cocok' : 'Belum ada berita publish'}
 										</p>
 									)}
 								</div>
@@ -890,11 +890,11 @@ export default function DashboardEvents() {
 				</DialogContent>
 			</Dialog>
 
-			{/* Dialog Copy Event ke Artikel */}
+			{/* Dialog Copy Event ke Berita */}
 			<Dialog open={!!copyToArticleEvent} onOpenChange={(o) => { if (!o) setCopyToArticleEvent(null); }}>
 				<DialogContent className="w-[calc(100vw-1rem)] max-w-md">
 					<DialogHeader>
-						<DialogTitle>Copy Event ke Artikel</DialogTitle>
+						<DialogTitle>Copy Event ke Berita</DialogTitle>
 					</DialogHeader>
 					{copyToArticleEvent && (
 						<div className="space-y-4">
@@ -911,7 +911,7 @@ export default function DashboardEvents() {
 									className="rounded"
 								/>
 								<Label htmlFor="copy-attachments-check" className="cursor-pointer">
-									Sertakan lampiran/gambar ke konten artikel
+									Sertakan lampiran/gambar ke konten berita
 								</Label>
 							</div>
 							<div className="flex flex-col gap-2 sm:flex-row pt-2">
@@ -922,7 +922,7 @@ export default function DashboardEvents() {
 								>
 									{copyToArticleMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
 									<Copy className="h-4 w-4 mr-2" />
-									Buat Artikel
+									Buat Berita
 								</Button>
 								<Button variant="outline" onClick={() => setCopyToArticleEvent(null)}>Batal</Button>
 							</div>
