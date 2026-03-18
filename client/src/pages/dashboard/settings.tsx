@@ -51,6 +51,8 @@ interface SiteSettings {
 	navbarBrand: string;
 	contactEmail: string;
 	address: string;
+	mapsLocationInput: string;
+	mapsEmbedUrl: string;
 	enableRegistration: boolean;
 	maintenanceMode: boolean;
 	footerText: string;
@@ -956,20 +958,34 @@ export default function SettingsPage() {
 											disabled={!canEditSettings}
 										/>
 									</div>
-									<div className="space-y-2">
-										<Label htmlFor="address">Address</Label>
-										<Textarea
-											id="address"
-											name="address"
-											value={formData.address}
-											onChange={handleInputChange}
-											rows={3}
-											disabled={!canEditSettings}
-										/>
-									</div>
-									<h3 className="text-lg font-medium mt-6 mb-3">
-										Social Media Links
-									</h3>
+								<div className="space-y-2">
+									<Label htmlFor="address">Address</Label>
+									<Textarea
+										id="address"
+										name="address"
+										value={formData.address}
+										onChange={handleInputChange}
+										rows={3}
+										disabled={!canEditSettings}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label htmlFor="mapsLocationInput">Lokasi Maps</Label>
+									<Input
+										id="mapsLocationInput"
+										name="mapsLocationInput"
+										value={formData.mapsLocationInput || ''}
+										onChange={handleInputChange}
+										placeholder="Contoh: Jl. Gajayana No.50, Malang  atau  https://maps.app.goo.gl/..."
+										disabled={!canEditSettings}
+									/>
+									<p className="text-xs text-muted-foreground">
+										Isi dengan alamat teks atau link share Google Maps (termasuk maps.app.goo.gl). Kosongkan untuk pakai alamat default.
+									</p>
+								</div>
+								<h3 className="text-lg font-medium mt-6 mb-3">
+									Social Media Links
+								</h3>
 									<div className="space-y-4">
 										<div className="space-y-2">
 											<Label htmlFor="facebook">Facebook</Label>

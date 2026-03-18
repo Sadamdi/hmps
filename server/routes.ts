@@ -2957,7 +2957,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		authorize(['owner', 'admin']),
 		async (req, res) => {
 			try {
-				const updatedSettings = await mongoStorage.updateSettings(req.body);
+				const body = { ...req.body };
+
+				// Auto-convert mapsLocationInput → mapsEmbedUrl
+				if (typeof body.mapsLocationInput === 'string') {
+					const input = body.mapsLocationInput.trim();
+
+					if (!input) {
+						body.mapsEmbedUrl = '';
+					} else if (/^https?:\/\//i.test(input)) {
+						let resolvedUrl = input;
+
+						// Resolve shortlinks like maps.app.goo.gl via server-side follow
+						try {
+							const r = await fetch(input, {
+								method: 'HEAD',
+								redirect: 'follow',
+							});
+							resolvedUrl = r.url || input;
+						} catch {
+							resolvedUrl = input;
+						}
+
+						// Convert google maps share link to embed URL
+						const isGoogleMaps =
+							resolvedUrl.includes('google.com/maps') ||
+							resolvedUrl.includes('maps.google.com');
+
+						if (isGoogleMaps) {
+							if (resolvedUrl.includes('/maps/embed')) {
+								// Already embed format
+								body.mapsEmbedUrl = resolvedUrl;
+							} else {
+								// Extract coordinates or query from link
+								const placeMatch = resolvedUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+								const queryMatch = resolvedUrl.match(/[?&]q=([^&]+)/);
+								const placeNameMatch = resolvedUrl.match(/\/maps\/place\/([^/@?]+)/);
+
+								if (placeMatch) {
+									const lat = placeMatch[1];
+									const lng = placeMatch[2];
+									body.mapsEmbedUrl = `https://www.google.com/maps?q=${lat},${lng}&output=embed`;
+								} else if (queryMatch) {
+									body.mapsEmbedUrl = `https://www.google.com/maps?q=${queryMatch[1]}&output=embed`;
+								} else if (placeNameMatch) {
+									const placeName = decodeURIComponent(placeNameMatch[1].replace(/\+/g, ' '));
+									body.mapsEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(placeName)}&output=embed`;
+								} else {
+									body.mapsEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(resolvedUrl)}&output=embed`;
+								}
+							}
+						} else {
+							// Non-Google Maps URL: use as-is (admin responsibility)
+							body.mapsEmbedUrl = resolvedUrl;
+						}
+					} else {
+						// Plain text address
+						body.mapsEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(input)}&output=embed`;
+					}
+				}
+
+				const updatedSettings = await mongoStorage.updateSettings(body);
 				res.json(updatedSettings);
 			} catch (error) {
 				console.error('Update settings error:', error);

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 interface Settings {
 	contactEmail?: string;
 	address?: string;
+	mapsEmbedUrl?: string;
 	footerText?: string;
 	socialLinks?: {
 		facebook: string;
@@ -31,6 +32,7 @@ export default function Footer() {
 	const address =
 		settings?.address ||
 		'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang';
+	const mapsEmbedUrl = settings?.mapsEmbedUrl || '';
 	const footerText =
 		settings?.footerText ||
 		`© ${new Date().getFullYear()} Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.`;
@@ -56,20 +58,19 @@ export default function Footer() {
 					data-aos-delay="100">
 					<h3 className="text-lg font-semibold mb-4">Lokasi</h3>
 					<div className="w-full h-48 md:h-56 lg:h-64 rounded-lg overflow-hidden border border-border shadow-md">
-						<iframe
-							title="Lokasi Fakultas Sains dan Teknologi UIN Malang"
-							src={
-								'https://www.google.com/maps?q=' +
-								encodeURIComponent(
-									'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang',
-								) +
+					<iframe
+						title="Lokasi Fakultas Sains dan Teknologi UIN Malang"
+						src={
+							mapsEmbedUrl ||
+							'https://www.google.com/maps?q=' +
+								encodeURIComponent(address) +
 								'&output=embed'
-							}
-							loading="lazy"
-							referrerPolicy="no-referrer-when-downgrade"
-							className="w-full h-full border-0"
-							allowFullScreen
-						/>
+						}
+						loading="lazy"
+						referrerPolicy="no-referrer-when-downgrade"
+						className="w-full h-full border-0"
+						allowFullScreen
+					/>
 					</div>
 				</div>
 
