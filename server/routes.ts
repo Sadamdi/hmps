@@ -3026,6 +3026,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
+	app.put(
+		'/api/settings/home-config',
+		authenticate,
+		requirePermission('home_settings.edit'),
+		async (req, res) => {
+			try {
+				const { blocks, navbar, showDashboardLink } = req.body;
+				const updatePayload: Record<string, any> = {};
+
+				if (Array.isArray(blocks)) {
+					const validKinds = ['section', 'subItem'];
+					const validModes = ['summary', 'full'];
+					const sanitized = blocks
+						.filter((b: any) => b && typeof b.id === 'string' && validKinds.includes(b.kind))
+						.map((b: any) => ({
+							id: b.id,
+							kind: b.kind,
+							visible: typeof b.visible === 'boolean' ? b.visible : true,
+							...(b.kind === 'subItem' && validModes.includes(b.renderMode) ? { renderMode: b.renderMode } : { renderMode: 'summary' }),
+						}));
+					updatePayload['homeConfig.blocks'] = sanitized;
+				}
+
+				if (Array.isArray(navbar)) {
+					const sanitized = navbar
+						.filter((n: any) => n && typeof n.id === 'string')
+						.map((n: any) => ({
+							id: n.id,
+							visible: typeof n.visible === 'boolean' ? n.visible : true,
+						}));
+					updatePayload['homeConfig.navbar'] = sanitized;
+				}
+
+				if (typeof showDashboardLink === 'boolean') {
+					updatePayload['homeConfig.showDashboardLink'] = showDashboardLink;
+				}
+
+				const updatedSettings = await mongoStorage.updateSettings(updatePayload);
+				res.json(updatedSettings);
+			} catch (error) {
+				console.error('Update home config error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
 	app.post(
 		'/api/settings/reset',
 		authenticate,

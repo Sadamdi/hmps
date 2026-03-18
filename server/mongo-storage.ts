@@ -1698,6 +1698,20 @@ async function initializeDefaultPermissions() {
 			category: 'settings',
 		},
 
+		// Home page configuration permissions
+		{
+			name: 'home_settings.view',
+			displayName: 'View Home Settings',
+			description: 'Melihat pengaturan tampilan halaman beranda',
+			category: 'home_settings',
+		},
+		{
+			name: 'home_settings.edit',
+			displayName: 'Edit Home Settings',
+			description: 'Mengubah pengaturan tampilan halaman beranda (section & navbar)',
+			category: 'home_settings',
+		},
+
 		// Middleware management permissions (Owner only)
 		{
 			name: 'middleware.manage',

@@ -122,18 +122,22 @@ export default function SettingsPage() {
 
 	// Check if user can view settings (not just profile)
 	const canViewSettings = hasSpecificPermission('settings.view');
+
+	// Home config permissions
+	const canViewHomeConfig = hasSpecificPermission('home_settings.view');
+	const canEditHomeConfig = hasSpecificPermission('home_settings.edit');
 	const { toast } = useToast();
 	const [activeTab, setActiveTab] = useState(
-		canViewSettings ? 'general' : 'profile',
+		canViewSettings ? 'general' : canViewHomeConfig ? 'home-config' : 'profile',
 	);
 	const [isResetting, setIsResetting] = useState(false);
 
 	// Update activeTab when permissions change
 	useEffect(() => {
-		if (!canViewSettings && activeTab !== 'profile') {
-			setActiveTab('profile');
+		if (!canViewSettings && activeTab !== 'profile' && activeTab !== 'home-config') {
+			setActiveTab(canViewHomeConfig ? 'home-config' : 'profile');
 		}
-	}, [canViewSettings, activeTab]);
+	}, [canViewSettings, canViewHomeConfig, activeTab]);
 
 	// Password change form
 	const [passwordData, setPasswordData] = useState<PasswordChangeData>({
@@ -891,14 +895,17 @@ export default function SettingsPage() {
 					{canViewSettings && (
 						<TabsTrigger value="home-images">Home Images</TabsTrigger>
 					)}
+					{(canViewHomeConfig || canEditHomeConfig) && (
+						<TabsTrigger value="home-config">Beranda</TabsTrigger>
+					)}
 					{user && user.role === 'owner' && (
 						<TabsTrigger value="middleware">Middleware</TabsTrigger>
 					)}
 					<TabsTrigger value="profile">Profile</TabsTrigger>
 				</TabsList>
 
-				{(isLoading && activeTab !== 'middleware') ||
-				(!formData && activeTab !== 'middleware') ||
+				{(isLoading && activeTab !== 'middleware' && activeTab !== 'home-config') ||
+				(!formData && activeTab !== 'middleware' && activeTab !== 'home-config') ||
 				(isMiddlewareLoading &&
 					activeTab === 'middleware' &&
 					!middlewareSettings) ? (
@@ -1420,6 +1427,10 @@ export default function SettingsPage() {
 							<HomeImagesTab canEdit={canEditSettings} />
 						</TabsContent>
 
+						<TabsContent value="home-config">
+							<HomeConfigTab canEdit={canEditHomeConfig} />
+						</TabsContent>
+
 						<TabsContent value="middleware">
 							{middlewareSettings ? (
 								<div className="space-y-6">
@@ -1894,6 +1905,7 @@ export default function SettingsPage() {
 			activeTab !== 'profile' &&
 			activeTab !== 'middleware' &&
 			activeTab !== 'home-images' &&
+			activeTab !== 'home-config' &&
 			activeTab !== 'appearance' &&
 			canEditSettings) ||
 		(activeTab === 'appearance' && (canEditSettings || canManageAnimations)) ||
@@ -2626,6 +2638,365 @@ function SlotUploader({
 					if (file) handleUpload(file);
 				}}
 			/>
+		</div>
+	);
+}
+
+import {
+	DndContext,
+	closestCenter,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+	type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { GripVertical } from 'lucide-react';
+import {
+	ALL_SECTION_BLOCKS,
+	ALL_SUBITEM_BLOCKS,
+	ALL_NAVBAR_ITEMS,
+	DEFAULT_HOME_CONFIG,
+	type HomeBlockItem,
+	type HomeNavbarItem,
+	type HomeConfig,
+} from '../../../../shared/schema';
+
+function SortableBlockRow({
+	item,
+	label,
+	kind,
+	canEdit,
+	onToggle,
+	onModeChange,
+}: {
+	item: HomeBlockItem;
+	label: string;
+	kind: 'section' | 'subItem';
+	canEdit: boolean;
+	onToggle: () => void;
+	onModeChange?: (mode: 'summary' | 'full') => void;
+}) {
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+	const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+
+	return (
+		<div ref={setNodeRef} style={style} className="flex items-center gap-2 py-2.5 px-3 border rounded-lg bg-card mb-2">
+			<button {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground" disabled={!canEdit} aria-label="Drag">
+				<GripVertical className="h-4 w-4" />
+			</button>
+			<div className="flex-1 min-w-0">
+				<p className="text-sm font-medium truncate">{label}</p>
+				{kind === 'subItem' && <span className="text-xs text-muted-foreground">Sub-item</span>}
+			</div>
+			{kind === 'subItem' && onModeChange && (
+				<Select value={item.renderMode || 'summary'} onValueChange={(v) => onModeChange(v as 'summary' | 'full')} disabled={!canEdit}>
+					<SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+					<SelectContent>
+						<SelectItem value="summary">Ringkasan</SelectItem>
+						<SelectItem value="full">Penuh</SelectItem>
+					</SelectContent>
+				</Select>
+			)}
+			<Switch checked={item.visible} onCheckedChange={onToggle} disabled={!canEdit} />
+		</div>
+	);
+}
+
+function SortableNavRow({
+	item,
+	label,
+	canEdit,
+	onToggle,
+}: {
+	item: HomeNavbarItem;
+	label: string;
+	canEdit: boolean;
+	onToggle: () => void;
+}) {
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
+	const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+
+	return (
+		<div ref={setNodeRef} style={style} className="flex items-center gap-2 py-2.5 px-3 border rounded-lg bg-card mb-2">
+			<button {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground" disabled={!canEdit} aria-label="Drag">
+				<GripVertical className="h-4 w-4" />
+			</button>
+			<p className="flex-1 text-sm font-medium">{label}</p>
+			<Switch checked={item.visible} onCheckedChange={onToggle} disabled={!canEdit} />
+		</div>
+	);
+}
+
+const blockLabel = (id: string): string => {
+	const sec = ALL_SECTION_BLOCKS.find((s) => s.id === id);
+	if (sec) return sec.label;
+	const sub = ALL_SUBITEM_BLOCKS.find((s) => s.id === id);
+	if (sub) return sub.label;
+	return id;
+};
+
+const navLabel = (id: string): string => {
+	const n = ALL_NAVBAR_ITEMS.find((x) => x.id === id);
+	return n ? n.label : id;
+};
+
+function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
+	const { toast } = useToast();
+	const [showAddBlock, setShowAddBlock] = useState(false);
+
+	const sensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+		useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+	);
+
+	const { data: settings, isLoading } = useQuery<{ homeConfig?: HomeConfig }>({
+		queryKey: ['/api/settings'],
+		staleTime: 0,
+	});
+
+	const buildInitial = useCallback((): HomeConfig => {
+		if (settings?.homeConfig?.blocks?.length) {
+			return {
+				blocks: settings.homeConfig.blocks,
+				navbar: settings.homeConfig.navbar?.length ? settings.homeConfig.navbar : DEFAULT_HOME_CONFIG.navbar,
+				showDashboardLink: settings.homeConfig.showDashboardLink ?? true,
+			};
+		}
+		return DEFAULT_HOME_CONFIG;
+	}, [settings]);
+
+	const [formBlocks, setFormBlocks] = useState<HomeBlockItem[]>([]);
+	const [formNavbar, setFormNavbar] = useState<HomeNavbarItem[]>([]);
+	const [formShowDashLink, setFormShowDashLink] = useState(true);
+
+	useEffect(() => {
+		const cfg = buildInitial();
+		setFormBlocks(cfg.blocks);
+		setFormNavbar(cfg.navbar);
+		setFormShowDashLink(cfg.showDashboardLink);
+	}, [buildInitial]);
+
+	const mutation = useMutation({
+		mutationFn: async (data: HomeConfig) => {
+			const res = await apiRequest('PUT', '/api/settings/home-config', data);
+			return res.json();
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+			toast({ title: 'Berhasil', description: 'Pengaturan beranda berhasil disimpan.' });
+		},
+		onError: (err: any) => {
+			toast({ title: 'Gagal', description: err?.message || 'Gagal menyimpan pengaturan beranda.', variant: 'destructive' });
+		},
+	});
+
+	const handleBlockDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+		if (!over || active.id === over.id) return;
+		setFormBlocks((prev) => {
+			const oldIdx = prev.findIndex((b) => b.id === active.id);
+			const newIdx = prev.findIndex((b) => b.id === over.id);
+			return arrayMove(prev, oldIdx, newIdx);
+		});
+	};
+
+	const handleNavDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+		if (!over || active.id === over.id) return;
+		setFormNavbar((prev) => {
+			const oldIdx = prev.findIndex((n) => n.id === active.id);
+			const newIdx = prev.findIndex((n) => n.id === over.id);
+			return arrayMove(prev, oldIdx, newIdx);
+		});
+	};
+
+	const toggleBlock = (id: string) => {
+		if (!canEdit) return;
+		setFormBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, visible: !b.visible } : b)));
+	};
+
+	const setBlockMode = (id: string, mode: 'summary' | 'full') => {
+		if (!canEdit) return;
+		setFormBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, renderMode: mode } : b)));
+	};
+
+	const toggleNav = (id: string) => {
+		if (!canEdit) return;
+		setFormNavbar((prev) => prev.map((n) => (n.id === id ? { ...n, visible: !n.visible } : n)));
+	};
+
+	const addBlock = (id: string, kind: 'section' | 'subItem') => {
+		if (!canEdit) return;
+		if (formBlocks.some((b) => b.id === id)) return;
+		setFormBlocks((prev) => [...prev, { id, kind, visible: true, renderMode: kind === 'subItem' ? 'summary' : undefined }]);
+		setShowAddBlock(false);
+	};
+
+	const removeBlock = (id: string) => {
+		if (!canEdit) return;
+		setFormBlocks((prev) => prev.filter((b) => b.id !== id));
+	};
+
+	const availableSections = ALL_SECTION_BLOCKS.filter((s) => !formBlocks.some((b) => b.id === s.id));
+	const availableSubItems = ALL_SUBITEM_BLOCKS.filter((s) => !formBlocks.some((b) => b.id === s.id));
+
+	if (isLoading) {
+		return (
+			<div className="flex justify-center items-center h-64">
+				<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-6">
+			{!canEdit && (
+				<div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+					<p className="text-sm text-yellow-800 dark:text-yellow-200">
+						Kamu hanya bisa melihat pengaturan beranda. Hubungi owner/admin untuk mendapatkan permission <strong>home_settings.edit</strong>.
+					</p>
+				</div>
+			)}
+
+			<Card>
+				<CardHeader>
+					<div className="flex items-center justify-between">
+						<div>
+							<CardTitle>Urutan Beranda</CardTitle>
+							<CardDescription>
+								Drag & drop untuk mengatur urutan tampilan di halaman beranda. Toggle untuk show/hide. Untuk sub-item, pilih mode tampilan (Ringkasan / Penuh).
+							</CardDescription>
+						</div>
+						{canEdit && (
+							<Button variant="outline" size="sm" onClick={() => setShowAddBlock(!showAddBlock)}>
+								<Plus className="h-4 w-4 mr-1" />
+								Tambah
+							</Button>
+						)}
+					</div>
+				</CardHeader>
+				<CardContent>
+					{showAddBlock && (
+						<div className="mb-4 p-3 border rounded-lg bg-muted/30 space-y-3">
+							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pilih block untuk ditambahkan:</p>
+							{availableSections.length > 0 && (
+								<div>
+									<p className="text-xs text-muted-foreground mb-1">Section utama</p>
+									<div className="flex flex-wrap gap-1.5">
+										{availableSections.map((s) => (
+											<Button key={s.id} variant="outline" size="sm" className="text-xs h-7" onClick={() => addBlock(s.id, 'section')}>
+												{s.label}
+											</Button>
+										))}
+									</div>
+								</div>
+							)}
+							{availableSubItems.length > 0 && (
+								<div>
+									<p className="text-xs text-muted-foreground mb-1">Sub-item (dropdown)</p>
+									<div className="flex flex-wrap gap-1.5">
+										{availableSubItems.map((s) => (
+											<Button key={s.id} variant="outline" size="sm" className="text-xs h-7" onClick={() => addBlock(s.id, 'subItem')}>
+												{s.label}
+											</Button>
+										))}
+									</div>
+								</div>
+							)}
+							{availableSections.length === 0 && availableSubItems.length === 0 && (
+								<p className="text-sm text-muted-foreground">Semua block sudah ditambahkan.</p>
+							)}
+						</div>
+					)}
+
+					<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleBlockDragEnd}>
+						<SortableContext items={formBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+							{formBlocks.map((block) => (
+								<div key={block.id} className="group relative">
+									<SortableBlockRow
+										item={block}
+										label={blockLabel(block.id)}
+										kind={block.kind}
+										canEdit={canEdit}
+										onToggle={() => toggleBlock(block.id)}
+										onModeChange={block.kind === 'subItem' ? (mode) => setBlockMode(block.id, mode) : undefined}
+									/>
+									{canEdit && (
+										<button
+											onClick={() => removeBlock(block.id)}
+											className="absolute -right-2 -top-2 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground text-xs"
+											aria-label="Hapus">
+											&times;
+										</button>
+									)}
+								</div>
+							))}
+						</SortableContext>
+					</DndContext>
+
+					{formBlocks.length === 0 && (
+						<p className="text-sm text-muted-foreground text-center py-8">Belum ada block. Klik "Tambah" untuk menambahkan.</p>
+					)}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Navbar</CardTitle>
+					<CardDescription>
+						Drag & drop untuk mengatur urutan dan show/hide item navigasi utama di halaman publik. Dropdown children mengikuti parent.
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleNavDragEnd}>
+						<SortableContext items={formNavbar.map((n) => n.id)} strategy={verticalListSortingStrategy}>
+							{formNavbar.map((navItem) => (
+								<SortableNavRow
+									key={navItem.id}
+									item={navItem}
+									label={navLabel(navItem.id)}
+									canEdit={canEdit}
+									onToggle={() => toggleNav(navItem.id)}
+								/>
+							))}
+						</SortableContext>
+					</DndContext>
+
+					<div className="flex items-center justify-between py-2.5 px-3 border rounded-lg bg-card mt-2">
+						<p className="text-sm font-medium">Link Dashboard (di dropdown user)</p>
+						<Switch checked={formShowDashLink} onCheckedChange={(v) => canEdit && setFormShowDashLink(v)} disabled={!canEdit} />
+					</div>
+				</CardContent>
+			</Card>
+
+			{canEdit && (
+				<div className="flex justify-end">
+					<Button
+						onClick={() => mutation.mutate({ blocks: formBlocks, navbar: formNavbar, showDashboardLink: formShowDashLink })}
+						disabled={mutation.isPending}>
+						{mutation.isPending ? (
+							<>
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								Menyimpan...
+							</>
+						) : (
+							<>
+								<Save className="mr-2 h-4 w-4" />
+								Simpan Pengaturan Beranda
+							</>
+						)}
+					</Button>
+				</div>
+			)}
 		</div>
 	);
 }

@@ -24,7 +24,7 @@ import {
 	Settings,
 	Sun,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
 interface NavbarProps {
@@ -32,8 +32,11 @@ interface NavbarProps {
 	scrollToSection: (id: string) => void;
 }
 
+import type { HomeNavbarItem, HomeConfig, HomeBlockItem } from '../../../../shared/schema';
+
 interface NavbarSettings {
 	navbarBrand?: string;
+	homeConfig?: HomeConfig;
 }
 
 type NavItem =
@@ -271,44 +274,62 @@ export default function Navbar({
 		return Array.from(months).sort((a, b) => a - b);
 	}, [eventsData]);
 
+	const navCfgArr: HomeNavbarItem[] | undefined = settings?.homeConfig?.navbar;
+	const showDashLink = settings?.homeConfig?.showDashboardLink ?? true;
+
 	const navItems = useMemo(() => {
-		const items: NavItem[] = [];
 		const yearCount = activeYears.length;
-		if (yearCount === 0) return baseNavItemsWithoutEvents;
 
+		const isVisible = (id: string): boolean => {
+			if (!navCfgArr || navCfgArr.length === 0) return true;
+			const item = navCfgArr.find((n) => n.id === id);
+			return item ? item.visible : true;
+		};
+
+		const navItemMap = new Map<string, NavItem>();
 		for (const item of baseNavItemsWithoutEvents) {
-			if (item.id === 'kelembagaan') {
-				let children: { label: string; href?: string; month?: number }[];
-
-				if (yearCount === 1) {
-					// 1 tahun: link tahun + bulan-bulan
-					children = [
-						{ label: `Lihat semua event ${activeYears[0]}`, href: `/events/${activeYears[0]}` },
-						...eventMonths.map((m: number) => ({ label: MONTH_NAMES[m - 1], month: m })),
-					];
-				} else if (yearCount <= 5) {
-					// 2-5 tahun: list tahun saja (tanpa bulan)
-					children = activeYears.map((yr) => ({
-						label: `Lihat semua event ${yr}`,
-						href: `/events/${yr}`,
-					}));
-				} else {
-					// >5 tahun: hanya 1 link ke pilih tahun
-					children = [{ label: 'Lihat semua event', href: '/events' }];
-				}
-
-				items.push({
-					id: 'events',
-					label: 'Event',
-					icon: <Calendar className="h-4 w-4" />,
-					homeSection: 'events',
-					children,
-				});
-			}
-			items.push(item);
+			navItemMap.set(item.id, item);
 		}
-		return items;
-	}, [activeYears, eventMonths]);
+
+		let eventsNavItem: NavItem | null = null;
+		if (yearCount > 0 && isVisible('events')) {
+			let children: { label: string; href?: string; month?: number }[];
+			if (yearCount === 1) {
+				children = [
+					{ label: `Lihat semua event ${activeYears[0]}`, href: `/events/${activeYears[0]}` },
+					...eventMonths.map((m: number) => ({ label: MONTH_NAMES[m - 1], month: m })),
+				];
+			} else if (yearCount <= 5) {
+				children = activeYears.map((yr) => ({
+					label: `Lihat semua event ${yr}`,
+					href: `/events/${yr}`,
+				}));
+			} else {
+				children = [{ label: 'Lihat semua event', href: '/events' }];
+			}
+			eventsNavItem = {
+				id: 'events',
+				label: 'Event',
+				icon: <Calendar className="h-4 w-4" />,
+				homeSection: 'events',
+				children,
+			};
+			navItemMap.set('events', eventsNavItem);
+		}
+
+		const orderedIds: string[] = navCfgArr && navCfgArr.length > 0
+			? navCfgArr.map((n) => n.id)
+			: ['home', 'profil', 'kelembagaan', 'events', 'berita', 'library'];
+
+		const result: NavItem[] = [];
+		for (const id of orderedIds) {
+			if (!isVisible(id)) continue;
+			const item = navItemMap.get(id);
+			if (item) result.push(item);
+		}
+
+		return result;
+	}, [activeYears, eventMonths, navCfgArr]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.
@@ -333,6 +354,56 @@ export default function Navbar({
 	};
 
 	/**
+	 * Resolve anchor ID untuk scroll/redirect saat klik parent dropdown.
+	 * Jika parent section di-hide di homeConfig.blocks, fallback ke subItem visible pertama.
+	 */
+	const resolveHomeTargetForDropdownParent = useCallback(
+		(itemId: string, item: NavItem): string | null => {
+			const visibleBlocks: HomeBlockItem[] =
+				settings?.homeConfig?.blocks?.filter((b) => b.visible) ?? [];
+			const isVisible = (id: string, kind?: 'section' | 'subItem') => {
+				const b = visibleBlocks.find((x) => x.id === id && (!kind || x.kind === kind));
+				return b ? b.visible : false;
+			};
+
+			if (itemId === 'profil') {
+				if (isVisible('about', 'section')) return 'about';
+				const subOrder = ['profil.tentangKami', 'profil.sejarah', 'profil.filosofi'];
+				for (const sid of subOrder) {
+					const b = visibleBlocks.find((x) => x.id === sid && x.kind === 'subItem');
+					if (b?.visible) return sid.replace('.', '-');
+				}
+				return null;
+			}
+
+			if (itemId === 'kelembagaan') {
+				// 1. section visionMission
+				if (isVisible('visionMission', 'section')) return 'vision-mission';
+				// 2. subItem kelembagaan.visionMission
+				const subVm = visibleBlocks.find((x) => x.id === 'kelembagaan.visionMission' && x.kind === 'subItem');
+				if (subVm?.visible)
+					return subVm.renderMode === 'full' ? 'vision-mission' : 'kelembagaan-visionMission';
+				// 3. section structure
+				if (isVisible('structure', 'section')) return 'structure';
+				// 4. subItem kelembagaan.structure
+				const subSt = visibleBlocks.find((x) => x.id === 'kelembagaan.structure' && x.kind === 'subItem');
+				if (subSt?.visible)
+					return subSt.renderMode === 'full' ? 'structure' : 'kelembagaan-structure';
+				return null;
+			}
+
+			if (itemId === 'berita' || itemId === 'events') {
+				const sectionId = itemId === 'berita' ? 'berita' : 'events';
+				if (isVisible(sectionId, 'section')) return item.homeSection ?? sectionId;
+				return null;
+			}
+
+			return item.homeSection ?? null;
+		},
+		[settings?.homeConfig?.blocks],
+	);
+
+	/**
 	 * Klik tombol nav (bukan anak dropdown):
 	 * - Jika item punya dropdown:
 	 *   - Di beranda: scroll ke section terkait + buka dropdown
@@ -347,20 +418,18 @@ export default function Navbar({
 		if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
 
 		const now = Date.now();
+		const target = resolveHomeTargetForDropdownParent(item.id, item);
 
-		// Di halaman lain: gunakan pola \"double click\" berbasis waktu,
-		// bukan berdasarkan state open dropdown (karena state bisa berubah
-		// lebih dulu oleh DropdownMenu).
+		// Di halaman lain: gunakan pola "double click" berbasis waktu
 		if (location !== '/') {
 			if (
 				lastParentClickRef.current &&
 				lastParentClickRef.current.id === item.id &&
 				now - lastParentClickRef.current.time < 1000 &&
-				item.homeSection
+				target
 			) {
-				// Klik kedua dalam waktu 600ms → redirect ke beranda section terkait
-				const targetSection = item.homeSection;
-				window.location.href = `/#${targetSection}`;
+				// Klik kedua dalam waktu 1s → redirect ke beranda section terkait (fallback ke subItem jika parent hidden)
+				window.location.href = `/#${target}`;
 				lastParentClickRef.current = null;
 				return;
 			}
@@ -373,18 +442,16 @@ export default function Navbar({
 		openDropdownIdRef.current = dropdownId;
 		setOpenDropdownId(dropdownId);
 
-		// Jika di beranda dan item punya homeSection, scroll ke section tersebut
-		if (location === '/' && item.homeSection) {
-			// Tandai scroll ini sebagai programatik agar handleScrollActivity tidak menutup dropdown
+		// Jika di beranda dan ada target anchor visible, scroll ke section tersebut
+		if (location === '/' && target) {
 			programmaticScrollRef.current = true;
 			if (programmaticScrollTimerRef.current)
 				clearTimeout(programmaticScrollTimerRef.current);
-			// Beri waktu 2000ms — cukup untuk smooth scroll selesai di semua perangkat
 			programmaticScrollTimerRef.current = setTimeout(() => {
 				programmaticScrollRef.current = false;
 			}, 2000);
 
-			scrollToSection(item.homeSection);
+			scrollToSection(target);
 		}
 	};
 
@@ -616,14 +683,16 @@ export default function Navbar({
 											</p>
 										</div>
 										<DropdownMenuSeparator />
-										<DropdownMenuItem asChild>
-											<Link
-												href="/dashboard"
-												className="cursor-pointer">
-												<Settings className="mr-2 h-4 w-4" />
-												Dashboard
-											</Link>
-										</DropdownMenuItem>
+										{showDashLink !== false && (
+											<DropdownMenuItem asChild>
+												<Link
+													href="/dashboard"
+													className="cursor-pointer">
+													<Settings className="mr-2 h-4 w-4" />
+													Dashboard
+												</Link>
+											</DropdownMenuItem>
+										)}
 										<DropdownMenuSeparator />
 										<DropdownMenuItem
 											onClick={handleLogout}
@@ -894,14 +963,16 @@ export default function Navbar({
 														</p>
 													</div>
 													<DropdownMenuSeparator />
-													<DropdownMenuItem asChild>
-														<Link
-															href="/dashboard"
-															className="cursor-pointer">
-															<Settings className="mr-2 h-4 w-4" />
-															Dashboard
-														</Link>
-													</DropdownMenuItem>
+													{showDashLink !== false && (
+														<DropdownMenuItem asChild>
+															<Link
+																href="/dashboard"
+																className="cursor-pointer">
+																<Settings className="mr-2 h-4 w-4" />
+																Dashboard
+															</Link>
+														</DropdownMenuItem>
+													)}
 													<DropdownMenuSeparator />
 													<DropdownMenuItem
 														onClick={handleLogout}

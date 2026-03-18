@@ -288,6 +288,23 @@ const settingsSchema = new mongoose.Schema({
 	mapsEmbedUrl: { type: String, default: '' },
 	eventsAutoScrollEnabled: { type: Boolean, default: true },
 	eventsAllowMultipleYearsOnHome: { type: Boolean, default: false },
+	homeConfig: {
+		blocks: [
+			{
+				id: { type: String, required: true },
+				kind: { type: String, enum: ['section', 'subItem'], required: true },
+				visible: { type: Boolean, default: true },
+				renderMode: { type: String, enum: ['summary', 'full'], default: 'summary' },
+			},
+		],
+		navbar: [
+			{
+				id: { type: String, required: true },
+				visible: { type: Boolean, default: true },
+			},
+		],
+		showDashboardLink: { type: Boolean, default: true },
+	},
 	// Halaman lengkap Tentang Kami (sejarah, track record, lambang)
 	aboutPageIntro: {
 		type: String,

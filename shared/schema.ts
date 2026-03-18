@@ -122,12 +122,65 @@ export interface Settings {
 	};
 	eventsAutoScrollEnabled?: boolean;
 	eventsAllowMultipleYearsOnHome?: boolean;
+	homeConfig?: HomeConfig;
 	// Halaman lengkap Tentang Kami
 	aboutPageIntro?: string;
 	aboutPageTrackRecord?: AboutPageTrackRecordItem[];
 	aboutPageLambang?: AboutPageLambangItem[];
 	updatedAt: Date;
 }
+
+export interface HomeBlockItem {
+	id: string;
+	kind: 'section' | 'subItem';
+	visible: boolean;
+	renderMode?: 'summary' | 'full';
+}
+
+export interface HomeNavbarItem {
+	id: string;
+	visible: boolean;
+}
+
+export interface HomeConfig {
+	blocks: HomeBlockItem[];
+	navbar: HomeNavbarItem[];
+	showDashboardLink: boolean;
+}
+
+export const ALL_SECTION_BLOCKS: { id: string; label: string }[] = [
+	{ id: 'hero', label: 'Hero / Banner' },
+	{ id: 'about', label: 'Profil / Tentang Kami' },
+	{ id: 'events', label: 'Event' },
+	{ id: 'visionMission', label: 'Visi & Misi' },
+	{ id: 'structure', label: 'Struktur Organisasi' },
+	{ id: 'berita', label: 'Berita' },
+	{ id: 'library', label: 'Galeri / Library' },
+	{ id: 'footer', label: 'Footer' },
+];
+
+export const ALL_SUBITEM_BLOCKS: { id: string; label: string; parent: string; href: string }[] = [
+	{ id: 'profil.tentangKami', label: 'Tentang Kami', parent: 'profil', href: '/profil#tentang-kami' },
+	{ id: 'profil.sejarah', label: 'Sejarah', parent: 'profil', href: '/profil#sejarah' },
+	{ id: 'profil.filosofi', label: 'Filosofi', parent: 'profil', href: '/profil#filosofi' },
+	{ id: 'kelembagaan.visionMission', label: 'Visi & Misi (Kelembagaan)', parent: 'kelembagaan', href: '/kelembagaan#vision-mission' },
+	{ id: 'kelembagaan.structure', label: 'Struktur Organisasi (Kelembagaan)', parent: 'kelembagaan', href: '/kelembagaan#structure' },
+];
+
+export const ALL_NAVBAR_ITEMS: { id: string; label: string }[] = [
+	{ id: 'home', label: 'Beranda' },
+	{ id: 'profil', label: 'Profil' },
+	{ id: 'kelembagaan', label: 'Kelembagaan' },
+	{ id: 'events', label: 'Event' },
+	{ id: 'berita', label: 'Berita' },
+	{ id: 'library', label: 'Galeri' },
+];
+
+export const DEFAULT_HOME_CONFIG: HomeConfig = {
+	blocks: ALL_SECTION_BLOCKS.map((s) => ({ id: s.id, kind: 'section' as const, visible: true })),
+	navbar: ALL_NAVBAR_ITEMS.map((n) => ({ id: n.id, visible: true })),
+	showDashboardLink: true,
+};
 
 export interface AboutPageTrackRecordItem {
 	year: string;
