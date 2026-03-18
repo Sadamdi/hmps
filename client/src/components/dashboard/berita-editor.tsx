@@ -488,23 +488,17 @@ export default function BeritaEditor({
 		if (!title.trim() || !excerpt.trim() || !content.trim()) {
 			toast({
 				title: 'Error',
-				description: 'All fields are required',
+				description: 'Semua kolom wajib diisi',
 				variant: 'destructive',
 			});
 			return;
 		}
-		if (!imageUrl && !gdriveUrl) {
+		const isNewBerita = !berita;
+		const hasExistingThumbnail = !isNewBerita && !!berita?.image;
+		if (!selectedFile && !hasExistingThumbnail) {
 			toast({
 				title: 'Error',
-				description: 'Provide a Google Drive image link',
-				variant: 'destructive',
-			});
-			return;
-		}
-		if (gdriveUrl && !isGdriveValid) {
-			toast({
-				title: 'Error',
-				description: gdriveError || 'Invalid Google Drive link',
+				description: 'Thumbnail wajib diupload',
 				variant: 'destructive',
 			});
 			return;
