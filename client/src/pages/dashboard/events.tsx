@@ -121,11 +121,11 @@ export default function DashboardEvents() {
 	const [formThumbnail, setFormThumbnail] = useState<File | null>(null);
 	const [formAttachments, setFormAttachments] = useState<File[]>([]);
 	const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
-	const [selectedArticleIds, setSelectedArticleIds] = useState<string[]>([]);
-	const [articleSearch, setArticleSearch] = useState('');
+	const [selectedBeritaIds, setSelectedBeritaIds] = useState<string[]>([]);
+	const [beritaSearch, setBeritaSearch] = useState('');
 
-	// Copy to article state
-	const [copyToArticleEvent, setCopyToArticleEvent] = useState<EventItem | null>(null);
+	// Copy to berita state
+	const [copyToBeritaEvent, setCopyToBeritaEvent] = useState<EventItem | null>(null);
 	const [copyAttachments, setCopyAttachments] = useState(false);
 
 	// Queries
@@ -141,13 +141,13 @@ export default function DashboardEvents() {
 
 	const multiYearMode = siteSettings?.eventsAllowMultipleYearsOnHome === true;
 
-	const { data: publishedArticles = [] } = useQuery<{ _id: string; title: string; slug?: string }[]>({
+	const { data: publishedBerita = [] } = useQuery<{ _id: string; title: string; slug?: string }[]>({
 		queryKey: ['/api/berita/manage'],
 		queryFn: async () => {
 			const res = await fetch('/api/berita/manage', { credentials: 'include' });
 			if (!res.ok) return [];
 			const data = await res.json();
-			return (data.articles || data || []).filter((a: any) => a.published);
+			return (data.data || data || []).filter((a: any) => a.published);
 		},
 		enabled: isEventDialogOpen && hasSpecificPermission('events.edit'),
 	});
@@ -265,7 +265,7 @@ export default function DashboardEvents() {
 		},
 	});
 
-	const copyToArticleMut = useMutation({
+	const copyToBeritaMut = useMutation({
 		mutationFn: async ({ eventId, copyAtts }: { eventId: string; copyAtts: boolean }) => {
 			const res = await apiRequest('POST', `/api/events/${eventId}/copy-to-berita`, { copyAttachments: copyAtts });
 			return res.json();
@@ -273,14 +273,14 @@ export default function DashboardEvents() {
 		onSuccess: (data: any) => {
 			queryClient.invalidateQueries({ queryKey: ['/api/berita'], exact: false });
 			queryClient.invalidateQueries({ queryKey: ['/api/events'], exact: false });
-			setCopyToArticleEvent(null);
+			setCopyToBeritaEvent(null);
 			toast({
 				title: 'Berita berhasil dibuat dari event!',
 				description: `"${data.title}" – silakan edit di halaman berita.`,
 			});
 		},
 		onError: (err: any) => {
-			toast({ title: 'Gagal membuat artikel', description: err.message, variant: 'destructive' });
+			toast({ title: 'Gagal membuat berita', description: err.message, variant: 'destructive' });
 		},
 	});
 
@@ -293,8 +293,8 @@ export default function DashboardEvents() {
 		setFormThumbnail(null);
 		setFormAttachments([]);
 		setExistingAttachments([]);
-		setSelectedArticleIds([]);
-		setArticleSearch('');
+		setSelectedBeritaIds([]);
+		setBeritaSearch('');
 		setEditingEvent(null);
 	}, []);
 
@@ -315,11 +315,11 @@ export default function DashboardEvents() {
 		setExistingAttachments(event.attachments || []);
 		setFormThumbnail(null);
 		setFormAttachments([]);
-		const articleIds = (event.relatedBerita || [])
+		const beritaIds = (event.relatedBerita || [])
 			.map((a: any) => (typeof a === 'object' && a !== null ? a._id : typeof a === 'string' ? a : null))
 			.filter((id): id is string => typeof id === 'string' && id.length > 0);
-		setSelectedArticleIds(articleIds);
-		setArticleSearch('');
+		setSelectedBeritaIds(beritaIds);
+		setBeritaSearch('');
 		setIsEventDialogOpen(true);
 	}, []);
 
@@ -351,11 +351,11 @@ export default function DashboardEvents() {
 			fd.append('attachmentFiles', f);
 		}
 		fd.append('attachments', JSON.stringify(existingAttachments));
-		const cleanArticleIds = selectedArticleIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
-		fd.append('relatedBeritaIds', JSON.stringify(cleanArticleIds));
+		const cleanBeritaIds = selectedBeritaIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
+		fd.append('relatedBeritaIds', JSON.stringify(cleanBeritaIds));
 
 		saveEventMut.mutate({ formData: fd, isEditing });
-	}, [formTitle, formDesc, formStartDate, formEndDate, formPublished, formThumbnail, formAttachments, existingAttachments, selectedArticleIds, selectedYearId, selectedParentEvent, editingEvent, saveEventMut, toast]);
+	}, [formTitle, formDesc, formStartDate, formEndDate, formPublished, formThumbnail, formAttachments, existingAttachments, selectedBeritaIds, selectedYearId, selectedParentEvent, editingEvent, saveEventMut, toast]);
 
 	const eventsByMonth = useMemo(() => {
 		const map = new Map<number, EventItem[]>();
@@ -682,7 +682,7 @@ export default function DashboardEvents() {
 																	size="sm"
 																	className="flex-1 sm:flex-none text-xs"
 																	title="Copy ke Berita"
-																	onClick={() => { setCopyToArticleEvent(ev); setCopyAttachments(false); }}
+																	onClick={() => { setCopyToBeritaEvent(ev); setCopyAttachments(false); }}
 																>
 																	<Copy className="h-3 w-3 mr-1" />
 																	<span className="hidden xs:inline">Copy → </span>Berita
@@ -809,21 +809,21 @@ export default function DashboardEvents() {
 									<Input
 										className="pl-8 h-8 text-sm"
 										placeholder="Cari judul berita..."
-										value={articleSearch}
-										onChange={(e) => setArticleSearch(e.target.value)}
+										value={beritaSearch}
+										onChange={(e) => setBeritaSearch(e.target.value)}
 									/>
 								</div>
-								{selectedArticleIds.length > 0 && (
+								{selectedBeritaIds.length > 0 && (
 									<div className="flex flex-wrap gap-1 mb-2">
-										{selectedArticleIds.map((id) => {
-											const art = publishedArticles.find((a) => a._id === id);
+										{selectedBeritaIds.map((id) => {
+											const art = publishedBerita.find((a) => a._id === id);
 											return art ? (
 												<Badge key={id} variant="secondary" className="text-xs gap-1">
 													{art.title.length > 30 ? art.title.slice(0, 30) + '…' : art.title}
 													<button
 														type="button"
 														className="ml-1 text-muted-foreground hover:text-destructive"
-														onClick={() => setSelectedArticleIds((prev) => prev.filter((i) => i !== id))}
+														onClick={() => setSelectedBeritaIds((prev) => prev.filter((i) => i !== id))}
 													>
 														×
 													</button>
@@ -833,14 +833,14 @@ export default function DashboardEvents() {
 									</div>
 								)}
 								<div className="border rounded-md max-h-40 overflow-y-auto">
-									{publishedArticles
+									{publishedBerita
 										.filter((a) =>
-											articleSearch
-												? a.title.toLowerCase().includes(articleSearch.toLowerCase())
+											beritaSearch
+												? a.title.toLowerCase().includes(beritaSearch.toLowerCase())
 												: true
 										)
 										.map((a) => {
-											const checked = selectedArticleIds.includes(a._id);
+											const checked = selectedBeritaIds.includes(a._id);
 											return (
 												<label
 													key={a._id}
@@ -850,7 +850,7 @@ export default function DashboardEvents() {
 														type="checkbox"
 														checked={checked}
 														onChange={() => {
-															setSelectedArticleIds((prev) =>
+															setSelectedBeritaIds((prev) =>
 																checked
 																	? prev.filter((i) => i !== a._id)
 																	: [...prev, a._id]
@@ -862,13 +862,13 @@ export default function DashboardEvents() {
 												</label>
 											);
 										})}
-									{publishedArticles.filter((a) =>
-										articleSearch
-											? a.title.toLowerCase().includes(articleSearch.toLowerCase())
+									{publishedBerita.filter((a) =>
+										beritaSearch
+											? a.title.toLowerCase().includes(beritaSearch.toLowerCase())
 											: true
 									).length === 0 && (
 										<p className="text-center text-sm text-muted-foreground py-4">
-											{articleSearch ? 'Tidak ada berita yang cocok' : 'Belum ada berita publish'}
+											{beritaSearch ? 'Tidak ada berita yang cocok' : 'Belum ada berita publish'}
 										</p>
 									)}
 								</div>
@@ -891,16 +891,16 @@ export default function DashboardEvents() {
 			</Dialog>
 
 			{/* Dialog Copy Event ke Berita */}
-			<Dialog open={!!copyToArticleEvent} onOpenChange={(o) => { if (!o) setCopyToArticleEvent(null); }}>
+			<Dialog open={!!copyToBeritaEvent} onOpenChange={(o) => { if (!o) setCopyToBeritaEvent(null); }}>
 				<DialogContent className="w-[calc(100vw-1rem)] max-w-md">
 					<DialogHeader>
 						<DialogTitle>Copy Event ke Berita</DialogTitle>
 					</DialogHeader>
-					{copyToArticleEvent && (
+					{copyToBeritaEvent && (
 						<div className="space-y-4">
 							<p className="text-sm text-muted-foreground">
-								Akan dibuat artikel baru (draft) dari event <strong>"{copyToArticleEvent.title}"</strong>.
-								Anda bisa mengedit dan mempublikasikannya nanti di halaman Artikel.
+								Akan dibuat berita baru (draft) dari event <strong>"{copyToBeritaEvent.title}"</strong>.
+								Anda bisa mengedit dan mempublikasikannya nanti di halaman Berita.
 							</p>
 							<div className="flex items-center gap-2">
 								<input
@@ -917,14 +917,14 @@ export default function DashboardEvents() {
 							<div className="flex flex-col gap-2 sm:flex-row pt-2">
 								<Button
 									className="flex-1"
-									onClick={() => copyToArticleMut.mutate({ eventId: copyToArticleEvent._id, copyAtts: copyAttachments })}
-									disabled={copyToArticleMut.isPending}
+									onClick={() => copyToBeritaMut.mutate({ eventId: copyToBeritaEvent._id, copyAtts: copyAttachments })}
+									disabled={copyToBeritaMut.isPending}
 								>
-									{copyToArticleMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+									{copyToBeritaMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
 									<Copy className="h-4 w-4 mr-2" />
 									Buat Berita
 								</Button>
-								<Button variant="outline" onClick={() => setCopyToArticleEvent(null)}>Batal</Button>
+								<Button variant="outline" onClick={() => setCopyToBeritaEvent(null)}>Batal</Button>
 							</div>
 						</div>
 					)}

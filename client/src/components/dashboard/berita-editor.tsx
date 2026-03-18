@@ -20,7 +20,7 @@ import { CalendarDays, Copy, Image, Link2, Loader2, Upload, X } from 'lucide-rea
 import { useEffect, useRef, useState } from 'react';
 import RichTextEditor from './rich-text-editor';
 
-interface Article {
+interface BeritaData {
 	id?: number;
 	_id?: string;
 	title: string;
@@ -33,31 +33,31 @@ interface Article {
 	tags?: string[];
 }
 
-interface ArticleEditorProps {
-	article: Article | null;
+interface BeritaEditorProps {
+	berita: BeritaData | null;
 	onSave: () => void;
 	onCancel: () => void;
 }
 
-export default function ArticleEditor({
-	article,
+export default function BeritaEditor({
+	berita,
 	onSave,
 	onCancel,
-}: ArticleEditorProps) {
+}: BeritaEditorProps) {
 	const { user } = useAuth();
 	const { toast } = useToast();
 
-	const [title, setTitle] = useState(article?.title || '');
-	const [excerpt, setExcerpt] = useState(article?.excerpt || '');
-	const [content, setContent] = useState(article?.content || '');
-	const [imageUrl, setImageUrl] = useState(article?.image || '');
-	const [tags, setTags] = useState<string[]>(article?.tags || []);
+	const [title, setTitle] = useState(berita?.title || '');
+	const [excerpt, setExcerpt] = useState(berita?.excerpt || '');
+	const [content, setContent] = useState(berita?.content || '');
+	const [imageUrl, setImageUrl] = useState(berita?.image || '');
+	const [tags, setTags] = useState<string[]>(berita?.tags || []);
 	const [newTag, setNewTag] = useState('');
 	const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
 	const [gdriveUrl, setGdriveUrl] = useState('');
 	const [isGdriveValid, setIsGdriveValid] = useState(false);
 	const [gdriveError, setGdriveError] = useState<string | undefined>();
-	const [isPublished, setIsPublished] = useState(article?.published || false);
+	const [isPublished, setIsPublished] = useState(berita?.published || false);
 	const [activeTab, setActiveTab] = useState('edit');
 	const contentImageInputRef = useRef<HTMLInputElement>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
@@ -101,11 +101,11 @@ export default function ArticleEditor({
 	const fetchAllTags = async () => {
 		try {
 			const response = await fetch('/api/berita');
-			const articles = await response.json();
+			const beritaList = await response.json();
 			const tags = new Set<string>();
-			articles.forEach((article: any) => {
-				if (article.tags) {
-					article.tags.forEach((tag: string) => tags.add(tag));
+			beritaList.forEach((item: any) => {
+				if (item.tags) {
+					item.tags.forEach((tag: string) => tags.add(tag));
 				}
 			});
 			setAllExistingTags(Array.from(tags).sort());
@@ -124,11 +124,11 @@ export default function ArticleEditor({
 		}
 	};
 
-	const saveArticleMutation = useMutation({
+	const saveBeritaMutation = useMutation({
 		mutationFn: async (formData: FormData) => {
-			const articleId = (article as any)?._id || article?.id;
-			return articleId
-				? apiRequest('PUT', `/api/berita/${articleId}`, formData)
+			const beritaId = (berita as any)?._id || berita?.id;
+			return beritaId
+				? apiRequest('PUT', `/api/berita/${beritaId}`, formData)
 				: apiRequest('POST', '/api/berita', formData);
 		},
 		onSuccess: async (response) => {
@@ -139,7 +139,7 @@ export default function ArticleEditor({
 
 			// Log activity
 			try {
-				const isEdit = !!(article as any)?._id || !!article?.id;
+				const isEdit = !!(berita as any)?._id || !!berita?.id;
 				let responseData;
 
 				// Handle response safely
@@ -149,18 +149,18 @@ export default function ArticleEditor({
 					responseData = response; // Already parsed
 				}
 
-				const articleId = responseData?._id || responseData?.id || 'unknown';
+				const beritaId = responseData?._id || responseData?.id || 'unknown';
 
 				if (isEdit) {
-					await logActivity(ActivityTemplates.beritaUpdated(title, articleId));
+					await logActivity(ActivityTemplates.beritaUpdated(title, beritaId));
 				} else {
-					await logActivity(ActivityTemplates.beritaCreated(title, articleId));
+					await logActivity(ActivityTemplates.beritaCreated(title, beritaId));
 				}
 
 				// Log publish activity if published
 				if (isPublished) {
 					await logActivity(
-						ActivityTemplates.beritaPublished(title, articleId)
+						ActivityTemplates.beritaPublished(title, beritaId)
 					);
 				}
 			} catch (error) {
@@ -183,10 +183,9 @@ export default function ArticleEditor({
 			const formData = new FormData();
 			formData.append('image', file);
 
-			// Kirim articleId untuk folder organization
-			const articleId =
-				(article as any)?._id || article?.id || 'temp-' + Date.now();
-			formData.append('articleId', articleId.toString());
+			const beritaId =
+				(berita as any)?._id || berita?.id || 'temp-' + Date.now();
+			formData.append('beritaId', beritaId.toString());
 
 			const response = await apiRequest(
 				'POST',
@@ -250,18 +249,18 @@ export default function ArticleEditor({
 		},
 	});
 
-	const articleId = (article as any)?._id || article?.id;
+	const beritaId = (berita as any)?._id || berita?.id;
 
 	// Linked events query
 	const { data: linkedEvents = [], refetch: refetchLinkedEvents } = useQuery<any[]>({
-		queryKey: [`/api/berita/${articleId}/events`],
+		queryKey: [`/api/berita/${beritaId}/events`],
 		queryFn: async () => {
-			if (!articleId) return [];
-			const res = await fetch(`/api/berita/${articleId}/events`);
+			if (!beritaId) return [];
+			const res = await fetch(`/api/berita/${beritaId}/events`);
 			if (!res.ok) return [];
 			return res.json();
 		},
-		enabled: !!articleId,
+		enabled: !!beritaId,
 	});
 
 	// Event years query (for copy dialog)
@@ -294,8 +293,8 @@ export default function ArticleEditor({
 
 	const copyToEventMut = useMutation({
 		mutationFn: async ({ year, parentEventId, copyAtts }: { year: number; parentEventId?: string; copyAtts: boolean }) => {
-			if (!articleId) throw new Error('Simpan berita terlebih dahulu sebelum copy ke event.');
-			const res = await apiRequest('POST', `/api/berita/${articleId}/copy-to-event`, {
+			if (!beritaId) throw new Error('Simpan berita terlebih dahulu sebelum copy ke event.');
+			const res = await apiRequest('POST', `/api/berita/${beritaId}/copy-to-event`, {
 				year,
 				parentEventId: parentEventId || undefined,
 				copyAttachments: copyAtts,
@@ -322,12 +321,12 @@ export default function ArticleEditor({
 
 	const detachEventMut = useMutation({
 		mutationFn: async (eventId: string) => {
-			if (!articleId) return;
-			await apiRequest('DELETE', `/api/berita/${articleId}/attach-event/${eventId}`);
+			if (!beritaId) return;
+			await apiRequest('DELETE', `/api/berita/${beritaId}/attach-event/${eventId}`);
 		},
 		onSuccess: () => {
 			refetchLinkedEvents();
-			toast({ title: 'Event berhasil dilepas dari artikel' });
+			toast({ title: 'Event berhasil dilepas dari berita' });
 		},
 	});
 
@@ -528,7 +527,7 @@ export default function ArticleEditor({
 			formData.append('image', selectedFile);
 		}
 
-		await saveArticleMutation.mutateAsync(formData);
+		await saveBeritaMutation.mutateAsync(formData);
 		// Refresh daftar tag global agar tag baru langsung muncul di Existing tags
 		await fetchAllTags();
 		setTitle('');
@@ -539,22 +538,21 @@ export default function ArticleEditor({
 		toast({ title: 'Berhasil', description: 'Berita disimpan.' });
 	};
 
-	// Load article data saat edit mode
+	// Load berita data saat edit mode
 	useEffect(() => {
-		if (article) {
-			setTitle(article.title || '');
-			setExcerpt(article.excerpt || '');
-			setContent(article.content || '');
-			setImageUrl(article.image || '');
-			setTags(article.tags || []);
-			setIsPublished(article.published || false);
+		if (berita) {
+			setTitle(berita.title || '');
+			setExcerpt(berita.excerpt || '');
+			setContent(berita.content || '');
+			setImageUrl(berita.image || '');
+			setTags(berita.tags || []);
+			setIsPublished(berita.published || false);
 
-			// Set image preview untuk edit mode
-			if (article.image && !article.image.startsWith('blob:')) {
-				setImagePreview(article.image);
+			if (berita.image && !berita.image.startsWith('blob:')) {
+				setImagePreview(berita.image);
 			}
 		}
-	}, [article]);
+	}, [berita]);
 
 	// Fetch all existing tags when component mounts
 	useEffect(() => {
@@ -742,8 +740,8 @@ export default function ArticleEditor({
 								onChange={setContent}
 								placeholder="Tulis konten berita di sini..."
 								height={500}
-								articleId={
-									(article as any)?._id || article?.id || 'temp-' + Date.now()
+								beritaId={
+									(berita as any)?._id || berita?.id || 'temp-' + Date.now()
 								}
 							/>
 						</div>
@@ -775,7 +773,7 @@ export default function ArticleEditor({
 			</div>
 
 		{/* Linked Events Section */}
-		{articleId && (
+		{beritaId && (
 			<div className="border rounded-lg p-4 space-y-3">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center gap-2">
@@ -824,8 +822,8 @@ export default function ArticleEditor({
 			</Button>
 			<Button
 				onClick={handleSave}
-				disabled={saveArticleMutation.isPending}>
-				{saveArticleMutation.isPending ? (
+				disabled={saveBeritaMutation.isPending}>
+				{saveBeritaMutation.isPending ? (
 					<>
 						<Loader2 className="mr-2 h-4 w-4 animate-spin" />
 						Saving...
@@ -850,7 +848,7 @@ export default function ArticleEditor({
 				</DialogHeader>
 				<div className="space-y-4">
 					<p className="text-sm text-muted-foreground">
-						Akan dibuat event baru (draft) dari artikel ini. Anda bisa mengedit di halaman dashboard event.
+						Akan dibuat event baru (draft) dari berita ini. Anda bisa mengedit di halaman dashboard event.
 					</p>
 					<div className="space-y-1">
 						<Label>Tahun Event</Label>

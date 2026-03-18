@@ -14,7 +14,7 @@
   - _Requirements: 1.3, 5.3_
 
 - [ ] 3. Extend database schema for Google Drive support
-  - Add optional fields to articles table for Google Drive metadata (imageSource, gdriveFileId)
+  - Add optional fields to berita table for Google Drive metadata (imageSource, gdriveFileId)
   - Add optional fields to library table for mixed media sources (imageSources, gdriveFileIds)
   - Create database migration script for backward compatibility
   - _Requirements: 5.4, 5.1, 5.2_
@@ -31,9 +31,9 @@
   - Add loading states and error fallbacks for inaccessible Google Drive files
   - _Requirements: 2.1, 2.2, 2.4, 3.4_
 
-- [ ] 6. Update article creation API to support Google Drive links
-  - Modify article POST endpoint to accept Google Drive URLs instead of file uploads
-  - Add Google Drive link validation in article creation flow
+- [ ] 6. Update berita creation API to support Google Drive links
+  - Modify berita POST endpoint to accept Google Drive URLs instead of file uploads
+  - Add Google Drive link validation in berita creation flow
   - Implement backward compatibility for existing local image handling
   - _Requirements: 1.1, 1.4, 5.1_
 
@@ -43,10 +43,10 @@
   - Add validation for multiple Google Drive links in single library item
   - _Requirements: 1.2, 1.4, 5.2_
 
-- [ ] 8. Update article editor form to use Google Drive link input
-  - Replace file upload input with Google Drive link input in ArticleEditor component
+- [ ] 8. Update berita editor form to use Google Drive link input
+  - Replace file upload input with Google Drive link input in BeritaEditor component
   - Add form validation and user feedback for Google Drive link accessibility
-  - Maintain backward compatibility for editing existing articles with local images
+  - Maintain backward compatibility for editing existing berita with local images
   - _Requirements: 1.1, 3.3_
 
 - [ ] 9. Update media uploader form to use Google Drive link input
@@ -55,9 +55,9 @@
   - Maintain backward compatibility for editing existing library items with local images
   - _Requirements: 1.2, 3.3_
 
-- [ ] 10. Update article display pages with new media component
-  - Replace existing image display with new media component in article detail view
-  - Replace existing image display with new media component in article list view
+- [ ] 10. Update berita display pages with new media component
+  - Replace existing image display with new media component in berita detail view
+  - Replace existing image display with new media component in berita list view
   - Ensure proper fallback handling for inaccessible Google Drive content
   - _Requirements: 2.1, 2.4, 5.1_
 

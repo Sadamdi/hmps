@@ -1,6 +1,6 @@
 import { mongoStorage } from '../mongo-storage';
 
-type ArticleLite = {
+type BeritaLite = {
 	_id?: string;
 	title?: string;
 	excerpt?: string;
@@ -15,7 +15,7 @@ type ArticleLite = {
  */
 export class RecommendationService {
 	private static cacheTimestamp = 0;
-	private static articles: ArticleLite[] = [];
+	private static beritaList: BeritaLite[] = [];
 	private static vectors: Map<string, Map<string, number>> = new Map();
 	private static idf: Map<string, number> = new Map();
 	private static vocab: Set<string> = new Set();
@@ -37,12 +37,12 @@ export class RecommendationService {
 
 	private static async ensureIndex(): Promise<void> {
 		const now = Date.now();
-		if (now - this.cacheTimestamp < this.REFRESH_MS && this.articles.length > 0)
+		if (now - this.cacheTimestamp < this.REFRESH_MS && this.beritaList.length > 0)
 			return;
 
-		let all = await mongoStorage.getPublishedArticles();
+		let all = await mongoStorage.getPublishedBerita();
 		try {
-			const allAny = await mongoStorage.getAllArticles();
+			const allAny = await mongoStorage.getAllBerita();
 			if (Array.isArray(allAny) && allAny.length > 0) {
 				const seen = new Set(
 					(all || []).map((a: any) => String(a._id || a.id))
@@ -56,7 +56,7 @@ export class RecommendationService {
 				}
 			}
 		} catch (_) {}
-		this.articles = (all || []).map((a: any) => ({
+		this.beritaList = (all || []).map((a: any) => ({
 			_id: String(a._id || a.id || ''),
 			title: a.title || '',
 			excerpt: a.excerpt || '',
@@ -70,7 +70,7 @@ export class RecommendationService {
 		this.vocab = new Set();
 		const df = new Map<string, number>();
 		const docsTokens: string[][] = [];
-		for (const a of this.articles) {
+		for (const a of this.beritaList) {
 			const tokens = [
 				// Boost title
 				...this.tokenize(a.title || ''),
@@ -91,7 +91,7 @@ export class RecommendationService {
 			docsTokens.push(tokens);
 		}
 
-		const N = this.articles.length || 1;
+		const N = this.beritaList.length || 1;
 		this.idf = new Map();
 		this.vocab.forEach((t) => {
 			const d = df.get(t) || 0;
@@ -100,7 +100,7 @@ export class RecommendationService {
 
 		// Build TF-IDF vectors
 		this.vectors = new Map();
-		for (let i = 0; i < this.articles.length; i++) {
+		for (let i = 0; i < this.beritaList.length; i++) {
 			const tokens = docsTokens[i];
 			const tf = new Map<string, number>();
 			for (const t of tokens) tf.set(t, (tf.get(t) || 0) + 1);
@@ -109,7 +109,7 @@ export class RecommendationService {
 				const weight = (this.idf.get(t) || 0) * (1 + Math.log(f));
 				vec.set(t, weight);
 			});
-			this.vectors.set(String(this.articles[i]._id), vec);
+			this.vectors.set(String(this.beritaList[i]._id), vec);
 		}
 
 		this.cacheTimestamp = now;
@@ -135,14 +135,14 @@ export class RecommendationService {
 		return denom === 0 ? 0 : dot / denom;
 	}
 
-	static async getRelatedById(id: string, limit = 2): Promise<ArticleLite[]> {
+	static async getRelatedById(id: string, limit = 2): Promise<BeritaLite[]> {
 		await this.ensureIndex();
-		const base = this.articles.find((a) => String(a._id) === String(id));
+		const base = this.beritaList.find((a) => String(a._id) === String(id));
 		let baseVec = base ? this.vectors.get(String(base._id)) : undefined;
 		if (!baseVec) {
 			// Build temporary vector if base not in cache (e.g., unpublished)
 			try {
-				const dbBase = await mongoStorage.getArticleById(id);
+				const dbBase = await mongoStorage.getBeritaById(id);
 				if (dbBase) {
 					const tokens = [
 						...this.tokenize(dbBase.title || ''),
@@ -165,7 +165,7 @@ export class RecommendationService {
 			} catch (_) {}
 		}
 		if (!baseVec) return [];
-		const scored = this.articles
+		const scored = this.beritaList
 			.filter((a) => String(a._id) !== String(id))
 			.map((a) => ({
 				a,
@@ -190,7 +190,7 @@ export class RecommendationService {
 			);
 		}
 		if (related.length < limit) {
-			const latest = this.articles
+			const latest = this.beritaList
 				.filter(
 					(a) =>
 						String(a._id) !== String(base?._id || id) &&
@@ -205,7 +205,7 @@ export class RecommendationService {
 			related = related.concat(latest);
 		}
 		if (related.length === 0) {
-			related = this.articles
+			related = this.beritaList
 				.filter((a) => String(a._id) !== String(id))
 				.slice(0, limit);
 		}

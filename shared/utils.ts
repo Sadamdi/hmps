@@ -2,7 +2,7 @@
 
 /**
  * Generate SEO-friendly slug from title
- * @param title - The article title
+ * @param title - Judul berita
  * @returns SEO-friendly slug
  */
 export function generateSlug(title: string): string {
@@ -25,7 +25,7 @@ export function generateSlug(title: string): string {
 
 /**
  * Generate unique slug by appending number if duplicate exists
- * @param title - The article title
+ * @param title - Judul berita
  * @param existingSlugs - Array of existing slugs
  * @returns Unique slug
  */
@@ -61,7 +61,7 @@ export function formatDateToIndonesian(date: Date | string): string {
 
 /**
  * Estimate reading time for content
- * @param content - Article content
+ * @param content - Konten berita
  * @returns Reading time in minutes
  */
 export function estimateReadingTime(content: string): number {
@@ -73,7 +73,7 @@ export function estimateReadingTime(content: string): number {
 
 /**
  * Extract meta description from content
- * @param content - Article content
+ * @param content - Konten berita
  * @param maxLength - Maximum length (default: 160)
  * @returns Meta description
  */

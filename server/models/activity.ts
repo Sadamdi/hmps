@@ -4,7 +4,6 @@ export interface IActivity {
 	_id?: Types.ObjectId;
 	type:
 		| 'berita'
-		| 'article'
 		| 'library'
 		| 'organization'
 		| 'content'
@@ -16,7 +15,7 @@ export interface IActivity {
 	userId: Types.ObjectId;
 	userName: string;
 	userRole: string;
-	entityId?: string; // ID of the affected entity (article, library item, etc.)
+	entityId?: string;
 	entityTitle?: string; // Title/name of the affected entity
 	metadata?: Record<string, any>; // Additional data like old/new values
 	timestamp: Date;
@@ -29,7 +28,6 @@ const activitySchema = new Schema<IActivity>(
 			required: true,
 			enum: [
 				'berita',
-				'article',
 				'library',
 				'organization',
 				'content',

@@ -64,9 +64,9 @@ export function useAppLoading() {
 					const img = new Image();
 					img.src = bannerPath;
 					imagePromises.push(
-						new Promise((resolve) => {
-							img.onload = resolve;
-							img.onerror = resolve; // Continue even if error
+						new Promise<void>((resolve) => {
+							img.onload = () => resolve();
+							img.onerror = () => resolve(); // Continue even if error
 						})
 					);
 				});
@@ -76,16 +76,16 @@ export function useAppLoading() {
 				logoImg.src =
 					'/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
 				imagePromises.push(
-					new Promise((resolve) => {
-						logoImg.onload = resolve;
-						logoImg.onerror = resolve; // Continue even if error
+					new Promise<void>((resolve) => {
+						logoImg.onload = () => resolve();
+						logoImg.onerror = () => resolve(); // Continue even if error
 					})
 				);
 
 				console.log('Waiting for assets to load...');
 
 				// Tunggu semua asset penting dimuat dengan timeout yang lebih agresif
-				const timeoutPromise = new Promise((resolve) => {
+				const timeoutPromise = new Promise<void>((resolve) => {
 					setTimeout(() => {
 						console.log('Asset loading timeout, proceeding anyway');
 						resolve();

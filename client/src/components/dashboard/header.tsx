@@ -123,7 +123,6 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 
 		switch (type) {
 		case 'berita':
-		case 'article':
 			return <FileText className={iconClass} />;
 			case 'library':
 				return <ImageIcon className={iconClass} />;
@@ -143,7 +142,6 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 	const getActivityColor = (type: string) => {
 		switch (type) {
 		case 'berita':
-		case 'article':
 			return 'text-blue-300 bg-blue-500/15';
 			case 'library':
 				return 'text-emerald-300 bg-emerald-500/15';

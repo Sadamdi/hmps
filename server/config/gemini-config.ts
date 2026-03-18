@@ -223,7 +223,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	lines.push(`- Path halaman aktif: ${path}`);
 
 	// Info akses fitur berbasis permission
-	const canViewArticles =
+	const canViewBerita =
 		perms.has('berita.view') || perms.has('berita.create');
 	const canViewLibrary =
 		perms.has('library.view') || perms.has('library.create');
@@ -245,9 +245,9 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		);
 	}
 
-	if (canViewArticles) {
+	if (canViewBerita) {
 		lines.push(
-			'- Pengguna memiliki akses ke manajemen Artikel. Ia bisa: membuat artikel baru (tombol seperti "New Article"), mengedit artikel yang sudah ada, menghapus jika diizinkan, serta mengatur status publish/unpublish. Jelaskan langkah umum seperti: buka halaman Articles di dashboard, pilih artikel, lalu gunakan tombol Edit/Publish sesuai kebutuhan.',
+			'- Pengguna memiliki akses ke manajemen Berita. Ia bisa: membuat berita baru (tombol "Buat Berita"), mengedit berita yang sudah ada, menghapus jika diizinkan, serta mengatur status publish/unpublish. Jelaskan langkah umum seperti: buka halaman Berita di dashboard, pilih berita, lalu gunakan tombol Edit/Publish sesuai kebutuhan.',
 		);
 	}
 
@@ -296,7 +296,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	// Deskripsi khusus per path
 	if (path.startsWith('/dashboard/berita')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Manajemen Artikel. Di sini biasanya ada tabel daftar artikel dengan aksi seperti Edit, Delete, dan toggle Publish. Jelaskan langkah-langkah umum untuk membuat artikel baru, mengedit konten, mengatur status publish/unpublish, dan menggunakan filter/pencarian jika tersedia.',
+			'- Pengguna sedang berada di halaman Dashboard Manajemen Berita. Di sini biasanya ada tabel daftar berita dengan aksi seperti Edit, Delete, dan toggle Publish. Jelaskan langkah-langkah umum untuk membuat berita baru, mengedit konten, mengatur status publish/unpublish, dan menggunakan filter/pencarian jika tersedia.',
 		);
 	} else if (path.startsWith('/dashboard/library')) {
 		lines.push(

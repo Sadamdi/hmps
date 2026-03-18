@@ -653,7 +653,6 @@ export const dnsLayerProtectionMiddleware = async (
 			req.path === '/sitemap.xml' ||
 			req.path === '/robots.txt' ||
 			req.path.startsWith('/berita/') ||
-			req.path.startsWith('/artikel/') ||
 			req.path.startsWith('/error') // Skip error page untuk mencegah redirect loop
 		) {
 			return next();
@@ -670,7 +669,6 @@ export const dnsLayerProtectionMiddleware = async (
 		const isPublicContent =
 			req.path === '/' ||
 			req.path.startsWith('/berita') ||
-			req.path.startsWith('/artikel') ||
 			req.path === '/sitemap.xml' ||
 			req.path === '/robots.txt';
 

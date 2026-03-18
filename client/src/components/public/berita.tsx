@@ -15,7 +15,7 @@ import { Calendar, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 
-interface Article {
+interface BeritaItem {
 	id?: number;
 	_id?: string;
 	slug?: string;
@@ -40,16 +40,16 @@ interface PaginatedResponse<T> {
 	};
 }
 
-export default function Articles() {
+export default function BeritaList() {
 	const [showAll, setShowAll] = useState(false);
 	const [isMobile, setIsMobile] = useState(false);
 	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
 
-	const { data: articles = [], isLoading } = useQuery<Article[]>({
+	const { data: beritaList = [], isLoading } = useQuery<BeritaItem[]>({
 		queryKey: ['/api/berita'],
 		queryFn: async () => {
 			const response = await apiRequest('GET', '/api/berita?page=1&limit=12');
-			const payload = (await response.json()) as Article[] | PaginatedResponse<Article>;
+			const payload = (await response.json()) as BeritaItem[] | PaginatedResponse<BeritaItem>;
 			return Array.isArray(payload) ? payload : payload.data;
 		},
 		placeholderData: [],
@@ -68,22 +68,19 @@ export default function Articles() {
 		return () => window.removeEventListener('resize', checkIsMobile);
 	}, []);
 
-	// Show only first 3 articles on mobile initially, or up to 6 if showAll is true
-	// Show only first 6 articles on desktop initially, or up to 12 if showAll is true
 	const initialCount = isMobile ? 3 : 6;
 	const maxCount = isMobile ? 6 : 12;
 
-	const displayedArticles = showAll
-		? articles.slice(0, maxCount)
-		: articles.slice(0, initialCount);
+	const displayedBerita = showAll
+		? beritaList.slice(0, maxCount)
+		: beritaList.slice(0, initialCount);
 
-	// Helper function to get article URL (hybrid: ID + slug for SEO)
-	const getArticleUrl = (article: Article) => {
-		const articleId = article.id || article._id;
-		if (article.slug && articleId) {
-			return `/berita/${articleId}/${article.slug}`;
+	const getBeritaUrl = (item: BeritaItem) => {
+		const beritaId = item.id || item._id;
+		if (item.slug && beritaId) {
+			return `/berita/${beritaId}/${item.slug}`;
 		}
-		return `/berita/${articleId}`;
+		return `/berita/${beritaId}`;
 	};
 
 	const truncateText = (text: string, maxLength: number = 150) => {
@@ -143,16 +140,16 @@ export default function Articles() {
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div ref={headingRef} className="text-center mb-12">
 					<h2 className={`text-3xl font-bold text-foreground mb-4 ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
-						Artikel Terbaru
+						Berita Terbaru
 					</h2>
 					<div className={`w-20 h-1 bg-primary mx-auto mb-4 ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`} />
 					<p className={`text-muted-foreground max-w-2xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-						Temukan artikel dan informasi terkini dari HIMATIF ENCODER
+						Temukan berita dan informasi terkini dari HIMATIF ENCODER
 					</p>
 				</div>
 
-				{/* Articles Grid */}
-				{articles.length === 0 ? (
+				{/* Berita Grid */}
+				{beritaList.length === 0 ? (
 						<div className="text-center py-12">
 							<div className="text-muted-foreground text-lg">
 							Belum ada berita yang dipublikasikan
@@ -161,18 +158,18 @@ export default function Articles() {
 				) : (
 					<>
 						<div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
-							{displayedArticles.map((article, index) => (
+							{displayedBerita.map((item, index) => (
 								<Card
-									key={article.id || article._id}
+									key={item.id || item._id}
 									className="overflow-hidden border border-border/70 bg-card hover:shadow-lg hover:border-primary/40 transition-all duration-300 group"
 									data-aos="fade-up"
 									data-aos-delay={index * 100}>
 									{/* Berita Image */}
-									<Link href={getArticleUrl(article)}>
+									<Link href={getBeritaUrl(item)}>
 										<div className="relative h-48 overflow-hidden cursor-pointer">
 											<OptimizedImage
-												src={article.image}
-												alt={article.title}
+												src={item.image}
+												alt={item.title}
 												className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
 												loading="lazy"
 												sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
@@ -186,35 +183,35 @@ export default function Articles() {
 									</Link>
 									{/* Berita Content */}
 									<CardHeader className="pb-3">
-										<Link href={getArticleUrl(article)}>
+										<Link href={getBeritaUrl(item)}>
 											<h3 className="font-bold text-xl leading-tight line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">
-												{article.title}
+												{item.title}
 											</h3>
 										</Link>
 										<div className="flex items-center gap-4 text-sm text-muted-foreground mt-2">
 											<div className="flex items-center gap-1">
 												<User className="h-4 w-4" />
-												<span>{article.author}</span>
+												<span>{item.author}</span>
 											</div>
 											<div className="flex items-center gap-1">
 												<Calendar className="h-4 w-4" />
-												<span>{formatDate(article.createdAt)}</span>
+												<span>{formatDate(item.createdAt)}</span>
 											</div>
 											<div className="flex items-center gap-1">
-												<span>{article.viewCount ?? 0} pembaca</span>
+												<span>{item.viewCount ?? 0} pembaca</span>
 											</div>
 										</div>
 									</CardHeader>
 
 									<CardContent className="pt-0">
 										<p className="text-muted-foreground leading-relaxed mb-3">
-											{truncateText(article.excerpt)}
+											{truncateText(item.excerpt)}
 										</p>
 
 										{/* Tags */}
-										{article.tags && article.tags.length > 0 && (
+										{item.tags && item.tags.length > 0 && (
 											<div className="flex flex-wrap gap-1 mb-3">
-												{article.tags.slice(0, 3).map((tag) => (
+												{item.tags.slice(0, 3).map((tag) => (
 													<Badge
 														key={tag}
 														variant="secondary"
@@ -222,11 +219,11 @@ export default function Articles() {
 														{tag}
 													</Badge>
 												))}
-												{article.tags.length > 3 && (
+												{item.tags.length > 3 && (
 													<Badge
 														variant="outline"
 														className="text-xs">
-														+{article.tags.length - 3} lagi
+														+{item.tags.length - 3} lagi
 													</Badge>
 												)}
 											</div>
@@ -234,7 +231,7 @@ export default function Articles() {
 									</CardContent>
 
 									<CardFooter className="pt-0">
-										<Link href={getArticleUrl(article)}>
+										<Link href={getBeritaUrl(item)}>
 											<Button
 												variant="link"
 												className="text-primary hover:text-primary/80 p-0 h-auto font-medium">
@@ -246,7 +243,7 @@ export default function Articles() {
 							))}
 						</div>
 						{/* Show More/Less Button */}
-						{articles.length > 6 && (
+						{beritaList.length > 6 && (
 							<div
 								className="text-center mt-12"
 								data-aos="fade-up"
@@ -262,7 +259,7 @@ export default function Articles() {
 							</div>
 						)}
 
-						{/* Always show "Lihat Semua Artikel" button */}
+						{/* Always show "Lihat Semua Berita" button */}
 						<div
 							className="text-center mt-8"
 							data-aos="fade-up"

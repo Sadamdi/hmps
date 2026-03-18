@@ -15,7 +15,7 @@ export interface UserWithRole {
 	updatedAt?: Date;
 }
 
-// Berita Types (formerly Article)
+// Berita Types
 export interface Berita {
 	_id: string;
 	title: string;
@@ -33,8 +33,6 @@ export interface Berita {
 	updatedAt: Date;
 }
 
-/** @deprecated Use Berita instead */
-export type Article = Berita;
 
 // Library Types
 export interface LibraryItem {

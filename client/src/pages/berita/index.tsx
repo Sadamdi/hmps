@@ -13,7 +13,7 @@ import { ArrowLeft, Calendar, Search, Tag, User } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'wouter';
 
-interface Article {
+interface BeritaItem {
 	_id: string;
 	slug?: string;
 	title: string;
@@ -25,15 +25,15 @@ interface Article {
 	viewCount?: number;
 }
 
-export default function AllArticles() {
-	const [articles, setArticles] = useState<Article[]>([]);
-	const [filteredArticles, setFilteredArticles] = useState<Article[]>([]);
+export default function AllBerita() {
+	const [beritaList, setBeritaList] = useState<BeritaItem[]>([]);
+	const [filteredBerita, setFilteredBerita] = useState<BeritaItem[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState('');
 	const [selectedTags, setSelectedTags] = useState<string[]>([]);
 	const [allTags, setAllTags] = useState<string[]>([]);
-	const articlesContainerRef = useRef<HTMLDivElement>(null);
+	const beritaContainerRef = useRef<HTMLDivElement>(null);
 
 	const scrollToSection = (id: string) => {
 		window.location.href = `/#${id}`;
@@ -42,10 +42,10 @@ export default function AllArticles() {
 	const {
 		currentPage,
 		totalPages,
-		paginatedData: paginatedArticles,
+		paginatedData: paginatedBerita,
 		setCurrentPage,
 	} = usePagination({
-		data: filteredArticles,
+		data: filteredBerita,
 		itemsPerPageDesktop: 9,
 		itemsPerPageMobile: 6,
 	});
@@ -56,7 +56,7 @@ export default function AllArticles() {
 			easing: 'ease-out',
 			once: true,
 		});
-		fetchArticles();
+		fetchBerita();
 	}, []);
 
 	useEffect(() => {
@@ -81,46 +81,46 @@ export default function AllArticles() {
 	}, []);
 
 	useEffect(() => {
-		filterArticles();
-	}, [articles, searchTerm, selectedTags]);
+		filterBerita();
+	}, [beritaList, searchTerm, selectedTags]);
 
-	const fetchArticles = async () => {
+	const fetchBerita = async () => {
 		try {
 			setLoading(true);
 			setError(null);
 			const response = await fetch('/api/berita');
 			if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 			const data = await response.json();
-			setArticles(data);
+			setBeritaList(data);
 			const tags = new Set<string>();
-			data.forEach((article: Article) => {
-				if (article.tags) article.tags.forEach((tag) => tags.add(tag));
+			data.forEach((item: BeritaItem) => {
+				if (item.tags) item.tags.forEach((tag) => tags.add(tag));
 			});
 			setAllTags(Array.from(tags).sort());
-		} catch (error) {
-			console.error('Error fetching articles:', error);
+		} catch (err) {
+			console.error('Error fetching berita:', err);
 			setError('Gagal memuat berita. Silakan coba lagi.');
 		} finally {
 			setLoading(false);
 		}
 	};
 
-	const filterArticles = () => {
-		let filtered = articles;
+	const filterBerita = () => {
+		let filtered = beritaList;
 		if (searchTerm) {
 			filtered = filtered.filter(
-				(article) =>
-					article.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-					article.excerpt.toLowerCase().includes(searchTerm.toLowerCase())
+				(item) =>
+					item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+					item.excerpt.toLowerCase().includes(searchTerm.toLowerCase())
 			);
 		}
 		if (selectedTags.length > 0) {
 			filtered = filtered.filter(
-				(article) =>
-					article.tags && selectedTags.some((tag) => article.tags.includes(tag))
+				(item) =>
+					item.tags && selectedTags.some((tag) => item.tags.includes(tag))
 			);
 		}
-		setFilteredArticles(filtered);
+		setFilteredBerita(filtered);
 		setCurrentPage(1);
 	};
 
@@ -136,8 +136,8 @@ export default function AllArticles() {
 	};
 
 	useEffect(() => {
-		if (articlesContainerRef.current) {
-			articlesContainerRef.current.scrollIntoView({
+		if (beritaContainerRef.current) {
+			beritaContainerRef.current.scrollIntoView({
 				behavior: 'smooth',
 				block: 'start',
 			});
@@ -174,7 +174,7 @@ export default function AllArticles() {
 				<div className="container mx-auto px-4 py-8">
 					<div className="text-center py-24">
 						<p className="text-destructive mb-4">{error}</p>
-						<Button onClick={fetchArticles} variant="outline">
+						<Button onClick={fetchBerita} variant="outline">
 							Coba Lagi
 						</Button>
 					</div>
@@ -253,14 +253,14 @@ export default function AllArticles() {
 				{/* Results Count */}
 				<div className="mb-6">
 					<p className="text-muted-foreground text-sm">
-						Menampilkan {paginatedArticles.length} dari {filteredArticles.length} berita
+						Menampilkan {paginatedBerita.length} dari {filteredBerita.length} berita
 						{searchTerm && ` untuk "${searchTerm}"`}
 						{selectedTags.length > 0 && ` dengan tags: ${selectedTags.join(', ')}`}
 					</p>
 				</div>
 
-				{/* Articles Grid */}
-				{paginatedArticles.length === 0 ? (
+				{/* Berita Grid */}
+				{paginatedBerita.length === 0 ? (
 					<div className="text-center py-12 bg-card border border-border rounded-xl">
 						<p className="text-muted-foreground text-lg mb-2">Tidak ada berita ditemukan</p>
 						<p className="text-muted-foreground/70 text-sm">
@@ -269,26 +269,26 @@ export default function AllArticles() {
 					</div>
 				) : (
 					<div
-						ref={articlesContainerRef}
+						ref={beritaContainerRef}
 						key={`page-${currentPage}`}
 						className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-						{paginatedArticles.map((article, index) => (
+						{paginatedBerita.map((item, index) => (
 							<Card
-								key={article._id}
+								key={item._id}
 								className="overflow-hidden hover:shadow-lg transition-all duration-300 group hover:scale-[1.02] bg-card border-border"
 								data-aos="fade-up"
 								data-aos-delay={`${index * 40}`}>
 								<CardHeader className="p-0">
 									<Link
 										href={
-											article.slug
-												? `/berita/${article._id}/${article.slug}`
-												: `/berita/${article._id}`
+											item.slug
+												? `/berita/${item._id}/${item.slug}`
+												: `/berita/${item._id}`
 										}>
 										<div className="relative h-48 overflow-hidden">
 											<img
-												src={article.image}
-												alt={article.title}
+												src={item.image}
+												alt={item.title}
 												className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
 												onError={(e) => {
 													const target = e.target as HTMLImageElement;
@@ -302,28 +302,28 @@ export default function AllArticles() {
 								<CardContent className="p-4">
 									<Link
 										href={
-											article.slug
-												? `/berita/${article._id}/${article.slug}`
-												: `/berita/${article._id}`
+											item.slug
+												? `/berita/${item._id}/${item.slug}`
+												: `/berita/${item._id}`
 										}>
 										<CardTitle className="text-base mb-2 hover:text-primary transition-colors line-clamp-2 text-foreground">
-											{article.title}
+											{item.title}
 										</CardTitle>
 									</Link>
 									<p className="text-muted-foreground text-sm mb-3 line-clamp-3">
-										{article.excerpt}
+										{item.excerpt}
 									</p>
 
-									{article.tags && article.tags.length > 0 && (
+									{item.tags && item.tags.length > 0 && (
 										<div className="flex flex-wrap gap-1 mb-3">
-											{article.tags.slice(0, 3).map((tag: string) => (
+											{item.tags.slice(0, 3).map((tag: string) => (
 												<Badge key={tag} variant="secondary" className="text-xs">
 													{tag}
 												</Badge>
 											))}
-											{article.tags.length > 3 && (
+											{item.tags.length > 3 && (
 												<Badge variant="outline" className="text-xs">
-													+{article.tags.length - 3} lagi
+													+{item.tags.length - 3} lagi
 												</Badge>
 											)}
 										</div>
@@ -332,22 +332,22 @@ export default function AllArticles() {
 									<div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
 										<div className="flex items-center gap-1">
 											<User className="h-3 w-3" />
-											<span>{article.author}</span>
+											<span>{item.author}</span>
 										</div>
 										<div className="flex items-center gap-1">
 											<Calendar className="h-3 w-3" />
-											<span>{formatDate(article.createdAt)}</span>
+											<span>{formatDate(item.createdAt)}</span>
 										</div>
 										<div className="flex items-center gap-1">
-											<span>{article.viewCount ?? 0} pembaca</span>
+											<span>{item.viewCount ?? 0} pembaca</span>
 										</div>
 									</div>
 
 									<Link
 										href={
-											article.slug
-												? `/berita/${article._id}/${article.slug}`
-												: `/berita/${article._id}`
+											item.slug
+												? `/berita/${item._id}/${item.slug}`
+												: `/berita/${item._id}`
 										}>
 										<Button
 											variant="link"

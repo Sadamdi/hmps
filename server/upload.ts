@@ -34,7 +34,7 @@ export type UploadCategory =
 // Membuat subfolder jika belum ada
 async function ensureUploadDirectory(
 	category: UploadCategory,
-	useAssetsDir: boolean
+	useAssetsDir: boolean,
 ): Promise<string> {
 	const baseDir = useAssetsDir ? assetsDir : uploadDir;
 	const categoryDir = path.join(baseDir, category);
@@ -65,7 +65,7 @@ export async function uploadHandler(
 	useAssetsDir: boolean = false,
 	category: UploadCategory = 'general',
 	oldFileUrl?: string, // URL file lama yang akan dihapus
-	subFolder?: string // Subfolder tambahan (contoh: beritaId)
+	subFolder?: string, // Subfolder tambahan (contoh: beritaId)
 ): Promise<string> {
 	try {
 		// Hapus file lama jika ada
@@ -99,8 +99,8 @@ export async function uploadHandler(
 				? `/attached_assets/${category}/${subFolder}`
 				: `/uploads/${category}/${subFolder}`
 			: useAssetsDir
-			? `/attached_assets/${category}`
-			: `/uploads/${category}`;
+				? `/attached_assets/${category}`
+				: `/uploads/${category}`;
 
 		// Create file path
 		const filePath = path.join(categoryDir, fileName);
@@ -120,11 +120,11 @@ export async function uploadHandler(
  * Handles berita image upload with automatic processing to WebP
  * Supports optional subFolder (e.g., beritaId) to organize content images
  */
-export async function uploadArticleImage(
+export async function uploadBeritaImage(
 	file: Express.Multer.File,
 	oldFileUrl?: string,
 	subFolder?: string,
-	useAssetsDir: boolean = false
+	useAssetsDir: boolean = false,
 ): Promise<string> {
 	try {
 		if (oldFileUrl) {
@@ -155,8 +155,8 @@ export async function uploadArticleImage(
 				? `/attached_assets/berita/${subFolder}`
 				: `/uploads/berita/${subFolder}`
 			: useAssetsDir
-			? `/attached_assets/berita`
-			: `/uploads/berita`;
+				? `/attached_assets/berita`
+				: `/uploads/berita`;
 
 		const filePath = path.join(categoryDir, fileName);
 
@@ -182,7 +182,7 @@ export async function uploadArticleImage(
  */
 export async function uploadOrganizationMemberImage(
 	file: Express.Multer.File,
-	oldFileUrl?: string // URL file lama yang akan dihapus
+	oldFileUrl?: string, // URL file lama yang akan dihapus
 ): Promise<string> {
 	try {
 		// Hapus file lama jika ada
@@ -235,7 +235,7 @@ export async function uploadOrganizationMemberImage(
  */
 export async function uploadFilosofiImage(
 	file: Express.Multer.File,
-	key: string
+	key: string,
 ): Promise<string> {
 	try {
 		const filosofiDir = await ensureUploadDirectory('filosofi', true);
@@ -325,14 +325,11 @@ export async function deleteFile(fileUrl: string): Promise<void> {
  * Cleanup unused images from berita folder.
  * Cleanup unused images from berita folder.
  */
-export async function cleanupArticleImages(
-	articleId: string,
-	usedImageUrls: string[]
+export async function cleanupBeritaImages(
+	beritaId: string,
+	usedImageUrls: string[],
 ): Promise<void> {
-	const dirs = [
-		path.join(uploadDir, 'berita', articleId),
-		path.join(uploadDir, 'articles', articleId),
-	];
+	const dirs = [path.join(uploadDir, 'berita', beritaId)];
 
 	for (const dir of dirs) {
 		try {
@@ -349,7 +346,7 @@ export async function cleanupArticleImages(
 				}
 			} else {
 				const usedFilenames = usedImageUrls
-					.filter((url) => url.includes(`/uploads/berita/${articleId}/`) || url.includes(`/uploads/articles/${articleId}/`))
+					.filter((url) => url.includes(`/uploads/berita/${beritaId}/`))
 					.map((url) => path.basename(url));
 
 				for (const file of files) {

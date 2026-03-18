@@ -383,7 +383,6 @@ export const antiSpoofingProtectionMiddleware = async (
 			req.path === '/sitemap.xml' ||
 			req.path === '/robots.txt' ||
 			req.path.startsWith('/berita/') ||
-			req.path.startsWith('/artikel/') ||
 			req.path.startsWith('/api/') || // Skip API routes untuk anti-spoofing (handled by API protection)
 			req.path.startsWith('/error') // Skip error page untuk mencegah redirect loop
 		) {
@@ -401,7 +400,6 @@ export const antiSpoofingProtectionMiddleware = async (
 		const isPublicContent =
 			req.path === '/' ||
 			req.path.startsWith('/berita') ||
-			req.path.startsWith('/artikel') ||
 			req.path === '/sitemap.xml' ||
 			req.path === '/robots.txt';
 

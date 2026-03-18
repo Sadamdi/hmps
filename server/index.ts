@@ -145,7 +145,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 			},
 		];
 
-		let articleUrls: any[] = [];
+		let beritaUrls: any[] = [];
 
 		try {
 			// Check database connection first
@@ -153,19 +153,16 @@ app.get('/sitemap.xml', async (_req, res) => {
 			const isConnected = await connectDB();
 
 			if (isConnected) {
-				// Attempt to load articles
 				const { Berita } = await import('../db/mongodb');
-				const Article = Berita;
 
-				if (Article) {
-					// Ambil semua artikel yang published (tanpa sort, tanpa limit)
-					const articles = await Article.find({ published: true })
+				if (Berita) {
+					const beritaList = await Berita.find({ published: true })
 						.select('_id slug updatedAt createdAt')
 						.lean();
 
-					console.log(`📄 Found ${articles.length} published articles`);
+					console.log(`📄 Found ${beritaList.length} published berita`);
 
-				articleUrls = articles.map((a: any) => {
+				beritaUrls = beritaList.map((a: any) => {
 					const url = `${host}/berita/${a._id}/${a.slug}`;
 					console.log(`📝 Adding berita URL: ${url}`);
 						return {
@@ -179,7 +176,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 					});
 				} else {
 					console.log(
-						'⚠️ Article model not found, continuing with base URLs only',
+						'⚠️ Berita model not found, continuing with base URLs only',
 					);
 				}
 			} else {
@@ -203,7 +200,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 		// 	priority: '0.7',
 		// }));
 
-		const urls = [...baseUrls, ...articleUrls];
+		const urls = [...baseUrls, ...beritaUrls];
 
 		console.log(`🌐 Generated ${urls.length} total URLs for sitemap`);
 		console.log(
@@ -352,12 +349,6 @@ setInterval(
 	} else {
 		console.log('📦 Setting up static files (production mode)');
 
-		// Redirect old /artikel/* URLs to /berita/*
-		app.get('/artikel/:rest*', (req, res) => {
-			const rest = req.params.rest + (req.params[0] || '');
-			res.redirect(301, `/berita/${rest}`);
-		});
-
 		// ==================== BERITA SEO PRERENDER MIDDLEWARE ====================
 		app.get(['/berita/:id/:slug', '/berita/:id'], async (req, res, next) => {
 			try {
@@ -365,35 +356,34 @@ setInterval(
 				const htmlPath = path.join(distPath, 'index.html');
 				if (!fs.existsSync(htmlPath)) return next();
 
-				let article: any = null;
+				let beritaItem: any = null;
 				try {
 					const { Berita } = await import('../db/mongodb');
-					const Article = Berita;
 					const mongoose = await import('mongoose');
 					const { id, slug } = req.params as { id?: string; slug?: string };
 
 					if (slug && id) {
-						article = await Article.findById(id)
+						beritaItem = await Berita.findById(id)
 							.select('title excerpt image author createdAt updatedAt slug _id')
 							.lean();
 					} else if (id) {
 						if (mongoose.default.Types.ObjectId.isValid(id)) {
-							article = await Article.findById(id)
+							beritaItem = await Berita.findById(id)
 								.select('title excerpt image author createdAt updatedAt slug _id')
 								.lean();
 						} else {
-							article = await Article.findOne({ slug: id })
+							beritaItem = await Berita.findOne({ slug: id })
 								.select('title excerpt image author createdAt updatedAt slug _id')
 								.lean();
 						}
 					}
 				} catch (dbErr) {
-					console.log('Article prerender DB fetch skipped:', dbErr);
+					console.log('Berita prerender DB fetch skipped:', dbErr);
 				}
 
 				let html = fs.readFileSync(htmlPath, 'utf-8');
 
-				if (article) {
+				if (beritaItem) {
 					const esc = (s: string) =>
 						String(s)
 							.replace(/&/g, '&amp;')
@@ -401,19 +391,19 @@ setInterval(
 							.replace(/</g, '&lt;')
 							.replace(/>/g, '&gt;');
 
-					const title = `${article.title} | Himatif Encoder`;
+					const title = `${beritaItem.title} | Himatif Encoder`;
 					const description = String(
-						article.excerpt ||
+						beritaItem.excerpt ||
 							'Berita dari Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 					).slice(0, 160);
-					const canonicalUrl = `https://himatif-encoder.com/berita/${article._id}/${article.slug || ''}`;
+					const canonicalUrl = `https://himatif-encoder.com/berita/${beritaItem._id}/${beritaItem.slug || ''}`;
 					const defaultOgImage =
 						'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
 					const ogImage =
-						article.image && String(article.image).startsWith('http')
-							? article.image
-							: article.image
-								? `https://himatif-encoder.com${article.image}`
+						beritaItem.image && String(beritaItem.image).startsWith('http')
+							? beritaItem.image
+							: beritaItem.image
+								? `https://himatif-encoder.com${beritaItem.image}`
 								: defaultOgImage;
 
 					html = html
@@ -467,16 +457,16 @@ setInterval(
 							`<meta property="twitter:image" content="${ogImage}" />`,
 						);
 
-					// Inject Article JSON-LD schema for rich results
-					const articleSchema = JSON.stringify({
+					// Inject JSON-LD schema for rich results
+					const beritaSchema = JSON.stringify({
 						'@context': 'https://schema.org',
 						'@type': 'Article',
-						headline: article.title,
-						description: article.excerpt || '',
+						headline: beritaItem.title,
+						description: beritaItem.excerpt || '',
 						image: ogImage,
 						author: {
 							'@type': 'Person',
-							name: article.author || 'Himatif Encoder',
+							name: beritaItem.author || 'Himatif Encoder',
 						},
 						publisher: {
 							'@type': 'Organization',
@@ -486,22 +476,22 @@ setInterval(
 								url: defaultOgImage,
 							},
 						},
-						datePublished: article.createdAt,
-						dateModified: article.updatedAt || article.createdAt,
+						datePublished: beritaItem.createdAt,
+						dateModified: beritaItem.updatedAt || beritaItem.createdAt,
 						mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
 						url: canonicalUrl,
 					});
 
 					html = html.replace(
 						'</head>',
-						`<script type="application/ld+json">${articleSchema}</script>\n</head>`,
+						`<script type="application/ld+json">${beritaSchema}</script>\n</head>`,
 					);
 				}
 
 				res.set('Content-Type', 'text/html');
 				return res.send(html);
 			} catch (err) {
-				console.log('Article prerender error, falling back to SPA:', err);
+				console.log('Berita prerender error, falling back to SPA:', err);
 				return next();
 			}
 		});

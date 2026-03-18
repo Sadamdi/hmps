@@ -2,7 +2,7 @@ import { LoadingScreen } from '@/components/LoadingScreen';
 import MaintenanceMode from '@/components/maintenance-mode';
 import About from '@/components/public/about';
 import AIChat from '@/components/public/ai-chat';
-import Articles from '@/components/public/articles';
+import BeritaList from '@/components/public/berita';
 import Footer from '@/components/public/footer';
 import Hero from '@/components/public/hero';
 import Library from '@/components/public/library';
@@ -200,7 +200,7 @@ export default function Home() {
 				}>
 				<Structure />
 			</Suspense>
-			<Articles />
+			<BeritaList />
 			<Library />
 			<Footer />
 			<AIChat />

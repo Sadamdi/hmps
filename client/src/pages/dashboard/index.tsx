@@ -35,7 +35,7 @@ import { useLocation } from 'wouter';
 interface Activity {
 	_id: string;
 	type:
-		| 'article'
+		| 'berita'
 		| 'library'
 		| 'organization'
 		| 'content'
@@ -88,7 +88,7 @@ export default function Dashboard() {
 			} catch (error) {
 				console.error('❌ Failed to fetch dashboard stats:', error);
 				// Return placeholder data instead of throwing
-				return { totalArticles: 0, totalMediaItems: 0, activeMemberCount: 0, alumniMemberCount: 0 };
+				return { totalBerita: 0, totalMediaItems: 0, activeMemberCount: 0, alumniMemberCount: 0 };
 			}
 		},
 		refetchInterval: 30000,
@@ -97,7 +97,7 @@ export default function Dashboard() {
 		staleTime: 20000,
 		retry: 3,
 		retryDelay: 2000,
-		placeholderData: { totalArticles: 0, totalMediaItems: 0, activeMemberCount: 0, alumniMemberCount: 0 },
+		placeholderData: { totalBerita: 0, totalMediaItems: 0, activeMemberCount: 0, alumniMemberCount: 0 },
 		enabled: hasSpecificPermission('dashboard.stats'), // Only fetch if user has permission
 	});
 
@@ -182,7 +182,7 @@ export default function Dashboard() {
 		}
 
 		switch (type) {
-			case 'article':
+			case 'berita':
 				return <FileText className="h-4 w-4" />;
 			case 'library':
 				return <ImageIcon className="h-4 w-4" />;
@@ -199,7 +199,7 @@ export default function Dashboard() {
 	// Helper function to get activity color
 	const getActivityColor = (type: Activity['type']) => {
 		switch (type) {
-			case 'article':
+			case 'berita':
 				return 'text-violet-300 bg-violet-500/15';
 			case 'library':
 				return 'text-cyan-300 bg-cyan-500/15';
@@ -277,12 +277,12 @@ export default function Dashboard() {
 			<div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6">
 			<Card className="border-border/70 bg-card/95">
 				<CardHeader className="pb-2 p-3 sm:p-6">
-					<CardTitle className="text-sm sm:text-lg">Total Articles</CardTitle>
-					<CardDescription className="text-xs sm:text-sm">Published content</CardDescription>
+					<CardTitle className="text-sm sm:text-lg">Total Berita</CardTitle>
+					<CardDescription className="text-xs sm:text-sm">Konten dipublikasikan</CardDescription>
 				</CardHeader>
 				<CardContent className="px-3 sm:px-6 pb-3 sm:pb-6">
 					<p className="text-2xl sm:text-3xl font-bold">
-						{stats?.totalArticles || '0'}
+						{stats?.totalBerita || '0'}
 					</p>
 					{statsError && (
 						<p className="text-xs text-red-500 mt-1">Error loading data</p>

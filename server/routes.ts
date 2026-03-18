@@ -30,10 +30,10 @@ import {
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
 import chatRouter from './routes/chat';
 import {
-	cleanupArticleImages,
+	cleanupBeritaImages,
 	deleteFile,
 	extractImageUrlsFromContent,
-	uploadArticleImage,
+	uploadBeritaImage,
 	uploadFilosofiImage,
 	uploadHandler,
 	uploadMiddleware,
@@ -75,10 +75,9 @@ function getPaginationParams(query: any) {
 	return { page, limit, isPaginated };
 }
 
-// Helper function to check article permissions
-async function checkArticlePermission(
+async function checkBeritaPermission(
 	user: UserWithRole,
-	article: any,
+	berita: any,
 	action: 'edit' | 'delete' | 'publish',
 ): Promise<boolean> {
 	try {
@@ -86,7 +85,7 @@ async function checkArticlePermission(
 		if (!userRole) return false;
 
 		const permissions = userRole.permissions;
-		const isOwner = user._id.toString() === (article.authorId || '').toString();
+		const isOwner = user._id.toString() === (berita.authorId || '').toString();
 
 		switch (action) {
 			case 'edit':
@@ -105,7 +104,7 @@ async function checkArticlePermission(
 				return false;
 		}
 	} catch (error) {
-		console.error('Error checking article permission:', error);
+		console.error('Error checking berita permission:', error);
 		return false;
 	}
 }
@@ -151,17 +150,16 @@ async function checkEventPermission(
 	}
 }
 
-// Helper function to check if user can view article (for draft/unpublished)
-async function canViewArticle(
+async function canViewBerita(
 	user: UserWithRole | undefined,
-	article: any,
+	berita: any,
 ): Promise<boolean> {
 	if (!user) return false;
-	if (article.published) return true;
+	if (berita.published) return true;
 	const userRole = await mongoStorage.getRoleByName(user.role);
 	if (!userRole) return false;
 	const permissions = userRole.permissions;
-	const isOwner = user._id.toString() === (article.authorId || '').toString();
+	const isOwner = user._id.toString() === (berita.authorId || '').toString();
 	return (
 		(permissions.includes('berita.view') && isOwner) ||
 		permissions.includes('berita.view_others')
@@ -1311,7 +1309,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// Upload images for article content
+	// Upload images for berita content
 	app.post(
 		'/api/upload/content-image',
 		authenticate,
@@ -1323,22 +1321,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Image is required' });
 				}
 
-				// Get articleId from request body untuk folder organization
-				const articleId = req.body.articleId;
+				const beritaId = req.body.beritaId || req.body.beritaId;
 
-				if (!articleId) {
+				if (!beritaId) {
 					return res.status(400).json({ message: 'Berita ID is required' });
 				}
 
-				// Process the uploaded image (compress + WebP) under uploads/berita/{articleId}
-				const imageUrl = await uploadArticleImage(
+				const imageUrl = await uploadBeritaImage(
 					req.file,
 					undefined,
-					articleId,
+					beritaId,
 					false,
 				);
 
-				// Return the URL to be used in the article content
 				res.json({ url: imageUrl });
 			} catch (error) {
 				console.error('Upload content image error:', error);
@@ -1347,17 +1342,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// Articles routes
+	// Berita routes
 	app.get('/api/berita', async (req, res) => {
 		try {
 			const { page, limit, isPaginated } = getPaginationParams(req.query);
-			const allArticles = await mongoStorage.getPublishedArticles(
+			const allBerita = await mongoStorage.getPublishedBerita(
 				isPaginated ? { page, limit } : undefined,
 			);
 			if (isPaginated) {
-				const total = await mongoStorage.getArticlesCount();
+				const total = await mongoStorage.getBeritaCount();
 				return res.json({
-					data: allArticles,
+					data: allBerita,
 					meta: {
 						page,
 						limit,
@@ -1366,35 +1361,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					},
 				});
 			}
-			res.json(allArticles);
+			res.json(allBerita);
 		} catch (error) {
-			console.error('Get articles error:', error);
+			console.error('Get berita error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
 
-	// Events linked to an article (PLACE BEFORE /api/articles/:id/:slug)
+	// Events linked to a berita (PLACE BEFORE /api/berita/:id/:slug)
 	app.get('/api/berita/:id/events', async (req, res) => {
 		try {
 			const { id } = req.params;
-			const events = await mongoStorage.getEventsByArticleId(id);
+			const events = await mongoStorage.getEventsByBeritaId(id);
 			res.json(events);
 		} catch (error) {
-			console.error('Get article events error:', error);
+			console.error('Get berita events error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
 
-	// Related articles (PLACE BEFORE /api/articles/:id/:slug to avoid 302 redirect)
+	// Related berita (PLACE BEFORE /api/berita/:id/:slug to avoid 302 redirect)
 	app.get('/api/berita/:id/related', async (req, res) => {
 		try {
-			const articleId = req.params.id;
+			const beritaId = req.params.id;
 			const limit = Math.max(
 				1,
 				Math.min(5, parseInt((req.query.limit as string) || '2')),
 			);
 
-			const base = await mongoStorage.getArticleById(articleId);
+			const base = await mongoStorage.getBeritaById(beritaId);
 			if (!base) {
 				return res.status(404).json({ message: 'Berita not found' });
 			}
@@ -1419,7 +1414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				})),
 			);
 		} catch (error) {
-			console.error('Get related articles error:', error);
+			console.error('Get related berita error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
@@ -1433,15 +1428,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const permissions = userRole?.permissions || [];
 
 			// Filter by permissions: view_others = lihat semua, view/edit/create = hanya milik sendiri
-			let articles;
+			let beritaList;
 			if (permissions.includes('berita.view_others')) {
-				articles = await mongoStorage.getAllArticles();
+				beritaList = await mongoStorage.getAllBerita();
 			} else if (
 				permissions.includes('berita.view') ||
 				permissions.includes('berita.edit') ||
 				permissions.includes('berita.create')
 			) {
-				articles = await mongoStorage.getArticlesByAuthorId(
+				beritaList = await mongoStorage.getBeritaByAuthorId(
 					(req.user as UserWithRole)?._id || '',
 				);
 			} else {
@@ -1450,9 +1445,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.json({ message: 'You do not have permission to view berita' });
 			}
 
-			res.json(articles);
+			res.json(beritaList);
 		} catch (error) {
-			console.error('Get articles management error:', error);
+			console.error('Get berita management error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
@@ -1463,23 +1458,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		authenticateOptional,
 		async (req, res) => {
 			try {
-				const articleId = req.params.id;
+				const beritaId = req.params.id;
 				const slug = req.params.slug;
 
-				const article = await mongoStorage.getArticleById(articleId);
+				const beritaItem = await mongoStorage.getBeritaById(beritaId);
 
-				if (!article) {
+				if (!beritaItem) {
 					return res.status(404).json({ message: 'Berita not found' });
 				}
 
 				// Published: anyone can view
-				if (article.published) {
+				if (beritaItem.published) {
 					// continue to response below
 				} else {
-					// Draft: only owner or users with articles.view_others
-					const canView = await canViewArticle(
+					// Draft: only owner or users with berita.view_others
+					const canView = await canViewBerita(
 						req.user as UserWithRole | undefined,
-						article,
+						beritaItem,
 					);
 					if (!canView) {
 						return res.status(403).json({
@@ -1491,49 +1486,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Increment view count for analytics
 			try {
 				const currentViews =
-					typeof (article as any).viewCount === 'number'
-						? (article as any).viewCount
+					typeof (beritaItem as any).viewCount === 'number'
+						? (beritaItem as any).viewCount
 						: 0;
 				const nextViews = currentViews + 1;
-				await mongoStorage.updateArticle(String(article._id || articleId), {
+				await mongoStorage.updateBerita(String(beritaItem._id || beritaId), {
 					viewCount: nextViews,
 				});
-				(article as any).viewCount = nextViews;
+				(beritaItem as any).viewCount = nextViews;
 			} catch (incError) {
 				console.warn('Failed to increment viewCount (id+slug):', incError);
 			}
 
 			// Verify slug matches (optional validation)
-			if (article.slug && article.slug !== slug) {
+			if (beritaItem.slug && beritaItem.slug !== slug) {
 				// Redirect to correct slug if different
-				return res.redirect(`/berita/${articleId}/${article.slug}`);
+				return res.redirect(`/berita/${beritaId}/${beritaItem.slug}`);
 			}
 
-			res.json(article);
+			res.json(beritaItem);
 		} catch (error) {
-			console.error('Get article by ID and slug error:', error);
+			console.error('Get berita by ID and slug error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 		},
 	);
 
-	// Get article by slug for SEO-friendly URLs (MUST BE BEFORE /:id route)
+	// Get berita by slug for SEO-friendly URLs (MUST BE BEFORE /:id route)
 	app.get(
 		'/api/berita/slug/:slug',
 		authenticateOptional,
 		async (req, res) => {
 			try {
 				const slug = req.params.slug;
-				const article = await mongoStorage.getArticleBySlug(slug);
+				const beritaItem = await mongoStorage.getBeritaBySlug(slug);
 
-				if (!article) {
+				if (!beritaItem) {
 					return res.status(404).json({ message: 'Berita not found' });
 				}
 
-				if (!article.published) {
-					const canView = await canViewArticle(
+				if (!beritaItem.published) {
+					const canView = await canViewBerita(
 						req.user as UserWithRole | undefined,
-						article,
+						beritaItem,
 					);
 					if (!canView) {
 						return res.status(403).json({
@@ -1545,21 +1540,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Increment view count for analytics
 			try {
 				const currentViews =
-					typeof (article as any).viewCount === 'number'
-						? (article as any).viewCount
+					typeof (beritaItem as any).viewCount === 'number'
+						? (beritaItem as any).viewCount
 						: 0;
 				const nextViews = currentViews + 1;
-				await mongoStorage.updateArticle(String(article._id), {
+				await mongoStorage.updateBerita(String(beritaItem._id), {
 					viewCount: nextViews,
 				});
-				(article as any).viewCount = nextViews;
+				(beritaItem as any).viewCount = nextViews;
 			} catch (incError) {
 				console.warn('Failed to increment viewCount (slug):', incError);
 			}
 
-			res.json(article);
+			res.json(beritaItem);
 		} catch (error) {
-			console.error('Get article by slug error:', error);
+			console.error('Get berita by slug error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 		},
@@ -1567,17 +1562,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.get('/api/berita/:id', authenticateOptional, async (req, res) => {
 		try {
-			const articleId = req.params.id;
-			const article = await mongoStorage.getArticleById(articleId);
+			const beritaId = req.params.id;
+			const beritaItem = await mongoStorage.getBeritaById(beritaId);
 
-			if (!article) {
+			if (!beritaItem) {
 				return res.status(404).json({ message: 'Berita not found' });
 			}
 
-			if (!article.published) {
-				const canView = await canViewArticle(
+			if (!beritaItem.published) {
+				const canView = await canViewBerita(
 					req.user as UserWithRole | undefined,
-					article,
+					beritaItem,
 				);
 				if (!canView) {
 					return res.status(403).json({
@@ -1589,35 +1584,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Increment view count for analytics
 			try {
 				const currentViews =
-					typeof (article as any).viewCount === 'number'
-						? (article as any).viewCount
+					typeof (beritaItem as any).viewCount === 'number'
+						? (beritaItem as any).viewCount
 						: 0;
 				const nextViews = currentViews + 1;
-				await mongoStorage.updateArticle(String(article._id || articleId), {
+				await mongoStorage.updateBerita(String(beritaItem._id || beritaId), {
 					viewCount: nextViews,
 				});
-				(article as any).viewCount = nextViews;
+				(beritaItem as any).viewCount = nextViews;
 			} catch (incError) {
 				console.warn('Failed to increment viewCount (id):', incError);
 			}
 
-			res.json(article);
+			res.json(beritaItem);
 		} catch (error) {
-			console.error('Get article error:', error);
+			console.error('Get berita error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
 
-	// Related articles by similarity (tags + simple text overlap)
+	// Related berita by similarity (tags + simple text overlap)
 	app.get('/api/berita/:id/related', async (req, res) => {
 		try {
-			const articleId = req.params.id;
+			const beritaId = req.params.id;
 			const limit = Math.max(
 				1,
 				Math.min(5, parseInt((req.query.limit as string) || '2')),
 			);
 
-			const base = await mongoStorage.getArticleById(articleId);
+			const base = await mongoStorage.getBeritaById(beritaId);
 			if (!base) {
 				return res.status(404).json({ message: 'Berita not found' });
 			}
@@ -1645,7 +1640,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				})),
 			);
 		} catch (error) {
-			console.error('Get related articles error:', error);
+			console.error('Get related berita error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
@@ -1654,8 +1649,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get('/api/berita/slug/:slug/related', async (req, res) => {
 		try {
 			const slug = req.params.slug;
-			const article = await mongoStorage.getArticleBySlug(slug);
-			if (!article)
+			const beritaItem = await mongoStorage.getBeritaBySlug(slug);
+			if (!beritaItem)
 				return res.status(404).json({ message: 'Berita not found' });
 			// Use RecommendationService as well
 			const { RecommendationService } =
@@ -1665,7 +1660,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				Math.min(5, parseInt((req.query.limit as string) || '2')),
 			);
 			const relatedDocs = await RecommendationService.getRelatedById(
-				String(article._id),
+				String(beritaItem._id),
 				limit,
 			);
 			res.json(
@@ -1681,7 +1676,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				})),
 			);
 		} catch (error) {
-			console.error('Get related articles by slug error:', error);
+			console.error('Get related berita by slug error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
@@ -1788,14 +1783,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Generate unique slug from title
 				const { generateUniqueSlug } = await import('../shared/utils');
-				const existingArticles = await mongoStorage.getPublishedArticles();
-				const existingSlugs = existingArticles.map(
-					(article: any) => article.slug || '',
+				const existingBeritas = await mongoStorage.getPublishedBerita();
+				const existingSlugs = existingBeritas.map(
+					(b: any) => b.slug || '',
 				);
 				const slug = generateUniqueSlug(title.trim(), existingSlugs);
 
-				// Create article first to get articleId
-				const newArticle = await mongoStorage.createArticle({
+				const newBerita = await mongoStorage.createBerita({
 					title: title.trim(),
 					slug,
 					excerpt: excerpt.trim(),
@@ -1809,18 +1803,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					author: authorName,
 				});
 
-				// If local file uploaded (not GDrive), process thumbnail into uploads/berita/{articleId}
-				const articleId = (newArticle._id || newArticle.id)?.toString();
-				let finalArticle = newArticle;
-				if (!gdriveUrl && req.file && articleId) {
+				// If local file uploaded (not GDrive), process thumbnail into uploads/berita/{beritaId}
+				const beritaId = (newBerita._id || newBerita.id)?.toString();
+				let finalBerita = newBerita;
+				if (!gdriveUrl && req.file && beritaId) {
 					try {
-						const processedThumbUrl = await uploadArticleImage(
+						const processedThumbUrl = await uploadBeritaImage(
 							req.file,
 							undefined,
-							articleId,
+							beritaId,
 							false,
 						);
-						finalArticle = await mongoStorage.updateArticle(articleId, {
+						finalBerita = await mongoStorage.updateBerita(beritaId, {
 							image: processedThumbUrl,
 							imageSource: 'local',
 						});
@@ -1834,7 +1828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Migrate temp content images to berita folder if any (replace URLs in content)
-				if (articleId) {
+				if (beritaId) {
 					try {
 						const tempIdMatch = (content || '').match(
 							/\/uploads\/berita\/(temp-[^/]+)\//,
@@ -1851,7 +1845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								process.cwd(),
 								'uploads',
 								'berita',
-								articleId,
+								beritaId,
 							);
 							if (fs.existsSync(tempDir)) {
 								if (!fs.existsSync(targetDir))
@@ -1867,10 +1861,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							// Replace URLs in content
 							const updatedContent = (content || '').replace(
 								new RegExp(`/uploads/berita/${tempId}/`, 'g'),
-								`/uploads/berita/${articleId}/`,
+								`/uploads/berita/${beritaId}/`,
 							);
 							if (updatedContent !== content) {
-								finalArticle = await mongoStorage.updateArticle(articleId, {
+								finalBerita = await mongoStorage.updateBerita(beritaId, {
 									content: updatedContent,
 								});
 								content = updatedContent;
@@ -1884,18 +1878,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-				// Cleanup unused images in article folder (keep content images + thumbnail if local)
-				if (articleId) {
+				// Cleanup unused images in berita folder
+				if (beritaId) {
 					const usedImageUrls = extractImageUrlsFromContent(content);
 					if (imageUrl && imageUrl.startsWith('/uploads/')) {
 						usedImageUrls.push(imageUrl);
 					}
-					await cleanupArticleImages(articleId.toString(), usedImageUrls);
+					await cleanupBeritaImages(beritaId.toString(), usedImageUrls);
 				}
 
-				res.status(201).json(finalArticle);
+				res.status(201).json(finalBerita);
 			} catch (error) {
-				console.error('Create article error:', error);
+				console.error('Create berita error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		},
@@ -1907,11 +1901,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		uploadMiddleware.single('image'),
 		async (req, res) => {
 			try {
-				const articleId = req.params.id;
+				const beritaId = req.params.id;
 
-				// Validate articleId - prevent 'undefined' issues
-				if (!articleId || articleId === 'undefined') {
-					return res.status(400).json({ message: 'Invalid article ID' });
+				// Validate beritaId - prevent 'undefined' issues
+				if (!beritaId || beritaId === 'undefined') {
+					return res.status(400).json({ message: 'Invalid berita ID' });
 				}
 
 				const { title, excerpt, content, published } = req.body;
@@ -1929,16 +1923,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-				// Get existing article
-				const existingArticle = await mongoStorage.getArticleById(articleId);
-				if (!existingArticle) {
+				// Get existing berita
+				const existingBerita = await mongoStorage.getBeritaById(beritaId);
+				if (!existingBerita) {
 					return res.status(404).json({ message: 'Berita not found' });
 				}
 
 				// Check permissions using new permission system
-				const canEdit = await checkArticlePermission(
+				const canEdit = await checkBeritaPermission(
 					req.user as UserWithRole,
-					existingArticle,
+					existingBerita,
 					'edit',
 				);
 
@@ -1950,9 +1944,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Check publish permission if trying to publish
 				if (published === 'true') {
-					const canPublish = await checkArticlePermission(
+					const canPublish = await checkBeritaPermission(
 						req.user as UserWithRole,
-						existingArticle,
+						existingBerita,
 						'publish',
 					);
 
@@ -1976,47 +1970,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updates.tags = tags;
 				}
 
-				// Process image if uploaded (store inside uploads/berita/{articleId})
+				// Process image if uploaded (store inside uploads/berita/{beritaId})
 				if (req.file) {
 					// Hapus gambar lama jika ada dan berbeda dari default
 					const oldImageUrl =
-						existingArticle.image !== '/uploads/default-berita-image.jpg'
-							? existingArticle.image
+						existingBerita.image !== '/uploads/default-berita-image.jpg'
+							? existingBerita.image
 							: undefined;
 
-					const imageUrl = await uploadArticleImage(
+					const imageUrl = await uploadBeritaImage(
 						req.file,
 						oldImageUrl,
-						articleId,
+						beritaId,
 						false,
 					);
 					updates.image = imageUrl;
 					updates.imageSource = 'local';
 				}
 
-				// Update article
-				const updatedArticle = await mongoStorage.updateArticle(
-					articleId,
+				// Update berita
+				const updatedBerita = await mongoStorage.updateBerita(
+					beritaId,
 					updates,
 				);
 
-				// Cleanup unused images in article folder after update (keep thumbnail too)
+				// Cleanup unused images in berita folder after update
 				if (typeof content === 'string') {
 					const usedImageUrls = extractImageUrlsFromContent(content);
 					const thumbnailUrl = (
 						updates.image && updates.image.startsWith('/uploads/')
 							? updates.image
-							: existingArticle.image || ''
+							: existingBerita.image || ''
 					).toString();
 					if (thumbnailUrl && thumbnailUrl.startsWith('/uploads/')) {
 						usedImageUrls.push(thumbnailUrl);
 					}
-					await cleanupArticleImages(articleId, usedImageUrls);
+					await cleanupBeritaImages(beritaId, usedImageUrls);
 				}
 
-				res.json(updatedArticle);
+				res.json(updatedBerita);
 			} catch (error) {
-				console.error('Update article error:', error);
+				console.error('Update berita error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		},
@@ -2024,23 +2018,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.delete('/api/berita/:id', authenticate, async (req, res) => {
 		try {
-			const articleId = req.params.id;
+			const beritaId = req.params.id;
 
-			// Validate articleId - prevent 'undefined' issues
-			if (!articleId || articleId === 'undefined') {
-				return res.status(400).json({ message: 'Invalid article ID' });
+			// Validate beritaId - prevent 'undefined' issues
+			if (!beritaId || beritaId === 'undefined') {
+				return res.status(400).json({ message: 'Invalid berita ID' });
 			}
 
-			// Get existing article
-			const existingArticle = await mongoStorage.getArticleById(articleId);
-			if (!existingArticle) {
+			// Get existing berita
+			const existingBerita = await mongoStorage.getBeritaById(beritaId);
+			if (!existingBerita) {
 				return res.status(404).json({ message: 'Berita not found' });
 			}
 
 			// Check permissions using new permission system
-			const canDelete = await checkArticlePermission(
+			const canDelete = await checkBeritaPermission(
 				req.user as UserWithRole,
-				existingArticle,
+				existingBerita,
 				'delete',
 			);
 
@@ -2050,19 +2044,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 			}
 
-			// Delete article
-			await mongoStorage.deleteArticle(articleId);
+			// Delete berita
+			await mongoStorage.deleteBerita(beritaId);
 
-			// Cleanup entire berita folder (uploads/berita/{articleId})
-			await cleanupArticleImages(articleId, []); // Empty array means delete all
+			// Cleanup entire berita folder (uploads/berita/{beritaId})
+			await cleanupBeritaImages(beritaId, []); // Empty array means delete all
 
-			// Also cleanup attached_assets/articles/{articleId} if exists (legacy/misplaced)
+			// Also cleanup attached_assets/berita/{beritaId} if exists (legacy/misplaced)
 			try {
 				const assetsDir = path.join(
 					process.cwd(),
 					'attached_assets',
-					'articles',
-					articleId,
+					'berita',
+					beritaId,
 				);
 				if (fs.existsSync(assetsDir)) {
 					for (const f of fs.readdirSync(assetsDir)) {
@@ -2081,7 +2075,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			res.json({ message: 'Berita deleted successfully' });
 		} catch (error) {
-			console.error('Delete article error:', error);
+			console.error('Delete berita error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
@@ -3381,13 +3375,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Public stats (no auth required for public home page)
 	app.get('/api/stats', async (req, res) => {
 		try {
-			const articleCount = await mongoStorage.getArticlesCount();
+			const beritaCount = await mongoStorage.getBeritaCount();
 			const libraryCount = await mongoStorage.getLibraryItemsCount();
 			const activeMemberCount =
 				await mongoStorage.getOrganizationActiveMembersCount();
 
 			res.json({
-				articles: articleCount,
+				berita: beritaCount,
 				libraryItems: libraryCount,
 				organizationMembers: activeMemberCount,
 			});
@@ -3412,16 +3406,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 			}
 
-			const [articleCount, libraryCount, activeMemberCount, alumniMemberCount] =
+			const [beritaCount, libraryCount, activeMemberCount, alumniMemberCount] =
 				await Promise.all([
-					mongoStorage.getArticlesCount(),
+					mongoStorage.getBeritaCount(),
 					mongoStorage.getLibraryItemsCount(),
 					mongoStorage.getOrganizationActiveMembersCount(),
 					mongoStorage.getOrganizationAlumniMembersCount(),
 				]);
 
 			res.json({
-				totalArticles: articleCount,
+				totalBerita: beritaCount,
 				totalMediaItems: libraryCount,
 				activeMemberCount,
 				alumniMemberCount,
@@ -3599,7 +3593,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use('/api/chat', chatRouter);
 
 	// SPA Routing - Handle all frontend routes
-	// This ensures that routes like /dashboard, /articles, etc. work correctly
+	// This ensures that routes like /dashboard, /berita, etc. work correctly
 	app.get('*', (req, res, next) => {
 		// Skip API routes
 		if (req.path.startsWith('/api/')) {
@@ -4366,7 +4360,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				: await mongoStorage.getEventById(id);
 			if (!event) return res.status(404).json({ message: 'Event not found' });
 
-			// Increment view count (fire-and-forget, mirroring article logic)
+			// Increment view count (fire-and-forget)
 			try {
 				const currentViews = typeof (event as any).viewCount === 'number' ? (event as any).viewCount : 0;
 				const nextViews = currentViews + 1;
@@ -4658,7 +4652,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					});
 				}
 				const { copyAttachments } = req.body;
-				const article = await mongoStorage.copyEventToArticle(
+				const beritaItem = await mongoStorage.copyEventToBerita(
 					id,
 					String(user._id),
 					user.name || user.username,
@@ -4667,9 +4661,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							copyAttachments === true || copyAttachments === 'true',
 					},
 				);
-				res.status(201).json(article);
+				res.status(201).json(beritaItem);
 			} catch (error: any) {
-				console.error('Error copying event to article:', error);
+				console.error('Error copying event to berita:', error);
 				res
 					.status(500)
 					.json({ message: error.message || 'Internal server error' });
@@ -4687,7 +4681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { id } = req.params;
 				const user = req.user as UserWithRole;
 				const { year, parentEventId, copyAttachments } = req.body;
-				const result = await mongoStorage.copyArticleToEvent(
+				const result = await mongoStorage.copyBeritaToEvent(
 					id,
 					String(user._id),
 					{
@@ -4707,9 +4701,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// ── Attach Article to Event ──
 	app.post(
-		'/api/events/:id/attach-article',
+		'/api/events/:id/attach-berita',
 		authenticate,
 		async (req, res) => {
 			try {
@@ -4729,10 +4722,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							'You do not have permission to edit this event',
 					});
 				}
-				const { articleId, copyFiles } = req.body;
-				if (!articleId)
-					return res.status(400).json({ message: 'articleId required' });
-				const event = await mongoStorage.attachArticleToEvent(id, articleId, {
+				const { beritaId, copyFiles } = req.body;
+				if (!beritaId)
+					return res.status(400).json({ message: 'beritaId required' });
+				const event = await mongoStorage.attachBeritaToEvent(id, beritaId, {
 					copyFiles: copyFiles === true || copyFiles === 'true',
 				});
 				if (!event) return res.status(404).json({ message: 'Event not found' });
@@ -4768,7 +4761,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							'You do not have permission to edit this event',
 					});
 				}
-				const event = await mongoStorage.detachArticleFromEvent(id, beritaId);
+				const event = await mongoStorage.detachBeritaFromEvent(id, beritaId);
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
 			} catch (error: any) {
@@ -4786,7 +4779,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		authenticate,
 		async (req, res) => {
 			try {
-				const { id: articleId } = req.params;
+				const { id: beritaId } = req.params;
 				const user = req.user as UserWithRole;
 				const { eventId, copyFiles } = req.body;
 				if (!eventId)
@@ -4805,9 +4798,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							'You do not have permission to edit this event',
 					});
 				}
-				const event = await mongoStorage.attachArticleToEvent(
+				const event = await mongoStorage.attachBeritaToEvent(
 					eventId,
-					articleId,
+					beritaId,
 					{
 						copyFiles: copyFiles === true || copyFiles === 'true',
 					},
@@ -4829,7 +4822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		authenticate,
 		async (req, res) => {
 			try {
-				const { id: articleId, eventId } = req.params;
+				const { id: beritaId, eventId } = req.params;
 				const user = req.user as UserWithRole;
 				const existingEvent = await mongoStorage.getEventById(eventId);
 				if (!existingEvent)
@@ -4845,9 +4838,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							'You do not have permission to edit this event',
 					});
 				}
-				const event = await mongoStorage.detachArticleFromEvent(
+				const event = await mongoStorage.detachBeritaFromEvent(
 					eventId,
-					articleId,
+					beritaId,
 				);
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);

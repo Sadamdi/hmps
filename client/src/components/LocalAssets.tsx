@@ -41,7 +41,7 @@ export function LocalBannerFull({
 			onError={handleImageError}
 			loading="eager"
 			decoding="async"
-			fetchpriority="high"
+			fetchPriority="high"
 		/>
 	);
 }

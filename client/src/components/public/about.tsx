@@ -33,7 +33,7 @@ interface LibraryItem {
 	createdAt: string;
 }
 
-interface Article {
+interface BeritaItem {
 	_id: string;
 	title: string;
 	image: string;
@@ -198,8 +198,7 @@ export default function About() {
 		queryKey: ['/api/library'],
 	});
 
-	// Fetch published articles (for article images)
-	const { data: articles } = useQuery<Article[]>({
+	const { data: beritaItems } = useQuery<BeritaItem[]>({
 		queryKey: ['/api/berita'],
 	});
 
@@ -228,25 +227,21 @@ export default function About() {
 			});
 		}
 
-		// Add images from published articles
-		if (articles) {
-			articles.forEach((article) => {
-				if (article.published && article.image) {
-					if (article.imageSource === 'gdrive' && article.gdriveFileId) {
-						// Use Google Drive direct image URL
-						const directUrl = `https://drive.google.com/uc?export=view&id=${article.gdriveFileId}`;
+		if (beritaItems) {
+			beritaItems.forEach((item) => {
+				if (item.published && item.image) {
+					if (item.imageSource === 'gdrive' && item.gdriveFileId) {
+						const directUrl = `https://drive.google.com/uc?export=view&id=${item.gdriveFileId}`;
 						images.push(directUrl);
-					} else if (!article.image.includes('default-berita-image')) {
-						// Only add non-default article images
-						images.push(article.image);
+					} else if (!item.image.includes('default-berita-image')) {
+						images.push(item.image);
 					}
 				}
 			});
 		}
 
-		// Shuffle the images array
 		return images.sort(() => Math.random() - 0.5);
-	}, [libraryItems, articles]);
+	}, [libraryItems, beritaItems]);
 
 	return (
 		<section

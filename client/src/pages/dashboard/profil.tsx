@@ -228,7 +228,7 @@ export default function DashboardProfil() {
 											onChange={setAboutUs}
 											placeholder="Tulis konten tentang kami di sini..."
 											height={400}
-											articleId="about-us-content"
+											beritaId="about-us-content"
 										/>
 									) : settings?.aboutUs ? (
 										<div className="prose max-w-none border rounded-md p-4 bg-muted/30">

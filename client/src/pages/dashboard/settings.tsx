@@ -80,8 +80,8 @@ interface MiddlewareSettings {
 	dnsLayerProtectionEnabled: boolean;
 	portScanningProtectionEnabled: boolean;
 	updatedBy: string;
-	updatedAt: Date;
-	createdAt: Date;
+	updatedAt?: Date;
+	createdAt?: Date;
 }
 
 interface PasswordChangeData {
@@ -613,7 +613,11 @@ export default function SettingsPage() {
 			};
 
 			// Calculate allEnabled based on whether all toggles are the same
-			const individualToggles = [
+			type MiddlewareToggleKey = Exclude<
+				keyof MiddlewareSettings,
+				'allEnabled' | 'updatedBy' | 'updatedAt' | 'createdAt'
+			>;
+			const individualToggles: MiddlewareToggleKey[] = [
 				'apiProtectionEnabled',
 				'apiRateLimitEnabled',
 				'ddosProtectionEnabled',
@@ -625,17 +629,16 @@ export default function SettingsPage() {
 			];
 
 			// Check if all toggles have the same value
-			const firstToggleValue =
-				updatedData[individualToggles[0] as keyof MiddlewareSettings];
+			const firstToggleValue = updatedData[individualToggles[0]];
 			const allSame = individualToggles.every(
 				(toggle) =>
-					updatedData[toggle as keyof MiddlewareSettings] === firstToggleValue,
+					updatedData[toggle] === firstToggleValue,
 			);
 
 			// Update state with synced allEnabled
 			setMiddlewareFormData({
 				...updatedData,
-				allEnabled: allSame ? firstToggleValue : false, // Set to false if not all same
+				allEnabled: allSame ? Boolean(firstToggleValue) : false, // Set to false if not all same
 			});
 		}
 	};

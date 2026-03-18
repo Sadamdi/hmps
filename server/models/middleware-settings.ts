@@ -139,15 +139,14 @@ export async function updateMiddlewareSettings(
 	updatedBy: string
 ): Promise<IMiddlewareSettings> {
 	try {
-		let existingSettings = await MiddlewareSettings.findOne();
-
-		if (!existingSettings) {
-			// Create new settings if none exist
-			existingSettings = new MiddlewareSettings({
+		const existingSettings =
+			(await MiddlewareSettings.findOne()) ??
+			new MiddlewareSettings({
 				...settings,
 				updatedBy,
 			});
-		} else {
+
+		if (!existingSettings.isNew) {
 			// Handle master toggle logic
 			const updatedSettings = { ...settings };
 

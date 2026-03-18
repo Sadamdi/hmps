@@ -55,7 +55,7 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 <td width="50%">
 
 ### 📰 **Sistem Konten & Media**
-- 📝 Editor artikel dengan TinyMCE WYSIWYG
+- 📝 Editor berita dengan TinyMCE WYSIWYG
 - 📸 Upload dan manajemen media library
 - 🔍 Pencarian konten yang powerful
 - 🗃️ Arsip digital terorganisir
@@ -152,7 +152,7 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 │   └── 🛠️ utils/               # Shared Utilities
 ├── 🌐 public/                   # Static Assets
 ├── 📁 attached_assets/          # User Uploaded Files
-│   ├── 📰 articles/            # Article Images
+│   ├── 📰 berita/             # Berita Images
 │   ├── 🏢 organization/        # Organization Assets
 │   ├── 📚 content/             # Content Images
 │   └── 🖼️ general/            # General Media

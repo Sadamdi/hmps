@@ -5,7 +5,7 @@ interface RichTextEditorProps {
 	onChange: (content: string) => void;
 	placeholder?: string;
 	height?: number;
-	articleId?: string; // Add articleId prop for image uploads
+	beritaId?: string;
 }
 
 export default function RichTextEditor({
@@ -13,7 +13,7 @@ export default function RichTextEditor({
 	onChange,
 	placeholder = 'Write your content here...',
 	height = 400,
-	articleId,
+	beritaId,
 }: RichTextEditorProps) {
 	const editorRef = useRef<HTMLDivElement>(null);
 	const editorIdRef = useRef(
@@ -138,9 +138,8 @@ export default function RichTextEditor({
 								const formData = new FormData();
 								formData.append('image', blobInfo.blob(), blobInfo.filename());
 
-								// Use articleId if available
-								const targetArticleId = articleId || 'temp-' + Date.now();
-								formData.append('articleId', targetArticleId.toString());
+								const targetBeritaId = beritaId || 'temp-' + Date.now();
+								formData.append('beritaId', targetBeritaId.toString());
 
 								const response = await fetch('/api/upload/content-image', {
 									method: 'POST',
@@ -177,8 +176,8 @@ export default function RichTextEditor({
 										const formData = new FormData();
 										formData.append('image', file);
 
-										const targetArticleId = articleId || 'temp-' + Date.now();
-										formData.append('articleId', targetArticleId.toString());
+										const targetBeritaId = beritaId || 'temp-' + Date.now();
+										formData.append('beritaId', targetBeritaId.toString());
 
 										const response = await fetch('/api/upload/content-image', {
 											method: 'POST',
@@ -562,7 +561,7 @@ export default function RichTextEditor({
 				(window as any).tinymce.remove(editorRef.current);
 			}
 		};
-	}, [articleId]); // Add articleId to dependency array
+	}, [beritaId]);
 
 	// Update content when value prop changes
 	useEffect(() => {

@@ -14,10 +14,10 @@ import { Suspense, lazy, useEffect } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 
 const TableOfContents = lazy(
-	() => import('@/components/article/table-of-contents')
+	() => import('@/components/berita/table-of-contents')
 );
 
-interface Article {
+interface BeritaItem {
 	id?: number;
 	_id?: string;
 	title: string;
@@ -45,7 +45,7 @@ interface RelatedBerita {
 	tags?: string[];
 }
 
-export default function ArticleDetail() {
+export default function BeritaDetail() {
 	const { id, slug } = useParams();
 	const [, setLocation] = useLocation();
 
@@ -66,10 +66,10 @@ export default function ArticleDetail() {
 	}
 
 	const {
-		data: article,
+		data: berita,
 		isLoading,
 		error,
-	} = useQuery<Article>({
+	} = useQuery<BeritaItem>({
 		queryKey: [apiEndpoint],
 		queryFn: async () => {
 			const response = await apiRequest('GET', apiEndpoint);
@@ -95,27 +95,27 @@ export default function ArticleDetail() {
 		placeholderData: [],
 	});
 
-	const articleId = id || null;
+	const beritaId = id || null;
 
 	const { data: linkedEvents = [] } = useQuery<{ _id: string; title: string; yearId: { year: number }; startDate: string; endDate: string }[]>({
-		queryKey: [`/api/berita/${articleId}/events`],
+		queryKey: [`/api/berita/${beritaId}/events`],
 		queryFn: async () => {
-			const response = await fetch(`/api/berita/${articleId}/events`);
+			const response = await fetch(`/api/berita/${beritaId}/events`);
 			if (!response.ok) return [];
 			return response.json();
 		},
-		enabled: !!articleId,
+		enabled: !!beritaId,
 		placeholderData: [],
 	});
 
 	useEffect(() => {
-		if (article) {
-			document.title = `${article.title} | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang`;
+		if (berita) {
+			document.title = `${berita.title} | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang`;
 
 			const metaDescription = document.querySelector('meta[name="description"]');
 			const descContent =
-				article.excerpt ||
-				`${article.title} - Berita dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang.`;
+				berita.excerpt ||
+				`${berita.title} - Berita dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang.`;
 			if (metaDescription) {
 				metaDescription.setAttribute('content', descContent);
 			} else {
@@ -126,8 +126,8 @@ export default function ArticleDetail() {
 			}
 
 			const canonicalUrl = `https://himatif-encoder.com/berita/${
-				article._id || article.id
-			}/${article.slug || slug || ''}`;
+				berita._id || berita.id
+			}/${berita.slug || slug || ''}`;
 			const canonical = document.querySelector('link[rel="canonical"]');
 			if (canonical) {
 				canonical.setAttribute('href', canonicalUrl);
@@ -139,14 +139,14 @@ export default function ArticleDetail() {
 			}
 
 			const ogTags = [
-				{ property: 'og:title', content: article.title },
-				{ property: 'og:description', content: article.excerpt || descContent },
+				{ property: 'og:title', content: berita.title },
+				{ property: 'og:description', content: berita.excerpt || descContent },
 				{ property: 'og:type', content: 'article' },
 				{ property: 'og:url', content: canonicalUrl },
-				{ property: 'og:image', content: article.image },
+				{ property: 'og:image', content: berita.image },
 				{ property: 'og:site_name', content: 'Himatif Encoder' },
-				{ property: 'article:published_time', content: article.createdAt },
-				{ property: 'article:author', content: article.author },
+				{ property: 'article:published_time', content: berita.createdAt },
+				{ property: 'article:author', content: berita.author },
 			];
 			ogTags.forEach(({ property, content }) => {
 				let meta = document.querySelector(`meta[property="${property}"]`);
@@ -168,24 +168,24 @@ export default function ArticleDetail() {
 			script.textContent = JSON.stringify({
 				'@context': 'https://schema.org',
 				'@type': 'Article',
-				headline: article.title,
-				description: article.excerpt || descContent,
-				image: article.image,
-				author: { '@type': 'Person', name: article.author },
+				headline: berita.title,
+				description: berita.excerpt || descContent,
+				image: berita.image,
+				author: { '@type': 'Person', name: berita.author },
 				publisher: {
 					'@type': 'Organization',
 					name: 'Himatif Encoder',
 					url: 'https://himatif-encoder.com',
 				},
-				datePublished: article.createdAt,
-				dateModified: article.updatedAt || article.createdAt,
+				datePublished: berita.createdAt,
+				dateModified: berita.updatedAt || berita.createdAt,
 				mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
-				keywords: article.tags?.join(', ') || '',
+				keywords: berita.tags?.join(', ') || '',
 				inLanguage: 'id-ID',
 			});
 			document.head.appendChild(script);
 		}
-	}, [article, id, slug]);
+	}, [berita, id, slug]);
 
 	const formatDate = (dateString: string) => {
 		const date = new Date(dateString);
@@ -202,11 +202,11 @@ export default function ArticleDetail() {
 		return Math.ceil(wordCount / 200);
 	};
 
-	const shareArticle = () => {
+	const shareBerita = () => {
 		if (navigator.share) {
 			navigator.share({
-				title: article?.title,
-				text: article?.excerpt,
+				title: berita?.title,
+				text: berita?.excerpt,
 				url: window.location.href,
 			});
 		} else {
@@ -214,7 +214,7 @@ export default function ArticleDetail() {
 		}
 	};
 
-	const navigateToTaggedArticles = (tag: string) => {
+	const navigateToTaggedBerita = (tag: string) => {
 		setLocation(`/berita?tag=${encodeURIComponent(tag)}`);
 	};
 
@@ -260,7 +260,7 @@ export default function ArticleDetail() {
 		);
 	}
 
-	if (error || !article) {
+	if (error || !berita) {
 		return (
 			<div className="min-h-screen bg-background flex flex-col">
 				<Navbar activeSection="berita" scrollToSection={scrollToSection} />
@@ -300,11 +300,11 @@ export default function ArticleDetail() {
 							variant="ghost"
 							size="sm"
 							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Artikel
+							Berita
 						</Button>
 						<span className="text-border">/</span>
 						<span className="text-foreground font-medium truncate max-w-xs">
-							{article.title}
+							{berita.title}
 						</span>
 					</div>
 					<Button
@@ -329,7 +329,7 @@ export default function ArticleDetail() {
 									Memuat daftar isi...
 								</div>
 							}>
-							<TableOfContents content={article.content} />
+							<TableOfContents content={berita.content} />
 						</Suspense>
 					</div>
 
@@ -338,7 +338,7 @@ export default function ArticleDetail() {
 						{/* Header Berita */}
 						<div className="mb-8" data-aos="fade-up">
 							<h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight mb-5">
-								{article.title}
+								{berita.title}
 							</h1>
 
 							<div
@@ -347,21 +347,21 @@ export default function ArticleDetail() {
 								data-aos-delay="100">
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<User className="w-3.5 h-3.5 text-primary" />
-									<span className="font-medium text-foreground">{article.author}</span>
+									<span className="font-medium text-foreground">{berita.author}</span>
 								</div>
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<Calendar className="w-3.5 h-3.5 text-primary" />
-									<span className="text-foreground">{formatDate(article.createdAt)}</span>
+									<span className="text-foreground">{formatDate(berita.createdAt)}</span>
 								</div>
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<BookOpen className="w-3.5 h-3.5 text-primary" />
 									<span className="text-foreground">
-										{estimateReadingTime(article.content)} menit baca
+										{estimateReadingTime(berita.content)} menit baca
 									</span>
 								</div>
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<span className="text-foreground">
-										{article.viewCount ?? 0} pembaca
+										{berita.viewCount ?? 0} pembaca
 									</span>
 								</div>
 							</div>
@@ -371,8 +371,8 @@ export default function ArticleDetail() {
 						<div className="mb-10" data-aos="zoom-in" data-aos-delay="150">
 							<div className="relative overflow-hidden rounded-xl shadow-lg">
 								<img
-									src={article.image}
-									alt={article.title}
+									src={berita.image}
+									alt={berita.title}
 									className="w-full h-80 md:h-[400px] object-cover"
 									onError={(e) => {
 										const target = e.target as HTMLImageElement;
@@ -388,11 +388,11 @@ export default function ArticleDetail() {
 							data-aos="fade-up"
 							data-aos-delay="200">
 							<div className="p-6 md:p-10">
-								<div className="prose prose-lg max-w-none article-content">
+								<div className="prose prose-lg max-w-none berita-content">
 									<div
 										className="text-foreground leading-relaxed"
 										dangerouslySetInnerHTML={{
-											__html: formatForDisplay(article.content),
+											__html: formatForDisplay(berita.content),
 										}}
 									/>
 								</div>
@@ -400,7 +400,7 @@ export default function ArticleDetail() {
 						</div>
 
 						{/* Tags */}
-						{article.tags && article.tags.length > 0 && (
+						{berita.tags && berita.tags.length > 0 && (
 							<div
 								className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
 								data-aos="fade-up"
@@ -410,12 +410,12 @@ export default function ArticleDetail() {
 									<h3 className="text-base font-semibold text-foreground">Tags:</h3>
 								</div>
 								<div className="flex flex-wrap gap-2">
-									{article.tags.map((tag, index) => (
+									{berita.tags.map((tag, index) => (
 										<Badge
 											key={index}
 											variant="secondary"
 											className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
-											onClick={() => navigateToTaggedArticles(tag)}>
+											onClick={() => navigateToTaggedBerita(tag)}>
 											{tag}
 										</Badge>
 									))}
@@ -463,13 +463,13 @@ export default function ArticleDetail() {
 						data-aos-delay="300">
 							<div className="flex flex-col sm:flex-row items-center justify-between gap-4">
 								<div className="text-sm text-muted-foreground">
-									Dipublikasikan pada {formatDate(article.createdAt)}
-									{article.updatedAt && article.updatedAt !== article.createdAt && (
-										<span> • Diperbarui pada {formatDate(article.updatedAt)}</span>
+									Dipublikasikan pada {formatDate(berita.createdAt)}
+									{berita.updatedAt && berita.updatedAt !== berita.createdAt && (
+										<span> • Diperbarui pada {formatDate(berita.updatedAt)}</span>
 									)}
 								</div>
 								<Button
-									onClick={shareArticle}
+									onClick={shareBerita}
 									variant="outline"
 									size="sm"
 									className="text-muted-foreground hover:text-foreground border-border">
@@ -558,7 +558,7 @@ export default function ArticleDetail() {
 								</button>
 							</div>
 						}>
-						<TableOfContents content={article.content} />
+						<TableOfContents content={berita.content} />
 					</Suspense>
 				</div>
 			</div>
@@ -568,11 +568,11 @@ export default function ArticleDetail() {
 		{/* AI Chat dengan context berita yang sedang dibaca */}
 		<AIChat
 			pageContext={{
-				path: `/berita/${article._id || article.id || id || ''}`,
+				path: `/berita/${berita._id || berita.id || id || ''}`,
 				permissions: [],
 				pageData: {
-					title: article.title,
-					excerpt: article.excerpt,
+					title: berita.title,
+					excerpt: berita.excerpt,
 				},
 			}}
 		/>

@@ -171,7 +171,7 @@ export default function DashboardKelembagaan() {
 												onChange={setVisionMission}
 												placeholder="Tulis konten visi dan misi di sini..."
 												height={350}
-												articleId="vision-mission-content"
+												beritaId="vision-mission-content"
 											/>
 										</div>
 									) : settings?.visionMission ? (

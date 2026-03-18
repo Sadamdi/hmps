@@ -1,4 +1,4 @@
-import ArticleEditor from '@/components/dashboard/article-editor';
+import BeritaEditor from '@/components/dashboard/berita-editor';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,8 +22,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Edit, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
-// Compatible Article interface with ArticleEditor
-interface Article {
+interface BeritaData {
 	_id: string;
 	title: string;
 	excerpt: string;
@@ -34,17 +33,16 @@ interface Article {
 	authorId: string;
 	createdAt: string;
 	updatedAt: string;
-	// Optional fields for compatibility
 	date?: string;
 	time?: string;
 }
 
-export default function DashboardArticles() {
+export default function DashboardBerita() {
 	const [searchQuery, setSearchQuery] = useState('');
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
-	const [editingArticle, setEditingArticle] = useState<Article | null>(null);
+	const [editingBerita, setEditingBerita] = useState<BeritaData | null>(null);
 	const [activeTab, setActiveTab] = useState('all');
-	const articlesContainerRef = useRef<HTMLDivElement>(null);
+	const beritaContainerRef = useRef<HTMLDivElement>(null);
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const { user, hasSpecificPermission } = useAuth();
@@ -53,7 +51,7 @@ export default function DashboardArticles() {
 	usePermissionRefresh();
 
 	// Guard permission - redirect jika tidak ada akses
-	const { hasPermission: hasArticleAccess, isLoading: isPermissionLoading } =
+	const { hasPermission: hasBeritaAccess, isLoading: isPermissionLoading } =
 		usePermissionGuardAny([
 			'berita.view',
 			'berita.view_others',
@@ -61,81 +59,75 @@ export default function DashboardArticles() {
 			'berita.create',
 		]);
 
-	// Helper function to check if user can edit/delete article
-	const canEditArticle = (article: Article) => {
-		const isOwner = user?._id === article.authorId;
+	const canEditBerita = (item: BeritaData) => {
+		const isOwner = user?._id === item.authorId;
 		return (
 			(hasSpecificPermission('berita.edit') && isOwner) ||
 			hasSpecificPermission('berita.edit_others')
 		);
 	};
 
-	const canDeleteArticle = (article: Article) => {
-		const isOwner = user?._id === article.authorId;
+	const canDeleteBerita = (item: BeritaData) => {
+		const isOwner = user?._id === item.authorId;
 		return (
 			(hasSpecificPermission('berita.delete') && isOwner) ||
 			hasSpecificPermission('berita.delete_others')
 		);
 	};
 
-	// Query articles with proper typing
-	const { data: articlesData = [], isLoading } = useQuery({
+	const { data: beritaData = [], isLoading } = useQuery({
 		queryKey: ['/api/berita/manage'],
 		refetchOnWindowFocus: false,
 		refetchOnMount: false,
 		staleTime: 60000,
 	});
 
-	// Type assertion for articles array
-	const articles = articlesData as Article[];
+	const beritaList = beritaData as BeritaData[];
 
-	// Filter articles based on search and tab
-	const filteredArticles = articles
+	const filteredBerita = beritaList
 		.filter(
-			(article: Article) =>
-				article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				article.excerpt.toLowerCase().includes(searchQuery.toLowerCase())
+			(item: BeritaData) =>
+				item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+				item.excerpt.toLowerCase().includes(searchQuery.toLowerCase())
 		)
-		.filter((article: Article) => {
+		.filter((item: BeritaData) => {
 			if (activeTab === 'all') return true;
-			if (activeTab === 'published') return article.published;
-			if (activeTab === 'drafts') return !article.published;
+			if (activeTab === 'published') return item.published;
+			if (activeTab === 'drafts') return !item.published;
 			return true;
 		});
 
-	// Pagination for articles
+	// Pagination for berita
 	const {
 		currentPage,
 		totalPages,
-		paginatedData: paginatedArticles,
+		paginatedData: paginatedBerita,
 		setCurrentPage,
 	} = usePagination({
-		data: filteredArticles,
+		data: filteredBerita,
 		itemsPerPageDesktop: 9,
 		itemsPerPageMobile: 6,
 	});
 
-	// Delete article mutation
-	const deleteArticleMutation = useMutation({
-		mutationFn: async (articleId: string | number) => {
-			await apiRequest('DELETE', `/api/berita/${articleId}`, {});
+	// Delete berita mutation
+	const deleteBeritaMutation = useMutation({
+		mutationFn: async (beritaId: string | number) => {
+			await apiRequest('DELETE', `/api/berita/${beritaId}`, {});
 		},
-		onSuccess: async (_, articleId) => {
-			// Find the deleted article for logging
-			const deletedArticle = articles.find(
-				(article) => (article as any)._id === articleId
+		onSuccess: async (_, beritaId) => {
+			const deletedItem = beritaList.find(
+				(b) => (b as any)._id === beritaId
 			);
 
 			queryClient.invalidateQueries({ queryKey: ['/api/berita/manage'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 
-			// Log activity
-			if (deletedArticle) {
+			if (deletedItem) {
 				try {
 					await logActivity(
 						ActivityTemplates.beritaDeleted(
-							deletedArticle.title,
-							String(articleId)
+							deletedItem.title,
+							String(beritaId)
 						)
 					);
 				} catch (error) {
@@ -158,44 +150,44 @@ export default function DashboardArticles() {
 		},
 	});
 
-	// Auto-scroll to articles container when page changes
+	// Auto-scroll to berita container when page changes
 	useEffect(() => {
-		if (articlesContainerRef.current) {
-			articlesContainerRef.current.scrollIntoView({
+		if (beritaContainerRef.current) {
+			beritaContainerRef.current.scrollIntoView({
 				behavior: 'smooth',
 				block: 'start',
 			});
 		}
 	}, [currentPage]);
 
-	const handleNewArticle = () => {
-		setEditingArticle(null);
+	const handleNewBerita = () => {
+		setEditingBerita(null);
 		setIsEditorOpen(true);
 	};
 
-	const handleEditArticle = (article: Article) => {
-		setEditingArticle(article);
+	const handleEditBerita = (item: BeritaData) => {
+		setEditingBerita(item);
 		setIsEditorOpen(true);
 	};
 
-	const handleDeleteArticle = async (articleId: string | number) => {
+	const handleDeleteBerita = async (beritaId: string | number) => {
 		if (window.confirm('Yakin ingin menghapus berita ini?')) {
-			await deleteArticleMutation.mutateAsync(articleId);
+			await deleteBeritaMutation.mutateAsync(beritaId);
 		}
 	};
 
 	const closeEditor = () => {
 		setIsEditorOpen(false);
-		setEditingArticle(null);
+		setEditingBerita(null);
 	};
 
-	const handleArticleSaved = () => {
+	const handleBeritaSaved = () => {
 		queryClient.invalidateQueries({ queryKey: ['/api/berita/manage'] });
 		closeEditor();
 		toast({
 			title: 'Success',
 			description: `Berita berhasil ${
-				editingArticle ? 'diperbarui' : 'dibuat'
+				editingBerita ? 'diperbarui' : 'dibuat'
 			}`,
 		});
 	};
@@ -216,7 +208,7 @@ export default function DashboardArticles() {
 
 	// Redirect sudah dihandle di usePermissionGuardAny
 	// Tapi tetap return early untuk safety
-	if (!hasArticleAccess) {
+	if (!hasBeritaAccess) {
 		return null;
 	}
 
@@ -225,7 +217,7 @@ export default function DashboardArticles() {
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 				<h1 className="text-2xl font-bold">Kelola Berita</h1>
 				{hasSpecificPermission('berita.create') && (
-					<Button onClick={handleNewArticle}>
+					<Button onClick={handleNewBerita}>
 						<Plus className="h-4 w-4 mr-2" />
 						Berita Baru
 					</Button>
@@ -258,28 +250,28 @@ export default function DashboardArticles() {
 				<div className="flex justify-center items-center h-64">
 					<Loader2 className="h-8 w-8 animate-spin text-primary" />
 				</div>
-			) : filteredArticles.length === 0 ? (
+			) : filteredBerita.length === 0 ? (
 				<Card>
 					<CardContent className="p-8 text-center">
 					<p className="text-muted-foreground mb-4">Belum ada berita.</p>
-					<Button onClick={handleNewArticle}>Buat Berita</Button>
+					<Button onClick={handleNewBerita}>Buat Berita</Button>
 					</CardContent>
 				</Card>
 			) : (
 				<div
-					ref={articlesContainerRef}
+					ref={beritaContainerRef}
 					key={`page-${currentPage}`}
 					className="grid gap-6 animate-page-transition">
-					{paginatedArticles.map((article: Article, index: number) => (
+					{paginatedBerita.map((item: BeritaData, index: number) => (
 						<Card
-							key={article._id}
+							key={item._id}
 							className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.02] animate-fade-in-up"
 							style={{ animationDelay: `${index * 50}ms` }}>
 							<div className="flex flex-col md:flex-row">
 								<div className="w-full md:w-64 h-48 md:h-auto">
 									<img
-										src={article.image}
-										alt={article.title}
+										src={item.image}
+										alt={item.title}
 										className="w-full h-full object-cover"
 									/>
 								</div>
@@ -288,9 +280,9 @@ export default function DashboardArticles() {
 										<div className="flex-1">
 											<div className="flex items-center mb-2">
 												<h2 className="text-xl font-bold mr-3">
-													{article.title}
+													{item.title}
 												</h2>
-											{article.published ? (
+											{item.published ? (
 												<span className="bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 text-xs px-2 py-1 rounded">
 													Published
 												</span>
@@ -301,31 +293,31 @@ export default function DashboardArticles() {
 											)}
 											</div>
 										<p className="text-muted-foreground mb-4 line-clamp-2">
-											{article.excerpt}
+											{item.excerpt}
 										</p>
 										<div className="flex items-center text-xs text-muted-foreground">
-												<span className="mr-4">By {article.author}</span>
+												<span className="mr-4">By {item.author}</span>
 												<span>
-													{article.date} at {article.time}
+													{item.date} at {item.time}
 												</span>
 											</div>
 										</div>
 										<div className="flex space-x-2">
-											{canEditArticle(article) && (
+											{canEditBerita(item) && (
 												<Button
 													size="sm"
 													variant="outline"
-													onClick={() => handleEditArticle(article)}>
+													onClick={() => handleEditBerita(item)}>
 													<Edit className="h-4 w-4 mr-1" />
 													Edit
 												</Button>
 											)}
-											{canDeleteArticle(article) && (
+											{canDeleteBerita(item) && (
 												<Button
 													size="sm"
 													variant="outline"
 													className="text-red-600 border-red-200 hover:bg-red-50"
-													onClick={() => handleDeleteArticle(article._id)}>
+													onClick={() => handleDeleteBerita(item._id)}>
 													<Trash2 className="h-4 w-4" />
 												</Button>
 											)}
@@ -358,7 +350,7 @@ export default function DashboardArticles() {
 					onInteractOutside={(e) => e.preventDefault()}>
 					<DialogHeader>
 						<DialogTitle>
-							{editingArticle ? 'Edit Berita' : 'Buat Berita Baru'}
+							{editingBerita ? 'Edit Berita' : 'Buat Berita Baru'}
 						</DialogTitle>
 						{/* Peringatan bahwa editor hanya bisa ditutup dengan tombol */}
 						<div className="flex items-center gap-2 mt-2 p-2 bg-blue-50 dark:bg-blue-950/30 rounded text-sm text-blue-700 dark:text-blue-300">
@@ -369,9 +361,9 @@ export default function DashboardArticles() {
 							</span>
 						</div>
 					</DialogHeader>
-					<ArticleEditor
-						article={editingArticle}
-						onSave={handleArticleSaved}
+					<BeritaEditor
+						berita={editingBerita}
+						onSave={handleBeritaSaved}
 						onCancel={closeEditor}
 					/>
 				</DialogContent>

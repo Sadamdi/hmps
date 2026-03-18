@@ -234,7 +234,6 @@ export const sqlInjectionProtectionMiddleware = async (
 			req.path === '/login' ||
 			req.path === '/dashboard' ||
 			req.path === '/berita' ||
-			req.path === '/artikel' ||
 			req.path === '/library' ||
 			req.path === '/about' ||
 			req.path === '/profil' ||
@@ -242,7 +241,6 @@ export const sqlInjectionProtectionMiddleware = async (
 			req.path === '/ai-chat' ||
 			req.path === '/error' ||
 			req.path.startsWith('/berita/') ||
-			req.path.startsWith('/artikel/') ||
 			req.path.startsWith('/dashboard/') ||
 			req.path.startsWith('/login') ||
 			req.path.startsWith('/error') ||
@@ -512,7 +510,6 @@ export const noSqlInjectionProtectionMiddleware = async (
 			req.path === '/login' ||
 			req.path === '/dashboard' ||
 			req.path === '/berita' ||
-			req.path === '/artikel' ||
 			req.path === '/library' ||
 			req.path === '/about' ||
 			req.path === '/profil' ||
@@ -520,7 +517,6 @@ export const noSqlInjectionProtectionMiddleware = async (
 			req.path === '/ai-chat' ||
 			req.path === '/error' ||
 			req.path.startsWith('/berita/') ||
-			req.path.startsWith('/artikel/') ||
 			req.path.startsWith('/dashboard/') ||
 			req.path.startsWith('/login') ||
 			req.path.startsWith('/error') ||

@@ -120,7 +120,7 @@ export default function Hero({
 			const response = await fetch('/api/stats');
 			if (!response.ok) throw new Error('Failed to fetch stats');
 			return response.json() as Promise<{
-				articles: number;
+				berita: number;
 				libraryItems: number;
 				organizationMembers: number;
 			}>;
@@ -129,7 +129,7 @@ export default function Hero({
 		refetchOnWindowFocus: false,
 		staleTime: 60 * 1000,
 		placeholderData: {
-			articles: 50,
+			berita: 50,
 			libraryItems: 100,
 			organizationMembers: 500,
 		},
@@ -377,7 +377,7 @@ export default function Hero({
 				<button
 					onClick={() => scrollToSection('berita')}
 					className="px-5 py-2 border border-blue-400/60 dark:border-cyan-300/50 text-blue-600 dark:text-cyan-200 rounded-full font-medium text-sm hover:bg-blue-50 dark:hover:bg-cyan-400/10 hover:border-blue-500 dark:hover:border-cyan-300/80 hover:scale-105 transition-all duration-250">
-					Lihat Artikel
+					Lihat Berita
 				</button>
 				</div>
 
@@ -496,7 +496,7 @@ export default function Hero({
 								<button
 									onClick={() => scrollToSection('berita')}
 									className="border-2 border-blue-200/70 text-blue-100 hover:bg-blue-100 hover:text-slate-900 px-6 py-3 rounded-full font-medium shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300">
-									Artikel Terbaru
+									Berita Terbaru
 								</button>
 							</div>
 
@@ -510,9 +510,9 @@ export default function Hero({
 								</div>
 								<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
 									<div className="text-xl font-bold text-cyan-200 mb-1">
-										{stats?.articles || 50}+
+										{stats?.berita || 50}+
 									</div>
-									<div className="text-xs text-white/80">Artikel</div>
+									<div className="text-xs text-white/80">Berita</div>
 								</div>
 								<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
 									<div className="text-xl font-bold text-indigo-200 mb-1">

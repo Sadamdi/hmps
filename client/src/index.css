@@ -742,18 +742,18 @@ body {
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 3;
 }
-/* Article content styling */
-.article-content {
+/* Berita content styling */
+.berita-content {
 	font-family: 'Georgia', 'Times New Roman', serif;
 	line-height: 1.8;
 }
 
-.article-content h1,
-.article-content h2,
-.article-content h3,
-.article-content h4,
-.article-content h5,
-.article-content h6 {
+.berita-content h1,
+.berita-content h2,
+.berita-content h3,
+.berita-content h4,
+.berita-content h5,
+.berita-content h6 {
 	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 		sans-serif;
 	font-weight: 700;
@@ -763,7 +763,7 @@ body {
 	scroll-margin-top: 100px; /* For smooth scrolling with fixed header */
 }
 
-.article-content h1 {
+.berita-content h1 {
 	font-size: 2.25rem;
 	line-height: 1.2;
 	border-bottom: 3px solid #3b82f6;
@@ -771,56 +771,56 @@ body {
 	margin-bottom: 1.5rem;
 }
 
-.article-content h2 {
+.berita-content h2 {
 	font-size: 1.875rem;
 	line-height: 1.3;
 	border-bottom: 2px solid #e5e7eb;
 	padding-bottom: 0.25rem;
 }
 
-.article-content h3 {
+.berita-content h3 {
 	font-size: 1.5rem;
 	line-height: 1.4;
 	color: #374151;
 }
 
-.article-content h4 {
+.berita-content h4 {
 	font-size: 1.25rem;
 	line-height: 1.5;
 	color: #4b5563;
 }
 
-.article-content h5 {
+.berita-content h5 {
 	font-size: 1.125rem;
 	line-height: 1.6;
 	color: #6b7280;
 }
 
-.article-content h6 {
+.berita-content h6 {
 	font-size: 1rem;
 	line-height: 1.6;
 	color: #6b7280;
 	font-weight: 600;
 }
 
-.article-content p {
+.berita-content p {
 	margin-bottom: 1.5rem;
 	color: #374151;
 	text-align: justify;
 }
 
-.article-content ul,
-.article-content ol {
+.berita-content ul,
+.berita-content ol {
 	margin-bottom: 1.5rem;
 	padding-left: 1.5rem;
 }
 
-.article-content li {
+.berita-content li {
 	margin-bottom: 0.5rem;
 	color: #374151;
 }
 
-.article-content blockquote {
+.berita-content blockquote {
 	border-left: 4px solid #3b82f6;
 	padding-left: 1rem;
 	margin: 1.5rem 0;
@@ -831,7 +831,7 @@ body {
 	border-radius: 0.5rem;
 }
 
-.article-content img {
+.berita-content img {
 	border-radius: 0.75rem;
 	box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
 	margin: 2rem 0;
@@ -839,7 +839,7 @@ body {
 	height: auto;
 }
 
-.article-content code {
+.berita-content code {
 	background-color: #f1f5f9;
 	padding: 0.25rem 0.5rem;
 	border-radius: 0.375rem;
@@ -848,7 +848,7 @@ body {
 	font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
-.article-content pre {
+.berita-content pre {
 	background-color: #1e293b;
 	color: #e2e8f0;
 	padding: 1.5rem;
@@ -858,13 +858,13 @@ body {
 	font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
-.article-content pre code {
+.berita-content pre code {
 	background-color: transparent;
 	padding: 0;
 	color: inherit;
 }
 
-.article-content a {
+.berita-content a {
 	color: #3b82f6;
 	text-decoration: underline;
 	text-decoration-color: #93c5fd;
@@ -872,12 +872,12 @@ body {
 	transition: all 0.2s ease;
 }
 
-.article-content a:hover {
+.berita-content a:hover {
 	color: #1d4ed8;
 	text-decoration-color: #3b82f6;
 }
 
-.article-content table {
+.berita-content table {
 	width: 100%;
 	border-collapse: collapse;
 	margin: 1.5rem 0;
@@ -886,124 +886,124 @@ body {
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.article-content th,
-.article-content td {
+.berita-content th,
+.berita-content td {
 	padding: 0.75rem 1rem;
 	text-align: left;
 	border-bottom: 1px solid #e5e7eb;
 }
 
-.article-content th {
+.berita-content th {
 	background-color: #f8fafc;
 	font-weight: 600;
 	color: #374151;
 }
 
-.article-content tr:hover {
+.berita-content tr:hover {
 	background-color: #f8fafc;
 }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
-	.article-content h1 {
+	.berita-content h1 {
 		font-size: 1.875rem;
 	}
 
-	.article-content h2 {
+	.berita-content h2 {
 		font-size: 1.5rem;
 	}
 
-	.article-content h3 {
+	.berita-content h3 {
 		font-size: 1.25rem;
 	}
 
-	.article-content {
+	.berita-content {
 		font-size: 1rem;
 	}
 }
-/* Dark mode overrides untuk .article-content agar teks terbaca di tema gelap */
-.dark .article-content h1,
-.dark .article-content h2,
-.dark .article-content h3,
-.dark .article-content h4,
-.dark .article-content h5,
-.dark .article-content h6 {
+/* Dark mode overrides untuk .berita-content agar teks terbaca di tema gelap */
+.dark .berita-content h1,
+.dark .berita-content h2,
+.dark .berita-content h3,
+.dark .berita-content h4,
+.dark .berita-content h5,
+.dark .berita-content h6 {
 	color: var(--foreground);
 }
 
-.dark .article-content h2 {
+.dark .berita-content h2 {
 	border-bottom-color: var(--border);
 }
 
-.dark .article-content h3 {
+.dark .berita-content h3 {
 	color: hsl(var(--foreground) / 0.9);
 }
 
-.dark .article-content h4,
-.dark .article-content h5,
-.dark .article-content h6 {
+.dark .berita-content h4,
+.dark .berita-content h5,
+.dark .berita-content h6 {
 	color: hsl(var(--foreground) / 0.8);
 }
 
-.dark .article-content p {
+.dark .berita-content p {
 	color: var(--foreground);
 }
 
-.dark .article-content li {
+.dark .berita-content li {
 	color: var(--foreground);
 }
 
-.dark .article-content blockquote {
+.dark .berita-content blockquote {
 	background-color: var(--muted);
 	color: var(--muted-foreground);
 	border-left-color: var(--primary);
 }
 
-.dark .article-content code {
+.dark .berita-content code {
 	background-color: var(--muted);
 	color: #f87171;
 }
 
-.dark .article-content table {
+.dark .berita-content table {
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
 }
 
-.dark .article-content th,
-.dark .article-content td {
+.dark .berita-content th,
+.dark .berita-content td {
 	border-bottom-color: var(--border);
 }
 
-.dark .article-content th {
+.dark .berita-content th {
 	background-color: var(--muted);
 	color: var(--foreground);
 }
 
-.dark .article-content tr:hover {
+.dark .berita-content tr:hover {
 	background-color: var(--muted);
 }
 
-.dark .article-content a {
+.dark .berita-content a {
 	color: #60a5fa;
 	text-decoration-color: #93c5fd;
 }
 
-.dark .article-content a:hover {
+.dark .berita-content a:hover {
 	color: #93c5fd;
 }
 
-/* Dark theme article content styling */
-.article-content-dark {
+/* Dark theme berita content styling */
+.berita-content-dark {
 	font-family: 'Georgia', 'Times New Roman', serif;
 	line-height: 1.8;
 	color: #e5e7eb;
 }
 
-.article-content-dark h1,
-.article-content-dark h2,
-.article-content-dark h3,
-.article-content-dark h4,
-.article-content-dark h5,
-.article-content-dark h6 {
+.berita-content-dark h1,
+.berita-content-dark h2,
+.berita-content-dark h3,
+.berita-content-dark h4,
+.berita-content-dark h5,
+.berita-content-dark h6 {
 	font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
 		sans-serif;
 	font-weight: 700;
@@ -1013,7 +1013,7 @@ body {
 	scroll-margin-top: 100px;
 }
 
-.article-content-dark h1 {
+.berita-content-dark h1 {
 	font-size: 2.25rem;
 	line-height: 1.2;
 	border-bottom: 3px solid #3b82f6;
@@ -1021,56 +1021,56 @@ body {
 	margin-bottom: 1.5rem;
 }
 
-.article-content-dark h2 {
+.berita-content-dark h2 {
 	font-size: 1.875rem;
 	line-height: 1.3;
 	border-bottom: 2px solid #374151;
 	padding-bottom: 0.25rem;
 }
 
-.article-content-dark h3 {
+.berita-content-dark h3 {
 	font-size: 1.5rem;
 	line-height: 1.4;
 	color: #f3f4f6;
 }
 
-.article-content-dark h4 {
+.berita-content-dark h4 {
 	font-size: 1.25rem;
 	line-height: 1.5;
 	color: #d1d5db;
 }
 
-.article-content-dark h5 {
+.berita-content-dark h5 {
 	font-size: 1.125rem;
 	line-height: 1.6;
 	color: #9ca3af;
 }
 
-.article-content-dark h6 {
+.berita-content-dark h6 {
 	font-size: 1rem;
 	line-height: 1.6;
 	color: #9ca3af;
 	font-weight: 600;
 }
 
-.article-content-dark p {
+.berita-content-dark p {
 	margin-bottom: 1.5rem;
 	color: #e5e7eb;
 	text-align: justify;
 }
 
-.article-content-dark ul,
-.article-content-dark ol {
+.berita-content-dark ul,
+.berita-content-dark ol {
 	margin-bottom: 1.5rem;
 	padding-left: 1.5rem;
 }
 
-.article-content-dark li {
+.berita-content-dark li {
 	margin-bottom: 0.5rem;
 	color: #e5e7eb;
 }
 
-.article-content-dark blockquote {
+.berita-content-dark blockquote {
 	border-left: 4px solid #3b82f6;
 	padding-left: 1rem;
 	margin: 1.5rem 0;
@@ -1081,7 +1081,7 @@ body {
 	border-radius: 0.5rem;
 }
 
-.article-content-dark img {
+.berita-content-dark img {
 	border-radius: 0.75rem;
 	box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
 	margin: 2rem 0;
@@ -1089,7 +1089,7 @@ body {
 	height: auto;
 }
 
-.article-content-dark code {
+.berita-content-dark code {
 	background-color: #374151;
 	padding: 0.25rem 0.5rem;
 	border-radius: 0.375rem;
@@ -1098,7 +1098,7 @@ body {
 	font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
 }
 
-.article-content-dark pre {
+.berita-content-dark pre {
 	background-color: #111827;
 	color: #e5e7eb;
 	padding: 1.5rem;
@@ -1109,13 +1109,13 @@ body {
 	border: 1px solid #374151;
 }
 
-.article-content-dark pre code {
+.berita-content-dark pre code {
 	background-color: transparent;
 	padding: 0;
 	color: inherit;
 }
 
-.article-content-dark a {
+.berita-content-dark a {
 	color: #60a5fa;
 	text-decoration: underline;
 	text-decoration-color: #3b82f6;
@@ -1123,12 +1123,12 @@ body {
 	transition: all 0.2s ease;
 }
 
-.article-content-dark a:hover {
+.berita-content-dark a:hover {
 	color: #93c5fd;
 	text-decoration-color: #60a5fa;
 }
 
-.article-content-dark table {
+.berita-content-dark table {
 	width: 100%;
 	border-collapse: collapse;
 	margin: 1.5rem 0;
@@ -1137,48 +1137,48 @@ body {
 	border: 1px solid #374151;
 }
 
-.article-content-dark th,
-.article-content-dark td {
+.berita-content-dark th,
+.berita-content-dark td {
 	padding: 0.75rem 1rem;
 	text-align: left;
 	border-bottom: 1px solid #374151;
 }
 
-.article-content-dark th {
+.berita-content-dark th {
 	background-color: #1f2937;
 	font-weight: 600;
 	color: #f3f4f6;
 }
 
-.article-content-dark tr:hover {
+.berita-content-dark tr:hover {
 	background-color: #1f2937;
 }
 
-.article-content-dark strong {
+.berita-content-dark strong {
 	color: #ffffff;
 	font-weight: 600;
 }
 
-.article-content-dark em {
+.berita-content-dark em {
 	color: #d1d5db;
 	font-style: italic;
 }
 
 /* Responsive adjustments for dark theme */
 @media (max-width: 768px) {
-	.article-content-dark h1 {
+	.berita-content-dark h1 {
 		font-size: 1.875rem;
 	}
 
-	.article-content-dark h2 {
+	.berita-content-dark h2 {
 		font-size: 1.5rem;
 	}
 
-	.article-content-dark h3 {
+	.berita-content-dark h3 {
 		font-size: 1.25rem;
 	}
 
-	.article-content-dark {
+	.berita-content-dark {
 		font-size: 1rem;
 	}
 }

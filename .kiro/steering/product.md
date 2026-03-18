@@ -14,7 +14,7 @@ This is a fullstack web application built for the Student Association of Informa
 ## Key Features
 
 - **Multi-role Authentication System** (Admin, Pengurus, Anggota)
-- **Content Management** for articles, announcements, and documentation
+- **Content Management** for berita, announcements, and documentation
 - **Membership Management** with registration and verification
 - **Activity Management** with event creation and participant registration
 - **Digital Library** for photos and videos

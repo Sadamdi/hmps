@@ -2,7 +2,7 @@
 
 ## Overview
 
-This design document outlines the implementation of Google Drive integration to replace the current file upload system in articles and gallery (library) sections. The system will allow users to provide Google Drive links instead of uploading files directly to the server, significantly reducing server storage usage while maintaining the same user experience.
+This design document outlines the implementation of Google Drive integration to replace the current file upload system in berita and gallery (library) sections. The system will allow users to provide Google Drive links instead of uploading files directly to the server, significantly reducing server storage usage while maintaining the same user experience.
 
 The integration will support both individual files and folders, with automatic detection of file accessibility and proper error handling for private or inaccessible content.
 
@@ -14,7 +14,7 @@ The current system uses:
 - **File Upload**: Multer middleware for handling multipart/form-data uploads
 - **Storage**: Local filesystem storage in `uploads/` and `attached_assets/` directories
 - **Database**: MongoDB with fields storing local file paths
-- **Articles**: Single image field (`image: text`)
+- **Berita**: Single image field (`image: text`)
 - **Library**: Multiple images field (`images: text[]`)
 
 ### New System Architecture
@@ -83,8 +83,8 @@ interface MediaUtils {
 ### 3. Database Schema Extensions
 
 ```typescript
-// Extended article schema
-interface ArticleWithGDrive {
+// Extended berita schema
+interface BeritaWithGDrive {
   // ... existing fields
   image: string; // Can be local path or Google Drive URL
   imageSource?: 'local' | 'gdrive'; // Source type indicator
@@ -135,8 +135,8 @@ The system will support these Google Drive URL formats:
 
 ```sql
 -- Add new fields to support Google Drive integration
-ALTER TABLE articles ADD COLUMN image_source TEXT DEFAULT 'local';
-ALTER TABLE articles ADD COLUMN gdrive_file_id TEXT;
+ALTER TABLE berita ADD COLUMN image_source TEXT DEFAULT 'local';
+ALTER TABLE berita ADD COLUMN gdrive_file_id TEXT;
 
 -- For MongoDB, these will be added as optional fields
 ```
@@ -206,7 +206,7 @@ interface ValidationState {
 ### Integration Tests
 
 1. **API Endpoint Tests**
-   - Article creation with Google Drive links
+   - Berita creation with Google Drive links
    - Library item creation with mixed sources
    - Error response handling
 
@@ -218,7 +218,7 @@ interface ValidationState {
 ### End-to-End Tests
 
 1. **User Workflow Tests**
-   - Complete article creation flow
+   - Complete berita creation flow
    - Gallery item management
    - Error recovery scenarios
 
@@ -292,7 +292,7 @@ interface ValidationState {
 // Migration script to add new fields
 async function migrateDatabase() {
   // Add source type fields with default 'local' value
-  await db.articles.updateMany({}, { 
+  await db.berita.updateMany({}, { 
     $set: { imageSource: 'local' } 
   });
   

@@ -1,7 +1,6 @@
 import mongoose from 'mongoose';
 import {
 	Berita,
-	Berita as Article,
 	Division,
 	Event,
 	EventYear,
@@ -140,97 +139,90 @@ async function deleteUser(id: string | number): Promise<void> {
 	await User.findByIdAndDelete(objectId);
 }
 
-// Article functions
-async function getAllArticles(options?: PaginationOptions): Promise<any[]> {
-	const query = Article.find().sort({ createdAt: -1 });
+async function getAllBerita(options?: PaginationOptions): Promise<any[]> {
+	const query = Berita.find().sort({ createdAt: -1 });
 	return await applyPagination(query, options).lean();
 }
 
-async function getPublishedArticles(options?: PaginationOptions): Promise<any[]> {
-	const query = Article.find({ published: true }).sort({ createdAt: -1 });
+async function getPublishedBerita(options?: PaginationOptions): Promise<any[]> {
+	const query = Berita.find({ published: true }).sort({ createdAt: -1 });
 	return await applyPagination(query, options).lean();
 }
 
-async function getArticlesByAuthorId(
+async function getBeritaByAuthorId(
 	authorId: string | number
 ): Promise<any[]> {
 	const objectId = toObjectId(authorId);
 	if (!objectId) return [];
 
-	return await Article.find({ authorId: objectId })
+	return await Berita.find({ authorId: objectId })
 		.sort({ createdAt: -1 })
 		.lean();
 }
 
-async function getArticleById(id: string | number): Promise<any | null> {
+async function getBeritaById(id: string | number): Promise<any | null> {
 	if (!id) return null;
 	try {
-		// Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
 		const objectId = toObjectId(id);
 		if (!objectId) return null;
 
-		return await Article.findById(objectId).lean();
+		return await Berita.findById(objectId).lean();
 	} catch (error) {
-		console.error('Error getting article by ID:', error);
+		console.error('Error getting berita by ID:', error);
 		return null;
 	}
 }
 
-async function getArticleBySlug(slug: string): Promise<any | null> {
+async function getBeritaBySlug(slug: string): Promise<any | null> {
 	if (!slug) return null;
 	try {
-		return await Article.findOne({ slug }).lean();
+		return await Berita.findOne({ slug }).lean();
 	} catch (error) {
-		console.error('Error getting article by slug:', error);
+		console.error('Error getting berita by slug:', error);
 		return null;
 	}
 }
 
-async function createArticle(articleData: any): Promise<any> {
-	// Convert authorId to ObjectId if it's a string or number
-	if (articleData.authorId) {
-		const objectId = toObjectId(articleData.authorId);
+async function createBerita(beritaData: any): Promise<any> {
+	if (beritaData.authorId) {
+		const objectId = toObjectId(beritaData.authorId);
 		if (objectId) {
-			articleData.authorId = objectId;
+			beritaData.authorId = objectId;
 		}
 	}
 
-	// Set created and updated timestamps
-	articleData.createdAt = new Date();
-	articleData.updatedAt = new Date();
+	beritaData.createdAt = new Date();
+	beritaData.updatedAt = new Date();
 
-	const newArticle = new Article(articleData);
-	return await newArticle.save();
+	const newBerita = new Berita(beritaData);
+	return await newBerita.save();
 }
 
-async function updateArticle(
+async function updateBerita(
 	id: string | number,
-	articleData: any
+	beritaData: any
 ): Promise<any> {
-	// Set updated timestamp
-	articleData.updatedAt = new Date();
+	beritaData.updatedAt = new Date();
 
-	// Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 
-	return await Article.findByIdAndUpdate(
+	return await Berita.findByIdAndUpdate(
 		objectId,
-		{ $set: articleData },
+		{ $set: beritaData },
 		{ new: true, runValidators: true }
 	).lean();
 }
 
-async function deleteArticle(id: string | number): Promise<void> {
-	// Convert ID to ObjectId
+async function deleteBerita(id: string | number): Promise<void> {
 	const objectId = toObjectId(id);
 	if (!objectId) return;
 
-	await Article.findByIdAndDelete(objectId);
+	await Berita.findByIdAndDelete(objectId);
 }
 
-async function getArticlesCount(): Promise<number> {
-	return await Article.countDocuments();
+async function getBeritaCount(): Promise<number> {
+	return await Berita.countDocuments();
 }
 
 // Library functions
@@ -861,8 +853,8 @@ async function getPublishedEventsAllYears(): Promise<any[]> {
 	return events;
 }
 
-async function getEventsByArticleId(articleId: string): Promise<any[]> {
-	const aOid = toObjectId(articleId);
+async function getEventsByBeritaId(beritaId: string): Promise<any[]> {
+	const aOid = toObjectId(beritaId);
 	if (!aOid) return [];
 	const events = await Event.find({ relatedBerita: aOid, published: true })
 		.populate('yearId', 'year')
@@ -922,7 +914,7 @@ async function getEventsCount(yearId?: string): Promise<number> {
 // ── Copy & Attach helpers ──
 
 /**
- * Parses Indonesian-format date strings from article content.
+ * Parses Indonesian-format date strings from berita content.
  * Returns { startDate, endDate, month } or null if not found.
  */
 function parseIndonesianDateFromContent(content: string, fallback: Date): { startDate: Date; endDate: Date; month: number } {
@@ -964,7 +956,7 @@ function parseIndonesianDateFromContent(content: string, fallback: Date): { star
 	return { startDate: fallback, endDate: fallback, month: m };
 }
 
-async function copyEventToArticle(
+async function copyEventToBerita(
 	eventId: string,
 	userId: string,
 	userDisplayName: string,
@@ -1009,7 +1001,7 @@ async function copyEventToArticle(
 
 	const uOid = toObjectId(userId);
 
-	const articleData: any = {
+	const beritaData: any = {
 		title: event.title,
 		slug,
 		excerpt,
@@ -1025,62 +1017,60 @@ async function copyEventToArticle(
 		updatedAt: new Date(),
 	};
 
-	const newArticle = new Article(articleData);
-	const saved = await newArticle.save();
+	const newBerita = new Berita(beritaData);
+	const saved = await newBerita.save();
 
-	// Automatically link article back to event
 	await Event.findByIdAndUpdate(event._id, { $addToSet: { relatedBerita: saved._id } });
 
 	return saved;
 }
 
-async function copyArticleToEvent(
-	articleId: string,
+async function copyBeritaToEvent(
+	beritaId: string,
 	userId: string,
 	options: { year?: number; parentEventId?: string; copyAttachments?: boolean } = {},
 ): Promise<any> {
-	const article = await Article.findById(toObjectId(articleId)).lean() as any;
-	if (!article) throw new Error('Article not found');
+	const item = await Berita.findById(toObjectId(beritaId)).lean() as any;
+	if (!item) throw new Error('Berita not found');
 
-	const targetYear = options.year || new Date(article.createdAt).getFullYear();
+	const targetYear = options.year || new Date(item.createdAt).getFullYear();
 
-	// Find or create EventYear
 	let yearDoc = await EventYear.findOne({ year: targetYear }).lean() as any;
 	if (!yearDoc) {
 		const newYear = new EventYear({ year: targetYear, isActiveOnHome: false });
 		yearDoc = await newYear.save();
 	}
 
-	const { startDate, endDate, month } = parseIndonesianDateFromContent(article.content, new Date(article.createdAt));
+	const { startDate, endDate, month } = parseIndonesianDateFromContent(item.content, new Date(item.createdAt));
 
 	const parentId = options.parentEventId ? toObjectId(options.parentEventId) : null;
 	const uOid = toObjectId(userId);
 
 	const attachments: any[] = [];
-	if (options.copyAttachments && article.image) {
+	if (options.copyAttachments && item.image) {
 		attachments.push({
-			name: 'Gambar Artikel',
-			url: article.image,
+			name: 'Gambar Berita',
+			url: item.image,
 			type: 'image',
-			source: article.imageSource || 'local',
+			source: item.imageSource || 'local',
 		});
 	}
 
 	const eventData: any = {
 		yearId: (yearDoc as any)._id,
 		parentId,
-		title: article.title,
-		description: article.content,
-		thumbnail: article.image || '',
-		thumbnailSource: article.imageSource || 'local',
+		title: item.title,
+		description: item.content,
+		thumbnail: item.image || '',
+		thumbnailSource: item.imageSource || 'local',
 		startDate,
 		endDate,
 		month,
 		attachments,
 		published: false,
 		createdBy: uOid,
-		relatedBerita: [toObjectId(articleId)],
-		sourceBeritaId: toObjectId(articleId),
+		relatedBerita: [toObjectId(beritaId)],
+		sourceBeritaId: toObjectId(beritaId),
 	};
 
 	const newEvent = new Event(eventData);
@@ -1088,26 +1078,26 @@ async function copyArticleToEvent(
 	return { event: saved, year: (yearDoc as any).year };
 }
 
-async function attachArticleToEvent(
+async function attachBeritaToEvent(
 	eventId: string,
-	articleId: string,
+	beritaId: string,
 	options: { copyFiles?: boolean } = {},
 ): Promise<any> {
-	const aOid = toObjectId(articleId);
+	const aOid = toObjectId(beritaId);
 	const eOid = toObjectId(eventId);
 	if (!aOid || !eOid) throw new Error('Invalid IDs');
 
 	const update: any = { $addToSet: { relatedBerita: aOid } };
 
 	if (options.copyFiles) {
-		const article = await Article.findById(aOid).lean() as any;
-		if (article?.image) {
+		const item = await Berita.findById(aOid).lean() as any;
+		if (item?.image) {
 			update.$push = {
 				attachments: {
-					name: `Gambar: ${article.title}`,
-					url: article.image,
+					name: `Gambar: ${item.title}`,
+					url: item.image,
 					type: 'image',
-					source: article.imageSource || 'local',
+					source: item.imageSource || 'local',
 				},
 			};
 		}
@@ -1116,8 +1106,8 @@ async function attachArticleToEvent(
 	return await Event.findByIdAndUpdate(eOid, update, { new: true }).lean();
 }
 
-async function detachArticleFromEvent(eventId: string, articleId: string): Promise<any> {
-	const aOid = toObjectId(articleId);
+async function detachBeritaFromEvent(eventId: string, beritaId: string): Promise<any> {
+	const aOid = toObjectId(beritaId);
 	const eOid = toObjectId(eventId);
 	if (!aOid || !eOid) throw new Error('Invalid IDs');
 	return await Event.findByIdAndUpdate(eOid, { $pull: { relatedBerita: aOid } }, { new: true }).lean();
@@ -1134,16 +1124,15 @@ const mongoDBStorage = {
 	updateUser,
 	deleteUser,
 
-	// Article functions
-	getAllArticles,
-	getPublishedArticles,
-	getArticlesByAuthorId,
-	getArticleById,
-	getArticleBySlug,
-	createArticle,
-	updateArticle,
-	deleteArticle,
-	getArticlesCount,
+	getAllBerita,
+	getPublishedBerita,
+	getBeritaByAuthorId,
+	getBeritaById,
+	getBeritaBySlug,
+	createBerita,
+	updateBerita,
+	deleteBerita,
+	getBeritaCount,
 
 	// Library functions
 	getAllLibraryItems,
@@ -1193,7 +1182,7 @@ const mongoDBStorage = {
 	// Event functions
 	getEventsByYear,
 	getEventsByYearId,
-	getEventsByArticleId,
+	getEventsByBeritaId,
 	getPublishedEventsAllYears,
 	getEventById,
 	getEventWithChildren,
@@ -1202,10 +1191,10 @@ const mongoDBStorage = {
 	updateEvent,
 	deleteEvent,
 	getEventsCount,
-	copyEventToArticle,
-	copyArticleToEvent,
-	attachArticleToEvent,
-	detachArticleFromEvent,
+	copyEventToBerita,
+	copyBeritaToEvent,
+	attachBeritaToEvent,
+	detachBeritaFromEvent,
 
 	// HomeImages functions
 	getAllHomeImages,

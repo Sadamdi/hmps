@@ -31,7 +31,7 @@ export const AI_TOOLS = [
 				},
 				limit: {
 					type: 'number',
-					description: 'Jumlah maksimal artikel yang dikembalikan. Default 10.',
+					description: 'Jumlah maksimal berita yang dikembalikan. Default 10.',
 				},
 			},
 			required: [],
@@ -46,7 +46,7 @@ export const AI_TOOLS = [
 			properties: {
 				id: {
 					type: 'string',
-					description: 'ID MongoDB atau slug dari artikel yang ingin diambil.',
+					description: 'ID MongoDB atau slug dari berita yang ingin diambil.',
 				},
 			},
 			required: ['id'],

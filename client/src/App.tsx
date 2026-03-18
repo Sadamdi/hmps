@@ -70,17 +70,6 @@ function Router() {
 				path="/berita/:id"
 				component={BeritaDetail}
 			/>
-			{/* Legacy /artikel → /berita redirects */}
-			<Route path="/artikel/:id/:slug">
-				{(params) => <RedirectTo to={`/berita/${params.id}/${params.slug}`} />}
-			</Route>
-			<Route path="/artikel/:id">
-				{(params) => <RedirectTo to={`/berita/${params.id}`} />}
-			</Route>
-			<Route path="/artikel">
-				{() => <RedirectTo to="/berita" />}
-			</Route>
-
 			<Route
 				path="/login"
 				component={LoginForm}
@@ -114,9 +103,6 @@ function Router() {
 						</ProtectedRoute>
 					)}
 				</Route>
-			<Route path="/dashboard/articles">
-				{() => <RedirectTo to="/dashboard/berita" />}
-			</Route>
 			<Route path="/dashboard/berita">
 				{() => (
 					<ProtectedRoute>

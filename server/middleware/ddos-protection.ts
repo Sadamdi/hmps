@@ -429,7 +429,6 @@ export const ddosProtectionMiddleware = async (
 		const isPublicContent =
 			path === '/' ||
 			path.startsWith('/berita') ||
-			path.startsWith('/artikel') ||
 			path === '/sitemap.xml' ||
 			path === '/robots.txt';
 
@@ -461,8 +460,7 @@ export const ddosProtectionMiddleware = async (
 			path === '/' ||
 			path === '/sitemap.xml' ||
 			path === '/robots.txt' ||
-			path.startsWith('/berita') ||
-			path.startsWith('/artikel');
+			path.startsWith('/berita');
 
 		if (
 			isAllowlistedSearchBot &&
@@ -674,8 +672,7 @@ export const ddosProtectionMiddleware = async (
 			path === '/' ||
 			path === '/sitemap.xml' ||
 			path === '/robots.txt' ||
-			path.startsWith('/berita') ||
-			path.startsWith('/artikel');
+			path.startsWith('/berita');
 
 		if (!isSeoCriticalPath) {
 			for (const pattern of suspiciousPatterns) {

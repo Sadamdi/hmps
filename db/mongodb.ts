@@ -106,7 +106,7 @@ const permissionSchema = new mongoose.Schema({
 	createdAt: { type: Date, default: Date.now },
 });
 
-// Model Berita (formerly Article)
+// Model Berita
 const beritaSchema = new mongoose.Schema({
 	title: { type: String, required: true },
 	slug: { type: String, required: true, unique: true }, // SEO-friendly URL
@@ -680,8 +680,6 @@ const HomeImages =
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Berita =
 	mongoose.models.Berita || mongoose.model('Berita', beritaSchema, 'berita');
-/** @deprecated Use Berita directly */
-const Article = Berita;
 const Library =
 	mongoose.models.Library || mongoose.model('Library', librarySchema);
 const Organization =
@@ -706,7 +704,6 @@ export const Division =
 	mongoose.models.Division || mongoose.model('Division', divisionSchema);
 
 export {
-	Article,
 	Berita,
 	Event,
 	EventYear,

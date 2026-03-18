@@ -44,7 +44,7 @@ export default function TableOfContents({ content }: TableOfContentsProps) {
   useEffect(() => {
     // Update the actual DOM with IDs for scrolling
     const headings = document.querySelectorAll(
-      ".article-content h1, .article-content h2, .article-content h3, .article-content h4, .article-content h5, .article-content h6, .article-content-dark h1, .article-content-dark h2, .article-content-dark h3, .article-content-dark h4, .article-content-dark h5, .article-content-dark h6"
+      ".berita-content h1, .berita-content h2, .berita-content h3, .berita-content h4, .berita-content h5, .berita-content h6, .berita-content-dark h1, .berita-content-dark h2, .berita-content-dark h3, .berita-content-dark h4, .berita-content-dark h5, .berita-content-dark h6"
     );
     headings.forEach((heading, index) => {
       heading.id = `heading-${index}`;

@@ -2,17 +2,17 @@
 
 ## Introduction
 
-This feature replaces the current file upload system in articles and gallery sections with Google Drive integration. Instead of uploading files directly to the server, users will provide Google Drive links, and the system will fetch and display the files directly from Google Drive. This approach will significantly reduce server storage usage while maintaining the same user experience for viewing photos and videos.
+This feature replaces the current file upload system in berita and gallery sections with Google Drive integration. Instead of uploading files directly to the server, users will provide Google Drive links, and the system will fetch and display the files directly from Google Drive. This approach will significantly reduce server storage usage while maintaining the same user experience for viewing photos and videos.
 
 ## Requirements
 
 ### Requirement 1
 
-**User Story:** As a content creator, I want to use Google Drive links instead of uploading files directly, so that I can save server storage space while still sharing photos and videos in articles and gallery.
+**User Story:** As a content creator, I want to use Google Drive links instead of uploading files directly, so that I can save server storage space while still sharing photos and videos in berita and gallery.
 
 #### Acceptance Criteria
 
-1. WHEN a user creates or edits an article THEN the system SHALL provide an input field for Google Drive links instead of file upload
+1. WHEN a user creates or edits a berita THEN the system SHALL provide an input field for Google Drive links instead of file upload
 2. WHEN a user creates or edits a gallery item THEN the system SHALL provide an input field for Google Drive links instead of file upload
 3. WHEN a user provides a Google Drive link THEN the system SHALL validate that the link is a valid Google Drive URL
 4. WHEN a valid Google Drive link is provided THEN the system SHALL store the link in the database
@@ -21,11 +21,11 @@ This feature replaces the current file upload system in articles and gallery sec
 
 ### Requirement 2
 
-**User Story:** As a user viewing articles or gallery, I want to see photos and videos from Google Drive seamlessly integrated, so that I have the same viewing experience regardless of the file source.
+**User Story:** As a user viewing berita or gallery, I want to see photos and videos from Google Drive seamlessly integrated, so that I have the same viewing experience regardless of the file source.
 
 #### Acceptance Criteria
 
-1. WHEN displaying an article with Google Drive media THEN the system SHALL fetch and display the media files as if they were locally stored
+1. WHEN displaying a berita with Google Drive media THEN the system SHALL fetch and display the media files as if they were locally stored
 2. WHEN displaying gallery items with Google Drive media THEN the system SHALL fetch and display all media files from the provided Google Drive links
 3. WHEN fetching Google Drive files THEN the system SHALL handle both individual files and folder contents
 4. WHEN displaying fetched media THEN the system SHALL maintain the same UI/UX as the current file display system
@@ -57,11 +57,11 @@ This feature replaces the current file upload system in articles and gallery sec
 
 ### Requirement 5
 
-**User Story:** As a developer maintaining the system, I want the Google Drive integration to be backward compatible, so that existing articles and gallery items continue to work without issues.
+**User Story:** As a developer maintaining the system, I want the Google Drive integration to be backward compatible, so that existing berita and gallery items continue to work without issues.
 
 #### Acceptance Criteria
 
-1. WHEN the new system is deployed THEN existing articles with uploaded files SHALL continue to display correctly
+1. WHEN the new system is deployed THEN existing berita with uploaded files SHALL continue to display correctly
 2. WHEN the new system is deployed THEN existing gallery items with uploaded files SHALL continue to display correctly
 3. WHEN displaying media content THEN the system SHALL automatically detect whether files are local uploads or Google Drive links
 4. WHEN migrating to the new system THEN the database schema SHALL support both local file paths and Google Drive links
