@@ -250,6 +250,7 @@ export default function Home() {
 	const renderSubItemSummary = (block: HomeBlockItem) => {
 		const meta = ALL_SUBITEM_BLOCKS.find((s) => s.id === block.id);
 		if (!meta) return null;
+		const isKelembagaanStructure = block.id === 'kelembagaan.structure';
 		return (
 			<section key={block.id} id={block.id.replace('.', '-')} className="py-16 scroll-mt-20">
 				<div className="max-w-5xl mx-auto px-4 text-center">
@@ -257,11 +258,26 @@ export default function Home() {
 						{meta.label}
 					</span>
 					<h2 className="text-2xl md:text-3xl font-bold text-foreground mb-4">{meta.label}</h2>
-					<a
-						href={meta.href}
-						className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">
-						Lihat Detail <ArrowRight className="h-4 w-4" />
-					</a>
+					{isKelembagaanStructure ? (
+						<div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
+							<a
+								href={meta.href}
+								className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">
+								Lihat semua struktur <ArrowRight className="h-4 w-4" />
+							</a>
+							<a
+								href="/kelembagaan?tab=grid#structure"
+								className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-muted text-foreground font-medium hover:bg-muted/80 transition-colors">
+								Lihat daftar anggota <ArrowRight className="h-4 w-4" />
+							</a>
+						</div>
+					) : (
+						<a
+							href={meta.href}
+							className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">
+							Lihat Detail <ArrowRight className="h-4 w-4" />
+						</a>
+					)}
 				</div>
 			</section>
 		);

@@ -4,6 +4,7 @@ import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
 import { useQuery } from '@tanstack/react-query';
+import { ArrowRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
 	Background,
@@ -218,6 +219,28 @@ export default function Structure() {
 	const [currentPeriod, setCurrentPeriod] = useState<string>('');
 	const [activeView, setActiveView] = useState<string>('flow');
 	const [selectedDivision, setSelectedDivision] = useState<string>('all');
+	const isHomeEmbedded = typeof window !== 'undefined' && window.location.pathname === '/';
+	// Support deep-linking to member list via `?tab=grid`
+	useEffect(() => {
+		if (typeof window === 'undefined') return;
+		const tab = new URLSearchParams(window.location.search).get('tab');
+		if (tab === 'grid') setActiveView('grid');
+		if (tab === 'flow') setActiveView('flow');
+	}, []);
+
+	// If user lands on `/kelembagaan#structure`, ensure we scroll to the Structure section.
+	useEffect(() => {
+		if (typeof window === 'undefined') return;
+		if (window.location.pathname !== '/kelembagaan') return;
+		if (window.location.hash !== '#structure') return;
+
+		const t = window.setTimeout(() => {
+			const el = document.getElementById('structure');
+			el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}, 150);
+
+		return () => window.clearTimeout(t);
+	}, [activeView]);
 	const [nodes, setNodes, onNodesChange] = useNodesState([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 	const [flowRefitCounter, setFlowRefitCounter] = useState<number>(0);
@@ -831,6 +854,24 @@ export default function Structure() {
 							</div>
 						</TabsContent>
 					</Tabs>
+				)}
+
+				{isHomeEmbedded && (
+					<div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
+						{activeView === 'flow' ? (
+							<a
+								href="/kelembagaan#structure"
+								className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">
+								Lihat semua struktur <ArrowRight className="h-4 w-4" />
+							</a>
+						) : (
+							<a
+								href="/kelembagaan?tab=grid#structure"
+								className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-muted text-foreground font-medium hover:bg-muted/80 transition-colors">
+								Lihat daftar anggota <ArrowRight className="h-4 w-4" />
+							</a>
+						)}
+					</div>
 				)}
 			</div>
 		</section>
