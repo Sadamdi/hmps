@@ -238,7 +238,7 @@ export default function SettingsPage() {
 	const restoreRequestOtpMut = useMutation({
 		mutationFn: async () => {
 			const res = await apiRequest('POST', '/api/backups/restore/request-otp', {});
-			return res as { challengeId: string };
+			return (await res.json()) as { challengeId: string };
 		},
 		onSuccess: (data) => {
 			setRestoreChallengeId(data.challengeId);
