@@ -26,6 +26,7 @@ const PURPOSE_LABELS: Record<string, string> = {
 	forgot_password: 'Reset Password',
 	change_password: 'Verifikasi Ganti Password',
 	change_email: 'Verifikasi Ganti Email',
+	restore_backup: 'Restore Database dari Backup',
 };
 
 export async function sendOtpEmail(params: {

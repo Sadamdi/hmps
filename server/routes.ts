@@ -3041,6 +3041,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
+	// ── Backup & Restore (owner-only) ──
+	const {
+		listAvailableBackups,
+		restoreFromSnapshot,
+	} = await import('./services/db-backup');
+
+	app.get(
+		'/api/backups/monthly',
+		authenticate,
+		authorize(['owner']),
+		async (_req, res) => {
+			try {
+				const list = await listAvailableBackups();
+				res.json(list);
+			} catch (error: any) {
+				console.error('List backups error:', error);
+				res.status(500).json({ message: error?.message || 'Internal server error' });
+			}
+		},
+	);
+
+	app.post(
+		'/api/backups/restore/request-otp',
+		authenticate,
+		authorize(['owner']),
+		async (req, res) => {
+			try {
+				const user = req.user as UserWithRole;
+				const { User } = await import('../db/mongodb');
+				const u = await User.findById(user._id).lean() as any;
+				if (!u?.email) {
+					return res.status(400).json({ message: 'Email tidak ditemukan' });
+				}
+				const { challengeId } = await createOtpChallenge({
+					purpose: 'restore_backup',
+					email: u.email,
+					userId: (user._id as any)?.toString?.() || user._id,
+					ttlMinutes: 10,
+					requestIp: getRequestIp(req),
+					username: user.username,
+				});
+				res.json({ challengeId });
+			} catch (error: any) {
+				if (error instanceof OtpError || error instanceof RateLimitError) {
+					return res.status(400).json({ message: error.message });
+				}
+				console.error('Request OTP for restore error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.post(
+		'/api/backups/restore/confirm',
+		authenticate,
+		authorize(['owner']),
+		async (req, res) => {
+			try {
+				const { snapshotKey, challengeId, code } = req.body;
+				if (!snapshotKey || !challengeId || !code) {
+					return res.status(400).json({
+						message: 'snapshotKey, challengeId, dan code wajib diisi',
+					});
+				}
+				await verifyOtpChallenge({
+					challengeId,
+					code: String(code).trim(),
+					purpose: 'restore_backup',
+				});
+				const result = await restoreFromSnapshot(snapshotKey);
+				if (!result.success) {
+					return res.status(400).json({ message: result.error || 'Restore gagal' });
+				}
+				res.json({ message: 'Database berhasil di-restore dari backup' });
+			} catch (error: any) {
+				if (error instanceof OtpError) {
+					return res.status(400).json({ message: error.message });
+				}
+				console.error('Restore confirm error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
 	// ── Home Images routes ──
 
 	// Seed default data on startup

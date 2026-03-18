@@ -8,6 +8,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/components/ui/card';
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import {
 	InputOTP,
@@ -16,6 +23,13 @@ import {
 } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 // import { usePermissionGuardAny } from '@/hooks/use-permission-guard'; // Tidak digunakan lagi
@@ -29,6 +43,7 @@ import {
 	Calendar,
 	CheckCircle2,
 	Copy,
+	Database,
 	Eye,
 	EyeOff,
 	Image,
@@ -36,6 +51,7 @@ import {
 	Loader2,
 	LogOut,
 	Plus,
+	RotateCcw,
 	Save,
 	Settings,
 	Shield,
@@ -128,6 +144,13 @@ export default function SettingsPage() {
 	const [showConfirm, setShowConfirm] = useState(false);
 	const [showRevokeDialog, setShowRevokeDialog] = useState(false);
 
+	// Restore backup state (owner-only)
+	const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+	const [restoreSnapshotKey, setRestoreSnapshotKey] = useState('');
+	const [restoreOtpStep, setRestoreOtpStep] = useState<'confirm' | 'otp'>('confirm');
+	const [restoreChallengeId, setRestoreChallengeId] = useState('');
+	const [restoreOtpCode, setRestoreOtpCode] = useState('');
+
 	// OTP flow state for change password
 	const [pwOtpStep, setPwOtpStep] = useState<'form' | 'otp'>('form');
 	const [pwChallengeId, setPwChallengeId] = useState('');
@@ -203,6 +226,58 @@ export default function SettingsPage() {
 		staleTime: 0,
 		refetchOnWindowFocus: true,
 		refetchOnMount: true,
+	});
+
+	// Fetch available backups (owner only, when security tab)
+	const { data: backupsList = [] } = useQuery<{ key: string; label: string }[]>({
+		queryKey: ['/api/backups/monthly'],
+		enabled: user?.role === 'owner' && activeTab === 'security',
+		staleTime: 60 * 1000,
+	});
+
+	const restoreRequestOtpMut = useMutation({
+		mutationFn: async () => {
+			const res = await apiRequest('POST', '/api/backups/restore/request-otp', {});
+			return res as { challengeId: string };
+		},
+		onSuccess: (data) => {
+			setRestoreChallengeId(data.challengeId);
+			setRestoreOtpStep('otp');
+			toast({ title: 'OTP dikirim ke email', description: 'Masukkan kode untuk konfirmasi.' });
+		},
+		onError: (err: any) => {
+			toast({
+				title: 'Gagal',
+				description: err?.message || 'Gagal mengirim OTP',
+				variant: 'destructive',
+			});
+		},
+	});
+
+	const restoreConfirmMut = useMutation({
+		mutationFn: async () => {
+			await apiRequest('POST', '/api/backups/restore/confirm', {
+				snapshotKey: restoreSnapshotKey,
+				challengeId: restoreChallengeId,
+				code: restoreOtpCode,
+			});
+		},
+		onSuccess: () => {
+			toast({ title: 'Berhasil', description: 'Database berhasil di-restore dari backup.' });
+			setShowRestoreDialog(false);
+			setRestoreOtpStep('confirm');
+			setRestoreOtpCode('');
+			setRestoreChallengeId('');
+			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/backups/monthly'] });
+		},
+		onError: (err: any) => {
+			toast({
+				title: 'Gagal',
+				description: err?.message || 'Restore gagal',
+				variant: 'destructive',
+			});
+		},
 	});
 
 	const [formData, setFormData] = useState<SiteSettings>(defaultSettings);
@@ -1187,6 +1262,135 @@ export default function SettingsPage() {
 										</CardContent>
 									</Card>
 								)}
+
+								{user?.role === 'owner' && (
+									<Card className="border-amber-200/50 bg-amber-50/30 dark:border-amber-900/50 dark:bg-amber-950/20">
+										<CardHeader>
+											<CardTitle className="flex items-center gap-2">
+												<Database className="h-5 w-5" />
+												Reset all to Backup
+											</CardTitle>
+											<CardDescription>
+												Overwrite database utama dengan snapshot backup bulanan.
+												Memerlukan konfirmasi dan OTP ke email.
+											</CardDescription>
+										</CardHeader>
+										<CardContent className="space-y-4">
+											<div>
+												<Label>Pilih backup bulan</Label>
+												<Select
+													value={restoreSnapshotKey}
+													onValueChange={setRestoreSnapshotKey}>
+													<SelectTrigger className="mt-2">
+														<SelectValue placeholder="Pilih snapshot..." />
+													</SelectTrigger>
+													<SelectContent>
+														{backupsList.map((b) => (
+															<SelectItem key={b.key} value={b.key}>
+																{b.label}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											</div>
+											<Button
+												variant="destructive"
+												onClick={() => {
+													if (!restoreSnapshotKey) {
+														toast({
+															title: 'Pilih backup',
+															description: 'Pilih bulan snapshot terlebih dahulu.',
+															variant: 'destructive',
+														});
+														return;
+													}
+													setShowRestoreDialog(true);
+													setRestoreOtpStep('confirm');
+													setRestoreOtpCode('');
+													setRestoreChallengeId('');
+												}}
+												disabled={restoreRequestOtpMut.isPending || restoreConfirmMut.isPending}>
+												<RotateCcw className="mr-2 h-4 w-4" />
+												Reset all to Backup
+											</Button>
+										</CardContent>
+									</Card>
+								)}
+
+								<Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+									<DialogContent>
+										<DialogHeader>
+											<DialogTitle>Reset Database ke Backup</DialogTitle>
+										</DialogHeader>
+										<div className="space-y-4">
+											<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+												<p className="text-sm text-amber-800 dark:text-amber-200">
+													Semua data di database utama akan diganti dengan isi backup.
+													Ini tidak dapat dibatalkan.
+												</p>
+											</div>
+											{restoreOtpStep === 'confirm' ? (
+												<Button
+													onClick={() => restoreRequestOtpMut.mutate()}
+													disabled={restoreRequestOtpMut.isPending}>
+													{restoreRequestOtpMut.isPending ? (
+														<>
+															<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+															Mengirim OTP...
+														</>
+													) : (
+														'Kirim OTP ke Email'
+													)}
+												</Button>
+											) : (
+												<div className="space-y-2">
+													<Label>Kode OTP</Label>
+													<InputOTP
+														maxLength={6}
+														value={restoreOtpCode}
+														onChange={setRestoreOtpCode}>
+														<InputOTPGroup>
+															<InputOTPSlot index={0} />
+															<InputOTPSlot index={1} />
+															<InputOTPSlot index={2} />
+															<InputOTPSlot index={3} />
+															<InputOTPSlot index={4} />
+															<InputOTPSlot index={5} />
+														</InputOTPGroup>
+													</InputOTP>
+													<Button
+														variant="destructive"
+														className="w-full"
+														onClick={() => restoreConfirmMut.mutate()}
+														disabled={
+															restoreOtpCode.length !== 6 ||
+															restoreConfirmMut.isPending
+														}>
+														{restoreConfirmMut.isPending ? (
+															<>
+																<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+																Memulihkan...
+															</>
+														) : (
+															'Konfirmasi & Restore'
+														)}
+													</Button>
+												</div>
+											)}
+										</div>
+										<DialogFooter>
+											<Button
+												variant="outline"
+												onClick={() => {
+													setShowRestoreDialog(false);
+													setRestoreOtpStep('confirm');
+													setRestoreOtpCode('');
+												}}>
+												Batal
+											</Button>
+										</DialogFooter>
+									</DialogContent>
+								</Dialog>
 
 								{canEditSettings && (
 									<div className="flex justify-end">

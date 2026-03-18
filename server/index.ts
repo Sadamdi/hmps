@@ -35,11 +35,6 @@ import { sanitizeInput, securityLogger, securityMiddleware } from './security';
 // Import models to ensure they are registered
 import './models/activity';
 
-// Respect environment variables in production; provide safe defaults for local dev only
-if (!process.env.MONGODB_URI) {
-	process.env.MONGODB_URI =
-		'mongodb+srv://recipesDB:4434@recipesdb.pjmdt.mongodb.net/?retryWrites=true&w=majority&appName=recipesDB';
-}
 if (process.env.DISABLE_MONGODB === undefined) {
 	process.env.DISABLE_MONGODB = 'false';
 }
@@ -289,6 +284,32 @@ setInterval(cleanupAntiSpoofingData, 60 * 1000);
 // DNS Layer Protection Cleanup (every 5 minutes)
 setInterval(cleanupDnsLayerData, 5 * 60 * 1000);
 
+// ==================== MONTHLY DB BACKUP SCHEDULER ====================
+import cron from 'node-cron';
+import {
+	runMonthlyBackup,
+	shouldRunBackupThisMonth,
+} from './services/db-backup';
+
+async function runBackupIfNeeded() {
+	if (!process.env.MONGODB_URI_BACKUP) return;
+	try {
+		const should = await shouldRunBackupThisMonth();
+		if (!should) return;
+		const result = await runMonthlyBackup();
+		if (result.success) {
+			console.log(`[Backup] Monthly backup completed: ${result.snapshotKey}`);
+		} else {
+			console.error('[Backup] Failed:', result.error);
+		}
+	} catch (err: any) {
+		console.error('[Backup] Error:', err?.message);
+	}
+}
+
+// Schedule: every 1st of month at 02:00
+cron.schedule('0 2 1 * *', runBackupIfNeeded);
+
 // ==================== SECURITY MONITORING ====================
 // Security monitoring akan ditampilkan saat server start
 
@@ -314,6 +335,9 @@ setInterval(
 		console.error('Error saat inisialisasi database:', error);
 		process.exit(1);
 	}
+
+	// Run backup on startup if this month not yet backed up
+	runBackupIfNeeded().catch(() => {});
 
 	const server = await registerRoutes(app);
 

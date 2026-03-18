@@ -534,6 +534,9 @@ const settingsSchema = new mongoose.Schema({
 			},
 		],
 	},
+	// Metadata backup bulanan (anti double-run)
+	lastMonthlyBackupAt: { type: Date, default: null },
+	lastMonthlyBackupKey: { type: String, default: '' },
 });
 
 // Position Schema - untuk mengelola position per tahun
