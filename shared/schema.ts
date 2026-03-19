@@ -183,6 +183,7 @@ export const DEFAULT_HOME_CONFIG: HomeConfig = {
 };
 
 export interface AboutPageTrackRecordItem {
+	id?: string;
 	year: string;
 	chairpersonName: string;
 	divisions: string[];
