@@ -29,6 +29,8 @@ import {
 } from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
 import chatRouter from './routes/chat';
+import sharingRouter, { expirePendingShares } from './routes/sharing';
+import { PostSharing } from '../db/mongodb';
 import {
 	cleanupBeritaImages,
 	deleteFile,
@@ -75,6 +77,47 @@ function getPaginationParams(query: any) {
 	return { page, limit, isPaginated };
 }
 
+async function hasApprovedSharing(
+	entityType: string,
+	entityId: string,
+	userId: string,
+	requiredPermission: 'view' | 'edit',
+): Promise<boolean> {
+	const filter: any = {
+		entityType,
+		entityId,
+		targetId: userId,
+		status: 'approved',
+	};
+	if (requiredPermission === 'edit') {
+		filter.permission = 'edit';
+	}
+	const count = await PostSharing.countDocuments(filter);
+	if (count > 0) return true;
+
+	// Event sharing cascades to descendants: sharing on parent event grants access to sub-events.
+	if (entityType === 'events') {
+		let current = await mongoStorage.getEventById(entityId);
+		while (current && (current as any).parentId) {
+			const parentId = String((current as any).parentId);
+			const parentFilter: any = {
+				entityType: 'events',
+				entityId: parentId,
+				targetId: userId,
+				status: 'approved',
+			};
+			if (requiredPermission === 'edit') {
+				parentFilter.permission = 'edit';
+			}
+			const parentShareCount = await PostSharing.countDocuments(parentFilter);
+			if (parentShareCount > 0) return true;
+			current = await mongoStorage.getEventById(parentId);
+		}
+	}
+
+	return false;
+}
+
 async function checkBeritaPermission(
 	user: UserWithRole,
 	berita: any,
@@ -86,18 +129,23 @@ async function checkBeritaPermission(
 
 		const permissions = userRole.permissions;
 		const isOwner = user._id.toString() === (berita.authorId || '').toString();
+		const beritaId = String(berita._id || berita.id);
 
 		switch (action) {
 			case 'edit':
-				return (
+				if (
 					(permissions.includes('berita.edit') && isOwner) ||
 					permissions.includes('berita.edit_others')
-				);
+				)
+					return true;
+				return hasApprovedSharing('berita', beritaId, user._id.toString(), 'edit');
 			case 'delete':
-				return (
+				if (
 					(permissions.includes('berita.delete') && isOwner) ||
 					permissions.includes('berita.delete_others')
-				);
+				)
+					return true;
+				return hasApprovedSharing('berita', beritaId, user._id.toString(), 'edit');
 			case 'publish':
 				return permissions.includes('berita.publish');
 			default:
@@ -122,23 +170,30 @@ async function checkEventPermission(
 		const permissions = userRole.permissions;
 		const isOwner =
 			user._id.toString() === (event.createdBy || '').toString();
+		const eventId = String(event._id || event.id);
 
 		switch (action) {
 			case 'view':
-				return (
+				if (
 					(permissions.includes('events.view') && isOwner) ||
 					permissions.includes('events.view_others')
-				);
+				)
+					return true;
+				return hasApprovedSharing('events', eventId, user._id.toString(), 'view');
 			case 'edit':
-				return (
+				if (
 					(permissions.includes('events.edit') && isOwner) ||
 					permissions.includes('events.edit_others')
-				);
+				)
+					return true;
+				return hasApprovedSharing('events', eventId, user._id.toString(), 'edit');
 			case 'delete':
-				return (
+				if (
 					(permissions.includes('events.delete') && isOwner) ||
 					permissions.includes('events.delete_others')
-				);
+				)
+					return true;
+				return hasApprovedSharing('events', eventId, user._id.toString(), 'edit');
 			case 'publish':
 				return permissions.includes('events.publish');
 			default:
@@ -160,10 +215,13 @@ async function canViewBerita(
 	if (!userRole) return false;
 	const permissions = userRole.permissions;
 	const isOwner = user._id.toString() === (berita.authorId || '').toString();
-	return (
+	if (
 		(permissions.includes('berita.view') && isOwner) ||
 		permissions.includes('berita.view_others')
-	);
+	)
+		return true;
+	const beritaId = String(berita._id || berita.id);
+	return hasApprovedSharing('berita', beritaId, user._id.toString(), 'view');
 }
 
 // Helper function to check library permissions
@@ -179,24 +237,149 @@ async function checkLibraryPermission(
 		const permissions = userRole.permissions;
 		const isOwner =
 			user._id.toString() === (libraryItem.authorId || '').toString();
+		const itemId = String(libraryItem._id || libraryItem.id);
 
 		switch (action) {
 			case 'edit':
-				return (
+				if (
 					(permissions.includes('library.edit') && isOwner) ||
 					permissions.includes('library.edit_others')
-				);
+				)
+					return true;
+				return hasApprovedSharing('library', itemId, user._id.toString(), 'edit');
 			case 'delete':
-				return (
+				if (
 					(permissions.includes('library.delete') && isOwner) ||
 					permissions.includes('library.delete_others')
-				);
+				)
+					return true;
+				return hasApprovedSharing('library', itemId, user._id.toString(), 'edit');
 			default:
 				return false;
 		}
 	} catch (error) {
 		console.error('Error checking library permission:', error);
 		return false;
+	}
+}
+
+import { User } from '../db/mongodb';
+
+async function getEffectiveAuthors(
+	entityType: string,
+	entityId: string,
+	originalAuthorName: string,
+): Promise<string[]> {
+	const authors = [originalAuthorName];
+	try {
+		const shares = await PostSharing.find({
+			entityType,
+			entityId,
+			status: 'approved',
+		}).lean();
+		if (shares.length > 0) {
+			const targetIds = shares.map((s) => s.targetId);
+			const users = await User.find(
+				{ _id: { $in: targetIds } },
+				'name',
+			).lean();
+			for (const u of users) {
+				if (u.name && !authors.includes(u.name)) {
+					authors.push(u.name);
+				}
+			}
+		}
+	} catch {}
+	return authors;
+}
+
+async function enrichBeritaWithAuthors(items: any[]): Promise<any[]> {
+	for (const item of items) {
+		const id = String(item._id || item.id);
+		const authors = await getEffectiveAuthors(
+			'berita',
+			id,
+			item.author || 'Unknown',
+		);
+		item.authorsDisplay = authors.join(' + ');
+		item.authors = authors;
+	}
+	return items;
+}
+
+async function getEffectiveAuthorsByAuthorId(
+	entityType: string,
+	entityId: string,
+	originalAuthorId?: string,
+): Promise<string[]> {
+	const authors: string[] = [];
+
+	try {
+		if (originalAuthorId) {
+			const originalAuthor = (await User.findById(
+				originalAuthorId,
+				'name',
+			).lean()) as any;
+			if (originalAuthor?.name && !authors.includes(originalAuthor.name)) {
+				authors.push(originalAuthor.name);
+			}
+		}
+
+		const shares = await PostSharing.find({
+			entityType,
+			entityId,
+			status: 'approved',
+		}).lean();
+
+		if (shares.length > 0) {
+			const targetIds = shares.map((s) => s.targetId);
+			const users = (await User.find(
+				{ _id: { $in: targetIds } },
+				'name',
+			).lean()) as any[];
+			for (const u of users) {
+				if (u?.name && !authors.includes(u.name)) authors.push(u.name);
+			}
+		}
+	} catch {}
+
+	return authors;
+}
+
+async function enrichEventsWithAuthors(items: any[]): Promise<any[]> {
+	for (const item of items) {
+		const id = String(item._id || item.id);
+		const originalAuthorId = item.createdBy ? String(item.createdBy) : undefined;
+		const authors = await getEffectiveAuthorsByAuthorId('events', id, originalAuthorId);
+		item.authorsDisplay = authors.join(' + ');
+		item.authors = authors;
+	}
+	return items;
+}
+
+async function enrichLibraryWithAuthors(items: any[]): Promise<any[]> {
+	for (const item of items) {
+		const id = String(item._id || item.id);
+		const originalAuthorId = item.authorId ? String(item.authorId) : undefined;
+		const authors = await getEffectiveAuthorsByAuthorId('library', id, originalAuthorId);
+		item.authorsDisplay = authors.join(' + ');
+		item.authors = authors;
+	}
+	return items;
+}
+
+async function enrichEventTreeWithAuthors(item: any): Promise<void> {
+	if (!item) return;
+	const id = String(item._id || item.id);
+	const originalAuthorId = item.createdBy ? String(item.createdBy) : undefined;
+	const authors = await getEffectiveAuthorsByAuthorId('events', id, originalAuthorId);
+	item.authorsDisplay = authors.join(' + ');
+	item.authors = authors;
+
+	if (Array.isArray(item.children) && item.children.length > 0) {
+		for (const child of item.children) {
+			await enrichEventTreeWithAuthors(child);
+		}
 	}
 }
 
@@ -1352,6 +1535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const allBerita = await mongoStorage.getPublishedBerita(
 				isPaginated ? { page, limit } : undefined,
 			);
+			await enrichBeritaWithAuthors(allBerita);
 			if (isPaginated) {
 				const total = await mongoStorage.getBeritaCount();
 				return res.json({
@@ -1427,14 +1611,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.get('/api/berita/manage', authenticate, async (req, res) => {
 		try {
-			// Get user permissions
+			await expirePendingShares();
+
+			const userId = (req.user as UserWithRole)?._id || '';
 			const userRole = await mongoStorage.getRoleByName(
 				(req.user as UserWithRole)?.role || '',
 			);
 			const permissions = userRole?.permissions || [];
 
-			// Filter by permissions: view_others = lihat semua, view/edit/create = hanya milik sendiri
-			let beritaList;
+			let beritaList: any[];
 			if (permissions.includes('berita.view_others')) {
 				beritaList = await mongoStorage.getAllBerita();
 			} else if (
@@ -1442,13 +1627,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				permissions.includes('berita.edit') ||
 				permissions.includes('berita.create')
 			) {
-				beritaList = await mongoStorage.getBeritaByAuthorId(
-					(req.user as UserWithRole)?._id || '',
-				);
+				beritaList = await mongoStorage.getBeritaByAuthorId(userId);
 			} else {
-				return res
-					.status(403)
-					.json({ message: 'You do not have permission to view berita' });
+				beritaList = [];
+			}
+
+			const now = new Date();
+			const sharedAccess = await PostSharing.find({
+				entityType: 'berita',
+				targetId: userId,
+				status: 'approved',
+			}).lean();
+			const pendingAccess = await PostSharing.find({
+				entityType: 'berita',
+				status: 'pending',
+				expiresAt: { $gt: now },
+				$or: [{ targetId: userId }, { requesterId: userId }],
+			}).lean();
+
+			const mergeSharedBerita = async (accessList: typeof sharedAccess) => {
+				if (accessList.length === 0) return;
+				const existingIds = new Set(
+					beritaList.map((b: any) => String(b._id)),
+				);
+				const sharedIds = accessList
+					.map((s) => String(s.entityId))
+					.filter((id) => !existingIds.has(id));
+				for (const sid of sharedIds) {
+					const item = await mongoStorage.getBeritaById(sid);
+					if (item) beritaList.push(item);
+				}
+			};
+			await mergeSharedBerita(sharedAccess);
+			await mergeSharedBerita(pendingAccess);
+
+			const approvedPermissionMap = new Map<string, 'view' | 'edit'>();
+			for (const s of sharedAccess) {
+				const eid = String(s.entityId);
+				const perm = s.permission === 'edit' ? 'edit' : 'view';
+				if (!approvedPermissionMap.has(eid) || perm === 'edit') {
+					approvedPermissionMap.set(eid, perm);
+				}
+			}
+			const pendingIdSet = new Set(pendingAccess.map((s) => String(s.entityId)));
+			beritaList = beritaList.map((item: any) => {
+				const eid = String(item._id);
+				const sharingPermission = approvedPermissionMap.get(eid);
+				const sharingStatus = pendingIdSet.has(eid)
+					? 'pending'
+					: sharingPermission
+						? 'approved'
+						: undefined;
+				return {
+					...item,
+					_sharingPermission: sharingPermission,
+					_sharingStatus: sharingStatus,
+				};
+			});
+
+			if (
+				beritaList.length === 0 &&
+				sharedAccess.length === 0 &&
+				pendingAccess.length === 0
+			) {
+				const hasAnyPerm =
+					permissions.includes('berita.view') ||
+					permissions.includes('berita.edit') ||
+					permissions.includes('berita.create');
+				if (!hasAnyPerm) {
+					return res
+						.status(403)
+						.json({ message: 'You do not have permission to view berita' });
+				}
 			}
 
 			res.json(beritaList);
@@ -1510,6 +1760,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.redirect(`/berita/${beritaId}/${beritaItem.slug}`);
 			}
 
+			await enrichBeritaWithAuthors([beritaItem]);
 			res.json(beritaItem);
 		} catch (error) {
 			console.error('Get berita by ID and slug error:', error);
@@ -1558,6 +1809,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.warn('Failed to increment viewCount (slug):', incError);
 			}
 
+			await enrichBeritaWithAuthors([beritaItem]);
 			res.json(beritaItem);
 		} catch (error) {
 			console.error('Get berita by slug error:', error);
@@ -1602,6 +1854,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.warn('Failed to increment viewCount (id):', incError);
 			}
 
+			await enrichBeritaWithAuthors([beritaItem]);
 			res.json(beritaItem);
 		} catch (error) {
 			console.error('Get berita error:', error);
@@ -2093,6 +2346,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const allItems = await mongoStorage.getAllLibraryItems(
 				isPaginated ? { page, limit } : undefined,
 			);
+
+			// Enrich byline multi-owner untuk kartu library.
+			try {
+				await enrichLibraryWithAuthors(allItems);
+			} catch (e) {
+				console.warn('Failed to enrich library authors:', e);
+			}
+
 			if (isPaginated) {
 				const total = await mongoStorage.getLibraryItemsCount();
 				return res.json({
@@ -2114,14 +2375,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.get('/api/library/manage', authenticate, async (req, res) => {
 		try {
-			// Get user permissions
+			await expirePendingShares();
+
+			const userId = (req.user as UserWithRole)?._id || '';
 			const userRole = await mongoStorage.getRoleByName(
 				(req.user as UserWithRole)?.role || '',
 			);
 			const permissions = userRole?.permissions || [];
 
-			// Filter by permissions: view_others = lihat semua, view/edit/create = hanya milik sendiri
-			let items;
+			let items: any[];
 			if (permissions.includes('library.view_others')) {
 				items = await mongoStorage.getAllLibraryItems();
 			} else if (
@@ -2129,13 +2391,79 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				permissions.includes('library.edit') ||
 				permissions.includes('library.create')
 			) {
-				items = await mongoStorage.getLibraryItemsByAuthorId(
-					(req.user as UserWithRole)?._id || '',
-				);
+				items = await mongoStorage.getLibraryItemsByAuthorId(userId);
 			} else {
-				return res.status(403).json({
-					message: 'You do not have permission to view library items',
-				});
+				items = [];
+			}
+
+			const now = new Date();
+			const sharedAccess = await PostSharing.find({
+				entityType: 'library',
+				targetId: userId,
+				status: 'approved',
+			}).lean();
+			const pendingAccess = await PostSharing.find({
+				entityType: 'library',
+				status: 'pending',
+				expiresAt: { $gt: now },
+				$or: [{ targetId: userId }, { requesterId: userId }],
+			}).lean();
+
+			const mergeSharedLibrary = async (accessList: typeof sharedAccess) => {
+				if (accessList.length === 0) return;
+				const existingIds = new Set(items.map((i: any) => String(i._id)));
+				for (const s of accessList) {
+					const eid = String(s.entityId);
+					if (!existingIds.has(eid)) {
+						const item = await mongoStorage.getLibraryItemById(eid);
+						if (item) {
+							items.push(item);
+							existingIds.add(eid);
+						}
+					}
+				}
+			};
+			await mergeSharedLibrary(sharedAccess);
+			await mergeSharedLibrary(pendingAccess);
+
+			const approvedPermissionMap = new Map<string, 'view' | 'edit'>();
+			for (const s of sharedAccess) {
+				const eid = String(s.entityId);
+				const perm = s.permission === 'edit' ? 'edit' : 'view';
+				if (!approvedPermissionMap.has(eid) || perm === 'edit') {
+					approvedPermissionMap.set(eid, perm);
+				}
+			}
+			const pendingIdSet = new Set(pendingAccess.map((s) => String(s.entityId)));
+			items = items.map((item: any) => {
+				const eid = String(item._id || item.id);
+				const sharingPermission = approvedPermissionMap.get(eid);
+				const sharingStatus = pendingIdSet.has(eid)
+					? 'pending'
+					: sharingPermission
+						? 'approved'
+						: undefined;
+				return {
+					...item,
+					_sharingPermission: sharingPermission,
+					_sharingStatus: sharingStatus,
+				};
+			});
+
+			if (
+				items.length === 0 &&
+				sharedAccess.length === 0 &&
+				pendingAccess.length === 0
+			) {
+				const hasAnyPerm =
+					permissions.includes('library.view') ||
+					permissions.includes('library.edit') ||
+					permissions.includes('library.create');
+				if (!hasAnyPerm) {
+					return res.status(403).json({
+						message: 'You do not have permission to view library items',
+					});
+				}
 			}
 
 			res.json(items);
@@ -3787,6 +4115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	app.use('/api/chat', chatRouter);
+	app.use('/api/sharing', sharingRouter);
 
 	// SPA Routing - Handle all frontend routes
 	// This ensures that routes like /dashboard, /berita, etc. work correctly
@@ -4484,6 +4813,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const data = await mongoStorage.getEventsForHome();
 			if (!data) return res.json({ year: null, events: [] });
+			// Enrich byline multi-owner untuk event cards.
+			try {
+				if (Array.isArray((data as any).events)) {
+					for (const ev of (data as any).events) {
+						await enrichEventTreeWithAuthors(ev);
+					}
+				}
+				if (Array.isArray((data as any).years)) {
+					for (const y of (data as any).years) {
+						if (Array.isArray(y.events)) {
+							for (const ev of y.events) {
+								await enrichEventTreeWithAuthors(ev);
+							}
+						}
+					}
+				}
+			} catch (e) {
+				console.warn('Failed to enrich event authors:', e);
+			}
+
 			res.json(data);
 		} catch (error) {
 			console.error('Error getting active home events:', error);
@@ -4507,6 +4856,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.get('/api/events', authenticate, async (req, res) => {
 		try {
+			await expirePendingShares();
+
 			const { yearId, parentId } = req.query;
 			if (!yearId)
 				return res.status(400).json({ message: 'yearId is required' });
@@ -4515,20 +4866,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					? null
 					: (parentId as string | undefined);
 
+			const userId = (req.user as UserWithRole)._id;
 			const userRole = await mongoStorage.getRoleByName(
 				(req.user as UserWithRole).role || '',
 			);
 			const permissions = userRole?.permissions || [];
-			// view_others = lihat semua, view/edit/create = hanya milik sendiri
+
 			let authorIdFilter: string | null = null;
+			let includeSharedIds: string[] = [];
+			const approvedPermissionMap = new Map<string, 'view' | 'edit'>();
+			let pendingIdSet = new Set<string>();
+
 			if (!permissions.includes('events.view_others')) {
 				if (
 					permissions.includes('events.view') ||
 					permissions.includes('events.edit') ||
 					permissions.includes('events.create')
 				) {
-					authorIdFilter = (req.user as UserWithRole)._id;
-				} else {
+					authorIdFilter = userId;
+				}
+
+				const now = new Date();
+				const sharedApproved = await PostSharing.find({
+					entityType: 'events',
+					targetId: userId,
+					status: 'approved',
+				}).lean();
+				const sharedPending = await PostSharing.find({
+					entityType: 'events',
+					status: 'pending',
+					expiresAt: { $gt: now },
+					$or: [{ targetId: userId }, { requesterId: userId }],
+				}).lean();
+				includeSharedIds = Array.from(
+					new Set([
+						...sharedApproved.map((s) => String(s.entityId)),
+						...sharedPending.map((s) => String(s.entityId)),
+					]),
+				);
+				for (const s of sharedApproved) {
+					const eid = String(s.entityId);
+					const perm = s.permission === 'edit' ? 'edit' : 'view';
+					if (!approvedPermissionMap.has(eid) || perm === 'edit') {
+						approvedPermissionMap.set(eid, perm);
+					}
+				}
+				pendingIdSet = new Set(
+					sharedPending.map((s) => String(s.entityId)),
+				);
+
+				// If current parent (or any ancestor) is shared, sub-event list under it should be accessible too.
+				if (
+					pId &&
+					(await hasApprovedSharing(
+						'events',
+						String(pId),
+						userId.toString(),
+						'view',
+					))
+				) {
+					authorIdFilter = null;
+				}
+
+				if (!authorIdFilter && includeSharedIds.length === 0) {
 					return res.status(403).json({
 						message: 'You do not have permission to view events',
 					});
@@ -4540,7 +4940,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				pId,
 				authorIdFilter,
 			);
-			res.json(events);
+
+			if (includeSharedIds.length > 0) {
+				const existingIds = new Set(events.map((e: any) => String(e._id)));
+				for (const sid of includeSharedIds) {
+					if (!existingIds.has(sid)) {
+						const ev = await mongoStorage.getEventById(sid);
+						if (ev && String((ev as any).yearId) === yearId) {
+							const matchParent = pId === null
+								? !(ev as any).parentId
+								: String((ev as any).parentId) === pId;
+							if (matchParent) events.push(ev);
+						}
+					}
+				}
+			}
+
+			const resolveEffectivePermission = async (
+				eventItem: any,
+			): Promise<'view' | 'edit' | undefined> => {
+				let current: any = eventItem;
+				while (current) {
+					const id = String(current._id || current.id);
+					const perm = approvedPermissionMap.get(id);
+					if (perm) return perm;
+					if (!(current as any).parentId) break;
+					current = await mongoStorage.getEventById(
+						String((current as any).parentId),
+					);
+				}
+				return undefined;
+			};
+
+			const resolveHasPending = async (eventItem: any): Promise<boolean> => {
+				let current: any = eventItem;
+				while (current) {
+					const id = String(current._id || current.id);
+					if (pendingIdSet.has(id)) return true;
+					if (!(current as any).parentId) break;
+					current = await mongoStorage.getEventById(
+						String((current as any).parentId),
+					);
+				}
+				return false;
+			};
+
+			const enrichedEvents: any[] = [];
+			for (const ev of events as any[]) {
+				const sharingPermission = await resolveEffectivePermission(ev);
+				const hasPending = await resolveHasPending(ev);
+				enrichedEvents.push({
+					...ev,
+					_sharingPermission: sharingPermission,
+					_sharingStatus: hasPending
+						? 'pending'
+						: sharingPermission
+							? 'approved'
+							: undefined,
+				});
+			}
+
+			res.json(enrichedEvents);
 		} catch (error) {
 			console.error('Error getting events:', error);
 			res.status(500).json({ message: 'Internal server error' });
@@ -4564,6 +5024,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				(event as any).viewCount = nextViews;
 			} catch (incError) {
 				console.warn('Failed to increment event viewCount:', incError);
+			}
+
+			// Enrich byline multi-owner untuk event detail modal.
+			try {
+				await enrichEventTreeWithAuthors(event);
+			} catch (e) {
+				console.warn('Failed to enrich event authors:', e);
 			}
 
 			res.json(event);

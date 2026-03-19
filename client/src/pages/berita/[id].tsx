@@ -347,7 +347,7 @@ export default function BeritaDetail() {
 								data-aos-delay="100">
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<User className="w-3.5 h-3.5 text-primary" />
-									<span className="font-medium text-foreground">{berita.author}</span>
+									<span className="font-medium text-foreground">{(berita as any).authorsDisplay || berita.author}</span>
 								</div>
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<Calendar className="w-3.5 h-3.5 text-primary" />

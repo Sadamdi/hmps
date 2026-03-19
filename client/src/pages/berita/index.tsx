@@ -20,6 +20,8 @@ interface BeritaItem {
 	excerpt: string;
 	image: string;
 	author: string;
+	authorsDisplay?: string;
+	authors?: string[];
 	createdAt: string;
 	tags: string[];
 	viewCount?: number;
@@ -332,7 +334,7 @@ export default function AllBerita() {
 									<div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
 										<div className="flex items-center gap-1">
 											<User className="h-3 w-3" />
-											<span>{item.author}</span>
+											<span>{item.authorsDisplay || item.author}</span>
 										</div>
 										<div className="flex items-center gap-1">
 											<Calendar className="h-3 w-3" />

@@ -23,6 +23,8 @@ interface LibraryItem {
 	date: string;
 	time: string;
 	type: 'photo' | 'video';
+	authorsDisplay?: string;
+	authors?: string[];
 }
 
 interface PaginatedResponse<T> {
@@ -217,6 +219,11 @@ export default function Library() {
 											</span>
 										</div>
 										<h3 className="font-bold text-xl mb-2">{item.title}</h3>
+										{item.authorsDisplay && (
+											<p className="text-sm text-muted-foreground mb-3">
+												By {item.authorsDisplay}
+											</p>
+										)}
 										<p className="text-muted-foreground mb-4 line-clamp-2">
 											{item.description}
 										</p>
@@ -239,6 +246,11 @@ export default function Library() {
 													<DialogTitle className="text-2xl font-bold font-serif">
 														{item.title}
 													</DialogTitle>
+												{item.authorsDisplay && (
+													<p className="text-sm text-muted-foreground mt-2">
+														By {item.authorsDisplay}
+													</p>
+												)}
 												</DialogHeader>
 
 												{item.type === 'photo' ? (

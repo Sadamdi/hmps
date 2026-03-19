@@ -8,7 +8,8 @@ export interface IActivity {
 		| 'organization'
 		| 'content'
 		| 'settings'
-		| 'user';
+		| 'user'
+		| 'sharing';
 	action: 'create' | 'update' | 'delete' | 'publish' | 'unpublish';
 	title: string;
 	description?: string;
@@ -33,6 +34,7 @@ const activitySchema = new Schema<IActivity>(
 				'content',
 				'settings',
 				'user',
+				'sharing',
 			],
 		},
 		action: {

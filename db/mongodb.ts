@@ -692,6 +692,113 @@ otpChallengeSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 otpChallengeSchema.index({ email: 1, createdAt: -1 });
 otpChallengeSchema.index({ requestIp: 1, createdAt: -1 });
 
+// Model PostSharing — per-post access control (invite / request workflow)
+const postSharingSchema = new mongoose.Schema(
+	{
+		entityType: {
+			type: String,
+			required: true,
+			enum: ['berita', 'events', 'library'],
+		},
+		entityId: {
+			type: mongoose.Schema.Types.ObjectId,
+			required: true,
+		},
+		kind: {
+			type: String,
+			required: true,
+			enum: ['invite', 'request'],
+		},
+		requesterId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+		targetId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+		permission: {
+			type: String,
+			required: true,
+			enum: ['view', 'edit'],
+		},
+		status: {
+			type: String,
+			required: true,
+			enum: ['pending', 'approved', 'declined', 'expired', 'revoked'],
+			default: 'pending',
+		},
+		decidedBy: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			default: null,
+		},
+		decidedAt: { type: Date, default: null },
+		expiresAt: { type: Date, required: true },
+	},
+	{ timestamps: true },
+);
+
+postSharingSchema.index({ entityType: 1, entityId: 1, status: 1 });
+postSharingSchema.index({ targetId: 1, status: 1 });
+postSharingSchema.index({ requesterId: 1, status: 1 });
+postSharingSchema.index({ expiresAt: 1 });
+
+// Model UserNotification — per-user notifications (sharing, approvals, etc.)
+const userNotificationSchema = new mongoose.Schema(
+	{
+		userId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+		type: {
+			type: String,
+			required: true,
+			enum: [
+				'sharing_invite',
+				'sharing_request',
+				'sharing_request_updated',
+				'sharing_approved',
+				'sharing_declined',
+				'sharing_revoked',
+				'sharing_expired',
+			],
+		},
+		title: { type: String, required: true },
+		description: { type: String, default: '' },
+		entityType: {
+			type: String,
+			enum: ['berita', 'events', 'library'],
+			default: null,
+		},
+		entityId: {
+			type: mongoose.Schema.Types.ObjectId,
+			default: null,
+		},
+		entityTitle: { type: String, default: '' },
+		sharingId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'PostSharing',
+			default: null,
+		},
+		fromUserId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			default: null,
+		},
+		fromUserName: { type: String, default: '' },
+		read: { type: Boolean, default: false },
+		actionUrl: { type: String, default: '' },
+	},
+	{ timestamps: true },
+);
+
+userNotificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
+userNotificationSchema.index({ userId: 1, createdAt: -1 });
+
 // Create models
 const EventYear =
 	mongoose.models.EventYear || mongoose.model('EventYear', eventYearSchema);
@@ -716,6 +823,10 @@ const Session =
 	mongoose.models.Session || mongoose.model('Session', sessionSchema);
 const OtpChallenge =
 	mongoose.models.OtpChallenge || mongoose.model('OtpChallenge', otpChallengeSchema);
+const PostSharing =
+	mongoose.models.PostSharing || mongoose.model('PostSharing', postSharingSchema);
+const UserNotification =
+	mongoose.models.UserNotification || mongoose.model('UserNotification', userNotificationSchema);
 
 // Create Position model
 export const Position =
@@ -734,9 +845,11 @@ export {
 	Organization,
 	OtpChallenge,
 	Permission,
+	PostSharing,
 	Role,
 	Session,
 	Settings,
 	User,
+	UserNotification,
 	connectDB,
 };

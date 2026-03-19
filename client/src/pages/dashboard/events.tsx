@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import SharingPanel from '@/components/dashboard/sharing-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -12,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { Badge } from '@/components/ui/badge';
-import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
+import { usePermissionGuardWithSharing } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
@@ -32,8 +33,8 @@ import {
 	Loader2,
 	Plus,
 	Search,
+	Share2,
 	Trash2,
-
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -74,36 +75,67 @@ interface SiteSettings {
 	[key: string]: unknown;
 }
 
+interface EventRequestable {
+	_id: string;
+	title: string;
+	published?: boolean;
+}
+type EventWithSharing = EventItem & {
+	_sharingPermission?: 'view' | 'edit';
+	_sharingStatus?: 'pending' | 'approved';
+};
+
 export default function DashboardEvents() {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const { user, hasSpecificPermission } = useAuth();
 	usePermissionRefresh();
 
-	const { hasPermission: hasAccess, isLoading: isPermLoading } =
-		usePermissionGuardAny(['events.view', 'events.view_others', 'events.create', 'events.edit']);
+	const {
+		hasPermission: hasAccess,
+		hasRolePermission,
+		hasSharedAccess,
+		isLoading: isPermLoading,
+	} = usePermissionGuardWithSharing(
+		['events.view', 'events.view_others', 'events.create', 'events.edit'],
+		'events',
+		{ allowRequestOnly: true },
+	);
 
-	const canEditEvent = (ev: EventItem) => {
+	const requestOnly = !hasRolePermission && !hasSharedAccess;
+	const manageEnabled = !requestOnly;
+	const showRequestSharingSearch =
+		hasAccess && !hasSpecificPermission('events.view_others');
+
+	const canEditEvent = (ev: EventWithSharing) => {
 		const isOwner = user?._id === ev.createdBy;
+		const hasSharedEdit = ev._sharingPermission === 'edit';
 		return (
 			(hasSpecificPermission('events.edit') && isOwner) ||
-			hasSpecificPermission('events.edit_others')
+			hasSpecificPermission('events.edit_others') ||
+			hasSharedEdit
 		);
 	};
-	const canDeleteEvent = (ev: EventItem) => {
+	const canDeleteEvent = (ev: EventWithSharing) => {
 		const isOwner = user?._id === ev.createdBy;
+		const hasSharedEdit = ev._sharingPermission === 'edit';
 		return (
 			(hasSpecificPermission('events.delete') && isOwner) ||
-			hasSpecificPermission('events.delete_others')
+			hasSpecificPermission('events.delete_others') ||
+			hasSharedEdit
 		);
 	};
-	const canViewEvent = (ev: EventItem) => {
+	const canViewEvent = (ev: EventWithSharing) => {
 		const isOwner = user?._id === ev.createdBy;
 		return (
 			(hasSpecificPermission('events.view') && isOwner) ||
 			hasSpecificPermission('events.view_others')
 		);
 	};
+
+	const [sharingEvent, setSharingEvent] = useState<EventItem | null>(null);
+
+	const [requestTitleQuery, setRequestTitleQuery] = useState('');
 
 	const [selectedYearId, setSelectedYearId] = useState<string | null>(null);
 	const [selectedParentEvent, setSelectedParentEvent] = useState<EventItem | null>(null);
@@ -131,12 +163,12 @@ export default function DashboardEvents() {
 	// Queries
 	const { data: eventYears = [], isLoading: isYearsLoading } = useQuery<EventYear[]>({
 		queryKey: ['/api/event-years'],
-		enabled: hasAccess,
+		enabled: manageEnabled,
 	});
 
 	const { data: siteSettings } = useQuery<SiteSettings>({
 		queryKey: ['/api/settings'],
-		enabled: hasAccess,
+		enabled: manageEnabled,
 	});
 
 	const multiYearMode = siteSettings?.eventsAllowMultipleYearsOnHome === true;
@@ -152,7 +184,7 @@ export default function DashboardEvents() {
 		enabled: isEventDialogOpen && hasSpecificPermission('events.edit'),
 	});
 
-	const { data: events = [], isLoading: isEventsLoading } = useQuery<EventItem[]>({
+	const { data: events = [], isLoading: isEventsLoading } = useQuery<EventWithSharing[]>({
 		queryKey: ['/api/events', selectedYearId, selectedParentEvent?._id],
 		queryFn: async () => {
 			const parentParam = selectedParentEvent ? selectedParentEvent._id : 'null';
@@ -162,13 +194,96 @@ export default function DashboardEvents() {
 			if (!res.ok) throw new Error('Failed to fetch events');
 			return res.json();
 		},
-		enabled: !!selectedYearId && hasAccess,
+		enabled: !!selectedYearId && manageEnabled,
+	});
+
+	const {
+		data: requestableEvents = [],
+		isLoading: isRequestableLoading,
+	} = useQuery<EventRequestable[]>({
+		queryKey: ['/api/sharing/requestable', 'events', requestTitleQuery],
+		enabled:
+			showRequestSharingSearch && requestTitleQuery.trim().length >= 2,
+		staleTime: 5000,
+		queryFn: async () => {
+			const res = await fetch(
+				`/api/sharing/requestable?entityType=events&q=${encodeURIComponent(requestTitleQuery)}`,
+				{ credentials: 'include' },
+			);
+			if (!res.ok) return [];
+			return (await res.json()) as EventRequestable[];
+		},
 	});
 
 	const selectedYear = useMemo(
 		() => eventYears.find((y) => y._id === selectedYearId),
 		[eventYears, selectedYearId],
 	);
+
+	const requestSharingSearchBlock = showRequestSharingSearch ? (
+		<div className="mb-6 flex flex-col gap-4">
+			<div className="relative max-w-xl">
+				<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+				<Input
+					placeholder="Cari judul event untuk request sharing..."
+					className="pl-10"
+					value={requestTitleQuery}
+					onChange={(e) => setRequestTitleQuery(e.target.value)}
+				/>
+			</div>
+
+			{isRequestableLoading ? (
+				<div className="flex justify-center items-center h-48">
+					<Loader2 className="h-8 w-8 animate-spin text-primary" />
+				</div>
+			) : requestTitleQuery.trim().length < 2 ? (
+				<Card>
+					<CardContent className="p-6 text-center text-muted-foreground">
+						Masukkan minimal 2 huruf untuk mencari.
+					</CardContent>
+				</Card>
+			) : requestableEvents.length === 0 ? (
+				<Card>
+					<CardContent className="p-6 text-center text-muted-foreground">
+						Tidak ada hasil untuk judul tersebut.
+					</CardContent>
+				</Card>
+			) : (
+				<div className="grid gap-4">
+					{requestableEvents.map((item, index) => (
+						<Card
+							key={item._id}
+							className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.01] animate-fade-in-up"
+							style={{ animationDelay: `${index * 30}ms` }}>
+							<CardContent className="p-4">
+								<div className="flex items-start justify-between gap-4">
+									<div className="min-w-0">
+										<h3 className="font-bold truncate">{item.title}</h3>
+										<span className="text-xs text-muted-foreground">
+											{item.published ? 'Published' : 'Draft'}
+										</span>
+									</div>
+									<Button
+										size="sm"
+										variant="outline"
+										onClick={() =>
+											setSharingEvent({
+												_id: item._id,
+												title: item.title,
+											} as any)
+										}
+										className="shrink-0">
+										<Share2 className="h-4 w-4 mr-1" />
+										Ajukan Akses
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					))}
+				</div>
+			)}
+		</div>
+	) : null;
 
 	// ─── Settings mutations ──────────────────────────────────────────
 	const updateSettingsMut = useMutation({
@@ -380,8 +495,11 @@ export default function DashboardEvents() {
 	// ─── Year List View ──────────────────────────────────────────────
 	if (!selectedYearId) {
 		return (
-			<DashboardLayout title="Manajemen Event">
+			<DashboardLayout title={requestOnly ? 'Events' : 'Manajemen Event'}>
 				<div className="space-y-6">
+					{requestSharingSearchBlock}
+					{manageEnabled && (
+						<>
 					{/* Header */}
 					<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
 						<div>
@@ -521,9 +639,11 @@ export default function DashboardEvents() {
 							))}
 						</div>
 					)}
+						</>
+					)}
 				</div>
 
-				{/* Dialog Tambah Tahun */}
+				{manageEnabled && (
 				<Dialog open={isYearDialogOpen} onOpenChange={setIsYearDialogOpen}>
 					<DialogContent className="w-[calc(100vw-2rem)] max-w-md">
 						<DialogHeader>
@@ -551,6 +671,18 @@ export default function DashboardEvents() {
 						</div>
 					</DialogContent>
 				</Dialog>
+				)}
+			{sharingEvent && (
+				<SharingPanel
+					entityType="events"
+					entityId={sharingEvent._id}
+					entityTitle={sharingEvent.title}
+					open={!!sharingEvent}
+					onOpenChange={(open) => {
+						if (!open) setSharingEvent(null);
+					}}
+				/>
+			)}
 			</DashboardLayout>
 		);
 	}
@@ -559,6 +691,7 @@ export default function DashboardEvents() {
 	return (
 		<DashboardLayout title={`Event ${selectedYear?.year || ''}`}>
 			<div className="space-y-6">
+				{requestSharingSearchBlock}
 				{/* Breadcrumb */}
 				<div className="flex items-center gap-1 text-sm flex-wrap">
 					<Button variant="ghost" size="sm" className="px-2" onClick={() => { setSelectedYearId(null); setSelectedParentEvent(null); }}>
@@ -670,6 +803,10 @@ export default function DashboardEvents() {
 																	Sub-event
 																</Button>
 															)}
+															<Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs" onClick={() => setSharingEvent(ev)}>
+																<Share2 className="h-3 w-3 mr-1" />
+																Akses
+															</Button>
 															{canEditEvent(ev) && (
 																<Button variant="outline" size="sm" className="flex-1 sm:flex-none text-xs" onClick={() => openEditEvent(ev)}>
 																	<Edit className="h-3 w-3 mr-1" />
@@ -930,6 +1067,17 @@ export default function DashboardEvents() {
 					)}
 				</DialogContent>
 			</Dialog>
+			{sharingEvent && (
+				<SharingPanel
+					entityType="events"
+					entityId={sharingEvent._id}
+					entityTitle={sharingEvent.title}
+					open={!!sharingEvent}
+					onOpenChange={(open) => {
+						if (!open) setSharingEvent(null);
+					}}
+				/>
+			)}
 		</DashboardLayout>
 	);
 }

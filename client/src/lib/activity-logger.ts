@@ -5,7 +5,8 @@ interface ActivityLog {
 		| 'organization'
 		| 'content'
 		| 'settings'
-		| 'user';
+		| 'user'
+		| 'sharing';
 	action: 'create' | 'update' | 'delete' | 'publish' | 'unpublish';
 	title: string;
 	description?: string;
@@ -180,6 +181,74 @@ export const ActivityTemplates = {
 		title: 'User dihapus',
 		entityId: id,
 		entityTitle: username,
+	}),
+
+	// Sharing activities
+	sharingInviteSent: (
+		entityTitle: string,
+		targetName: string,
+		permission: string,
+		entityId?: string,
+	) => ({
+		type: 'berita' as const,
+		action: 'create' as const,
+		title: `Undangan sharing ${permission} dikirim`,
+		description: `Mengundang ${targetName} untuk ${permission} "${entityTitle}"`,
+		entityId,
+		entityTitle,
+	}),
+
+	sharingRequestSent: (
+		entityTitle: string,
+		permission: string,
+		entityId?: string,
+	) => ({
+		type: 'berita' as const,
+		action: 'create' as const,
+		title: `Permintaan sharing ${permission} dikirim`,
+		description: `Meminta akses ${permission} untuk "${entityTitle}"`,
+		entityId,
+		entityTitle,
+	}),
+
+	sharingApproved: (
+		entityTitle: string,
+		userName: string,
+		permission: string,
+		entityId?: string,
+	) => ({
+		type: 'berita' as const,
+		action: 'update' as const,
+		title: `Sharing disetujui`,
+		description: `Akses ${permission} untuk "${entityTitle}" oleh ${userName} disetujui`,
+		entityId,
+		entityTitle,
+	}),
+
+	sharingDeclined: (
+		entityTitle: string,
+		userName: string,
+		entityId?: string,
+	) => ({
+		type: 'berita' as const,
+		action: 'update' as const,
+		title: `Sharing ditolak`,
+		description: `Permintaan akses untuk "${entityTitle}" oleh ${userName} ditolak`,
+		entityId,
+		entityTitle,
+	}),
+
+	sharingRevoked: (
+		entityTitle: string,
+		userName: string,
+		entityId?: string,
+	) => ({
+		type: 'berita' as const,
+		action: 'delete' as const,
+		title: `Akses sharing dicabut`,
+		description: `Akses ${userName} untuk "${entityTitle}" dicabut`,
+		entityId,
+		entityTitle,
 	}),
 };
 

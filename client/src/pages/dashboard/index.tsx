@@ -27,6 +27,7 @@ import {
 	Loader2,
 	Plus,
 	Settings,
+	Share2,
 	Users,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -40,7 +41,8 @@ interface Activity {
 		| 'organization'
 		| 'content'
 		| 'settings'
-		| 'user';
+		| 'user'
+		| 'sharing';
 	action: 'create' | 'update' | 'delete' | 'publish' | 'unpublish';
 	title: string;
 	description?: string;
@@ -191,6 +193,8 @@ export default function Dashboard() {
 			case 'settings':
 			case 'content':
 				return <Settings className="h-4 w-4" />;
+			case 'sharing':
+				return <Share2 className="h-4 w-4" />;
 			default:
 				return <FileText className="h-4 w-4" />;
 		}
@@ -208,6 +212,8 @@ export default function Dashboard() {
 			case 'settings':
 			case 'content':
 				return 'text-slate-300 bg-slate-500/15';
+			case 'sharing':
+				return 'text-emerald-300 bg-emerald-500/15';
 			default:
 				return 'text-primary bg-primary/10';
 		}

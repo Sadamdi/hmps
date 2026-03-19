@@ -67,6 +67,8 @@ export function StatusBadge({ status }: { status: EventStatus }) {
 
 interface EventWithChildren extends EventItem {
 	children?: EventItem[];
+	authorsDisplay?: string;
+	authors?: string[];
 }
 
 interface HomeEventsYearEntry {
@@ -107,7 +109,7 @@ function EventBranchPill({
 	onNodePointerEnter,
 	onNodePointerLeave,
 }: {
-	event: EventItem;
+	event: EventWithChildren;
 	onClick: () => void;
 	registerNode: (id: string, el: HTMLDivElement | null) => void;
 	nodeId: string;
@@ -132,7 +134,14 @@ function EventBranchPill({
 				onClick={onClick}
 				className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-primary/30 bg-primary/10 hover:bg-primary/20 hover:border-primary/50 transition-colors duration-200 text-left min-w-0 max-w-[180px] flex-shrink-0"
 			>
-				<span className="text-xs font-medium text-white truncate flex-1 min-w-0">{event.title}</span>
+				<div className="flex-1 min-w-0">
+					<span className="text-xs font-medium text-white truncate block">{event.title}</span>
+					{event.authorsDisplay && (
+						<span className="text-[10px] text-white/70 truncate block mt-0.5">
+							By {event.authorsDisplay}
+						</span>
+					)}
+				</div>
 				<StatusBadge status={status} />
 			</button>
 		</div>
@@ -736,6 +745,11 @@ export default function EventsTree({
 				<DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto bg-black/90 border-white/10 backdrop-blur-xl">
 					<DialogHeader>
 						<DialogTitle className="text-white text-xl">{showSubEvents?.title}</DialogTitle>
+						{showSubEvents?.authorsDisplay && (
+							<p className="text-sm text-gray-400 mt-1">
+								By {showSubEvents.authorsDisplay}
+							</p>
+						)}
 					</DialogHeader>
 					{showSubEvents && (
 						<div className="space-y-4">
@@ -815,6 +829,11 @@ export default function EventsTree({
 														)}
 														<div className="flex-1 min-w-0">
 															<h4 className="font-medium text-white text-sm truncate">{child.title}</h4>
+															{child.authorsDisplay && (
+																<p className="text-[11px] text-gray-400 mt-0.5">
+																	By {child.authorsDisplay}
+																</p>
+															)}
 															<p className="text-[11px] text-gray-400 mt-0.5">
 																{formatEventDate(child.startDate)} - {formatEventDate(child.endDate)}
 															</p>
@@ -837,6 +856,11 @@ export default function EventsTree({
 				<DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-y-auto bg-black/90 border-white/10 backdrop-blur-xl">
 					<DialogHeader>
 						<DialogTitle className="text-white text-xl">{selectedEvent?.title}</DialogTitle>
+						{selectedEvent?.authorsDisplay && (
+							<p className="text-sm text-gray-400 mt-1">
+								By {selectedEvent.authorsDisplay}
+							</p>
+						)}
 					</DialogHeader>
 					{selectedEvent && (
 						<div className="space-y-4">

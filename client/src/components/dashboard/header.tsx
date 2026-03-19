@@ -17,7 +17,7 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 	Bell,
 	Edit3,
@@ -30,6 +30,7 @@ import {
 	Moon,
 	Plus,
 	Settings,
+	Share2,
 	Sun,
 	Users,
 } from 'lucide-react';
@@ -45,6 +46,42 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 	const { logout } = useAuth();
 	const { theme, toggleTheme } = useTheme();
 	const [showAllNotifications, setShowAllNotifications] = useState(false);
+	const queryClient = useQueryClient();
+
+	// User-specific sharing notifications
+	const { data: userNotifData } = useQuery({
+		queryKey: ['/api/sharing/notifications', { limit: 10 }],
+		queryFn: async () => {
+			try {
+				const res = await fetch('/api/sharing/notifications?limit=10', {
+					credentials: 'include',
+				});
+				if (!res.ok) return { notifications: [], unreadCount: 0 };
+				return res.json();
+			} catch {
+				return { notifications: [], unreadCount: 0 };
+			}
+		},
+		refetchInterval: 15000,
+		staleTime: 10000,
+		retry: 1,
+	});
+
+	const unreadSharingCount = userNotifData?.unreadCount || 0;
+
+	const markSharingRead = async () => {
+		try {
+			await fetch('/api/sharing/notifications/read', {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({}),
+			});
+			queryClient.invalidateQueries({
+				queryKey: ['/api/sharing/notifications'],
+			});
+		} catch {}
+	};
 
 	// Recent activities for notifications (limit 5 for dropdown)
 	const { data: notifications = [], isLoading: notificationsLoading } =
@@ -105,7 +142,7 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 					return [];
 				}
 			},
-			enabled: showAllNotifications, // Only fetch when modal is opened
+			enabled: showAllNotifications,
 			refetchInterval: 30000,
 			refetchIntervalInBackground: false,
 			refetchOnWindowFocus: false,
@@ -134,6 +171,8 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 				return <Settings className={iconClass} />;
 			case 'user':
 				return <Users className={iconClass} />;
+			case 'sharing':
+				return <Share2 className={iconClass} />;
 			default:
 				return <Edit3 className={iconClass} />;
 		}
@@ -145,6 +184,8 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 			return 'text-blue-300 bg-blue-500/15';
 			case 'library':
 				return 'text-emerald-300 bg-emerald-500/15';
+			case 'sharing':
+				return 'text-teal-300 bg-teal-500/15';
 			case 'organization':
 				return 'text-violet-300 bg-violet-500/15';
 			case 'content':
@@ -208,14 +249,16 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 						)}
 					</button>
 
-					<DropdownMenu>
+					<DropdownMenu onOpenChange={(open) => {
+						if (open && unreadSharingCount > 0) markSharingRead();
+					}}>
 						<DropdownMenuTrigger asChild>
 							<Button
 								variant="ghost"
 								size="icon"
 								className="relative">
 								<Bell className="h-5 w-5" />
-								{notifications.length > 0 && (
+								{(notifications.length > 0 || unreadSharingCount > 0) && (
 									<span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
 								)}
 							</Button>
@@ -242,12 +285,45 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 								<div className="flex items-center justify-center py-4">
 									<Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
 								</div>
-							) : notifications.length === 0 ? (
+							) : notifications.length === 0 && (!userNotifData?.notifications?.length) ? (
 								<div className="py-4 text-center text-sm text-muted-foreground">
 									Belum ada notifikasi
 								</div>
 							) : (
 								<>
+									{/* Sharing notifications */}
+									{userNotifData?.notifications?.slice(0, 3).map((n: any) => (
+										<DropdownMenuItem
+											key={`sharing-${n._id}`}
+											className="py-3 px-4 focus:bg-secondary">
+											<div className="flex items-start space-x-3 w-full">
+												<div className="p-1.5 rounded-full text-primary bg-primary/10">
+													<Share2 className="h-4 w-4" />
+												</div>
+												<div className="flex-1 min-w-0">
+													<p className="text-sm font-medium text-foreground truncate">
+														{n.title}
+													</p>
+													{n.description && (
+														<p className="text-xs text-muted-foreground truncate">
+															{n.description}
+														</p>
+													)}
+													<span className="text-xs text-muted-foreground">
+														{formatTimeAgo(n.createdAt)}
+														{n.fromUserName && ` oleh ${n.fromUserName}`}
+													</span>
+												</div>
+												{!n.read && (
+													<div className="w-2 h-2 bg-primary rounded-full mt-1.5 flex-shrink-0" />
+												)}
+											</div>
+										</DropdownMenuItem>
+									))}
+									{userNotifData?.notifications?.length > 0 && notifications.length > 0 && (
+										<DropdownMenuSeparator />
+									)}
+									{/* Activity notifications */}
 									{notifications.map((notification: any, index: number) => (
 										<DropdownMenuItem
 											key={index}

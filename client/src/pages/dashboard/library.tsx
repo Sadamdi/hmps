@@ -1,5 +1,6 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import MediaUploader from '@/components/dashboard/media-uploader';
+import SharingPanel from '@/components/dashboard/sharing-panel';
 import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { usePermissionGuardAny } from '@/hooks/use-permission-guard';
+import { usePermissionGuardWithSharing } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
@@ -24,6 +25,7 @@ import {
 	Loader2,
 	Plus,
 	Search,
+	Share2,
 	Trash2,
 	VideoIcon,
 } from 'lucide-react';
@@ -43,13 +45,22 @@ interface LibraryItem {
 	type: 'photo' | 'video';
 	createdAt: string;
 	authorId?: string;
+	_sharingPermission?: 'view' | 'edit';
+	_sharingStatus?: 'pending' | 'approved';
+}
+
+interface LibraryRequestable {
+	_id: string;
+	title: string;
 }
 
 export default function DashboardLibrary() {
 	const [searchQuery, setSearchQuery] = useState('');
+	const [requestTitleQuery, setRequestTitleQuery] = useState('');
 	const [isUploaderOpen, setIsUploaderOpen] = useState(false);
 	const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
 	const [activeTab, setActiveTab] = useState('all');
+	const [sharingItem, setSharingItem] = useState<LibraryItem | null>(null);
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const { user, hasSpecificPermission } = useAuth();
@@ -57,29 +68,56 @@ export default function DashboardLibrary() {
 	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
 
-	// Guard permission - redirect jika tidak ada akses
-	const { hasPermission: hasLibraryAccess, isLoading: isPermissionLoading } =
-		usePermissionGuardAny([
-			'library.view',
-			'library.view_others',
-			'library.edit',
-			'library.create',
-		]);
+	const {
+		hasPermission: hasLibraryAccess,
+		hasRolePermission,
+		hasSharedAccess,
+		isLoading: isPermissionLoading,
+	} =
+		usePermissionGuardWithSharing(
+			['library.view', 'library.view_others', 'library.edit', 'library.create'],
+			'library',
+			{ allowRequestOnly: true },
+		);
+
+	const requestOnly = !hasRolePermission && !hasSharedAccess;
+	const showRequestSharingSearch =
+		hasLibraryAccess && !hasSpecificPermission('library.view_others');
+
+	const openSharingRequest = (item: LibraryRequestable) => {
+		setSharingItem({
+			_id: item._id,
+			title: item.title,
+			description: '',
+			fullDescription: '',
+			images: [],
+			type: 'photo',
+			authorId: String(user?._id || ''),
+			createdAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+			time: '',
+			date: '',
+		} as any);
+	};
 
 	// Helper function to check if user can edit/delete library item
 	const canEditLibraryItem = (item: LibraryItem) => {
 		const isOwner = user?._id === item.authorId;
+		const hasSharedEdit = item._sharingPermission === 'edit';
 		return (
 			(hasSpecificPermission('library.edit') && isOwner) ||
-			hasSpecificPermission('library.edit_others')
+			hasSpecificPermission('library.edit_others') ||
+			hasSharedEdit
 		);
 	};
 
 	const canDeleteLibraryItem = (item: LibraryItem) => {
 		const isOwner = user?._id === item.authorId;
+		const hasSharedEdit = item._sharingPermission === 'edit';
 		return (
 			(hasSpecificPermission('library.delete') && isOwner) ||
-			hasSpecificPermission('library.delete_others')
+			hasSpecificPermission('library.delete_others') ||
+			hasSharedEdit
 		);
 	};
 
@@ -89,6 +127,25 @@ export default function DashboardLibrary() {
 		refetchOnWindowFocus: false,
 		refetchOnMount: false,
 		staleTime: 60000,
+		enabled: !requestOnly,
+	});
+
+	const {
+		data: requestableLibrary = [],
+		isLoading: isRequestableLoading,
+	} = useQuery({
+		queryKey: ['/api/sharing/requestable', 'library', requestTitleQuery],
+		enabled:
+			showRequestSharingSearch && requestTitleQuery.trim().length >= 2,
+		staleTime: 5000,
+		queryFn: async () => {
+			const res = await fetch(
+				`/api/sharing/requestable?entityType=library&q=${encodeURIComponent(requestTitleQuery)}`,
+				{ credentials: 'include' },
+			);
+			if (!res.ok) return [];
+			return (await res.json()) as LibraryRequestable[];
+		},
 	});
 
 	// Delete library item mutation
@@ -203,8 +260,10 @@ export default function DashboardLibrary() {
 	return (
 		<DashboardLayout title="Galeri">
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
-				<h1 className="text-2xl font-bold">Galeri Media</h1>
-				{hasSpecificPermission('library.create') && (
+				<h1 className="text-2xl font-bold">
+					{requestOnly ? 'Ajukan Akses Galeri' : 'Galeri Media'}
+				</h1>
+				{!requestOnly && hasSpecificPermission('library.create') && (
 					<Button onClick={handleNewItem}>
 						<Plus className="h-4 w-4 mr-2" />
 						Upload Media
@@ -212,54 +271,117 @@ export default function DashboardLibrary() {
 				)}
 			</div>
 
-			<div className="mb-6 flex flex-col sm:flex-row gap-4">
-				<div className="relative flex-1">
-					<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-					<Input
-						placeholder="Cari galeri..."
-						className="pl-10"
-						value={searchQuery}
-						onChange={(e) => setSearchQuery(e.target.value)}
-					/>
-				</div>
-				<Tabs
-					value={activeTab}
-					onValueChange={setActiveTab}
-					className="w-full sm:w-auto">
-					<TabsList>
-						<TabsTrigger value="all">All</TabsTrigger>
-						<TabsTrigger value="photos">Photos</TabsTrigger>
-						<TabsTrigger value="videos">Videos</TabsTrigger>
-					</TabsList>
-				</Tabs>
-			</div>
+			{showRequestSharingSearch && (
+				<div className="mb-6 flex flex-col gap-4">
+					<div className="relative max-w-xl">
+						<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+						<Input
+							placeholder="Cari judul galeri untuk request sharing..."
+							className="pl-10"
+							value={requestTitleQuery}
+							onChange={(e) => setRequestTitleQuery(e.target.value)}
+						/>
+					</div>
 
-			{isLoading ? (
-				<div className="flex justify-center items-center h-64">
-					<Loader2 className="h-8 w-8 animate-spin text-primary" />
+					{isRequestableLoading ? (
+						<div className="flex justify-center items-center h-48">
+							<Loader2 className="h-8 w-8 animate-spin text-primary" />
+						</div>
+					) : requestTitleQuery.trim().length < 2 ? (
+						<Card>
+							<CardContent className="p-6 text-center text-gray-500">
+								Masukkan minimal 2 huruf untuk mencari.
+							</CardContent>
+						</Card>
+					) : requestableLibrary.length === 0 ? (
+						<Card>
+							<CardContent className="p-6 text-center text-gray-500">
+								Tidak ada hasil untuk judul tersebut.
+							</CardContent>
+						</Card>
+					) : (
+						<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+							{requestableLibrary.map((item, index) => (
+								<Card
+									key={item._id}
+									className="overflow-hidden hover:shadow-lg transition-all duration-300 hover:scale-[1.01] animate-fade-in-up"
+									style={{ animationDelay: `${index * 30}ms` }}>
+									<CardContent className="p-4">
+										<div className="flex items-start justify-between gap-4">
+											<div className="min-w-0">
+												<h3 className="font-bold truncate">{item.title}</h3>
+											</div>
+											<Button
+												size="sm"
+												variant="outline"
+												onClick={() => openSharingRequest(item)}
+												className="shrink-0">
+												<Share2 className="h-4 w-4 mr-1" />
+												Ajukan Akses
+											</Button>
+										</div>
+									</CardContent>
+								</Card>
+							))}
+						</div>
+					)}
 				</div>
-			) : filteredItems.length === 0 ? (
-				<Card>
-					<CardContent className="p-8 text-center">
-						<p className="text-gray-500 mb-4">No media items found.</p>
-						{hasSpecificPermission('library.create') && (
-							<Button onClick={handleNewItem}>Upload Media</Button>
-						)}
-					</CardContent>
-				</Card>
-			) : (
-				<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-					{filteredItems.map((item) => (
-						<Card
-							key={item._id || item.id}
-							className="overflow-hidden">
-							<div className="h-48 relative overflow-hidden group">
-								<MediaDisplay
-									src={item.images[0]}
-									alt={item.title}
-									type={item.type === 'video' ? 'video' : 'image'}
-									className="w-full h-full"
-								/>
+			)}
+
+			{!requestOnly && (
+				<>
+					<div className="mb-6 flex flex-col sm:flex-row gap-4">
+						<div className="relative flex-1">
+							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+							<Input
+								placeholder="Cari galeri..."
+								className="pl-10"
+								value={searchQuery}
+								onChange={(e) => setSearchQuery(e.target.value)}
+							/>
+						</div>
+						<Tabs
+							value={activeTab}
+							onValueChange={setActiveTab}
+							className="w-full sm:w-auto">
+							<TabsList>
+								<TabsTrigger value="all">All</TabsTrigger>
+								<TabsTrigger value="photos">Photos</TabsTrigger>
+								<TabsTrigger value="videos">Videos</TabsTrigger>
+							</TabsList>
+						</Tabs>
+					</div>
+
+					{isLoading ? (
+						<div className="flex justify-center items-center h-64">
+							<Loader2 className="h-8 w-8 animate-spin text-primary" />
+						</div>
+					) : filteredItems.length === 0 ? (
+						<Card>
+							<CardContent className="p-8 text-center">
+								<p className="text-gray-500 mb-4">
+									No media items found.
+								</p>
+								{hasSpecificPermission('library.create') && (
+									<Button onClick={handleNewItem}>
+										Upload Media
+									</Button>
+								)}
+							</CardContent>
+						</Card>
+					) : (
+						<div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+							{filteredItems.map((item) => (
+								<Card
+									key={item._id || item.id}
+									className="overflow-hidden">
+									<div className="h-48 relative overflow-hidden group">
+										<MediaDisplay
+											src={item.images[0]}
+											alt={item.title}
+											type={item.type === 'video' ? 'video' : 'image'}
+											className="w-full h-full"
+										/>
 
 								{/* Type indicator */}
 								<div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs rounded px-2 py-1 flex items-center">
@@ -291,6 +413,13 @@ export default function DashboardLibrary() {
 									<div className="flex justify-between items-start">
 										<h3 className="font-bold truncate">{item.title}</h3>
 										<div className="flex space-x-1">
+											<Button
+												size="sm"
+												variant="ghost"
+												className="h-8 w-8 p-0"
+												onClick={() => setSharingItem(item)}>
+												<Share2 className="h-4 w-4" />
+											</Button>
 											{canEditLibraryItem(item) && (
 												<Button
 													size="sm"
@@ -323,7 +452,9 @@ export default function DashboardLibrary() {
 							</CardContent>
 						</Card>
 					))}
-				</div>
+						</div>
+					)}
+				</>
 			)}
 
 			<Dialog
@@ -342,6 +473,18 @@ export default function DashboardLibrary() {
 					/>
 				</DialogContent>
 			</Dialog>
+
+			{sharingItem && (
+				<SharingPanel
+					entityType="library"
+					entityId={sharingItem._id || String(sharingItem.id)}
+					entityTitle={sharingItem.title}
+					open={!!sharingItem}
+					onOpenChange={(open) => {
+						if (!open) setSharingItem(null);
+					}}
+				/>
+			)}
 		</DashboardLayout>
 	);
 }

@@ -289,3 +289,54 @@ export type UpdateEventYear = Partial<Omit<EventYear, '_id' | 'createdAt' | 'upd
 
 export type InsertEvent = Omit<EventItem, '_id' | 'children' | 'createdAt' | 'updatedAt'>;
 export type UpdateEvent = Partial<Omit<EventItem, '_id' | 'children' | 'createdAt' | 'updatedAt'>>;
+
+// Sharing Types
+export type SharingEntityType = 'berita' | 'events' | 'library';
+export type SharingKind = 'invite' | 'request';
+export type SharingPermission = 'view' | 'edit';
+export type SharingStatus = 'pending' | 'approved' | 'declined' | 'expired' | 'revoked';
+
+export interface PostSharing {
+	_id: string;
+	entityType: SharingEntityType;
+	entityId: string;
+	kind: SharingKind;
+	requesterId: string;
+	targetId: string;
+	permission: SharingPermission;
+	status: SharingStatus;
+	decidedBy?: string;
+	decidedAt?: Date;
+	expiresAt: Date;
+	createdAt: Date;
+	updatedAt: Date;
+	requesterName?: string;
+	targetName?: string;
+}
+
+export type SharingNotificationType =
+	| 'sharing_invite'
+	| 'sharing_request'
+	| 'sharing_request_updated'
+	| 'sharing_approved'
+	| 'sharing_declined'
+	| 'sharing_revoked'
+	| 'sharing_expired';
+
+export interface UserNotification {
+	_id: string;
+	userId: string;
+	type: SharingNotificationType;
+	title: string;
+	description?: string;
+	entityType?: SharingEntityType;
+	entityId?: string;
+	entityTitle?: string;
+	sharingId?: string;
+	fromUserId?: string;
+	fromUserName?: string;
+	read: boolean;
+	actionUrl?: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
