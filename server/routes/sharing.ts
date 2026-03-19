@@ -380,7 +380,7 @@ router.post(
 				entityType,
 				entityId,
 				status: 'pending',
-				$or: [{ targetId: user._id }, { requesterId: user._id }],
+				targetId: user._id,
 			});
 			const ownPendingRequests = pendingRecords.filter(
 				(p: any) =>
@@ -809,7 +809,7 @@ router.get('/my-summary', authenticate, async (req, res) => {
 		const pendingFilter: any = {
 			status: 'pending',
 			expiresAt: { $gt: now },
-			$or: [{ targetId: user._id }, { requesterId: user._id }],
+			targetId: user._id,
 		};
 		if (entityType) pendingFilter.entityType = entityType;
 
@@ -981,7 +981,7 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 				entityType,
 				entityId,
 				status: 'pending',
-				$or: [{ targetId: user._id }, { requesterId: user._id }],
+				targetId: user._id,
 			})
 				.populate('targetId', 'name username')
 				.populate('requesterId', 'name username')

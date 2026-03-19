@@ -1642,7 +1642,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				entityType: 'berita',
 				status: 'pending',
 				expiresAt: { $gt: now },
-				$or: [{ targetId: userId }, { requesterId: userId }],
+				targetId: userId,
 			}).lean();
 
 			const mergeSharedBerita = async (accessList: typeof sharedAccess) => {
@@ -2406,7 +2406,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				entityType: 'library',
 				status: 'pending',
 				expiresAt: { $gt: now },
-				$or: [{ targetId: userId }, { requesterId: userId }],
+				targetId: userId,
 			}).lean();
 
 			const mergeSharedLibrary = async (accessList: typeof sharedAccess) => {
@@ -4896,7 +4896,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					entityType: 'events',
 					status: 'pending',
 					expiresAt: { $gt: now },
-					$or: [{ targetId: userId }, { requesterId: userId }],
+					targetId: userId,
 				}).lean();
 				includeSharedIds = Array.from(
 					new Set([
