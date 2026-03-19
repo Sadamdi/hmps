@@ -856,9 +856,9 @@ async function getPublishedEventsAllYears(): Promise<any[]> {
 async function getEventsByBeritaId(beritaId: string): Promise<any[]> {
 	const aOid = toObjectId(beritaId);
 	if (!aOid) return [];
-	const events = await Event.find({ relatedBerita: aOid, published: true })
+	const events = await Event.find({ relatedBerita: aOid })
 		.populate('yearId', 'year')
-		.select('_id title yearId startDate endDate')
+		.select('_id title yearId startDate endDate published')
 		.lean();
 	return events;
 }

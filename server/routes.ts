@@ -1372,10 +1372,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Events linked to a berita (PLACE BEFORE /api/berita/:id/:slug)
-	app.get('/api/berita/:id/events', async (req, res) => {
+	app.get('/api/berita/:id/events', authenticateOptional, async (req, res) => {
 		try {
 			const { id } = req.params;
-			const events = await mongoStorage.getEventsByBeritaId(id);
+			let events = await mongoStorage.getEventsByBeritaId(id);
+			if (!req.user) {
+				events = events.filter((e: any) => e.published);
+			}
 			res.json(events);
 		} catch (error) {
 			console.error('Get berita events error:', error);

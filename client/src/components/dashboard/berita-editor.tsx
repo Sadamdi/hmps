@@ -1,6 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,7 +23,7 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { CalendarDays, Copy, Image, Link2, Loader2, Upload, X } from 'lucide-react';
+import { CalendarDays, Copy, Image, Link2, Loader2, Plus, Search, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import RichTextEditor from './rich-text-editor';
 
@@ -69,6 +76,12 @@ export default function BeritaEditor({
 	const [copyToEventYear, setCopyToEventYear] = useState(new Date().getFullYear());
 	const [copyAttachments, setCopyAttachmentsState] = useState(false);
 	const [selectedParentEventId, setSelectedParentEventId] = useState<string>('');
+
+	// Attach Event dialog state
+	const [showAttachEventDialog, setShowAttachEventDialog] = useState(false);
+	const [attachEventYearId, setAttachEventYearId] = useState<string>('');
+	const [attachEventSearch, setAttachEventSearch] = useState('');
+	const [attachYearSelectOpen, setAttachYearSelectOpen] = useState(false);
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -256,14 +269,16 @@ export default function BeritaEditor({
 		queryKey: [`/api/berita/${beritaId}/events`],
 		queryFn: async () => {
 			if (!beritaId) return [];
-			const res = await fetch(`/api/berita/${beritaId}/events`);
+			const res = await fetch(`/api/berita/${beritaId}/events`, {
+				credentials: 'include',
+			});
 			if (!res.ok) return [];
 			return res.json();
 		},
 		enabled: !!beritaId,
 	});
 
-	// Event years query (for copy dialog)
+	// Event years query (for copy & attach dialogs)
 	const { data: eventYears = [] } = useQuery<{ _id: string; year: number }[]>({
 		queryKey: ['/api/event-years'],
 		queryFn: async () => {
@@ -271,7 +286,7 @@ export default function BeritaEditor({
 			if (!res.ok) return [];
 			return res.json();
 		},
-		enabled: showCopyToEventDialog,
+		enabled: showCopyToEventDialog || showAttachEventDialog,
 	});
 
 	// Fetch parent events for the selected year (event utama saja, parentId=null)
@@ -329,6 +344,46 @@ export default function BeritaEditor({
 			toast({ title: 'Event berhasil dilepas dari berita' });
 		},
 	});
+
+	// Events list for the attach dialog (filtered by selected year)
+	const { data: attachEventsList = [], isFetching: isFetchingAttachEvents } = useQuery<any[]>({
+		queryKey: ['/api/events-for-attach', attachEventYearId],
+		queryFn: async () => {
+			if (!attachEventYearId) return [];
+			const res = await fetch(`/api/events?yearId=${attachEventYearId}&parentId=null`, {
+				credentials: 'include',
+			});
+			if (!res.ok) return [];
+			return res.json();
+		},
+		enabled: showAttachEventDialog && !!attachEventYearId,
+	});
+
+	const linkedEventIds = linkedEvents.map((ev: any) => ev._id);
+
+	const attachEventMut = useMutation({
+		mutationFn: async (eventId: string) => {
+			if (!beritaId) throw new Error('Simpan berita terlebih dahulu.');
+			await apiRequest('POST', `/api/berita/${beritaId}/attach-event`, {
+				eventId,
+				copyFiles: false,
+			});
+		},
+		onSuccess: () => {
+			refetchLinkedEvents();
+		},
+		onError: (err: any) => {
+			toast({ title: 'Gagal mengaitkan event', description: err.message, variant: 'destructive' });
+		},
+	});
+
+	const handleToggleEventAttach = (eventId: string) => {
+		if (linkedEventIds.includes(eventId)) {
+			detachEventMut.mutate(eventId);
+		} else {
+			attachEventMut.mutate(eventId);
+		}
+	};
 
 	const handleContentImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -766,14 +821,28 @@ export default function BeritaEditor({
 				</div>
 			</div>
 
-		{/* Linked Events Section */}
-		{beritaId && (
-			<div className="border rounded-lg p-4 space-y-3">
-				<div className="flex items-center justify-between">
-					<div className="flex items-center gap-2">
-						<CalendarDays className="h-4 w-4 text-primary" />
-						<h3 className="font-medium text-sm">Event Terkait</h3>
-					</div>
+	{/* Linked Events Section */}
+	{beritaId && (
+		<div className="border rounded-lg p-4 space-y-3">
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-2">
+					<CalendarDays className="h-4 w-4 text-primary" />
+					<h3 className="font-medium text-sm">Event Terkait</h3>
+				</div>
+				<div className="flex items-center gap-2">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={() => {
+							setAttachEventYearId(eventYears[0]?._id || '');
+							setAttachEventSearch('');
+							setShowAttachEventDialog(true);
+						}}
+					>
+						<Plus className="h-3.5 w-3.5 mr-1" />
+						Tambah Event
+					</Button>
 					<Button
 						type="button"
 						variant="outline"
@@ -784,6 +853,7 @@ export default function BeritaEditor({
 						Copy → Event
 					</Button>
 				</div>
+			</div>
 				{linkedEvents.length === 0 ? (
 					<p className="text-xs text-muted-foreground">Belum ada event yang terhubung ke berita ini.</p>
 				) : (
@@ -847,15 +917,24 @@ export default function BeritaEditor({
 					<div className="space-y-1">
 						<Label>Tahun Event</Label>
 						{eventYears.length > 0 ? (
-							<select
-								className="w-full border rounded px-3 py-2 text-sm bg-background"
-								value={copyToEventYear}
-								onChange={(e) => { setCopyToEventYear(parseInt(e.target.value, 10)); setSelectedParentEventId(''); }}
+							<Select
+								value={String(copyToEventYear)}
+								onValueChange={(val) => {
+									setCopyToEventYear(parseInt(val, 10));
+									setSelectedParentEventId('');
+								}}
 							>
-								{eventYears.map((y) => (
-									<option key={y._id} value={y.year}>{y.year}</option>
-								))}
-							</select>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder="Pilih tahun" />
+								</SelectTrigger>
+								<SelectContent>
+									{eventYears.map((y) => (
+										<SelectItem key={y._id} value={String(y.year)}>
+											{y.year}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						) : (
 							<Input
 								type="number"
@@ -882,21 +961,29 @@ export default function BeritaEditor({
 								Belum ada event utama di tahun ini — berita akan dibuat sebagai event utama baru.
 							</p>
 						) : (
-							<select
-								className="w-full border rounded px-3 py-2 text-sm bg-background"
+							<Select
 								value={selectedParentEventId}
-								onChange={(e) => setSelectedParentEventId(e.target.value)}
+								onValueChange={(val) => setSelectedParentEventId(val)}
 							>
-								<option value="">(Buat event utama baru)</option>
-								{parentEventOptions.map((ev) => {
-									const monthLabel = ev.month >= 1 && ev.month <= 12 ? MONTH_NAMES_SHORT[ev.month - 1] : '';
-									return (
-										<option key={ev._id} value={ev._id}>
-											{ev.title}{monthLabel ? ` — ${monthLabel}` : ''}
-										</option>
-									);
-								})}
-							</select>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder="(Buat event utama baru)" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="">(Buat event utama baru)</SelectItem>
+									{parentEventOptions.map((ev) => {
+										const monthLabel =
+											ev.month >= 1 && ev.month <= 12
+												? MONTH_NAMES_SHORT[ev.month - 1]
+												: '';
+										return (
+											<SelectItem key={ev._id} value={ev._id}>
+												{ev.title}
+												{monthLabel ? ` — ${monthLabel}` : ''}
+											</SelectItem>
+										);
+									})}
+								</SelectContent>
+							</Select>
 						)}
 					</div>
 
@@ -927,6 +1014,141 @@ export default function BeritaEditor({
 							{selectedParentEventId ? 'Buat Sub-event' : 'Buat Event'}
 						</Button>
 						<Button variant="outline" onClick={() => setShowCopyToEventDialog(false)}>Batal</Button>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
+
+		{/* Dialog Tambah Event Terkait */}
+		<Dialog
+			open={showAttachEventDialog}
+			onOpenChange={(open) => {
+				setShowAttachEventDialog(open);
+			setAttachYearSelectOpen(false);
+				if (!open) { setAttachEventSearch(''); }
+			}}
+		>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Pilih Event Terkait</DialogTitle>
+				</DialogHeader>
+				<div className="space-y-4">
+					<p className="text-sm text-muted-foreground">
+						Centang event yang berkaitan dengan berita ini. Perubahan langsung tersimpan.
+					</p>
+
+					<div className="space-y-1">
+						<Label>Tahun Event</Label>
+						{eventYears.length > 0 ? (
+							<Select
+								value={attachEventYearId}
+								open={attachYearSelectOpen}
+								onOpenChange={setAttachYearSelectOpen}
+								onValueChange={(val) => {
+									setAttachEventYearId(val);
+									setAttachYearSelectOpen(false); // Pastikan dropdown tertutup setelah pilihan berubah
+									setAttachEventSearch('');
+								}}
+							>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder="Pilih tahun" />
+								</SelectTrigger>
+								<SelectContent>
+									{eventYears.map((y) => (
+										<SelectItem key={y._id} value={y._id}>
+											{y.year}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						) : (
+							<p className="text-xs text-muted-foreground py-1">Belum ada tahun event.</p>
+						)}
+					</div>
+
+					<div className="relative">
+						<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+						<Input
+							className="pl-8 h-8 text-sm"
+							placeholder="Cari judul event..."
+							value={attachEventSearch}
+							onChange={(e) => setAttachEventSearch(e.target.value)}
+						/>
+					</div>
+
+					{isFetchingAttachEvents ? (
+						<div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+							<Loader2 className="h-4 w-4 animate-spin" />
+							Memuat daftar event...
+						</div>
+					) : !attachEventYearId ? (
+						<p className="text-center text-sm text-muted-foreground py-4">Pilih tahun terlebih dahulu.</p>
+					) : attachEventsList.length === 0 ? (
+						<p className="text-center text-sm text-muted-foreground py-4">Belum ada event di tahun ini.</p>
+					) : (
+						<div className="border rounded-md max-h-60 overflow-y-auto overflow-x-hidden pr-2">
+							{attachEventsList
+								.filter((ev: any) =>
+									attachEventSearch
+										? ev.title.toLowerCase().includes(attachEventSearch.toLowerCase())
+										: true
+								)
+								.map((ev: any) => {
+									const isLinked = linkedEventIds.includes(ev._id);
+									const isPending = attachEventMut.isPending || detachEventMut.isPending;
+									return (
+										<label
+											key={ev._id}
+											className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm border-b last:border-b-0 overflow-hidden overflow-x-hidden"
+										>
+											<input
+												type="checkbox"
+												checked={isLinked}
+												onChange={() => handleToggleEventAttach(ev._id)}
+												disabled={isPending}
+												className="rounded mt-1"
+											/>
+											<div className="min-w-0">
+												<span
+													className="block whitespace-normal break-words overflow-hidden"
+													style={{
+														display: '-webkit-box',
+														WebkitLineClamp: 2 as any,
+														WebkitBoxOrient: 'vertical' as any,
+													}}
+												>
+													{ev.title}
+												</span>
+												{!ev.published && (
+													<span className="text-xs text-muted-foreground mt-0.5 block">
+														(Draft)
+													</span>
+												)}
+											</div>
+											{ev.month >= 1 && ev.month <= 12 && (
+												<span className="w-16 flex-shrink-0 text-right text-xs text-muted-foreground whitespace-nowrap">
+													{MONTH_NAMES_SHORT[ev.month - 1]}
+												</span>
+											)}
+										</label>
+									);
+								})}
+							{attachEventsList.filter((ev: any) =>
+								attachEventSearch
+									? ev.title.toLowerCase().includes(attachEventSearch.toLowerCase())
+									: true
+							).length === 0 && (
+								<p className="text-center text-sm text-muted-foreground py-4">
+									Tidak ada event yang cocok
+								</p>
+							)}
+						</div>
+					)}
+
+					<div className="flex justify-end pt-2">
+						<Button variant="outline" onClick={() => setShowAttachEventDialog(false)}>
+							Selesai
+						</Button>
 					</div>
 				</div>
 			</DialogContent>
