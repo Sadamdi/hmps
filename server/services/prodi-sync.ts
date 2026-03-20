@@ -1037,16 +1037,9 @@ async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> 
 	const root = getContentRoot($);
 	if (!root.length) return [];
 
-	const labs: any[] = [];
-	let currentName = '';
-	let currentDesc = '';
-	let currentImageUrl = '';
-
 	const pageTitle =
 		type === 'teaching' ? 'teaching laboratory' : 'research laboratory';
 
-	// Ekstrak nama lab dari text campuran ("Nama Laboratory ... Deskripsi ...").
-	// Contoh match: "Mobile Programming Laboratory".
 	const extractLabName = (t: string): string => {
 		const raw = t || '';
 		if (!raw) return '';
@@ -1054,21 +1047,90 @@ async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> 
 		if (!m) return '';
 		const name = m[1].trim();
 		const lower = name.toLowerCase();
-		// Hindari heading pageTitle (Teaching Laboratory/Research Laboratory).
 		if (lower === pageTitle) return '';
-		// Jika ternyata yang match adalah heading page, tolak.
 		if (type === 'teaching' && lower.includes('teaching laboratory')) return '';
 		if (type === 'research' && lower.includes('research laboratory')) return '';
 		return name;
 	};
 
+	const collectImgUrls = ($container: cheerio.Cheerio<any>): string[] => {
+		const urls: string[] = [];
+		const seen = new Set<string>();
+		$container.find('img[src],img[data-src]').each((_i, img) => {
+			const $img = $(img);
+			const src = normalizeHref($img.attr('src') || $img.attr('data-src') || '');
+			if (src && !seen.has(src)) {
+				seen.add(src);
+				urls.push(src);
+			}
+		});
+		return urls;
+	};
+
+	// ── Teaching: accordion-based (<details>/<summary>) ──
+	const accordionItems = root.find('details.e-n-accordion-item, details[class*="accordion"]');
+	if (accordionItems.length > 0) {
+		const labs: any[] = [];
+		accordionItems.each((_i, det) => {
+			const $det = $(det);
+			const $summary = $det.find('summary').first();
+			const nameRaw = cleanText($summary.find('h5, h4, h3, .e-n-accordion-item-title-text').first());
+			const name = extractLabName(nameRaw) || nameRaw.trim();
+			if (!name) return;
+
+			const imageUrls = collectImgUrls($det);
+
+			let description = '';
+			$det.find('.elementor-image-box-description').each((_j, el) => {
+				const t = $(el).text().replace(/\s+/g, ' ').trim();
+				if (t && !description.includes(t)) description += (description ? '\n\n' : '') + t;
+			});
+			if (!description) {
+				$det.find('.toggle-content p, .elementor-widget-text-editor p').each((_j, el) => {
+					const t = $(el).text().replace(/\s+/g, ' ').trim();
+					if (t && !description.includes(t)) description += (description ? '\n\n' : '') + t;
+				});
+			}
+			if (!description) {
+				$det.find('p').each((_j, el) => {
+					const t = $(el).text().replace(/\s+/g, ' ').trim();
+					if (t.length > 20 && !description.includes(t)) description += (description ? '\n\n' : '') + t;
+				});
+			}
+
+			labs.push({
+				name,
+				description: description.trim(),
+				imageUrl: imageUrls[0] || '',
+				imageUrls,
+			});
+		});
+		if (labs.length > 0) return labs;
+	}
+
+	// ── Generic block-walking parser (research & fallback) ──
+	const labs: any[] = [];
+	let currentName = '';
+	let currentDesc = '';
+	let currentImageUrls: string[] = [];
+
 	const flush = () => {
 		if (currentName) {
-			labs.push({ name: currentName, description: currentDesc.trim(), imageUrl: currentImageUrl });
+			labs.push({
+				name: currentName,
+				description: currentDesc.trim(),
+				imageUrl: currentImageUrls[0] || '',
+				imageUrls: [...currentImageUrls],
+			});
 		}
 		currentName = '';
 		currentDesc = '';
-		currentImageUrl = '';
+		currentImageUrls = [];
+	};
+
+	const addImage = (src: string) => {
+		const normalized = normalizeHref(src);
+		if (normalized && !currentImageUrls.includes(normalized)) currentImageUrls.push(normalized);
 	};
 
 	const blockEls = root.find('h1,h2,h3,h4,h5,h6,p,div,strong,td,th,ul,ol,figure,img').toArray();
@@ -1081,7 +1143,6 @@ async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> 
 		const text = cleanText($el);
 		const lower = text.toLowerCase();
 
-		// Teks mengandung "Laboratory" kemungkinan besar adalah nama lab.
 		const looksLikeLabName =
 			lower.includes('laboratory') &&
 			!lower.includes('laboratory aims') &&
@@ -1106,22 +1167,20 @@ async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> 
 				continue;
 			}
 
-			// If it's a heading that contains "Laboratory", treat it as lab name
 			if (lower.includes('laboratory') || (/^h[3-6]$/.test(tag) && text.length > 4)) {
 				const extracted = extractLabName(text);
 				flush();
 				currentName = extracted || text;
-				// Try to grab the closest image within the same container
 				const $container = $el.closest('div,figure,article,li,td,th,tr');
-				if (!currentImageUrl && $container.length) {
-					const $img = $container.find('img[src],img[data-src]').first();
-					if ($img.length) currentImageUrl = normalizeHref($img.attr('src') || $img.attr('data-src') || '');
+				if ($container.length) {
+					$container.find('img[src],img[data-src]').each((_i, img) => {
+						addImage($(img).attr('src') || $(img).attr('data-src') || '');
+					});
 				}
 			}
 			continue;
 		}
 
-		// Lab name can also appear in table cells or strong/p tags (not only headings)
 		if (looksLikeLabName) {
 			const extracted = extractLabName(text);
 			if (!extracted) continue;
@@ -1130,36 +1189,35 @@ async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> 
 			flush();
 			currentName = extracted;
 			currentDesc = '';
-			currentImageUrl = '';
+			currentImageUrls = [];
 
 			const $container = $el.closest('div,figure,article,li,td,th,tr');
 			if ($container.length) {
-				const $img = $container.find('img[src],img[data-src]').first();
-				if ($img.length) currentImageUrl = normalizeHref($img.attr('src') || $img.attr('data-src') || '');
+				$container.find('img[src],img[data-src]').each((_i, img) => {
+					addImage($(img).attr('src') || $(img).attr('data-src') || '');
+				});
 			}
 			continue;
 		}
 
-		if (tag === 'img' && currentName && !currentImageUrl) {
-			currentImageUrl = normalizeHref($el.attr('src') || $el.attr('data-src') || '');
+		if (tag === 'img' && currentName) {
+			addImage($el.attr('src') || $el.attr('data-src') || '');
 			continue;
 		}
 
 		if (tag === 'figure' && currentName) {
-			if (!currentImageUrl) {
-				const $img = $el.find('img').first();
-				if ($img.length) currentImageUrl = normalizeHref($img.attr('src') || $img.attr('data-src') || '');
-			}
+			$el.find('img').each((_i, img) => {
+				addImage($(img).attr('src') || $(img).attr('data-src') || '');
+			});
 			continue;
 		}
 
 		if (tag === 'div') {
 			if (!currentName) continue;
 			if ($el.find('h1,h2,h3,h4,h5,h6').length) continue;
-			const $img = $el.find('img').first();
-			if ($img.length && !currentImageUrl) {
-				currentImageUrl = normalizeHref($img.attr('src') || $img.attr('data-src') || '');
-			}
+			$el.find('img').each((_i, img) => {
+				addImage($(img).attr('src') || $(img).attr('data-src') || '');
+			});
 			const ownText = $el.clone().children('div,figure,ul,ol,h1,h2,h3,h4,h5,h6').remove().end().text().replace(/\s+/g, ' ').trim();
 			if (ownText.length > 20 && !currentDesc.includes(ownText)) {
 				currentDesc += (currentDesc ? '\n\n' : '') + ownText;
@@ -1168,7 +1226,6 @@ async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> 
 		}
 
 		if ((tag === 'td' || tag === 'th') && currentName && text) {
-			// Deskripsi kadang berada di cell tabel
 			if (!looksLikeLabName && text.length > 30 && !currentDesc.includes(text)) {
 				currentDesc += (currentDesc ? '\n\n' : '') + text;
 			}
@@ -1182,7 +1239,7 @@ async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> 
 		} else if ((tag === 'ul' || tag === 'ol') && !currentName) {
 			$el.find('> li').each((_j, li) => {
 				const t = cleanText($(li));
-				if (t) labs.push({ name: t, description: '', imageUrl: '' });
+				if (t) labs.push({ name: t, description: '', imageUrl: '', imageUrls: [] });
 			});
 		} else if ((tag === 'ul' || tag === 'ol') && currentName) {
 			$el.find('> li').each((_j, li) => {
@@ -1473,21 +1530,35 @@ export async function runProdiSync(): Promise<ProdiSyncSummary> {
 			cachedDestUrls.add(destUrl);
 		};
 
-		const cacheLabImage = async (lab: any, type: 'teaching' | 'research', index: number) => {
-			if (!lab?.imageUrl) return;
-			// Jika sudah local asset path, jangan download lagi
-			if (lab.imageUrl.startsWith('/') && (lab.imageUrl.includes('/uploads/') || lab.imageUrl.includes('/attached_assets/'))) return;
+		const cacheLabImage = async (lab: any, type: 'teaching' | 'research', labIndex: number) => {
+			const urls: string[] = lab.imageUrls?.length ? lab.imageUrls : (lab.imageUrl ? [lab.imageUrl] : []);
+			if (!urls.length) return;
 
-			const destUrl = `${UPLOADS_PRODI_BASE}/labs/${type}/${index}.webp`;
-			if (cachedDestUrls.has(destUrl) && fs.existsSync(localFilePathFromUrl(destUrl))) {
-				lab.imageUrl = destUrl;
-				return;
+			const cachedUrls: string[] = [];
+			const oldLab = existingContent?.laboratories?.[type]?.[labIndex];
+			const oldImageUrls: string[] = oldLab?.imageUrls?.length ? oldLab.imageUrls : (oldLab?.imageUrl ? [oldLab.imageUrl] : []);
+
+			for (let imgIdx = 0; imgIdx < urls.length; imgIdx++) {
+				const src = urls[imgIdx];
+				if (src.startsWith('/') && (src.includes('/uploads/') || src.includes('/attached_assets/'))) {
+					cachedUrls.push(src);
+					continue;
+				}
+
+				const destUrl = `${UPLOADS_PRODI_BASE}/labs/${type}/${labIndex}-${imgIdx}.webp`;
+				if (cachedDestUrls.has(destUrl) && fs.existsSync(localFilePathFromUrl(destUrl))) {
+					cachedUrls.push(destUrl);
+					continue;
+				}
+
+				const oldLocalUrl = oldImageUrls[imgIdx];
+				const newUrl = await cacheRemoteImageToLocalWebp(src, destUrl, isLocalProdiAssetUrl(oldLocalUrl) ? oldLocalUrl : undefined);
+				cachedUrls.push(newUrl || destUrl);
+				cachedDestUrls.add(destUrl);
 			}
 
-			const oldLocalUrl = existingContent?.laboratories?.[type]?.[index]?.imageUrl;
-			const newUrl = await cacheRemoteImageToLocalWebp(lab.imageUrl, destUrl, oldLocalUrl);
-			lab.imageUrl = newUrl || destUrl;
-			cachedDestUrls.add(destUrl);
+			lab.imageUrls = cachedUrls;
+			lab.imageUrl = cachedUrls[0] || '';
 		};
 
 		if (cacheManagements && profile?.managements?.length) {

@@ -1507,73 +1507,83 @@ function LabListEditor({ items, onChange, readOnly }: {
 }) {
 	return (
 		<div className="space-y-3">
-			{items.map((item, i) => (
-				<div key={i} className="border rounded-lg p-3 space-y-2 bg-muted/30">
-					<div className="flex gap-3 items-start">
-						{item.imageUrl && (
-							<img
-								src={item.imageUrl}
-								alt={item.name}
-								className="w-20 h-14 rounded object-cover border border-border shrink-0"
-								onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-							/>
-						)}
-						<div className="flex-1">
-							<Label className="text-xs">Nama</Label>
-							<Input
-								value={item.name || ''}
+			{items.map((item, i) => {
+				const imgs: string[] = item.imageUrls?.length ? item.imageUrls : (item.imageUrl ? [item.imageUrl] : []);
+				return (
+					<div key={i} className="border rounded-lg p-3 space-y-2 bg-muted/30">
+						<div className="flex gap-3 items-start">
+							{imgs.length > 0 && (
+								<div className="flex gap-1 shrink-0">
+									{imgs.slice(0, 3).map((url: string, j: number) => (
+										<img key={j} src={url} alt={`${item.name} ${j + 1}`}
+											className="w-16 h-12 rounded object-cover border border-border"
+											onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+										/>
+									))}
+									{imgs.length > 3 && (
+										<span className="text-[10px] text-muted-foreground self-end">+{imgs.length - 3}</span>
+									)}
+								</div>
+							)}
+							<div className="flex-1">
+								<Label className="text-xs">Nama</Label>
+								<Input
+									value={item.name || ''}
+									onChange={(e) => {
+										const next = [...items];
+										next[i] = { ...next[i], name: e.target.value };
+										onChange(next);
+									}}
+									disabled={readOnly}
+								/>
+							</div>
+						</div>
+						<div>
+							<Label className="text-xs">Gambar URL (satu per baris, baris pertama = thumbnail utama)</Label>
+							<Textarea
+								value={(item.imageUrls?.length ? item.imageUrls : (item.imageUrl ? [item.imageUrl] : [])).join('\n')}
 								onChange={(e) => {
+									const urls = e.target.value.split('\n').map((u: string) => u.trim()).filter(Boolean);
 									const next = [...items];
-									next[i] = { ...next[i], name: e.target.value };
+									next[i] = { ...next[i], imageUrls: urls, imageUrl: urls[0] || '' };
 									onChange(next);
 								}}
 								disabled={readOnly}
+								rows={2}
+								placeholder="https://example.com/img1.jpg&#10;https://example.com/img2.jpg"
+								className="text-xs font-mono"
 							/>
 						</div>
+						<div>
+							<Label className="text-xs">Deskripsi</Label>
+							<Textarea
+								value={item.description || ''}
+								onChange={(e) => {
+									const next = [...items];
+									next[i] = { ...next[i], description: e.target.value };
+									onChange(next);
+								}}
+								disabled={readOnly}
+								rows={3}
+							/>
+						</div>
+						{!readOnly && (
+							<Button
+								variant="ghost"
+								size="sm"
+								className="text-destructive"
+								onClick={() => onChange(items.filter((_, idx) => idx !== i))}>
+								<Trash2 className="h-4 w-4 mr-1" /> Hapus
+							</Button>
+						)}
 					</div>
-					<div>
-						<Label className="text-xs">Gambar URL (override)</Label>
-						<Input
-							value={item.imageUrl || ''}
-							onChange={(e) => {
-								const next = [...items];
-								next[i] = { ...next[i], imageUrl: e.target.value };
-								onChange(next);
-							}}
-							disabled={readOnly}
-							placeholder="https://..."
-							className="text-xs"
-						/>
-					</div>
-					<div>
-						<Label className="text-xs">Deskripsi</Label>
-						<Textarea
-							value={item.description || ''}
-							onChange={(e) => {
-								const next = [...items];
-								next[i] = { ...next[i], description: e.target.value };
-								onChange(next);
-							}}
-							disabled={readOnly}
-							rows={3}
-						/>
-					</div>
-					{!readOnly && (
-						<Button
-							variant="ghost"
-							size="sm"
-							className="text-destructive"
-							onClick={() => onChange(items.filter((_, idx) => idx !== i))}>
-							<Trash2 className="h-4 w-4 mr-1" /> Hapus
-						</Button>
-					)}
-				</div>
-			))}
+				);
+			})}
 			{!readOnly && (
 				<Button
 					variant="outline"
 					size="sm"
-					onClick={() => onChange([...items, { name: '', description: '', imageUrl: '' }])}>
+					onClick={() => onChange([...items, { name: '', description: '', imageUrl: '', imageUrls: [] }])}>
 					<Plus className="h-4 w-4 mr-1" /> Tambah
 				</Button>
 			)}

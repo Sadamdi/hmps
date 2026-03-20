@@ -887,6 +887,7 @@ const laboratorySchema = new mongoose.Schema({
 	name: { type: String, required: true },
 	description: { type: String, default: '' },
 	imageUrl: { type: String, default: '' },
+	imageUrls: { type: [String], default: [] },
 }, { _id: false });
 
 const prodiContentSchema = new mongoose.Schema({

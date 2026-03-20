@@ -14,7 +14,7 @@ import {
 	Loader2,
 	Users,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
 function slugFromProfileUrl(profileUrl: string): string {
@@ -25,16 +25,57 @@ function slugFromProfileUrl(profileUrl: string): string {
 
 type ProdiTabValue = 'profil' | 'dosen' | 'kurikulum' | 'laboratorium';
 
-function activeTabFromLocation(location: string): ProdiTabValue {
-	const q = location.includes('?') ? (location.split('?')[1]?.split('#')[0] ?? '') : '';
-	const raw = new URLSearchParams(q).get('tab')?.toLowerCase()?.trim();
+function readTabFromUrl(): ProdiTabValue {
+	const raw = new URLSearchParams(window.location.search).get('tab')?.toLowerCase()?.trim();
 	if (raw === 'kurikulum' || raw === 'laboratorium' || raw === 'dosen') return raw;
 	return 'profil';
 }
 
 export default function ProdiPage() {
-	const [location, setLocation] = useLocation();
-	const activeTab = useMemo(() => activeTabFromLocation(location), [location]);
+	const [, setLocation] = useLocation();
+	const [activeTab, setActiveTab] = useState<ProdiTabValue>(readTabFromUrl);
+	const cleaningRef = useRef(false);
+
+	const syncTabFromUrl = useCallback(() => {
+		if (cleaningRef.current) return;
+		const tab = readTabFromUrl();
+		if (tab !== 'profil') {
+			setActiveTab(tab);
+			cleaningRef.current = true;
+			window.history.replaceState(null, '', '/prodi');
+			cleaningRef.current = false;
+		}
+	}, []);
+
+	useEffect(() => {
+		const initialTab = readTabFromUrl();
+		if (initialTab !== 'profil') {
+			setActiveTab(initialTab);
+			cleaningRef.current = true;
+			window.history.replaceState(null, '', '/prodi');
+			cleaningRef.current = false;
+		}
+
+		const onPopState = () => syncTabFromUrl();
+		window.addEventListener('popstate', onPopState);
+
+		const origPush = window.history.pushState.bind(window.history);
+		const origReplace = window.history.replaceState.bind(window.history);
+		window.history.pushState = function (...args: any) {
+			origPush(...args);
+			syncTabFromUrl();
+		};
+		window.history.replaceState = function (...args: any) {
+			origReplace(...args);
+			syncTabFromUrl();
+		};
+
+		return () => {
+			window.removeEventListener('popstate', onPopState);
+			window.history.pushState = origPush;
+			window.history.replaceState = origReplace;
+		};
+	}, [syncTabFromUrl]);
 
 	const { data, isLoading } = useQuery<any>({
 		queryKey: ['/api/prodi'],
@@ -100,16 +141,19 @@ export default function ProdiPage() {
 			</div>
 
 			{isLoading ? (
-				<div className="py-24 flex justify-center">
+				<div className="py-24 flex justify-center animate-in fade-in-0 duration-300">
 					<Loader2 className="h-8 w-8 animate-spin text-primary" />
 				</div>
 			) : !hasContent ? (
-				<div className="py-24 text-center text-muted-foreground">
+				<div className="py-24 text-center text-muted-foreground animate-in fade-in-0 duration-300">
 					<p>Konten belum tersedia. Silakan lakukan sinkronisasi melalui dashboard.</p>
 				</div>
 			) : (
-				<div className="max-w-7xl mx-auto px-4 py-12 space-y-16">
-					<Tabs defaultValue="profil" className="w-full">
+				<div className="max-w-7xl mx-auto px-4 py-12 space-y-16 animate-in fade-in-0 duration-500">
+					<Tabs
+						value={activeTab}
+						onValueChange={(v) => setActiveTab(v as ProdiTabValue)}
+						className="w-full">
 						<TabsList className="mb-8 flex h-auto min-h-11 w-full flex-wrap items-center justify-center gap-2 rounded-md bg-muted p-2 text-muted-foreground md:gap-1">
 							<TabsTrigger value="profil" className="gap-2 px-4 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<GraduationCap className="h-4 w-4 shrink-0" /> Profil
@@ -125,16 +169,16 @@ export default function ProdiPage() {
 							</TabsTrigger>
 						</TabsList>
 
-						<TabsContent value="profil">
+						<TabsContent value="profil" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
 							{profile && <ProfileSection data={profile} />}
 						</TabsContent>
-						<TabsContent value="dosen">
+						<TabsContent value="dosen" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
 							{lecturers && <LecturersSection data={lecturers} />}
 						</TabsContent>
-						<TabsContent value="kurikulum">
+						<TabsContent value="kurikulum" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
 							{curriculum && <CurriculumSection data={curriculum} />}
 						</TabsContent>
-						<TabsContent value="laboratorium">
+						<TabsContent value="laboratorium" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
 							{laboratories && <LaboratoriesSection data={laboratories} />}
 						</TabsContent>
 					</Tabs>
@@ -553,11 +597,12 @@ function LaboratoriesSection({ data }: { data: any }) {
 }
 
 function LabCard({ lab, type, index }: { lab: any; type: string; index: number }) {
+	const thumb = lab.imageUrls?.[0] || lab.imageUrl;
 	return (
 		<div className="border rounded-lg overflow-hidden bg-card">
-			{lab.imageUrl && (
+			{thumb && (
 				<img
-					src={lab.imageUrl}
+					src={thumb}
 					alt={lab.name}
 					className="w-full h-40 object-cover"
 					loading="lazy"
