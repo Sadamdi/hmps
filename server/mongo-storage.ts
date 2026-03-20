@@ -9,6 +9,7 @@ import {
 	Organization,
 	Permission,
 	Position,
+	ProdiContent,
 	Role,
 	Settings,
 	User,
@@ -1113,6 +1114,73 @@ async function detachBeritaFromEvent(eventId: string, beritaId: string): Promise
 	return await Event.findByIdAndUpdate(eOid, { $pull: { relatedBerita: aOid } }, { new: true }).lean();
 }
 
+// ─── ProdiContent CRUD ───
+
+async function getProdiContent(): Promise<any> {
+	let doc = await ProdiContent.findOne();
+	if (!doc) {
+		doc = await ProdiContent.create({});
+	}
+	return doc;
+}
+
+async function getProdiContentPublic(): Promise<any> {
+	const doc = await getProdiContent();
+	return doc.content ?? {};
+}
+
+async function updateProdiContent(data: any): Promise<any> {
+	const doc = await getProdiContent();
+	if (data.autoSyncEnabled !== undefined) doc.autoSyncEnabled = data.autoSyncEnabled;
+	if (data.content) {
+		for (const section of Object.keys(data.content)) {
+			for (const field of Object.keys(data.content[section])) {
+				(doc as any).content[section][field] = data.content[section][field];
+				if (!doc.overrides) doc.overrides = {};
+				if (!doc.overrides[section]) doc.overrides[section] = {};
+				doc.overrides[section][field] = true;
+			}
+		}
+		doc.markModified('content');
+		doc.markModified('overrides');
+	}
+	doc.lastManualSyncAt = new Date();
+	return await doc.save();
+}
+
+async function applyAutoSyncData(
+	crawledContent: any,
+	options?: { forceFields?: string[] },
+): Promise<any> {
+	const doc = await getProdiContent();
+	const overrides = doc.overrides ?? {};
+	const forceSet = new Set(options?.forceFields ?? []);
+
+	for (const section of Object.keys(crawledContent)) {
+		for (const field of Object.keys(crawledContent[section])) {
+			const fullKey = `${section}.${field}`;
+			const isOverridden = overrides[section]?.[field] === true;
+			if (!isOverridden || forceSet.has(fullKey)) {
+				if (!doc.content) (doc as any).content = {};
+				if (!(doc as any).content[section]) (doc as any).content[section] = {};
+				(doc as any).content[section][field] = crawledContent[section][field];
+			}
+		}
+	}
+	doc.markModified('content');
+	doc.lastAutoSyncAt = new Date();
+	doc.syncStatus = 'idle';
+	doc.lastSyncError = '';
+	return await doc.save();
+}
+
+async function setProdiSyncStatus(status: 'idle' | 'syncing' | 'error', error?: string): Promise<void> {
+	const doc = await getProdiContent();
+	doc.syncStatus = status;
+	if (error !== undefined) doc.lastSyncError = error;
+	await doc.save();
+}
+
 // Define MongoDB-specific storage functions
 const mongoDBStorage = {
 	// User functions
@@ -1168,6 +1236,13 @@ const mongoDBStorage = {
 	getSettings,
 	updateSettings,
 	resetSettings,
+
+	// ProdiContent functions
+	getProdiContent,
+	getProdiContentPublic,
+	updateProdiContent,
+	applyAutoSyncData,
+	setProdiSyncStatus,
 
 	// EventYear functions
 	getAllEventYears,
@@ -1749,6 +1824,26 @@ async function initializeDefaultPermissions() {
 			category: 'kelembagaan',
 		},
 
+		// Prodi permissions
+		{
+			name: 'prodi.view',
+			displayName: 'View Prodi',
+			description: 'Melihat konten halaman prodi',
+			category: 'prodi',
+		},
+		{
+			name: 'prodi.edit',
+			displayName: 'Edit Prodi',
+			description: 'Mengedit konten halaman prodi',
+			category: 'prodi',
+		},
+		{
+			name: 'prodi.sync',
+			displayName: 'Sync Prodi',
+			description: 'Menjalankan sinkronisasi konten prodi dari sumber eksternal',
+			category: 'prodi',
+		},
+
 		// Event permissions
 		{
 			name: 'events.view',
@@ -1925,6 +2020,9 @@ async function initializeDefaultRoles() {
 				'profil.edit',
 				'kelembagaan.view',
 				'kelembagaan.edit',
+				'prodi.view',
+				'prodi.edit',
+				'prodi.sync',
 				'events.view',
 				'events.create',
 				'events.edit',
@@ -1961,6 +2059,7 @@ async function initializeDefaultRoles() {
 				'settings.view',
 				'profil.view',
 				'kelembagaan.view',
+				'prodi.view',
 				'events.view',
 				'events.create',
 				'events.edit',
@@ -1996,6 +2095,7 @@ async function initializeDefaultRoles() {
 				'settings.view',
 				'profil.view',
 				'kelembagaan.view',
+				'prodi.view',
 				'events.view',
 				'events.create',
 				'events.edit',
@@ -2030,6 +2130,7 @@ async function initializeDefaultRoles() {
 				'settings.view',
 				'profil.view',
 				'kelembagaan.view',
+				'prodi.view',
 				'events.view',
 				'events.create',
 				'events.edit',

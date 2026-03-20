@@ -15,6 +15,7 @@ import {
 	Calendar,
 	ChevronDown,
 	FileText,
+	GraduationCap,
 	Home,
 	Info,
 	LogIn,
@@ -65,6 +66,7 @@ const sectionMap: Record<string, string> = {
 	profil: 'about',
 	events: 'events',
 	kelembagaan: 'vision-mission',
+	prodi: 'prodi',
 	berita: 'berita',
 };
 
@@ -89,6 +91,18 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 		children: [
 			{ label: 'Visi & Misi', href: '/kelembagaan#vision-mission' },
 			{ label: 'Struktur Organisasi', href: '/kelembagaan#structure' },
+		],
+	},
+	{
+		id: 'prodi',
+		label: 'Prodi',
+		icon: <GraduationCap className="h-4 w-4" />,
+		homeSection: 'prodi',
+		children: [
+			{ label: 'Profil Prodi', href: '/prodi' },
+			{ label: 'Dosen & Staff', href: '/prodi?tab=dosen' },
+			{ label: 'Kurikulum', href: '/prodi?tab=kurikulum' },
+			{ label: 'Laboratorium', href: '/prodi?tab=laboratorium' },
 		],
 	},
 	{
@@ -389,6 +403,11 @@ export default function Navbar({
 				const subSt = visibleBlocks.find((x) => x.id === 'kelembagaan.structure' && x.kind === 'subItem');
 				if (subSt?.visible)
 					return subSt.renderMode === 'full' ? 'structure' : 'kelembagaan-structure';
+				return null;
+			}
+
+			if (itemId === 'prodi') {
+				if (isVisible('prodi', 'section')) return 'prodi';
 				return null;
 			}
 

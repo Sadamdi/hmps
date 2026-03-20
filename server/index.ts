@@ -113,6 +113,12 @@ app.get('/sitemap.xml', async (_req, res) => {
 				priority: '0.9',
 				lastmod: now,
 			},
+			{
+				loc: `${host}/prodi`,
+				changefreq: 'monthly',
+				priority: '0.9',
+				lastmod: now,
+			},
 			// Sections beranda yang bersifat publik (untuk crawling bot)
 			{
 				loc: `${host}/#profil`,
@@ -309,6 +315,23 @@ async function runBackupIfNeeded() {
 
 // Schedule: every 1st of month at 02:00
 cron.schedule('0 2 1 * *', runBackupIfNeeded);
+
+// Schedule: prodi auto-sync — every 1st of month at 03:00
+cron.schedule('0 3 1 * *', async () => {
+	try {
+		const { mongoStorage } = await import('./mongo-storage');
+		const doc = await mongoStorage.getProdiContent();
+		if (!doc.autoSyncEnabled) {
+			console.log('⏭️  Prodi auto-sync skipped (disabled)');
+			return;
+		}
+		const { runProdiSync } = await import('./services/prodi-sync');
+		console.log('🔄 Running scheduled prodi auto-sync...');
+		await runProdiSync();
+	} catch (err) {
+		console.error('Scheduled prodi sync error:', err);
+	}
+});
 
 // ==================== SECURITY MONITORING ====================
 // Security monitoring akan ditampilkan saat server start

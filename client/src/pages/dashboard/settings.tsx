@@ -2765,9 +2765,18 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 
 	const buildInitial = useCallback((): HomeConfig => {
 		if (settings?.homeConfig?.blocks?.length) {
+			// Ensure all navbar items exist in form state.
+			// This prevents older saved configs from missing newly added items (e.g. `prodi`).
+			const currentNavbar = settings.homeConfig.navbar?.length
+				? settings.homeConfig.navbar
+				: [];
+			const currentIds = new Set(currentNavbar.map((n) => n.id));
+			const missing = DEFAULT_HOME_CONFIG.navbar.filter((n) => !currentIds.has(n.id));
+			const mergedNavbar = [...currentNavbar, ...missing];
+
 			return {
 				blocks: settings.homeConfig.blocks,
-				navbar: settings.homeConfig.navbar?.length ? settings.homeConfig.navbar : DEFAULT_HOME_CONFIG.navbar,
+				navbar: mergedNavbar,
 				showDashboardLink: settings.homeConfig.showDashboardLink ?? true,
 			};
 		}

@@ -40,6 +40,8 @@ import {
 	uploadHandler,
 	uploadMiddleware,
 	uploadOrganizationMemberImage,
+	uploadProdiLecturerPhoto,
+	uploadProdiOrganizationStructureImage,
 } from './upload';
 
 // Import security middleware
@@ -3413,6 +3415,123 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				res.json(settings);
 			} catch (error) {
 				console.error('Reset settings error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	// ── Prodi Content endpoints ──
+
+	app.get('/api/prodi', async (_req, res) => {
+		try {
+			const content = await mongoStorage.getProdiContentPublic();
+			res.json(content);
+		} catch (error) {
+			console.error('Get prodi content error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.get(
+		'/api/prodi/manage',
+		authenticate,
+		requirePermission('prodi.view'),
+		async (_req, res) => {
+			try {
+				const doc = await mongoStorage.getProdiContent();
+				res.json(doc);
+			} catch (error) {
+				console.error('Get prodi manage error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.put(
+		'/api/prodi/manage',
+		authenticate,
+		requirePermission('prodi.edit'),
+		async (req, res) => {
+			try {
+				const updated = await mongoStorage.updateProdiContent(req.body);
+				res.json(updated);
+			} catch (error) {
+				console.error('Update prodi manage error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.post(
+		'/api/prodi/upload/photo/member',
+		authenticate,
+		requirePermission('prodi.edit'),
+		uploadLimiter,
+		uploadMiddleware.single('image'),
+		validateFileUpload,
+		async (req, res) => {
+			try {
+				const slug = String(req.body?.slug || '').trim();
+				const oldPhotoUrl = String(req.body?.oldPhotoUrl || '').trim() || undefined;
+				if (!slug) {
+					return res.status(400).json({ message: 'slug wajib diisi' });
+				}
+				const url = await uploadProdiLecturerPhoto(req.file!, slug, oldPhotoUrl);
+				res.json({ url });
+			} catch (error: any) {
+				console.error('Prodi member photo upload error:', error);
+				res.status(500).json({
+					message: error?.message || 'Gagal mengunggah foto',
+				});
+			}
+		},
+	);
+
+	app.post(
+		'/api/prodi/upload/photo/org-structure',
+		authenticate,
+		requirePermission('prodi.edit'),
+		uploadLimiter,
+		uploadMiddleware.single('image'),
+		validateFileUpload,
+		async (req, res) => {
+			try {
+				const oldPhotoUrl = String(req.body?.oldPhotoUrl || '').trim() || undefined;
+				const url = await uploadProdiOrganizationStructureImage(
+					req.file!,
+					oldPhotoUrl,
+				);
+				res.json({ url });
+			} catch (error: any) {
+				console.error('Prodi org structure photo upload error:', error);
+				res.status(500).json({
+					message: error?.message || 'Gagal mengunggah gambar struktur',
+				});
+			}
+		},
+	);
+
+	app.post(
+		'/api/prodi/sync/run',
+		authenticate,
+		requirePermission('prodi.sync'),
+		async (_req, res) => {
+			try {
+				const doc = await mongoStorage.getProdiContent();
+				if (doc.syncStatus === 'syncing') {
+					return res.status(409).json({ message: 'Sync sedang berjalan' });
+				}
+				const { runProdiSync } = await import('./services/prodi-sync');
+				const summary = await runProdiSync();
+				if (!summary.ok) {
+					return res.status(500).json({
+						message: summary.error || 'Sinkronisasi gagal',
+						summary,
+					});
+				}
+				res.json({ message: 'Sinkronisasi selesai', summary });
+			} catch (error) {
+				console.error('Prodi sync trigger error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		},

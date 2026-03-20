@@ -4,6 +4,7 @@ import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
 import {
+	BookOpen,
 	Building2,
 	Calendar,
 	ChevronLeft,
@@ -87,6 +88,13 @@ export default function Sidebar({
 			href: '/dashboard/kelembagaan',
 			active: location.startsWith('/dashboard/kelembagaan'),
 			requirePermission: 'kelembagaan.view',
+		},
+		{
+			label: 'Prodi',
+			icon: <BookOpen className="h-5 w-5" />,
+			href: '/dashboard/prodi',
+			active: location.startsWith('/dashboard/prodi'),
+			requirePermission: 'prodi.view',
 		},
 		{
 			label: 'Events',
@@ -177,6 +185,13 @@ export default function Sidebar({
 									if (
 										!hasSpecificPermission('kelembagaan.view') &&
 										!hasSpecificPermission('kelembagaan.edit')
+									) {
+										return null;
+									}
+								} else if (item.requirePermission === 'prodi.view') {
+									if (
+										!hasSpecificPermission('prodi.view') &&
+										!hasSpecificPermission('prodi.edit')
 									) {
 										return null;
 									}

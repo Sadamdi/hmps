@@ -52,6 +52,7 @@ const ProfilSejarahSection = lazy(() => import('@/components/public/home-section
 const ProfilFilosofiSection = lazy(() => import('@/components/public/home-sections/profil-filosofi'));
 const KelembagaanVisionMissionSection = lazy(() => import('@/components/public/home-sections/kelembagaan-vision-mission'));
 const KelembagaanStructureSection = lazy(() => import('@/components/public/home-sections/kelembagaan-structure'));
+const ProdiSummarySection = lazy(() => import('@/components/public/home-sections/prodi-summary'));
 
 export default function Home() {
 	const { isLoading, completeLoading, forceComplete, assetsLoaded } =
@@ -96,6 +97,7 @@ export default function Home() {
 		'events',
 		'vision-mission',
 		'structure',
+		'prodi',
 		'berita',
 		'library',
 		'profil-tentangKami',
@@ -151,6 +153,7 @@ export default function Home() {
 				{ id: 'kelembagaan-visionMission', navId: 'kelembagaan' },
 				{ id: 'structure', navId: 'kelembagaan' },
 				{ id: 'kelembagaan-structure', navId: 'kelembagaan' },
+				{ id: 'prodi', navId: 'prodi' },
 				{ id: 'berita', navId: 'berita' },
 				{ id: 'library', navId: 'library' },
 			];
@@ -226,10 +229,16 @@ export default function Home() {
 							<Structure />
 						</Suspense>
 					);
-				case 'berita':
-					return <BeritaList key="berita" />;
-				case 'library':
-					return <Library key="library" />;
+			case 'prodi':
+				return (
+					<Suspense key="prodi" fallback={null}>
+						<ProdiSummarySection />
+					</Suspense>
+				);
+			case 'berita':
+				return <BeritaList key="berita" />;
+			case 'library':
+				return <Library key="library" />;
 				case 'footer':
 					return <Footer key="footer" />;
 				default:

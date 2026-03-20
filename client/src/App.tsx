@@ -18,6 +18,10 @@ const AllBerita = lazy(() => import('@/pages/berita/index'));
 const BeritaDetail = lazy(() => import('@/pages/berita/[id]'));
 const ProfilPage = lazy(() => import('@/pages/profil'));
 const KelembagaanPage = lazy(() => import('@/pages/kelembagaan'));
+const ProdiPage = lazy(() => import('@/pages/prodi'));
+const DosenDetailPage = lazy(() => import('@/pages/prodi/dosen/[slug]'));
+const CurriculumSubjectPage = lazy(() => import('@/pages/prodi/curriculum/[slug]'));
+const LabDetailPage = lazy(() => import('@/pages/prodi/laboratorium/[type]/[index]'));
 const Dashboard = lazy(() => import('@/pages/dashboard/index'));
 const DashboardBerita = lazy(() => import('@/pages/dashboard/berita'));
 const DashboardLibrary = lazy(() => import('@/pages/dashboard/library'));
@@ -26,6 +30,7 @@ const DashboardRoles = lazy(() => import('@/pages/dashboard/roles'));
 const DashboardSettings = lazy(() => import('@/pages/dashboard/settings'));
 const DashboardProfil = lazy(() => import('@/pages/dashboard/profil'));
 const DashboardKelembagaan = lazy(() => import('@/pages/dashboard/kelembagaan'));
+const DashboardProdi = lazy(() => import('@/pages/dashboard/prodi'));
 const DashboardEvents = lazy(() => import('@/pages/dashboard/events'));
 const EventsIndex = lazy(() => import('@/pages/events/index'));
 const EventsAll = lazy(() => import('@/pages/events/all'));
@@ -90,6 +95,13 @@ function Router() {
 					path="/kelembagaan"
 					component={KelembagaanPage}
 				/>
+			<Route
+				path="/prodi"
+				component={ProdiPage}
+			/>
+			<Route path="/prodi/dosen/:slug" component={DosenDetailPage} />
+			<Route path="/prodi/curriculum/:slug" component={CurriculumSubjectPage} />
+			<Route path="/prodi/laboratorium/:type/:index" component={LabDetailPage} />
 				<Route path="/events" component={EventsIndex} />
 				<Route path="/events/all" component={EventsAll} />
 				<Route path="/events/:year/:eventId" component={EventDetail} />
@@ -149,6 +161,13 @@ function Router() {
 			{() => (
 				<ProtectedRoute>
 					<DashboardKelembagaan />
+				</ProtectedRoute>
+			)}
+		</Route>
+		<Route path="/dashboard/prodi">
+			{() => (
+				<ProtectedRoute>
+					<DashboardProdi />
 				</ProtectedRoute>
 			)}
 		</Route>

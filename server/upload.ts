@@ -229,6 +229,97 @@ export async function uploadOrganizationMemberImage(
 	}
 }
 
+const LOCAL_UPLOADS_PREFIX = '/uploads/';
+
+function maybeDeleteLocalUpload(oldFileUrl?: string): Promise<void> {
+	if (!oldFileUrl || !oldFileUrl.startsWith(LOCAL_UPLOADS_PREFIX)) {
+		return Promise.resolve();
+	}
+	return deleteFile(oldFileUrl);
+}
+
+/**
+ * Foto anggota Prodi (dosen / staff / pimpinan): WebP ke uploads/prodi/lecturers/{slug}.webp
+ */
+export async function uploadProdiLecturerPhoto(
+	file: Express.Multer.File,
+	slug: string,
+	oldFileUrl?: string,
+): Promise<string> {
+	try {
+		await maybeDeleteLocalUpload(oldFileUrl);
+
+		if (!isProcessableImage(file.mimetype)) {
+			throw new Error(`File type ${file.mimetype} is not processable`);
+		}
+
+		const safeSlug = String(slug)
+			.trim()
+			.toLowerCase()
+			.replace(/[^a-z0-9-]+/g, '-')
+			.replace(/^-+|-+$/g, '');
+		if (!safeSlug) {
+			throw new Error('Invalid slug');
+		}
+
+		const lecturersDir = path.join(uploadDir, 'prodi', 'lecturers');
+		await mkdir(lecturersDir, { recursive: true });
+
+		const fileName = `${safeSlug}.webp`;
+		const filePath = path.join(lecturersDir, fileName);
+
+		const processedBuffer = await processImage(file.buffer, {
+			quality: 80,
+			maxWidth: 1920,
+			maxHeight: 1080,
+			format: 'webp',
+		});
+
+		await writeFile(filePath, processedBuffer);
+
+		return `/uploads/prodi/lecturers/${fileName}`;
+	} catch (error) {
+		console.error('Error processing prodi lecturer photo:', error);
+		throw new Error('Failed to process prodi photo');
+	}
+}
+
+/**
+ * Gambar struktur organisasi Prodi: uploads/prodi/organization-structure.webp
+ */
+export async function uploadProdiOrganizationStructureImage(
+	file: Express.Multer.File,
+	oldFileUrl?: string,
+): Promise<string> {
+	try {
+		await maybeDeleteLocalUpload(oldFileUrl);
+
+		if (!isProcessableImage(file.mimetype)) {
+			throw new Error(`File type ${file.mimetype} is not processable`);
+		}
+
+		const prodiDir = path.join(uploadDir, 'prodi');
+		await mkdir(prodiDir, { recursive: true });
+
+		const fileName = 'organization-structure.webp';
+		const filePath = path.join(prodiDir, fileName);
+
+		const processedBuffer = await processImage(file.buffer, {
+			quality: 80,
+			maxWidth: 2400,
+			maxHeight: 2400,
+			format: 'webp',
+		});
+
+		await writeFile(filePath, processedBuffer);
+
+		return `/uploads/prodi/${fileName}`;
+	} catch (error) {
+		console.error('Error processing prodi organization structure image:', error);
+		throw new Error('Failed to process prodi organization structure image');
+	}
+}
+
 /**
  * Upload gambar filosofi ke attached_assets/filosofi/{key}.{ext}
  * Menggantikan file lama dengan key yang sama (tanpa memandang ekstensi)
@@ -295,12 +386,21 @@ export async function deleteFile(fileUrl: string): Promise<void> {
 		} else if (fileUrl.includes('/uploads/')) {
 			baseDir = uploadDir;
 			const uploadIndex = urlParts.indexOf('uploads');
-			if (uploadIndex !== -1 && urlParts[uploadIndex + 1]) {
-				category = urlParts[uploadIndex + 1];
+			if (uploadIndex !== -1) {
+				const relParts = urlParts.slice(uploadIndex + 1).filter(Boolean);
+				if (relParts.length > 0) {
+					category = relParts[0];
+					const nestedPath = path.join(baseDir, ...relParts);
+					if (fs.existsSync(nestedPath)) {
+						await promisify(fs.unlink)(nestedPath);
+						console.log(`Deleted old file: ${nestedPath}`);
+						return;
+					}
+				}
 			}
 		}
 
-		// Construct file path
+		// Construct file path (satu segmen kategori + nama file; kompatibilitas URL lama)
 		const filePath = path.join(baseDir, category, fileName);
 
 		// Check if file exists and delete

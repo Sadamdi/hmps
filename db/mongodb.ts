@@ -799,6 +799,152 @@ const userNotificationSchema = new mongoose.Schema(
 userNotificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 userNotificationSchema.index({ userId: 1, createdAt: -1 });
 
+// ProdiContent Schema — singleton document holding crawled prodi data
+const lecturerDetailSchema = new mongoose.Schema({
+	name: { type: String, default: '' },
+	nip: { type: String, default: '' },
+	nidn: { type: String, default: '' },
+	nidnUrl: { type: String, default: '' },
+	email: { type: String, default: '' },
+	education: { type: String, default: '' },
+	knowledgeGroup: { type: String, default: '' },
+	profileUrl: { type: String, default: '' },
+	photoUrl: { type: String, default: '' },
+	workingDaysHours: { type: String, default: '' },
+	googleScholar: { type: String, default: '' },
+	scopusId: { type: String, default: '' },
+	scopusUrl: { type: String, default: '' },
+	orcidId: { type: String, default: '' },
+	orcidUrl: { type: String, default: '' },
+	sintaId: { type: String, default: '' },
+	sintaUrl: { type: String, default: '' },
+	repositoryUrl: { type: String, default: '' },
+}, { _id: false });
+
+const lecturerGroupSchema = new mongoose.Schema({
+	name: { type: String, required: true },
+	lecturers: [lecturerDetailSchema],
+}, { _id: false });
+
+const milestoneSchema = new mongoose.Schema({
+	year: { type: String, default: '' },
+	description: { type: String, default: '' },
+}, { _id: false });
+
+const managementPersonSchema = new mongoose.Schema({
+	name: { type: String, default: '' },
+	position: { type: String, default: '' },
+	profileUrl: { type: String, default: '' },
+	photoUrl: { type: String, default: '' },
+	workingDaysHours: { type: String, default: '' },
+	email: { type: String, default: '' },
+	nip: { type: String, default: '' },
+	nidn: { type: String, default: '' },
+	education: { type: String, default: '' },
+	knowledgeGroup: { type: String, default: '' },
+	googleScholar: { type: String, default: '' },
+	scopusUrl: { type: String, default: '' },
+	orcidUrl: { type: String, default: '' },
+	sintaUrl: { type: String, default: '' },
+	repositoryUrl: { type: String, default: '' },
+}, { _id: false });
+
+const managementPeriodSchema = new mongoose.Schema({
+	period: { type: String, default: '' },
+	isCurrent: { type: Boolean, default: false },
+	members: [managementPersonSchema],
+}, { _id: false });
+
+const curriculumSubjectSchema = new mongoose.Schema({
+	no: { type: String, default: '' },
+	code: { type: String, default: '' },
+	name: { type: String, default: '' },
+	sks: { type: String, default: '' },
+	prerequisite: { type: String, default: '' },
+	rpsUrl: { type: String, default: '' },
+}, { _id: false });
+
+const semesterSchema = new mongoose.Schema({
+	semester: { type: Number, required: true },
+	totalSks: { type: String, default: '' },
+	subjects: [curriculumSubjectSchema],
+}, { _id: false });
+
+const rpsResourceLinkSchema = new mongoose.Schema({
+	label: { type: String, default: '' },
+	url: { type: String, default: '' },
+}, { _id: false });
+
+const subjectRpsResourceSchema = new mongoose.Schema({
+	slug: { type: String, required: true },
+	subjectName: { type: String, default: '' },
+	materiPpt: [rpsResourceLinkSchema],
+	linkFile: [rpsResourceLinkSchema],
+	parsedAt: { type: Date },
+}, { _id: false });
+
+const laboratorySchema = new mongoose.Schema({
+	name: { type: String, required: true },
+	description: { type: String, default: '' },
+	imageUrl: { type: String, default: '' },
+}, { _id: false });
+
+const prodiContentSchema = new mongoose.Schema({
+	autoSyncEnabled: { type: Boolean, default: true },
+	lastAutoSyncAt: { type: Date, default: null },
+	lastManualSyncAt: { type: Date, default: null },
+	syncStatus: { type: String, enum: ['idle', 'syncing', 'error'], default: 'idle' },
+	lastSyncError: { type: String, default: '' },
+
+	overrides: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+	content: {
+		profile: {
+			history: { type: String, default: '' },
+			vision: { type: String, default: '' },
+			mission: [{ type: String }],
+			objectives: [{ type: String }],
+			strategy: { type: String, default: '' },
+			milestones: [milestoneSchema],
+			managements: [managementPeriodSchema],
+			organizationStructureImageUrl: { type: String, default: '' },
+			organizationStructureDescription: { type: String, default: '' },
+		},
+		lecturers: {
+			headAndSecretary: [managementPersonSchema],
+			groups: [lecturerGroupSchema],
+			staff: [lecturerDetailSchema],
+		},
+		curriculum: {
+			graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
+			knowledgeGroups: [{ type: String }],
+			structureSummary: { type: String, default: '' },
+			semesters: [semesterSchema],
+			optionalSubjects: [curriculumSubjectSchema],
+			subjectRpsResources: [subjectRpsResourceSchema],
+		},
+		laboratories: {
+			teaching: [laboratorySchema],
+			research: [laboratorySchema],
+		},
+	},
+
+	sources: {
+		profileUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/undergraduate-s1/' },
+		lecturerUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/lecturer-and-staff/' },
+		curriculumUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/curriculum/' },
+		teachingLabUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/teaching-laboratory/' },
+		researchLabUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/research-laboratory/' },
+	},
+}, { timestamps: true });
+
+prodiContentSchema.pre('save', async function (next) {
+	if (this.isNew) {
+		await ProdiContent.deleteMany({ _id: { $ne: this._id } });
+	}
+	next();
+});
+
 // Create models
 const EventYear =
 	mongoose.models.EventYear || mongoose.model('EventYear', eventYearSchema);
@@ -827,6 +973,8 @@ const PostSharing =
 	mongoose.models.PostSharing || mongoose.model('PostSharing', postSharingSchema);
 const UserNotification =
 	mongoose.models.UserNotification || mongoose.model('UserNotification', userNotificationSchema);
+const ProdiContent =
+	mongoose.models.ProdiContent || mongoose.model('ProdiContent', prodiContentSchema);
 
 // Create Position model
 export const Position =
@@ -846,6 +994,7 @@ export {
 	OtpChallenge,
 	Permission,
 	PostSharing,
+	ProdiContent,
 	Role,
 	Session,
 	Settings,
