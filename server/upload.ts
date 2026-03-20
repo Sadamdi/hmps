@@ -284,6 +284,58 @@ export async function uploadProdiLecturerPhoto(
 	}
 }
 
+export type ProdiLabType = 'teaching' | 'research';
+
+/**
+ * Gambar laboratorium Prodi: uploads/prodi/labs/{type}/{labIndex}-{imgIndex}.webp
+ * (sama dengan pola cache di prodi-sync)
+ */
+export async function uploadProdiLabPhoto(
+	file: Express.Multer.File,
+	type: ProdiLabType,
+	labIndex: number,
+	imgIndex: number,
+	oldFileUrl?: string,
+): Promise<string> {
+	try {
+		if (type !== 'teaching' && type !== 'research') {
+			throw new Error('Invalid lab type');
+		}
+		if (!Number.isInteger(labIndex) || labIndex < 0) {
+			throw new Error('Invalid lab index');
+		}
+		if (!Number.isInteger(imgIndex) || imgIndex < 0) {
+			throw new Error('Invalid image index');
+		}
+
+		await maybeDeleteLocalUpload(oldFileUrl);
+
+		if (!isProcessableImage(file.mimetype)) {
+			throw new Error(`File type ${file.mimetype} is not processable`);
+		}
+
+		const labsDir = path.join(uploadDir, 'prodi', 'labs', type);
+		await mkdir(labsDir, { recursive: true });
+
+		const fileName = `${labIndex}-${imgIndex}.webp`;
+		const filePath = path.join(labsDir, fileName);
+
+		const processedBuffer = await processImage(file.buffer, {
+			quality: 80,
+			maxWidth: 1920,
+			maxHeight: 1080,
+			format: 'webp',
+		});
+
+		await writeFile(filePath, processedBuffer);
+
+		return `/uploads/prodi/labs/${type}/${fileName}`;
+	} catch (error) {
+		console.error('Error processing prodi lab photo:', error);
+		throw new Error('Failed to process prodi lab photo');
+	}
+}
+
 /**
  * Gambar struktur organisasi Prodi: uploads/prodi/organization-structure.webp
  */

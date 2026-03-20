@@ -40,6 +40,7 @@ import {
 	uploadHandler,
 	uploadMiddleware,
 	uploadOrganizationMemberImage,
+	uploadProdiLabPhoto,
 	uploadProdiLecturerPhoto,
 	uploadProdiOrganizationStructureImage,
 } from './upload';
@@ -3471,10 +3472,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		validateFileUpload,
 		async (req, res) => {
 			try {
-				const slug = String(req.body?.slug || '').trim();
+				let slug = String(req.body?.slug || '').trim();
 				const oldPhotoUrl = String(req.body?.oldPhotoUrl || '').trim() || undefined;
 				if (!slug) {
-					return res.status(400).json({ message: 'slug wajib diisi' });
+					const profileUrl = String(req.body?.profileUrl || '').trim();
+					const last = profileUrl.replace(/\/+$/, '').split('/').pop() || '';
+					slug = last;
+				}
+				if (!slug) {
+					return res.status(400).json({ message: 'slug atau profile URL wajib untuk unggah foto' });
 				}
 				const url = await uploadProdiLecturerPhoto(req.file!, slug, oldPhotoUrl);
 				res.json({ url });
@@ -3482,6 +3488,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				console.error('Prodi member photo upload error:', error);
 				res.status(500).json({
 					message: error?.message || 'Gagal mengunggah foto',
+				});
+			}
+		},
+	);
+
+	app.post(
+		'/api/prodi/upload/photo/lab',
+		authenticate,
+		requirePermission('prodi.edit'),
+		uploadLimiter,
+		uploadMiddleware.single('image'),
+		validateFileUpload,
+		async (req, res) => {
+			try {
+				const typeRaw = String(req.body?.type || '').trim().toLowerCase();
+				const type = typeRaw === 'research' ? 'research' : 'teaching';
+				const labIndex = parseInt(String(req.body?.labIndex ?? ''), 10);
+				const imgIndex = parseInt(String(req.body?.imgIndex ?? ''), 10);
+				const oldPhotoUrl = String(req.body?.oldPhotoUrl || '').trim() || undefined;
+				if (!Number.isFinite(labIndex) || labIndex < 0) {
+					return res.status(400).json({ message: 'labIndex tidak valid' });
+				}
+				if (!Number.isFinite(imgIndex) || imgIndex < 0) {
+					return res.status(400).json({ message: 'imgIndex tidak valid' });
+				}
+				const url = await uploadProdiLabPhoto(req.file!, type, labIndex, imgIndex, oldPhotoUrl);
+				res.json({ url });
+			} catch (error: any) {
+				console.error('Prodi lab photo upload error:', error);
+				res.status(500).json({
+					message: error?.message || 'Gagal mengunggah gambar lab',
 				});
 			}
 		},

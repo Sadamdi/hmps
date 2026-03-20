@@ -280,15 +280,33 @@ function slugFromProfileUrl(profileUrl: string): string {
 	return parts[parts.length - 1] || '';
 }
 
+/** Fallback nama file foto jika Profile URL kosong (diselaraskan dengan sanitasi di server). */
+function slugifyLecturerNameOrNip(name?: string, nip?: string): string {
+	const nipClean = (nip || '').replace(/\s/g, '').replace(/[^a-zA-Z0-9-]/g, '');
+	if (nipClean.length >= 4) {
+		return nipClean.toLowerCase();
+	}
+	const raw = (name || '').trim();
+	if (!raw) return '';
+	return raw
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, '-')
+		.replace(/^-+|-+$/g, '');
+}
+
 function ProdiMemberPhotoUpload({
 	photoUrl,
 	profileUrl,
+	nameFallback,
+	nipFallback,
 	onUploaded,
 	readOnly,
 	sizeClass = 'w-12 h-12 rounded-full',
 }: {
 	photoUrl?: string;
 	profileUrl?: string;
+	nameFallback?: string;
+	nipFallback?: string;
 	onUploaded: (url: string) => void;
 	readOnly?: boolean;
 	sizeClass?: string;
@@ -296,18 +314,21 @@ function ProdiMemberPhotoUpload({
 	const inputRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
 	const { toast } = useToast();
-	const slug = slugFromProfileUrl(profileUrl || '');
-	const canUpload = !readOnly && !!slug;
+	const slugFromUrl = slugFromProfileUrl(profileUrl || '');
+	const slugFromPerson = slugifyLecturerNameOrNip(nameFallback, nipFallback);
+	const effectiveSlug = slugFromUrl || slugFromPerson;
+	const canUpload = !readOnly && !!effectiveSlug;
 
 	const onPick = async (e: ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		e.target.value = '';
-		if (!file || !slug) return;
+		if (!file || !effectiveSlug) return;
 		setUploading(true);
 		try {
 			const fd = new FormData();
 			fd.append('image', file);
-			fd.append('slug', slug);
+			fd.append('slug', effectiveSlug);
+			if (profileUrl) fd.append('profileUrl', profileUrl);
 			if (photoUrl?.startsWith('/uploads/prodi/')) {
 				fd.append('oldPhotoUrl', photoUrl);
 			}
@@ -369,7 +390,7 @@ function ProdiMemberPhotoUpload({
 				title={
 					canUpload
 						? 'Klik untuk unggah foto (WebP)'
-						: 'Isi Profile URL terlebih dahulu agar unggah aktif'
+						: 'Isi Profile URL atau Nama/NIP agar unggah aktif'
 				}>
 				{uploading ? (
 					<Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -483,6 +504,136 @@ function ProdiOrgStructurePhotoUpload({
 				)}
 			</button>
 		</>
+	);
+}
+
+/** Unggah / ganti / hapus slot gambar lab (path konsisten dengan sync: labs/{type}/{labIndex}-{imgIndex}.webp). */
+function ProdiLabPhotoSlots({
+	labKind,
+	labIndex,
+	urls,
+	readOnly,
+	onUrlsChange,
+}: {
+	labKind: 'teaching' | 'research';
+	labIndex: number;
+	urls: string[];
+	readOnly: boolean;
+	onUrlsChange: (next: string[]) => void;
+}) {
+	const inputRef = useRef<HTMLInputElement>(null);
+	const [uploadTarget, setUploadTarget] = useState<number | null>(null);
+	const [uploading, setUploading] = useState(false);
+	const { toast } = useToast();
+
+	const startPick = (imgIndex: number) => {
+		setUploadTarget(imgIndex);
+		requestAnimationFrame(() => inputRef.current?.click());
+	};
+
+	const onPick = async (e: ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		const imgIndex = uploadTarget;
+		setUploadTarget(null);
+		e.target.value = '';
+		if (!file || imgIndex === null) return;
+
+		setUploading(true);
+		try {
+			const fd = new FormData();
+			fd.append('image', file);
+			fd.append('type', labKind);
+			fd.append('labIndex', String(labIndex));
+			fd.append('imgIndex', String(imgIndex));
+			const oldUrl = urls[imgIndex];
+			if (oldUrl?.startsWith('/uploads/')) {
+				fd.append('oldPhotoUrl', oldUrl);
+			}
+			const res = await apiRequest('POST', '/api/prodi/upload/photo/lab', fd);
+			const j = await res.json();
+			const next = [...urls];
+			if (imgIndex < next.length) {
+				next[imgIndex] = j.url;
+			} else if (imgIndex === next.length) {
+				next.push(j.url);
+			} else {
+				while (next.length < imgIndex) next.push('');
+				next[imgIndex] = j.url;
+			}
+			const compacted = next.filter((u) => u.trim() !== '');
+			onUrlsChange(compacted);
+			toast({ title: 'Berhasil', description: 'Gambar lab diunggah (WebP)' });
+		} catch (err: any) {
+			toast({
+				title: 'Gagal mengunggah',
+				description: err?.message || 'Upload gagal',
+				variant: 'destructive',
+			});
+		} finally {
+			setUploading(false);
+		}
+	};
+
+	return (
+		<div className="space-y-2">
+			<input
+				ref={inputRef}
+				type="file"
+				accept="image/jpeg,image/png,image/gif,image/webp"
+				className="hidden"
+				onChange={onPick}
+			/>
+			<div className="flex flex-wrap gap-2 items-end">
+				{urls.map((url, j) => (
+					<div key={`${j}-${url.slice(-20)}`} className="flex flex-col gap-1">
+						<div className="relative w-20 h-14 rounded border border-border overflow-hidden bg-muted">
+							<img
+								src={url}
+								alt=""
+								className="w-full h-full object-cover"
+								onError={(ev) => {
+									(ev.target as HTMLImageElement).style.display = 'none';
+								}}
+							/>
+						</div>
+						{!readOnly && (
+							<div className="flex gap-1 flex-wrap">
+								<Button
+									type="button"
+									variant="secondary"
+									size="sm"
+									className="h-7 text-[10px] px-2"
+									disabled={uploading}
+									onClick={() => startPick(j)}>
+									Ganti
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="h-7 text-[10px] px-2 text-destructive"
+									disabled={uploading}
+									onClick={() => onUrlsChange(urls.filter((_, idx) => idx !== j))}>
+									Hapus
+								</Button>
+							</div>
+						)}
+					</div>
+				))}
+				{!readOnly && (
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-14 px-3 shrink-0"
+						disabled={uploading}
+						onClick={() => startPick(urls.length)}
+						title="Tambah gambar">
+						{uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+					</Button>
+				)}
+			</div>
+		</div>
 	);
 }
 
@@ -720,7 +871,7 @@ function ManagementEditor({ items, onChange, readOnly }: {
 											</div>
 										</div>
 										<div>
-											<Label className="text-xs">Profile URL (wajib untuk unggah foto)</Label>
+											<Label className="text-xs">Profile URL (opsional; atau isi Nama untuk unggah foto)</Label>
 											<Input value={member.profileUrl || ''} disabled={readOnly}
 												onChange={(e) => updateMember(pi, mi, 'profileUrl', e.target.value)}
 												placeholder="https://informatika.uin-malang.ac.id/..." className="text-xs" />
@@ -1217,6 +1368,7 @@ function LaboratoryEditor({ data, onChange, readOnly }: { data: any; onChange: (
 				</CardHeader>
 				<CardContent>
 					<LabListEditor
+						labKind="teaching"
 						items={data.teaching ?? []}
 						onChange={(v) => onChange('teaching', v)}
 						readOnly={readOnly}
@@ -1230,6 +1382,7 @@ function LaboratoryEditor({ data, onChange, readOnly }: { data: any; onChange: (
 				</CardHeader>
 				<CardContent>
 					<LabListEditor
+						labKind="research"
 						items={data.research ?? []}
 						onChange={(v) => onChange('research', v)}
 						readOnly={readOnly}
@@ -1374,14 +1527,18 @@ function PersonListEditor({ items, onChange, readOnly, showAcademic }: {
 			{items.map((item, i) => (
 				<div key={i} className="border rounded-lg p-3 space-y-2 bg-muted/30">
 					<div className="flex gap-3 items-start">
-						{item.photoUrl && (
-							<img
-								src={item.photoUrl}
-								alt={item.name}
-								className="w-12 h-12 rounded-full object-cover border border-border shrink-0"
-								onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-							/>
-						)}
+						<ProdiMemberPhotoUpload
+							photoUrl={item.photoUrl}
+							profileUrl={item.profileUrl}
+							nameFallback={item.name}
+							nipFallback={item.nip}
+							onUploaded={(url) => {
+								const next = [...items];
+								next[i] = { ...next[i], photoUrl: url };
+								onChange(next);
+							}}
+							readOnly={readOnly}
+						/>
 						<div className="flex-1 space-y-2">
 							<div className="flex gap-2 flex-wrap">
 								<div className="flex-1 min-w-[200px]">
@@ -1500,7 +1657,8 @@ function PersonListEditor({ items, onChange, readOnly, showAcademic }: {
 	);
 }
 
-function LabListEditor({ items, onChange, readOnly }: {
+function LabListEditor({ labKind, items, onChange, readOnly }: {
+	labKind: 'teaching' | 'research';
 	items: any[];
 	onChange: (v: any[]) => void;
 	readOnly: boolean;
@@ -1509,22 +1667,14 @@ function LabListEditor({ items, onChange, readOnly }: {
 		<div className="space-y-3">
 			{items.map((item, i) => {
 				const imgs: string[] = item.imageUrls?.length ? item.imageUrls : (item.imageUrl ? [item.imageUrl] : []);
+				const setLabImages = (urls: string[]) => {
+					const next = [...items];
+					next[i] = { ...next[i], imageUrls: urls, imageUrl: urls[0] || '' };
+					onChange(next);
+				};
 				return (
 					<div key={i} className="border rounded-lg p-3 space-y-2 bg-muted/30">
 						<div className="flex gap-3 items-start">
-							{imgs.length > 0 && (
-								<div className="flex gap-1 shrink-0">
-									{imgs.slice(0, 3).map((url: string, j: number) => (
-										<img key={j} src={url} alt={`${item.name} ${j + 1}`}
-											className="w-16 h-12 rounded object-cover border border-border"
-											onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-										/>
-									))}
-									{imgs.length > 3 && (
-										<span className="text-[10px] text-muted-foreground self-end">+{imgs.length - 3}</span>
-									)}
-								</div>
-							)}
 							<div className="flex-1">
 								<Label className="text-xs">Nama</Label>
 								<Input
@@ -1538,8 +1688,16 @@ function LabListEditor({ items, onChange, readOnly }: {
 								/>
 							</div>
 						</div>
+						{(imgs.length > 0 || !readOnly) && (
+							<ProdiLabPhotoSlots
+								labKind={labKind}
+								labIndex={i}
+								urls={imgs}
+								readOnly={readOnly}
+								onUrlsChange={setLabImages}
+							/>
+						)}
 						<div>
-							<Label className="text-xs">Gambar URL (satu per baris, baris pertama = thumbnail utama)</Label>
 							<Textarea
 								value={(item.imageUrls?.length ? item.imageUrls : (item.imageUrl ? [item.imageUrl] : [])).join('\n')}
 								onChange={(e) => {
@@ -1550,8 +1708,9 @@ function LabListEditor({ items, onChange, readOnly }: {
 								}}
 								disabled={readOnly}
 								rows={2}
-								placeholder="https://example.com/img1.jpg&#10;https://example.com/img2.jpg"
+								placeholder="URL manual (opsional, satu per baris)"
 								className="text-xs font-mono"
+								aria-label="URL gambar lab manual"
 							/>
 						</div>
 						<div>

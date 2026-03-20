@@ -1029,6 +1029,117 @@ async function parseSubjectRpsResources(
 	return { slug, subjectName, materiPpt, linkFile, parsedAt: new Date() };
 }
 
+/** Parse satu koleksi <details> (accordion lab) menjadi array lab. */
+function parseLabsFromDetails(
+	$: cheerio.CheerioAPI,
+	$details: cheerio.Cheerio<any>,
+	extractLabName: (t: string) => string,
+	collectImgUrls: ($container: cheerio.Cheerio<any>) => string[],
+): any[] {
+	const labs: any[] = [];
+	$details.each((_i, det) => {
+		const $det = $(det);
+		const $summary = $det.find('summary').first();
+		const nameRaw = cleanText($summary.find('h5, h4, h3, .e-n-accordion-item-title-text').first());
+		const name = extractLabName(nameRaw) || nameRaw.trim();
+		if (!name) return;
+
+		const imageUrls = collectImgUrls($det);
+
+		let description = '';
+		$det.find('.elementor-image-box-description').each((_j, el) => {
+			const t = $(el).text().replace(/\s+/g, ' ').trim();
+			if (t && !description.includes(t)) description += (description ? '\n\n' : '') + t;
+		});
+		if (!description) {
+			$det.find('.toggle-content p, .elementor-widget-text-editor p').each((_j, el) => {
+				const t = $(el).text().replace(/\s+/g, ' ').trim();
+				if (t && !description.includes(t)) description += (description ? '\n\n' : '') + t;
+			});
+		}
+		if (!description) {
+			$det.find('p').each((_j, el) => {
+				const t = $(el).text().replace(/\s+/g, ' ').trim();
+				if (t.length > 20 && !description.includes(t)) description += (description ? '\n\n' : '') + t;
+			});
+		}
+
+		labs.push({
+			name,
+			description: description.trim(),
+			imageUrl: imageUrls[0] || '',
+			imageUrls,
+		});
+	});
+	return labs;
+}
+
+/** Fallback teaching: heading h4/h5 \"… Laboratory\" + widget sibling berikutnya (tanpa <details>). */
+function parseTeachingLabsFromHeadings(
+	$: cheerio.CheerioAPI,
+	extractLabName: (t: string) => string,
+	pageTitle: string,
+): any[] {
+	const labs: any[] = [];
+	const selectors =
+		'main h4, main h5, article h4, article h5, .elementor-widget-heading h4, .elementor-widget-heading h5, .e-n-accordion-item-title-text, summary h5';
+	$(selectors).each((_i, el) => {
+		const $h = $(el);
+		if ($h.closest('nav,header,footer,.site-header,.site-footer').length) return;
+
+		const nameRaw = cleanText($h);
+		const name = extractLabName(nameRaw) || nameRaw.trim();
+		if (!name) return;
+		const lower = name.toLowerCase();
+		if (lower === pageTitle || lower === 'teaching laboratory') return;
+
+		const $widget = $h.closest('.elementor-widget, .elementor-element');
+		const $row = $widget.length ? $widget : $h.parent();
+
+		let description = '';
+		const seenUrl = new Set<string>();
+		const imageUrls: string[] = [];
+
+		let $w = $row.next();
+		let guard = 0;
+		while ($w.length && guard++ < 40) {
+			const $nextLabTitle = $w.find('.elementor-widget-heading h4, .elementor-widget-heading h5, .e-n-accordion-item-title-text').first();
+			if ($nextLabTitle.length) {
+				const nt = cleanText($nextLabTitle);
+				const nnext = extractLabName(nt) || nt.trim();
+				if (nnext && nnext !== name && /\blaboratory\b/i.test(nt)) break;
+			}
+
+			$w.find('.elementor-image-box-description, .toggle-content p, .elementor-widget-text-editor p').each((___, p) => {
+				const t = $(p).text().replace(/\s+/g, ' ').trim();
+				if (t.length > 15 && !description.includes(t)) description += (description ? '\n\n' : '') + t;
+			});
+			$w.find('img[src],img[data-src]').each((___, img) => {
+				const u = normalizeHref($(img).attr('src') || $(img).attr('data-src') || '');
+				if (u && !seenUrl.has(u)) {
+					seenUrl.add(u);
+					imageUrls.push(u);
+				}
+			});
+			$w = $w.next();
+		}
+
+		labs.push({
+			name,
+			description: description.trim(),
+			imageUrl: imageUrls[0] || '',
+			imageUrls,
+		});
+	});
+
+	const byName = new Map<string, any>();
+	for (const l of labs) {
+		const k = l.name.toLowerCase().trim();
+		if (!byName.has(k)) byName.set(k, l);
+	}
+	return Array.from(byName.values());
+}
+
 // ─── Laboratories parser ───
 
 async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> {
@@ -1067,45 +1178,43 @@ async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> 
 		return urls;
 	};
 
-	// ── Teaching: accordion-based (<details>/<summary>) ──
-	const accordionItems = root.find('details.e-n-accordion-item, details[class*="accordion"]');
-	if (accordionItems.length > 0) {
-		const labs: any[] = [];
-		accordionItems.each((_i, det) => {
-			const $det = $(det);
-			const $summary = $det.find('summary').first();
-			const nameRaw = cleanText($summary.find('h5, h4, h3, .e-n-accordion-item-title-text').first());
-			const name = extractLabName(nameRaw) || nameRaw.trim();
-			if (!name) return;
+	// ── Teaching: accordion <details> di root → fallback body → semua <details> dengan summary "Laboratory" → heading-only
+	const detailsSelector = 'details.e-n-accordion-item, details[class*="accordion"]';
+	const detailsBodySelector =
+		'details.e-n-accordion-item, details[class*="accordion"], .e-n-accordion details, div.e-n-accordion details';
 
-			const imageUrls = collectImgUrls($det);
+	const detRoot = root.find(detailsSelector);
+	const detBody = $('body').find(detailsBodySelector);
+	const detWide = $('body')
+		.find('details')
+		.filter((_i, d) => /\blaboratory\b/i.test(cleanText($(d).find('summary').first())));
 
-			let description = '';
-			$det.find('.elementor-image-box-description').each((_j, el) => {
-				const t = $(el).text().replace(/\s+/g, ' ').trim();
-				if (t && !description.includes(t)) description += (description ? '\n\n' : '') + t;
-			});
-			if (!description) {
-				$det.find('.toggle-content p, .elementor-widget-text-editor p').each((_j, el) => {
-					const t = $(el).text().replace(/\s+/g, ' ').trim();
-					if (t && !description.includes(t)) description += (description ? '\n\n' : '') + t;
-				});
-			}
-			if (!description) {
-				$det.find('p').each((_j, el) => {
-					const t = $(el).text().replace(/\s+/g, ' ').trim();
-					if (t.length > 20 && !description.includes(t)) description += (description ? '\n\n' : '') + t;
-				});
-			}
+	if (type === 'teaching') {
+		let labs: any[] = [];
+		if (detRoot.length > 0) {
+			labs = parseLabsFromDetails($, detRoot, extractLabName, collectImgUrls);
+		}
+		if (labs.length === 0 && detBody.length > 0) {
+			labs = parseLabsFromDetails($, detBody, extractLabName, collectImgUrls);
+		}
+		if (labs.length === 0 && detWide.length > 0) {
+			labs = parseLabsFromDetails($, detWide, extractLabName, collectImgUrls);
+		}
+		if (labs.length === 0) {
+			labs = parseTeachingLabsFromHeadings($, extractLabName, pageTitle);
+		}
 
-			labs.push({
-				name,
-				description: description.trim(),
-				imageUrl: imageUrls[0] || '',
-				imageUrls,
-			});
-		});
+		console.warn(
+			`[prodi-sync] teaching laboratories: details root=${detRoot.length} body=${detBody.length} wide=${detWide.length} → labs=${labs.length}`,
+		);
+
 		if (labs.length > 0) return labs;
+	} else {
+		// Research: tetap hanya subtree konten (accordion jarang)
+		if (detRoot.length > 0) {
+			const labs = parseLabsFromDetails($, detRoot, extractLabName, collectImgUrls);
+			if (labs.length > 0) return labs;
+		}
 	}
 
 	// ── Generic block-walking parser (research & fallback) ──
@@ -1609,11 +1718,16 @@ export async function runProdiSync(): Promise<ProdiSyncSummary> {
 			research: researchLabs || [],
 		};
 
+		// `laboratories.*` harus dipaksa seperti kurikulum: jika pernah simpan manual di dashboard,
+		// `overrides.laboratories.teaching/research` jadi true dan tanpa force sync tidak menulis DB
+		// (UI tetap kosong/lama walau log sync sudah teachingLabs=6).
 		await mongoStorage.applyAutoSyncData(crawledContent, {
 			forceFields: [
 				'curriculum.semesters',
 				'curriculum.optionalSubjects',
 				'curriculum.subjectRpsResources',
+				'laboratories.teaching',
+				'laboratories.research',
 			],
 		});
 
