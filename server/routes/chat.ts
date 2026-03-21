@@ -3,7 +3,9 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import { authenticateOptional } from '../auth';
 import { Chat } from '../models/chat';
+import { mongoStorage } from '../mongo-storage';
 import { chatLimiter } from '../security';
 import { ChatService } from '../services/chat-service';
 dotenv.config();
@@ -34,20 +36,31 @@ ChatService.initializeApiKeys(apiKeys).then(() => {
 	// API keys initialized successfully
 });
 
-// Get all chats for user
+// Get all chats for user (summary only, no full message content)
 router.get('/all', async (req, res) => {
 	try {
 		const userId = req.cookies.userId || uuidv4();
 		if (!req.cookies.userId) {
-			res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
+			res.cookie('userId', userId, { maxAge: 86400000 });
 		}
-		const chats = await Chat.find({ userId }).sort({ createdAt: -1 });
-		// Remove sensitive data before sending response
-		const safeChats = chats.map((chat) => {
-			const { apiKey, ...safeChat } = chat.toObject();
-			return safeChat;
+		const chats = await Chat.find({ userId })
+			.sort({ lastActivityAt: -1, createdAt: -1 })
+			.lean();
+		const summaries = (chats as any[]).map((chat) => {
+			const firstUserMsg = (chat.messages || []).find(
+				(m: any) => m.role === 'user'
+			);
+			return {
+				_id: chat._id,
+				createdAt: chat.createdAt,
+				lastActivityAt: chat.lastActivityAt || chat.createdAt,
+				messageCount: chat.messages?.length || 0,
+				preview:
+					firstUserMsg?.content?.substring(0, 60) ||
+					'Chat baru',
+			};
 		});
-		res.json({ chats: safeChats });
+		res.json({ chats: summaries });
 	} catch (error) {
 		console.error('Error getting all chats:', error);
 		res.status(500).json({ error: 'Internal server error' });
@@ -87,6 +100,27 @@ router.delete('/:id', async (req, res) => {
 	}
 });
 
+// Get messages for a specific chat
+router.get('/:id/messages', async (req, res) => {
+	try {
+		const userId = req.cookies.userId;
+		const chatId = req.params.id;
+		if (!userId || !chatId) {
+			return res
+				.status(400)
+				.json({ error: 'No user ID or chat ID found' });
+		}
+		const chat = await Chat.findOne({ _id: chatId, userId }).lean();
+		if (!chat) {
+			return res.status(404).json({ error: 'Chat not found' });
+		}
+		res.json({ messages: (chat as any).messages || [] });
+	} catch (error) {
+		console.error('Error getting chat messages:', error);
+		res.status(500).json({ error: 'Internal server error' });
+	}
+});
+
 // Mendapatkan riwayat chat (default: chat terakhir)
 router.get('/history', async (req, res) => {
 	try {
@@ -108,6 +142,7 @@ router.get('/history', async (req, res) => {
 // Mengirim pesan baru
 router.post(
 	'/message',
+	authenticateOptional,
 	chatLimiter,
 	upload.single('image'),
 	async (req, res) => {
@@ -117,14 +152,43 @@ router.post(
 				res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 			}
 
-			const { message, chatId, pageContext } = req.body;
+			const { message, chatId } = req.body;
 			const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+
+			// Resolve server-side permissions (authoritative, not from client)
+			let serverPermissions: string[] = [];
+			let authUserId: string | undefined;
+			if (req.user) {
+				try {
+					serverPermissions = await mongoStorage.getUserPermissions(
+						(req.user as any)._id.toString()
+					);
+					authUserId = (req.user as any)._id.toString();
+				} catch {
+					/* permission fetch failed — treat as no permissions */
+				}
+			}
+
+			// Parse pageContext (string from FormData multipart, object from JSON)
+			let parsedContext = req.body.pageContext;
+			if (typeof parsedContext === 'string') {
+				try {
+					parsedContext = JSON.parse(parsedContext);
+				} catch {
+					parsedContext = undefined;
+				}
+			}
+			// Override client-sent permissions with server-verified ones
+			if (parsedContext && typeof parsedContext === 'object') {
+				parsedContext.permissions = serverPermissions;
+			} else {
+				parsedContext = undefined;
+			}
 
 			let chat;
 			if (chatId) {
 				chat = await Chat.findOne({ _id: chatId, userId });
 				if (!chat) {
-					// fallback: create new chat
 					chat = await ChatService.getOrCreateChat(userId, true);
 				}
 			} else {
@@ -136,7 +200,9 @@ router.post(
 				message,
 				imageUrl,
 				chat._id.toString(),
-				pageContext
+				parsedContext,
+				serverPermissions,
+				authUserId
 			);
 			// Remove sensitive data before sending response
 			const { apiKey, ...safeChat } = updatedChat.toObject();

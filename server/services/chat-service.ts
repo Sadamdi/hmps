@@ -11,7 +11,7 @@ import {
 	PageContext,
 } from '../config/gemini-config';
 import { ApiKeyUsage, Chat } from '../models/chat';
-import { AI_TOOLS, executeToolCall } from './ai-tools';
+import { executeToolCall, getToolsForPermissions } from './ai-tools';
 
 export class ChatService {
 	// Mendapatkan atau membuat chat baru
@@ -60,7 +60,9 @@ export class ChatService {
 		content: string,
 		imageUrl?: string,
 		chatId?: string,
-		pageContext?: PageContext
+		pageContext?: PageContext,
+		permissions?: string[],
+		authUserId?: string
 	) {
 		let chat;
 		if (chatId) {
@@ -95,7 +97,7 @@ export class ChatService {
 		}
 
 		history.push(
-			...recentMessages.map((msg) => {
+			...recentMessages.map((msg: any) => {
 				const parts = [];
 				if (msg.content) {
 					parts.push({ text: msg.content });
@@ -153,11 +155,16 @@ export class ChatService {
 		let responseText = '';
 		let lastError: Error | null = null;
 
-		// Tool definitions untuk Gemini function calling
+		// Tool definitions filtered by user permissions + path dashboard untuk write
+		const pagePath = pageContext?.path;
+		const allowedTools = getToolsForPermissions(
+			permissions || [],
+			pagePath
+		);
 		const geminiTools: FunctionDeclarationsTool[] = [
 			{
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				functionDeclarations: AI_TOOLS as any,
+				functionDeclarations: allowedTools as any,
 			},
 		];
 
@@ -190,14 +197,17 @@ export class ChatService {
 						functionCalls.map((fc) => fc.name).join(', ')
 					);
 
-					// Eksekusi semua function calls secara paralel
+					// Eksekusi semua function calls secara paralel (with permission + user context)
 					const toolResults = await Promise.all(
 						functionCalls.map(async (fc) => ({
 							functionResponse: {
 								name: fc.name,
 								response: await executeToolCall(
 									fc.name,
-									(fc.args ?? {}) as Record<string, unknown>
+									(fc.args ?? {}) as Record<string, unknown>,
+									permissions || [],
+									authUserId,
+									pagePath
 								),
 							},
 						}))
@@ -251,7 +261,16 @@ export class ChatService {
 			content: responseText,
 			timestamp: new Date(),
 		});
-		// Simpan chat
+		// Update activity timestamp + apply TTL hybrid rule
+		const now = new Date();
+		chat.lastActivityAt = now;
+		const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+		if (chat.expireAt) {
+			const remaining = chat.expireAt.getTime() - now.getTime();
+			if (remaining < THREE_DAYS_MS) {
+				chat.expireAt = new Date(now.getTime() + THREE_DAYS_MS);
+			}
+		}
 		await chat.save();
 		// Hapus gambar jika ada
 		if (imageUrl) {
@@ -308,7 +327,7 @@ export class ChatService {
 			// Kumpulkan semua imageUrl yang masih digunakan
 			const usedImages = new Set();
 			activeChats.forEach((chat) => {
-				chat.messages.forEach((message) => {
+				chat.messages.forEach((message: any) => {
 					if (message.imageUrl) {
 						usedImages.add(path.basename(message.imageUrl));
 					}

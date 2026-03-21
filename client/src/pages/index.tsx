@@ -332,7 +332,15 @@ export default function Home() {
 				scrollToSection={scrollToSection}
 			/>
 			{visibleBlocks.map(renderBlock)}
-			<AIChat />
+			<AIChat
+				pageContext={{
+					path: '/',
+					permissions: [],
+					pageData: {
+						title: 'Beranda Himatif Encoder',
+					},
+				}}
+			/>
 		</div>
 	);
 }

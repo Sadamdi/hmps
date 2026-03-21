@@ -207,7 +207,16 @@ export default function CurriculumSubjectPage() {
 			)}
 
 			<Footer />
-			<AIChat />
+			<AIChat
+				pageContext={{
+					path: `/prodi/curriculum/${slug}`,
+					permissions: [],
+					pageData: {
+						title: displayName,
+						excerpt: 'Detail Mata Kuliah - Kurikulum Prodi Teknik Informatika',
+					},
+				}}
+			/>
 		</div>
 	);
 }

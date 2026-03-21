@@ -186,14 +186,100 @@ export const GEMINI_PERSONALIZATION = {
 
 9. Kemampuan Akses Data Real-time:
    - Anda DAPAT mengakses data terbaru Himatif Encoder langsung dari database secara real-time
-   - Data yang bisa Anda akses meliputi:
+   - Data PUBLIK yang bisa Anda akses:
      * Visi dan misi terbaru organisasi (gunakan tool: get_visi_misi)
-     * Berita yang dipublikasikan — bisa dicari by keyword (gunakan tool: search_berita, get_berita_detail)
-     * Koleksi media kegiatan: foto dan video dokumentasi (gunakan tool: get_library_items)
+     * Berita yang dipublikasikan — pencarian keyword luas: judul, ringkasan, isi, tags (gunakan tool: search_berita, get_berita_detail)
+     * Koleksi media kegiatan: foto dan video dokumentasi; keyword bisa judul/deskripsi/deskripsi lengkap (gunakan tool: get_library_items)
      * Struktur organisasi: ketua, wakil ketua, kepala divisi, anggota (gunakan tool: get_organization_structure)
+     * Profil Himatif Encoder: tentang kami, sejarah rekam jejak, filosofi lambang (gunakan tool: get_profil_info)
+     * Program Studi Teknik Informatika: profil, dosen, kurikulum, laboratorium (gunakan tool: get_prodi_info)
+     * Event/kegiatan: cari event (judul/deskripsi, termasuk lewat sub-event), detail event (gunakan tool: search_events, get_event_detail)
+   - Data DASHBOARD (hanya jika pengguna memiliki akses/permission):
+     * Statistik dashboard (gunakan tool: get_dashboard_stats)
+     * Daftar berita termasuk draft (gunakan tool: get_dashboard_berita_list)
+     * Daftar event termasuk yang belum dipublikasikan (gunakan tool: get_dashboard_events_list)
+     * Daftar item galeri (gunakan tool: get_dashboard_library_list)
+   - Kemampuan MENULIS (hanya jika pengguna memiliki permission yang sesuai DAN sedang berada di halaman Dashboard, path diawali /dashboard):
+     * Membuat berita draft (gunakan tool: create_berita_draft) — ikuti gaya penulisan berita yang sudah ada
+     * Mengedit berita (gunakan tool: update_berita) — hanya field yang diberikan yang berubah
+     * Menghapus berita (gunakan tool: delete_berita)
+     * Mempublikasikan/menarik berita (gunakan tool: toggle_berita_publish)
+     * Mengubah timestamp berita (gunakan tool: set_berita_timestamps)
+     * Membuat event baru (gunakan tool: create_event) dan sub-event (create_sub_event)
+     * Mengedit event (gunakan tool: update_event)
+     * Menghapus event (gunakan tool: delete_event)
+     * Mempublikasikan/menarik event (gunakan tool: toggle_event_publish)
+     * Mengubah timestamp event (gunakan tool: set_event_timestamps)
+     * Membuat item galeri baru (gunakan tool: create_library_item)
+     * Mengedit item galeri (gunakan tool: update_library_item)
+     * Menghapus item galeri (gunakan tool: delete_library_item)
+     * Mengubah timestamp item galeri (gunakan tool: set_library_timestamps)
+     * Menghubungkan / melepaskan berita ↔ event (link_berita_to_event, unlink_berita_from_event)
+     * Menyalin berita ke event atau sebaliknya (copy_berita_to_event, copy_event_to_berita) memakai alur yang sama dengan Dashboard
+     * Menyinkronkan konten antara berita dan event yang sudah terkait (sync_linked_berita_event_content)
+   - PENTING: Di UI publik (beranda, /prodi, /events, dll) meskipun pengguna login dan punya permission edit, tool tulis di atas TIDAK tersedia — arahkan pengguna ke Dashboard untuk mengubah data
+   - Saat user meminta "carikan …", "ada berita/event tentang …", atau sejenisnya: gunakan tool pencarian dengan keyword yang luas — pecah sinonim atau variasi singkat (mis. "pra raker", "prarakernas") dan coba beberapa query jika hasil kosong
    - SELALU gunakan tools ini ketika user bertanya tentang informasi spesifik Himatif Encoder yang mungkin berubah
    - Prioritaskan data dari database daripada pengetahuan statis Anda, karena data database adalah yang paling akurat dan terbaru
-   - Jika data tidak tersedia di database, baru gunakan pengetahuan umum Anda`,
+   - Jika data tidak tersedia di database, baru gunakan pengetahuan umum Anda
+   - Untuk fitur write/tulis, SELALU buat sebagai draft dan instruksikan user untuk memfinalisasi melalui Dashboard
+   - Jika tools tertentu tidak tersedia (tidak muncul di daftar tools Anda), artinya user tidak memiliki permission — tolak dengan sopan
+
+10. Navigasi Interaktif (WAJIB digunakan saat relevan):
+   - Anda BISA menyarankan pengguna untuk berpindah ke halaman lain dengan menyisipkan blok navigasi di AKHIR jawaban Anda.
+   - Setelah menawarkan navigasi, pengguna bisa mengonfirmasi dengan mengetik jawaban singkat seperti: ya, oke, lanjut, sip, atau dengan menekan tombol di chat — tidak perlu mengulang instruksi panjang.
+   - Format blok navigasi (HARUS persis seperti ini, satu baris, di akhir teks):
+     [[NAV:{"path":"/target/path","label":"Label Tombol"}]]
+   - Anda boleh menyisipkan LEBIH DARI SATU blok navigasi jika ada beberapa saran halaman yang relevan (masing-masing satu baris).
+   - ATURAN KAPAN harus menawarkan navigasi:
+     * Saat pengguna di halaman PUBLIK meminta aksi tulis/edit/hapus/publish dan punya permission → tawarkan buka Dashboard modul terkait.
+     * Saat pengguna bertanya tentang topik yang ada di halaman lain (mis. di events bertanya soal kurikulum) → tawarkan buka halaman publik yang relevan.
+     * Saat pengguna sudah di Dashboard tapi di modul berbeda dari yang dibahas → tawarkan pindah ke modul dashboard yang tepat.
+     * Saat pengguna belum login tapi meminta aksi yang butuh login → jangan tawarkan navigasi, cukup beritahu perlu login.
+   - DAFTAR PATH YANG VALID (gunakan HANYA path dari daftar ini):
+     Dashboard:
+       /dashboard — Halaman utama dashboard
+       /dashboard/berita — Manajemen Berita
+       /dashboard/events — Manajemen Events
+       /dashboard/library — Manajemen Library/Galeri
+       /dashboard/organization — Manajemen Organisasi
+       /dashboard/profil — Manajemen Profil
+       /dashboard/kelembagaan — Manajemen Kelembagaan
+       /dashboard/prodi — Manajemen Prodi
+       /dashboard/users — Manajemen Users
+       /dashboard/roles — Manajemen Roles
+       /dashboard/settings — Pengaturan Situs
+     Publik:
+       / — Beranda
+       /berita — Daftar Berita
+       /berita/{id} — Detail berita (id = field id dari tool search_berita / get_berita_detail)
+       /berita/{id}/{slug} — Detail berita (disarankan jika slug tersedia dari tool; slug dari database, bukan tebakan dari judul)
+       /berita/slug/{slug} — Hanya jika Anda yakin slug persis sama dengan di DB (lebih aman pakai /berita/{id}/{slug})
+       /events — Daftar Events
+       /events/{tahun} — Daftar event pada tahun tertentu (tahun angka, mis. 2024)
+       /events/{tahun}/{idEvent} — Detail event (idEvent = field id dari tool search_events; tahun = field year dari hasil yang sama)
+       /library — Galeri media (foto/video)
+       /prodi — Program Studi (semua tab)
+       /kelembagaan — Kelembagaan (Visi Misi & Struktur)
+       /profil — Profil Himatif
+   - LARANGAN URL yang salah (akan memunculkan halaman tidak ditemukan):
+     * Jangan gunakan /berita/{slug} tanpa id — router aplikasi tidak memakai pola itu.
+     * Jangan gunakan /events/{idEvent} tanpa tahun — gunakan selalu /events/{tahun}/{idEvent}.
+     * Jangan menebak slug dari judul; ambil id dan slug hanya dari hasil tool database.
+   - Jika tool mengembalikan field publicPath pada berita/event, salin nilai itu PERSIS ke path dalam blok [[NAV:...]] untuk menghindari URL salah.
+   - CONTOH penggunaan:
+     * User di beranda minta edit berita → jawab "Anda perlu membuka Dashboard Berita untuk mengedit." lalu sisipkan:
+       [[NAV:{"path":"/dashboard/berita","label":"Buka Dashboard Berita"}]]
+     * User di events bertanya tentang kurikulum → jawab informasinya lalu sisipkan:
+       [[NAV:{"path":"/prodi","label":"Lihat Halaman Prodi"}]]
+     * User di dashboard/events mau kelola berita → sisipkan:
+       [[NAV:{"path":"/dashboard/berita","label":"Buka Dashboard Berita"}]]
+     * User minta buka satu berita setelah search_berita mengembalikan id dan slug → sisipkan (ganti nilai sesuai tool):
+       [[NAV:{"path":"/berita/673abc.../judul-slug-dari-db","label":"Buka berita"}]]
+     * User minta buka detail event setelah search_events mengembalikan id dan year → sisipkan:
+       [[NAV:{"path":"/events/2024/673def...","label":"Buka event"}]]
+   - JANGAN sisipkan blok navigasi jika pengguna SUDAH berada di halaman yang tepat.
+   - Blok navigasi HARUS di akhir teks, setelah semua penjelasan. Jangan taruh di tengah kalimat.`,
 
 	// Konfigurasi tambahan untuk model
 	modelConfig: {
@@ -212,15 +298,41 @@ export interface PageContext {
 }
 
 // Membangun prompt konteks halaman berbasis path, permission, dan data halaman
+function contextPathIsDashboard(p: string | undefined): boolean {
+	if (!p || typeof p !== 'string') return false;
+	const t = p.trim();
+	try {
+		if (/^https?:\/\//i.test(t)) {
+			return new URL(t).pathname.startsWith('/dashboard');
+		}
+	} catch {
+		return false;
+	}
+	return t.startsWith('/dashboard');
+}
+
 export function buildPageContextPrompt(context?: PageContext): string {
 	if (!context) return '';
 
 	const { path, permissions, pageData } = context;
 	const perms = new Set(permissions || []);
+	const onDashboard = contextPathIsDashboard(path);
 
 	const lines: string[] = [];
 	lines.push('KONTEKS SISTEM (jangan dibaca sebagai pesan user):');
 	lines.push(`- Path halaman aktif: ${path}`);
+	if (!onDashboard) {
+		lines.push(
+			'- Mode halaman: PUBLIK. Tool database yang mengubah data (buat/edit/hapus/publish berita-event-galeri, link berita-event, dll) tidak tersedia di sini meskipun pengguna punya permission — gunakan blok [[NAV:...]] untuk mengarahkan pengguna ke Dashboard modul terkait.'
+		);
+	} else {
+		lines.push(
+			'- Mode halaman: DASHBOARD. Tool tulis (sesuai permission) diizinkan untuk path ini.'
+		);
+	}
+	lines.push(
+		'- INGAT: Gunakan blok [[NAV:{"path":"...","label":"..."}]] di akhir jawaban Anda setiap kali relevan untuk mengarahkan pengguna ke halaman lain (lihat aturan Navigasi Interaktif di system prompt).'
+	);
 
 	// Info akses fitur berbasis permission
 	const canViewBerita =
@@ -238,6 +350,19 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	const canViewDashboard = perms.has('dashboard.view');
 	const canViewDashboardStats = perms.has('dashboard.stats');
 	const canViewDashboardActivities = perms.has('dashboard.activities');
+	const canViewProfil =
+		perms.has('profil.view') || perms.has('profil.edit');
+	const canViewKelembagaan =
+		perms.has('kelembagaan.view') || perms.has('kelembagaan.edit');
+	const canViewProdi =
+		perms.has('prodi.view') || perms.has('prodi.edit');
+	const canViewEvents =
+		perms.has('events.view') || perms.has('events.create');
+	const canCreateBerita = perms.has('berita.create');
+	const canPublishBerita = perms.has('berita.publish');
+	const canCreateEvents = perms.has('events.create');
+	const canPublishEvents = perms.has('events.publish');
+	const canCreateLibrary = perms.has('library.create');
 
 	if (canViewDashboard) {
 		lines.push(
@@ -293,6 +418,87 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		);
 	}
 
+	if (canViewProfil) {
+		lines.push(
+			'- Pengguna memiliki akses ke manajemen Profil Himatif. Ia bisa mengelola konten Tentang Kami, Sejarah/Rekam Jejak, dan Filosofi Lambang melalui Dashboard > Profil.',
+		);
+	}
+
+	if (canViewKelembagaan) {
+		lines.push(
+			'- Pengguna memiliki akses ke manajemen Kelembagaan. Ia bisa mengelola visi-misi, struktur organisasi, dan divisi melalui Dashboard > Kelembagaan.',
+		);
+	}
+
+	if (canViewProdi) {
+		lines.push(
+			'- Pengguna memiliki akses ke manajemen Prodi. Ia bisa mengelola dan menyinkronkan konten program studi (profil, dosen, kurikulum, laboratorium) melalui Dashboard > Prodi.',
+		);
+	}
+
+	if (canViewEvents) {
+		lines.push(
+			'- Pengguna memiliki akses ke manajemen Events. Ia bisa melihat, membuat, mengedit, dan menghapus event melalui Dashboard > Events.',
+		);
+	}
+
+	if (canCreateBerita) {
+		lines.push(
+			'- Pengguna BISA MEMBUAT berita baru. Anda bisa membuatkan draft berita melalui tool create_berita_draft. Ikuti gaya penulisan berita yang sudah ada di database.',
+		);
+	}
+	if (canPublishBerita) {
+		lines.push(
+			'- Pengguna BISA MEMPUBLIKASIKAN berita. Anda bisa membantu publish/unpublish melalui tool toggle_berita_publish.',
+		);
+	}
+	if (canCreateEvents) {
+		lines.push(
+			'- Pengguna BISA MEMBUAT event baru. Anda bisa membuatkan event melalui tool create_event.',
+		);
+	}
+	if (canPublishEvents) {
+		lines.push(
+			'- Pengguna bisa mempublikasikan event melalui dashboard.',
+		);
+	}
+	if (canCreateLibrary) {
+		lines.push(
+			'- Pengguna BISA MEMBUAT item galeri baru. Anda bisa membuatkan entry galeri melalui tool create_library_item.',
+		);
+	}
+
+	if (perms.has('berita.edit') || perms.has('berita.edit_others')) {
+		lines.push(
+			'- Pengguna BISA MENGEDIT berita. Anda bisa mengedit konten, judul, tag, dan timestamp berita melalui tool update_berita dan set_berita_timestamps.',
+		);
+	}
+	if (perms.has('berita.delete') || perms.has('berita.delete_others')) {
+		lines.push(
+			'- Pengguna BISA MENGHAPUS berita melalui tool delete_berita.',
+		);
+	}
+	if (perms.has('events.edit') || perms.has('events.edit_others')) {
+		lines.push(
+			'- Pengguna BISA MENGEDIT event. Anda bisa mengedit detail dan timestamp event melalui tool update_event dan set_event_timestamps.',
+		);
+	}
+	if (perms.has('events.delete') || perms.has('events.delete_others')) {
+		lines.push(
+			'- Pengguna BISA MENGHAPUS event melalui tool delete_event.',
+		);
+	}
+	if (perms.has('library.edit') || perms.has('library.edit_others')) {
+		lines.push(
+			'- Pengguna BISA MENGEDIT item galeri melalui tool update_library_item dan set_library_timestamps.',
+		);
+	}
+	if (perms.has('library.delete') || perms.has('library.delete_others')) {
+		lines.push(
+			'- Pengguna BISA MENGHAPUS item galeri melalui tool delete_library_item.',
+		);
+	}
+
 	// Deskripsi khusus per path
 	if (path.startsWith('/dashboard/berita')) {
 		lines.push(
@@ -322,6 +528,22 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Content. Jelaskan cara mengelola konten statis/dinamis seperti hero, about, visi-misi, dan struktur/divisi yang tampil di halaman publik.',
 		);
+	} else if (path.startsWith('/dashboard/profil')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Profil. Jelaskan cara mengelola konten Tentang Kami (teks intro), Sejarah/Rekam Jejak (ketua himpunan per tahun + divisi), dan Filosofi Lambang (gambar + deskripsi tiap elemen lambang).',
+		);
+	} else if (path.startsWith('/dashboard/kelembagaan')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Kelembagaan. Jelaskan cara mengelola visi-misi, nama-nama divisi, foto/nama ketua/wakil ketua, kepala divisi, serta anggota organisasi melalui tab Members, Positions, dan Divisions.',
+		);
+	} else if (path.startsWith('/dashboard/prodi')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Prodi. Jelaskan cara: menjalankan Sync untuk mengambil data dari website prodi, mengedit konten profil/dosen/kurikulum/laboratorium, mengatur mode auto-sync, dan menyimpan perubahan.',
+		);
+	} else if (path.startsWith('/dashboard/events')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Dashboard Events. Jelaskan cara: membuat event baru (tombol "Buat Event"), mengedit event, menambahkan sub-event, mengatur tahun event, toggle publish, dan menambahkan lampiran/thumbnail.',
+		);
 	} else if (path.startsWith('/dashboard')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard utama. Berikan gambaran umum cara membaca kartu statistik, melihat Recent Activities, dan menggunakan tombol-tombol Quick Actions untuk berpindah ke modul lain (Berita, Library, Organization, Settings, dll).',
@@ -333,6 +555,38 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	} else if (path === '/berita') {
 		lines.push(
 			'- Pengguna sedang berada di halaman daftar berita publik. Bantu jelaskan cara mencari dan membuka berita.',
+		);
+	} else if (path === '/profil') {
+		lines.push(
+			'- Pengguna sedang berada di halaman Profil publik yang berisi Tentang Kami, Sejarah Rekam Jejak Ketua Himpunan, dan Filosofi Lambang Himatif Encoder.',
+		);
+	} else if (path === '/kelembagaan') {
+		lines.push(
+			'- Pengguna sedang berada di halaman Kelembagaan publik yang berisi Visi & Misi serta Struktur Organisasi Himatif Encoder.',
+		);
+	} else if (path.startsWith('/prodi/dosen/')) {
+		lines.push(
+			'- Pengguna sedang melihat halaman detail dosen publik. Bantu jelaskan informasi tentang dosen tersebut.',
+		);
+	} else if (path.startsWith('/prodi/curriculum/')) {
+		lines.push(
+			'- Pengguna sedang melihat halaman detail mata kuliah publik termasuk materi PPT dan link file.',
+		);
+	} else if (path.startsWith('/prodi/laboratorium/')) {
+		lines.push(
+			'- Pengguna sedang melihat halaman detail laboratorium publik.',
+		);
+	} else if (path === '/prodi' || path.startsWith('/prodi')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Prodi publik yang berisi Profil, Dosen, Kurikulum, dan Laboratorium Prodi S1 Teknik Informatika UIN Malang.',
+		);
+	} else if (path.startsWith('/events/') && path.split('/').length > 3) {
+		lines.push(
+			'- Pengguna sedang melihat halaman detail event publik. Bantu jelaskan informasi event tersebut.',
+		);
+	} else if (path.startsWith('/events')) {
+		lines.push(
+			'- Pengguna sedang berada di halaman Events publik yang berisi daftar kegiatan Himatif Encoder.',
 		);
 	}
 

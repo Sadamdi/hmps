@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
-// Schema untuk menyimpan chat
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+
 const chatSchema = new mongoose.Schema({
 	userId: {
 		type: String,
@@ -35,11 +36,19 @@ const chatSchema = new mongoose.Schema({
 	createdAt: {
 		type: Date,
 		default: Date.now,
-		expires: 86400, // Expire setelah 1 hari (dalam detik)
+	},
+	lastActivityAt: {
+		type: Date,
+		default: Date.now,
+	},
+	expireAt: {
+		type: Date,
+		default: () => new Date(Date.now() + SEVEN_DAYS_MS),
 	},
 });
 
-// Schema untuk tracking penggunaan API key
+chatSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
+
 const apiKeyUsageSchema = new mongoose.Schema({
 	key: {
 		type: String,
@@ -56,5 +65,28 @@ const apiKeyUsageSchema = new mongoose.Schema({
 	},
 });
 
-export const Chat = mongoose.model('Chat', chatSchema);
-export const ApiKeyUsage = mongoose.model('ApiKeyUsage', apiKeyUsageSchema);
+export const Chat =
+	mongoose.models.Chat || mongoose.model('Chat', chatSchema);
+export const ApiKeyUsage =
+	mongoose.models.ApiKeyUsage ||
+	mongoose.model('ApiKeyUsage', apiKeyUsageSchema);
+
+// Drop legacy TTL index on createdAt (was: expires: 86400) if it still exists
+(async () => {
+	try {
+		const indexes = await Chat.collection.indexes();
+		for (const idx of indexes) {
+			if (
+				idx.key?.createdAt &&
+				idx.expireAfterSeconds !== undefined
+			) {
+				await Chat.collection.dropIndex(idx.name!);
+				console.log(
+					'[Chat] Dropped legacy TTL index on createdAt'
+				);
+			}
+		}
+	} catch {
+		// collection may not exist yet
+	}
+})();
