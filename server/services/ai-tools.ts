@@ -1668,7 +1668,7 @@ export async function executeToolCall(
 					slug,
 					excerpt,
 					content,
-					image: '/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp',
+					image: '',
 					tags,
 					published: false,
 					authorId: (user as any)._id,
