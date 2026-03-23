@@ -14,6 +14,7 @@ import {
 	Info,
 	LayoutDashboard,
 	LogOut,
+	MessageSquareText,
 	Settings,
 	Shield,
 	UserCog,
@@ -102,6 +103,13 @@ export default function Sidebar({
 			href: '/dashboard/events',
 			active: location.startsWith('/dashboard/events'),
 			requirePermission: 'events.view',
+		},
+		{
+			label: 'Feedback',
+			icon: <MessageSquareText className="h-5 w-5" />,
+			href: '/dashboard/feedback',
+			active: location.startsWith('/dashboard/feedback'),
+			requirePermission: 'feedback.view',
 		},
 		{
 			label: 'User Management',
@@ -198,15 +206,22 @@ export default function Sidebar({
 								} else if (item.requirePermission === 'settings.view') {
 									// Settings selalu bisa diakses (minimal untuk profile)
 									// Tidak perlu permission check karena semua user bisa akses profile
-								} else if (item.requirePermission === 'users.view') {
-									if (
-										!hasSpecificPermission('users.view') &&
-										!hasSpecificPermission('users.view_others') &&
-										!hasSpecificPermission('users.edit') &&
-										!hasSpecificPermission('users.create')
-									) {
-										return null;
-									}
+							} else if (item.requirePermission === 'feedback.view') {
+								if (
+									!hasSpecificPermission('feedback.view') &&
+									!hasSpecificPermission('feedback.manage')
+								) {
+									return null;
+								}
+							} else if (item.requirePermission === 'users.view') {
+								if (
+									!hasSpecificPermission('users.view') &&
+									!hasSpecificPermission('users.view_others') &&
+									!hasSpecificPermission('users.edit') &&
+									!hasSpecificPermission('users.create')
+								) {
+									return null;
+								}
 								} else if (item.requirePermission === 'roles.view') {
 									if (
 										!hasSpecificPermission('roles.view') &&

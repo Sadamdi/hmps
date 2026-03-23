@@ -29,6 +29,85 @@ const PURPOSE_LABELS: Record<string, string> = {
 	restore_backup: 'Restore Database dari Backup',
 };
 
+export async function sendFeedbackReplyEmail(params: {
+	to: string;
+	senderName: string;
+	feedbackBody: string;
+	replyMessage: string;
+	adminName: string;
+}): Promise<void> {
+	const { to, senderName, feedbackBody, replyMessage, adminName } = params;
+	const transport = getTransporter();
+
+	const truncatedBody = feedbackBody.length > 300 ? feedbackBody.slice(0, 297) + '...' : feedbackBody;
+
+	await transport.sendMail({
+		from: `"HMTI System" <${process.env.EMAIL}>`,
+		to,
+		subject: `[HMTI] Balasan untuk Saran/Kritik Anda`,
+		html: `
+			<div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
+				<h2 style="color: #1a1a1a; margin-bottom: 8px;">Hai ${senderName},</h2>
+				<p style="color: #555; margin-bottom: 16px;">Saran/kritik Anda telah mendapat balasan dari admin HMTI.</p>
+				<div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Pesan Anda:</p>
+					<p style="color: #333; font-size: 14px; margin: 0; white-space: pre-wrap;">${truncatedBody}</p>
+				</div>
+				<div style="background: #eef6ff; border-left: 3px solid #3b82f6; border-radius: 4px; padding: 16px; margin-bottom: 16px;">
+					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Balasan dari <strong>${adminName}</strong>:</p>
+					<p style="color: #1a1a1a; font-size: 14px; margin: 0; white-space: pre-wrap;">${replyMessage}</p>
+				</div>
+				<hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+				<p style="color: #aaa; font-size: 12px;">Terima kasih telah memberikan masukan untuk HMTI UIN Malang.</p>
+			</div>
+		`,
+	});
+}
+
+export async function sendFeedbackDecisionEmail(params: {
+	to: string;
+	senderName: string;
+	feedbackBody: string;
+	decision: 'accepted' | 'rejected';
+	decisionComment: string;
+	adminName: string;
+}): Promise<void> {
+	const { to, senderName, feedbackBody, decision, decisionComment, adminName } = params;
+	const transport = getTransporter();
+
+	const truncatedBody = feedbackBody.length > 300 ? feedbackBody.slice(0, 297) + '...' : feedbackBody;
+	const statusLabel = decision === 'accepted' ? 'Diterima' : 'Ditolak';
+	const statusColor = decision === 'accepted' ? '#16a34a' : '#dc2626';
+	const commentSection = decisionComment
+		? `<div style="background: #f4f4f5; border-radius: 4px; padding: 12px; margin-bottom: 16px;">
+				<p style="color: #888; font-size: 12px; margin: 0 0 4px;">Komentar dari <strong>${adminName}</strong>:</p>
+				<p style="color: #333; font-size: 14px; margin: 0; white-space: pre-wrap;">${decisionComment}</p>
+			</div>`
+		: '';
+
+	await transport.sendMail({
+		from: `"HMTI System" <${process.env.EMAIL}>`,
+		to,
+		subject: `[HMTI] Saran Anda telah ${statusLabel}`,
+		html: `
+			<div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
+				<h2 style="color: #1a1a1a; margin-bottom: 8px;">Hai ${senderName},</h2>
+				<p style="color: #555; margin-bottom: 16px;">Saran yang Anda kirimkan telah ditinjau oleh admin HMTI.</p>
+				<div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Saran Anda:</p>
+					<p style="color: #333; font-size: 14px; margin: 0; white-space: pre-wrap;">${truncatedBody}</p>
+				</div>
+				<div style="border-left: 4px solid ${statusColor}; border-radius: 4px; padding: 12px 16px; margin-bottom: 16px; background: ${decision === 'accepted' ? '#f0fdf4' : '#fef2f2'};">
+					<p style="color: ${statusColor}; font-size: 16px; font-weight: bold; margin: 0;">Status: ${statusLabel}</p>
+				</div>
+				${commentSection}
+				<hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+				<p style="color: #aaa; font-size: 12px;">Terima kasih telah memberikan masukan untuk HMTI UIN Malang.</p>
+			</div>
+		`,
+	});
+}
+
 export async function sendOtpEmail(params: {
 	to: string;
 	code: string;

@@ -1,9 +1,11 @@
 import mongoose from 'mongoose';
+import { deleteFile } from './upload';
 import {
 	Berita,
 	Division,
 	Event,
 	EventYear,
+	Feedback,
 	HomeImages,
 	Library,
 	Organization,
@@ -1181,6 +1183,117 @@ async function setProdiSyncStatus(status: 'idle' | 'syncing' | 'error', error?: 
 	await doc.save();
 }
 
+// ─── Feedback CRUD ───
+
+async function getAllFeedback(options?: PaginationOptions & { target?: string; type?: string; hasReply?: boolean }): Promise<any[]> {
+	const filter: any = {};
+	if (options?.target) filter.target = options.target;
+	if (options?.type) filter.type = options.type;
+	if (options?.hasReply === true) filter.reply = { $ne: null };
+	if (options?.hasReply === false) filter.reply = null;
+	const query = Feedback.find(filter).sort({ createdAt: -1 });
+	return await applyPagination(query, options).lean();
+}
+
+async function getFeedbackById(id: string): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	return await Feedback.findById(objectId).lean();
+}
+
+async function getVisibleFeedbackCards(): Promise<any[]> {
+	return await Feedback.find({ isVisibleCard: true }).sort({ createdAt: -1 }).lean();
+}
+
+async function createFeedback(data: any): Promise<any> {
+	const doc = new Feedback(data);
+	return await doc.save();
+}
+
+async function updateFeedback(id: string, data: any): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	data.updatedAt = new Date();
+	return await Feedback.findByIdAndUpdate(objectId, { $set: data }, { new: true }).lean();
+}
+
+async function deleteFeedback(id: string): Promise<void> {
+	const objectId = toObjectId(id);
+	if (!objectId) return;
+	const doc: any = await Feedback.findById(objectId).lean();
+	if (!doc) return;
+	if (doc.media && Array.isArray(doc.media)) {
+		for (const m of doc.media) {
+			if (m.url) await deleteFile(m.url);
+		}
+	}
+	await Feedback.findByIdAndDelete(objectId);
+}
+
+async function toggleFeedbackVisibility(id: string, visible: boolean): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	return await Feedback.findByIdAndUpdate(objectId, { $set: { isVisibleCard: visible } }, { new: true }).lean();
+}
+
+async function replyToFeedback(id: string, replyData: { adminId: string; adminName: string; message: string }): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	const adminOid = toObjectId(replyData.adminId);
+	return await Feedback.findByIdAndUpdate(
+		objectId,
+		{ $set: { reply: { adminId: adminOid, adminName: replyData.adminName, message: replyData.message, repliedAt: new Date() } } },
+		{ new: true },
+	).lean();
+}
+
+async function decideSuggestion(id: string, data: { status: 'accepted' | 'rejected'; comment: string; decidedBy: string; deciderName: string }): Promise<any | null> {
+	const objectId = toObjectId(id);
+	if (!objectId) return null;
+	const adminOid = toObjectId(data.decidedBy);
+	return await Feedback.findByIdAndUpdate(
+		objectId,
+		{ $set: {
+			suggestionStatus: data.status,
+			suggestionDecisionComment: data.comment,
+			suggestionDecidedBy: adminOid,
+			suggestionDeciderName: data.deciderName,
+			suggestionDecidedAt: new Date(),
+		}},
+		{ new: true },
+	).lean();
+}
+
+async function getVisibleFeedbackCardsFiltered(typeFilter: 'all' | 'saran' | 'kritik' = 'all'): Promise<any[]> {
+	const filter: any = { isVisibleCard: true };
+	if (typeFilter !== 'all') filter.type = typeFilter;
+	return await Feedback.find(filter).sort({ createdAt: -1 }).lean();
+}
+
+async function getFeedbackCount(filter?: { target?: string; type?: string }): Promise<number> {
+	const q: any = {};
+	if (filter?.target) q.target = filter.target;
+	if (filter?.type) q.type = filter.type;
+	return await Feedback.countDocuments(q);
+}
+
+async function getFeedbackRatingAverages(): Promise<{ fasilitasTI: number; website: number; teknikInformatika: number; himatifEncoder: number; count: number }> {
+	const result = await Feedback.aggregate([
+		{ $match: { $or: [{ 'ratings.fasilitasTI': { $gt: 0 } }, { 'ratings.website': { $gt: 0 } }, { 'ratings.teknikInformatika': { $gt: 0 } }, { 'ratings.himatifEncoder': { $gt: 0 } }] } },
+		{ $group: {
+			_id: null,
+			fasilitasTI: { $avg: { $cond: [{ $gt: ['$ratings.fasilitasTI', 0] }, '$ratings.fasilitasTI', null] } },
+			website: { $avg: { $cond: [{ $gt: ['$ratings.website', 0] }, '$ratings.website', null] } },
+			teknikInformatika: { $avg: { $cond: [{ $gt: ['$ratings.teknikInformatika', 0] }, '$ratings.teknikInformatika', null] } },
+			himatifEncoder: { $avg: { $cond: [{ $gt: ['$ratings.himatifEncoder', 0] }, '$ratings.himatifEncoder', null] } },
+			count: { $sum: 1 },
+		}},
+	]);
+	if (result.length === 0) return { fasilitasTI: 0, website: 0, teknikInformatika: 0, himatifEncoder: 0, count: 0 };
+	const r = result[0];
+	return { fasilitasTI: r.fasilitasTI || 0, website: r.website || 0, teknikInformatika: r.teknikInformatika || 0, himatifEncoder: r.himatifEncoder || 0, count: r.count };
+}
+
 // Define MongoDB-specific storage functions
 const mongoDBStorage = {
 	// User functions
@@ -1304,6 +1417,20 @@ const mongoDBStorage = {
 	updateDivision,
 	deleteDivision,
 	initializeDefaultDivisions,
+
+	// Feedback functions
+	getAllFeedback,
+	getFeedbackById,
+	getVisibleFeedbackCards,
+	createFeedback,
+	updateFeedback,
+	deleteFeedback,
+	toggleFeedbackVisibility,
+	replyToFeedback,
+	decideSuggestion,
+	getVisibleFeedbackCardsFiltered,
+	getFeedbackCount,
+	getFeedbackRatingAverages,
 
 	// Initialization functions
 	initializeDefaultPermissions,
@@ -1906,6 +2033,20 @@ async function initializeDefaultPermissions() {
 			displayName: 'Manage Comments',
 			description: 'Menghapus komentar publik di berita, event, dan galeri',
 			category: 'comments',
+		},
+
+		// Feedback permissions
+		{
+			name: 'feedback.view',
+			displayName: 'View Feedback',
+			description: 'Melihat daftar saran/kritik di dashboard',
+			category: 'feedback',
+		},
+		{
+			name: 'feedback.manage',
+			displayName: 'Manage Feedback',
+			description: 'Mengelola saran/kritik: edit, hapus, toggle tampil, dan membalas',
+			category: 'feedback',
 		},
 	];
 

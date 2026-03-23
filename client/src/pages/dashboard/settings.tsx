@@ -73,6 +73,10 @@ interface SiteSettings {
 	maintenanceMode: boolean;
 	footerText: string;
 	eventsAutoScrollEnabled: boolean;
+	feedbackSubmitEnabled: boolean;
+	feedbackCardsEnabled: boolean;
+	feedbackCardsAutoScrollEnabled: boolean;
+	feedbackPublicTypeFilter: string;
 	socialLinks: {
 		facebook: string;
 		tiktok: string;
@@ -187,9 +191,15 @@ export default function SettingsPage() {
 		contactEmail: 'hmti@uin-malang.ac.id',
 		address:
 			'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang',
+		mapsLocationInput: '',
+		mapsEmbedUrl: '',
 		enableRegistration: false,
 		maintenanceMode: false,
 		eventsAutoScrollEnabled: true,
+		feedbackSubmitEnabled: true,
+		feedbackCardsEnabled: true,
+		feedbackCardsAutoScrollEnabled: true,
+		feedbackPublicTypeFilter: 'all',
 		footerText:
 			'© 2023 Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.',
 		socialLinks: {
@@ -1012,6 +1022,89 @@ export default function SettingsPage() {
 										}
 										disabled={!canManageAnimations}
 									/>
+								</div>
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
+									<div className="min-w-0">
+										<Label htmlFor="feedbackSubmitEnabled">
+											Feedback: Tombol Kirim
+										</Label>
+										<p className="text-sm text-muted-foreground">
+											Tampilkan tombol &quot;Tulis Saran/Kritik&quot; di footer. Jika dimatikan, card feedback juga ikut tersembunyi.
+										</p>
+									</div>
+									<Switch
+										className="flex-shrink-0"
+										id="feedbackSubmitEnabled"
+										checked={formData.feedbackSubmitEnabled ?? true}
+										onCheckedChange={(checked) =>
+											handleSwitchChange('feedbackSubmitEnabled', checked)
+										}
+										disabled={!canManageAnimations}
+									/>
+								</div>
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
+									<div className="min-w-0">
+										<Label htmlFor="feedbackCardsEnabled">
+											Feedback: Card di Footer
+										</Label>
+										<p className="text-sm text-muted-foreground">
+											Tampilkan section card saran/kritik di footer. Hanya berlaku jika tombol kirim aktif.
+										</p>
+									</div>
+									<Switch
+										className="flex-shrink-0"
+										id="feedbackCardsEnabled"
+										checked={formData.feedbackCardsEnabled ?? true}
+										onCheckedChange={(checked) =>
+											handleSwitchChange('feedbackCardsEnabled', checked)
+										}
+										disabled={!canManageAnimations || !(formData.feedbackSubmitEnabled ?? true)}
+									/>
+								</div>
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
+									<div className="min-w-0">
+										<Label htmlFor="feedbackCardsAutoScrollEnabled">
+											Feedback Cards: Auto-scroll
+										</Label>
+										<p className="text-sm text-muted-foreground">
+											Aktifkan animasi scroll otomatis card saran/kritik di footer
+										</p>
+									</div>
+									<Switch
+										className="flex-shrink-0"
+										id="feedbackCardsAutoScrollEnabled"
+										checked={formData.feedbackCardsAutoScrollEnabled ?? true}
+										onCheckedChange={(checked) =>
+											handleSwitchChange('feedbackCardsAutoScrollEnabled', checked)
+										}
+										disabled={!canManageAnimations || !(formData.feedbackSubmitEnabled ?? true) || !(formData.feedbackCardsEnabled ?? true)}
+									/>
+								</div>
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
+									<div className="min-w-0">
+										<Label htmlFor="feedbackPublicTypeFilter">
+											Feedback: Filter Tampilan Publik
+										</Label>
+										<p className="text-sm text-muted-foreground">
+											Pilih jenis feedback yang ditampilkan di footer publik
+										</p>
+									</div>
+									<Select
+										value={formData.feedbackPublicTypeFilter ?? 'all'}
+										onValueChange={(value) =>
+											setFormData({ ...formData, feedbackPublicTypeFilter: value })
+										}
+										disabled={!canManageAnimations}
+									>
+										<SelectTrigger className="w-[160px] flex-shrink-0">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="all">Keduanya</SelectItem>
+											<SelectItem value="saran">Saran saja</SelectItem>
+											<SelectItem value="kritik">Kritik saja</SelectItem>
+										</SelectContent>
+									</Select>
 								</div>
 								{!canManageAnimations && (
 									<p className="text-xs text-muted-foreground">

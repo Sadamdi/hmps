@@ -551,6 +551,10 @@ const settingsSchema = new mongoose.Schema({
 			},
 		],
 	},
+	feedbackSubmitEnabled: { type: Boolean, default: true },
+	feedbackCardsEnabled: { type: Boolean, default: true },
+	feedbackCardsAutoScrollEnabled: { type: Boolean, default: true },
+	feedbackPublicTypeFilter: { type: String, enum: ['all', 'saran', 'kritik'], default: 'all' },
 	// Metadata backup bulanan (anti double-run)
 	lastMonthlyBackupAt: { type: Date, default: null },
 	lastMonthlyBackupKey: { type: String, default: '' },
@@ -946,6 +950,49 @@ prodiContentSchema.pre('save', async function (next) {
 	next();
 });
 
+// Model Feedback — saran/kritik publik untuk web, himatif encoder, atau prodi TI
+const feedbackReplySchema = new mongoose.Schema({
+	adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+	adminName: { type: String, required: true },
+	message: { type: String, required: true },
+	repliedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
+const feedbackSchema = new mongoose.Schema(
+	{
+		target: { type: String, enum: ['web', 'himatif_encoder', 'prodi_ti_umalang'], required: true },
+		type: { type: String, enum: ['saran', 'kritik'], required: true },
+		body: { type: String, required: true },
+		isAnonymous: { type: Boolean, default: false },
+		senderName: { type: String, default: '' },
+		senderNim: { type: String, default: '' },
+		senderEmail: { type: String, default: '' },
+		isVisibleCard: { type: Boolean, default: false },
+		guestKeyHash: { type: String, default: null },
+		media: [{
+			url: { type: String, required: true },
+			originalName: { type: String, default: '' },
+		}],
+		reply: { type: feedbackReplySchema, default: null },
+		suggestionStatus: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+		suggestionDecisionComment: { type: String, default: '' },
+		suggestionDecidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		suggestionDeciderName: { type: String, default: '' },
+		suggestionDecidedAt: { type: Date, default: null },
+		ratings: {
+			fasilitasTI: { type: Number, min: 0, max: 5, default: 0 },
+			website: { type: Number, min: 0, max: 5, default: 0 },
+			teknikInformatika: { type: Number, min: 0, max: 5, default: 0 },
+			himatifEncoder: { type: Number, min: 0, max: 5, default: 0 },
+		},
+	},
+	{ timestamps: true },
+);
+
+feedbackSchema.index({ target: 1, type: 1, createdAt: -1 });
+feedbackSchema.index({ isVisibleCard: 1, createdAt: -1 });
+feedbackSchema.index({ type: 1, suggestionStatus: 1 });
+
 // Model Comment — komentar publik pada berita/event/library dengan reply bertingkat
 const commentSchema = new mongoose.Schema(
 	{
@@ -997,6 +1044,8 @@ const ProdiContent =
 	mongoose.models.ProdiContent || mongoose.model('ProdiContent', prodiContentSchema);
 const Comment =
 	mongoose.models.Comment || mongoose.model('Comment', commentSchema);
+const Feedback =
+	mongoose.models.Feedback || mongoose.model('Feedback', feedbackSchema);
 
 // Create Position model
 export const Position =
@@ -1011,6 +1060,7 @@ export {
 	Comment,
 	Event,
 	EventYear,
+	Feedback,
 	HomeImages,
 	Library,
 	Organization,

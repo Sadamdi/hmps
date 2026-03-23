@@ -32,6 +32,7 @@ const DashboardProfil = lazy(() => import('@/pages/dashboard/profil'));
 const DashboardKelembagaan = lazy(() => import('@/pages/dashboard/kelembagaan'));
 const DashboardProdi = lazy(() => import('@/pages/dashboard/prodi'));
 const DashboardEvents = lazy(() => import('@/pages/dashboard/events'));
+const DashboardFeedback = lazy(() => import('@/pages/dashboard/feedback'));
 const EventsIndex = lazy(() => import('@/pages/events/index'));
 const EventsAll = lazy(() => import('@/pages/events/all'));
 const EventsYear = lazy(() => import('@/pages/events/[year]'));
@@ -175,6 +176,13 @@ function Router() {
 			{() => (
 				<ProtectedRoute>
 					<DashboardEvents />
+				</ProtectedRoute>
+			)}
+		</Route>
+		<Route path="/dashboard/feedback">
+			{() => (
+				<ProtectedRoute>
+					<DashboardFeedback />
 				</ProtectedRoute>
 			)}
 		</Route>

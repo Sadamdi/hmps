@@ -122,6 +122,10 @@ export interface Settings {
 	};
 	eventsAutoScrollEnabled?: boolean;
 	eventsAllowMultipleYearsOnHome?: boolean;
+	feedbackSubmitEnabled?: boolean;
+	feedbackCardsEnabled?: boolean;
+	feedbackCardsAutoScrollEnabled?: boolean;
+	feedbackPublicTypeFilter?: 'all' | 'saran' | 'kritik';
 	homeConfig?: HomeConfig;
 	// Halaman lengkap Tentang Kami
 	aboutPageIntro?: string;
@@ -280,6 +284,56 @@ export interface CommentItem {
 	isOwn?: boolean;
 	replies?: CommentItem[];
 }
+
+// Feedback Types
+export type FeedbackTarget = 'web' | 'himatif_encoder' | 'prodi_ti_umalang';
+export type FeedbackType = 'saran' | 'kritik';
+export type SuggestionStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface FeedbackReply {
+	adminId: string;
+	adminName: string;
+	message: string;
+	repliedAt: Date;
+}
+
+export interface FeedbackRatings {
+	fasilitasTI: number;
+	website: number;
+	teknikInformatika: number;
+	himatifEncoder: number;
+}
+
+export interface FeedbackMedia {
+	url: string;
+	originalName: string;
+}
+
+export interface FeedbackItem {
+	_id: string;
+	target: FeedbackTarget;
+	type: FeedbackType;
+	body: string;
+	isAnonymous: boolean;
+	senderName: string;
+	senderNim: string;
+	senderEmail: string;
+	isVisibleCard: boolean;
+	guestKeyHash?: string;
+	media: FeedbackMedia[];
+	reply: FeedbackReply | null;
+	suggestionStatus: SuggestionStatus;
+	suggestionDecisionComment: string;
+	suggestionDecidedBy: string | null;
+	suggestionDeciderName: string;
+	suggestionDecidedAt: Date | null;
+	ratings: FeedbackRatings;
+	isOwn?: boolean;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export type InsertFeedback = Omit<FeedbackItem, '_id' | 'reply' | 'isVisibleCard' | 'guestKeyHash' | 'media' | 'suggestionStatus' | 'suggestionDecisionComment' | 'suggestionDecidedBy' | 'suggestionDeciderName' | 'suggestionDecidedAt' | 'isOwn' | 'createdAt' | 'updatedAt'>;
 
 // Insert/Update Types (for API operations)
 export type InsertUser = Omit<UserWithRole, '_id' | 'createdAt' | 'updatedAt'>;

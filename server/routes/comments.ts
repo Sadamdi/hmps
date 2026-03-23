@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import { Berita, Comment, Event, Library } from '../../db/mongodb';
 import { authenticate, authenticateOptional, requirePermission } from '../auth';
+import { commentRateLimiter } from '../middleware/public-rate-limit';
 import { mongoStorage } from '../mongo-storage';
 
 const router = Router();
@@ -115,7 +116,7 @@ router.get('/count', async (req, res) => {
 });
 
 // POST /api/comments
-router.post('/', authenticateOptional, async (req, res) => {
+router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 	try {
 		const { targetType, targetId, parentId, body, displayName, isAnonymous, guestSecret } = req.body;
 
@@ -178,7 +179,7 @@ router.post('/', authenticateOptional, async (req, res) => {
 });
 
 // PATCH /api/comments/:id — edit own comment
-router.patch('/:id', authenticateOptional, async (req, res) => {
+router.patch('/:id', commentRateLimiter, authenticateOptional, async (req, res) => {
 	try {
 		const { id } = req.params;
 		const { body, guestSecret } = req.body;
@@ -222,7 +223,7 @@ router.patch('/:id', authenticateOptional, async (req, res) => {
 });
 
 // DELETE /api/comments/:id — owner or moderator (comments.manage)
-router.delete('/:id', authenticateOptional, async (req, res) => {
+router.delete('/:id', commentRateLimiter, authenticateOptional, async (req, res) => {
 	try {
 		const { id } = req.params;
 		const guestSecret = req.headers['x-guest-key'] as string | undefined;

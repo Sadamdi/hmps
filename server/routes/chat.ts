@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticateOptional } from '../auth';
 import { Chat } from '../models/chat';
 import { mongoStorage } from '../mongo-storage';
-import { chatLimiter } from '../security';
+import { chatUploadRateLimiter } from '../middleware/public-rate-limit';
 import { ChatService } from '../services/chat-service';
 dotenv.config();
 
@@ -131,8 +131,8 @@ router.get('/history', async (req, res) => {
 // Mengirim pesan baru
 router.post(
 	'/message',
+	chatUploadRateLimiter,
 	authenticateOptional,
-	chatLimiter,
 	upload.single('image'),
 	async (req, res) => {
 		try {

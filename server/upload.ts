@@ -29,6 +29,7 @@ export type UploadCategory =
 	| 'library' // Media library (foto/video kegiatan)
 	| 'filosofi' // Gambar filosofi lambang HIMATIF (attached_assets/filosofi)
 	| 'events' // Thumbnail dan attachment event
+	| 'feedback' // Media saran/kritik
 	| 'general'; // File umum lainnya
 
 // Membuat subfolder jika belum ada
@@ -413,6 +414,38 @@ export async function uploadFilosofiImage(
 		console.error('Error uploading filosofi image:', error);
 		throw new Error('Filosofi image upload failed');
 	}
+}
+
+/**
+ * Upload feedback image: konversi ke WebP, simpan di uploads/feedback/
+ */
+export async function uploadFeedbackImage(
+	file: Express.Multer.File,
+): Promise<{ url: string; originalName: string }> {
+	if (!isProcessableImage(file.mimetype)) {
+		throw new Error(`File type ${file.mimetype} is not a processable image`);
+	}
+
+	const timestamp = Date.now();
+	const randomName = crypto.randomBytes(8).toString('hex');
+	const fileName = `${timestamp}_${randomName}.webp`;
+
+	const categoryDir = await ensureUploadDirectory('feedback', false);
+	const filePath = path.join(categoryDir, fileName);
+
+	const processedBuffer = await processImage(file.buffer, {
+		quality: 80,
+		maxWidth: 1920,
+		maxHeight: 1080,
+		format: 'webp',
+	});
+
+	await writeFile(filePath, processedBuffer);
+
+	return {
+		url: `/uploads/feedback/${fileName}`,
+		originalName: file.originalname,
+	};
 }
 
 /**
