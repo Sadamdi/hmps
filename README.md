@@ -259,7 +259,7 @@ NODE_ENV=development
 | Feature | Implementation | Status |
 |---------|---------------|--------|
 | 🔐 **Authentication (JWT)** | JWT di cookie `authToken` + session check (`sid`) + revocation via `tokenVersion` | ✅ Active |
-| 🛡️ **Password Security** | bcryptjs hash (salt rounds: 10) | ✅ Active |
+| 🛡️ **Password Security** | bcryptjs hash | ✅ Active |
 | ⛑️ **Security Middleware** | `helmet`/`hpp` + anti-spoofing + anti-DDoS + DNS layer protection | ✅ Active |
 | ⏰ **Rate Limiting** | express-rate-limit + limiter khusus (login/upload/OTP) | ✅ Active |
 | ✅ **Input Validation** | Zod schema validation (`validateInput`) | ✅ Active |

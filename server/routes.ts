@@ -129,10 +129,7 @@ async function checkBeritaPermission(
 	action: 'edit' | 'delete' | 'publish',
 ): Promise<boolean> {
 	try {
-		const userRole = await mongoStorage.getRoleByName(user.role);
-		if (!userRole) return false;
-
-		const permissions = userRole.permissions;
+		const permissions = await mongoStorage.getUserPermissions(String(user._id));
 		const isOwner = user._id.toString() === (berita.authorId || '').toString();
 		const beritaId = String(berita._id || berita.id);
 
@@ -169,10 +166,7 @@ async function checkEventPermission(
 	action: 'view' | 'edit' | 'delete' | 'publish',
 ): Promise<boolean> {
 	try {
-		const userRole = await mongoStorage.getRoleByName(user.role);
-		if (!userRole) return false;
-
-		const permissions = userRole.permissions;
+		const permissions = await mongoStorage.getUserPermissions(String(user._id));
 		const isOwner =
 			user._id.toString() === (event.createdBy || '').toString();
 		const eventId = String(event._id || event.id);
@@ -216,9 +210,7 @@ async function canViewBerita(
 ): Promise<boolean> {
 	if (!user) return false;
 	if (berita.published) return true;
-	const userRole = await mongoStorage.getRoleByName(user.role);
-	if (!userRole) return false;
-	const permissions = userRole.permissions;
+	const permissions = await mongoStorage.getUserPermissions(String(user._id));
 	const isOwner = user._id.toString() === (berita.authorId || '').toString();
 	if (
 		(permissions.includes('berita.view') && isOwner) ||
@@ -236,10 +228,7 @@ async function checkLibraryPermission(
 	action: 'edit' | 'delete',
 ): Promise<boolean> {
 	try {
-		const userRole = await mongoStorage.getRoleByName(user.role);
-		if (!userRole) return false;
-
-		const permissions = userRole.permissions;
+		const permissions = await mongoStorage.getUserPermissions(String(user._id));
 		const isOwner =
 			user._id.toString() === (libraryItem.authorId || '').toString();
 		const itemId = String(libraryItem._id || libraryItem.id);
@@ -1311,10 +1300,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// User management routes
 	app.get('/api/users', authenticate, async (req, res) => {
 		try {
-			const requesterRole = await mongoStorage.getRoleByName(
-				(req.user as any)?.role || '',
+			const permissions = await mongoStorage.getUserPermissions(
+				String((req.user as any)?._id),
 			);
-			const permissions: string[] = requesterRole?.permissions || [];
 
 			if (
 				!permissions.includes('users.view') &&
@@ -1619,10 +1607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			await expirePendingShares();
 
 			const userId = (req.user as UserWithRole)?._id || '';
-			const userRole = await mongoStorage.getRoleByName(
-				(req.user as UserWithRole)?.role || '',
-			);
-			const permissions = userRole?.permissions || [];
+			const permissions = await mongoStorage.getUserPermissions(String(userId));
 
 			let beritaList: any[];
 			if (permissions.includes('berita.view_others')) {
@@ -1970,10 +1955,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Check create permission
-				const userRole = await mongoStorage.getRoleByName(
-					(req.user as UserWithRole)?.role || '',
+				const createPerms = await mongoStorage.getUserPermissions(
+					String((req.user as UserWithRole)?._id),
 				);
-				if (!userRole || !userRole.permissions.includes('berita.create')) {
+				if (!createPerms.includes('berita.create')) {
 					return res.status(403).json({
 						message: 'You do not have permission to create berita',
 					});
@@ -1981,7 +1966,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				// Check publish permission if trying to publish
 				if (published === 'true') {
-					if (!userRole.permissions.includes('berita.publish')) {
+					if (!createPerms.includes('berita.publish')) {
 						return res.status(403).json({
 							message: 'You do not have permission to publish berita',
 						});
@@ -2383,10 +2368,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			await expirePendingShares();
 
 			const userId = (req.user as UserWithRole)?._id || '';
-			const userRole = await mongoStorage.getRoleByName(
-				(req.user as UserWithRole)?.role || '',
-			);
-			const permissions = userRole?.permissions || [];
+			const permissions = await mongoStorage.getUserPermissions(String(userId));
 
 			let items: any[];
 			if (permissions.includes('library.view_others')) {
@@ -4077,10 +4059,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get('/api/dashboard/stats', authenticate, async (req, res) => {
 		try {
 			// Check if user has dashboard stats permission
-			const userRole = await mongoStorage.getRoleByName(
-				(req.user as UserWithRole)?.role || '',
+			const permissions = await mongoStorage.getUserPermissions(
+				String((req.user as UserWithRole)?._id),
 			);
-			const permissions = userRole?.permissions || [];
 
 			if (!permissions.includes('dashboard.stats')) {
 				return res.status(403).json({
@@ -4780,6 +4761,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
+	// ══════════════════════════════════════════════════════════════
+	// PERMISSION OVERRIDES PER USER
+	// ══════════════════════════════════════════════════════════════
+
+	app.get(
+		'/api/users/:id/permission-overrides',
+		authenticate,
+		requirePermission('roles.edit_other'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+
+				const targetUser = await mongoStorage.getUserById(id);
+				if (!targetUser) {
+					return res.status(404).json({ message: 'User not found' });
+				}
+
+				if (
+					!canManageRole(
+						(req.user as UserWithRole)?.role || '',
+						targetUser.role,
+					)
+				) {
+					return res.status(403).json({
+						message: 'You can only manage overrides for users with a lower role',
+					});
+				}
+
+				const overrides = await mongoStorage.getUserPermissionOverrides(id);
+				const basePermissions = await mongoStorage.getUserBasePermissions(id);
+				res.json({ overrides, basePermissions });
+			} catch (error) {
+				console.error('Error getting permission overrides:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.put(
+		'/api/users/:id/permission-overrides',
+		authenticate,
+		requirePermission('roles.edit_other'),
+		async (req, res) => {
+			try {
+				const { id } = req.params;
+				const { allow, deny } = req.body;
+
+				if (!Array.isArray(allow) || !Array.isArray(deny)) {
+					return res
+						.status(400)
+						.json({ message: 'allow and deny must be arrays of strings' });
+				}
+
+				const targetUser = await mongoStorage.getUserById(id);
+				if (!targetUser) {
+					return res.status(404).json({ message: 'User not found' });
+				}
+
+				if (
+					!canManageRole(
+						(req.user as UserWithRole)?.role || '',
+						targetUser.role,
+					)
+				) {
+					return res.status(403).json({
+						message: 'You can only manage overrides for users with a lower role',
+					});
+				}
+
+				const allPermissions = await mongoStorage.getAllPermissions();
+				const validNames = new Set(allPermissions.map((p: any) => p.name));
+				const invalidAllow = allow.filter((p: string) => !validNames.has(p));
+				const invalidDeny = deny.filter((p: string) => !validNames.has(p));
+				if (invalidAllow.length > 0 || invalidDeny.length > 0) {
+					return res.status(400).json({
+						message: 'Invalid permission names',
+						invalidAllow,
+						invalidDeny,
+					});
+				}
+
+				const denySet = new Set(deny);
+				const cleanAllow = allow.filter((p: string) => !denySet.has(p));
+
+				await mongoStorage.updateUserPermissionOverrides(id, {
+					allow: cleanAllow,
+					deny,
+				});
+
+				const effectivePermissions =
+					await mongoStorage.getUserPermissions(id);
+
+				res.json({
+					message: 'Permission overrides updated',
+					overrides: { allow: cleanAllow, deny },
+					effectivePermissions,
+				});
+			} catch (error) {
+				console.error('Error updating permission overrides:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
 	// Get current user permissions
 	app.get('/api/auth/permissions', authenticate, async (req, res) => {
 		try {
@@ -5027,10 +5112,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					: (parentId as string | undefined);
 
 			const userId = (req.user as UserWithRole)._id;
-			const userRole = await mongoStorage.getRoleByName(
-				(req.user as UserWithRole).role || '',
-			);
-			const permissions = userRole?.permissions || [];
+			const permissions = await mongoStorage.getUserPermissions(String(userId));
 
 			let authorIdFilter: string | null = null;
 			let includeSharedIds: string[] = [];

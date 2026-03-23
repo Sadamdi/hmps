@@ -58,6 +58,10 @@ const userSchema = new mongoose.Schema({
 		default: 'division_head',
 	},
 	division: { type: String, default: '' },
+	permissionOverrides: {
+		allow: [{ type: String }],
+		deny: [{ type: String }],
+	},
 	tokenVersion: { type: Number, default: 0 },
 	lastLogin: { type: Date, default: Date.now },
 	createdAt: { type: Date, default: Date.now },

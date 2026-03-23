@@ -236,10 +236,10 @@ router.delete('/:id', commentRateLimiter, authenticateOptional, async (req, res)
 		const user = req.user as any;
 		let authorized = false;
 
-		// Check moderator permission
+		// Check moderator permission (effective permissions with overrides)
 		if (user) {
-			const userRole = await mongoStorage.getRoleByName(user.role);
-			if (userRole?.permissions?.includes('comments.manage')) {
+			const effectivePerms = await mongoStorage.getUserPermissions(String(user._id));
+			if (effectivePerms.includes('comments.manage')) {
 				authorized = true;
 			}
 		}

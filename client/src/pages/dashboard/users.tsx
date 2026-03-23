@@ -1,5 +1,6 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { UserManagement } from '@/components/dashboard/user-management';
+import { PermissionOverridesSection } from '@/components/dashboard/user-profile-editor';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -52,7 +53,7 @@ interface UserWithRole {
 }
 
 export default function UsersPage() {
-	const { user: currentUser, hasSpecificPermission } = useAuth();
+	const { user: currentUser, hasSpecificPermission, refreshPermissions } = useAuth();
 	const { toast } = useToast();
 
 	// Auto-refresh permissions every 5 seconds to catch role changes
@@ -472,7 +473,7 @@ export default function UsersPage() {
 			<Dialog
 				open={isUserDialogOpen}
 				onOpenChange={setIsUserDialogOpen}>
-				<DialogContent>
+				<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
 					<DialogHeader>
 						<DialogTitle>
 							{editingUser
@@ -493,6 +494,19 @@ export default function UsersPage() {
 						onSave={closeUserDialog}
 						onCancel={closeUserDialog}
 					/>
+					{editingUser &&
+						hasSpecificPermission('roles.edit_other') &&
+						currentUser?._id !== editingUser._id && (
+							<div className="mt-4">
+								<PermissionOverridesSection
+									targetUserId={editingUser._id}
+									onSaved={async () => {
+										await refreshPermissions();
+										queryClient.invalidateQueries({ queryKey: ['/api/users'] });
+									}}
+								/>
+							</div>
+						)}
 				</DialogContent>
 			</Dialog>
 

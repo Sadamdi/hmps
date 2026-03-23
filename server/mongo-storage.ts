@@ -1408,6 +1408,9 @@ const mongoDBStorage = {
 	updatePermission,
 	deletePermission,
 	getUserPermissions,
+	getUserBasePermissions,
+	getUserPermissionOverrides,
+	updateUserPermissionOverrides,
 
 	// Division functions
 	getAllDivisions,
@@ -1552,15 +1555,63 @@ async function deletePermission(permissionId: string) {
 	}
 }
 
-async function getUserPermissions(userId: string) {
+async function getUserBasePermissions(userId: string): Promise<string[]> {
 	try {
 		const user = await User.findById(userId);
 		if (!user) return [];
-
 		const role = await getRoleByName(user.role);
 		return role ? role.permissions : [];
 	} catch (error) {
-		console.error('Error getting user permissions:', error);
+		console.error('Error getting user base permissions:', error);
+		throw error;
+	}
+}
+
+async function getUserPermissionOverrides(userId: string): Promise<{ allow: string[]; deny: string[] }> {
+	try {
+		const user = await User.findById(userId).lean() as any;
+		if (!user) return { allow: [], deny: [] };
+		return {
+			allow: user.permissionOverrides?.allow ?? [],
+			deny: user.permissionOverrides?.deny ?? [],
+		};
+	} catch (error) {
+		console.error('Error getting user permission overrides:', error);
+		return { allow: [], deny: [] };
+	}
+}
+
+async function getUserPermissions(userId: string): Promise<string[]> {
+	try {
+		const base = await getUserBasePermissions(userId);
+		const overrides = await getUserPermissionOverrides(userId);
+		const denySet = new Set(overrides.deny);
+		const effectiveSet = new Set<string>();
+		for (const p of base) {
+			if (!denySet.has(p)) effectiveSet.add(p);
+		}
+		for (const p of overrides.allow) {
+			if (!denySet.has(p)) effectiveSet.add(p);
+		}
+		return Array.from(effectiveSet);
+	} catch (error) {
+		console.error('Error getting user effective permissions:', error);
+		throw error;
+	}
+}
+
+async function updateUserPermissionOverrides(
+	userId: string,
+	overrides: { allow: string[]; deny: string[] },
+) {
+	try {
+		return await User.findByIdAndUpdate(
+			userId,
+			{ $set: { permissionOverrides: overrides, updatedAt: new Date() } },
+			{ new: true },
+		);
+	} catch (error) {
+		console.error('Error updating user permission overrides:', error);
 		throw error;
 	}
 }
@@ -1711,6 +1762,13 @@ async function initializeDefaultPermissions() {
 				name: 'roles.edit',
 				displayName: 'Edit Roles',
 				description: 'Mengedit role',
+				category: 'roles',
+			},
+			{
+				name: 'roles.edit_other',
+				displayName: 'Edit Role Overrides (Other Users)',
+				description:
+					'Mengedit permission overrides untuk user lain (tanpa mengubah user.role).',
 				category: 'roles',
 			},
 			{
@@ -2052,11 +2110,13 @@ async function initializeDefaultPermissions() {
 
 		// Upsert: tambahkan permission yang belum ada (tidak hapus yang sudah ada)
 		let addedCount = 0;
+		let addedRolesEditOther = false;
 		for (const perm of defaultPermissions) {
 			const exists = await Permission.findOne({ name: perm.name });
 			if (!exists) {
 				await Permission.create({ ...perm, isActive: true });
 				addedCount++;
+				if (perm.name === 'roles.edit_other') addedRolesEditOther = true;
 			}
 		}
 		if (addedCount > 0) {
@@ -2075,6 +2135,34 @@ async function initializeDefaultPermissions() {
 				updatedAt: new Date(),
 			}
 		);
+
+		// Backward compatibility: kalau permission baru ditambahkan, role yang sudah punya
+		// `roles.edit` perlu otomatis punya `roles.edit_other` agar bisa mengelola override.
+		// (Ini hanya terjadi saat permission `roles.edit_other` baru saja dibuat pertama kali.)
+		if (addedRolesEditOther) {
+			await Role.updateMany(
+				{ permissions: 'roles.edit' },
+				{
+					$addToSet: { permissions: 'roles.edit_other' },
+					$set: { updatedAt: new Date() },
+				},
+			);
+		} else {
+			// Backward compatibility for environments where permission already exists,
+			// but roles didn't get updated previously.
+			const rolesWithEditOtherCount = await Role.countDocuments({
+				permissions: 'roles.edit_other',
+			});
+			if (rolesWithEditOtherCount === 0) {
+				await Role.updateMany(
+					{ permissions: 'roles.edit' },
+					{
+						$addToSet: { permissions: 'roles.edit_other' },
+						$set: { updatedAt: new Date() },
+					},
+				);
+			}
+		}
 		console.log(
 			`🔧 Updated owner role with ${allPermissionNames.length} permissions`
 		);

@@ -260,7 +260,7 @@ export function authorize(allowedRoles: string[]) {
 	};
 }
 
-// Permission-based authorization middleware
+// Permission-based authorization middleware (uses effective permissions with overrides)
 export function requirePermission(permission: string) {
 	return async (req: Request, res: Response, next: NextFunction) => {
 		try {
@@ -268,9 +268,10 @@ export function requirePermission(permission: string) {
 				return res.status(401).json({ message: 'Authentication required' });
 			}
 
-			// Get user's role and check permissions
-			const userRole = await mongoStorage.getRoleByName(req.user.role);
-			if (!userRole || !userRole.permissions.includes(permission)) {
+			const effectivePermissions = await mongoStorage.getUserPermissions(
+				String(req.user._id),
+			);
+			if (!effectivePermissions.includes(permission)) {
 				return res.status(403).json({
 					message: 'You do not have permission to perform this action',
 				});

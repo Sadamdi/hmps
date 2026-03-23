@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AtSign, Clock, Loader2, Mail, User } from 'lucide-react';
-import React, { useEffect, useMemo, useState } from 'react';
+import { AtSign, Clock, Loader2, Mail, Shield, User } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../hooks/use-toast';
 import { logActivity } from '../../lib/activity-logger';
 import { useAuth } from '../../lib/auth';
 import { apiRequest } from '../../lib/queryClient';
+import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
 import {
 	Card,
@@ -44,7 +45,7 @@ interface UserProfileEditorProps {
 }
 
 export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
-	const { user: currentUser } = useAuth();
+	const { user: currentUser, hasSpecificPermission, refreshPermissions } = useAuth();
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
@@ -513,6 +514,300 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 					</CardContent>
 				</Card>
 			)}
+
+			{/* Permission Overrides */}
+			{hasSpecificPermission('roles.edit_other') &&
+				user?._id &&
+				currentUser?._id !== user._id && (
+				<PermissionOverridesSection
+					targetUserId={user._id}
+					onSaved={async () => {
+						await refreshPermissions();
+						onUpdate?.();
+					}}
+				/>
+			)}
+		</div>
+	);
+}
+
+// ─── Permission Overrides Section ──────────────────────────────────────
+
+type OverrideState = 'inherit' | 'allow' | 'deny';
+
+interface PermissionItem {
+	name: string;
+	displayName: string;
+	category: string;
+}
+
+export function PermissionOverridesSection({
+	targetUserId,
+	onSaved,
+}: {
+	targetUserId: string;
+	onSaved?: () => void;
+}) {
+	const { toast } = useToast();
+	const [saving, setSaving] = useState(false);
+	const [overrideMap, setOverrideMap] = useState<Record<string, OverrideState>>({});
+	const [categoryFilter, setCategoryFilter] = useState('all');
+	const [searchFilter, setSearchFilter] = useState('');
+
+	const { data: allPermissions = [] } = useQuery<PermissionItem[]>({
+		queryKey: ['/api/permissions'],
+		placeholderData: [],
+	});
+
+	const {
+		data: overridesData,
+		isLoading,
+		refetch: refetchOverrides,
+	} = useQuery<{
+		overrides: { allow: string[]; deny: string[] };
+		basePermissions: string[];
+	}>({
+		queryKey: [`/api/users/${targetUserId}/permission-overrides`],
+		enabled: !!targetUserId,
+	});
+
+	useEffect(() => {
+		if (!overridesData) return;
+		const map: Record<string, OverrideState> = {};
+		for (const p of overridesData.overrides.allow) map[p] = 'allow';
+		for (const p of overridesData.overrides.deny) map[p] = 'deny';
+		setOverrideMap(map);
+	}, [overridesData]);
+
+	const categories = useMemo(() => {
+		const cats = new Set<string>();
+		for (const p of allPermissions) cats.add(p.category);
+		return Array.from(cats).sort();
+	}, [allPermissions]);
+
+	const filteredPermissions = useMemo(() => {
+		return allPermissions.filter((p) => {
+			if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
+			if (searchFilter && !p.displayName.toLowerCase().includes(searchFilter.toLowerCase()) && !p.name.toLowerCase().includes(searchFilter.toLowerCase())) return false;
+			return true;
+		});
+	}, [allPermissions, categoryFilter, searchFilter]);
+
+	const groupedPermissions = useMemo(() => {
+		const map = new Map<string, PermissionItem[]>();
+		for (const p of filteredPermissions) {
+			if (!map.has(p.category)) map.set(p.category, []);
+			map.get(p.category)!.push(p);
+		}
+		return map;
+	}, [filteredPermissions]);
+
+	const baseSet = useMemo(
+		() => new Set(overridesData?.basePermissions ?? []),
+		[overridesData],
+	);
+
+	const setOverride = useCallback(
+		(permName: string, state: OverrideState) => {
+			setOverrideMap((prev) => {
+				const next = { ...prev };
+				if (state === 'inherit') {
+					delete next[permName];
+				} else {
+					next[permName] = state;
+				}
+				return next;
+			});
+		},
+		[],
+	);
+
+	const handleSave = async () => {
+		setSaving(true);
+		try {
+			const allow: string[] = [];
+			const deny: string[] = [];
+			for (const [perm, state] of Object.entries(overrideMap)) {
+				if (state === 'allow') allow.push(perm);
+				else if (state === 'deny') deny.push(perm);
+			}
+			await apiRequest('PUT', `/api/users/${targetUserId}/permission-overrides`, {
+				allow,
+				deny,
+			});
+			toast({ title: 'Berhasil', description: 'Permission overrides berhasil disimpan.' });
+			await refetchOverrides();
+			onSaved?.();
+		} catch (e: any) {
+			toast({
+				title: 'Gagal',
+				description: e?.message || 'Gagal menyimpan permission overrides.',
+				variant: 'destructive',
+			});
+		} finally {
+			setSaving(false);
+		}
+	};
+
+	const hasChanges = useMemo(() => {
+		if (!overridesData) return false;
+		const origAllow = new Set(overridesData.overrides.allow);
+		const origDeny = new Set(overridesData.overrides.deny);
+		const curAllow = new Set(
+			Object.entries(overrideMap)
+				.filter(([, s]) => s === 'allow')
+				.map(([p]) => p),
+		);
+		const curDeny = new Set(
+			Object.entries(overrideMap)
+				.filter(([, s]) => s === 'deny')
+				.map(([p]) => p),
+		);
+		if (origAllow.size !== curAllow.size || origDeny.size !== curDeny.size) return true;
+		for (const p of Array.from(origAllow)) if (!curAllow.has(p)) return true;
+		for (const p of Array.from(origDeny)) if (!curDeny.has(p)) return true;
+		return false;
+	}, [overridesData, overrideMap]);
+
+	const overrideCount = Object.keys(overrideMap).length;
+
+	if (isLoading) {
+		return (
+			<Card>
+				<CardContent className="p-6 flex items-center justify-center">
+					<Loader2 className="h-5 w-5 animate-spin mr-2" />
+					<span>Loading permission overrides...</span>
+				</CardContent>
+			</Card>
+		);
+	}
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2">
+					<Shield className="h-5 w-5" />
+					Permission Overrides
+					{overrideCount > 0 && (
+						<Badge variant="secondary">{overrideCount} override{overrideCount > 1 ? 's' : ''}</Badge>
+					)}
+				</CardTitle>
+				<CardDescription>
+					Atur permission individual untuk user ini. Override berlaku di atas permission default dari role.
+					<strong> Deny</strong> akan mencabut permission meskipun role default memberinya.
+					<strong> Allow</strong> akan menambah permission yang tidak ada di role default.
+					<strong> Inherit</strong> mengikuti default role.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<div className="flex flex-col sm:flex-row gap-2">
+					<Input
+						placeholder="Cari permission..."
+						value={searchFilter}
+						onChange={(e) => setSearchFilter(e.target.value)}
+						className="flex-1"
+					/>
+					<Select value={categoryFilter} onValueChange={setCategoryFilter}>
+						<SelectTrigger className="w-full sm:w-[200px]">
+							<SelectValue placeholder="Semua kategori" />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="all">Semua Kategori</SelectItem>
+							{categories.map((cat) => (
+								<SelectItem key={cat} value={cat}>
+									{cat.charAt(0).toUpperCase() + cat.slice(1)}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+
+				<div className="max-h-[500px] overflow-y-auto space-y-4 border rounded-md p-3">
+					{Array.from(groupedPermissions.entries()).map(([category, perms]) => (
+						<div key={category}>
+							<h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+								{category}
+							</h4>
+							<div className="space-y-1">
+								{perms.map((perm) => {
+									const state: OverrideState = overrideMap[perm.name] || 'inherit';
+									const inBase = baseSet.has(perm.name);
+									return (
+										<PermissionOverrideRow
+											key={perm.name}
+											perm={perm}
+											state={state}
+											inBase={inBase}
+											onChange={(s) => setOverride(perm.name, s)}
+										/>
+									);
+								})}
+							</div>
+						</div>
+					))}
+					{groupedPermissions.size === 0 && (
+						<p className="text-sm text-muted-foreground text-center py-4">
+							Tidak ada permission ditemukan.
+						</p>
+					)}
+				</div>
+
+				<Button
+					onClick={handleSave}
+					disabled={saving || !hasChanges}
+					className="w-full">
+					{saving ? (
+						<>
+							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							Menyimpan...
+						</>
+					) : (
+						'Simpan Permission Overrides'
+					)}
+				</Button>
+			</CardContent>
+		</Card>
+	);
+}
+
+function PermissionOverrideRow({
+	perm,
+	state,
+	inBase,
+	onChange,
+}: {
+	perm: PermissionItem;
+	state: OverrideState;
+	inBase: boolean;
+	onChange: (s: OverrideState) => void;
+}) {
+	const options: { value: OverrideState; label: string; variant: 'outline' | 'default' | 'destructive' | 'secondary' }[] = [
+		{ value: 'inherit', label: 'Inherit', variant: 'outline' },
+		{ value: 'allow', label: 'Allow', variant: 'default' },
+		{ value: 'deny', label: 'Deny', variant: 'destructive' },
+	];
+
+	return (
+		<div className="flex items-center justify-between gap-2 py-1.5 px-2 rounded hover:bg-accent/50">
+			<div className="flex-1 min-w-0">
+				<span className="text-sm font-medium truncate block">{perm.displayName}</span>
+				<span className="text-xs text-muted-foreground truncate block">
+					{perm.name}
+					{inBase && <span className="ml-1 text-green-600 dark:text-green-400">(dari role)</span>}
+				</span>
+			</div>
+			<div className="flex gap-1 shrink-0">
+				{options.map((opt) => (
+					<Button
+						key={opt.value}
+						size="sm"
+						variant={state === opt.value ? opt.variant : 'ghost'}
+						className={`h-7 px-2 text-xs ${state === opt.value ? '' : 'opacity-50'}`}
+						onClick={() => onChange(opt.value)}>
+						{opt.label}
+					</Button>
+				))}
+			</div>
 		</div>
 	);
 }
