@@ -198,6 +198,7 @@ npm run dev
 MONGODB_URI=mongodb://localhost:27017/hmps
 DISABLE_MONGODB=false
 # Opsional: cluster backup untuk snapshot bulanan; jika diset, app juga connect + ping saat startup (bukan dual-write per request)
+# Snapshot per bulan (nama DB: himatifwebmain_backup_YYYY_MM): jika belum ada di cluster backup, backup jalan otomatis (mis. saat startup); jika sudah ada, dilewati sampai bulan berikutnya (cron tanggal 1 jam 02:00).
 # MONGODB_URI_BACKUP=mongodb+srv://...
 
 # Authentication

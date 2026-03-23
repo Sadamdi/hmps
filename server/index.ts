@@ -293,28 +293,29 @@ setInterval(cleanupDnsLayerData, 5 * 60 * 1000);
 
 // ==================== MONTHLY DB BACKUP SCHEDULER ====================
 import cron from 'node-cron';
-import {
-	runMonthlyBackup,
-	shouldRunBackupThisMonth,
-} from './services/db-backup';
+import { runMonthlyBackup } from './services/db-backup';
 
 async function runBackupIfNeeded() {
 	if (!process.env.MONGODB_URI_BACKUP) return;
 	try {
-		const should = await shouldRunBackupThisMonth();
-		if (!should) return;
 		const result = await runMonthlyBackup();
 		if (result.success) {
-			console.log(`[Backup] Monthly backup completed: ${result.snapshotKey}`);
+			if (result.skipped) {
+				console.log(
+					`[Backup] Snapshot ${result.snapshotKey} sudah ada di cluster backup — lewati (backup berikutnya: tanggal 1 bulan depan).`,
+				);
+			} else {
+				console.log(`[Backup] Backup bulanan selesai: ${result.snapshotKey}`);
+			}
 		} else {
-			console.error('[Backup] Failed:', result.error);
+			console.error('[Backup] Gagal:', result.error);
 		}
 	} catch (err: any) {
 		console.error('[Backup] Error:', err?.message);
 	}
 }
 
-// Schedule: every 1st of month at 02:00
+// Schedule: tanggal 1 setiap bulan jam 02:00 — jika snapshot bulan itu belum ada, jalan; kalau sudah ada, lewati
 cron.schedule('0 2 1 * *', runBackupIfNeeded);
 
 // Schedule: prodi auto-sync — every 1st of month at 03:00

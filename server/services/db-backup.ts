@@ -30,6 +30,29 @@ function getCurrentBackupKey(): string {
 	return `${y}_${m}`;
 }
 
+/** Cek apakah DB snapshot untuk bulan `key` (YYYY_MM) sudah ada di cluster backup */
+async function hasSnapshotForMonthOnBackup(key: string): Promise<boolean> {
+	const backupUri = process.env.MONGODB_URI_BACKUP;
+	if (!backupUri) return false;
+	const snapshotDbName = `${SNAPSHOT_PREFIX}${key}`;
+	let backupClient = getBackupMongoClient();
+	let closeBackup = false;
+	if (!backupClient) {
+		backupClient = new MongoClient(backupUri);
+		await backupClient.connect();
+		closeBackup = true;
+	}
+	try {
+		const admin = backupClient.db().admin();
+		const { databases } = await admin.listDatabases();
+		return databases.some((d) => d.name === snapshotDbName);
+	} finally {
+		if (closeBackup && backupClient) {
+			await backupClient.close().catch(() => {});
+		}
+	}
+}
+
 async function copyCollection(
 	sourceDb: any,
 	targetDb: any,
@@ -73,6 +96,8 @@ export async function runMonthlyBackup(): Promise<{
 	success: boolean;
 	snapshotKey?: string;
 	error?: string;
+	/** true = snapshot bulan ini sudah ada di cluster backup, tidak meng-copy ulang */
+	skipped?: boolean;
 }> {
 	const backupUri = process.env.MONGODB_URI_BACKUP;
 	if (!backupUri) {
@@ -83,11 +108,17 @@ export async function runMonthlyBackup(): Promise<{
 	const currentKey = getCurrentBackupKey();
 	const snapshotDbName = `${SNAPSHOT_PREFIX}${currentKey}`;
 
-	// Cek metadata: sudah backup bulan ini?
-	const settings = await mongoStorage.getSettings();
-	const lastKey = (settings?.lastMonthlyBackupKey as string) || '';
-	if (lastKey === currentKey) {
-		return { success: true, snapshotKey: currentKey };
+	// Sumber kebenaran: apakah DB snapshot bulan ini sudah ada di cluster backup
+	if (await hasSnapshotForMonthOnBackup(currentKey)) {
+		await mongoStorage.updateSettings({
+			lastMonthlyBackupAt: new Date(),
+			lastMonthlyBackupKey: currentKey,
+		});
+		return {
+			success: true,
+			snapshotKey: currentKey,
+			skipped: true,
+		};
 	}
 
 	if (mongoose.connection.readyState !== 1) {
@@ -124,7 +155,7 @@ export async function runMonthlyBackup(): Promise<{
 			lastMonthlyBackupKey: currentKey,
 		});
 
-		return { success: true, snapshotKey: currentKey };
+		return { success: true, snapshotKey: currentKey, skipped: false };
 	} catch (err: any) {
 		console.error('[db-backup] runMonthlyBackup error:', err?.message);
 		return { success: false, error: err?.message || 'Backup failed' };
@@ -276,9 +307,9 @@ export async function restoreFromSnapshot(snapshotKey: string): Promise<{
 	}
 }
 
+/** true jika snapshot bulan ini belum ada di cluster backup (perlu dijalankan) */
 export async function shouldRunBackupThisMonth(): Promise<boolean> {
-	const settings = await mongoStorage.getSettings();
+	if (!process.env.MONGODB_URI_BACKUP) return false;
 	const currentKey = getCurrentBackupKey();
-	const lastKey = (settings?.lastMonthlyBackupKey as string) || '';
-	return lastKey !== currentKey;
+	return !(await hasSnapshotForMonthOnBackup(currentKey));
 }
