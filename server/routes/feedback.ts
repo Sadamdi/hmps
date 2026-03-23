@@ -74,6 +74,7 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.array('media', 10), async
 			ratings: sanitizedRatings,
 			media,
 			guestKeyHash,
+			isVisibleCard: true,
 		});
 
 		res.status(201).json({ message: 'Feedback berhasil dikirim', _id: feedback._id });

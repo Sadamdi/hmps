@@ -55,6 +55,7 @@ function StarInput({ value, onChange }: { value: number; onChange: (v: number) =
 }
 
 const SCROLL_SPEED = 40;
+const INTRO_DELAY_MS = 800;
 
 function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedbackCard[]; enabled: boolean; onCardClick: (c: PublicFeedbackCard) => void }) {
 	const trackRef = useRef<HTMLDivElement>(null);
@@ -62,15 +63,36 @@ function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedba
 	const rafRef = useRef<number | null>(null);
 	const lastTsRef = useRef(0);
 	const pausedRef = useRef(false);
+	const initDoneRef = useRef(false);
+	const initTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const [expandedReply, setExpandedReply] = useState<string | null>(null);
+
+	useEffect(() => {
+		offsetRef.current = 0;
+		initDoneRef.current = false;
+		if (trackRef.current) trackRef.current.style.transform = 'translate3d(0, 0, 0)';
+	}, [cards.length]);
 
 	const animate = useCallback((now: number) => {
 		if (!trackRef.current || !enabled) return;
 		const dt = Math.min((now - lastTsRef.current) / 1000, 0.1);
 		lastTsRef.current = now;
+
+		const halfWidth = trackRef.current.scrollWidth / 2;
+		if (halfWidth <= 0) { rafRef.current = requestAnimationFrame(animate); return; }
+
+		if (!initDoneRef.current) {
+			if (!initTimerRef.current) {
+				initTimerRef.current = setTimeout(() => { initDoneRef.current = true; }, INTRO_DELAY_MS);
+			}
+			trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
+			rafRef.current = requestAnimationFrame(animate);
+			return;
+		}
+
 		if (!pausedRef.current) {
 			offsetRef.current += SCROLL_SPEED * dt;
-			const halfWidth = trackRef.current.scrollWidth / 2;
-			if (halfWidth > 0 && offsetRef.current >= halfWidth) offsetRef.current -= halfWidth;
+			if (offsetRef.current >= halfWidth) offsetRef.current -= halfWidth;
 		}
 		trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
 		rafRef.current = requestAnimationFrame(animate);
@@ -78,9 +100,15 @@ function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedba
 
 	useEffect(() => {
 		if (!enabled || cards.length === 0) return;
+		offsetRef.current = 0;
+		initDoneRef.current = false;
+		if (initTimerRef.current) { clearTimeout(initTimerRef.current); initTimerRef.current = null; }
 		lastTsRef.current = performance.now();
 		rafRef.current = requestAnimationFrame(animate);
-		return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
+		return () => {
+			if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+			if (initTimerRef.current) { clearTimeout(initTimerRef.current); initTimerRef.current = null; }
+		};
 	}, [enabled, cards.length, animate]);
 
 	if (cards.length === 0) return null;
@@ -93,16 +121,18 @@ function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedba
 			<div ref={trackRef} className="flex gap-4 w-max will-change-transform py-2" onMouseEnter={() => { pausedRef.current = true; }} onMouseLeave={() => { pausedRef.current = false; }}>
 				{doubled.map((card, idx) => (
 					<div key={`${card._id}-${idx}`} className="w-64 flex-shrink-0 rounded-lg border border-border/50 bg-card/50 dark:bg-white/5 backdrop-blur-sm p-4 space-y-2 transition-transform hover:scale-[1.02] relative overflow-hidden cursor-pointer" onClick={() => onCardClick(card)}>
-						{/* Overlay untuk accepted/rejected */}
 						{card.type === 'saran' && card.suggestionStatus === 'accepted' && (
 							<div className="absolute inset-0 bg-green-500/15 flex items-center justify-center z-[1] pointer-events-none">
-								<span className="text-green-500 dark:text-green-400 text-2xl font-black uppercase tracking-widest rotate-[-12deg] opacity-60">Diterima</span>
+								<span className="text-green-600 dark:text-green-400 text-3xl font-black uppercase tracking-widest rotate-[-12deg] opacity-70 drop-shadow-sm">Diterima</span>
 							</div>
 						)}
 						{card.type === 'saran' && card.suggestionStatus === 'rejected' && (
-							<div className="absolute inset-0 bg-red-500/15 flex items-center justify-center z-[1] pointer-events-none">
-								<span className="text-red-500 dark:text-red-400 text-2xl font-black uppercase tracking-widest rotate-[-12deg] opacity-60">Ditolak</span>
-								<div className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(135deg, transparent 45%, rgba(239,68,68,0.15) 45%, rgba(239,68,68,0.15) 55%, transparent 55%)' }} />
+							<div className="absolute inset-0 bg-red-500/10 flex items-center justify-center z-[1] pointer-events-none">
+								<span className="text-red-600 dark:text-red-400 text-3xl font-black uppercase tracking-widest rotate-[-12deg] opacity-70 drop-shadow-sm">Ditolak</span>
+								<svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 100 100" preserveAspectRatio="none">
+									<line x1="0" y1="0" x2="100" y2="100" stroke="currentColor" strokeWidth="3" className="text-red-500" />
+									<line x1="100" y1="0" x2="0" y2="100" stroke="currentColor" strokeWidth="3" className="text-red-500" />
+								</svg>
 							</div>
 						)}
 						<div className="relative z-[2]">
@@ -116,6 +146,24 @@ function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedba
 							<p className="text-[11px] text-muted-foreground dark:text-slate-400 mt-1">— {card.isAnonymous ? 'Anonim' : card.senderName}</p>
 							{card.media && card.media.length > 0 && (
 								<p className="text-[10px] text-primary mt-1">{card.media.length} media</p>
+							)}
+							{card.reply && (
+								<>
+									<button
+										type="button"
+										onClick={(e) => { e.stopPropagation(); setExpandedReply(expandedReply === `${card._id}-${idx}` ? null : `${card._id}-${idx}`); }}
+										className="mt-1.5 flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors"
+									>
+										<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+										{expandedReply === `${card._id}-${idx}` ? 'Tutup Balasan' : 'Lihat Balasan'}
+									</button>
+									{expandedReply === `${card._id}-${idx}` && (
+										<div className="mt-1.5 p-2 rounded bg-muted/50 border-l-2 border-primary text-[11px]" onClick={(e) => e.stopPropagation()}>
+											<p className="text-muted-foreground mb-0.5">Dari <span className="font-medium text-foreground">{card.reply.adminName}</span></p>
+											<p className="text-foreground dark:text-slate-200 whitespace-pre-wrap line-clamp-4">{card.reply.message}</p>
+										</div>
+									)}
+								</>
 							)}
 						</div>
 					</div>
