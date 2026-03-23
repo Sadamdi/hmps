@@ -43,15 +43,6 @@ export function resolveSecret(slot: number): string | undefined {
 	return process.env[`GEMINI_API_KEY_${slot}`]?.trim() || undefined;
 }
 
-/** Map secret string -> slot (for one-time migration from legacy DB) */
-export function buildSecretToSlotMap(): Map<string, number> {
-	const map = new Map<string, number>();
-	for (const { slot, secret } of getConfiguredSlots()) {
-		map.set(secret, slot);
-	}
-	return map;
-}
-
 export interface ApiKeyUsageSlotRecord {
 	slot: number;
 	usageCount: number;

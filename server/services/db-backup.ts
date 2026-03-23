@@ -1,7 +1,10 @@
 /**
  * Backup & restore MongoDB: main DB <-> backup cluster (12 bulan rolling)
+ * Main memakai klien Mongoose yang sama; backup memakai singleton dari db/mongodb-backup.ts jika sudah connect saat startup.
  */
 import { MongoClient } from 'mongodb';
+import mongoose from 'mongoose';
+import { getBackupMongoClient } from '../../db/mongodb-backup';
 import { mongoStorage } from '../mongo-storage';
 
 const SKIP_COLLECTIONS = ['sessions', 'otpchallenges'];
@@ -87,16 +90,21 @@ export async function runMonthlyBackup(): Promise<{
 		return { success: true, snapshotKey: currentKey };
 	}
 
-	const mainUri = process.env.MONGODB_URI;
-	if (!mainUri) return { success: false, error: 'MONGODB_URI not defined' };
+	if (mongoose.connection.readyState !== 1) {
+		return { success: false, error: 'Main DB (Mongoose) belum terhubung' };
+	}
 
-	const mainClient = new MongoClient(mainUri);
-	const backupClient = new MongoClient(backupUri);
+	const mainClient = mongoose.connection.getClient();
+
+	let backupClient = getBackupMongoClient();
+	let closeBackup = false;
+	if (!backupClient) {
+		backupClient = new MongoClient(backupUri);
+		await backupClient.connect();
+		closeBackup = true;
+	}
 
 	try {
-		await mainClient.connect();
-		await backupClient.connect();
-
 		const mainDb = mainClient.db(mainDbName);
 		const backupDb = backupClient.db(snapshotDbName);
 
@@ -121,8 +129,10 @@ export async function runMonthlyBackup(): Promise<{
 		console.error('[db-backup] runMonthlyBackup error:', err?.message);
 		return { success: false, error: err?.message || 'Backup failed' };
 	} finally {
-		await mainClient.close();
-		await backupClient.close();
+		// Jangan tutup mainClient — itu klien Mongoose yang sama dengan app
+		if (closeBackup && backupClient) {
+			await backupClient.close().catch(() => {});
+		}
 	}
 }
 
@@ -148,9 +158,11 @@ export async function listAvailableBackups(): Promise<
 	const backupUri = process.env.MONGODB_URI_BACKUP;
 	if (!backupUri) return [];
 
-	const client = new MongoClient(backupUri);
+	const pooled = getBackupMongoClient();
+	const client = pooled ?? new MongoClient(backupUri);
+	const shouldClose = !pooled;
 	try {
-		await client.connect();
+		if (shouldClose) await client.connect();
 		const admin = client.db().admin();
 		const { databases } = await admin.listDatabases();
 		const backups = databases
@@ -171,7 +183,7 @@ export async function listAvailableBackups(): Promise<
 			return { key, label };
 		});
 	} finally {
-		await client.close();
+		if (shouldClose) await client.close().catch(() => {});
 	}
 }
 
@@ -188,13 +200,25 @@ export async function restoreFromSnapshot(snapshotKey: string): Promise<{
 	const mainDbName = getMainDbName();
 	const snapshotDbName = `${SNAPSHOT_PREFIX}${snapshotKey}`;
 
-	const mainClient = new MongoClient(mainUri);
-	const backupClient = new MongoClient(backupUri);
+	let mainClient: MongoClient;
+	let closeMain = false;
+	if (mongoose.connection.readyState === 1) {
+		mainClient = mongoose.connection.getClient();
+	} else {
+		mainClient = new MongoClient(mainUri);
+		await mainClient.connect();
+		closeMain = true;
+	}
+
+	let backupClient = getBackupMongoClient();
+	let closeBackup = false;
+	if (!backupClient) {
+		backupClient = new MongoClient(backupUri);
+		await backupClient.connect();
+		closeBackup = true;
+	}
 
 	try {
-		await mainClient.connect();
-		await backupClient.connect();
-
 		const mainDb = mainClient.db(mainDbName);
 		const snapshotDb = backupClient.db(snapshotDbName);
 
@@ -220,8 +244,9 @@ export async function restoreFromSnapshot(snapshotKey: string): Promise<{
 			// Recreate indexes (drop existing non-_id first)
 			const existingIndexes = await mainColl.indexes();
 			for (const idx of existingIndexes) {
-				if (idx.name !== '_id_') {
-					await mainColl.dropIndex(idx.name).catch(() => {});
+				const n = idx.name;
+				if (n && n !== '_id_') {
+					await mainColl.dropIndex(n).catch(() => {});
 				}
 			}
 			const snapshotIndexes = await snapshotColl.indexes();
@@ -246,8 +271,8 @@ export async function restoreFromSnapshot(snapshotKey: string): Promise<{
 		console.error('[db-backup] restoreFromSnapshot error:', err?.message);
 		return { success: false, error: err?.message || 'Restore failed' };
 	} finally {
-		await mainClient.close();
-		await backupClient.close();
+		if (closeMain) await mainClient.close().catch(() => {});
+		if (closeBackup && backupClient) await backupClient.close().catch(() => {});
 	}
 }
 

@@ -18,7 +18,6 @@ import {
 	type ApiKeyUsageSlotRecord,
 } from '../config/gemini-keys';
 import { ApiKeyUsage, Chat } from '../models/chat';
-import { migrateLegacyGeminiKeyDocuments } from './gemini-slot-migration';
 import { executeToolCall, getToolsForPermissions } from './ai-tools';
 
 type GeminiLoopSuccess = { ok: true; responseText: string; modelName: string };
@@ -448,8 +447,8 @@ export class ChatService {
 	}
 
 	/**
-	 * Buat baris `apikeyusages` per slot dari env (tanpa migrasi legacy).
-	 * Dipanggil otomatis hanya jika collection masih kosong (deploy baru).
+	 * Buat baris `apikeyusages` per slot dari env.
+	 * Dipanggil dari `ensureUsageSlotsExist` jika belum ada baris untuk slot yang dikonfigurasi.
 	 */
 	static async upsertGeminiUsageSlotsFromEnv(): Promise<void> {
 		const slots = getConfiguredSlots();
@@ -468,20 +467,16 @@ export class ChatService {
 		}
 	}
 
-	/**
-	 * Migrasi sekali jalan: key plaintext → slot + upsert counter.
-	 * Jalankan lewat `npm run migrate:gemini-slots` (bukan saat server start).
-	 */
-	static async runGeminiKeySlotMigration(): Promise<void> {
-		await migrateLegacyGeminiKeyDocuments();
-		await this.upsertGeminiUsageSlotsFromEnv();
-	}
-
-	/** Jika DB belum punya satupun dokumen usage, isi baris slot dari env (bukan migrasi legacy). */
+	/** Jika belum ada baris usage untuk slot yang dikonfigurasi di env, upsert. */
 	private static async ensureUsageSlotsExist(): Promise<void> {
 		const slots = getConfiguredSlots();
 		if (slots.length === 0) return;
-		if ((await ApiKeyUsage.estimatedDocumentCount()) > 0) return;
+		const configured = Array.from(new Set(slots.map((s) => s.slot)));
+
+		const validCount = await ApiKeyUsage.countDocuments({
+			slot: { $in: configured },
+		});
+		if (validCount > 0) return;
 		await this.upsertGeminiUsageSlotsFromEnv();
 	}
 

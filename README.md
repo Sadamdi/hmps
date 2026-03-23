@@ -197,6 +197,8 @@ npm run dev
 # Database
 MONGODB_URI=mongodb://localhost:27017/hmps
 DISABLE_MONGODB=false
+# Opsional: cluster backup untuk snapshot bulanan; jika diset, app juga connect + ping saat startup (bukan dual-write per request)
+# MONGODB_URI_BACKUP=mongodb+srv://...
 
 # Authentication
 JWT_SECRET=your-super-secret-jwt-key
@@ -222,8 +224,6 @@ GEMINI_API_KEY_2=...
 # GEMINI_KEY_COOLDOWN_MS=90000
 VITE_TINYMCE_API_KEY=your-tiny-api-key
 ```
-
-Saat server start, migrasi idempotent mengubah dokumen lama `apikeyusages` / `chats` yang masih menyimpan key plaintext menjadi slot numerik. Untuk menjalankan migrasi manual: `npm run migrate:gemini-slots`.
 
 ---
 

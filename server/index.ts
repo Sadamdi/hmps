@@ -5,6 +5,7 @@ import express, { NextFunction, type Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
 import { connectDB } from '../db/mongodb';
+import { connectBackupMongoIfConfigured } from '../db/mongodb-backup';
 import { registerRoutes } from './routes';
 import { ChatService } from './services/chat-service';
 import { log, serveStatic, setupVite } from './vite';
@@ -358,6 +359,9 @@ setInterval(
 		console.error('Error saat inisialisasi database:', error);
 		process.exit(1);
 	}
+
+	// Cluster backup (opsional): koneksi persisten + ping — dipakai job snapshot tanpa buka-tutup klien tiap kali
+	await connectBackupMongoIfConfigured();
 
 	// Run backup on startup if this month not yet backed up
 	runBackupIfNeeded().catch(() => {});

@@ -54,8 +54,6 @@ chatSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
 const apiKeyUsageSchema = new mongoose.Schema({
 	slot: {
 		type: Number,
-		required: true,
-		unique: true,
 		min: 1,
 	},
 	usageCount: {
@@ -71,6 +69,8 @@ const apiKeyUsageSchema = new mongoose.Schema({
 		default: null,
 	},
 });
+
+apiKeyUsageSchema.index({ slot: 1 }, { unique: true, sparse: true });
 
 export const Chat =
 	mongoose.models.Chat || mongoose.model('Chat', chatSchema);
