@@ -35,7 +35,7 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 - 👤 Login multi-role
 - 🛡️ Manajemen profil pengguna lengkap
 - 🔑 Sistem reset password terintegrasi
-- 🎫 JWT-based authentication dengan refresh token
+- 🎫 JWT-based authentication token dengan session tracking & revocation
 - 🚧 Role-based access control yang ketat
 
 ### 📊 **Dashboard Admin Real-time**
@@ -99,12 +99,14 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 ```javascript
 // Robust Express.js Backend
 ├── Express.js + TypeScript
-├── MongoDB - Primary Database
-├── Drizzle ORM - Type-safe Database
-├── JWT - Authentication & Authorization
+├── MongoDB + Mongoose (ODM) - Primary Database
+├── JWT (cookie) + session tracking (`sid`) - Authentication & Authorization
 ├── Multer - File Upload Handling
-├── Bcrypt - Password Hashing
+├── bcryptjs - Password Hashing
+├── Nodemailer + OTP - Forgot/Reset Password Flow
+├── Helmet/HPP + anti-spoofing + anti-injection - Security Middleware
 ├── Rate Limiting - API Protection
+├── Google Drive integration (api/gdrive) - Media sources
 └── ESBuild - Fast Production Build
 ```
 
@@ -112,11 +114,11 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 ```javascript
 // Scalable Database Design
 ├── MongoDB - Document Database
-├── Schema Validation - Data Integrity
-├── Indexing - Performance Optimization
-├── Backup Strategy - Data Safety
-├── Data Encryption - Security
-└── Real-time Sync - Live Updates
+├── Mongoose Schemas - Struktur & validasi data
+├── Indexes untuk query (contoh: `slug`)
+├── Snapshot backup bulanan (cluster backup)
+├── Rollback/Restore via OTP (backup restore)
+└── Scheduled job (cron) untuk sync & maintenance
 ```
 
 ---
@@ -137,26 +139,29 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 │   │   ├── 🎯 utils/            # Helper Functions
 │   │   └── 📊 main.tsx          # App Entry Point
 ├── ⚙️ server/                    # Backend Express Application
+│   ├── ⚡ index.ts              # Server Entry Point
 │   ├── 🎮 routes.ts             # API Routes Definition
-│   ├── 🔐 auth.ts               # Authentication Logic
-│   ├── 📊 models/               # Database Models
-│   ├── 🛡️ middleware/           # Custom Middleware
-│   ├── 🔧 services/             # Business Logic
-│   └── ⚡ index.ts              # Server Entry Point
-├── 🗄️ db/                       # Database Configuration
-│   ├── 📋 schema.ts             # Database Schema
-│   ├── 🔗 mongodb.ts            # MongoDB Connection
-│   └── 🌱 seed.ts               # Database Seeding
+│   ├── 🔐 auth.ts               # Authentication + session logic
+│   ├── 🛡️ security.ts          # Helmet/HPP + validation + sanitization
+│   ├── 🧠 mongo-storage.ts      # Data access layer (storage)
+│   ├── 🧑‍💻 services/          # Business logic (backup, OTP, sync, chat, etc.)
+│   ├── 🛠️ middleware/          # Custom security middleware
+│   ├── 🌐 routes/              # Modular routes (chat/comments/feedback/sharing)
+│   ├── 🧾 upload.ts            # Upload handlers + image processing
+│   ├── 📦 models/             # Mongo-related models/schemas
+│   └── ⚙️ config/             # External service configs (Gemini keys)
+├── 🗄️ db/                       # Database & seeding
+│   ├── 🔗 mongodb.ts            # Mongoose connection + schema models
+│   ├── 🧾 mongodb-backup.ts    # Backup cluster client (snapshot job)
+│   └── 🌱 mongo-seed.ts        # Seed script (contoh: akun default)
 ├── 🤝 shared/                   # Shared Code (Frontend + Backend)
 │   ├── 📝 schema.ts             # Shared Type Definitions
-│   └── 🛠️ utils/               # Shared Utilities
-├── 🌐 public/                   # Static Assets
-├── 📁 attached_assets/          # User Uploaded Files
-│   ├── 📰 berita/             # Berita Images
-│   ├── 🏢 organization/        # Organization Assets
-│   ├── 📚 content/             # Content Images
-│   └── 🖼️ general/            # General Media
-└── 📜 scripts/                  # Utility Scripts
+│   ├── 🛠️ utils.ts             # Shared Utilities
+│   └── 📎 mediaUtils.ts        # Shared media helpers
+├── 🌐 public/                   # Static assets (SEO files, favicon, etc.)
+├── 📁 attached_assets/          # Asset yang dipakai di frontend
+└── 📦 uploads/                 # Upload hasil proses (image/video)
+└── 📜 scripts/                  # Utility scripts (SEO/sitemap)
 ```
 
 ---
@@ -181,11 +186,11 @@ cd hmps
 npm install
 
 # 3️⃣ Setup environment variables
-cp .env.example .env
-# Edit .env dengan konfigurasi Anda
+# Buat file `.env` di root project (lihat bagian `🌍 Environment Variables` di bawah)
+# Edit `.env` dengan konfigurasi Anda
 
 # 4️⃣ Setup database
-npm run db:seed
+npx tsx db/mongo-seed.ts
 
 # 5️⃣ Start development server
 npm run dev
@@ -197,33 +202,37 @@ npm run dev
 # Database
 MONGODB_URI=mongodb://localhost:27017/hmps
 DISABLE_MONGODB=false
-# Opsional: cluster backup untuk snapshot bulanan; jika diset, app juga connect + ping saat startup (bukan dual-write per request)
-# Snapshot per bulan (nama DB: himatifwebmain_backup_YYYY_MM): jika belum ada di cluster backup, backup jalan otomatis (mis. saat startup); jika sudah ada, dilewati sampai bulan berikutnya (cron tanggal 1 jam 02:00).
-# MONGODB_URI_BACKUP=mongodb+srv://...
 
-# Authentication
+# Opsional: cluster backup untuk snapshot bulanan
+# Jika diset, aplikasi akan connect + ping saat startup untuk job snapshot
+MONGODB_URI_BACKUP=mongodb+srv://...
+
+# Authentication (JWT)
 JWT_SECRET=your-super-secret-jwt-key
-JWT_REFRESH_SECRET=your-refresh-secret-key
+JWT_EXPIRY=24h
 
-# File Upload
-UPLOAD_PATH=./uploads
-MAX_FILE_SIZE=10485760
+# OTP / Email (forgot password, change password/email, dan restore backup)
+EMAIL=your-email@gmail.com
+EMAIL_PW=your-email-password/app-password
 
-# API Configuration
-PORT=5000
-NODE_ENV=development
+# Guest comment/feedback (untuk header `x-guest-key`)
+# default: hmps-comment-pepper
+GUEST_KEY_PEPPER=hmps-comment-pepper
 
-# External Services
-GOOGLE_DRIVE_API_KEY=your-gdrive-api-key
-# Gemini (Spyro AI)
-# Tambahkan GEMINI_API_KEY_1 … GEMINI_API_KEY_N sesuai kebutuhan (mis. sampai 11).
-# Batas indeks tertinggi yang dipindai (default 100; naikkan jika perlu sampai 1000)
-# GEMINI_MAX_KEY_SLOTS=100
+# Gemini (chat di fitur /api/chat)
+# Tambahkan GEMINI_API_KEY_1 … GEMINI_API_KEY_N sesuai kebutuhan.
 GEMINI_API_KEY_1=...
 GEMINI_API_KEY_2=...
+# Opsional: batas indeks slot yang discan (default 100; bisa sampai 1000)
+GEMINI_MAX_KEY_SLOTS=100
 # Opsional: cooldown ms setelah quota/rate limit per slot (default 90000)
-# GEMINI_KEY_COOLDOWN_MS=90000
+GEMINI_KEY_COOLDOWN_MS=90000
+
+# TinyMCE (editor berita)
 VITE_TINYMCE_API_KEY=your-tiny-api-key
+
+# Opsional (dipakai untuk environment check di beberapa tempat)
+NODE_ENV=development
 ```
 
 ---
@@ -236,7 +245,11 @@ VITE_TINYMCE_API_KEY=your-tiny-api-key
 | `npm run build` | 📦 Build for production | Production |
 | `npm start` | ▶️ Start production server | Production |
 | `npm run check` | 🔍 TypeScript type checking | Development |
-| `npm run db:seed` | 🌱 Seed database with sample data | Setup |
+| `npm run generate-sitemap` | 🗺️ Generate sitemap (file) | SEO |
+| `npm run generate-favicon` | 🧷 Generate favicon assets | SEO |
+| `npm run deploy-seo` | 🚀 Deploy SEO assets | SEO |
+ 
+🌱 Seed database (akun default, kalau koleksi masih kosong): `npx tsx db/mongo-seed.ts`
 ---
 
 ## 🔐 Security Features
@@ -245,16 +258,215 @@ VITE_TINYMCE_API_KEY=your-tiny-api-key
 
 | Feature | Implementation | Status |
 |---------|---------------|--------|
-| 🔐 **JWT Authentication** | Access + Refresh Tokens | ✅ Active |
-| 🛡️ **Password Security** | Bcrypt Hashing (Salt: 12) | ✅ Active |
-| 🚧 **CORS Protection** | Configurable Origins | ✅ Active |
-| ⏰ **Rate Limiting** | IP-based Throttling | ✅ Active |
-| ✅ **Input Validation** | Zod Schema Validation | ✅ Active |
-| 🛡️ **XSS Protection** | Content Security Policy | ✅ Active |
-| 🔒 **File Upload Security** | Type & Size Validation | ✅ Active |
-| 📝 **Audit Logging** | Activity Tracking | ✅ Active |
+| 🔐 **Authentication (JWT)** | JWT di cookie `authToken` + session check (`sid`) + revocation via `tokenVersion` | ✅ Active |
+| 🛡️ **Password Security** | bcryptjs hash (salt rounds: 10) | ✅ Active |
+| ⛑️ **Security Middleware** | `helmet`/`hpp` + anti-spoofing + anti-DDoS + DNS layer protection | ✅ Active |
+| ⏰ **Rate Limiting** | express-rate-limit + limiter khusus (login/upload/OTP) | ✅ Active |
+| ✅ **Input Validation** | Zod schema validation (`validateInput`) | ✅ Active |
+| 🧼 **Sanitization (anti-XSS sederhana)** | `sanitizeInput` (strip script/javascript handler) | ✅ Active |
+| 🔒 **File Upload Security** | allowed mimetype + max 100MB + proses gambar (WebP) | ✅ Active |
+| 📝 **Audit Logging** | `securityLogger` + aktivitas dashboard | ✅ Active |
 
 </div>
+
+---
+
+## 📡 Dokumentasi API
+
+Berikut daftar endpoint yang tersedia (method + path). Beberapa fitur butuh autentikasi/permission, dan beberapa fitur publik memakai header `x-guest-key`.
+
+### 🔐 Authentication
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `POST /api/auth/revoke-all-sessions`
+- `GET /api/auth/me`
+- `GET /api/auth/sessions`
+- `POST /api/auth/sessions/revoke`
+- `PUT /api/auth/profile`
+- `POST /api/auth/change-password`
+- `POST /api/auth/change-password/request-otp`
+- `POST /api/auth/change-password/confirm`
+- `POST /api/auth/forgot-password/request-otp`
+- `POST /api/auth/forgot-password/verify-otp`
+- `POST /api/auth/forgot-password/confirm`
+- `POST /api/auth/change-email/request-otp`
+- `POST /api/auth/change-email/confirm`
+- `GET /api/auth/permissions`
+- `POST /api/auth/refresh-permissions`
+
+### 👤 Users
+- `GET /api/users`
+- `POST /api/users`
+- `PUT /api/users/:id`
+- `DELETE /api/users/:id`
+- `POST /api/users/:id/password`
+- `POST /api/users/:id/email`
+- `PUT /api/users/:id/role`
+
+### 📰 Berita
+- `GET /api/berita`
+- `GET /api/berita/:id`
+- `GET /api/berita/:id/:slug`
+- `GET /api/berita/slug/:slug`
+- `GET /api/berita/:id/events`
+- `GET /api/berita/:id/related`
+- `GET /api/berita/slug/:slug/related`
+- `GET /api/berita/manage`
+- `POST /api/berita`
+- `PUT /api/berita/:id`
+- `DELETE /api/berita/:id`
+- `POST /api/berita/:id/copy-to-event`
+- `POST /api/berita/:id/attach-event`
+- `DELETE /api/berita/:id/attach-event/:eventId`
+
+### 🗃️ Library
+- `GET /api/library`
+- `GET /api/library/:id`
+- `GET /api/library/manage`
+- `POST /api/library`
+- `PUT /api/library/:id`
+- `DELETE /api/library/:id`
+
+### 🏢 Organization
+- `GET /api/organization/periods`
+- `POST /api/organization/periods`
+- `DELETE /api/organization/periods/:period`
+- `GET /api/organization/positions`
+- `GET /api/organization/positions/:period`
+- `POST /api/organization/positions`
+- `POST /api/organization/positions/copy`
+- `DELETE /api/organization/positions/:period`
+- `GET /api/organization/members`
+- `GET /api/organization/members/:id`
+- `POST /api/organization/members`
+- `PUT /api/organization/members/:id`
+- `DELETE /api/organization/members/:id`
+
+### ⚙️ Settings
+- `GET /api/settings`
+- `PUT /api/settings`
+- `PUT /api/settings/home-config`
+- `POST /api/settings/reset`
+
+### 👨‍🎓 Prodi
+- `GET /api/prodi`
+- `GET /api/prodi/manage`
+- `PUT /api/prodi/manage`
+- `POST /api/prodi/upload/photo/member`
+- `POST /api/prodi/upload/photo/lab`
+- `POST /api/prodi/upload/photo/org-structure`
+- `POST /api/prodi/sync/run`
+
+### 🗂️ Backups
+- `GET /api/backups/monthly`
+- `POST /api/backups/restore/request-otp`
+- `POST /api/backups/restore/confirm`
+
+### 🏠 Home Images
+- `GET /api/home-images/active`
+- `GET /api/home-images`
+- `POST /api/home-images`
+- `PUT /api/home-images/:year`
+- `DELETE /api/home-images/:year`
+- `POST /api/home-images/:year/set-active`
+- `POST /api/home-images/:year/copy`
+- `POST /api/home-images/:year/upload/:slot`
+- `DELETE /api/home-images/:year/slot/:slot`
+
+### 🧩 Settings Middleware
+- `GET /api/settings/middleware`
+- `PUT /api/settings/middleware`
+
+### 🔑 Roles & Permissions
+- `GET /api/roles`
+- `GET /api/roles/levels`
+- `GET /api/roles/assignable`
+- `POST /api/roles`
+- `POST /api/roles/create-with-shift`
+- `PUT /api/roles/:id`
+- `DELETE /api/roles/:id`
+- `GET /api/permissions`
+- `POST /api/permissions`
+- `POST /api/admin/permissions/recompute-owner`
+
+### 📚 Divisions
+- `GET /api/divisions`
+- `GET /api/divisions/available-positions`
+- `POST /api/divisions`
+- `PUT /api/divisions/:id`
+- `DELETE /api/divisions/:id`
+
+### 🗓️ Events
+- `GET /api/event-years`
+- `POST /api/event-years`
+- `DELETE /api/event-years/:id`
+- `GET /api/events/published`
+- `GET /api/events/active-home`
+- `GET /api/events/by-year/:year`
+- `GET /api/events`
+- `GET /api/events/:id`
+- `POST /api/events`
+- `DELETE /api/events/:id`
+- `POST /api/events/:id/copy-to-berita`
+- `POST /api/events/:id/attach-berita`
+- `DELETE /api/events/:id/attach-berita/:beritaId`
+
+### 🧾 Dashboard & Stats
+- `GET /api/stats`
+- `GET /api/dashboard/stats`
+- `GET /api/dashboard/activities`
+- `POST /api/dashboard/log-activity`
+
+### 📦 Upload & Media
+- `POST /api/upload/content-image`
+- `POST /api/upload/filosofi`
+- `POST /api/upload`
+- `POST /api/gdrive/check-access`
+- `POST /api/gdrive/media-url`
+- `POST /api/gdrive/folder-contents`
+- `GET /api/test/protection`
+
+### 💬 Chat (Gemini)
+- `GET /api/chat/all`
+- `POST /api/chat/new`
+- `DELETE /api/chat/:id`
+- `GET /api/chat/:id/messages`
+- `GET /api/chat/history`
+- `POST /api/chat/message`
+- `DELETE /api/chat`
+
+### 💬 Komentar
+- `GET /api/comments`
+- `GET /api/comments/count`
+- `POST /api/comments`
+- `PATCH /api/comments/:id`
+- `DELETE /api/comments/:id`
+
+### 📨 Feedback
+- `POST /api/feedback`
+- `GET /api/feedback/public`
+- `GET /api/feedback/ratings`
+- `PATCH /api/feedback/own/:id`
+- `DELETE /api/feedback/own/:id`
+- `GET /api/feedback/manage`
+- `GET /api/feedback/manage/ratings`
+- `PATCH /api/feedback/manage/:id/visibility`
+- `POST /api/feedback/manage/:id/reply`
+- `POST /api/feedback/manage/:id/decision`
+- `PATCH /api/feedback/manage/:id`
+- `DELETE /api/feedback/manage/:id`
+
+### 🤝 Sharing
+- `POST /api/sharing/:entityType/:entityId/invite`
+- `POST /api/sharing/:entityType/:entityId/request`
+- `POST /api/sharing/decision/:sharingId`
+- `DELETE /api/sharing/:entityType/:entityId/access/:userId`
+- `GET /api/sharing/my-summary`
+- `GET /api/sharing/notifications`
+- `POST /api/sharing/notifications/read`
+- `GET /api/sharing/users/search`
+- `GET /api/sharing/:entityType/:entityId`
+- `GET /api/sharing/requestable`
 
 ---
 
@@ -311,9 +523,10 @@ Project ini menggunakan komponen dari **Radix UI** yang telah di-styling dengan 
 
 - ⚡ **Fast Loading**: Optimized bundle dengan code splitting
 - 📱 **Mobile Optimized**: Responsive design untuk semua device
-- 🔄 **Real-time Updates**: WebSocket integration untuk live data
 - 💾 **Smart Caching**: React Query untuk efficient data fetching
-- 📈 **Performance Monitoring**: Built-in performance tracking
+- 🗺️ **SEO & Sitemap**: sitemap dinamis + injeksi meta/canonical saat production
+- 🧹 **Maintenance Scheduler**: cleanup gambar/chat + cleanup data protection terjadwal
+- 📈 **Monitoring (admin)**: aktivitas terbaru via endpoint dashboard + log security/error
 
 ---
 
