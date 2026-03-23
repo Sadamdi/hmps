@@ -1,4 +1,5 @@
 import BeritaEditor from '@/components/dashboard/berita-editor';
+import CommentPanel from '@/components/dashboard/comment-panel';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import SharingPanel from '@/components/dashboard/sharing-panel';
 import { Button } from '@/components/ui/button';
@@ -462,6 +463,9 @@ export default function DashboardBerita() {
 													)}
 												</div>
 											</div>
+											{hasSpecificPermission('comments.manage') && (
+												<CommentPanel targetType="berita" targetId={item._id} />
+											)}
 										</CardContent>
 									</div>
 								</Card>

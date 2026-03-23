@@ -29,6 +29,7 @@ import {
 } from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage'; // Use mongoStorage instead of storage
 import chatRouter from './routes/chat';
+import commentRouter from './routes/comments';
 import sharingRouter, { expirePendingShares } from './routes/sharing';
 import { PostSharing } from '../db/mongodb';
 import {
@@ -4271,6 +4272,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	app.use('/api/chat', chatRouter);
+	app.use('/api/comments', commentRouter);
 	app.use('/api/sharing', sharingRouter);
 
 	// SPA Routing - Handle all frontend routes

@@ -946,6 +946,25 @@ prodiContentSchema.pre('save', async function (next) {
 	next();
 });
 
+// Model Comment — komentar publik pada berita/event/library dengan reply bertingkat
+const commentSchema = new mongoose.Schema(
+	{
+		targetType: { type: String, enum: ['berita', 'library', 'event'], required: true },
+		targetId: { type: mongoose.Schema.Types.ObjectId, required: true },
+		parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comment', default: null },
+		userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		guestKeyHash: { type: String, default: null },
+		displayName: { type: String, required: true },
+		isAnonymous: { type: Boolean, default: false },
+		body: { type: String, required: true },
+		editedAt: { type: Date, default: null },
+	},
+	{ timestamps: true },
+);
+
+commentSchema.index({ targetType: 1, targetId: 1, createdAt: 1 });
+commentSchema.index({ parentId: 1 });
+
 // Create models
 const EventYear =
 	mongoose.models.EventYear || mongoose.model('EventYear', eventYearSchema);
@@ -976,6 +995,8 @@ const UserNotification =
 	mongoose.models.UserNotification || mongoose.model('UserNotification', userNotificationSchema);
 const ProdiContent =
 	mongoose.models.ProdiContent || mongoose.model('ProdiContent', prodiContentSchema);
+const Comment =
+	mongoose.models.Comment || mongoose.model('Comment', commentSchema);
 
 // Create Position model
 export const Position =
@@ -987,6 +1008,7 @@ export const Division =
 
 export {
 	Berita,
+	Comment,
 	Event,
 	EventYear,
 	HomeImages,

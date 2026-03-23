@@ -262,6 +262,25 @@ export type EventRelatedArticle = EventRelatedBerita;
 
 export type EventStatus = 'ongoing' | 'soon' | 'expired';
 
+// Comment Types
+export type CommentTargetType = 'berita' | 'library' | 'event';
+
+export interface CommentItem {
+	_id: string;
+	targetType: CommentTargetType;
+	targetId: string;
+	parentId: string | null;
+	userId: string | null;
+	displayName: string;
+	isAnonymous: boolean;
+	body: string;
+	editedAt: Date | null;
+	createdAt: Date;
+	updatedAt: Date;
+	isOwn?: boolean;
+	replies?: CommentItem[];
+}
+
 // Insert/Update Types (for API operations)
 export type InsertUser = Omit<UserWithRole, '_id' | 'createdAt' | 'updatedAt'>;
 export type UpdateUser = Partial<Omit<UserWithRole, '_id' | 'createdAt' | 'updatedAt'>>;

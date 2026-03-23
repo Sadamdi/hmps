@@ -1899,6 +1899,14 @@ async function initializeDefaultPermissions() {
 			description: 'Membuat/menghapus tahun event dan mengatur tahun yang tampil di Home',
 			category: 'events',
 		},
+
+		// Comment moderation permissions
+		{
+			name: 'comments.manage',
+			displayName: 'Manage Comments',
+			description: 'Menghapus komentar publik di berita, event, dan galeri',
+			category: 'comments',
+		},
 	];
 
 		// Upsert: tambahkan permission yang belum ada (tidak hapus yang sudah ada)

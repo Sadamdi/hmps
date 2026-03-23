@@ -1,4 +1,5 @@
 import AIChat from '@/components/public/ai-chat';
+import CommentThread from '@/components/public/comment-thread';
 import {
 	formatEventDate,
 	getEventStatus,
@@ -225,6 +226,11 @@ export default function EventDetailPage() {
 									</div>
 								</div>
 							)}
+							{/* Komentar */}
+							<CommentThread
+								targetType="event"
+								targetId={event._id}
+							/>
 						</article>
 					) : null}
 				</div>

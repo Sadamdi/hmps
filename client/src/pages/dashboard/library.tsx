@@ -1,3 +1,4 @@
+import CommentPanel from '@/components/dashboard/comment-panel';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import MediaUploader from '@/components/dashboard/media-uploader';
 import SharingPanel from '@/components/dashboard/sharing-panel';
@@ -449,6 +450,9 @@ export default function DashboardLibrary() {
 										{item.date} · {item.time}
 									</div>
 								</div>
+								{hasSpecificPermission('comments.manage') && (
+									<CommentPanel targetType="library" targetId={item._id || String(item.id)} />
+								)}
 							</CardContent>
 						</Card>
 					))}

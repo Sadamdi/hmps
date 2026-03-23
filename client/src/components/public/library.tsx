@@ -1,3 +1,4 @@
+import CommentThread from '@/components/public/comment-thread';
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
@@ -431,6 +432,12 @@ export default function Library() {
 												<div className="prose max-w-none">
 													{item.fullDescription}
 												</div>
+
+												<CommentThread
+													targetType="library"
+													targetId={item._id || String(item.id)}
+													compact
+												/>
 											</DialogContent>
 										</Dialog>
 									</div>

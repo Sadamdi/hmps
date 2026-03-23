@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import AIChat from '@/components/public/ai-chat';
+import CommentThread from '@/components/public/comment-thread';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import { apiRequest } from '@/lib/queryClient';
@@ -534,6 +535,14 @@ export default function BeritaDetail() {
 								<div className="text-muted-foreground text-sm">Belum ada Berita Terkait.</div>
 							)}
 						</div>
+
+						{/* Komentar */}
+						{(berita._id || berita.id) && (
+							<CommentThread
+								targetType="berita"
+								targetId={(berita._id || String(berita.id))!}
+							/>
+						)}
 
 						{/* Back button */}
 						<div className="mt-8 text-center" data-aos="fade-up" data-aos-delay="400">
