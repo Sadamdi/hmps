@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { getOrCreateGuestSecret } from '@/lib/guest-identity';
 import { queryClient } from '@/lib/queryClient';
 import type { FeedbackMedia } from '@shared/schema';
@@ -55,72 +56,175 @@ function StarInput({ value, onChange }: { value: number; onChange: (v: number) =
 }
 
 const SCROLL_SPEED = 40;
-const INTRO_DELAY_MS = 800;
+const INTRO_DELAY_MS = 600;
+const EASING_K = 3;
+const SPEED_EPSILON = 0.15;
+const CARD_WIDTH_PX = 272;
+const DRAG_THRESHOLD_PX = 5;
+
+function wrapOffset(raw: number, partWidth: number): number {
+	if (partWidth <= 0) return 0;
+	return ((raw % partWidth) + partWidth) % partWidth;
+}
 
 function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedbackCard[]; enabled: boolean; onCardClick: (c: PublicFeedbackCard) => void }) {
+	const outerRef = useRef<HTMLDivElement>(null);
 	const trackRef = useRef<HTMLDivElement>(null);
 	const offsetRef = useRef(0);
+	const speedRef = useRef(0);
 	const rafRef = useRef<number | null>(null);
 	const lastTsRef = useRef(0);
 	const pausedRef = useRef(false);
-	const initDoneRef = useRef(false);
-	const initTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const isDraggingRef = useRef(false);
+	const pointerDownRef = useRef(false);
+	const dragStartXRef = useRef(0);
+	const dragStartOffsetRef = useRef(0);
+	const dragPointerIdRef = useRef<number | null>(null);
+	const dragTargetRef = useRef<HTMLElement | null>(null);
+	const didDragRef = useRef(false);
+	const [isDragging, setIsDragging] = useState(false);
 	const [expandedReply, setExpandedReply] = useState<string | null>(null);
+	const [outerWidth, setOuterWidth] = useState(1200);
 
 	useEffect(() => {
-		offsetRef.current = 0;
-		initDoneRef.current = false;
-		if (trackRef.current) trackRef.current.style.transform = 'translate3d(0, 0, 0)';
-	}, [cards.length]);
+		const el = outerRef.current;
+		if (!el) return;
+		setOuterWidth(el.clientWidth);
+		const ro = new ResizeObserver((entries) => {
+			for (const entry of entries) setOuterWidth(entry.contentRect.width);
+		});
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
 
-	const animate = useCallback((now: number) => {
-		if (!trackRef.current || !enabled) return;
-		const dt = Math.min((now - lastTsRef.current) / 1000, 0.1);
-		lastTsRef.current = now;
-
-		const halfWidth = trackRef.current.scrollWidth / 2;
-		if (halfWidth <= 0) { rafRef.current = requestAnimationFrame(animate); return; }
-
-		if (!initDoneRef.current) {
-			if (!initTimerRef.current) {
-				initTimerRef.current = setTimeout(() => { initDoneRef.current = true; }, INTRO_DELAY_MS);
-			}
-			trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
-			rafRef.current = requestAnimationFrame(animate);
-			return;
+	const baseCards = useMemo(() => {
+		if (cards.length === 0) return [];
+		const minWidth = outerWidth * 2 + CARD_WIDTH_PX;
+		const result: PublicFeedbackCard[] = [];
+		while (result.length * CARD_WIDTH_PX < minWidth) {
+			for (const c of cards) result.push(c);
 		}
+		return result;
+	}, [cards, outerWidth]);
 
-		if (!pausedRef.current) {
-			offsetRef.current += SCROLL_SPEED * dt;
-			if (offsetRef.current >= halfWidth) offsetRef.current -= halfWidth;
-		}
-		trackRef.current.style.transform = `translate3d(${-offsetRef.current}px, 0, 0)`;
-		rafRef.current = requestAnimationFrame(animate);
-	}, [enabled]);
+	const trackCards = useMemo(() => [...baseCards, ...baseCards], [baseCards]);
 
 	useEffect(() => {
-		if (!enabled || cards.length === 0) return;
+		const track = trackRef.current;
+		if (!track || !enabled || cards.length === 0) return;
+
 		offsetRef.current = 0;
-		initDoneRef.current = false;
-		if (initTimerRef.current) { clearTimeout(initTimerRef.current); initTimerRef.current = null; }
+		speedRef.current = 0;
+		track.style.transform = 'translate3d(0, 0, 0)';
 		lastTsRef.current = performance.now();
-		rafRef.current = requestAnimationFrame(animate);
+
+		let initDone = false;
+		let initTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => { initDone = true; }, INTRO_DELAY_MS);
+
+		const step = (now: number) => {
+			const dt = Math.min((now - lastTsRef.current) / 1000, 0.1);
+			lastTsRef.current = now;
+
+			const partWidth = track.scrollWidth / 2;
+			if (partWidth <= 0) { rafRef.current = requestAnimationFrame(step); return; }
+
+			if (!initDone) {
+				const wrapped = wrapOffset(offsetRef.current, partWidth);
+				track.style.transform = `translate3d(${-wrapped}px, 0, 0)`;
+				rafRef.current = requestAnimationFrame(step);
+				return;
+			}
+
+			const targetSpeed = (pausedRef.current || isDraggingRef.current) ? 0 : SCROLL_SPEED;
+			speedRef.current += (targetSpeed - speedRef.current) * (1 - Math.exp(-EASING_K * dt));
+			if (Math.abs(speedRef.current) < SPEED_EPSILON && targetSpeed === 0) speedRef.current = 0;
+
+			offsetRef.current += speedRef.current * dt;
+			const wrapped = wrapOffset(offsetRef.current, partWidth);
+			track.style.transform = `translate3d(${-wrapped}px, 0, 0)`;
+			rafRef.current = requestAnimationFrame(step);
+		};
+
+		rafRef.current = requestAnimationFrame(step);
 		return () => {
 			if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-			if (initTimerRef.current) { clearTimeout(initTimerRef.current); initTimerRef.current = null; }
+			if (initTimer) clearTimeout(initTimer);
 		};
-	}, [enabled, cards.length, animate]);
+	}, [enabled, cards.length, baseCards.length]);
+
+	// ── Drag handlers (threshold-based so click tetap aman) ────────
+	const handlePointerDown = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+		if ((e.target as HTMLElement)?.closest?.('button, a')) return;
+		pointerDownRef.current = true;
+		isDraggingRef.current = false;
+		didDragRef.current = false;
+		dragStartXRef.current = e.clientX;
+		dragStartOffsetRef.current = offsetRef.current;
+		dragPointerIdRef.current = e.pointerId;
+		dragTargetRef.current = e.currentTarget as HTMLElement;
+	}, []);
+
+	const handlePointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+		if (!pointerDownRef.current) return;
+		const dx = e.clientX - dragStartXRef.current;
+		if (!isDraggingRef.current) {
+			if (Math.abs(dx) < DRAG_THRESHOLD_PX) return;
+			isDraggingRef.current = true;
+			setIsDragging(true);
+			if (dragTargetRef.current && dragPointerIdRef.current !== null) {
+				try { dragTargetRef.current.setPointerCapture(dragPointerIdRef.current); } catch {}
+			}
+		}
+		e.preventDefault();
+
+		const track = trackRef.current;
+		if (!track) return;
+		offsetRef.current = dragStartOffsetRef.current - dx;
+		const partWidth = track.scrollWidth / 2;
+		const wrapped = wrapOffset(offsetRef.current, partWidth);
+		track.style.transform = `translate3d(${-wrapped}px, 0, 0)`;
+		didDragRef.current = true;
+	}, []);
+
+	const handlePointerUp = useCallback(() => {
+		pointerDownRef.current = false;
+		if (isDraggingRef.current) {
+			isDraggingRef.current = false;
+			setIsDragging(false);
+		}
+		dragPointerIdRef.current = null;
+		dragTargetRef.current = null;
+	}, []);
 
 	if (cards.length === 0) return null;
-	const doubled = [...cards, ...cards];
 
 	return (
-		<div className="overflow-hidden relative">
+		<div
+			ref={outerRef}
+			className="overflow-hidden relative select-none touch-pan-y"
+			style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
+			onPointerDown={handlePointerDown}
+			onPointerMove={handlePointerMove}
+			onPointerUp={handlePointerUp}
+			onPointerCancel={handlePointerUp}
+			onPointerLeave={handlePointerUp}
+		>
 			<div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-background dark:from-[#050b1c] to-transparent z-10 pointer-events-none" />
 			<div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background dark:from-[#050b1c] to-transparent z-10 pointer-events-none" />
 			<div ref={trackRef} className="flex gap-4 w-max will-change-transform py-2" onMouseEnter={() => { pausedRef.current = true; }} onMouseLeave={() => { pausedRef.current = false; }}>
-				{doubled.map((card, idx) => (
-					<div key={`${card._id}-${idx}`} className="w-64 flex-shrink-0 rounded-lg border border-border/50 bg-card/50 dark:bg-white/5 backdrop-blur-sm p-4 space-y-2 transition-transform hover:scale-[1.02] relative overflow-hidden cursor-pointer" onClick={() => onCardClick(card)}>
+				{trackCards.map((card, idx) => (
+					<div
+						key={`fb-${idx}`}
+						className="w-64 flex-shrink-0 rounded-lg border border-border/50 bg-card/50 dark:bg-white/5 backdrop-blur-sm p-4 space-y-2 transition-transform hover:scale-[1.02] relative overflow-hidden cursor-pointer"
+						onClick={() => {
+							// Kalau user tadi drag, jangan buka modal (click event bisa tetap terpanggil).
+							if (didDragRef.current) {
+								didDragRef.current = false;
+								return;
+							}
+							onCardClick(card);
+						}}
+					>
 						{card.type === 'saran' && card.suggestionStatus === 'accepted' && (
 							<div className="absolute inset-0 bg-green-500/15 flex items-center justify-center z-[1] pointer-events-none">
 								<span className="text-green-600 dark:text-green-400 text-3xl font-black uppercase tracking-widest rotate-[-12deg] opacity-70 drop-shadow-sm">Diterima</span>
@@ -151,13 +255,13 @@ function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedba
 								<>
 									<button
 										type="button"
-										onClick={(e) => { e.stopPropagation(); setExpandedReply(expandedReply === `${card._id}-${idx}` ? null : `${card._id}-${idx}`); }}
+										onClick={(e) => { e.stopPropagation(); setExpandedReply(expandedReply === `fb-${idx}` ? null : `fb-${idx}`); }}
 										className="mt-1.5 flex items-center gap-1 text-[10px] text-primary hover:text-primary/80 transition-colors"
 									>
 										<svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-										{expandedReply === `${card._id}-${idx}` ? 'Tutup Balasan' : 'Lihat Balasan'}
+										{expandedReply === `fb-${idx}` ? 'Tutup Balasan' : 'Lihat Balasan'}
 									</button>
-									{expandedReply === `${card._id}-${idx}` && (
+									{expandedReply === `fb-${idx}` && (
 										<div className="mt-1.5 p-2 rounded bg-muted/50 border-l-2 border-primary text-[11px]" onClick={(e) => e.stopPropagation()}>
 											<p className="text-muted-foreground mb-0.5">Dari <span className="font-medium text-foreground">{card.reply.adminName}</span></p>
 											<p className="text-foreground dark:text-slate-200 whitespace-pre-wrap line-clamp-4">{card.reply.message}</p>
