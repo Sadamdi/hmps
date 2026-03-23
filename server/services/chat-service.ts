@@ -6,52 +6,162 @@ import {
 	GEMINI_MODELS,
 	GEMINI_PERSONALIZATION,
 	buildPageContextPrompt,
-	getLeastUsedApiKey,
 	initGeminiClient,
 	PageContext,
 } from '../config/gemini-config';
+import {
+	getConfiguredSlots,
+	getKeyCooldownMs,
+	isQuotaLikeError,
+	pickLeastUsedSlot,
+	resolveSecret,
+	type ApiKeyUsageSlotRecord,
+} from '../config/gemini-keys';
 import { ApiKeyUsage, Chat } from '../models/chat';
+import { migrateLegacyGeminiKeyDocuments } from './gemini-slot-migration';
 import { executeToolCall, getToolsForPermissions } from './ai-tools';
 
+type GeminiLoopSuccess = { ok: true; responseText: string; modelName: string };
+type GeminiLoopFailure = {
+	ok: false;
+	sawQuotaLike: boolean;
+	lastError: Error | null;
+};
+
 export class ChatService {
+	private static async getUsageRecordsForPicker(): Promise<
+		ApiKeyUsageSlotRecord[]
+	> {
+		const configured = new Set(getConfiguredSlots().map((s) => s.slot));
+		const docs = await ApiKeyUsage.find({
+			slot: { $in: Array.from(configured) },
+		});
+		return docs.map((d) => ({
+			slot: d.slot,
+			usageCount: d.usageCount,
+			lastUsed: d.lastUsed,
+			cooldownUntil: d.cooldownUntil,
+		}));
+	}
+
+	private static async pickSlotAndIncrement(): Promise<number> {
+		await this.ensureUsageSlotsExist();
+		const records = await this.getUsageRecordsForPicker();
+		const now = new Date();
+		const slot = pickLeastUsedSlot(records, now);
+		if (slot == null) {
+			throw new Error('No Gemini API key configured (set GEMINI_API_KEY_1, …)');
+		}
+		await ApiKeyUsage.findOneAndUpdate(
+			{ slot },
+			{ $inc: { usageCount: 1 }, $set: { lastUsed: now } }
+		);
+		return slot;
+	}
+
 	// Mendapatkan atau membuat chat baru
 	static async getOrCreateChat(userId: string, forceNew = false) {
 		if (forceNew) {
-			// Dapatkan API key dengan penggunaan paling sedikit
-			const apiKeys = await ApiKeyUsage.find();
-			const selectedApiKey = getLeastUsedApiKey(apiKeys);
-			// Buat chat baru
+			const selectedSlot = await this.pickSlotAndIncrement();
 			const chat = await Chat.create({
 				userId,
 				messages: [],
-				apiKey: selectedApiKey,
+				apiKeySlot: selectedSlot,
 			});
-			// Update penggunaan API key
-			await ApiKeyUsage.findOneAndUpdate(
-				{ key: selectedApiKey },
-				{ $inc: { usageCount: 1 }, lastUsed: new Date() }
-			);
 			return chat;
 		}
-		// Cari chat terakhir
 		let chat = await Chat.findOne({ userId }).sort({ createdAt: -1 });
 		if (!chat) {
-			// Dapatkan API key dengan penggunaan paling sedikit
-			const apiKeys = await ApiKeyUsage.find();
-			const selectedApiKey = getLeastUsedApiKey(apiKeys);
-			// Buat chat baru
+			const selectedSlot = await this.pickSlotAndIncrement();
 			chat = await Chat.create({
 				userId,
 				messages: [],
-				apiKey: selectedApiKey,
+				apiKeySlot: selectedSlot,
 			});
-			// Update penggunaan API key
-			await ApiKeyUsage.findOneAndUpdate(
-				{ key: selectedApiKey },
-				{ $inc: { usageCount: 1 }, lastUsed: new Date() }
-			);
 		}
 		return chat;
+	}
+
+	private static async runGeminiAgenticLoop(
+		gemini: ReturnType<typeof initGeminiClient>,
+		history: Content[],
+		permissions: string[] | undefined,
+		authUserId: string | undefined,
+		pagePath: string | undefined,
+		geminiTools: FunctionDeclarationsTool[]
+	): Promise<GeminiLoopSuccess | GeminiLoopFailure> {
+		let lastError: Error | null = null;
+		let sawQuotaLike = false;
+
+		for (const modelName of GEMINI_MODELS) {
+			try {
+				const model = gemini.getGenerativeModel({
+					model: modelName,
+					tools: geminiTools,
+				});
+
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				let contents: Content[] = history as any;
+				let responseText = '';
+
+				for (let iteration = 0; iteration < 5; iteration++) {
+					const result = await model.generateContent({ contents });
+					const response = result.response;
+
+					const functionCalls = response.functionCalls?.();
+					if (!functionCalls || functionCalls.length === 0) {
+						responseText = response.text();
+						break;
+					}
+
+					console.log(
+						`[AI Agent] Iteration ${iteration + 1}: executing tools:`,
+						functionCalls.map((fc) => fc.name).join(', ')
+					);
+
+					const toolResults = await Promise.all(
+						functionCalls.map(async (fc) => ({
+							functionResponse: {
+								name: fc.name,
+								response: await executeToolCall(
+									fc.name,
+									(fc.args ?? {}) as Record<string, unknown>,
+									permissions || [],
+									authUserId,
+									pagePath
+								),
+							},
+						}))
+					);
+
+					contents = [
+						...contents,
+						{
+							role: 'model' as const,
+							parts: response.candidates![0].content.parts,
+						},
+						{
+							role: 'user' as const,
+							// eslint-disable-next-line @typescript-eslint/no-explicit-any
+							parts: toolResults as any,
+						},
+					];
+				}
+
+				if (!responseText) {
+					responseText =
+						'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
+				}
+
+				return { ok: true, responseText, modelName };
+			} catch (error) {
+				lastError = error as Error;
+				if (isQuotaLikeError(error)) sawQuotaLike = true;
+				console.warn(`Model ${modelName} failed, trying fallback...`, error);
+			}
+		}
+
+		return { ok: false, sawQuotaLike, lastError };
 	}
 
 	// Menambahkan pesan ke chat tertentu
@@ -149,13 +259,6 @@ export class ChatService {
 				: [{ text: content }],
 		});
 
-		// Dapatkan respons dari Gemini dengan fallback dan agentic tool-calling loop
-		const gemini = initGeminiClient(chat.apiKey);
-		let currentModel = GEMINI_MODEL;
-		let responseText = '';
-		let lastError: Error | null = null;
-
-		// Tool definitions filtered by user permissions + path dashboard untuk write
 		const pagePath = pageContext?.path;
 		const allowedTools = getToolsForPermissions(
 			permissions || [],
@@ -168,92 +271,97 @@ export class ChatService {
 			},
 		];
 
-		// Coba dengan model utama dan fallback jika error
-		for (const modelName of GEMINI_MODELS) {
-			try {
-				const model = gemini.getGenerativeModel({
-					model: modelName,
-					tools: geminiTools,
-				});
+		await this.ensureUsageSlotsExist();
 
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				let contents: Content[] = history as any;
+		const configuredSlots = getConfiguredSlots();
+		const maxSlotSwitches = Math.max(1, configuredSlots.length);
+		const excludeSlots = new Set<number>();
 
-				// Agentic loop: Gemini bisa memanggil tools maksimal 5 kali sebelum jawaban final
-				for (let iteration = 0; iteration < 5; iteration++) {
-					const result = await model.generateContent({ contents });
-					const response = result.response;
+		let responseText = '';
+		let currentModel = GEMINI_MODEL;
 
-					// Cek apakah Gemini meminta tool call
-					const functionCalls = response.functionCalls?.();
-					if (!functionCalls || functionCalls.length === 0) {
-						// Tidak ada tool call → ini jawaban final
-						responseText = response.text();
-						break;
-					}
-
-					console.log(
-						`[AI Agent] Iteration ${iteration + 1}: executing tools:`,
-						functionCalls.map((fc) => fc.name).join(', ')
+		for (let slotAttempt = 0; slotAttempt < maxSlotSwitches; slotAttempt++) {
+			let slot = chat.apiKeySlot;
+			let secret = resolveSecret(slot);
+			if (!secret) {
+				const records = await this.getUsageRecordsForPicker();
+				const picked = pickLeastUsedSlot(records, new Date(), excludeSlots);
+				if (picked == null) {
+					throw new Error(
+						'No Gemini API key configured or resolvable for this chat slot'
 					);
-
-					// Eksekusi semua function calls secara paralel (with permission + user context)
-					const toolResults = await Promise.all(
-						functionCalls.map(async (fc) => ({
-							functionResponse: {
-								name: fc.name,
-								response: await executeToolCall(
-									fc.name,
-									(fc.args ?? {}) as Record<string, unknown>,
-									permissions || [],
-									authUserId,
-									pagePath
-								),
-							},
-						}))
-					);
-
-					// Tambahkan respons model + hasil tool ke history untuk iterasi berikutnya
-					contents = [
-						...contents,
-						{
-							role: 'model' as const,
-							parts: response.candidates![0].content.parts,
-						},
-						{
-							role: 'user' as const,
-							// eslint-disable-next-line @typescript-eslint/no-explicit-any
-							parts: toolResults as any,
-						},
-					];
 				}
-
-				// Jika loop habis tapi responseText masih kosong (edge case)
-				if (!responseText) {
-					responseText =
-						'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
-				}
-
-				currentModel = modelName;
-				break; // Berhasil, keluar dari loop model fallback
-			} catch (error) {
-				lastError = error as Error;
-				console.warn(`Model ${modelName} failed, trying fallback...`, error);
-				continue; // Coba model berikutnya
+				slot = picked;
+				chat.apiKeySlot = slot;
+				secret = resolveSecret(slot);
 			}
-		}
+			if (!secret) {
+				throw new Error(`GEMINI_API_KEY_${slot} is missing in environment`);
+			}
 
-		// Jika semua model gagal
-		if (!responseText) {
+			const gemini = initGeminiClient(secret);
+			const loopResult = await this.runGeminiAgenticLoop(
+				gemini,
+				history,
+				permissions,
+				authUserId,
+				pagePath,
+				geminiTools
+			);
+
+			if (loopResult.ok) {
+				responseText = loopResult.responseText;
+				currentModel = loopResult.modelName;
+				console.log(
+					`Successfully used model: ${currentModel} for user: ${userId}`
+				);
+				break;
+			}
+
+			if (loopResult.sawQuotaLike) {
+				const cooldownUntil = new Date(Date.now() + getKeyCooldownMs());
+				await ApiKeyUsage.updateOne(
+					{ slot: chat.apiKeySlot },
+					{ $set: { cooldownUntil } }
+				);
+				excludeSlots.add(chat.apiKeySlot);
+
+				const nextSlot = pickLeastUsedSlot(
+					await this.getUsageRecordsForPicker(),
+					new Date(),
+					excludeSlots
+				);
+				if (nextSlot == null) {
+					throw new Error(
+						'Maaf, kuota Gemini sedang penuh untuk semua kunci. Silakan coba lagi nanti.'
+					);
+				}
+
+				await ApiKeyUsage.findOneAndUpdate(
+					{ slot: nextSlot },
+					{ $inc: { usageCount: 1 }, $set: { lastUsed: new Date() } }
+				);
+				chat.apiKeySlot = nextSlot;
+
+				if (slotAttempt === maxSlotSwitches - 1) {
+					throw new Error(
+						loopResult.lastError?.message ||
+							'Semua model Gemini gagal setelah mencoba semua kunci API.'
+					);
+				}
+				continue;
+			}
+
 			throw new Error(
 				`All models failed. Last error: ${
-					lastError?.message || 'Unknown error'
+					loopResult.lastError?.message || 'Unknown error'
 				}`
 			);
 		}
 
-		// Log model yang berhasil digunakan
-		console.log(`Successfully used model: ${currentModel} for user: ${userId}`);
+		if (!responseText) {
+			throw new Error('Gemini returned empty response');
+		}
 
 		// Tambahkan respons assistant ke chat (tanpa personalisasi)
 		chat.messages.push({
@@ -300,32 +408,96 @@ export class ChatService {
 		await Chat.deleteOne({ userId });
 	}
 
-	// Inisialisasi API keys
-	static async initializeApiKeys(apiKeys: string[]) {
-		for (const key of apiKeys) {
+	/**
+	 * Safely unlink a single file inside uploads/.
+	 * Skips directories, missing files, and paths outside uploads.
+	 */
+	private static async safeUnlinkUpload(fileName: string) {
+		if (!fileName) return;
+		const uploadsDir = path.join(process.cwd(), 'uploads');
+		const filePath = path.join(uploadsDir, path.basename(fileName));
+
+		if (!filePath.startsWith(uploadsDir)) return;
+
+		try {
+			const stat = await fs.promises.stat(filePath);
+			if (!stat.isFile()) return;
+			await fs.promises.unlink(filePath);
+		} catch (err: any) {
+			if (err?.code !== 'ENOENT') {
+				console.error(`[cleanup] Failed to delete ${filePath}:`, err);
+			}
+		}
+	}
+
+	/**
+	 * Delete all uploaded files referenced by a chat's messages.
+	 */
+	static async cleanupChatFiles(messages: any[]) {
+		if (!messages?.length) return;
+		const seen = new Set<string>();
+		for (const msg of messages) {
+			if (msg.imageUrl) {
+				const base = path.basename(msg.imageUrl);
+				if (!seen.has(base)) {
+					seen.add(base);
+					await this.safeUnlinkUpload(base);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Buat baris `apikeyusages` per slot dari env (tanpa migrasi legacy).
+	 * Dipanggil otomatis hanya jika collection masih kosong (deploy baru).
+	 */
+	static async upsertGeminiUsageSlotsFromEnv(): Promise<void> {
+		const slots = getConfiguredSlots();
+		for (const { slot } of slots) {
 			await ApiKeyUsage.findOneAndUpdate(
-				{ key },
-				{ key, usageCount: 0, lastUsed: new Date() },
+				{ slot },
+				{
+					$setOnInsert: {
+						usageCount: 0,
+						lastUsed: new Date(),
+						cooldownUntil: null,
+					},
+				},
 				{ upsert: true }
 			);
 		}
 	}
 
-	// Fungsi untuk membersihkan gambar yang tidak terpakai
+	/**
+	 * Migrasi sekali jalan: key plaintext → slot + upsert counter.
+	 * Jalankan lewat `npm run migrate:gemini-slots` (bukan saat server start).
+	 */
+	static async runGeminiKeySlotMigration(): Promise<void> {
+		await migrateLegacyGeminiKeyDocuments();
+		await this.upsertGeminiUsageSlotsFromEnv();
+	}
+
+	/** Jika DB belum punya satupun dokumen usage, isi baris slot dari env (bukan migrasi legacy). */
+	private static async ensureUsageSlotsExist(): Promise<void> {
+		const slots = getConfiguredSlots();
+		if (slots.length === 0) return;
+		if ((await ApiKeyUsage.estimatedDocumentCount()) > 0) return;
+		await this.upsertGeminiUsageSlotsFromEnv();
+	}
+
 	static async cleanupUnusedImages() {
 		const uploadsDir = path.join(process.cwd(), 'uploads');
 
 		try {
-			// Baca semua file di direktori uploads
-			const files = await fs.promises.readdir(uploadsDir);
+			const entries = await fs.promises.readdir(uploadsDir, {
+				withFileTypes: true,
+			});
 
-			// Dapatkan semua chat yang masih aktif
 			const activeChats = await Chat.find({
 				createdAt: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
 			});
 
-			// Kumpulkan semua imageUrl yang masih digunakan
-			const usedImages = new Set();
+			const usedImages = new Set<string>();
 			activeChats.forEach((chat) => {
 				chat.messages.forEach((message: any) => {
 					if (message.imageUrl) {
@@ -334,17 +506,11 @@ export class ChatService {
 				});
 			});
 
-			// Hapus file yang tidak digunakan
-			for (const file of files) {
-				if (!usedImages.has(file)) {
-					const filePath = path.join(uploadsDir, file);
-					try {
-						await fs.promises.unlink(filePath);
-						console.log(`Cleaned up unused image: ${filePath}`);
-					} catch (error) {
-						console.error(`Error deleting unused image ${filePath}:`, error);
-					}
-				}
+			for (const entry of entries) {
+				if (!entry.isFile()) continue;
+				if (usedImages.has(entry.name)) continue;
+
+				await this.safeUnlinkUpload(entry.name);
 			}
 		} catch (error) {
 			console.error('Error cleaning up unused images:', error);

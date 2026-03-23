@@ -607,21 +607,6 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	return lines.join('\n');
 }
 
-// Interface untuk tracking penggunaan API key
-export interface ApiKeyUsage {
-	key: string;
-	usageCount: number;
-	lastUsed: Date;
-}
-
-// Fungsi untuk mendapatkan API key dengan penggunaan paling sedikit
-export function getLeastUsedApiKey(apiKeys: ApiKeyUsage[]): string {
-	if (apiKeys.length === 0) throw new Error('No Gemini API key available');
-	return apiKeys.reduce((prev, current) =>
-		current.usageCount < prev.usageCount ? current : prev,
-	).key;
-}
-
 // Fungsi untuk menginisialisasi Gemini client
 export function initGeminiClient(apiKey: string) {
 	return new GoogleGenerativeAI(apiKey);

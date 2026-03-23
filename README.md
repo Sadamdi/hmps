@@ -212,9 +212,18 @@ NODE_ENV=development
 
 # External Services
 GOOGLE_DRIVE_API_KEY=your-gdrive-api-key
-GEMINI_API_KEY=your-gemini-api-key
+# Gemini (Spyro AI)
+# Tambahkan GEMINI_API_KEY_1 … GEMINI_API_KEY_N sesuai kebutuhan (mis. sampai 11).
+# Batas indeks tertinggi yang dipindai (default 100; naikkan jika perlu sampai 1000)
+# GEMINI_MAX_KEY_SLOTS=100
+GEMINI_API_KEY_1=...
+GEMINI_API_KEY_2=...
+# Opsional: cooldown ms setelah quota/rate limit per slot (default 90000)
+# GEMINI_KEY_COOLDOWN_MS=90000
 VITE_TINYMCE_API_KEY=your-tiny-api-key
 ```
+
+Saat server start, migrasi idempotent mengubah dokumen lama `apikeyusages` / `chats` yang masih menyimpan key plaintext menjadi slot numerik. Untuk menjalankan migrasi manual: `npm run migrate:gemini-slots`.
 
 ---
 
@@ -227,7 +236,6 @@ VITE_TINYMCE_API_KEY=your-tiny-api-key
 | `npm start` | ▶️ Start production server | Production |
 | `npm run check` | 🔍 TypeScript type checking | Development |
 | `npm run db:seed` | 🌱 Seed database with sample data | Setup |
-
 ---
 
 ## 🔐 Security Features

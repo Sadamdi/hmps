@@ -21,21 +21,6 @@ const upload = multer({
 	}),
 });
 
-// Initialize API key usage tracking
-const apiKeys = [
-	process.env.GEMINI_API_KEY_1,
-	process.env.GEMINI_API_KEY_2,
-	process.env.GEMINI_API_KEY_3,
-	process.env.GEMINI_API_KEY_4,
-	process.env.GEMINI_API_KEY_5,
-	process.env.GEMINI_API_KEY_6,
-	process.env.GEMINI_API_KEY_7,
-].filter(Boolean) as string[];
-
-ChatService.initializeApiKeys(apiKeys).then(() => {
-	// API keys initialized successfully
-});
-
 // Get all chats for user (summary only, no full message content)
 router.get('/all', async (req, res) => {
 	try {
@@ -76,7 +61,7 @@ router.post('/new', async (req, res) => {
 		}
 		const chat = await ChatService.getOrCreateChat(userId, true); // true = force new
 		// Remove sensitive data before sending response
-		const { apiKey, ...safeChat } = chat.toObject();
+		const { apiKeySlot, apiKey, ...safeChat } = chat.toObject() as any;
 		res.json({ chat: safeChat });
 	} catch (error) {
 		console.error('Error creating new chat:', error);
@@ -92,7 +77,11 @@ router.delete('/:id', async (req, res) => {
 		if (!userId || !chatId) {
 			return res.status(400).json({ error: 'No user ID or chat ID found' });
 		}
-		await Chat.deleteOne({ _id: chatId, userId });
+		const chat = await Chat.findOne({ _id: chatId, userId });
+		if (chat) {
+			await ChatService.cleanupChatFiles(chat.messages);
+			await Chat.deleteOne({ _id: chatId, userId });
+		}
 		res.json({ message: 'Chat deleted successfully' });
 	} catch (error) {
 		console.error('Error deleting chat:', error);
@@ -205,7 +194,7 @@ router.post(
 				authUserId
 			);
 			// Remove sensitive data before sending response
-			const { apiKey, ...safeChat } = updatedChat.toObject();
+			const { apiKeySlot, apiKey, ...safeChat } = updatedChat.toObject() as any;
 			res.json({ chat: safeChat });
 		} catch (error) {
 			console.error('Error sending message:', error);
@@ -220,6 +209,10 @@ router.delete('/', async (req, res) => {
 		const userId = req.cookies.userId;
 		if (!userId) {
 			return res.status(400).json({ error: 'No user ID found' });
+		}
+		const chats = await Chat.find({ userId });
+		for (const chat of chats) {
+			await ChatService.cleanupChatFiles(chat.messages);
 		}
 		await Chat.deleteMany({ userId });
 		res.clearCookie('userId');

@@ -10,7 +10,8 @@
     "check": "tsc",
     "generate-sitemap": "node scripts/generate-sitemap.js",
     "generate-favicon": "bash scripts/generate-favicon.sh",
-    "deploy-seo": "bash scripts/deploy-seo.sh"
+    "deploy-seo": "bash scripts/deploy-seo.sh",
+    "migrate:gemini-slots": "tsx server/scripts/migrate-gemini-key-slots.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

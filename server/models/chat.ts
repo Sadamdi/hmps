@@ -29,9 +29,11 @@ const chatSchema = new mongoose.Schema({
 			},
 		},
 	],
-	apiKey: {
-		type: String,
+	/** Slot index → GEMINI_API_KEY_<n> in env (secret never stored in DB; see GEMINI_MAX_KEY_SLOTS) */
+	apiKeySlot: {
+		type: Number,
 		required: true,
+		min: 1,
 	},
 	createdAt: {
 		type: Date,
@@ -50,10 +52,11 @@ const chatSchema = new mongoose.Schema({
 chatSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
 
 const apiKeyUsageSchema = new mongoose.Schema({
-	key: {
-		type: String,
+	slot: {
+		type: Number,
 		required: true,
 		unique: true,
+		min: 1,
 	},
 	usageCount: {
 		type: Number,
@@ -62,6 +65,10 @@ const apiKeyUsageSchema = new mongoose.Schema({
 	lastUsed: {
 		type: Date,
 		default: Date.now,
+	},
+	cooldownUntil: {
+		type: Date,
+		default: null,
 	},
 });
 
