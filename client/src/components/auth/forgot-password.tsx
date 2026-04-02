@@ -7,6 +7,7 @@ import {
 	InputOTPSlot,
 } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
+import { rewriteApiUrlForTenantPath } from '@/lib/tenant-api-rewrite';
 import { ArrowLeft, CheckCircle2, Clock, Eye, EyeOff, Loader2, Mail } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
@@ -53,11 +54,15 @@ export default function ForgotPassword() {
 		setError('');
 		setLoading(true);
 		try {
-			const res = await fetch('/api/auth/forgot-password/request-otp', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ email: email.trim() }),
-			});
+			const res = await fetch(
+				rewriteApiUrlForTenantPath('/api/auth/forgot-password/request-otp'),
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ email: email.trim() }),
+					credentials: 'include',
+				},
+			);
 			const data = await res.json();
 			if (!res.ok) {
 				if (res.status === 429 && data.retryAfterSeconds) {
@@ -85,11 +90,15 @@ export default function ForgotPassword() {
 		}
 		setLoading(true);
 		try {
-			const res = await fetch('/api/auth/forgot-password/verify-otp', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ challengeId, otpCode }),
-			});
+			const res = await fetch(
+				rewriteApiUrlForTenantPath('/api/auth/forgot-password/verify-otp'),
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ challengeId, otpCode }),
+					credentials: 'include',
+				},
+			);
 			const data = await res.json();
 			if (!res.ok) {
 				setError(data.message || 'Kode OTP tidak valid');
@@ -117,11 +126,15 @@ export default function ForgotPassword() {
 		}
 		setLoading(true);
 		try {
-			const res = await fetch('/api/auth/forgot-password/confirm', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ challengeId, resetToken, newPassword }),
-			});
+			const res = await fetch(
+				rewriteApiUrlForTenantPath('/api/auth/forgot-password/confirm'),
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ challengeId, resetToken, newPassword }),
+					credentials: 'include',
+				},
+			);
 			const data = await res.json();
 			if (!res.ok) {
 				setError(data.message || 'Gagal mereset password');

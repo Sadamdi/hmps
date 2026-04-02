@@ -25,19 +25,20 @@ const JWT_SECRET_STRING =
 const JWT_SECRET_KEY = JWT_SECRET_STRING; // Use string format instead of Buffer
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 
-// Generate JWT token
-export function generateToken(user: UserWithRole): string {
-	const payload = {
+// Generate JWT token (optionally tenant-scoped)
+export function generateToken(user: UserWithRole, tenantDbName?: string): string {
+	const payload: any = {
 		id: user._id,
 		username: user.username,
 		role: user.role,
-		// Embed token version to support global revoke
 		tv: (user as any).tokenVersion || 0,
-		// include sessionId if present
 		sid: (user as any).sessionId,
 	};
+	if (tenantDbName) {
+		payload.tenant = tenantDbName;
+	}
 
-	// @ts-ignore - Ignore typings issue with jwt.sign
+	// @ts-ignore
 	return jwt.sign(payload, JWT_SECRET_KEY, { expiresIn: JWT_EXPIRY });
 }
 
@@ -55,56 +56,62 @@ export async function hashPassword(password: string): Promise<string> {
 	return await bcrypt.hash(password, saltRounds);
 }
 
-// Authentication middleware
+// Authentication middleware (tenant-aware)
 export async function authenticate(
 	req: Request,
 	res: Response,
 	next: NextFunction
 ) {
 	try {
-		// Check for JWT token in cookies
 		const token = req.cookies?.authToken;
 
 		if (!token) {
 			return res.status(401).json({ message: 'Authentication required' });
 		}
 
-		// Verify token
 		// @ts-ignore
 		const decoded = jwt.verify(token, JWT_SECRET_KEY) as { id: string } & {
 			sid?: string;
+			tenant?: string;
 		};
 
-		// Fetch user from database
-		const user = await mongoStorage.getUserById(decoded.id);
+		// Use tenant storage if this is a tenant request, otherwise use main storage
+		let user: any;
+		let SessionModel: any;
+		if (req.isTenantRequest && req.tenantModels) {
+			user = await req.tenantModels.User.findById(decoded.id).lean();
+			SessionModel = req.tenantModels.Session;
+		} else if ((decoded as any).tenant) {
+			const { getTenantModels } = await import('../db/tenant');
+			const models = getTenantModels((decoded as any).tenant);
+			user = await models.User.findById(decoded.id).lean();
+			SessionModel = models.Session;
+		} else {
+			user = await mongoStorage.getUserById(decoded.id);
+			const { Session: MainSession } = await import('../db/mongodb');
+			SessionModel = MainSession;
+		}
 
 		if (!user) {
 			return res.status(401).json({ message: 'User not found' });
 		}
 
-		// Compare tokenVersion to invalidate old tokens
 		const tokenVersionFromDb = (user as any).tokenVersion || 0;
 		const tokenVersionFromToken = (decoded as any).tv || 0;
 		if (tokenVersionFromDb !== tokenVersionFromToken) {
-			return res
-				.status(401)
-				.json({ message: 'Session revoked. Please login again.' });
+			return res.status(401).json({ message: 'Session revoked. Please login again.' });
 		}
 
-		// Validate session not revoked + update lastActive
 		try {
-			if ((decoded as any).sid) {
-				const { Session } = await import('../db/mongodb');
-				const sess: any = await Session.findOne({
+			if ((decoded as any).sid && SessionModel) {
+				const sess: any = await SessionModel.findOne({
 					sessionId: (decoded as any).sid,
 					userId: (user as any)._id,
 				}).lean();
 				if (!sess || sess.revokedAt) {
-					return res
-						.status(401)
-						.json({ message: 'Session revoked. Please login again.' });
+					return res.status(401).json({ message: 'Session revoked. Please login again.' });
 				}
-				await Session.updateOne(
+				await SessionModel.updateOne(
 					{ _id: sess._id },
 					{ $set: { lastActive: new Date() } }
 				);
@@ -113,8 +120,8 @@ export async function authenticate(
 			// ignore session update errors
 		}
 
-		// Set user in request
 		req.user = user as UserWithRole;
+		(req as any)._authTokenTenant = (decoded as any).tenant || null;
 		next();
 	} catch (error) {
 		return res.status(401).json({ message: 'Invalid or expired token' });
@@ -139,16 +146,31 @@ export async function authenticateOptional(
 		const decoded = jwt.verify(token, JWT_SECRET_KEY) as { id: string } & {
 			sid?: string;
 			tv?: number;
+			tenant?: string;
 		};
-		const user = await mongoStorage.getUserById(decoded.id);
+
+		let user: any;
+		let SessionModel: any;
+		if (req.isTenantRequest && req.tenantModels) {
+			user = await req.tenantModels.User.findById(decoded.id).lean();
+			SessionModel = req.tenantModels.Session;
+		} else if (decoded.tenant) {
+			const { getTenantModels } = await import('../db/tenant');
+			const models = getTenantModels(decoded.tenant);
+			user = await models.User.findById(decoded.id).lean();
+			SessionModel = models.Session;
+		} else {
+			user = await mongoStorage.getUserById(decoded.id);
+			const { Session: MainSession } = await import('../db/mongodb');
+			SessionModel = MainSession;
+		}
 		if (!user) return next();
 		const tokenVersionFromDb = (user as any).tokenVersion || 0;
 		const tokenVersionFromToken = decoded.tv || 0;
 		if (tokenVersionFromDb !== tokenVersionFromToken) return next();
 		try {
-			if (decoded.sid) {
-				const { Session } = await import('../db/mongodb');
-				const sess: any = await Session.findOne({
+			if (decoded.sid && SessionModel) {
+				const sess: any = await SessionModel.findOne({
 					sessionId: decoded.sid,
 					userId: (user as any)._id,
 				}).lean();
@@ -162,6 +184,16 @@ export async function authenticateOptional(
 	} catch {
 		next();
 	}
+}
+
+/**
+ * Guard middleware that blocks tenant requests from accessing main-only routes.
+ */
+export function mainOnly(req: Request, res: Response, next: NextFunction) {
+	if (req.isTenantRequest) {
+		return res.status(403).json({ message: 'Endpoint ini hanya tersedia untuk web utama' });
+	}
+	next();
 }
 
 async function resolveGeoLocation(ip: string): Promise<string> {
@@ -199,11 +231,11 @@ async function resolveGeoLocation(ip: string): Promise<string> {
 	return '';
 }
 
-// Helper to create a session record and return sessionId
-export async function createSessionRecord(req: Request, userId: string) {
+// Helper to create a session record and return sessionId.
+// Pass tenantSessionModel for tenant-scoped sessions.
+export async function createSessionRecord(req: Request, userId: string, tenantSessionModel?: any) {
 	const sessionId = crypto.randomUUID();
 	try {
-		// Basic UA parsing (lightweight)
 		const ua = (req.headers['user-agent'] as string) || '';
 		let device = '';
 		if (/Mobile|Android|iPhone|iPad/i.test(ua)) device = 'Mobile';
@@ -227,7 +259,8 @@ export async function createSessionRecord(req: Request, userId: string) {
 			'';
 
 		const location = await resolveGeoLocation(ip);
-		await new Session({
+		const Model = tenantSessionModel || Session;
+		await new Model({
 			userId,
 			sessionId,
 			userAgent: ua,
@@ -260,7 +293,7 @@ export function authorize(allowedRoles: string[]) {
 	};
 }
 
-// Permission-based authorization middleware (uses effective permissions with overrides)
+// Permission-based authorization middleware (tenant-aware)
 export function requirePermission(permission: string) {
 	return async (req: Request, res: Response, next: NextFunction) => {
 		try {
@@ -268,9 +301,15 @@ export function requirePermission(permission: string) {
 				return res.status(401).json({ message: 'Authentication required' });
 			}
 
-			const effectivePermissions = await mongoStorage.getUserPermissions(
-				String(req.user._id),
-			);
+			let effectivePermissions: string[];
+			if (req.isTenantRequest && req.tenantModels) {
+				const { createTenantStorage } = await import('./tenant-storage');
+				const tenantStorage = createTenantStorage(req.tenantModels);
+				effectivePermissions = await tenantStorage.getUserPermissions(String(req.user._id));
+			} else {
+				effectivePermissions = await mongoStorage.getUserPermissions(String(req.user._id));
+			}
+
 			if (!effectivePermissions.includes(permission)) {
 				return res.status(403).json({
 					message: 'You do not have permission to perform this action',

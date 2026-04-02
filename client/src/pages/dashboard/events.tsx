@@ -1,5 +1,6 @@
 import CommentPanel from '@/components/dashboard/comment-panel';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import SharingPanel from '@/components/dashboard/sharing-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -143,6 +144,10 @@ export default function DashboardEvents() {
 	const [isYearDialogOpen, setIsYearDialogOpen] = useState(false);
 	const [newYear, setNewYear] = useState(new Date().getFullYear());
 	const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+
+	const [deleteYearTarget, setDeleteYearTarget] = useState<EventYear | null>(null);
+	const [deleteYearConfirmText, setDeleteYearConfirmText] = useState('');
+	const [deleteYearEventsCount, setDeleteYearEventsCount] = useState<number | null>(null);
 	const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
 
 	// Event form state
@@ -499,6 +504,29 @@ export default function DashboardEvents() {
 			<DashboardLayout title={requestOnly ? 'Events' : 'Manajemen Event'}>
 				<div className="space-y-6">
 					{requestSharingSearchBlock}
+					<DashboardHintCard
+						title="Panduan: daftar tahun event"
+						variant="blue"
+						storageKey="dashboard-events-years"
+						description="Tahun mengelompokkan agenda kegiatan HMPS TI UIN Malang (workshop, open house, dll.). Satu atau lebih tahun bisa ditandai tampil di beranda. Hapus tahun bersifat permanen dan memerlukan konfirmasi teks.">
+						<ul className="list-disc list-inside space-y-1.5 text-sm">
+							<li>
+								<strong>Langkah</strong>: (1) klik <strong>Tambah Tahun</strong> jika ada izin <code className="text-xs bg-muted px-1 rounded">events.years_admin</code> → masukkan tahun kalender (mis. <code className="text-xs bg-muted px-1 rounded">2026</code> untuk kepengurusan/kegiatan 2026); (2) klik kartu tahun untuk mengisi event di dalamnya; (3) atur <strong>tampil di Home</strong> untuk tahun yang ingin dipromosikan di beranda.
+							</li>
+							<li>
+								<strong>Contoh valid</strong>: tahun <code className="text-xs bg-muted px-1 rounded">2025</code> untuk arsip kegiatan lalu, <code className="text-xs bg-muted px-1 rounded">2026</code> untuk jadwal himpunan tahun berjalan; satu tahun ditandai aktif di Home; multi-year ON jika beranda perlu menampilkan lebih dari satu kurikulum event.
+							</li>
+							<li>
+								<strong>Contoh tidak valid</strong>: menghapus tahun tanpa mengetik konfirmasi persis seperti diminta; menambah tahun duplikat; mengubah multi-year tanpa izin <code className="text-xs bg-muted px-1 rounded">events.years_admin</code>.
+							</li>
+							<li>
+								<strong>Jika gagal</strong>: refresh; pastikan Anda punya <code className="text-xs bg-muted px-1 rounded">events.years_admin</code> untuk tombol tahun; baca dialog merah sebelum hapus.
+							</li>
+							<li>
+								<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">events.view</code> untuk melihat; <code className="text-xs bg-muted px-1 rounded">events.years_admin</code> untuk tambah/atur tahun &amp; multi-year; <code className="text-xs bg-muted px-1 rounded">events.create</code>/<code className="text-xs bg-muted px-1 rounded">events.edit</code> untuk mengisi event di dalam tahun.
+							</li>
+						</ul>
+					</DashboardHintCard>
 					{manageEnabled && (
 						<>
 					{/* Header */}
@@ -623,10 +651,17 @@ export default function DashboardEvents() {
 												<Button
 													variant="destructive"
 														size="sm"
-														onClick={() => {
-															if (confirm(`Hapus tahun ${y.year} dan semua eventnya?`)) {
-																deleteYearMut.mutate(y._id);
-															}
+														onClick={async () => {
+															setDeleteYearTarget(y);
+															setDeleteYearConfirmText('');
+															setDeleteYearEventsCount(null);
+															try {
+																const res = await fetch(`/api/event-years/${y._id}/events-count`, { credentials: 'include' });
+																if (res.ok) {
+																	const data = await res.json();
+																	setDeleteYearEventsCount(data.count ?? 0);
+																}
+															} catch { setDeleteYearEventsCount(0); }
 														}}
 														disabled={deleteYearMut.isPending}
 													>
@@ -650,6 +685,26 @@ export default function DashboardEvents() {
 						<DialogHeader>
 							<DialogTitle>Tambah Tahun Event</DialogTitle>
 						</DialogHeader>
+						<DashboardHintCard
+							title="Saat menambah tahun"
+							variant="blue"
+							storageKey="dashboard-events-dialog-add-year"
+							description="Tahun adalah label kalender untuk semua event HMPS TI UIN Malang di periode tersebut. Setelah dibuat, Anda bisa mengisi agenda (mis. seminar TI, pelatihan) di dalam tahun ini.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>
+									<strong>Langkah</strong>: isi angka tahun antara 2020–2100 → klik <strong>Buat Tahun …</strong> → buka kartu tahun baru untuk menambah event.
+								</li>
+								<li>
+									<strong>Contoh valid</strong>: <code className="text-xs bg-muted px-1 rounded">2026</code> untuk menyimpan rangkaian kegiatan himpunan sepanjang tahun 2026.
+								</li>
+								<li>
+									<strong>Contoh tidak valid</strong>: duplikat tahun yang sudah ada; tahun di luar rentang form.
+								</li>
+								<li>
+									<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">events.years_admin</code>.
+								</li>
+							</ul>
+						</DashboardHintCard>
 						<div className="space-y-4">
 							<div>
 								<Label>Tahun</Label>
@@ -684,6 +739,54 @@ export default function DashboardEvents() {
 					}}
 				/>
 			)}
+
+			<Dialog open={!!deleteYearTarget} onOpenChange={(open) => { if (!open) setDeleteYearTarget(null); }}>
+				<DialogContent className="w-[calc(100vw-2rem)] max-w-md">
+					<DialogHeader>
+						<DialogTitle className="text-red-600">Hapus Tahun {deleteYearTarget?.year}</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<div className="p-3 rounded-lg bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 text-sm space-y-2">
+							<p className="font-semibold text-red-700 dark:text-red-400">Peringatan: Tindakan ini tidak dapat dibatalkan!</p>
+							<p className="text-red-600 dark:text-red-300">
+								{deleteYearEventsCount === null
+									? 'Menghitung jumlah event...'
+									: deleteYearEventsCount === 0
+										? 'Tidak ada event di tahun ini.'
+										: `Akan menghapus ${deleteYearEventsCount} event beserta seluruh sub-event dan file yang telah di-upload (thumbnail, attachment, gambar konten).`}
+							</p>
+						</div>
+						<div>
+							<Label>Ketik <strong>HAPUS</strong> untuk konfirmasi:</Label>
+							<Input
+								className="mt-1"
+								value={deleteYearConfirmText}
+								onChange={(e) => setDeleteYearConfirmText(e.target.value)}
+								placeholder="Ketik HAPUS"
+								autoFocus
+							/>
+						</div>
+						<div className="flex gap-2 justify-end">
+							<Button variant="outline" onClick={() => setDeleteYearTarget(null)}>Batal</Button>
+							<Button
+								variant="destructive"
+								disabled={deleteYearConfirmText !== 'HAPUS' || deleteYearMut.isPending}
+								onClick={() => {
+									if (deleteYearTarget) {
+										deleteYearMut.mutate(deleteYearTarget._id, {
+											onSuccess: () => setDeleteYearTarget(null),
+										});
+									}
+								}}
+							>
+								{deleteYearMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+								Hapus Permanen
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
 			</DashboardLayout>
 		);
 	}
@@ -693,6 +796,58 @@ export default function DashboardEvents() {
 		<DashboardLayout title={`Event ${selectedYear?.year || ''}`}>
 			<div className="space-y-6">
 				{requestSharingSearchBlock}
+				{selectedParentEvent ? (
+					<DashboardHintCard
+						title="Panduan: sub-event (di bawah event induk)"
+						variant="blue"
+						storageKey="dashboard-events-subevent-level"
+						description="Anda sedang melihat sub-agenda dari satu event induk (mis. rangkaian hari dalam acara besar HMPS TI UIN Malang). Sub-event punya form yang sama: judul, deskripsi, tanggal, lampiran, publish, berita terkait, dan berbagi akses.">
+						<ul className="list-disc list-inside space-y-1.5 text-sm">
+							<li>
+								<strong>Langkah</strong>: gunakan breadcrumb <strong>Event {selectedYear?.year}</strong> untuk kembali ke daftar event utama tahun ini → untuk menambah agenda turunan, klik <strong>Tambah Sub-event</strong> → isi judul (mis. &quot;Hari 2: Lomba CP&quot;) → set tanggal mulai/selesai di dalam rentang logis acara induk → lampiran/thumbnail jika perlu → simpan → publish bila siap.
+							</li>
+							<li>
+								<strong>Contoh valid</strong>: induk <em>Open House Teknik Informatika UIN Malang 2026</em>; sub-event <code className="text-xs bg-muted px-1 rounded">Simulasi Lab Pemrograman</code> dengan tanggal di hari kedua pelaksanaan.
+							</li>
+							<li>
+								<strong>Contoh tidak valid</strong>: tanggal sub-event sebelum/sesudah induk secara tidak masuk akal; judul kosong; mengedit sub-event orang lain tanpa izin atau sharing.
+							</li>
+							<li>
+								<strong>Aksi baris</strong>: <strong>Akses</strong> membuka panel sharing; <strong>Edit</strong> mengubah data; <strong>Copy → Berita</strong> membuat draf berita; <strong>Hapus</strong> permanen setelah konfirmasi.
+							</li>
+							<li>
+								<strong>Izin</strong>: sama seperti event utama: <code className="text-xs bg-muted px-1 rounded">events.create</code>, <code className="text-xs bg-muted px-1 rounded">events.edit</code>/<code className="text-xs bg-muted px-1 rounded">events.edit_others</code>, <code className="text-xs bg-muted px-1 rounded">events.publish</code>.
+							</li>
+						</ul>
+					</DashboardHintCard>
+				) : (
+					<DashboardHintCard
+						title="Panduan: event dalam tahun (level utama)"
+						variant="blue"
+						storageKey="dashboard-events-detail"
+						description="Di dalam satu tahun kalender, event utama dikelompokkan per bulan. Buat event besar (mis. seminar TI, pelatihan desain himpunan) lalu pecah menjadi sub-event lewat tombol Sub-event pada kartu.">
+						<ul className="list-disc list-inside space-y-1.5 text-sm">
+							<li>
+								<strong>Langkah</strong>: klik <strong>Tambah Event</strong> → isi judul &amp; deskripsi rich text → tanggal mulai/selesai (input tanggal di dialog) → thumbnail, lampiran, berita terkait → simpan → aktifkan publish jika siap → untuk agenda turunan, buka kartu lalu <strong>Sub-event</strong>.
+							</li>
+							<li>
+								<strong>Contoh valid</strong>: judul <code className="text-xs bg-muted px-1 rounded">Seminar Nasional Teknik Informatika UIN Malang 2026</code>; rentang tanggal konsisten; thumbnail poster himpunan; lampiran PDF rundown.
+							</li>
+							<li>
+								<strong>Contoh tidak valid</strong>: selesai sebelum mulai; judul kosong; publish tanpa <code className="text-xs bg-muted px-1 rounded">events.publish</code>; mengedit milik orang lain tanpa <code className="text-xs bg-muted px-1 rounded">events.edit_others</code> atau sharing.
+							</li>
+							<li>
+								<strong>Sharing</strong>: tombol <strong>Akses</strong> pada kartu untuk mengelola berbagi seperti pada modul lain; dari halaman tahun tanpa membuka tahun, gunakan pencarian ajuan akses jika Anda hanya boleh request.
+							</li>
+							<li>
+								<strong>Copy → Berita</strong>: menyalin ke draft berita—cek dan publish dari modul Berita.
+							</li>
+							<li>
+								<strong>Izin utama</strong>: <code className="text-xs bg-muted px-1 rounded">events.create</code>, <code className="text-xs bg-muted px-1 rounded">events.edit</code>/<code className="text-xs bg-muted px-1 rounded">events.edit_others</code>, <code className="text-xs bg-muted px-1 rounded">events.publish</code>, <code className="text-xs bg-muted px-1 rounded">events.view_others</code>.
+							</li>
+						</ul>
+					</DashboardHintCard>
+				)}
 				{/* Breadcrumb */}
 				<div className="flex items-center gap-1 text-sm flex-wrap">
 					<Button variant="ghost" size="sm" className="px-2" onClick={() => { setSelectedYearId(null); setSelectedParentEvent(null); }}>
@@ -879,6 +1034,8 @@ export default function DashboardEvents() {
 									onChange={setFormDesc}
 									placeholder="Deskripsi event..."
 									height={300}
+									eventId={editingEvent?._id || `temp-event-${Date.now()}`}
+									parentEventId={selectedParentEvent?._id || (editingEvent as any)?.parentId || undefined}
 								/>
 							</div>
 						</div>

@@ -347,6 +347,16 @@ export default function EventsTree({
 
 	const hasContent = yearEntries.length > 0 && yearEntries.some((y) => y.events.length > 0);
 
+	const totalEventCount = useMemo(
+		() => yearEntries.reduce((sum, y) => sum + y.events.length, 0),
+		[yearEntries],
+	);
+
+	const repeatCount = useMemo(() => {
+		if (totalEventCount === 0) return 1;
+		return Math.max(1, Math.ceil(6 / totalEventCount));
+	}, [totalEventCount]);
+
 	const registerNode = useCallback((id: string, el: HTMLDivElement | null) => {
 		if (el) {
 			registeredNodesRef.current.set(id, el);
@@ -414,8 +424,8 @@ export default function EventsTree({
 	const onNodePointerEnter = useCallback(() => {
 		if (!userInteractedRef.current) return;
 		if (performance.now() < ignoreHoverUntilRef.current) return;
-		targetSpeedRef.current = 0;
-	}, []);
+		targetSpeedRef.current = totalEventCount <= 3 ? BASE_SPEED_PPS * 0.3 : 0;
+	}, [totalEventCount]);
 	const onNodePointerLeave = useCallback(() => {
 		if (modalOpenRef.current) return;
 		targetSpeedRef.current = BASE_SPEED_PPS;
@@ -685,30 +695,34 @@ export default function EventsTree({
 							ref={innerRef}
 							className="relative flex items-start gap-0 w-max will-change-transform"
 						>
-							{yearEntries.map((entry, idx) => (
+						{Array.from({ length: repeatCount }, (_, ri) =>
+							yearEntries.map((entry, idx) => (
 								<TrackSegment
-									key={`a-${entry.year._id}`}
+									key={`a${ri > 0 ? ri : ''}-${entry.year._id}`}
 									yearEntry={entry}
-									isFirst={idx === 0}
-									copyId="a"
+									isFirst={ri === 0 && idx === 0}
+									copyId={ri === 0 ? 'a' : `a${ri}`}
 									onEventClick={handleEventClick}
 									registerNode={registerNode}
 									onNodePointerEnter={onNodePointerEnter}
 									onNodePointerLeave={onNodePointerLeave}
 								/>
-							))}
-							{yearEntries.map((entry, idx) => (
+							)),
+						)}
+						{Array.from({ length: repeatCount }, (_, ri) =>
+							yearEntries.map((entry, idx) => (
 								<TrackSegment
-									key={`b-${entry.year._id}`}
+									key={`b${ri > 0 ? ri : ''}-${entry.year._id}`}
 									yearEntry={entry}
-									isFirst={idx === 0}
-									copyId="b"
+									isFirst={ri === 0 && idx === 0}
+									copyId={ri === 0 ? 'b' : `b${ri}`}
 									onEventClick={handleEventClick}
 									registerNode={registerNode}
 									onNodePointerEnter={onNodePointerEnter}
 									onNodePointerLeave={onNodePointerLeave}
 								/>
-							))}
+							)),
+						)}
 						</div>
 					</div>
 

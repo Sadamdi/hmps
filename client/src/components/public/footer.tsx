@@ -15,6 +15,7 @@ interface Settings {
 	feedbackCardsAutoScrollEnabled?: boolean;
 	socialLinks?: { facebook: string; tiktok: string; instagram: string; youtube: string };
 	links?: { uinMalang: string; fakultasSainsTeknologi: string; jurusanTeknikInformatika: string; perpustakaan: string };
+	quickLinks?: Array<{ label: string; url: string }>;
 }
 
 interface PublicFeedbackCard {
@@ -297,7 +298,15 @@ export default function Footer() {
 	const mapsEmbedUrl = settings?.mapsEmbedUrl || '';
 	const footerText = settings?.footerText || `\u00A9 ${new Date().getFullYear()} Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.`;
 	const socialLinks = settings?.socialLinks || { facebook: '#', tiktok: '#', instagram: '#', youtube: '#' };
-	const links = settings?.links || { uinMalang: 'https://uin-malang.ac.id/', fakultasSainsTeknologi: 'https://saintek.uin-malang.ac.id/', jurusanTeknikInformatika: 'https://informatika.uin-malang.ac.id/', perpustakaan: 'https://library.uin-malang.ac.id/' };
+	const oldLinks = settings?.links || { uinMalang: 'https://uin-malang.ac.id/', fakultasSainsTeknologi: 'https://saintek.uin-malang.ac.id/', jurusanTeknikInformatika: 'https://informatika.uin-malang.ac.id/', perpustakaan: 'https://library.uin-malang.ac.id/' };
+	const quickLinks: Array<{ label: string; url: string }> = settings?.quickLinks?.length
+		? settings.quickLinks
+		: [
+			{ label: 'UIN Malang', url: oldLinks.uinMalang },
+			{ label: 'Fakultas Sains dan Teknologi', url: oldLinks.fakultasSainsTeknologi },
+			{ label: 'Jurusan Teknik Informatika', url: oldLinks.jurusanTeknikInformatika },
+			{ label: 'Perpustakaan', url: oldLinks.perpustakaan },
+		].filter((l) => l.url);
 	const submitEnabled = settings?.feedbackSubmitEnabled !== false;
 	const cardsEnabled = settings?.feedbackCardsEnabled !== false;
 	const autoScrollEnabled = settings?.feedbackCardsAutoScrollEnabled !== false;
@@ -417,10 +426,9 @@ export default function Footer() {
 					<div data-aos="fade-up" data-aos-delay="300">
 						<h3 className="text-lg font-semibold mb-4">Tautan</h3>
 						<ul className="space-y-2 text-muted-foreground dark:text-slate-300/80">
-							<li><a href={links.uinMalang} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">UIN Malang</a></li>
-							<li><a href={links.fakultasSainsTeknologi} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Fakultas Sains dan Teknologi</a></li>
-							<li><a href={links.jurusanTeknikInformatika} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Jurusan Teknik Informatika</a></li>
-							<li><a href={links.perpustakaan} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Perpustakaan</a></li>
+							{quickLinks.map((link, idx) => (
+								<li key={idx}><a href={link.url} target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">{link.label}</a></li>
+							))}
 						</ul>
 					</div>
 

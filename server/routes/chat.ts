@@ -6,6 +6,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticateOptional } from '../auth';
 import { Chat } from '../models/chat';
 import { mongoStorage } from '../mongo-storage';
+import type { Request } from 'express';
+
+function resolveStorage(req: Request): any {
+	return req.tenantStorage || mongoStorage;
+}
 import { chatUploadRateLimiter } from '../middleware/public-rate-limit';
 import { ChatService } from '../services/chat-service';
 dotenv.config();
@@ -149,7 +154,7 @@ router.post(
 			let authUserId: string | undefined;
 			if (req.user) {
 				try {
-					serverPermissions = await mongoStorage.getUserPermissions(
+					serverPermissions = await resolveStorage(req).getUserPermissions(
 						(req.user as any)._id.toString()
 					);
 					authUserId = (req.user as any)._id.toString();
@@ -191,7 +196,8 @@ router.post(
 				chat._id.toString(),
 				parsedContext,
 				serverPermissions,
-				authUserId
+				authUserId,
+				req.tenantDbName
 			);
 			// Remove sensitive data before sending response
 			const { apiKeySlot, apiKey, ...safeChat } = updatedChat.toObject() as any;

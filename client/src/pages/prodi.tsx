@@ -2,6 +2,13 @@ import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import { Button } from '@/components/ui/button';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -100,6 +107,8 @@ export default function ProdiPage() {
 	const lecturers = data?.lecturers;
 	const curriculum = data?.curriculum;
 	const laboratories = data?.laboratories;
+	const curriculumMeta = data?.curriculumMeta;
+	const curriculumByYear = data?.curriculumByYear;
 
 	const hasContent = profile || lecturers || curriculum || laboratories;
 
@@ -176,7 +185,13 @@ export default function ProdiPage() {
 							{lecturers && <LecturersSection data={lecturers} />}
 						</TabsContent>
 						<TabsContent value="kurikulum" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
-							{curriculum && <CurriculumSection data={curriculum} />}
+							{curriculum && (
+								<CurriculumSection
+									data={curriculum}
+									curriculumMeta={curriculumMeta}
+									curriculumByYear={curriculumByYear}
+								/>
+							)}
 						</TabsContent>
 						<TabsContent value="laboratorium" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
 							{laboratories && <LaboratoriesSection data={laboratories} />}
@@ -448,13 +463,61 @@ function ExtLink({ href, label }: { href: string; label: string }) {
 	);
 }
 
-function CurriculumSection({ data }: { data: any }) {
+function CurriculumSection({
+	data,
+	curriculumMeta,
+	curriculumByYear,
+}: {
+	data: any;
+	curriculumMeta?: { availableYears: number[]; activeYear: number };
+	curriculumByYear?: Record<number, any>;
+}) {
+	const availableYears = curriculumMeta?.availableYears ?? [];
+	const activeYear = curriculumMeta?.activeYear;
+	const defaultYear = activeYear && availableYears.includes(activeYear)
+		? activeYear
+		: availableYears[0] ?? null;
+
+	const [selectedYear, setSelectedYear] = useState<number | null>(null);
+	const effectiveYear = selectedYear ?? defaultYear;
+
+	const displayData = (effectiveYear != null && curriculumByYear?.[effectiveYear])
+		? curriculumByYear[effectiveYear]
+		: data;
+
 	return (
 		<div className="space-y-10">
-			{data.graduateProfile?.length > 0 && (
+			{availableYears.length > 1 && (
+				<SectionCard title="Pilih Tahun Kurikulum / Angkatan">
+					<div className="flex items-center gap-3 flex-wrap">
+						<Select
+							value={String(effectiveYear ?? '')}
+							onValueChange={(v) => setSelectedYear(parseInt(v, 10))}
+						>
+							<SelectTrigger className="w-52">
+								<SelectValue placeholder="Pilih tahun angkatan" />
+							</SelectTrigger>
+							<SelectContent>
+								{availableYears.map((y) => (
+									<SelectItem key={y} value={String(y)}>
+										Angkatan {y} {y === activeYear ? '(Aktif)' : ''}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+						{effectiveYear != null && (
+							<span className="text-sm text-muted-foreground">
+								Menampilkan kurikulum tahun {effectiveYear}
+							</span>
+						)}
+					</div>
+				</SectionCard>
+			)}
+
+			{displayData.graduateProfile?.length > 0 && (
 				<SectionCard title="Profil Lulusan">
 					<div className="space-y-3">
-						{data.graduateProfile.map((gp: any, i: number) => (
+						{displayData.graduateProfile.map((gp: any, i: number) => (
 							<div key={i} className="flex gap-3 text-sm">
 								{gp.no && <span className="font-mono text-muted-foreground min-w-[2rem]">{gp.no}</span>}
 								<span className="text-foreground">{gp.description}</span>
@@ -464,33 +527,33 @@ function CurriculumSection({ data }: { data: any }) {
 				</SectionCard>
 			)}
 
-			{data.knowledgeGroups?.length > 0 && (
+			{displayData.knowledgeGroups?.length > 0 && (
 				<SectionCard title="Kelompok Keilmuan">
 					<ol className="list-decimal list-inside space-y-1 text-foreground">
-						{data.knowledgeGroups.map((kg: string, i: number) => (
+						{displayData.knowledgeGroups.map((kg: string, i: number) => (
 							<li key={i}>{kg}</li>
 						))}
 					</ol>
 				</SectionCard>
 			)}
 
-			{data.structureSummary && (
+			{displayData.structureSummary && (
 				<SectionCard title="Struktur Kurikulum">
 					<div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-line">
-						{data.structureSummary}
+						{displayData.structureSummary}
 					</div>
 				</SectionCard>
 			)}
 
-			{data.semesters?.length > 0 && (
-				<SectionCard title="Distribusi Mata Kuliah Per Semester">
-					<SemesterTabs semesters={data.semesters} />
+			{displayData.semesters?.length > 0 && (
+				<SectionCard title={`Distribusi Mata Kuliah Per Semester${effectiveYear ? ` — Kurikulum ${effectiveYear}` : ''}`}>
+					<SemesterTabs semesters={displayData.semesters} />
 				</SectionCard>
 			)}
 
-			{data.optionalSubjects?.length > 0 && (
+			{displayData.optionalSubjects?.length > 0 && (
 				<SectionCard title="Mata Kuliah Pilihan">
-					<SubjectTable subjects={data.optionalSubjects} />
+					<SubjectTable subjects={displayData.optionalSubjects} />
 				</SectionCard>
 			)}
 		</div>

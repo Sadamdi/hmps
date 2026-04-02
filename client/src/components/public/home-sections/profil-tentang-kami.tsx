@@ -1,8 +1,12 @@
+import { AboutVideoEmbed } from '@/components/public/about-video-embed';
 import { apiRequest } from '@/lib/queryClient';
+import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { useQuery } from '@tanstack/react-query';
 
 interface Settings {
 	aboutUs?: string;
+	aboutVideoUrl?: string;
+	aboutVideoGdriveUrl?: string;
 }
 
 export default function ProfilTentangKamiSection() {
@@ -16,7 +20,10 @@ export default function ProfilTentangKamiSection() {
 	});
 
 	const intro = settings?.aboutUs;
-	if (!intro) return null;
+	const hasVideo =
+		!!parseYouTubeVideoId(settings?.aboutVideoUrl || '') ||
+		!!parseGoogleDriveFileId(settings?.aboutVideoGdriveUrl || '');
+	if (!intro && !hasVideo) return null;
 
 	return (
 		<section id="profil-tentangKami" className="relative py-16 section-tint-bg overflow-hidden scroll-mt-20">
@@ -31,12 +38,19 @@ export default function ProfilTentangKamiSection() {
 					</h2>
 					<div className="mx-auto w-24 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
 				</div>
+				<AboutVideoEmbed
+					aboutVideoUrl={settings?.aboutVideoUrl}
+					aboutVideoGdriveUrl={settings?.aboutVideoGdriveUrl}
+					aosDelay={120}
+				/>
+				{intro && (
 				<div className="max-w-4xl mx-auto">
 					<div
 						className="prose prose-base max-w-none leading-relaxed bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground"
 						dangerouslySetInnerHTML={{ __html: intro }}
 					/>
 				</div>
+				)}
 			</div>
 			<div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/35 to-transparent" />
 		</section>

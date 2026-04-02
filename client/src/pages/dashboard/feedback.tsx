@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -207,6 +208,30 @@ export default function FeedbackPage() {
 	return (
 		<DashboardLayout title="Saran & Kritik">
 			<div className="space-y-6">
+				<DashboardHintCard
+					title="Cara memakai moderasi feedback"
+					variant="blue"
+					storageKey="dashboard-feedback"
+					description="Feedback pengunjung masuk sebagai item dengan status. Moderasi (balasan, ubah status, sembunyikan) membutuhkan izin manage; tanpa itu hanya baca.">
+					<ul className="list-disc list-inside space-y-1.5 text-sm">
+						<li>
+							<strong>Langkah</strong>: (1) pilih filter (semua / belum dibalas / peringkat, jika ada); (2) buka kartu masukan; (3) tulis <strong>balasan resmi</strong> jika perlu; (4) ubah status (mis. diterima, ditolak, selesai) sesuai UI; (5) simpan.
+						</li>
+						<li>
+							<strong>Contoh valid</strong>: balasan singkat sopan: <code className="text-xs bg-muted px-1 rounded">Terima kasih, kami akan bahas di rapat bulan ini.</code>; status disetel konsisten dengan tindakan panitia.
+						</li>
+						<li>
+							<strong>Contoh tidak valid / ditolak</strong>: mengirim balasan kosong jika server mewajibkan teks; aksi moderasi tanpa <code className="text-xs bg-muted px-1 rounded">feedback.manage</code> (403).
+						</li>
+						<li>
+							<strong>Jika gagal</strong>: refresh dan coba lagi; pastikan tidak ada duplikasi klik; cek apakah feedback sudah dihapus pengguna.
+						</li>
+						<li>
+							<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">feedback.view</code> untuk melihat daftar; <code className="text-xs bg-muted px-1 rounded">feedback.manage</code> untuk membalas dan mengubah status.
+						</li>
+					</ul>
+				</DashboardHintCard>
+
 				{/* Rating Summary */}
 				{ratingData && ratingData.count > 0 && (
 					<div className="grid grid-cols-2 md:grid-cols-4 gap-4">

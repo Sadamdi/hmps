@@ -1,5 +1,6 @@
 import CommentPanel from '@/components/dashboard/comment-panel';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import MediaUploader from '@/components/dashboard/media-uploader';
 import SharingPanel from '@/components/dashboard/sharing-panel';
 import MediaDisplay from '@/components/MediaDisplay';
@@ -271,6 +272,33 @@ export default function DashboardLibrary() {
 					</Button>
 				)}
 			</div>
+
+			<DashboardHintCard
+				title="Cara memakai Galeri Media"
+				variant="blue"
+				storageKey="dashboard-library"
+				description="Setiap entri galeri wajib punya judul, deskripsi singkat, dan deskripsi lengkap. Tipe foto/video dan lampiran drive mengikuti form. Unggahan gambar mengikuti aturan server (format gambar umum, max 100 MB per kebijakan upload).">
+				<ul className="list-disc list-inside space-y-1.5 text-sm">
+					<li>
+						<strong>Langkah create</strong>: <strong>Upload Media</strong> → isi <strong>Title</strong> → <strong>deskripsi pendek</strong> → <strong>full description</strong> → pilih <strong>photo</strong> atau <strong>video</strong> → tambahkan media (file atau tautan yang diminta form) → simpan.
+					</li>
+					<li>
+						<strong>Contoh valid</strong>: Judul <code className="text-xs bg-muted px-1 rounded">Dokumentasi Wisuda 2026</code>; deskripsi singkat satu kalimat; deskripsi lengkap paragraf; link Google Drive berbagi <strong>Anyone with the link / siapa pun yang punya link</strong> (bukan private).
+					</li>
+					<li>
+						<strong>Contoh tidak valid</strong>: field wajib kosong; link Drive private/tidak bisa diakses publik; mencoba edit entri orang lain tanpa izin atau sharing.
+					</li>
+					<li>
+						<strong>Jika gagal</strong>: periksa pesan error unggah (kurangi ukuran file atau ganti format); pastikan link drive bisa dibuka di jendela incognito; pastikan Anda pemilik entri atau punya akses edit.
+					</li>
+					<li>
+						<strong>Sharing</strong>: gunakan pencarian judul di mode ajuan untuk meminta akses ke satu entri tanpa akses penuh ke semua galeri.
+					</li>
+					<li>
+						<strong>Izin utama</strong>: <code className="text-xs bg-muted px-1 rounded">library.create</code>, <code className="text-xs bg-muted px-1 rounded">library.edit</code>/<code className="text-xs bg-muted px-1 rounded">library.delete</code>, <code className="text-xs bg-muted px-1 rounded">library.edit_others</code>/<code className="text-xs bg-muted px-1 rounded">library.view_others</code>.
+					</li>
+				</ul>
+			</DashboardHintCard>
 
 			{showRequestSharingSearch && (
 				<div className="mb-6 flex flex-col gap-4">

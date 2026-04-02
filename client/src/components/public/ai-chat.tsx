@@ -41,6 +41,7 @@ const ALLOWED_NAV_PATHS = new Set([
 	'/kelembagaan',
 	'/profil',
 	'/library',
+	'/communities',
 ]);
 
 /** Normalisasi ringan path dari blok NAV sebelum validasi/redirect. */

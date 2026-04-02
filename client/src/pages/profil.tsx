@@ -1,3 +1,4 @@
+import { AboutVideoEmbed } from '@/components/public/about-video-embed';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -7,6 +8,7 @@ import type {
 	AboutPageLambangItem,
 	AboutPageTrackRecordItem,
 } from '@shared/schema';
+import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useLayoutEffect } from 'react';
@@ -14,6 +16,8 @@ import { useLocation } from 'wouter';
 
 interface Settings {
 	aboutUs?: string;
+	aboutVideoUrl?: string;
+	aboutVideoGdriveUrl?: string;
 	aboutPageTrackRecord?: AboutPageTrackRecordItem[];
 	aboutPageLambang?: AboutPageLambangItem[];
 }
@@ -72,6 +76,9 @@ export default function ProfilPage() {
 
 	// Satu sumber: sama dengan Tentang Kami di beranda (aboutUs)
 	const intro = settings?.aboutUs;
+	const hasAboutVideo =
+		!!parseYouTubeVideoId(settings?.aboutVideoUrl || '') ||
+		!!parseGoogleDriveFileId(settings?.aboutVideoGdriveUrl || '');
 	const trackRecord = settings?.aboutPageTrackRecord || [];
 	const lambang = settings?.aboutPageLambang || [];
 
@@ -145,7 +152,7 @@ export default function ProfilPage() {
 			</div>
 
 			{/* ===== TENTANG KAMI (intro/aboutUs) ===== */}
-			{intro && (
+			{(intro || hasAboutVideo) && (
 				<section
 					id="tentang-kami"
 					className="relative py-16 section-tint-bg overflow-hidden scroll-mt-20">
@@ -162,6 +169,13 @@ export default function ProfilPage() {
 							<div className="mx-auto w-24 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
 						</div>
 
+						<AboutVideoEmbed
+							aboutVideoUrl={settings?.aboutVideoUrl}
+							aboutVideoGdriveUrl={settings?.aboutVideoGdriveUrl}
+							aosDelay={120}
+						/>
+
+						{intro && (
 						<div className="max-w-4xl mx-auto">
 							<div
 								className="prose prose-base max-w-none leading-relaxed bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm text-foreground
@@ -169,6 +183,7 @@ export default function ProfilPage() {
 								dangerouslySetInnerHTML={{ __html: intro }}
 							/>
 						</div>
+						)}
 					</div>
 
 					<div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/35 to-transparent" />

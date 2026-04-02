@@ -12,6 +12,7 @@ import { useQuery } from '@tanstack/react-query';
 import AOS from 'aos';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'wouter';
 import MediaDisplay from '../MediaDisplay';
 
 interface LibraryItem {
@@ -449,13 +450,13 @@ export default function Library() {
 							className="text-center mt-10"
 							data-aos="fade-up"
 							data-aos-delay="200">
-							<a href="/library">
-								<Button
-									variant="outline"
-									className="btn-secondary">
-									Lihat Semua Media
-								</Button>
-							</a>
+						<Link href="/dashboard/library">
+							<Button
+								variant="outline"
+								className="btn-secondary">
+								Lihat Semua Media
+							</Button>
+						</Link>
 						</div>
 					</>
 				)}

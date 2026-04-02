@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { UserManagement } from '@/components/dashboard/user-management';
 import { PermissionOverridesSection } from '@/components/dashboard/user-profile-editor';
 import { Badge } from '@/components/ui/badge';
@@ -294,6 +295,33 @@ export default function UsersPage() {
 					</Button>
 				)}
 			</div>
+
+			<DashboardHintCard
+				title="Cara memakai User Management"
+				variant="amber"
+				storageKey="dashboard-users"
+				description="Membuat user baru mengirim username, nama, email unik, password, dan role. Server menolak username duplikat dan membatasi edit/hapus berdasarkan hierarki role.">
+				<ul className="list-disc list-inside space-y-1.5 text-sm">
+					<li>
+						<strong>Langkah create</strong>: <strong>Add User</strong> → isi <strong>username</strong> (unik, tanpa spasi) → <strong>full name</strong> → <strong>email</strong> → <strong>password</strong> + konfirmasi → pilih <strong>role</strong> → simpan.
+					</li>
+					<li>
+						<strong>Contoh valid</strong>: username <code className="text-xs bg-muted px-1 rounded">divisi_pr</code>; email <code className="text-xs bg-muted px-1 rounded">pr@organisasi.ac.id</code>; password kuat minimal 8 karakter dengan huruf+angka; role sesuai tugas (mis. operator konten).
+					</li>
+					<li>
+						<strong>Contoh tidak valid</strong>: username sudah dipakai (400); mengubah/menghapus user level setara atau di atas Anda (403); menghapus akun sendiri (ditolak).
+					</li>
+					<li>
+						<strong>Edit email / password</strong>: gunakan dialog khusus; pastikan email baru valid; setelah ubah password, user terkait harus login ulang.
+					</li>
+					<li>
+						<strong>Permission override</strong> (jika tersedia): isi allow/deny dengan nama permission yang valid; kosongkan jika tidak perlu pengecualian.
+					</li>
+					<li>
+						<strong>Izin utama</strong>: <code className="text-xs bg-muted px-1 rounded">users.create</code>, <code className="text-xs bg-muted px-1 rounded">users.edit</code>/<code className="text-xs bg-muted px-1 rounded">delete</code>, <code className="text-xs bg-muted px-1 rounded">users.edit_email</code>, serta <code className="text-xs bg-muted px-1 rounded">roles.assign</code> untuk mengubah role.
+					</li>
+				</ul>
+			</DashboardHintCard>
 
 			<div className="mb-6 flex flex-col sm:flex-row gap-4">
 				<div className="relative flex-1">

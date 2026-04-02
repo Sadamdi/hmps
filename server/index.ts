@@ -67,6 +67,10 @@ app.use(antiSpoofingProtectionMiddleware);
 // Apply DNS layer protection
 app.use(dnsLayerProtectionMiddleware);
 
+// Apply tenant resolver for community API calls
+import { tenantApiResolver } from './middleware/tenant-resolver';
+app.use(tenantApiResolver);
+
 // Apply input sanitization
 app.use(sanitizeInput);
 
@@ -291,6 +295,10 @@ setInterval(cleanupAntiSpoofingData, 60 * 1000);
 // DNS Layer Protection Cleanup (every 5 minutes)
 setInterval(cleanupDnsLayerData, 5 * 60 * 1000);
 
+// ==================== TEMP ONBOARDING UPLOAD CLEANUP (every hour) ====================
+import { runTempUploadCleanup } from './upload';
+setInterval(runTempUploadCleanup, 60 * 60 * 1000);
+
 // ==================== MONTHLY DB BACKUP SCHEDULER ====================
 import cron from 'node-cron';
 import { runMonthlyBackup } from './services/db-backup';
@@ -318,6 +326,10 @@ async function runBackupIfNeeded() {
 // Schedule: tanggal 1 setiap bulan jam 02:00 — jika snapshot bulan itu belum ada, jalan; kalau sudah ada, lewati
 cron.schedule('0 2 1 * *', runBackupIfNeeded);
 
+// ==================== DAILY ORPHAN ASSET CLEANUP — DISABLED ====================
+// Dinonaktifkan: auto-cleanup bisa false-delete file yang masih valid di database.
+// File asset-cleanup.ts dipertahankan sebagai referensi internal.
+
 // Schedule: prodi auto-sync — every 1st of month at 03:00
 cron.schedule('0 3 1 * *', async () => {
 	try {
@@ -327,9 +339,9 @@ cron.schedule('0 3 1 * *', async () => {
 			console.log('⏭️  Prodi auto-sync skipped (disabled)');
 			return;
 		}
-		const { runProdiSync } = await import('./services/prodi-sync');
+		const { runProdiSyncScoped } = await import('./services/prodi-sync');
 		console.log('🔄 Running scheduled prodi auto-sync...');
-		await runProdiSync();
+		await runProdiSyncScoped('all', { overwrite: true });
 	} catch (err) {
 		console.error('Scheduled prodi sync error:', err);
 	}
@@ -354,11 +366,24 @@ setInterval(
 	// Connect to MongoDB
 	try {
 		await connectDB();
-		// Nota: connectDB sekarang mengembalikan false jika gagal, tapi tidak melempar error
-		// karena kita mau fallback ke PostgreSQL
 	} catch (error) {
 		console.error('Error saat inisialisasi database:', error);
 		process.exit(1);
+	}
+
+	// Drop legacy `databaseName_1` index on communities if it exists (migrated to `dbName`)
+	try {
+		const { Community } = await import('../db/mongodb');
+		const indexes = await (Community as any).collection.indexes();
+		const legacy = indexes.find((idx: any) => idx.name === 'databaseName_1');
+		if (legacy) {
+			await (Community as any).collection.dropIndex('databaseName_1');
+			console.log('[migration] Dropped legacy index databaseName_1 on communities');
+		} else {
+			console.log('[migration] No legacy databaseName_1 index found — OK');
+		}
+	} catch (migErr) {
+		console.warn('[migration] Failed to check/drop databaseName_1 index:', migErr);
 	}
 
 	// Cluster backup (opsional): koneksi persisten + ping — dipakai job snapshot tanpa buka-tutup klien tiap kali

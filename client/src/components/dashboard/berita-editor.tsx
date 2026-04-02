@@ -23,6 +23,7 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { CalendarDays, Copy, Image, Link2, Loader2, Plus, Search, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import RichTextEditor from './rich-text-editor';
@@ -616,6 +617,32 @@ export default function BeritaEditor({
 
 	return (
 		<div className="space-y-6">
+			<DashboardHintCard
+				title="Tips mengisi berita"
+				variant="blue"
+				storageKey="dashboard-berita-editor"
+				description="Form ini mengirim judul, excerpt, HTML konten, thumbnail, tag, dan status publish ke API. Field wajib harus terisi; publish membutuhkan izin berita.publish di server.">
+				<ul className="list-disc list-inside space-y-1.5 text-sm">
+					<li>
+						<strong>Langkah</strong>: isi judul &amp; excerpt → tulis isi di editor (bold, list, gambar inline) → unggah thumbnail jika perlu → atur tag → centang publish jika siap → <strong>Simpan</strong>.
+					</li>
+					<li>
+						<strong>Contoh valid</strong>: judul ≤ panjang wajar; excerpt 1–2 kalimat; gambar thumbnail JPG/PNG/WebP sesuai batas upload; tag dari daftar atau input yang diterima form.
+					</li>
+					<li>
+						<strong>Contoh tidak valid</strong>: judul/excerpt/konten kosong; publish ON tanpa izin (server menolak); file gambar terlalu besar atau bukan gambar.
+					</li>
+					<li>
+						<strong>Jika gagal</strong>: baca pesan error; nonaktifkan publish dan simpan draf; periksa ukuran gambar.
+					</li>
+					<li>
+						<strong>Publish</strong>: aktif = tampil di publik (jika diizinkan); nonaktif = draf.
+					</li>
+					<li>
+						<strong>Menutup dialog</strong>: gunakan <strong>Batal</strong> atau <strong>Simpan</strong>—jangan tutup dengan klik di luar jika itu membuang draft.
+					</li>
+				</ul>
+			</DashboardHintCard>
 			<div className="space-y-4">
 				<div className="space-y-2">
 					<Label htmlFor="title">Judul Berita</Label>

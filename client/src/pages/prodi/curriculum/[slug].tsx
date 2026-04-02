@@ -23,36 +23,52 @@ function normalizeSlug(raw: string): string {
 	}
 }
 
+function getAllCurriculumSources(data: any): any[] {
+	const sources: any[] = [];
+	const legacy = data?.curriculum ?? data?.content?.curriculum;
+	if (legacy) sources.push(legacy);
+	const byYear = data?.curriculumByYear;
+	if (byYear && typeof byYear === 'object') {
+		for (const yearData of Object.values(byYear)) {
+			if (yearData) sources.push(yearData);
+		}
+	}
+	return sources;
+}
+
 function getCurriculum(data: any) {
 	return data?.curriculum ?? data?.content?.curriculum ?? null;
 }
 
 function findSubjectBySlug(data: any, slug: string) {
-	const curriculum = getCurriculum(data);
-	if (!curriculum) return null;
 	const norm = slug.toLowerCase().trim();
-	const { semesters = [], optionalSubjects = [] } = curriculum;
-	for (const sem of semesters) {
-		for (const sub of sem.subjects || []) {
-			if (sub.rpsUrl && normalizeSlug(sub.rpsUrl) === norm) {
-				return { ...sub, semesterNum: sem.semester };
+	for (const curriculum of getAllCurriculumSources(data)) {
+		const { semesters = [], optionalSubjects = [] } = curriculum;
+		for (const sem of semesters) {
+			for (const sub of sem.subjects || []) {
+				if (sub.rpsUrl && normalizeSlug(sub.rpsUrl) === norm) {
+					return { ...sub, semesterNum: sem.semester };
+				}
 			}
 		}
-	}
-	for (const sub of optionalSubjects) {
-		if (sub.rpsUrl && normalizeSlug(sub.rpsUrl) === norm) {
-			return { ...sub, semesterNum: null };
+		for (const sub of optionalSubjects) {
+			if (sub.rpsUrl && normalizeSlug(sub.rpsUrl) === norm) {
+				return { ...sub, semesterNum: null };
+			}
 		}
 	}
 	return null;
 }
 
 function findRpsResources(data: any, slug: string) {
-	const curriculum = getCurriculum(data);
-	const resources = curriculum?.subjectRpsResources;
-	if (!Array.isArray(resources)) return null;
 	const norm = slug.toLowerCase().trim();
-	return resources.find((r: any) => (r.slug || '').toLowerCase() === norm) || null;
+	for (const curriculum of getAllCurriculumSources(data)) {
+		const resources = curriculum?.subjectRpsResources;
+		if (!Array.isArray(resources)) continue;
+		const found = resources.find((r: any) => (r.slug || '').toLowerCase() === norm);
+		if (found) return found;
+	}
+	return null;
 }
 
 export default function CurriculumSubjectPage() {

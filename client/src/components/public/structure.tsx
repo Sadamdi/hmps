@@ -1,5 +1,6 @@
 import MediaDisplay from '@/components/MediaDisplay';
 import { SimpleSelect } from '@/components/public/SimpleSelect';
+import { getDivisionFromPosition } from '@/lib/org-structure-division';
 import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
@@ -152,34 +153,6 @@ const OrgChartFlow = ({
 			/>
 		</ReactFlow>
 	);
-};
-
-// Helper function to get division from position
-const getDivisionFromPosition = (position: string): string => {
-	if (
-		position.includes('Ketua Himpunan') ||
-		position.includes('Wakil Ketua Himpunan') ||
-		position.includes('Sekretaris Himpunan') ||
-		position.includes('Bendahara Himpunan')
-	) {
-		return 'BPH';
-	}
-
-	const divisions = [
-		'Senor',
-		'Public Relation',
-		'Religius',
-		'Technopreneurship',
-		'Medinfo',
-		'Intelektual',
-	];
-	for (const division of divisions) {
-		if (position.includes(division)) {
-			return division;
-		}
-	}
-
-	return 'Lainnya';
 };
 
 // Helper function to get all available divisions from members
@@ -463,20 +436,31 @@ export default function Structure() {
 				}
 			});
 
-			// Level 2: Sekretaris dan Bendahara (di tengah antara ketua dan wakil)
-			const sekretaris1 = positionMembers['Sekretaris Himpunan 1'] || [];
-			const sekretaris2 = positionMembers['Sekretaris Himpunan 2'] || [];
-			const bendahara1 = positionMembers['Bendahara Himpunan 1'] || [];
-			const bendahara2 = positionMembers['Bendahara Himpunan 2'] || [];
-			const bphSpacing = 300; // Ditingkatkan dari 200 ke 300 untuk jarak yang lebih lebar
+			// Level 2: Sekretaris & Bendahara (semua varian nama posisi BPH non-divisi)
+			const sekretarisAll = Object.entries(positionMembers).flatMap(
+				([name, mems]) =>
+					/sekretaris\s+himpunan/i.test(name) && !/divisi/i.test(name)
+						? mems
+						: [],
+			);
+			const bendaharaAll = Object.entries(positionMembers).flatMap(
+				([name, mems]) =>
+					/bendahara\s+himpunan/i.test(name) && !/divisi/i.test(name)
+						? mems
+						: [],
+			);
+			const sekretaris1 = sekretarisAll.slice(0, 1);
+			const sekretaris2 = sekretarisAll.slice(1, 2);
+			const bendahara1 = bendaharaAll.slice(0, 1);
+			const bendahara2 = bendaharaAll.slice(1, 2);
+			const bphSpacing = 300;
 
-			// Sekretaris 1 di bawah ketua, Bendahara 1 di bawah wakil
-			sekretaris1.forEach((member, i) => {
+			const pushBphNode = (member: OrgMember, x: number, y: number) => {
 				nodes.push({
 					id: `${member.id}`,
 					type: 'memberNode',
 					data: { member },
-					position: { x: -level1Spacing / 2, y: 200 }, // Di bawah ketua
+					position: { x, y },
 					draggable: true,
 				});
 				if (member.id) {
@@ -487,142 +471,108 @@ export default function Structure() {
 						type: 'smoothstep',
 					});
 				}
-			});
+			};
 
-			bendahara1.forEach((member, i) => {
-				nodes.push({
-					id: `${member.id}`,
-					type: 'memberNode',
-					data: { member },
-					position: { x: level1Spacing / 2, y: 200 }, // Di bawah wakil
-					draggable: true,
-				});
-				if (member.id) {
-					edges.push({
-						id: `e-root-${member.id}`,
-						source: 'root',
-						target: `${member.id}`,
-						type: 'smoothstep',
-					});
-				}
-			});
+			sekretaris1.forEach((member) =>
+				pushBphNode(member, -level1Spacing / 2, 200),
+			);
+			bendahara1.forEach((member) =>
+				pushBphNode(member, level1Spacing / 2, 200),
+			);
+			sekretaris2.forEach((member) =>
+				pushBphNode(member, -level1Spacing / 2 - bphSpacing, 200),
+			);
+			bendahara2.forEach((member) =>
+				pushBphNode(member, level1Spacing / 2 + bphSpacing, 200),
+			);
 
-			// Sekretaris 2 di kiri sekretaris 1, Bendahara 2 di kanan bendahara 1
-			sekretaris2.forEach((member, i) => {
-				nodes.push({
-					id: `${member.id}`,
-					type: 'memberNode',
-					data: { member },
-					position: { x: -level1Spacing / 2 - bphSpacing, y: 200 }, // Di kiri sekretaris 1
-					draggable: true,
-				});
-				if (member.id) {
-					edges.push({
-						id: `e-root-${member.id}`,
-						source: 'root',
-						target: `${member.id}`,
-						type: 'smoothstep',
-					});
-				}
-			});
+			// Kelompok divisi dari data aktual (bukan daftar tetap)
+			type DivBucket = { heads: OrgMember[]; members: OrgMember[] };
+			const divisionBuckets = new Map<string, DivBucket>();
+			for (const member of members) {
+				const pos = member.position.trim();
+				const div = getDivisionFromPosition(pos);
+				if (div === 'BPH' || div === 'Lainnya') continue;
+				if (!divisionBuckets.has(div))
+					divisionBuckets.set(div, { heads: [], members: [] });
+				const b = divisionBuckets.get(div)!;
+				if (/^ketua\s+divisi/i.test(pos)) b.heads.push(member);
+				else if (/^anggota\s+divisi/i.test(pos)) b.members.push(member);
+			}
 
-			bendahara2.forEach((member, i) => {
-				nodes.push({
-					id: `${member.id}`,
-					type: 'memberNode',
-					data: { member },
-					position: { x: level1Spacing / 2 + bphSpacing, y: 200 }, // Di kanan bendahara 1
-					draggable: true,
-				});
-				if (member.id) {
-					edges.push({
-						id: `e-root-${member.id}`,
-						source: 'root',
-						target: `${member.id}`,
-						type: 'smoothstep',
-					});
-				}
-			});
-
-			// Level 3: Ketua Divisi (dijarak lebih lebar untuk muat 2 anggota sejajar)
-			const divisiList = [
-				'Senor',
-				'Public Relation',
-				'Religius',
-				'Technopreneurship',
-				'Medinfo',
-				'Intelektual',
-			];
-			const ketuaDivisiSpacing = 600; // Ditingkatkan dari 500 ke 700 untuk jarak yang lebih lebar
+			const divisiList = Array.from(divisionBuckets.keys()).sort((a, b) =>
+				a.localeCompare(b, 'id'),
+			);
+			const ketuaDivisiSpacing = 600;
 			const ketuaDivisiOffset =
-				((divisiList.length - 1) * ketuaDivisiSpacing) / 2;
+				divisiList.length > 0
+					? ((divisiList.length - 1) * ketuaDivisiSpacing) / 2
+					: 0;
+
 			divisiList.forEach((div, i) => {
-				const ketuaDiv = positionMembers[`Ketua Divisi ${div}`];
-				if (ketuaDiv) {
-					ketuaDiv.forEach((member, k) => {
-						nodes.push({
-							id: `${member.id}`,
-							type: 'memberNode',
-							data: { member },
-							position: {
-								x: i * ketuaDivisiSpacing - ketuaDivisiOffset + k * 60,
-								y: 400, // Jarak 200px dari sekretaris/bendahara (y: 200)
-							},
-							draggable: true,
-						});
-						// Garis dari root ke ketua divisi
-						if (member.id) {
-							edges.push({
-								id: `e-root-div-${member.id}`,
-								source: 'root',
-								target: `${member.id}`,
-								type: 'smoothstep',
-							});
-						}
+				const bucket = divisionBuckets.get(div);
+				if (!bucket) return;
+				const ketuaDiv = bucket.heads;
+				ketuaDiv.forEach((member, k) => {
+					nodes.push({
+						id: `${member.id}`,
+						type: 'memberNode',
+						data: { member },
+						position: {
+							x: i * ketuaDivisiSpacing - ketuaDivisiOffset + k * 60,
+							y: 400,
+						},
+						draggable: true,
 					});
-				}
+					if (member.id) {
+						edges.push({
+							id: `e-root-div-${member.id}`,
+							source: 'root',
+							target: `${member.id}`,
+							type: 'smoothstep',
+						});
+					}
+				});
 			});
 
-			// Level 4: Anggota Divisi (2 orang sejajar ke bawah dengan jarak 200px dari ketua divisi)
 			divisiList.forEach((div, i) => {
-				const anggotaDiv = positionMembers[`Anggota Divisi ${div}`];
-				const ketuaDiv = positionMembers[`Ketua Divisi ${div}`];
-				if (anggotaDiv && ketuaDiv && ketuaDiv.length > 0) {
-					// Layout 2 orang sejajar ke bawah dengan jarak 200px dari ketua divisi
-					const anggotaSpacing = 300; // Dideketin dari 360 ke 300 (180px → 150px)
-					const rowSpacing = 200; // Jarak antar baris
+				const bucket = divisionBuckets.get(div);
+				if (!bucket) return;
+				const anggotaDiv = bucket.members;
+				const ketuaDiv = bucket.heads;
+				const anchor = ketuaDiv[0] ?? anggotaDiv[0];
+				if (!anggotaDiv.length || !anchor) return;
 
-					anggotaDiv.forEach((member, j) => {
-						const row = Math.floor(j / 2); // 2 orang per baris
-						const col = j % 2; // 0 = kiri, 1 = kanan
+				const anggotaSpacing = 300;
+				const rowSpacing = 200;
 
-						// Posisi relatif terhadap ketua divisi
-						const ketuaX = i * ketuaDivisiSpacing - ketuaDivisiOffset;
-						const anggotaX =
-							ketuaX + (col === 0 ? -anggotaSpacing / 2 : anggotaSpacing / 2);
+				anggotaDiv.forEach((member, j) => {
+					const row = Math.floor(j / 2);
+					const col = j % 2;
+					const ketuaX = i * ketuaDivisiSpacing - ketuaDivisiOffset;
+					const anggotaX =
+						ketuaX + (col === 0 ? -anggotaSpacing / 2 : anggotaSpacing / 2);
 
-						nodes.push({
-							id: `${member.id}`,
-							type: 'memberNode',
-							data: { member },
-							position: {
-								x: anggotaX,
-								y: 600 + row * rowSpacing, // Mulai dari y=600 (200px dari ketua divisi y: 400), setiap baris +200
-							},
-							draggable: true,
-						});
-
-						// Tambahkan edge dari ketua divisi ke anggota
-						if (ketuaDiv[0].id && member.id) {
-							edges.push({
-								id: `e-div-${ketuaDiv[0].id}-${member.id}`,
-								source: `${ketuaDiv[0].id}`,
-								target: `${member.id}`,
-								type: 'smoothstep',
-							});
-						}
+					nodes.push({
+						id: `${member.id}`,
+						type: 'memberNode',
+						data: { member },
+						position: {
+							x: anggotaX,
+							y: 600 + row * rowSpacing,
+						},
+						draggable: true,
 					});
-				}
+
+					if (anchor.id && member.id) {
+						edges.push({
+							id: `e-div-${anchor.id}-${member.id}`,
+							source: `${anchor.id}`,
+							target: `${member.id}`,
+							type: 'smoothstep',
+						});
+					}
+				});
 			});
 
 			setNodes(nodes);

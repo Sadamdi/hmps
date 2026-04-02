@@ -1458,22 +1458,28 @@ function findOldLecturerPhotoUrl(existingContent: any, slug: string): string | u
 	}
 }
 
-// ─── Main sync orchestrator ───
+// ─── Scoped sync types ───
 
-export async function runProdiSync(): Promise<ProdiSyncSummary> {
+export type ProdiSyncScope = 'all' | 'profile' | 'lecturers' | 'curriculum' | 'labs';
+
+export type ProdiSyncScopedResult = ProdiSyncSummary & {
+	curriculumYearAction?: 'created' | 'overwritten' | 'needs_confirm';
+	curriculumTargetYear?: number;
+};
+
+// ─── Scoped sync orchestrator ───
+
+export async function runProdiSyncScoped(
+	scope: ProdiSyncScope = 'all',
+	options?: { overwrite?: boolean },
+): Promise<ProdiSyncScopedResult> {
 	if (syncing) {
-		console.log('Prodi sync already in progress, skipping');
 		return {
 			ok: false,
 			error: 'already_running',
-			profileHistoryLen: 0,
-			missionCount: 0,
-			objectivesCount: 0,
-			lecturerLinks: 0,
-			semestersCount: 0,
-			optionalSubjectsCount: 0,
-			teachingLabs: 0,
-			researchLabs: 0,
+			profileHistoryLen: 0, missionCount: 0, objectivesCount: 0,
+			lecturerLinks: 0, semestersCount: 0, optionalSubjectsCount: 0,
+			teachingLabs: 0, researchLabs: 0,
 		};
 	}
 	syncing = true;
@@ -1483,271 +1489,361 @@ export async function runProdiSync(): Promise<ProdiSyncSummary> {
 	let curriculum: any = null;
 	let teachingLabs: any[] | null = null;
 	let researchLabs: any[] | null = null;
+	let curriculumYearAction: 'created' | 'overwritten' | 'needs_confirm' | undefined;
+	let curriculumTargetYear: number | undefined;
+
+	const doProfile = scope === 'all' || scope === 'profile';
+	const doLecturers = scope === 'all' || scope === 'lecturers';
+	const doCurriculum = scope === 'all' || scope === 'curriculum';
+	const doLabs = scope === 'all' || scope === 'labs';
 
 	try {
 		await mongoStorage.setProdiSyncStatus('syncing');
-		console.log('🔄 Starting prodi content sync...');
+		console.log(`🔄 Starting prodi sync (scope=${scope})...`);
 
-		[profile, lecturerData, curriculum, teachingLabs, researchLabs] = await Promise.all([
-			parseProfile().catch((err) => {
-				console.error('Profile parse error:', err);
-				return null;
-			}),
-			parseLecturerList().catch((err) => {
-				console.error('Lecturer list parse error:', err);
-				return null;
-			}),
-			parseCurriculum().catch((err) => {
-				console.error('Curriculum parse error:', err);
-				return null;
-			}),
-			parseLaboratories('teaching').catch((err) => {
-				console.error('Teaching lab parse error:', err);
-				return null;
-			}),
-			parseLaboratories('research').catch((err) => {
-				console.error('Research lab parse error:', err);
-				return null;
-			}),
-		]);
+		const tasks: Promise<any>[] = [];
+		const taskNames: string[] = [];
 
-		if (lecturerData) {
-			const allLecturers: { groupIdx: number; lecIdx: number }[] = [];
-			lecturerData.groups.forEach((group, gi) => {
-				group.lecturers.forEach((_lec, li) => {
-					allLecturers.push({ groupIdx: gi, lecIdx: li });
-				});
-			});
-
-			const BATCH = 3;
-			for (let i = 0; i < allLecturers.length; i += BATCH) {
-				const batch = allLecturers.slice(i, i + BATCH);
-				const details = await Promise.all(
-					batch.map(({ groupIdx, lecIdx }) =>
-						fetchLecturerDetail(lecturerData!.groups[groupIdx].lecturers[lecIdx].profileUrl),
-					),
-				);
-				for (let j = 0; j < batch.length; j++) {
-					const { groupIdx, lecIdx } = batch[j];
-					assignNonEmpty(lecturerData!.groups[groupIdx].lecturers[lecIdx], details[j]);
-				}
-				if (i + BATCH < allLecturers.length) await new Promise((r) => setTimeout(r, 500));
-			}
-
-			for (const person of [...lecturerData.headAndSecretary, ...lecturerData.staff]) {
-				if (person.profileUrl) {
-					const detail = await fetchLecturerDetail(person.profileUrl);
-					assignNonEmpty(person, detail);
-					await new Promise((r) => setTimeout(r, 300));
-				}
-			}
+		if (doProfile) { tasks.push(parseProfile().catch(e => { console.error('Profile parse error:', e); return null; })); taskNames.push('profile'); }
+		if (doLecturers) { tasks.push(parseLecturerList().catch(e => { console.error('Lecturer list parse error:', e); return null; })); taskNames.push('lecturers'); }
+		if (doCurriculum) { tasks.push(parseCurriculum().catch(e => { console.error('Curriculum parse error:', e); return null; })); taskNames.push('curriculum'); }
+		if (doLabs) {
+			tasks.push(parseLaboratories('teaching').catch(e => { console.error('Teaching lab parse error:', e); return null; }));
+			tasks.push(parseLaboratories('research').catch(e => { console.error('Research lab parse error:', e); return null; }));
+			taskNames.push('teachingLab', 'researchLab');
 		}
 
-		if (profile?.managements?.length) {
-			for (const mgmt of profile.managements) {
-				for (const member of mgmt.members || []) {
-					if (member.profileUrl) {
-						try {
-							const detail = await fetchLecturerDetail(member.profileUrl);
-							assignNonEmpty(member, detail);
-							await new Promise((r) => setTimeout(r, 300));
-						} catch (err) {
-							console.warn(`Failed enriching management member ${member.name}:`, err);
-						}
-					}
-				}
-			}
+		const results = await Promise.all(tasks);
+		let ri = 0;
+		for (const name of taskNames) {
+			if (name === 'profile') profile = results[ri++];
+			else if (name === 'lecturers') lecturerData = results[ri++];
+			else if (name === 'curriculum') curriculum = results[ri++];
+			else if (name === 'teachingLab') teachingLabs = results[ri++];
+			else if (name === 'researchLab') researchLabs = results[ri++];
 		}
 
-		// Crawl RPS resources for every subject that has an rpsUrl
-		if (curriculum?.semesters?.length || curriculum?.optionalSubjects?.length) {
-			const allSubjects: any[] = [
-				...(curriculum.semesters || []).flatMap((s: any) => s.subjects || []),
-				...(curriculum.optionalSubjects || []),
-			];
-			const rpsUrlSet = new Set<string>();
-			const rpsEntries: { rpsUrl: string; name: string }[] = [];
-			for (const sub of allSubjects) {
-				if (sub.rpsUrl && !rpsUrlSet.has(sub.rpsUrl)) {
-					rpsUrlSet.add(sub.rpsUrl);
-					rpsEntries.push({ rpsUrl: sub.rpsUrl, name: sub.name || '' });
+		// Enrich lecturer details
+		if (doLecturers && lecturerData) {
+			await enrichLecturerDetails(lecturerData);
+		}
+
+		// Enrich management members in profile
+		if (doProfile && profile?.managements?.length) {
+			await enrichManagementMembers(profile);
+		}
+
+		// Crawl RPS resources
+		if (doCurriculum && curriculum) {
+			await crawlRpsResources(curriculum);
+		}
+
+		// Cache images
+		const existingDoc = await mongoStorage.getProdiContent();
+		const existingContent = existingDoc?.content ?? {};
+		const overridesDoc = existingDoc?.overrides ?? {};
+		const cachedDestUrls = new Set<string>();
+
+		if (doProfile) {
+			await cacheProfileImages(profile, existingContent, overridesDoc, cachedDestUrls);
+		}
+		if (doLecturers && lecturerData) {
+			await cacheLecturerImages(lecturerData, existingContent, overridesDoc, cachedDestUrls);
+		}
+		if (doLabs) {
+			await cacheLabImages(teachingLabs, researchLabs, existingContent, overridesDoc, cachedDestUrls);
+		}
+
+		// Build crawled content and apply
+		const crawledContent: any = {};
+		const forceFields: string[] = [];
+
+		if (doProfile && profile) crawledContent.profile = profile;
+		if (doLecturers && lecturerData) crawledContent.lecturers = lecturerData;
+		if (doLabs) {
+			crawledContent.laboratories = {
+				teaching: teachingLabs || [],
+				research: researchLabs || [],
+			};
+			forceFields.push('laboratories.teaching', 'laboratories.research');
+		}
+
+		// Curriculum goes through year-based storage
+		if (doCurriculum && curriculum) {
+			const targetYear = mongoStorage.resolveAcademicYearByDate(new Date());
+			curriculumTargetYear = targetYear;
+
+			const result = await mongoStorage.upsertProdiCurriculumByYear(
+				targetYear,
+				{ ...curriculum, source: 'sync' },
+				{ overwrite: options?.overwrite },
+			);
+			curriculumYearAction = result.action;
+
+			if (result.action === 'needs_confirm') {
+				// Don't apply curriculum; return early with needs_confirm
+				// Still apply other sections if they were requested
+				if (Object.keys(crawledContent).length > 0) {
+					await mongoStorage.applyAutoSyncData(crawledContent, { forceFields });
 				}
+				await mongoStorage.setProdiSyncStatus('idle');
+				const summary = buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, true);
+				return {
+					...summary,
+					curriculumYearAction: 'needs_confirm',
+					curriculumTargetYear: targetYear,
+				};
 			}
 
-			if (rpsEntries.length) {
-				console.log(`🔗 Crawling RPS resources for ${rpsEntries.length} subjects…`);
-				const subjectRpsResources: any[] = [];
-				const RPS_BATCH = 3;
-				for (let i = 0; i < rpsEntries.length; i += RPS_BATCH) {
-					const batch = rpsEntries.slice(i, i + RPS_BATCH);
-					const results = await Promise.all(
-						batch.map(({ rpsUrl, name }) =>
-							parseSubjectRpsResources(rpsUrl, name).catch((err) => {
-								console.warn(`Failed to parse RPS for ${rpsUrl}:`, err);
-								return null;
-							}),
-						),
-					);
-					for (const r of results) {
-						if (r && r.slug) subjectRpsResources.push(r);
-					}
-					if (i + RPS_BATCH < rpsEntries.length) await new Promise((r) => setTimeout(r, 500));
-				}
-				curriculum.subjectRpsResources = subjectRpsResources;
-				console.log(`✅ Parsed RPS resources: ${subjectRpsResources.length} subjects with materials`);
-			}
+			// Also update legacy content.curriculum for backwards compat
+			crawledContent.curriculum = curriculum;
+			forceFields.push('curriculum.semesters', 'curriculum.optionalSubjects', 'curriculum.subjectRpsResources');
+		}
+
+		if (Object.keys(crawledContent).length > 0) {
+			await mongoStorage.applyAutoSyncData(crawledContent, { forceFields });
 		}
 
 		const validation = validateCrawledContent(profile, lecturerData, curriculum, teachingLabs, researchLabs);
 
-		// Cache gambar ke folder lokal agar UI selalu menampilkan foto/image.
-		// Cache ini harus sinkron dengan semantics override `overrides`:
-		// - Jika field array di-override oleh user, auto-sync tidak overwrite field tersebut,
-		//   sehingga kita juga tidak perlu mendownload + menghapus file lama.
-		const existingDoc = await mongoStorage.getProdiContent();
-		const existingContent = existingDoc?.content ?? {};
-		const overrides = existingDoc?.overrides ?? {};
-
-		const lecturerOverrides = overrides?.lecturers ?? {};
-		const profileOverrides = overrides?.profile ?? {};
-		const labsOverrides = overrides?.laboratories ?? {};
-
-		const cacheHeadAndSecretary = lecturerOverrides?.headAndSecretary !== true;
-		const cacheGroups = lecturerOverrides?.groups !== true;
-		const cacheStaff = lecturerOverrides?.staff !== true;
-		const cacheManagements = profileOverrides?.managements !== true;
-		const cacheTeachingLabs = labsOverrides?.teaching !== true;
-		const cacheResearchLabs = labsOverrides?.research !== true;
-
-		const cachedDestUrls = new Set<string>();
-		const cacheLecturerPhoto = async (person: any) => {
-			if (!person?.photoUrl) return;
-			// Jika sudah local asset path, jangan download lagi
-			if (person.photoUrl.startsWith('/') && (person.photoUrl.includes('/uploads/') || person.photoUrl.includes('/attached_assets/'))) return;
-
-			const slug = slugFromProfileUrlBackend(person.profileUrl || '');
-			if (!slug) return;
-			const destUrl = `${UPLOADS_PRODI_BASE}/lecturers/${slug}.webp`;
-			if (cachedDestUrls.has(destUrl) && fs.existsSync(localFilePathFromUrl(destUrl))) {
-				person.photoUrl = destUrl;
-				return;
-			}
-
-			const oldLocalUrl = findOldLecturerPhotoUrl(existingContent, slug);
-			const newUrl = await cacheRemoteImageToLocalWebp(person.photoUrl, destUrl, oldLocalUrl);
-			person.photoUrl = newUrl || destUrl;
-			cachedDestUrls.add(destUrl);
-		};
-
-		const cacheLabImage = async (lab: any, type: 'teaching' | 'research', labIndex: number) => {
-			const urls: string[] = lab.imageUrls?.length ? lab.imageUrls : (lab.imageUrl ? [lab.imageUrl] : []);
-			if (!urls.length) return;
-
-			const cachedUrls: string[] = [];
-			const oldLab = existingContent?.laboratories?.[type]?.[labIndex];
-			const oldImageUrls: string[] = oldLab?.imageUrls?.length ? oldLab.imageUrls : (oldLab?.imageUrl ? [oldLab.imageUrl] : []);
-
-			for (let imgIdx = 0; imgIdx < urls.length; imgIdx++) {
-				const src = urls[imgIdx];
-				if (src.startsWith('/') && (src.includes('/uploads/') || src.includes('/attached_assets/'))) {
-					cachedUrls.push(src);
-					continue;
-				}
-
-				const destUrl = `${UPLOADS_PRODI_BASE}/labs/${type}/${labIndex}-${imgIdx}.webp`;
-				if (cachedDestUrls.has(destUrl) && fs.existsSync(localFilePathFromUrl(destUrl))) {
-					cachedUrls.push(destUrl);
-					continue;
-				}
-
-				const oldLocalUrl = oldImageUrls[imgIdx];
-				const newUrl = await cacheRemoteImageToLocalWebp(src, destUrl, isLocalProdiAssetUrl(oldLocalUrl) ? oldLocalUrl : undefined);
-				cachedUrls.push(newUrl || destUrl);
-				cachedDestUrls.add(destUrl);
-			}
-
-			lab.imageUrls = cachedUrls;
-			lab.imageUrl = cachedUrls[0] || '';
-		};
-
-		if (cacheManagements && profile?.managements?.length) {
-			for (const mgmt of profile.managements) {
-				for (const member of mgmt.members || []) {
-					await cacheLecturerPhoto(member);
-				}
-			}
-		}
-
-		if (profile?.organizationStructureImageUrl && profileOverrides?.organizationStructureImageUrl !== true) {
-			const orgUrl = profile.organizationStructureImageUrl;
-			if (!(orgUrl.startsWith('/') && (orgUrl.includes('/uploads/') || orgUrl.includes('/attached_assets/')))) {
-				const destUrl = `${UPLOADS_PRODI_BASE}/organization-structure.webp`;
-				const oldLocal = existingContent?.profile?.organizationStructureImageUrl;
-				const newUrl = await cacheRemoteImageToLocalWebp(orgUrl, destUrl, isLocalProdiAssetUrl(oldLocal) ? oldLocal : undefined);
-				profile.organizationStructureImageUrl = newUrl || destUrl;
-			}
-		}
-
-		if (lecturerData) {
-			if (cacheHeadAndSecretary) {
-				for (const p of lecturerData.headAndSecretary) await cacheLecturerPhoto(p);
-			}
-			if (cacheStaff) {
-				for (const p of lecturerData.staff) await cacheLecturerPhoto(p);
-			}
-			if (cacheGroups) {
-				for (const g of lecturerData.groups) {
-					for (const p of g.lecturers) await cacheLecturerPhoto(p);
-				}
-			}
-		}
-
-		if (teachingLabs && cacheTeachingLabs) {
-			for (let i = 0; i < teachingLabs.length; i++) await cacheLabImage(teachingLabs[i], 'teaching', i);
-		}
-		if (researchLabs && cacheResearchLabs) {
-			for (let i = 0; i < researchLabs.length; i++) await cacheLabImage(researchLabs[i], 'research', i);
-		}
-
-		const crawledContent: any = {};
-		if (profile) crawledContent.profile = profile;
-		if (lecturerData) crawledContent.lecturers = lecturerData;
-		if (curriculum) crawledContent.curriculum = curriculum;
-		crawledContent.laboratories = {
-			teaching: teachingLabs || [],
-			research: researchLabs || [],
-		};
-
-		// `laboratories.*` harus dipaksa seperti kurikulum: jika pernah simpan manual di dashboard,
-		// `overrides.laboratories.teaching/research` jadi true dan tanpa force sync tidak menulis DB
-		// (UI tetap kosong/lama walau log sync sudah teachingLabs=6).
-		await mongoStorage.applyAutoSyncData(crawledContent, {
-			forceFields: [
-				'curriculum.semesters',
-				'curriculum.optionalSubjects',
-				'curriculum.subjectRpsResources',
-				'laboratories.teaching',
-				'laboratories.research',
-			],
-		});
-
-		if (validation.criticalMissing.length > 0) {
+		if (validation.criticalMissing.length > 0 && scope === 'all') {
 			const reason = `Crawler menghasilkan data kosong untuk bagian krusial: ${validation.criticalMissing.join(', ')}. Periksa struktur HTML situs sumber atau koneksi jaringan.`;
 			await mongoStorage.setProdiSyncStatus('error', reason);
 			const summary = buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, false, reason);
-			console.log('⚠️ Prodi content sync saved partially', summary);
-			return summary;
+			return { ...summary, curriculumYearAction, curriculumTargetYear };
 		}
 
+		await mongoStorage.setProdiSyncStatus('idle');
 		const summary = buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, true);
-		console.log('✅ Prodi content sync completed', summary);
-		return summary;
+		console.log(`✅ Prodi sync (scope=${scope}) completed`, summary);
+		return { ...summary, curriculumYearAction, curriculumTargetYear };
 	} catch (error: any) {
 		console.error('Prodi sync failed:', error);
 		const msg = error?.message || 'Unknown error';
 		await mongoStorage.setProdiSyncStatus('error', msg);
-		return buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, false, msg);
+		return { ...buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, false, msg), curriculumYearAction, curriculumTargetYear };
 	} finally {
 		syncing = false;
 	}
+}
+
+// ─── Helper functions for scoped sync ───
+
+async function enrichLecturerDetails(lecturerData: { headAndSecretary: any[]; groups: LecturerGroup[]; staff: any[] }) {
+	const allLecturers: { groupIdx: number; lecIdx: number }[] = [];
+	lecturerData.groups.forEach((group, gi) => {
+		group.lecturers.forEach((_lec, li) => {
+			allLecturers.push({ groupIdx: gi, lecIdx: li });
+		});
+	});
+
+	const BATCH = 3;
+	for (let i = 0; i < allLecturers.length; i += BATCH) {
+		const batch = allLecturers.slice(i, i + BATCH);
+		const details = await Promise.all(
+			batch.map(({ groupIdx, lecIdx }) =>
+				fetchLecturerDetail(lecturerData.groups[groupIdx].lecturers[lecIdx].profileUrl),
+			),
+		);
+		for (let j = 0; j < batch.length; j++) {
+			const { groupIdx, lecIdx } = batch[j];
+			assignNonEmpty(lecturerData.groups[groupIdx].lecturers[lecIdx], details[j]);
+		}
+		if (i + BATCH < allLecturers.length) await new Promise((r) => setTimeout(r, 500));
+	}
+
+	for (const person of [...lecturerData.headAndSecretary, ...lecturerData.staff]) {
+		if (person.profileUrl) {
+			const detail = await fetchLecturerDetail(person.profileUrl);
+			assignNonEmpty(person, detail);
+			await new Promise((r) => setTimeout(r, 300));
+		}
+	}
+}
+
+async function enrichManagementMembers(profile: any) {
+	for (const mgmt of profile.managements) {
+		for (const member of mgmt.members || []) {
+			if (member.profileUrl) {
+				try {
+					const detail = await fetchLecturerDetail(member.profileUrl);
+					assignNonEmpty(member, detail);
+					await new Promise((r) => setTimeout(r, 300));
+				} catch (err) {
+					console.warn(`Failed enriching management member ${member.name}:`, err);
+				}
+			}
+		}
+	}
+}
+
+async function crawlRpsResources(curriculum: any) {
+	if (!curriculum?.semesters?.length && !curriculum?.optionalSubjects?.length) return;
+	const allSubjects: any[] = [
+		...(curriculum.semesters || []).flatMap((s: any) => s.subjects || []),
+		...(curriculum.optionalSubjects || []),
+	];
+	const rpsUrlSet = new Set<string>();
+	const rpsEntries: { rpsUrl: string; name: string }[] = [];
+	for (const sub of allSubjects) {
+		if (sub.rpsUrl && !rpsUrlSet.has(sub.rpsUrl)) {
+			rpsUrlSet.add(sub.rpsUrl);
+			rpsEntries.push({ rpsUrl: sub.rpsUrl, name: sub.name || '' });
+		}
+	}
+	if (!rpsEntries.length) return;
+
+	console.log(`🔗 Crawling RPS resources for ${rpsEntries.length} subjects…`);
+	const subjectRpsResources: any[] = [];
+	const RPS_BATCH = 3;
+	for (let i = 0; i < rpsEntries.length; i += RPS_BATCH) {
+		const batch = rpsEntries.slice(i, i + RPS_BATCH);
+		const results = await Promise.all(
+			batch.map(({ rpsUrl, name }) =>
+				parseSubjectRpsResources(rpsUrl, name).catch((err) => {
+					console.warn(`Failed to parse RPS for ${rpsUrl}:`, err);
+					return null;
+				}),
+			),
+		);
+		for (const r of results) {
+			if (r && r.slug) subjectRpsResources.push(r);
+		}
+		if (i + RPS_BATCH < rpsEntries.length) await new Promise((r) => setTimeout(r, 500));
+	}
+	curriculum.subjectRpsResources = subjectRpsResources;
+	console.log(`✅ Parsed RPS resources: ${subjectRpsResources.length} subjects with materials`);
+}
+
+async function cacheProfileImages(
+	profile: any,
+	existingContent: any,
+	overridesDoc: any,
+	cachedDestUrls: Set<string>,
+) {
+	if (!profile) return;
+	const profileOverrides = overridesDoc?.profile ?? {};
+	const cacheManagements = profileOverrides?.managements !== true;
+
+	const cacheLecturerPhotoFn = makeCacheLecturerPhotoFn(existingContent, cachedDestUrls);
+
+	if (cacheManagements && profile?.managements?.length) {
+		for (const mgmt of profile.managements) {
+			for (const member of mgmt.members || []) {
+				await cacheLecturerPhotoFn(member);
+			}
+		}
+	}
+
+	if (profile?.organizationStructureImageUrl && profileOverrides?.organizationStructureImageUrl !== true) {
+		const orgUrl = profile.organizationStructureImageUrl;
+		if (!(orgUrl.startsWith('/') && (orgUrl.includes('/uploads/') || orgUrl.includes('/attached_assets/')))) {
+			const destUrl = `${UPLOADS_PRODI_BASE}/organization-structure.webp`;
+			const oldLocal = existingContent?.profile?.organizationStructureImageUrl;
+			const newUrl = await cacheRemoteImageToLocalWebp(orgUrl, destUrl, isLocalProdiAssetUrl(oldLocal) ? oldLocal : undefined);
+			profile.organizationStructureImageUrl = newUrl || destUrl;
+		}
+	}
+}
+
+async function cacheLecturerImages(
+	lecturerData: { headAndSecretary: any[]; groups: LecturerGroup[]; staff: any[] },
+	existingContent: any,
+	overridesDoc: any,
+	cachedDestUrls: Set<string>,
+) {
+	const lecturerOverrides = overridesDoc?.lecturers ?? {};
+	const cacheHeadAndSecretary = lecturerOverrides?.headAndSecretary !== true;
+	const cacheGroups = lecturerOverrides?.groups !== true;
+	const cacheStaff = lecturerOverrides?.staff !== true;
+
+	const cacheLecturerPhotoFn = makeCacheLecturerPhotoFn(existingContent, cachedDestUrls);
+
+	if (cacheHeadAndSecretary) {
+		for (const p of lecturerData.headAndSecretary) await cacheLecturerPhotoFn(p);
+	}
+	if (cacheStaff) {
+		for (const p of lecturerData.staff) await cacheLecturerPhotoFn(p);
+	}
+	if (cacheGroups) {
+		for (const g of lecturerData.groups) {
+			for (const p of g.lecturers) await cacheLecturerPhotoFn(p);
+		}
+	}
+}
+
+function makeCacheLecturerPhotoFn(existingContent: any, cachedDestUrls: Set<string>) {
+	return async (person: any) => {
+		if (!person?.photoUrl) return;
+		if (person.photoUrl.startsWith('/') && (person.photoUrl.includes('/uploads/') || person.photoUrl.includes('/attached_assets/'))) return;
+
+		const slug = slugFromProfileUrlBackend(person.profileUrl || '');
+		if (!slug) return;
+		const destUrl = `${UPLOADS_PRODI_BASE}/lecturers/${slug}.webp`;
+		if (cachedDestUrls.has(destUrl) && fs.existsSync(localFilePathFromUrl(destUrl))) {
+			person.photoUrl = destUrl;
+			return;
+		}
+
+		const oldLocalUrl = findOldLecturerPhotoUrl(existingContent, slug);
+		const newUrl = await cacheRemoteImageToLocalWebp(person.photoUrl, destUrl, oldLocalUrl);
+		person.photoUrl = newUrl || destUrl;
+		cachedDestUrls.add(destUrl);
+	};
+}
+
+async function cacheLabImages(
+	teachingLabs: any[] | null,
+	researchLabs: any[] | null,
+	existingContent: any,
+	overridesDoc: any,
+	cachedDestUrls: Set<string>,
+) {
+	const labsOverrides = overridesDoc?.laboratories ?? {};
+	const cacheTeachingLabs = labsOverrides?.teaching !== true;
+	const cacheResearchLabs = labsOverrides?.research !== true;
+
+	const cacheLabImage = async (lab: any, type: 'teaching' | 'research', labIndex: number) => {
+		const urls: string[] = lab.imageUrls?.length ? lab.imageUrls : (lab.imageUrl ? [lab.imageUrl] : []);
+		if (!urls.length) return;
+
+		const cachedUrls: string[] = [];
+		const oldLab = existingContent?.laboratories?.[type]?.[labIndex];
+		const oldImageUrls: string[] = oldLab?.imageUrls?.length ? oldLab.imageUrls : (oldLab?.imageUrl ? [oldLab.imageUrl] : []);
+
+		for (let imgIdx = 0; imgIdx < urls.length; imgIdx++) {
+			const src = urls[imgIdx];
+			if (src.startsWith('/') && (src.includes('/uploads/') || src.includes('/attached_assets/'))) {
+				cachedUrls.push(src);
+				continue;
+			}
+
+			const destUrl = `${UPLOADS_PRODI_BASE}/labs/${type}/${labIndex}-${imgIdx}.webp`;
+			if (cachedDestUrls.has(destUrl) && fs.existsSync(localFilePathFromUrl(destUrl))) {
+				cachedUrls.push(destUrl);
+				continue;
+			}
+
+			const oldLocalUrl = oldImageUrls[imgIdx];
+			const newUrl = await cacheRemoteImageToLocalWebp(src, destUrl, isLocalProdiAssetUrl(oldLocalUrl) ? oldLocalUrl : undefined);
+			cachedUrls.push(newUrl || destUrl);
+			cachedDestUrls.add(destUrl);
+		}
+
+		lab.imageUrls = cachedUrls;
+		lab.imageUrl = cachedUrls[0] || '';
+	};
+
+	if (teachingLabs && cacheTeachingLabs) {
+		for (let i = 0; i < teachingLabs.length; i++) await cacheLabImage(teachingLabs[i], 'teaching', i);
+	}
+	if (researchLabs && cacheResearchLabs) {
+		for (let i = 0; i < researchLabs.length; i++) await cacheLabImage(researchLabs[i], 'research', i);
+	}
+}
+
+// ─── Main sync orchestrator (backwards compat — delegates to scoped) ───
+
+export async function runProdiSync(): Promise<ProdiSyncSummary> {
+	return runProdiSyncScoped('all', { overwrite: true });
 }

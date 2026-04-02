@@ -59,6 +59,11 @@ const ALLOWED_API_ROUTES = [
 	'/api/organization/members',
 	'/api/organization/periods',
 	'/api/organization/periods/', // For POST requests
+	'/api/communities',
+	'/api/register/validate-code',
+	'/api/register/community',
+	'/api/registration/',
+	'/api/c/', // Community tenant API prefix
 ];
 
 // ==================== BEAUTIFUL API ERROR RESPONSE ====================

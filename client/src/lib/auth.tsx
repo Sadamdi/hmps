@@ -8,6 +8,7 @@ import {
 	useState,
 } from 'react';
 import { useLocation } from 'wouter';
+import { TenantAuthContext } from './tenant-auth';
 
 interface AuthContextType {
 	user: UserWithRole | null;
@@ -155,8 +156,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 					userData.name || userData.username
 				}!`,
 			});
-
-			setLocation('/dashboard');
 		} catch (error: any) {
 			console.error('Login error:', error);
 
@@ -258,9 +257,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 }
 
 export function useAuth() {
-	const context = useContext(AuthContext);
-	if (context === undefined) {
-		throw new Error('useAuth must be used within an AuthProvider');
-	}
-	return context;
+	const tenantCtx = useContext(TenantAuthContext);
+	const mainCtx = useContext(AuthContext);
+	if (tenantCtx !== undefined) return tenantCtx;
+	if (mainCtx !== undefined) return mainCtx;
+	throw new Error('useAuth must be used within an AuthProvider');
+}
+
+export function useMainAuth() {
+	return useContext(AuthContext) || null;
 }

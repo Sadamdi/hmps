@@ -1,3 +1,4 @@
+import type { Request } from 'express';
 import { Router } from 'express';
 import { authenticate } from '../auth';
 import { Berita, Event, Library, PostSharing, UserNotification, User } from '../../db/mongodb';
@@ -5,6 +6,21 @@ import { mongoStorage } from '../mongo-storage';
 import type { SharingEntityType } from '../../shared/schema';
 
 const router = Router();
+
+function resolveModels(req: Request) {
+	const tm = (req as any).tenantModels;
+	return {
+		Berita: tm?.Berita || Berita,
+		Event: tm?.Event || Event,
+		Library: tm?.Library || Library,
+		PostSharing: tm?.PostSharing || PostSharing,
+		UserNotification: tm?.UserNotification || UserNotification,
+		User: tm?.User || User,
+	};
+}
+function resolveStorage(req: Request): any {
+	return (req as any).tenantStorage || mongoStorage;
+}
 
 const EXPIRY_DAYS = 3;
 
@@ -22,43 +38,42 @@ interface AuthUser {
 }
 
 async function getEntityOwnerIds(
+	storage: any,
+	SharingModel: any,
 	entityType: SharingEntityType,
 	entityId: string,
 ): Promise<string[]> {
 	const ownerIds: string[] = [];
 	if (entityType === 'berita') {
-		const item = await mongoStorage.getBeritaById(entityId);
+		const item = await storage.getBeritaById(entityId);
 		if (item?.authorId) ownerIds.push(String(item.authorId));
 	} else if (entityType === 'events') {
-		const item = await mongoStorage.getEventById(entityId);
+		const item = await storage.getEventById(entityId);
 		if (item?.createdBy) ownerIds.push(String(item.createdBy));
 	} else if (entityType === 'library') {
-		const item = await mongoStorage.getLibraryItemById(entityId);
+		const item = await storage.getLibraryItemById(entityId);
 		if (item?.authorId) ownerIds.push(String(item.authorId));
 	}
 
 	let effectiveEntityIds = [entityId];
-	// Event parent -> sub-event inheritance for access management as well.
 	if (entityType === 'events') {
 		const chain: string[] = [entityId];
-		let current = await mongoStorage.getEventById(entityId);
+		let current = await storage.getEventById(entityId);
 		while (current && (current as any).parentId) {
 			const parentId = String((current as any).parentId);
 			chain.push(parentId);
-			current = await mongoStorage.getEventById(parentId);
+			current = await storage.getEventById(parentId);
 		}
 		effectiveEntityIds = chain;
 	}
 
-	const editShares = await PostSharing.find({
+	const editShares = await SharingModel.find({
 		entityType,
 		entityId:
 			effectiveEntityIds.length > 1
 				? { $in: effectiveEntityIds }
 				: entityId,
 		status: 'approved',
-		// "Owner efektif" hanya pemilik asli + user dengan akses EDIT.
-		// User dengan akses VIEW tidak boleh mengundang/approve/revoke akses user lain.
 		permission: 'edit',
 	}).lean();
 	for (const s of editShares) {
@@ -69,41 +84,43 @@ async function getEntityOwnerIds(
 }
 
 async function getEntityBaseOwnerIds(
+	storage: any,
 	entityType: SharingEntityType,
 	entityId: string,
 ): Promise<string[]> {
 	const ownerIds: string[] = [];
 	if (entityType === 'berita') {
-		const item = await mongoStorage.getBeritaById(entityId);
+		const item = await storage.getBeritaById(entityId);
 		if (item?.authorId) ownerIds.push(String(item.authorId));
 	} else if (entityType === 'events') {
-		const item = await mongoStorage.getEventById(entityId);
+		const item = await storage.getEventById(entityId);
 		if (item?.createdBy) ownerIds.push(String(item.createdBy));
 	} else if (entityType === 'library') {
-		const item = await mongoStorage.getLibraryItemById(entityId);
+		const item = await storage.getLibraryItemById(entityId);
 		if (item?.authorId) ownerIds.push(String(item.authorId));
 	}
 	return ownerIds;
 }
 
 async function getEntityTitle(
+	storage: any,
 	entityType: SharingEntityType,
 	entityId: string,
 ): Promise<string> {
 	if (entityType === 'berita') {
-		const item = await mongoStorage.getBeritaById(entityId);
+		const item = await storage.getBeritaById(entityId);
 		return item?.title || 'Berita';
 	} else if (entityType === 'events') {
-		const item = await mongoStorage.getEventById(entityId);
+		const item = await storage.getEventById(entityId);
 		return item?.title || 'Event';
 	} else if (entityType === 'library') {
-		const item = await mongoStorage.getLibraryItemById(entityId);
+		const item = await storage.getLibraryItemById(entityId);
 		return item?.title || 'Galeri';
 	}
 	return '';
 }
 
-async function createNotification(data: {
+async function createNotification(NotifModel: any, data: {
 	userId: string;
 	type: string;
 	title: string;
@@ -116,26 +133,27 @@ async function createNotification(data: {
 	fromUserName?: string;
 	actionUrl?: string;
 }) {
-	const notif = new UserNotification(data);
+	const notif = new NotifModel(data);
 	await notif.save();
 	return notif;
 }
 
-async function expirePendingShares() {
+async function expirePendingShares(SharingModel: any, NotifModel: any, storage: any) {
 	const now = new Date();
-	const expired = await PostSharing.find({
+	const expired = await SharingModel.find({
 		status: 'pending',
 		expiresAt: { $lte: now },
 	}).lean();
 
 	if (expired.length > 0) {
-		await PostSharing.updateMany(
+		await SharingModel.updateMany(
 			{ status: 'pending', expiresAt: { $lte: now } },
 			{ $set: { status: 'expired' } },
 		);
 
 		for (const share of expired) {
 			const entityTitle = await getEntityTitle(
+				storage,
 				share.entityType as SharingEntityType,
 				String(share.entityId),
 			);
@@ -143,7 +161,7 @@ async function expirePendingShares() {
 				share.kind === 'invite'
 					? String(share.targetId)
 					: String(share.requesterId);
-			await createNotification({
+			await createNotification(NotifModel, {
 				userId: notifyUserId,
 				type: 'sharing_expired',
 				title: `Permintaan sharing kedaluwarsa`,
@@ -163,7 +181,9 @@ async function expirePendingShares() {
 // POST /api/sharing/:entityType/:entityId/invite
 router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 	try {
-		await expirePendingShares();
+		const m = resolveModels(req);
+		const storage = resolveStorage(req);
+		await expirePendingShares(m.PostSharing, m.UserNotification, storage);
 
 		const { entityType, entityId } = req.params;
 		const { targetUserId, permission } = req.body;
@@ -177,6 +197,7 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 		}
 
 		const ownerIds = await getEntityOwnerIds(
+			storage, m.PostSharing,
 			entityType as SharingEntityType,
 			entityId,
 		);
@@ -188,12 +209,12 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 			return res.status(400).json({ message: 'Cannot invite yourself' });
 		}
 
-		const targetUser = await User.findById(targetUserId, 'name username').lean();
+		const targetUser = await m.User.findById(targetUserId, 'name username').lean();
 		if (!targetUser) {
 			return res.status(404).json({ message: 'Target user not found' });
 		}
 
-		const existingApproved = await PostSharing.find({
+		const existingApproved = await m.PostSharing.find({
 			entityType,
 			entityId,
 			targetId: targetUserId,
@@ -201,6 +222,7 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 		}).sort({ createdAt: -1 });
 		if (existingApproved.length > 0) {
 			const baseOwnerIds = await getEntityBaseOwnerIds(
+				storage,
 				entityType as SharingEntityType,
 				entityId,
 			);
@@ -224,7 +246,7 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 				.map((s) => s._id)
 				.filter(Boolean);
 			if (duplicateIds.length > 0) {
-				await PostSharing.updateMany(
+				await m.PostSharing.updateMany(
 					{ _id: { $in: duplicateIds } },
 					{
 						$set: {
@@ -235,7 +257,7 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 					},
 				);
 			}
-			await PostSharing.updateMany(
+			await m.PostSharing.updateMany(
 				{
 					entityType,
 					entityId,
@@ -252,10 +274,11 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 			);
 
 			const entityTitle = await getEntityTitle(
+				storage,
 				entityType as SharingEntityType,
 				entityId,
 			);
-			await createNotification({
+			await createNotification(m.UserNotification, {
 				userId: targetUserId,
 				type: 'sharing_approved',
 				title: `Akses diperbarui menjadi ${permission} untuk "${entityTitle}"`,
@@ -274,7 +297,7 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 			});
 		}
 
-		const existingPendingInvite = await PostSharing.findOne({
+		const existingPendingInvite = await m.PostSharing.findOne({
 			entityType,
 			entityId,
 			targetId: targetUserId,
@@ -295,7 +318,7 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 			});
 		}
 
-		const share = new PostSharing({
+		const share = new m.PostSharing({
 			entityType,
 			entityId,
 			kind: 'invite',
@@ -308,11 +331,12 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 		await share.save();
 
 		const entityTitle = await getEntityTitle(
+			storage,
 			entityType as SharingEntityType,
 			entityId,
 		);
 
-		await createNotification({
+		await createNotification(m.UserNotification, {
 			userId: targetUserId,
 			type: 'sharing_invite',
 			title: `Undangan ${permission} untuk "${entityTitle}"`,
@@ -354,7 +378,9 @@ router.post(
 	authenticate,
 	async (req, res) => {
 		try {
-			await expirePendingShares();
+			const m = resolveModels(req);
+			const storage = resolveStorage(req);
+			await expirePendingShares(m.PostSharing, m.UserNotification, storage);
 
 			const { entityType, entityId } = req.params;
 			const { permission } = req.body;
@@ -367,6 +393,7 @@ router.post(
 			}
 
 			const ownerIds = await getEntityOwnerIds(
+				storage, m.PostSharing,
 				entityType as SharingEntityType,
 				entityId,
 			);
@@ -376,7 +403,7 @@ router.post(
 					.json({ message: 'You already own this content' });
 			}
 
-			const pendingRecords = await PostSharing.find({
+			const pendingRecords = await m.PostSharing.find({
 				entityType,
 				entityId,
 				status: 'pending',
@@ -399,7 +426,7 @@ router.post(
 
 				const ownPendingIds = ownPendingRequests.map((p: any) => p._id);
 				const nextExpiry = expiresAt();
-				await PostSharing.updateMany(
+				await m.PostSharing.updateMany(
 					{ _id: { $in: ownPendingIds } },
 					{
 						$set: {
@@ -409,14 +436,15 @@ router.post(
 					},
 				);
 
-				const updatedSharing = await PostSharing.findById(ownPendingIds[0]);
+				const updatedSharing = await m.PostSharing.findById(ownPendingIds[0]);
 				const entityTitle = await getEntityTitle(
+					storage,
 					entityType as SharingEntityType,
 					entityId,
 				);
 
 				for (const ownerId of ownerIds) {
-					await createNotification({
+					await createNotification(m.UserNotification, {
 						userId: ownerId,
 						type: 'sharing_request_updated',
 						title: `Permintaan diubah ke ${permission} untuk "${entityTitle}"`,
@@ -445,7 +473,7 @@ router.post(
 				});
 			}
 
-			const approvedShares = await PostSharing.find({
+			const approvedShares = await m.PostSharing.find({
 				entityType,
 				entityId,
 				targetId: user._id,
@@ -454,7 +482,6 @@ router.post(
 			const hasApprovedEdit = approvedShares.some((s: any) => s.permission === 'edit');
 			const hasApprovedView = approvedShares.some((s: any) => s.permission === 'view');
 
-			// User yang sudah punya VIEW tetap boleh minta upgrade ke EDIT.
 			if (hasApprovedEdit) {
 				return res.status(409).json({ message: 'You already have edit access' });
 			}
@@ -467,7 +494,7 @@ router.post(
 				return res.status(404).json({ message: 'No owner found' });
 			}
 
-			const share = new PostSharing({
+			const share = new m.PostSharing({
 				entityType,
 				entityId,
 				kind: 'request',
@@ -480,12 +507,13 @@ router.post(
 			await share.save();
 
 			const entityTitle = await getEntityTitle(
+				storage,
 				entityType as SharingEntityType,
 				entityId,
 			);
 
 			for (const ownerId of ownerIds) {
-				await createNotification({
+				await createNotification(m.UserNotification, {
 					userId: ownerId,
 					type: 'sharing_request',
 					title: `Permintaan ${permission} untuk "${entityTitle}"`,
@@ -526,7 +554,9 @@ router.post(
 // POST /api/sharing/decision/:sharingId
 router.post('/decision/:sharingId', authenticate, async (req, res) => {
 	try {
-		await expirePendingShares();
+		const m = resolveModels(req);
+		const storage = resolveStorage(req);
+		await expirePendingShares(m.PostSharing, m.UserNotification, storage);
 
 		const { sharingId } = req.params;
 		const { decision } = req.body;
@@ -538,7 +568,7 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 				.json({ message: 'decision must be approve or decline' });
 		}
 
-		const share = await PostSharing.findById(sharingId);
+		const share = await m.PostSharing.findById(sharingId);
 		if (!share) {
 			return res.status(404).json({ message: 'Sharing record not found' });
 		}
@@ -549,6 +579,7 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 		}
 
 		const ownerIds = await getEntityOwnerIds(
+			storage, m.PostSharing,
 			share.entityType as SharingEntityType,
 			String(share.entityId),
 		);
@@ -574,7 +605,7 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 		await share.save();
 		if (newStatus === 'approved') {
 			const decidedAt = new Date();
-			await PostSharing.updateMany(
+			await m.PostSharing.updateMany(
 				{
 					entityType: share.entityType,
 					entityId: share.entityId,
@@ -590,7 +621,7 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 					},
 				},
 			);
-			await PostSharing.updateMany(
+			await m.PostSharing.updateMany(
 				{
 					entityType: share.entityType,
 					entityId: share.entityId,
@@ -609,18 +640,13 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 		}
 
 		const entityTitle = await getEntityTitle(
+			storage,
 			share.entityType as SharingEntityType,
 			String(share.entityId),
 		);
 
-		const notifyUserId =
-			share.kind === 'invite'
-				? String(share.requesterId)
-				: String(share.requesterId);
-		const notifyTargetId = String(share.targetId);
-
 		if (share.kind === 'invite') {
-			await createNotification({
+			await createNotification(m.UserNotification, {
 				userId: String(share.requesterId),
 				type:
 					newStatus === 'approved'
@@ -639,7 +665,7 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 				fromUserName: user.name,
 			});
 		} else {
-			await createNotification({
+			await createNotification(m.UserNotification, {
 				userId: String(share.requesterId),
 				type:
 					newStatus === 'approved'
@@ -687,10 +713,13 @@ router.delete(
 	authenticate,
 	async (req, res) => {
 		try {
+			const m = resolveModels(req);
+			const storage = resolveStorage(req);
 			const { entityType, entityId, userId: revokeUserId } = req.params;
 			const user = req.user as AuthUser;
 
 			const ownerIds = await getEntityOwnerIds(
+				storage, m.PostSharing,
 				entityType as SharingEntityType,
 				entityId,
 			);
@@ -712,7 +741,7 @@ router.delete(
 					{ kind: 'request', requesterId: revokeUserId },
 				],
 			};
-			const activeShares = await PostSharing.find(activeShareFilter).sort({
+			const activeShares = await m.PostSharing.find(activeShareFilter).sort({
 				createdAt: -1,
 			});
 
@@ -721,7 +750,7 @@ router.delete(
 			}
 
 			const now = new Date();
-			await PostSharing.updateMany(
+			await m.PostSharing.updateMany(
 				activeShareFilter,
 				{
 					$set: {
@@ -734,6 +763,7 @@ router.delete(
 			const share = activeShares[0];
 
 			const entityTitle = await getEntityTitle(
+				storage,
 				entityType as SharingEntityType,
 				entityId,
 			);
@@ -742,8 +772,8 @@ router.delete(
 				? ownerIds[0]
 				: revokeUserId;
 			if (notifyUserId) {
-				const revokedUser = await User.findById(revokeUserId, 'name').lean();
-				await createNotification({
+				const revokedUser = await m.User.findById(revokeUserId, 'name').lean();
+				await createNotification(m.UserNotification, {
 					userId: notifyUserId,
 					type: 'sharing_revoked',
 					title: `Akses dicabut untuk "${entityTitle}"`,
@@ -785,7 +815,9 @@ router.delete(
 // GET /api/sharing/my-summary
 router.get('/my-summary', authenticate, async (req, res) => {
 	try {
-		await expirePendingShares();
+		const m = resolveModels(req);
+		const storage = resolveStorage(req);
+		await expirePendingShares(m.PostSharing, m.UserNotification, storage);
 
 		const user = req.user as AuthUser;
 		const entityType = req.query.entityType as string | undefined;
@@ -797,7 +829,7 @@ router.get('/my-summary', authenticate, async (req, res) => {
 		};
 		if (entityType) approvedFilter.entityType = entityType;
 
-		const shares = await PostSharing.find(approvedFilter).lean();
+		const shares = await m.PostSharing.find(approvedFilter).lean();
 		const summary: Record<string, string[]> = {};
 		for (const s of shares) {
 			if (!summary[s.entityType]) summary[s.entityType] = [];
@@ -813,7 +845,7 @@ router.get('/my-summary', authenticate, async (req, res) => {
 		};
 		if (entityType) pendingFilter.entityType = entityType;
 
-		const pendingShares = await PostSharing.find(pendingFilter).lean();
+		const pendingShares = await m.PostSharing.find(pendingFilter).lean();
 		const pendingSummary: Record<string, string[]> = {};
 		for (const s of pendingShares) {
 			if (!pendingSummary[s.entityType]) pendingSummary[s.entityType] = [];
@@ -845,12 +877,13 @@ router.get('/notifications', authenticate, async (req, res) => {
 		const user = req.user as AuthUser;
 		const limit = parseInt(req.query.limit as string) || 20;
 
-		const notifications = await UserNotification.find({ userId: user._id })
+		const m = resolveModels(req);
+		const notifications = await m.UserNotification.find({ userId: user._id })
 			.sort({ createdAt: -1 })
 			.limit(limit)
 			.lean();
 
-		const unreadCount = await UserNotification.countDocuments({
+		const unreadCount = await m.UserNotification.countDocuments({
 			userId: user._id,
 			read: false,
 		});
@@ -868,13 +901,14 @@ router.post('/notifications/read', authenticate, async (req, res) => {
 		const user = req.user as AuthUser;
 		const { notificationIds } = req.body;
 
+		const m = resolveModels(req);
 		if (notificationIds && Array.isArray(notificationIds)) {
-			await UserNotification.updateMany(
+			await m.UserNotification.updateMany(
 				{ _id: { $in: notificationIds }, userId: user._id },
 				{ $set: { read: true } },
 			);
 		} else {
-			await UserNotification.updateMany(
+			await m.UserNotification.updateMany(
 				{ userId: user._id, read: false },
 				{ $set: { read: true } },
 			);
@@ -895,7 +929,8 @@ router.get('/users/search', authenticate, async (req, res) => {
 			return res.json([]);
 		}
 
-		const users = await User.find(
+		const m = resolveModels(req);
+		const users = await m.User.find(
 			{
 				$or: [
 					{ name: { $regex: q, $options: 'i' } },
@@ -924,18 +959,21 @@ router.get('/users/search', authenticate, async (req, res) => {
 // GET /api/sharing/:entityType/:entityId
 router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 	try {
-		await expirePendingShares();
+		const m = resolveModels(req);
+		const storage = resolveStorage(req);
+		await expirePendingShares(m.PostSharing, m.UserNotification, storage);
 
 		const { entityType, entityId } = req.params;
 		const user = req.user as AuthUser;
 
 		const ownerIds = await getEntityOwnerIds(
+			storage, m.PostSharing,
 			entityType as SharingEntityType,
 			entityId,
 		);
 		const isOwner = ownerIds.includes(String(user._id));
 
-		const approvedSharesRaw = await PostSharing.find({
+		const approvedSharesRaw = await m.PostSharing.find({
 			entityType,
 			entityId,
 			status: 'approved',
@@ -968,7 +1006,7 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 
 		let pendingShares: any[] = [];
 		if (isOwner) {
-			pendingShares = await PostSharing.find({
+			pendingShares = await m.PostSharing.find({
 				entityType,
 				entityId,
 				status: 'pending',
@@ -977,7 +1015,7 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 				.populate('requesterId', 'name username')
 				.lean();
 		} else {
-			pendingShares = await PostSharing.find({
+			pendingShares = await m.PostSharing.find({
 				entityType,
 				entityId,
 				status: 'pending',
@@ -988,7 +1026,7 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 				.lean();
 		}
 
-		const ownerUsers = await User.find(
+		const ownerUsers = await m.User.find(
 			{ _id: { $in: ownerIds } },
 			'name username',
 		).lean();
@@ -1069,8 +1107,10 @@ router.get('/requestable', authenticate, async (req, res) => {
 		const limit = parseInt(String(req.query.limit || '10'), 10);
 		const safeLimit = Number.isFinite(limit) ? Math.min(Math.max(limit, 1), 20) : 10;
 
+		const rm = resolveModels(req);
+
 		if (entityType === 'berita') {
-			const items = await Berita.find({
+			const items = await rm.Berita.find({
 				title: { $regex: q, $options: 'i' },
 			})
 				.limit(safeLimit)
@@ -1087,7 +1127,7 @@ router.get('/requestable', authenticate, async (req, res) => {
 		}
 
 		if (entityType === 'events') {
-			const items = await Event.find({
+			const items = await rm.Event.find({
 				title: { $regex: q, $options: 'i' },
 			})
 				.limit(safeLimit)
@@ -1103,7 +1143,7 @@ router.get('/requestable', authenticate, async (req, res) => {
 			);
 		}
 
-		const items = await Library.find({
+		const items = await rm.Library.find({
 			title: { $regex: q, $options: 'i' },
 		})
 			.limit(safeLimit)

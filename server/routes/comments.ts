@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { Request } from 'express';
 import { Router } from 'express';
 import { Berita, Comment, Event, Library } from '../../db/mongodb';
 import { authenticate, authenticateOptional, requirePermission } from '../auth';
@@ -7,6 +8,19 @@ import { mongoStorage } from '../mongo-storage';
 
 const router = Router();
 
+function resolveModels(req: Request) {
+	const tm = (req as any).tenantModels;
+	return {
+		Comment: tm?.Comment || Comment,
+		Berita: tm?.Berita || Berita,
+		Event: tm?.Event || Event,
+		Library: tm?.Library || Library,
+	};
+}
+function resolveStorage(req: Request): any {
+	return (req as any).tenantStorage || mongoStorage;
+}
+
 const GUEST_PEPPER = process.env.GUEST_KEY_PEPPER || 'hmps-comment-pepper';
 
 function hashGuestKey(secret: string): string {
@@ -14,21 +28,22 @@ function hashGuestKey(secret: string): string {
 }
 
 async function verifyTargetExists(
+	models: ReturnType<typeof resolveModels>,
 	targetType: string,
 	targetId: string,
 	requirePublished: boolean,
 ): Promise<boolean> {
 	try {
 		if (targetType === 'berita') {
-			const doc: any = await Berita.findById(targetId).lean();
+			const doc: any = await models.Berita.findById(targetId).lean();
 			return doc ? (!requirePublished || doc.published === true) : false;
 		}
 		if (targetType === 'event') {
-			const doc: any = await Event.findById(targetId).lean();
+			const doc: any = await models.Event.findById(targetId).lean();
 			return doc ? (!requirePublished || doc.published === true) : false;
 		}
 		if (targetType === 'library') {
-			const doc: any = await Library.findById(targetId).lean();
+			const doc: any = await models.Library.findById(targetId).lean();
 			return !!doc;
 		}
 	} catch {
@@ -37,11 +52,11 @@ async function verifyTargetExists(
 	return false;
 }
 
-async function collectDescendantIds(rootId: string): Promise<string[]> {
+async function collectDescendantIds(CommentModel: any, rootId: string): Promise<string[]> {
 	const ids: string[] = [];
 	let queue = [rootId];
 	while (queue.length > 0) {
-		const children = await Comment.find({ parentId: { $in: queue } })
+		const children = await CommentModel.find({ parentId: { $in: queue } })
 			.select('_id')
 			.lean();
 		const childIds = children.map((c: any) => c._id.toString());
@@ -59,7 +74,8 @@ router.get('/', authenticateOptional, async (req, res) => {
 			return res.status(400).json({ message: 'targetType and targetId required' });
 		}
 
-		const comments = await Comment.find({
+		const { Comment: CommentModel } = resolveModels(req);
+		const comments = await CommentModel.find({
 			targetType: targetType as string,
 			targetId: targetId as string,
 		})
@@ -104,7 +120,8 @@ router.get('/count', async (req, res) => {
 		if (!targetType || !targetId) {
 			return res.status(400).json({ message: 'targetType and targetId required' });
 		}
-		const count = await Comment.countDocuments({
+		const { Comment: CommentModel } = resolveModels(req);
+		const count = await CommentModel.countDocuments({
 			targetType: targetType as string,
 			targetId: targetId as string,
 		});
@@ -124,13 +141,14 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 			return res.status(400).json({ message: 'targetType, targetId, and body are required' });
 		}
 
-		const exists = await verifyTargetExists(targetType, targetId, true);
+		const models = resolveModels(req);
+		const exists = await verifyTargetExists(models, targetType, targetId, true);
 		if (!exists) {
 			return res.status(404).json({ message: 'Target entity not found or not published' });
 		}
 
 		if (parentId) {
-			const parent = await Comment.findById(parentId).lean();
+			const parent = await models.Comment.findById(parentId).lean();
 			if (!parent) {
 				return res.status(404).json({ message: 'Parent comment not found' });
 			}
@@ -155,7 +173,7 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 			finalDisplayName = isAnonymous ? 'Anonim' : displayName.trim();
 		}
 
-		const comment = await Comment.create({
+		const comment = await models.Comment.create({
 			targetType,
 			targetId,
 			parentId: parentId || null,
@@ -188,7 +206,8 @@ router.patch('/:id', commentRateLimiter, authenticateOptional, async (req, res) 
 			return res.status(400).json({ message: 'body is required' });
 		}
 
-		const comment: any = await Comment.findById(id);
+		const { Comment: CommentModel } = resolveModels(req);
+		const comment: any = await CommentModel.findById(id);
 		if (!comment) {
 			return res.status(404).json({ message: 'Comment not found' });
 		}
@@ -228,7 +247,9 @@ router.delete('/:id', commentRateLimiter, authenticateOptional, async (req, res)
 		const { id } = req.params;
 		const guestSecret = req.headers['x-guest-key'] as string | undefined;
 
-		const comment: any = await Comment.findById(id);
+		const { Comment: CommentModel } = resolveModels(req);
+		const storage = resolveStorage(req);
+		const comment: any = await CommentModel.findById(id);
 		if (!comment) {
 			return res.status(404).json({ message: 'Comment not found' });
 		}
@@ -236,15 +257,13 @@ router.delete('/:id', commentRateLimiter, authenticateOptional, async (req, res)
 		const user = req.user as any;
 		let authorized = false;
 
-		// Check moderator permission (effective permissions with overrides)
 		if (user) {
-			const effectivePerms = await mongoStorage.getUserPermissions(String(user._id));
+			const effectivePerms = await storage.getUserPermissions(String(user._id));
 			if (effectivePerms.includes('comments.manage')) {
 				authorized = true;
 			}
 		}
 
-		// Check ownership
 		if (!authorized) {
 			if (user && comment.userId?.toString() === user._id.toString()) {
 				authorized = true;
@@ -257,12 +276,11 @@ router.delete('/:id', commentRateLimiter, authenticateOptional, async (req, res)
 			return res.status(403).json({ message: 'Not authorized to delete this comment' });
 		}
 
-		// Cascade: delete all descendant replies
-		const descendantIds = await collectDescendantIds(id);
+		const descendantIds = await collectDescendantIds(CommentModel, id);
 		if (descendantIds.length > 0) {
-			await Comment.deleteMany({ _id: { $in: descendantIds } });
+			await CommentModel.deleteMany({ _id: { $in: descendantIds } });
 		}
-		await Comment.findByIdAndDelete(id);
+		await CommentModel.findByIdAndDelete(id);
 
 		res.json({ message: 'Comment deleted', deletedCount: 1 + descendantIds.length });
 	} catch (error) {
@@ -284,7 +302,8 @@ router.get(
 			if (targetType) filter.targetType = targetType;
 			if (targetId) filter.targetId = targetId;
 
-			const comments = await Comment.find(filter)
+			const { Comment: CommentModel } = resolveModels(req);
+			const comments = await CommentModel.find(filter)
 				.sort({ createdAt: 1 })
 				.lean();
 

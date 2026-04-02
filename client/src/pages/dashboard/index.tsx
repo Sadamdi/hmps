@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -262,6 +263,30 @@ export default function Dashboard() {
 				</h1>
 				<p className="text-muted-foreground text-sm sm:text-base">Here's an overview of the system</p>
 			</div>
+
+			<DashboardHintCard
+				title="Panduan singkat dashboard"
+				variant="blue"
+				storageKey="dashboard-home"
+				description="Halaman ini ringkasan: angka konten, aktivitas terbaru, dan pintasan. Tidak ada form create di sini—semua pengeditan dilakukan di menu lain.">
+				<ul className="list-disc list-inside space-y-1.5 text-sm">
+					<li>
+						<strong>Langkah</strong>: (1) cek kartu statistik jika Anda punya izin <code className="text-xs bg-muted px-1 rounded">dashboard.stats</code>; (2) baca aktivitas untuk audit singkat; (3) pakai quick action untuk membuka modul (Berita, Galeri, dll.).
+					</li>
+					<li>
+						<strong>Contoh valid</strong>: Anda login sebagai admin → melihat angka berita &gt; 0 setelah ada konten yang dipublish; aktivitas menampilkan judul dan waktu.
+					</li>
+					<li>
+						<strong>Contoh tidak valid / kosong</strong>: statistik 0 padahal konten sudah ada bisa karena tidak ada izin stats, data belum ter-load, atau konten belum publish—cek halaman masing-masing.
+					</li>
+					<li>
+						<strong>Jika gagal</strong>: refresh halaman; jika angka tetap salah, buka modul terkait dan pastikan konten tersimpan; cek konsol jaringan hanya jika tim IT meminta.
+					</li>
+					<li>
+						<strong>Izin</strong>: butuh <code className="text-xs bg-muted px-1 rounded">dashboard.view</code> untuk masuk; <code className="text-xs bg-muted px-1 rounded">dashboard.stats</code> untuk angka; <code className="text-xs bg-muted px-1 rounded">dashboard.activities</code> untuk daftar aktivitas.
+					</li>
+				</ul>
+			</DashboardHintCard>
 
 			{/* Stats Cards */}
 			{!hasSpecificPermission('dashboard.stats') ? (

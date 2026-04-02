@@ -1,13 +1,29 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
+	DialogFooter,
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -22,6 +38,7 @@ import {
 	AlertCircle,
 	BookOpen,
 	CheckCircle2,
+	ChevronDown,
 	ExternalLink,
 	FlaskConical,
 	GraduationCap,
@@ -53,6 +70,7 @@ export default function DashboardProdi() {
 	const [autoSync, setAutoSync] = useState(true);
 	const [localContent, setLocalContent] = useState<any>(null);
 	const [dirty, setDirty] = useState(false);
+	const [selectedCurriculumYear, setSelectedCurriculumYear] = useState<number | null>(null);
 
 	useEffect(() => {
 		if (doc) {
@@ -77,19 +95,30 @@ export default function DashboardProdi() {
 		},
 	});
 
+	const [pendingSyncScope, setPendingSyncScope] = useState<string | null>(null);
+	const [confirmOverwrite, setConfirmOverwrite] = useState<{ year: number; scope: string } | null>(null);
+
 	const syncMutation = useMutation({
-		mutationFn: async () => {
-			const res = await apiRequest('POST', '/api/prodi/sync/run');
+		mutationFn: async (params: { scope: string; overwrite?: boolean }) => {
+			const res = await apiRequest('POST', '/api/prodi/sync/run', {
+				scope: params.scope,
+				overwrite: params.overwrite ?? false,
+			});
 			const body = await res.json().catch(() => ({}));
 			if (!res.ok) {
 				throw new Error(body.message || body.summary?.error || 'Sinkronisasi gagal');
 			}
 			return body;
 		},
-		onSuccess: (data: { message?: string; summary?: Record<string, number> }) => {
+		onSuccess: (data: any) => {
+			if (data.needsConfirm && data.curriculumTargetYear) {
+				setConfirmOverwrite({ year: data.curriculumTargetYear, scope: 'curriculum' });
+				toast({ title: 'Konfirmasi', description: data.message });
+				return;
+			}
 			const s = data.summary;
 			const desc = s
-				? `Sejarah ~${s.profileHistoryLen} karakter, dosen ${s.lecturerLinks}, semester ${s.semestersCount}, MK pilihan ${s.optionalSubjectsCount}, lab ${s.teachingLabs + s.researchLabs}.`
+				? `Sejarah ~${s.profileHistoryLen ?? 0} karakter, dosen ${s.lecturerLinks ?? 0}, semester ${s.semestersCount ?? 0}, MK pilihan ${s.optionalSubjectsCount ?? 0}, lab ${(s.teachingLabs ?? 0) + (s.researchLabs ?? 0)}.`
 				: (data.message ?? 'Selesai');
 			toast({ title: data.message || 'Sinkronisasi selesai', description: desc });
 			queryClient.invalidateQueries({ queryKey: ['/api/prodi/manage'] });
@@ -100,12 +129,30 @@ export default function DashboardProdi() {
 		},
 	});
 
+	const handleSyncConfirmed = useCallback((scope: string) => {
+		setPendingSyncScope(null);
+		const targetYear = doc?.targetSyncYear ?? doc?.activeAcademicYear;
+		const touchesCurriculum = scope === 'all' || scope === 'curriculum';
+		const yearExists = touchesCurriculum && targetYear && (doc?.curriculumYears ?? []).includes(targetYear);
+		if (yearExists) {
+			setConfirmOverwrite({ year: targetYear, scope });
+		} else {
+			syncMutation.mutate({ scope });
+		}
+	}, [doc, syncMutation]);
+
 	const handleSave = useCallback(() => {
 		if (!canEdit) return;
 		const payload: any = { autoSyncEnabled: autoSync };
 		if (localContent) payload.content = localContent;
+		const activeYear = doc?.activeAcademicYear ?? new Date().getFullYear();
+		const years: number[] = doc?.curriculumYears ?? [];
+		const curYear = selectedCurriculumYear ?? (years.includes(activeYear) ? activeYear : years[0]);
+		if (curYear && payload.content?.curriculum) {
+			payload.curriculumYear = curYear;
+		}
 		saveMutation.mutate(payload);
-	}, [canEdit, autoSync, localContent, saveMutation]);
+	}, [canEdit, autoSync, localContent, saveMutation, selectedCurriculumYear, doc]);
 
 	const handleToggleAutoSync = useCallback((checked: boolean) => {
 		setAutoSync(checked);
@@ -148,13 +195,34 @@ export default function DashboardProdi() {
 					</div>
 					<div className="flex items-center gap-3">
 						{canSync && (
-							<Button
-								variant="outline"
-								onClick={() => syncMutation.mutate()}
-								disabled={syncMutation.isPending || syncStatus === 'syncing'}>
-								<RefreshCw className={`h-4 w-4 mr-2 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
-								{syncStatus === 'syncing' ? 'Sedang Sync...' : 'Sync Sekarang'}
-							</Button>
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										variant="outline"
+										disabled={syncMutation.isPending || syncStatus === 'syncing'}>
+										<RefreshCw className={`h-4 w-4 mr-2 ${syncStatus === 'syncing' || syncMutation.isPending ? 'animate-spin' : ''}`} />
+										{syncStatus === 'syncing' || syncMutation.isPending ? 'Sedang Sync...' : 'Sync'}
+										<ChevronDown className="h-4 w-4 ml-1" />
+									</Button>
+								</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem onClick={() => setPendingSyncScope('all')}>
+									Sync Semua
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setPendingSyncScope('profile')}>
+									Sync Profil
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setPendingSyncScope('lecturers')}>
+									Sync Dosen
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setPendingSyncScope('curriculum')}>
+									Sync Kurikulum
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setPendingSyncScope('labs')}>
+									Sync Laboratorium
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+							</DropdownMenu>
 						)}
 						{canEdit && (
 							<Button onClick={handleSave} disabled={saveMutation.isPending || !dirty}>
@@ -168,6 +236,24 @@ export default function DashboardProdi() {
 						)}
 					</div>
 				</div>
+
+				<DashboardHintCard
+					title="Ringkasan: Sync & simpan halaman Prodi"
+					variant="green"
+					storageKey="dashboard-prodi-overview"
+					description="Konten Program Studi S1 Teknik Informatika UIN Malang diisi per tab di bawah. Tombol Simpan mengirim seluruh perubahan lokal; Sync Sekarang mengambil data dari sumber resmi prodi (bisa menimpa bagian yang di-sync).">
+					<ul className="list-disc list-inside space-y-1.5 text-sm">
+						<li>
+							<strong>Langkah umum</strong>: sunting di tab yang relevan → klik <strong>Simpan</strong> (ikon centang hijau saat ada perubahan) → setelah sync, baca toast ringkasan dan cek satu tab sebagai sampel.
+						</li>
+						<li>
+							<strong>Jika sync gagal</strong>: baca pesan error; jangan simpan bersamaan saat status masih &quot;Sedang Sync&quot;; hubungi admin untuk URL sumber.
+						</li>
+						<li>
+							<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">prodi.edit</code> untuk menyimpan; <code className="text-xs bg-muted px-1 rounded">prodi.sync</code> untuk Sync Sekarang; <code className="text-xs bg-muted px-1 rounded">prodi.view</code> untuk hanya melihat.
+						</li>
+					</ul>
+				</DashboardHintCard>
 
 				{/* Status cards */}
 				<div className="grid gap-4 sm:grid-cols-3">
@@ -237,6 +323,26 @@ export default function DashboardProdi() {
 					</TabsList>
 
 					<TabsContent value="profil" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Profil Prodi"
+							variant="green"
+							storageKey="dashboard-prodi-tab-profil"
+							description="Profil program studi: visi, misi, sejarah singkat, dan informasi umum S1 Teknik Informatika UIN Maulana Malik Ibrahim Malang untuk ditampilkan di halaman publik /prodi.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>
+									<strong>Langkah</strong>: isi field teks sesuai label → gunakan rich text bila tersedia dengan heading yang jelas → <strong>Simpan</strong> di header halaman.
+								</li>
+								<li>
+									<strong>Contoh valid</strong>: paragraf yang menyebut program studi secara eksplisit (<em>Teknik Informatika, Fakultas Sains dan Teknologi, UIN Malang</em>) tanpa menyalin teks dari universitas lain.
+								</li>
+								<li>
+									<strong>Contoh tidak valid</strong>: HTML dari paste Word yang merusak layout; menyimpan teks placeholder kosong untuk blok wajib.
+								</li>
+								<li>
+									<strong>Setelah sync</strong>: baca ulang tab Profil; jika ada paragraf ganda, rapikan manual lalu simpan.
+								</li>
+							</ul>
+						</DashboardHintCard>
 						<ProfileEditor
 							data={localContent.profile ?? {}}
 							onChange={(field, val) => updateField('profile', field, val)}
@@ -245,6 +351,26 @@ export default function DashboardProdi() {
 					</TabsContent>
 
 					<TabsContent value="dosen" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Dosen"
+							variant="green"
+							storageKey="dashboard-prodi-tab-dosen"
+							description="Data dosen tetap dan pengajar Program Studi Teknik Informatika UIN Malang: nama, NIP, email, URL profil resmi informatika.uin-malang.ac.id, dan foto (unggah memakai slug dari URL atau nama).">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>
+									<strong>Langkah</strong>: lengkapi <strong>Profile URL</strong> (wajib untuk unggah foto) → isi NIP/email → klik area foto untuk mengunggah gambar (WebP) → ulangi untuk Ketua/Sekretaris dan daftar dosen → <strong>Simpan</strong>.
+								</li>
+								<li>
+									<strong>Contoh valid</strong>: Profile URL <code className="text-xs bg-muted px-1 rounded">https://informatika.uin-malang.ac.id/nama-gelar</code>; email <code className="text-xs bg-muted px-1 rounded">nama@ti.uin-malang.ac.id</code>; foto persegi, wajah terang.
+								</li>
+								<li>
+									<strong>Contoh tidak valid</strong>: Profile URL kosong lalu memaksa unggah foto; link ke domain selain halaman resmi prodi tanpa persetujuan; NIP tidak lengkap jika kebijakan internal mewajibkan.
+								</li>
+								<li>
+									<strong>Jika unggah foto nonaktif</strong>: isi Profile URL atau nama+NIP agar sistem bisa membuat slug file.
+								</li>
+							</ul>
+						</DashboardHintCard>
 						<LecturerEditor
 							data={localContent.lecturers ?? {}}
 							onChange={(field, val) => updateField('lecturers', field, val)}
@@ -253,14 +379,55 @@ export default function DashboardProdi() {
 					</TabsContent>
 
 					<TabsContent value="kurikulum" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Kurikulum"
+							variant="green"
+							storageKey="dashboard-prodi-tab-kurikulum"
+							description="Struktur kurikulum S1 Teknik Informatika UIN Malang per semester, termasuk mata kuliah wajib/pilihan. Sinkronisasi mengisi dari sumber resmi; sunting manual untuk koreksi tampilan. Kurikulum disimpan per tahun angkatan.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>
+									<strong>Tahun Kurikulum</strong>: pilih tahun angkatan di selector atas. Sync otomatis menghitung tahun target berdasarkan aturan April–Maret (April 2026 = kurikulum 2026, Maret 2026 = masih 2025).
+								</li>
+								<li>
+									<strong>Langkah</strong>: pilih tahun → buka sub-tab semester atau MK pilihan → pastikan kode/nama/SKS konsisten → <strong>Simpan</strong>.
+								</li>
+								<li>
+									<strong>Setelah sync kurikulum</strong>: jika data tahun target sudah ada, akan muncul konfirmasi overwrite.
+								</li>
+							</ul>
+						</DashboardHintCard>
 						<CurriculumEditor
 							data={localContent.curriculum ?? {}}
+							curriculumByYear={doc?.curriculumByYear}
+							curriculumYears={doc?.curriculumYears ?? []}
+							activeAcademicYear={doc?.activeAcademicYear}
 							onChange={(field, val) => updateField('curriculum', field, val)}
+							onYearChange={setSelectedCurriculumYear}
 							readOnly={!canEdit}
 						/>
 					</TabsContent>
 
 					<TabsContent value="laboratorium" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Laboratorium"
+							variant="green"
+							storageKey="dashboard-prodi-tab-laboratorium"
+							description="Laboratorium pembelajaran dan penelitian Teknik Informatika UIN Malang: nama lab, perangkat, gambar, dan jadwal/overview jika ada di editor. Path gambar mengikuti konvensi unggah (labs/...).">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>
+									<strong>Langkah</strong>: isi nama lab dan deskripsi singkat → unggah foto ruang/peralatan melalui slot yang tersedia → sesuaikan urutan jika editor mendukung drag → <strong>Simpan</strong>.
+								</li>
+								<li>
+									<strong>Contoh valid</strong>: lab <code className="text-xs bg-muted px-1 rounded">Lab Pemrograman 1</code> dengan foto ruangan nyata di gedung prodi; teks menjelaskan fasilitas untuk praktikum mahasiswa TI UIN Malang.
+								</li>
+								<li>
+									<strong>Contoh tidak valid</strong>: gambar non-foto atau terlalu berat; deskripsi kosong untuk entri yang ditampilkan di publik.
+								</li>
+								<li>
+									<strong>Jika gambar tidak tampil</strong>: unggah ulang dengan JPG/PNG/WebP; cek toast error server.
+								</li>
+							</ul>
+						</DashboardHintCard>
 						<LaboratoryEditor
 							data={localContent.laboratories ?? {}}
 							onChange={(field, val) => updateField('laboratories', field, val)}
@@ -269,6 +436,54 @@ export default function DashboardProdi() {
 					</TabsContent>
 				</Tabs>
 			</div>
+
+			{/* Dialog 1: konfirmasi umum sebelum sync */}
+			<Dialog open={!!pendingSyncScope} onOpenChange={(open) => { if (!open) setPendingSyncScope(null); }}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Konfirmasi Sinkronisasi</DialogTitle>
+						<DialogDescription>
+							Sinkronisasi akan mengambil data terbaru dari sumber resmi dan <strong>dapat menimpa</strong> data yang sudah ada di dashboard untuk bagian <strong>{pendingSyncScope === 'all' ? 'semua' : pendingSyncScope}</strong>. Apakah Anda yakin ingin melanjutkan?
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2">
+						<Button variant="outline" onClick={() => setPendingSyncScope(null)}>
+							Batal
+						</Button>
+						<Button onClick={() => pendingSyncScope && handleSyncConfirmed(pendingSyncScope)}>
+							Lanjutkan
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			{/* Dialog 2: konfirmasi overwrite kurikulum */}
+			<Dialog open={!!confirmOverwrite} onOpenChange={(open) => { if (!open) setConfirmOverwrite(null); }}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Konfirmasi Overwrite Kurikulum</DialogTitle>
+						<DialogDescription>
+							Data kurikulum untuk tahun <strong>{confirmOverwrite?.year}</strong> sudah ada di database. Apakah Anda ingin menimpa data tersebut dengan data terbaru dari sumber?
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="gap-2">
+						<Button variant="outline" onClick={() => setConfirmOverwrite(null)}>
+							Batal
+						</Button>
+						<Button
+							variant="destructive"
+							disabled={syncMutation.isPending}
+							onClick={() => {
+								const scope = confirmOverwrite?.scope ?? 'curriculum';
+								setConfirmOverwrite(null);
+								syncMutation.mutate({ scope, overwrite: true });
+							}}>
+							{syncMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+							Ya, Timpa Data {confirmOverwrite?.year}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</DashboardLayout>
 	);
 }
@@ -1265,20 +1480,146 @@ function SemesterSubjectTable({
 	);
 }
 
-function CurriculumEditor({ data, onChange, readOnly }: { data: any; onChange: (f: string, v: any) => void; readOnly: boolean }) {
-	const semesters: any[] = data.semesters ?? [];
-	const optionalSubjects: any[] = data.optionalSubjects ?? [];
+function CurriculumEditor({
+	data,
+	curriculumByYear,
+	curriculumYears,
+	activeAcademicYear,
+	onChange,
+	onYearChange,
+	readOnly,
+}: {
+	data: any;
+	curriculumByYear?: any[];
+	curriculumYears?: number[];
+	activeAcademicYear?: number;
+	onChange: (f: string, v: any) => void;
+	onYearChange?: (year: number | null) => void;
+	readOnly: boolean;
+}) {
+	const { toast } = useToast();
+	const queryClient = useQueryClient();
+	const years = curriculumYears ?? [];
+	const [selectedYear, setSelectedYear] = useState<number | null>(null);
+	const [newYearInput, setNewYearInput] = useState('');
+
+	const activeYear = activeAcademicYear ?? new Date().getFullYear();
+	const effectiveYear = selectedYear ?? (years.length > 0 ? (years.includes(activeYear) ? activeYear : years[0]) : null);
+
+	const yearEntries: any[] = curriculumByYear ?? [];
+	const yearData = effectiveYear != null
+		? yearEntries.find((e: any) => e.academicYear === effectiveYear)
+		: null;
+
+	const displayData = yearData ?? data;
+	const semesters: any[] = displayData?.semesters ?? [];
+	const optionalSubjects: any[] = displayData?.optionalSubjects ?? [];
 	const defaultTab = semesters.length ? `sem-${semesters[0]?.semester ?? 1}` : 'optional';
+
+	const handleYearChange = (v: string) => {
+		const y = parseInt(v, 10);
+		setSelectedYear(y);
+		onYearChange?.(y);
+	};
+
+	const addYearMutation = useMutation({
+		mutationFn: async (yr: number) => {
+			const res = await apiRequest('POST', '/api/prodi/curriculum/year', {
+				academicYear: yr,
+				copyFromYear: effectiveYear ?? undefined,
+			});
+			const body = await res.json().catch(() => ({}));
+			if (!res.ok) throw new Error(body.message || 'Gagal membuat tahun');
+			return body;
+		},
+		onSuccess: (data: any) => {
+			toast({ title: 'Berhasil', description: data.message });
+			queryClient.invalidateQueries({ queryKey: ['/api/prodi/manage'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/prodi'] });
+			const yr = parseInt(newYearInput, 10);
+			setSelectedYear(yr);
+			onYearChange?.(yr);
+			setNewYearInput('');
+		},
+		onError: (err: any) => {
+			toast({ title: 'Error', description: err?.message || 'Gagal membuat tahun kurikulum', variant: 'destructive' });
+		},
+	});
+
+	const handleAddYear = () => {
+		const yr = parseInt(newYearInput, 10);
+		if (!Number.isFinite(yr) || yr < 2000 || yr > 2100) {
+			toast({ title: 'Error', description: 'Tahun harus antara 2000–2100', variant: 'destructive' });
+			return;
+		}
+		if (years.includes(yr)) {
+			toast({ title: 'Error', description: `Tahun ${yr} sudah ada`, variant: 'destructive' });
+			return;
+		}
+		addYearMutation.mutate(yr);
+	};
 
 	return (
 		<div className="space-y-6">
+			<Card>
+				<CardHeader>
+					<CardTitle className="flex items-center justify-between">
+						<span>Tahun Kurikulum / Angkatan</span>
+						<span className="text-xs text-muted-foreground font-normal">
+							Tahun aktif saat ini: {activeYear}
+						</span>
+					</CardTitle>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					{years.length > 0 && (
+						<Select
+							value={String(effectiveYear ?? '')}
+							onValueChange={handleYearChange}
+						>
+							<SelectTrigger className="w-48">
+								<SelectValue placeholder="Pilih tahun" />
+							</SelectTrigger>
+							<SelectContent>
+								{years.map((y) => (
+									<SelectItem key={y} value={String(y)}>
+										{y} {y === activeYear ? '(Aktif)' : ''}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
+					)}
+					{!readOnly && (
+						<div className="flex items-center gap-2">
+							<Input
+								type="number"
+								placeholder="Tahun baru, misal 2024"
+								value={newYearInput}
+								onChange={(e) => setNewYearInput(e.target.value)}
+								className="w-48"
+								min={2000}
+								max={2100}
+							/>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={!newYearInput || addYearMutation.isPending}
+								onClick={handleAddYear}
+							>
+								{addYearMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+								Tambah Tahun
+							</Button>
+						</div>
+					)}
+				</CardContent>
+			</Card>
+
 			<Card>
 				<CardHeader>
 					<CardTitle>Struktur Kurikulum</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<Textarea
-						value={data.structureSummary || ''}
+						value={displayData?.structureSummary || ''}
 						onChange={(e) => onChange('structureSummary', e.target.value)}
 						disabled={readOnly}
 						rows={5}
@@ -1292,7 +1633,7 @@ function CurriculumEditor({ data, onChange, readOnly }: { data: any; onChange: (
 				</CardHeader>
 				<CardContent>
 					<ListEditor
-						items={data.knowledgeGroups ?? []}
+						items={displayData?.knowledgeGroups ?? []}
 						onChange={(v) => onChange('knowledgeGroups', v)}
 						readOnly={readOnly}
 						placeholder="Tambah kelompok keilmuan..."
@@ -1302,7 +1643,14 @@ function CurriculumEditor({ data, onChange, readOnly }: { data: any; onChange: (
 
 			<Card>
 				<CardHeader>
-					<CardTitle>Distribusi Mata Kuliah Per Semester</CardTitle>
+					<CardTitle>
+						Distribusi Mata Kuliah Per Semester
+						{effectiveYear != null && (
+							<span className="text-sm font-normal text-muted-foreground ml-2">
+								— Kurikulum {effectiveYear}
+							</span>
+						)}
+					</CardTitle>
 					<CardDescription>
 						Klik nama mata kuliah untuk melihat/mengedit detail & materi RPS.
 					</CardDescription>
@@ -1328,7 +1676,7 @@ function CurriculumEditor({ data, onChange, readOnly }: { data: any; onChange: (
 										totalSks={s.totalSks}
 										semIdx={si}
 										isOptional={false}
-										allData={data}
+										allData={displayData}
 										onChange={onChange}
 										readOnly={readOnly}
 									/>
@@ -1341,7 +1689,7 @@ function CurriculumEditor({ data, onChange, readOnly }: { data: any; onChange: (
 										subjects={optionalSubjects}
 										semIdx={-1}
 										isOptional
-										allData={data}
+										allData={displayData}
 										onChange={onChange}
 										readOnly={readOnly}
 									/>
@@ -1349,7 +1697,7 @@ function CurriculumEditor({ data, onChange, readOnly }: { data: any; onChange: (
 							)}
 						</Tabs>
 					) : (
-						<p className="text-sm text-muted-foreground">Belum ada data kurikulum. Jalankan Sync untuk mengambil data.</p>
+						<p className="text-sm text-muted-foreground">Belum ada data kurikulum untuk tahun ini. Jalankan Sync Kurikulum untuk mengambil data.</p>
 					)}
 				</CardContent>
 			</Card>

@@ -68,6 +68,10 @@ export interface Settings {
 	siteDescription: string;
 	navbarBrand: string;
 	aboutUs: string;
+	/** Link YouTube video profil (watch, youtu.be, shorts) — dipakai embed di beranda & halaman profil */
+	aboutVideoUrl?: string;
+	/** Link Google Drive video profil (file share link) — fallback embed saat YouTube bermasalah */
+	aboutVideoGdriveUrl?: string;
 	visionMission: string;
 	contactEmail: string;
 	address: string;
@@ -126,12 +130,19 @@ export interface Settings {
 	feedbackCardsEnabled?: boolean;
 	feedbackCardsAutoScrollEnabled?: boolean;
 	feedbackPublicTypeFilter?: 'all' | 'saran' | 'kritik';
+	homeImageBannerSlots?: HomeImageBannerSlot[];
 	homeConfig?: HomeConfig;
 	// Halaman lengkap Tentang Kami
 	aboutPageIntro?: string;
 	aboutPageTrackRecord?: AboutPageTrackRecordItem[];
 	aboutPageLambang?: AboutPageLambangItem[];
 	updatedAt: Date;
+}
+
+export interface HomeImageBannerSlot {
+	id: string;
+	label: string;
+	order: number;
 }
 
 export interface HomeBlockItem {
@@ -185,6 +196,15 @@ export const ALL_NAVBAR_ITEMS: { id: string; label: string }[] = [
 export const DEFAULT_HOME_CONFIG: HomeConfig = {
 	blocks: ALL_SECTION_BLOCKS.map((s) => ({ id: s.id, kind: 'section' as const, visible: true })),
 	navbar: ALL_NAVBAR_ITEMS.map((n) => ({ id: n.id, visible: true })),
+	showDashboardLink: true,
+};
+
+const PRODI_IDS = new Set(['prodi']);
+export const TENANT_SECTION_BLOCKS = ALL_SECTION_BLOCKS.filter((s) => !PRODI_IDS.has(s.id));
+export const TENANT_NAVBAR_ITEMS = ALL_NAVBAR_ITEMS.filter((n) => !PRODI_IDS.has(n.id));
+export const DEFAULT_TENANT_HOME_CONFIG: HomeConfig = {
+	blocks: TENANT_SECTION_BLOCKS.map((s) => ({ id: s.id, kind: 'section' as const, visible: true })),
+	navbar: TENANT_NAVBAR_ITEMS.map((n) => ({ id: n.id, visible: true })),
 	showDashboardLink: true,
 };
 
@@ -364,6 +384,58 @@ export type UpdateEventYear = Partial<Omit<EventYear, '_id' | 'createdAt' | 'upd
 
 export type InsertEvent = Omit<EventItem, '_id' | 'children' | 'createdAt' | 'updatedAt'>;
 export type UpdateEvent = Partial<Omit<EventItem, '_id' | 'children' | 'createdAt' | 'updatedAt'>>;
+
+// Community Types
+export interface Community {
+	_id: string;
+	name: string;
+	slug: string;
+	dbName: string;
+	description: string;
+	logoUrl: string;
+	ownerUsername: string;
+	ownerEmail: string;
+	registrationCodeId?: string;
+	status: 'active' | 'inactive' | 'suspended';
+	initialDivisionCount?: number;
+	socialLinks: {
+		facebook: string;
+		tiktok: string;
+		instagram: string;
+		youtube: string;
+	};
+	contactEmail: string;
+	address: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+// Registration Code Types
+export type RegistrationCodeType = 'community' | 'alumni';
+export type RegistrationCodeStatus = 'active' | 'used' | 'expired' | 'revoked';
+
+export interface RegistrationCodeUsage {
+	communityId: string;
+	communityName: string;
+	usedAt: Date;
+	ownerEmail: string;
+}
+
+export interface RegistrationCode {
+	_id: string;
+	code: string;
+	type: RegistrationCodeType;
+	createdBy: string;
+	createdByName: string;
+	maxUses: number;
+	currentUses: number;
+	expiresAt: Date;
+	status: RegistrationCodeStatus;
+	usedBy: RegistrationCodeUsage[];
+	note: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
 
 // Sharing Types
 export type SharingEntityType = 'berita' | 'events' | 'library';

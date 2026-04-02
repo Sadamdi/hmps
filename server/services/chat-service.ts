@@ -81,13 +81,25 @@ export class ChatService {
 		return chat;
 	}
 
+	private static resolveUploadDiskPath(imageUrl: string): string {
+		const normalized = imageUrl.trim();
+		if (normalized.startsWith('/uploads/')) {
+			return path.join(
+				process.cwd(),
+				normalized.replace(/^\//, '')
+			);
+		}
+		return path.join(process.cwd(), 'uploads', path.basename(normalized));
+	}
+
 	private static async runGeminiAgenticLoop(
 		gemini: ReturnType<typeof initGeminiClient>,
 		history: Content[],
 		permissions: string[] | undefined,
 		authUserId: string | undefined,
 		pagePath: string | undefined,
-		geminiTools: FunctionDeclarationsTool[]
+		geminiTools: FunctionDeclarationsTool[],
+		tenantDbName?: string | null
 	): Promise<GeminiLoopSuccess | GeminiLoopFailure> {
 		let lastError: Error | null = null;
 		let sawQuotaLike = false;
@@ -127,7 +139,8 @@ export class ChatService {
 									(fc.args ?? {}) as Record<string, unknown>,
 									permissions || [],
 									authUserId,
-									pagePath
+									pagePath,
+									tenantDbName
 								),
 							},
 						}))
@@ -171,7 +184,8 @@ export class ChatService {
 		chatId?: string,
 		pageContext?: PageContext,
 		permissions?: string[],
-		authUserId?: string
+		authUserId?: string,
+		tenantDbName?: string | null
 	) {
 		let chat;
 		if (chatId) {
@@ -213,10 +227,8 @@ export class ChatService {
 				}
 				if (msg.imageUrl) {
 					// Jika ada gambar, tambahkan ke parts
-					const imagePath = path.join(
-						process.cwd(),
-						'uploads',
-						path.basename(msg.imageUrl)
+					const imagePath = ChatService.resolveUploadDiskPath(
+						msg.imageUrl
 					);
 					if (fs.existsSync(imagePath)) {
 						const imageData = fs.readFileSync(imagePath);
@@ -245,10 +257,8 @@ export class ChatService {
 								mimeType: 'image/jpeg',
 								data: fs
 									.readFileSync(
-										path.join(
-											process.cwd(),
-											'uploads',
-											path.basename(imageUrl)
+										ChatService.resolveUploadDiskPath(
+											imageUrl
 										)
 									)
 									.toString('base64'),
@@ -305,7 +315,8 @@ export class ChatService {
 				permissions,
 				authUserId,
 				pagePath,
-				geminiTools
+				geminiTools,
+				tenantDbName
 			);
 
 			if (loopResult.ok) {
@@ -381,11 +392,7 @@ export class ChatService {
 		await chat.save();
 		// Hapus gambar jika ada
 		if (imageUrl) {
-			const imagePath = path.join(
-				process.cwd(),
-				'uploads',
-				path.basename(imageUrl)
-			);
+			const imagePath = ChatService.resolveUploadDiskPath(imageUrl);
 			try {
 				await fs.promises.unlink(imagePath);
 				console.log(`Deleted image: ${imagePath}`);

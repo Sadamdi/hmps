@@ -97,7 +97,15 @@ export const securityMiddleware = {
 				fontSrc: ["'self'", 'https://fonts.gstatic.com'],
 				objectSrc: ["'none'"],
 				mediaSrc: ["'self'", 'data:', 'blob:'],
-				frameSrc: ["'self'", 'https://www.google.com', 'https://maps.google.com'],
+				frameSrc: [
+					"'self'",
+					'https://www.google.com',
+					'https://maps.google.com',
+					'https://www.youtube.com',
+					'https://www.youtube-nocookie.com',
+					'https://drive.google.com',
+					'https://docs.google.com',
+				],
 			},
 		},
 		hsts: {

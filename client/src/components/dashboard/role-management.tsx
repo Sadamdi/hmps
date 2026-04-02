@@ -15,6 +15,7 @@ import {
 	verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { Edit, GripVertical, Plus, Shield, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/use-toast';
@@ -677,6 +678,35 @@ export default function RoleManagement({ userRole }: RoleManagementProps) {
 
 	return (
 		<div className="space-y-6">
+			<DashboardHintCard
+				title="Cara memakai Role & permission"
+				variant="amber"
+				storageKey="dashboard-roles"
+				description="Setiap role punya level numerik: angka lebih kecil = lebih tinggi. Permission adalah daftar string (mis. berita.create). Perubahan berlaku untuk semua user dengan role tersebut setelah mereka login ulang atau refresh token.">
+				<ul className="list-disc list-inside space-y-1.5 text-sm">
+					<li>
+						<strong>Langkah</strong>: pilih role → centang permission minimal yang dibutuhkan → simpan; atau buat role baru dengan level &gt; level Anda → assign user di halaman Users.
+					</li>
+					<li>
+						<strong>Contoh aman</strong>: role &quot;Editor konten&quot; hanya <code className="text-xs bg-muted px-1 rounded">berita.create</code>, <code className="text-xs bg-muted px-1 rounded">berita.edit</code>, <code className="text-xs bg-muted px-1 rounded">library.create</code>—tanpa <code className="text-xs bg-muted px-1 rounded">users.edit</code> atau middleware.
+					</li>
+					<li>
+						<strong>Contoh berbahaya</strong>: memberi <code className="text-xs bg-muted px-1 rounded">roles.assign</code> atau edit role level atas kepada akun yang tidak tepercaya; menaikkan level role melebihi aturan hierarki (akan ditolak API).
+					</li>
+					<li>
+						<strong>Level</strong>: Anda hanya mengelola role dengan level lebih rendah (angka lebih besar) daripada level Anda.
+					</li>
+					<li>
+						<strong>Drag urutan</strong>: mengubah urutan/level role; sistem menolak jika melanggar hierarki.
+					</li>
+					<li>
+						<strong>Jika gagal</strong>: baca error (role name duplicate, level invalid); jangan paksa refresh halaman sebelum toast selesai.
+					</li>
+					<li>
+						Setelah mengubah role, minta user terkait <strong>login ulang</strong> agar izin baru konsisten.
+					</li>
+				</ul>
+			</DashboardHintCard>
 			<div className="flex justify-between items-center">
 				<div>
 					<p className="text-muted-foreground">

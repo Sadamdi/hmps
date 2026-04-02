@@ -1,4 +1,11 @@
 import { QueryClient, QueryFunction } from '@tanstack/react-query';
+import {
+	installGlobalFetchRewrite,
+	rewriteApiUrlForTenantPath,
+	tenantLoginPathFromPathname,
+} from './tenant-api-rewrite';
+
+installGlobalFetchRewrite();
 
 async function throwIfResNotOk(res: Response) {
 	if (!res.ok) {
@@ -27,7 +34,8 @@ async function throwIfResNotOk(res: Response) {
 			// Best-effort redirect
 			if (typeof window !== 'undefined') {
 				setTimeout(() => {
-					window.location.href = '/login';
+					const tenantLogin = tenantLoginPathFromPathname(window.location.pathname);
+					window.location.href = tenantLogin || '/login';
 				}, 50);
 			}
 		}
@@ -40,10 +48,11 @@ export async function apiRequest(
 	url: string,
 	data?: unknown | undefined
 ): Promise<Response> {
+	const resolvedUrl = rewriteApiUrlForTenantPath(url);
 	// Cek apakah data adalah FormData atau object biasa
 	const isFormData = data instanceof FormData;
 
-	const res = await fetch(url, {
+	const res = await fetch(resolvedUrl, {
 		method,
 		// Jangan tambahkan Content-Type untuk FormData karena browser akan otomatis menambahkan boundary
 		headers: data && !isFormData
@@ -64,7 +73,9 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
 	({ on401: unauthorizedBehavior }) =>
 	async ({ queryKey }) => {
-		const res = await fetch(queryKey[0] as string, {
+		const rawUrl = queryKey[0] as string;
+		const url = typeof rawUrl === 'string' ? rewriteApiUrlForTenantPath(rawUrl) : rawUrl;
+		const res = await fetch(url, {
 			credentials: 'include',
 			headers: {
 				Accept: 'application/json',

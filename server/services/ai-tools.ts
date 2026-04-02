@@ -1,14 +1,60 @@
 import {
-	Berita,
-	Event,
-	EventYear,
-	Library,
-	Organization,
-	ProdiContent,
-	Settings,
-	User,
+	Berita as MainBerita,
+	Event as MainEvent,
+	EventYear as MainEventYear,
+	Library as MainLibrary,
+	Organization as MainOrganization,
+	ProdiContent as MainProdiContent,
+	Settings as MainSettings,
+	User as MainUser,
 } from '../../db/mongodb';
+import { getTenantModels } from '../../db/tenant';
 import { mongoStorage } from '../mongo-storage';
+import { createTenantStorage } from '../tenant-storage';
+
+type ToolModelsBundle = {
+	Berita: typeof MainBerita;
+	Event: typeof MainEvent;
+	EventYear: typeof MainEventYear;
+	Library: typeof MainLibrary;
+	Organization: typeof MainOrganization;
+	ProdiContent: typeof MainProdiContent;
+	Settings: typeof MainSettings;
+	User: typeof MainUser;
+};
+
+function getToolModels(tenantDbName?: string | null): ToolModelsBundle {
+	if (tenantDbName) {
+		const tm = getTenantModels(tenantDbName);
+		return {
+			Berita: tm.Berita as typeof MainBerita,
+			Event: tm.Event as typeof MainEvent,
+			EventYear: tm.EventYear as typeof MainEventYear,
+			Library: tm.Library as typeof MainLibrary,
+			Organization: tm.Organization as typeof MainOrganization,
+			ProdiContent: tm.ProdiContent as typeof MainProdiContent,
+			Settings: tm.Settings as typeof MainSettings,
+			User: tm.User as typeof MainUser,
+		};
+	}
+	return {
+		Berita: MainBerita,
+		Event: MainEvent,
+		EventYear: MainEventYear,
+		Library: MainLibrary,
+		Organization: MainOrganization,
+		ProdiContent: MainProdiContent,
+		Settings: MainSettings,
+		User: MainUser,
+	};
+}
+
+function getToolStorage(tenantDbName?: string | null) {
+	if (tenantDbName) {
+		return createTenantStorage(getTenantModels(tenantDbName));
+	}
+	return mongoStorage;
+}
 
 // ---------------------------------------------------------------------------
 // Tool definition with permission metadata
@@ -34,21 +80,23 @@ interface AIToolDef {
 	requiresEventViewAndBeritaCreate?: boolean;
 }
 
-/** Write tools hanya boleh dipakai saat konteks path dashboard (/dashboard…). */
+/** Write tools hanya boleh dipakai saat konteks path dashboard (/dashboard… atau /:slug/dashboard…). */
 export function isDashboardAiWriteAllowed(
 	pagePath?: string | null
 ): boolean {
 	if (pagePath == null || typeof pagePath !== 'string') return false;
 	const p = pagePath.trim();
 	if (!p) return false;
+	let pathname = p;
 	try {
 		if (/^https?:\/\//i.test(p)) {
-			return new URL(p).pathname.startsWith('/dashboard');
+			pathname = new URL(p).pathname;
 		}
 	} catch {
 		return false;
 	}
-	return p.startsWith('/dashboard');
+	if (pathname.startsWith('/dashboard')) return true;
+	return /^\/[^/]+\/dashboard(\/|$)/.test(pathname);
 }
 
 // ---------------------------------------------------------------------------
@@ -600,7 +648,7 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 		isWrite: true,
 	},
 
-	// -- Berita ↔ Event (link, copy, sync) — memakai helper mongoStorage yang sama dengan API dashboard --
+	// -- Berita ↔ Event (link, copy, sync) — memakai helper storage (main / tenant) yang sama dengan API dashboard --
 
 	{
 		name: 'link_berita_to_event',
@@ -952,11 +1000,24 @@ export async function executeToolCall(
 	args: Record<string, unknown>,
 	permissions: string[] = [],
 	authUserId?: string,
-	pagePath?: string | null
+	pagePath?: string | null,
+	tenantDbName?: string | null
 ): Promise<Record<string, unknown>> {
 	try {
 		const permError = checkRuntimePermission(name, permissions, pagePath);
 		if (permError) return { error: permError };
+
+		const storage = getToolStorage(tenantDbName);
+		const {
+			Berita,
+			Event,
+			EventYear,
+			Library,
+			Organization,
+			ProdiContent,
+			Settings,
+			User,
+		} = getToolModels(tenantDbName);
 
 		switch (name) {
 			// ==================== PUBLIC READ ====================
@@ -2010,7 +2071,7 @@ export async function executeToolCall(
 				);
 				if (evEditErr) return { error: evEditErr };
 				const copyImg = args.copy_image_to_attachments === true;
-				const updated = await mongoStorage.attachBeritaToEvent(
+				const updated = await storage.attachBeritaToEvent(
 					eventId,
 					beritaId,
 					{ copyFiles: copyImg }
@@ -2046,7 +2107,7 @@ export async function executeToolCall(
 					permissions
 				);
 				if (evEditErr) return { error: evEditErr };
-				const updated = await mongoStorage.detachBeritaFromEvent(
+				const updated = await storage.detachBeritaFromEvent(
 					eventId,
 					beritaId
 				);
@@ -2066,7 +2127,7 @@ export async function executeToolCall(
 				const parentEventId = args.parentEventId as string | undefined;
 				const copyAttachments = args.copy_attachments === true;
 				try {
-					const result = await mongoStorage.copyBeritaToEvent(
+					const result = await storage.copyBeritaToEvent(
 						beritaId,
 						authUserId,
 						{
@@ -2123,7 +2184,7 @@ export async function executeToolCall(
 				const displayName =
 					(user as any).name || (user as any).username || 'Pengguna';
 				try {
-					const saved = await mongoStorage.copyEventToBerita(
+					const saved = await storage.copyEventToBerita(
 						eventId,
 						authUserId,
 						displayName,

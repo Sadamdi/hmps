@@ -5,6 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useErrorHandler } from '@/hooks/use-error-handler';
 import { useAuth } from '@/lib/auth';
+import { useTenant } from '@/lib/tenant-context';
+import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, ArrowLeft, Clock, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
@@ -20,26 +22,41 @@ export default function LoginForm() {
 	const { handleError } = useErrorHandler();
 	const [, navigate] = useLocation();
 	const [showPassword, setShowPassword] = useState(false);
+	const { isTenant, basePath } = useTenant();
+	const { data: siteSettings } = useQuery<any>({ queryKey: ['/api/settings'], staleTime: 60000 });
+	const siteName = siteSettings?.siteName || siteSettings?.navbarBrand || (isTenant ? 'Komunitas' : 'HIMATIF ENCODER');
 
 	useEffect(() => {
-		document.title =
-			'Login | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
-		const desc =
-			'Masuk ke akun Anda untuk mengakses dashboard Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.';
+		document.title = isTenant ? `Login | ${siteName}` : 'Login | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
+		const desc = isTenant
+			? `Masuk ke akun Anda untuk mengakses dashboard ${siteName}.`
+			: 'Masuk ke akun Anda untuk mengakses dashboard Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.';
 		const meta = document.querySelector('meta[name="description"]');
 		if (meta) meta.setAttribute('content', desc);
 		return () => {
-			document.title =
-				'Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang | Fakultas Saintek';
+			document.title = isTenant ? siteName : 'Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang | Fakultas Saintek';
 		};
-	}, []);
+	}, [isTenant, siteName]);
 
-	// Redirect ke dashboard jika sudah login
 	useEffect(() => {
 		if (user) {
-			navigate('/dashboard');
+			const slug = (user as any)?.tenantSlug;
+			if (slug) {
+				const currentFirstSegment = window.location.pathname.split('/').filter(Boolean)[0];
+				if (currentFirstSegment === slug) {
+					navigate('/dashboard');
+				} else {
+					window.location.href = `/${slug}/dashboard`;
+				}
+			} else {
+				if (isTenant) {
+					window.location.href = '/dashboard';
+				} else {
+					navigate('/dashboard');
+				}
+			}
 		}
-	}, [user, navigate]);
+	}, [user, navigate, isTenant]);
 
 	// Countdown timer untuk rate limit
 	useEffect(() => {
@@ -137,18 +154,18 @@ export default function LoginForm() {
 				<CardHeader className="text-center pb-2 pt-8 px-8">
 					{/* Logo */}
 					<div className="mx-auto mb-4 animate-glow-pulse w-16 h-16 rounded-full ring-2 ring-cyan-400/40 flex items-center justify-center bg-slate-100 dark:bg-white/5">
-						<img
-							src="/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp"
-							alt="Logo HIMATIF"
-							className="w-12 h-12 object-contain"
-						/>
+						{siteSettings?.logoUrl ? (
+							<img src={siteSettings.logoUrl} alt={`Logo ${siteName}`} className="w-12 h-12 object-contain" />
+						) : (
+							<img src="/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp" alt="Logo" className="w-12 h-12 object-contain" />
+						)}
 					</div>
 
 					{/* Brand name */}
 					<h1 className="text-2xl font-bold text-slate-800 dark:bg-gradient-to-r dark:from-white dark:via-blue-100 dark:to-cyan-300 dark:bg-clip-text dark:text-transparent">
 						Masuk ke Dashboard
 					</h1>
-					<p className="text-slate-500 dark:text-slate-400 text-sm mt-1">HIMATIF ENCODER · Admin Panel</p>
+					<p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{siteName} · Admin Panel</p>
 
 					{/* Accent line */}
 					<div className="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
@@ -269,11 +286,20 @@ export default function LoginForm() {
 						</Button>
 					</form>
 
-					{/* Divider + footer text */}
+					{/* Register link + Divider + footer text */}
 					<div className="mt-6 text-center">
+						{siteSettings?.enableRegistration && !isTenant && (
+							<div className="mb-4">
+								<a
+									href="/register"
+									className="text-sm text-blue-600 dark:text-cyan-400 hover:underline">
+									Daftarkan Komunitas Baru
+								</a>
+							</div>
+						)}
 						<div className="h-px bg-slate-200 dark:bg-white/8 mb-4" />
 						<p className="text-xs text-slate-500 dark:text-slate-500">
-							Hanya untuk pengurus HIMATIF ENCODER yang berwenang
+							Hanya untuk pengurus {siteName} yang berwenang
 						</p>
 					</div>
 				</CardContent>

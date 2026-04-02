@@ -47,6 +47,61 @@ async function ensureUploadDirectory(
 	return categoryDir;
 }
 
+/**
+ * Sanitize a community slug for safe use as a filesystem directory name.
+ */
+function sanitizeSlug(slug: string): string {
+	return slug
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9_-]/g, '_')
+		.replace(/_{2,}/g, '_')
+		.replace(/^_|_$/g, '') || 'unknown';
+}
+
+export interface TenantPathContext {
+	isTenant: boolean;
+	tenantSlug?: string;
+}
+
+/**
+ * Resolve the physical directory and URL prefix for an upload,
+ * scoped to a tenant when applicable.
+ *
+ * Non-tenant:  attached_assets/{sub}   or  uploads/{sub}
+ * Tenant:      attached_assets/community/{slug}/{sub}  or  uploads/community/{slug}/{sub}
+ */
+export function resolveTenantPaths(
+	sub: string,
+	useAssetsDir: boolean,
+	ctx: TenantPathContext,
+): { dir: string; urlPrefix: string } {
+	const baseDir = useAssetsDir ? assetsDir : uploadDir;
+	const baseUrl = useAssetsDir ? '/attached_assets' : '/uploads';
+
+	if (ctx.isTenant && ctx.tenantSlug) {
+		const safe = sanitizeSlug(ctx.tenantSlug);
+		const dir = path.join(baseDir, 'community', safe, sub);
+		const urlPrefix = `${baseUrl}/community/${safe}/${sub}`;
+		if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+		return { dir, urlPrefix };
+	}
+
+	const dir = path.join(baseDir, sub);
+	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+	return { dir, urlPrefix: `${baseUrl}/${sub}` };
+}
+
+/**
+ * Build a TenantPathContext from an Express request.
+ */
+export function tenantCtxFromReq(req: { isTenantRequest?: boolean; tenantSlug?: string }): TenantPathContext {
+	return {
+		isTenant: !!req.isTenantRequest,
+		tenantSlug: req.tenantSlug,
+	};
+}
+
 // Configure multer storage
 const storage = multer.memoryStorage();
 
@@ -65,16 +120,15 @@ export async function uploadHandler(
 	file: Express.Multer.File,
 	useAssetsDir: boolean = false,
 	category: UploadCategory = 'general',
-	oldFileUrl?: string, // URL file lama yang akan dihapus
-	subFolder?: string, // Subfolder tambahan (contoh: beritaId)
+	oldFileUrl?: string,
+	subFolder?: string,
+	tenant?: TenantPathContext,
 ): Promise<string> {
 	try {
-		// Hapus file lama jika ada
 		if (oldFileUrl) {
 			await deleteFile(oldFileUrl);
 		}
 
-		// Generate a unique filename
 		const timestamp = Date.now();
 		const randomName = crypto.randomBytes(8).toString('hex');
 		const safeOriginalName = file.originalname
@@ -83,34 +137,19 @@ export async function uploadHandler(
 		const fileExtension = path.extname(file.originalname);
 		const fileName = `${timestamp}_${safeOriginalName}_${randomName}${fileExtension}`;
 
-		// Ensure category directory exists
-		let categoryDir = await ensureUploadDirectory(category, useAssetsDir);
+		const sub = subFolder ? `${category}/${subFolder}` : category;
+		const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+			? resolveTenantPaths(sub, useAssetsDir, tenant)
+			: (() => {
+				const d = path.join(useAssetsDir ? assetsDir : uploadDir, sub);
+				if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+				return { dir: d, urlPrefix: `${useAssetsDir ? '/attached_assets' : '/uploads'}/${sub}` };
+			})();
 
-		// Add subfolder if specified (for berita-specific folders)
-		if (subFolder) {
-			categoryDir = path.join(categoryDir, subFolder);
-			if (!fs.existsSync(categoryDir)) {
-				await mkdir(categoryDir, { recursive: true });
-			}
-		}
-
-		// Determine paths
-		const targetPath = subFolder
-			? useAssetsDir
-				? `/attached_assets/${category}/${subFolder}`
-				: `/uploads/${category}/${subFolder}`
-			: useAssetsDir
-				? `/attached_assets/${category}`
-				: `/uploads/${category}`;
-
-		// Create file path
 		const filePath = path.join(categoryDir, fileName);
-
-		// Save the file
 		await writeFile(filePath, file.buffer);
 
-		// Return the URL (relative path for now)
-		return `${targetPath}/${fileName}`;
+		return `${urlPrefix}/${fileName}`;
 	} catch (error) {
 		console.error('Error handling file upload:', error);
 		throw new Error('File upload failed');
@@ -126,6 +165,7 @@ export async function uploadBeritaImage(
 	oldFileUrl?: string,
 	subFolder?: string,
 	useAssetsDir: boolean = false,
+	tenant?: TenantPathContext,
 ): Promise<string> {
 	try {
 		if (oldFileUrl) {
@@ -143,21 +183,14 @@ export async function uploadBeritaImage(
 			.substring(0, 20);
 		const fileName = `${timestamp}_${safeOriginalName}_${randomName}.webp`;
 
-		let categoryDir = await ensureUploadDirectory('berita', useAssetsDir);
-		if (subFolder) {
-			categoryDir = path.join(categoryDir, subFolder);
-			if (!fs.existsSync(categoryDir)) {
-				await mkdir(categoryDir, { recursive: true });
-			}
-		}
-
-		const targetPath = subFolder
-			? useAssetsDir
-				? `/attached_assets/berita/${subFolder}`
-				: `/uploads/berita/${subFolder}`
-			: useAssetsDir
-				? `/attached_assets/berita`
-				: `/uploads/berita`;
+		const sub = subFolder ? `berita/${subFolder}` : 'berita';
+		const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+			? resolveTenantPaths(sub, useAssetsDir, tenant)
+			: (() => {
+				const d = path.join(useAssetsDir ? assetsDir : uploadDir, sub);
+				if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+				return { dir: d, urlPrefix: `${useAssetsDir ? '/attached_assets' : '/uploads'}/${sub}` };
+			})();
 
 		const filePath = path.join(categoryDir, fileName);
 
@@ -170,10 +203,210 @@ export async function uploadBeritaImage(
 
 		await writeFile(filePath, processedBuffer);
 
-		return `${targetPath}/${fileName}`;
+		return `${urlPrefix}/${fileName}`;
 	} catch (error) {
 		console.error('Error processing berita image:', error);
 		throw new Error('Failed to process berita image');
+	}
+}
+
+/**
+ * Upload a content image for an event's rich-text description.
+ * Files go under events/{eventId}/content/ (or events/{parentId}/sub-events/{eventId}/content/).
+ */
+export async function uploadEventContentImage(
+	file: Express.Multer.File,
+	eventId: string,
+	parentEventId?: string | null,
+	tenant?: TenantPathContext,
+): Promise<string> {
+	if (!isProcessableImage(file.mimetype)) {
+		throw new Error(`File type ${file.mimetype} is not processable`);
+	}
+
+	const timestamp = Date.now();
+	const randomName = crypto.randomBytes(8).toString('hex');
+	const safeOriginalName = file.originalname
+		.replace(/[^a-zA-Z0-9.]/g, '_')
+		.substring(0, 20);
+	const fileName = `${timestamp}_${safeOriginalName}_${randomName}.webp`;
+
+	const sub = parentEventId
+		? `events/${parentEventId}/sub-events/${eventId}/content`
+		: `events/${eventId}/content`;
+
+	const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+		? resolveTenantPaths(sub, false, tenant)
+		: (() => {
+			const d = path.join(uploadDir, sub);
+			if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+			return { dir: d, urlPrefix: `/uploads/${sub}` };
+		})();
+
+	const filePath = path.join(categoryDir, fileName);
+
+	const processedBuffer = await processImage(file.buffer, {
+		quality: 80,
+		maxWidth: 1920,
+		maxHeight: 1080,
+		format: 'webp',
+	});
+
+	await writeFile(filePath, processedBuffer);
+	return `${urlPrefix}/${fileName}`;
+}
+
+/**
+ * Upload a thumbnail specifically for an event, stored under events/{eventId}/thumbnail/.
+ */
+export async function uploadEventThumbnail(
+	file: Express.Multer.File,
+	eventId: string,
+	parentEventId?: string | null,
+	oldFileUrl?: string,
+	tenant?: TenantPathContext,
+): Promise<string> {
+	if (oldFileUrl) await deleteFile(oldFileUrl);
+
+	const timestamp = Date.now();
+	const randomName = crypto.randomBytes(8).toString('hex');
+	const ext = path.extname(file.originalname) || '.webp';
+	const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_').substring(0, 20);
+	const fileName = `${timestamp}_${safeOriginalName}_${randomName}${ext}`;
+
+	const sub = parentEventId
+		? `events/${parentEventId}/sub-events/${eventId}/thumbnail`
+		: `events/${eventId}/thumbnail`;
+
+	const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+		? resolveTenantPaths(sub, false, tenant)
+		: (() => {
+			const d = path.join(uploadDir, sub);
+			if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+			return { dir: d, urlPrefix: `/uploads/${sub}` };
+		})();
+
+	const filePath = path.join(categoryDir, fileName);
+
+	if (isProcessableImage(file.mimetype)) {
+		const processedBuffer = await processImage(file.buffer, {
+			quality: 80,
+			maxWidth: 1920,
+			maxHeight: 1080,
+			format: 'webp',
+		});
+		await writeFile(filePath, processedBuffer);
+	} else {
+		await writeFile(filePath, file.buffer);
+	}
+
+	return `${urlPrefix}/${fileName}`;
+}
+
+/**
+ * Upload an attachment for an event, stored under events/{eventId}/attachments/.
+ */
+export async function uploadEventAttachment(
+	file: Express.Multer.File,
+	eventId: string,
+	parentEventId?: string | null,
+	tenant?: TenantPathContext,
+): Promise<string> {
+	const timestamp = Date.now();
+	const randomName = crypto.randomBytes(8).toString('hex');
+	const ext = path.extname(file.originalname);
+	const safeOriginalName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_').substring(0, 20);
+	const fileName = `${timestamp}_${safeOriginalName}_${randomName}${ext}`;
+
+	const sub = parentEventId
+		? `events/${parentEventId}/sub-events/${eventId}/attachments`
+		: `events/${eventId}/attachments`;
+
+	const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+		? resolveTenantPaths(sub, false, tenant)
+		: (() => {
+			const d = path.join(uploadDir, sub);
+			if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+			return { dir: d, urlPrefix: `/uploads/${sub}` };
+		})();
+
+	const filePath = path.join(categoryDir, fileName);
+	await writeFile(filePath, file.buffer);
+	return `${urlPrefix}/${fileName}`;
+}
+
+/**
+ * Cleanup unused event content images from disk.
+ * Works for both main and tenant by resolving correct path.
+ */
+export async function cleanupEventImages(
+	eventId: string,
+	usedImageUrls: string[],
+	parentEventId?: string | null,
+	tenant?: TenantPathContext,
+): Promise<void> {
+	const sub = parentEventId
+		? `events/${parentEventId}/sub-events/${eventId}/content`
+		: `events/${eventId}/content`;
+
+	const { dir, urlPrefix } =
+		tenant?.isTenant && tenant.tenantSlug
+			? resolveTenantPaths(sub, false, tenant)
+			: { dir: path.join(uploadDir, sub), urlPrefix: `/uploads/${sub}` };
+
+	try {
+		if (!fs.existsSync(dir)) return;
+		const files = fs.readdirSync(dir);
+
+		if (usedImageUrls.length === 0) {
+			for (const file of files) {
+				await promisify(fs.unlink)(path.join(dir, file)).catch(() => {});
+			}
+		} else {
+			const pathMarker = `${urlPrefix}/`;
+			const usedFilenames = usedImageUrls
+				.filter((url) => url.includes(pathMarker))
+				.map((url) => url.split(pathMarker).pop()!)
+				.filter(Boolean);
+			for (const file of files) {
+				if (!usedFilenames.includes(file)) {
+					await promisify(fs.unlink)(path.join(dir, file)).catch(() => {});
+				}
+			}
+		}
+	} catch (e) {
+		console.warn(`cleanupEventImages(${eventId}):`, e);
+	}
+}
+
+/**
+ * Delete the entire file directory tree for an event (thumbnail, content, attachments).
+ * Used on cascade delete of event/sub-event.
+ */
+export async function deleteEventFileTree(
+	eventId: string,
+	parentEventId?: string | null,
+	tenant?: TenantPathContext,
+): Promise<void> {
+	const sub = parentEventId
+		? `events/${parentEventId}/sub-events/${eventId}`
+		: `events/${eventId}`;
+
+	const resolveDir = (t?: TenantPathContext) => {
+		if (t?.isTenant && t.tenantSlug) {
+			const safe = t.tenantSlug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_').replace(/_{2,}/g, '_').replace(/^_|_$/g, '') || 'unknown';
+			return path.join(uploadDir, 'community', safe, sub);
+		}
+		return path.join(uploadDir, sub);
+	};
+
+	const dir = resolveDir(tenant);
+	try {
+		if (fs.existsSync(dir)) {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	} catch (e) {
+		console.warn(`deleteEventFileTree(${eventId}):`, e);
 	}
 }
 
@@ -183,47 +416,45 @@ export async function uploadBeritaImage(
  */
 export async function uploadOrganizationMemberImage(
 	file: Express.Multer.File,
-	oldFileUrl?: string, // URL file lama yang akan dihapus
+	oldFileUrl?: string,
+	tenant?: TenantPathContext,
 ): Promise<string> {
 	try {
-		// Hapus file lama jika ada
 		if (oldFileUrl) {
 			await deleteFile(oldFileUrl);
 		}
 
-		// Generate a unique filename dengan ekstensi WebP
 		const timestamp = Date.now();
 		const randomName = crypto.randomBytes(8).toString('hex');
 		const safeOriginalName = file.originalname
 			.replace(/[^a-zA-Z0-9.]/g, '_')
 			.substring(0, 20);
-		// Ganti ekstensi dengan .webp karena akan dikonversi
 		const fileName = `${timestamp}_${safeOriginalName}_${randomName}.webp`;
 
-		// Ensure organization directory exists
-		const categoryDir = await ensureUploadDirectory('organization', false);
-		const filePath = path.join(categoryDir, fileName);
-
-		// Cek apakah file bisa diproses
 		if (!isProcessableImage(file.mimetype)) {
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
-		// Proses gambar: konversi ke WebP dengan kompresi
+		const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+			? resolveTenantPaths('organization', false, tenant)
+			: (() => {
+				const d = path.join(uploadDir, 'organization');
+				if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+				return { dir: d, urlPrefix: '/uploads/organization' };
+			})();
+
+		const filePath = path.join(categoryDir, fileName);
+
 		const processedBuffer = await processImage(file.buffer, {
-			quality: 80, // Kualitas 80% untuk balance antara ukuran dan kualitas
-			maxWidth: 1920, // Batas maksimal lebar
-			maxHeight: 1080, // Batas maksimal tinggi
-			format: 'webp', // Konversi ke WebP
+			quality: 80,
+			maxWidth: 1920,
+			maxHeight: 1080,
+			format: 'webp',
 		});
 
-		// Simpan file yang sudah diproses
 		await writeFile(filePath, processedBuffer);
 
-		// Return the URL (relative path)
-		const imageUrl = `/uploads/organization/${fileName}`;
-
-		return imageUrl;
+		return `${urlPrefix}/${fileName}`;
 	} catch (error) {
 		console.error('Error processing organization member image:', error);
 		throw new Error('Failed to process organization member image');
@@ -246,6 +477,7 @@ export async function uploadProdiLecturerPhoto(
 	file: Express.Multer.File,
 	slug: string,
 	oldFileUrl?: string,
+	tenant?: TenantPathContext,
 ): Promise<string> {
 	try {
 		await maybeDeleteLocalUpload(oldFileUrl);
@@ -263,8 +495,13 @@ export async function uploadProdiLecturerPhoto(
 			throw new Error('Invalid slug');
 		}
 
-		const lecturersDir = path.join(uploadDir, 'prodi', 'lecturers');
-		await mkdir(lecturersDir, { recursive: true });
+		const { dir: lecturersDir, urlPrefix } = tenant?.isTenant
+			? resolveTenantPaths('prodi/lecturers', false, tenant)
+			: (() => {
+				const d = path.join(uploadDir, 'prodi', 'lecturers');
+				if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+				return { dir: d, urlPrefix: '/uploads/prodi/lecturers' };
+			})();
 
 		const fileName = `${safeSlug}.webp`;
 		const filePath = path.join(lecturersDir, fileName);
@@ -278,7 +515,7 @@ export async function uploadProdiLecturerPhoto(
 
 		await writeFile(filePath, processedBuffer);
 
-		return `/uploads/prodi/lecturers/${fileName}`;
+		return `${urlPrefix}/${fileName}`;
 	} catch (error) {
 		console.error('Error processing prodi lecturer photo:', error);
 		throw new Error('Failed to process prodi photo');
@@ -297,6 +534,7 @@ export async function uploadProdiLabPhoto(
 	labIndex: number,
 	imgIndex: number,
 	oldFileUrl?: string,
+	tenant?: TenantPathContext,
 ): Promise<string> {
 	try {
 		if (type !== 'teaching' && type !== 'research') {
@@ -315,8 +553,13 @@ export async function uploadProdiLabPhoto(
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
-		const labsDir = path.join(uploadDir, 'prodi', 'labs', type);
-		await mkdir(labsDir, { recursive: true });
+		const { dir: labsDir, urlPrefix } = tenant?.isTenant
+			? resolveTenantPaths(`prodi/labs/${type}`, false, tenant)
+			: (() => {
+				const d = path.join(uploadDir, 'prodi', 'labs', type);
+				if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+				return { dir: d, urlPrefix: `/uploads/prodi/labs/${type}` };
+			})();
 
 		const fileName = `${labIndex}-${imgIndex}.webp`;
 		const filePath = path.join(labsDir, fileName);
@@ -330,7 +573,7 @@ export async function uploadProdiLabPhoto(
 
 		await writeFile(filePath, processedBuffer);
 
-		return `/uploads/prodi/labs/${type}/${fileName}`;
+		return `${urlPrefix}/${fileName}`;
 	} catch (error) {
 		console.error('Error processing prodi lab photo:', error);
 		throw new Error('Failed to process prodi lab photo');
@@ -343,6 +586,7 @@ export async function uploadProdiLabPhoto(
 export async function uploadProdiOrganizationStructureImage(
 	file: Express.Multer.File,
 	oldFileUrl?: string,
+	tenant?: TenantPathContext,
 ): Promise<string> {
 	try {
 		await maybeDeleteLocalUpload(oldFileUrl);
@@ -351,8 +595,13 @@ export async function uploadProdiOrganizationStructureImage(
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
-		const prodiDir = path.join(uploadDir, 'prodi');
-		await mkdir(prodiDir, { recursive: true });
+		const { dir: prodiDir, urlPrefix } = tenant?.isTenant
+			? resolveTenantPaths('prodi', false, tenant)
+			: (() => {
+				const d = path.join(uploadDir, 'prodi');
+				if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+				return { dir: d, urlPrefix: '/uploads/prodi' };
+			})();
 
 		const fileName = 'organization-structure.webp';
 		const filePath = path.join(prodiDir, fileName);
@@ -366,7 +615,7 @@ export async function uploadProdiOrganizationStructureImage(
 
 		await writeFile(filePath, processedBuffer);
 
-		return `/uploads/prodi/${fileName}`;
+		return `${urlPrefix}/${fileName}`;
 	} catch (error) {
 		console.error('Error processing prodi organization structure image:', error);
 		throw new Error('Failed to process prodi organization structure image');
@@ -380,9 +629,17 @@ export async function uploadProdiOrganizationStructureImage(
 export async function uploadFilosofiImage(
 	file: Express.Multer.File,
 	key: string,
+	tenant?: TenantPathContext,
 ): Promise<string> {
 	try {
-		const filosofiDir = await ensureUploadDirectory('filosofi', true);
+		const { dir: filosofiDir, urlPrefix } = tenant?.isTenant
+			? resolveTenantPaths('filosofi', true, tenant)
+			: (() => {
+				const d = path.join(assetsDir, 'filosofi');
+				if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+				return { dir: d, urlPrefix: '/attached_assets/filosofi' };
+			})();
+
 		const fileExtension = path.extname(file.originalname) || '.png';
 		const safeKey = key.replace(/[/\\?*:<>|]/g, '_').trim();
 		if (!safeKey) {
@@ -390,18 +647,12 @@ export async function uploadFilosofiImage(
 		}
 		const fileName = `${safeKey}${fileExtension}`;
 
-		// Hapus file lama dengan key yang sama (berbagai ekstensi)
 		if (fs.existsSync(filosofiDir)) {
 			const files = fs.readdirSync(filosofiDir);
 			for (const f of files) {
 				const baseName = path.basename(f, path.extname(f));
 				if (baseName === safeKey) {
-					const oldPath = path.join(filosofiDir, f);
-					try {
-						fs.unlinkSync(oldPath);
-					} catch (e) {
-						console.warn('Could not delete old filosofi file:', oldPath, e);
-					}
+					try { fs.unlinkSync(path.join(filosofiDir, f)); } catch {}
 				}
 			}
 		}
@@ -409,7 +660,7 @@ export async function uploadFilosofiImage(
 		const filePath = path.join(filosofiDir, fileName);
 		await writeFile(filePath, file.buffer);
 
-		return `/attached_assets/filosofi/${fileName}`;
+		return `${urlPrefix}/${fileName}`;
 	} catch (error) {
 		console.error('Error uploading filosofi image:', error);
 		throw new Error('Filosofi image upload failed');
@@ -421,6 +672,7 @@ export async function uploadFilosofiImage(
  */
 export async function uploadFeedbackImage(
 	file: Express.Multer.File,
+	tenant?: TenantPathContext,
 ): Promise<{ url: string; originalName: string }> {
 	if (!isProcessableImage(file.mimetype)) {
 		throw new Error(`File type ${file.mimetype} is not a processable image`);
@@ -430,7 +682,14 @@ export async function uploadFeedbackImage(
 	const randomName = crypto.randomBytes(8).toString('hex');
 	const fileName = `${timestamp}_${randomName}.webp`;
 
-	const categoryDir = await ensureUploadDirectory('feedback', false);
+	const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+		? resolveTenantPaths('feedback', false, tenant)
+		: (() => {
+			const d = path.join(uploadDir, 'feedback');
+			if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+			return { dir: d, urlPrefix: '/uploads/feedback' };
+		})();
+
 	const filePath = path.join(categoryDir, fileName);
 
 	const processedBuffer = await processImage(file.buffer, {
@@ -443,7 +702,7 @@ export async function uploadFeedbackImage(
 	await writeFile(filePath, processedBuffer);
 
 	return {
-		url: `/uploads/feedback/${fileName}`,
+		url: `${urlPrefix}/${fileName}`,
 		originalName: file.originalname,
 	};
 }
@@ -507,49 +766,57 @@ export async function deleteFile(fileUrl: string): Promise<void> {
 }
 
 /**
- * Cleanup unused images from berita folder.
- * Cleanup unused images from berita folder.
+ * Cleanup unused images from berita folder (main DB or tenant community path).
  */
 export async function cleanupBeritaImages(
 	beritaId: string,
 	usedImageUrls: string[],
+	tenant?: TenantPathContext,
 ): Promise<void> {
-	const dirs = [path.join(uploadDir, 'berita', beritaId)];
+	const { dir, urlPrefix } =
+		tenant?.isTenant && tenant.tenantSlug
+			? resolveTenantPaths(`berita/${beritaId}`, false, tenant)
+			: {
+				dir: path.join(uploadDir, 'berita', beritaId),
+				urlPrefix: `/uploads/berita/${beritaId}`,
+			};
+	const dirs = [dir];
 
-	for (const dir of dirs) {
+	for (const cleanupDir of dirs) {
 		try {
-			if (!fs.existsSync(dir)) continue;
+			if (!fs.existsSync(cleanupDir)) continue;
 
-			const files = fs.readdirSync(dir);
-			console.log(`📂 Found ${files.length} files in ${dir}`);
+			const files = fs.readdirSync(cleanupDir);
+			console.log(`📂 Found ${files.length} files in ${cleanupDir}`);
 
 			if (usedImageUrls.length === 0) {
 				for (const file of files) {
-					const filePath = path.join(dir, file);
+					const filePath = path.join(cleanupDir, file);
 					await promisify(fs.unlink)(filePath);
 					console.log(`Deleted: ${filePath}`);
 				}
 			} else {
+				const pathMarker = `${urlPrefix}/`;
 				const usedFilenames = usedImageUrls
-					.filter((url) => url.includes(`/uploads/berita/${beritaId}/`))
+					.filter((url) => url.includes(pathMarker))
 					.map((url) => path.basename(url));
 
 				for (const file of files) {
 					if (!usedFilenames.includes(file)) {
-						const filePath = path.join(dir, file);
+						const filePath = path.join(cleanupDir, file);
 						await promisify(fs.unlink)(filePath);
 						console.log(`🧹 Cleaned up unused image: ${filePath}`);
 					}
 				}
 			}
 
-			const remainingFiles = fs.readdirSync(dir);
+			const remainingFiles = fs.readdirSync(cleanupDir);
 			if (remainingFiles.length === 0) {
-				fs.rmdirSync(dir);
-				console.log(`📁 Removed empty directory: ${dir}`);
+				fs.rmdirSync(cleanupDir);
+				console.log(`📁 Removed empty directory: ${cleanupDir}`);
 			}
 		} catch (error) {
-			console.error(`Error cleaning up images in ${dir}:`, error);
+			console.error(`Error cleaning up images in ${cleanupDir}:`, error);
 		}
 	}
 }
@@ -617,3 +884,116 @@ export async function migrateExistingFiles(): Promise<void> {
 		console.error('Error during file migration:', error);
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Temporary onboarding upload helpers
+// ---------------------------------------------------------------------------
+
+const TEMP_UPLOAD_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
+
+/**
+ * Upload a file to a temporary namespace scoped by registration code.
+ * Returns { url, diskPath } so the caller can store metadata.
+ */
+export async function uploadTempOnboarding(
+	file: Express.Multer.File,
+	code: string,
+	category: UploadCategory = 'organization',
+): Promise<{ url: string; diskPath: string }> {
+	const safeCode = code.replace(/[^a-zA-Z0-9_-]/g, '_');
+	const sub = `community/tmp/${safeCode}/${category}`;
+	const dir = path.join(assetsDir, sub);
+	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+
+	const timestamp = Date.now();
+	const randomName = crypto.randomBytes(8).toString('hex');
+	const ext = path.extname(file.originalname) || '.bin';
+	const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_').substring(0, 20);
+	const fileName = `${timestamp}_${safeName}_${randomName}${ext}`;
+	const filePath = path.join(dir, fileName);
+	await writeFile(filePath, file.buffer);
+
+	const url = `/attached_assets/${sub}/${fileName}`;
+	return { url, diskPath: filePath };
+}
+
+/**
+ * Move a file from its temporary path to the final tenant path and return the new URL.
+ * If the source doesn't exist (already moved/deleted), returns the original URL unchanged.
+ */
+export function promoteTempFile(
+	diskPath: string,
+	tempUrl: string,
+	tenantSlug: string,
+	category: string,
+): string {
+	if (!fs.existsSync(diskPath)) return tempUrl;
+
+	const safeSlug = tenantSlug.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'unknown';
+	const destSub = `community/${safeSlug}/${category}`;
+	const destDir = path.join(assetsDir, destSub);
+	if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+
+	const fileName = path.basename(diskPath);
+	const destPath = path.join(destDir, fileName);
+	fs.renameSync(diskPath, destPath);
+	return `/attached_assets/${destSub}/${fileName}`;
+}
+
+/**
+ * Delete all temporary files for a given registration code.
+ */
+export function cleanupTempDir(code: string): void {
+	const safeCode = code.replace(/[^a-zA-Z0-9_-]/g, '_');
+	const tmpDir = path.join(assetsDir, 'community', 'tmp', safeCode);
+	if (fs.existsSync(tmpDir)) {
+		fs.rmSync(tmpDir, { recursive: true, force: true });
+		console.log(`[temp-upload] Cleaned up temp dir for code ${safeCode}`);
+	}
+}
+
+/**
+ * Run periodic cleanup of expired temporary uploads.
+ * Deletes disk files and MongoDB metadata for uploads past their TTL.
+ */
+export async function runTempUploadCleanup(): Promise<number> {
+	try {
+		const { TempUpload } = await import('../db/mongodb');
+		const expired = await TempUpload.find({
+			consumedAt: null,
+			expiresAt: { $lt: new Date() },
+		}).lean();
+
+		let cleaned = 0;
+		const codeDirs = new Set<string>();
+
+		for (const doc of expired) {
+			const d = doc as any;
+			if (d.diskPath && fs.existsSync(d.diskPath)) {
+				try { fs.unlinkSync(d.diskPath); } catch {}
+			}
+			if (d.code) codeDirs.add(d.code);
+			cleaned++;
+		}
+
+		if (expired.length > 0) {
+			await TempUpload.deleteMany({
+				_id: { $in: expired.map((d: any) => d._id) },
+			});
+		}
+
+		Array.from(codeDirs).forEach((c) => {
+			cleanupTempDir(c);
+		});
+
+		if (cleaned > 0) {
+			console.log(`[temp-upload] TTL cleanup: removed ${cleaned} expired file(s)`);
+		}
+		return cleaned;
+	} catch (err) {
+		console.warn('[temp-upload] TTL cleanup error:', err);
+		return 0;
+	}
+}
+
+export { TEMP_UPLOAD_TTL_MS };

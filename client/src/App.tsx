@@ -33,6 +33,10 @@ const DashboardKelembagaan = lazy(() => import('@/pages/dashboard/kelembagaan'))
 const DashboardProdi = lazy(() => import('@/pages/dashboard/prodi'));
 const DashboardEvents = lazy(() => import('@/pages/dashboard/events'));
 const DashboardFeedback = lazy(() => import('@/pages/dashboard/feedback'));
+const DashboardRegistration = lazy(() => import('@/pages/dashboard/registration'));
+const RegisterPage = lazy(() => import('@/pages/register'));
+const CommunityShell = lazy(() => import('@/pages/community/index'));
+const AllCommunitiesPage = lazy(() => import('@/pages/communities'));
 const EventsIndex = lazy(() => import('@/pages/events/index'));
 const EventsAll = lazy(() => import('@/pages/events/all'));
 const EventsYear = lazy(() => import('@/pages/events/[year]'));
@@ -79,6 +83,10 @@ function Router() {
 			<Route
 				path="/login"
 				component={LoginForm}
+			/>
+			<Route
+				path="/register"
+				component={RegisterPage}
 			/>
 				<Route
 					path="/forgot-password"
@@ -186,6 +194,20 @@ function Router() {
 				</ProtectedRoute>
 			)}
 		</Route>
+		<Route path="/dashboard/registration">
+			{() => (
+				<ProtectedRoute>
+					<DashboardRegistration />
+				</ProtectedRoute>
+			)}
+		</Route>
+
+		{/* Communities listing */}
+		<Route path="/communities" component={AllCommunitiesPage} />
+
+		{/* Community: gunakan splat /* (regexparam) agar path dalam seperti /slug/events/2026/id ter-match */}
+		<Route path="/:slug/*" component={CommunityShell} />
+		<Route path="/:slug" component={CommunityShell} />
 
 		{/* Fallback to 404 */}
 				<Route component={NotFound} />

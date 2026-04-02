@@ -176,6 +176,8 @@ const settingsSchema = new mongoose.Schema({
 	},
 	navbarBrand: { type: String, default: 'HMTI' },
 	aboutUs: { type: String, default: '' },
+	aboutVideoUrl: { type: String, default: '' },
+	aboutVideoGdriveUrl: { type: String, default: '' },
 	visionMission: { type: String, default: '' },
 	contactEmail: { type: String, default: 'hmti@uin-malang.ac.id' },
 	address: {
@@ -287,6 +289,10 @@ const settingsSchema = new mongoose.Schema({
 			type: String,
 			default: 'https://library.uin-malang.ac.id/',
 		},
+	},
+	quickLinks: {
+		type: [{ label: { type: String, required: true }, url: { type: String, required: true } }],
+		default: undefined,
 	},
 	mapsLocationInput: { type: String, default: '' },
 	mapsEmbedUrl: { type: String, default: '' },
@@ -555,6 +561,10 @@ const settingsSchema = new mongoose.Schema({
 			},
 		],
 	},
+	homeImageBannerSlots: {
+		type: [{ id: { type: String, required: true }, label: { type: String, required: true }, order: { type: Number, required: true } }],
+		default: undefined,
+	},
 	feedbackSubmitEnabled: { type: Boolean, default: true },
 	feedbackCardsEnabled: { type: Boolean, default: true },
 	feedbackCardsAutoScrollEnabled: { type: Boolean, default: true },
@@ -665,16 +675,8 @@ const homeImagesSchema = new mongoose.Schema(
 		},
 		bennerfull: { type: String, default: '' },
 		orang: { type: String, default: '' },
-		banners: {
-			public_relation: { type: String, default: '' },
-			technopreneurship: { type: String, default: '' },
-			intelektual: { type: String, default: '' },
-			wakil_ketua: { type: String, default: '' },
-			ketua: { type: String, default: '' },
-			medinfo: { type: String, default: '' },
-			religius: { type: String, default: '' },
-			senor: { type: String, default: '' },
-		},
+		banners: { type: mongoose.Schema.Types.Mixed, default: {} },
+		people: { type: mongoose.Schema.Types.Mixed, default: {} },
 	},
 	{ timestamps: true },
 );
@@ -891,6 +893,18 @@ const subjectRpsResourceSchema = new mongoose.Schema({
 	parsedAt: { type: Date },
 }, { _id: false });
 
+const curriculumYearEntrySchema = new mongoose.Schema({
+	academicYear: { type: Number, required: true },
+	graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
+	knowledgeGroups: [{ type: String }],
+	structureSummary: { type: String, default: '' },
+	semesters: [semesterSchema],
+	optionalSubjects: [curriculumSubjectSchema],
+	subjectRpsResources: [subjectRpsResourceSchema],
+	source: { type: String, enum: ['sync', 'manual'], default: 'sync' },
+	updatedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
 const laboratorySchema = new mongoose.Schema({
 	name: { type: String, required: true },
 	description: { type: String, default: '' },
@@ -938,6 +952,8 @@ const prodiContentSchema = new mongoose.Schema({
 		},
 	},
 
+	curriculumByYear: [curriculumYearEntrySchema],
+
 	sources: {
 		profileUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/undergraduate-s1/' },
 		lecturerUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/lecturer-and-staff/' },
@@ -949,7 +965,8 @@ const prodiContentSchema = new mongoose.Schema({
 
 prodiContentSchema.pre('save', async function (next) {
 	if (this.isNew) {
-		await ProdiContent.deleteMany({ _id: { $ne: this._id } });
+		const Model = this.constructor as any;
+		await Model.deleteMany({ _id: { $ne: this._id } });
 	}
 	next();
 });
@@ -1016,6 +1033,57 @@ const commentSchema = new mongoose.Schema(
 commentSchema.index({ targetType: 1, targetId: 1, createdAt: 1 });
 commentSchema.index({ parentId: 1 });
 
+// Community Schema - registry of all communities (stored in main DB only)
+const communitySchema = new mongoose.Schema({
+	name: { type: String, required: true },
+	slug: { type: String, required: true, unique: true },
+	dbName: { type: String, required: true, unique: true },
+	description: { type: String, default: '' },
+	logoUrl: { type: String, default: '' },
+	ownerUsername: { type: String, default: '' },
+	ownerEmail: { type: String, default: '' },
+	registrationCodeId: { type: mongoose.Schema.Types.ObjectId, ref: 'RegistrationCode', default: null },
+	status: { type: String, enum: ['active', 'inactive', 'suspended'], default: 'active' },
+	initialDivisionCount: { type: Number, default: 3, min: 1, max: 20 },
+	socialLinks: {
+		facebook: { type: String, default: '' },
+		tiktok: { type: String, default: '' },
+		instagram: { type: String, default: '' },
+		youtube: { type: String, default: '' },
+	},
+	contactEmail: { type: String, default: '' },
+	address: { type: String, default: '' },
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now },
+});
+
+communitySchema.index({ slug: 1 });
+communitySchema.index({ status: 1 });
+
+// Registration Code Schema - invitation codes for creating communities
+const registrationCodeSchema = new mongoose.Schema({
+	code: { type: String, required: true, unique: true },
+	type: { type: String, enum: ['community', 'alumni'], required: true },
+	createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+	createdByName: { type: String, default: '' },
+	maxUses: { type: Number, default: 1 },
+	currentUses: { type: Number, default: 0 },
+	expiresAt: { type: Date, required: true },
+	status: { type: String, enum: ['active', 'used', 'expired', 'revoked'], default: 'active' },
+	usedBy: [{
+		communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community' },
+		communityName: { type: String, default: '' },
+		usedAt: { type: Date, default: Date.now },
+		ownerEmail: { type: String, default: '' },
+	}],
+	note: { type: String, default: '' },
+	createdAt: { type: Date, default: Date.now },
+	updatedAt: { type: Date, default: Date.now },
+});
+
+registrationCodeSchema.index({ code: 1 });
+registrationCodeSchema.index({ status: 1, expiresAt: 1 });
+
 // Create models
 const EventYear =
 	mongoose.models.EventYear || mongoose.model('EventYear', eventYearSchema);
@@ -1059,9 +1127,75 @@ export const Position =
 export const Division =
 	mongoose.models.Division || mongoose.model('Division', divisionSchema);
 
+const Community =
+	mongoose.models.Community || mongoose.model('Community', communitySchema);
+const RegistrationCode =
+	mongoose.models.RegistrationCode || mongoose.model('RegistrationCode', registrationCodeSchema);
+
+// Activity schema (imported from models for allSchemas export)
+const activitySchema = new mongoose.Schema(
+	{
+		type: { type: String, required: true, enum: ['berita', 'library', 'organization', 'content', 'settings', 'user', 'sharing'] },
+		action: { type: String, required: true, enum: ['create', 'update', 'delete', 'publish', 'unpublish'] },
+		title: { type: String, required: true },
+		description: { type: String },
+		userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
+		userName: { type: String, required: true },
+		userRole: { type: String, required: true },
+		entityId: { type: String },
+		entityTitle: { type: String },
+		metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+		timestamp: { type: Date, default: Date.now },
+	},
+	{ timestamps: true },
+);
+activitySchema.index({ timestamp: -1 });
+activitySchema.index({ type: 1, timestamp: -1 });
+
+// Temporary onboarding uploads — tracks files uploaded during registration (before login)
+const tempUploadSchema = new mongoose.Schema({
+	code: { type: String, required: true, index: true },
+	url: { type: String, required: true },
+	diskPath: { type: String, required: true },
+	category: { type: String, default: 'organization' },
+	key: { type: String, default: '' },
+	consumedAt: { type: Date, default: null },
+	expiresAt: { type: Date, required: true },
+}, { timestamps: true });
+tempUploadSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+tempUploadSchema.index({ code: 1, consumedAt: 1 });
+
+const TempUpload =
+	mongoose.models.TempUpload || mongoose.model('TempUpload', tempUploadSchema);
+
+// Export all schemas for tenant model factory
+export const allSchemas = {
+	user: userSchema,
+	session: sessionSchema,
+	role: roleSchema,
+	permission: permissionSchema,
+	berita: beritaSchema,
+	library: librarySchema,
+	organization: organizationSchema,
+	settings: settingsSchema,
+	position: positionSchema,
+	division: divisionSchema,
+	eventYear: eventYearSchema,
+	event: eventSchema,
+	homeImages: homeImagesSchema,
+	otpChallenge: otpChallengeSchema,
+	postSharing: postSharingSchema,
+	userNotification: userNotificationSchema,
+	comment: commentSchema,
+	feedback: feedbackSchema,
+	prodiContent: prodiContentSchema,
+	activity: activitySchema,
+};
+
 export {
 	Berita,
 	Comment,
+	Community,
 	Event,
 	EventYear,
 	Feedback,
@@ -1072,9 +1206,11 @@ export {
 	Permission,
 	PostSharing,
 	ProdiContent,
+	RegistrationCode,
 	Role,
 	Session,
 	Settings,
+	TempUpload,
 	User,
 	UserNotification,
 	connectDB,

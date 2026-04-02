@@ -1,6 +1,7 @@
 import BeritaEditor from '@/components/dashboard/berita-editor';
 import CommentPanel from '@/components/dashboard/comment-panel';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import SharingPanel from '@/components/dashboard/sharing-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -284,6 +285,33 @@ export default function DashboardBerita() {
 					</Button>
 				)}
 			</div>
+
+			<DashboardHintCard
+				title="Cara memakai halaman Berita"
+				variant="blue"
+				storageKey="dashboard-berita"
+				description="Membuat artikel membutuhkan judul, ringkasan (excerpt), dan isi konten. Server menerima unggahan thumbnail dan tag opsional. Publish hanya jika akun punya izin publish.">
+				<ul className="list-disc list-inside space-y-1.5 text-sm">
+					<li>
+						<strong>Langkah create</strong>: klik <strong>Berita Baru</strong> → isi <strong>Judul</strong>, <strong>Short Excerpt</strong> (1–2 kalimat untuk kartu daftar), <strong>konten</strong> di editor → unggah thumbnail jika perlu → pilih tag → simpan. Aktifkan publish di editor hanya jika siap tampil di publik.
+					</li>
+					<li>
+						<strong>Contoh valid</strong>: Judul <code className="text-xs bg-muted px-1 rounded">Seminar Nasional TI 2026</code>; excerpt <code className="text-xs bg-muted px-1 rounded">Pendaftaran dibuka hingga 15 April. Lokasi Auditorium.</code>; konten berisi HTML paragraf dari editor; thumbnail JPG/PNG/WebP di bawah 100 MB.
+					</li>
+					<li>
+						<strong>Contoh tidak valid / ditolak</strong>: judul/excerpt/konten kosong (wajib diisi); publish tanpa izin <code className="text-xs bg-muted px-1 rounded">berita.publish</code> (403); mengedit berita orang lain tanpa <code className="text-xs bg-muted px-1 rounded">berita.edit_others</code> atau sharing yang disetujui.
+					</li>
+					<li>
+						<strong>Jika gagal</strong>: baca pesan toast/error; periksa apakah Anda pemilik berita; coba simpan sebagai dulu tanpa publish; pastikan gambar format JPG/PNG/GIF/WebP.
+					</li>
+					<li>
+						<strong>Sharing</strong>: mode ajuan—cari judul di kolom khusus, kirim permintaan; setelah disetujui, izin mengikuti yang diberikan admin.
+					</li>
+					<li>
+						<strong>Izin utama</strong>: <code className="text-xs bg-muted px-1 rounded">berita.create</code>, <code className="text-xs bg-muted px-1 rounded">berita.edit</code>/<code className="text-xs bg-muted px-1 rounded">berita.delete</code>, <code className="text-xs bg-muted px-1 rounded">berita.edit_others</code>/<code className="text-xs bg-muted px-1 rounded">berita.view_others</code>, <code className="text-xs bg-muted px-1 rounded">berita.publish</code>.
+					</li>
+				</ul>
+			</DashboardHintCard>
 
 			{showRequestSharingSearch && (
 				<div className="mb-6 flex flex-col gap-4">

@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { deleteFile } from './upload';
 import {
 	Berita,
+	Community,
 	Division,
 	Event,
 	EventYear,
@@ -12,6 +13,7 @@ import {
 	Permission,
 	Position,
 	ProdiContent,
+	RegistrationCode,
 	Role,
 	Settings,
 	User,
@@ -616,7 +618,8 @@ async function copyHomeImages(
 		desktopMode: source.desktopMode,
 		bennerfull: source.bennerfull,
 		orang: source.orang,
-		banners: source.banners ? { ...source.banners.toObject() } : {},
+		banners: source.banners ? JSON.parse(JSON.stringify(source.banners)) : {},
+		people: (source as any).people ? JSON.parse(JSON.stringify((source as any).people)) : {},
 	};
 
 	if (existing) {
@@ -630,24 +633,22 @@ async function copyHomeImages(
 }
 
 async function updateHomeImageSlot(year: number, slot: string, url: string) {
-	const bannerSlots = [
-		'public_relation',
-		'technopreneurship',
-		'intelektual',
-		'wakil_ketua',
-		'ketua',
-		'medinfo',
-		'religius',
-		'senor',
-	];
-
-	const updateField = bannerSlots.includes(slot)
-		? { [`banners.${slot}`]: url }
-		: { [slot]: url };
+	const topLevelSlots = ['bennerfull', 'orang'];
+	const updateField = topLevelSlots.includes(slot)
+		? { [slot]: url }
+		: { [`banners.${slot}`]: url };
 
 	return await HomeImages.findOneAndUpdate(
 		{ year },
 		{ $set: updateField },
+		{ new: true },
+	);
+}
+
+async function updateHomeImagePersonSlot(year: number, slot: string, url: string) {
+	return await HomeImages.findOneAndUpdate(
+		{ year },
+		{ $set: { [`people.${slot}`]: url } },
 		{ new: true },
 	);
 }
@@ -1127,8 +1128,20 @@ async function getProdiContent(): Promise<any> {
 }
 
 async function getProdiContentPublic(): Promise<any> {
+	await ensureCurriculumByYearMigrated();
 	const doc = await getProdiContent();
-	return doc.content ?? {};
+	const content = doc.content ? JSON.parse(JSON.stringify(doc.content)) : {};
+	const entries: any[] = doc.curriculumByYear ?? [];
+	const availableYears = entries.map((e: any) => e.academicYear as number).sort((a: number, b: number) => b - a);
+	const activeYear = resolveAcademicYearByDate(new Date());
+	content.curriculumMeta = { availableYears, activeYear };
+	// Build a map of all curriculum year data so frontend can switch
+	content.curriculumByYear = {};
+	for (const entry of entries) {
+		const obj = entry.toObject?.() ?? entry;
+		content.curriculumByYear[obj.academicYear] = obj;
+	}
+	return content;
 }
 
 async function updateProdiContent(data: any): Promise<any> {
@@ -1181,6 +1194,115 @@ async function setProdiSyncStatus(status: 'idle' | 'syncing' | 'error', error?: 
 	doc.syncStatus = status;
 	if (error !== undefined) doc.lastSyncError = error;
 	await doc.save();
+}
+
+// ─── Curriculum By Year helpers ───
+
+function resolveAcademicYearByDate(date: Date): number {
+	const month = date.getMonth() + 1; // 1-12
+	const year = date.getFullYear();
+	// April (4) through December => current year; Jan–March => previous year
+	return month >= 4 ? year : year - 1;
+}
+
+async function ensureCurriculumByYearMigrated(): Promise<void> {
+	const doc = await getProdiContent();
+	if (doc.curriculumByYear && doc.curriculumByYear.length > 0) return;
+
+	const legacy = doc.content?.curriculum;
+	if (!legacy) return;
+	const hasSemesters = legacy.semesters && legacy.semesters.length > 0;
+	const hasOptional = legacy.optionalSubjects && legacy.optionalSubjects.length > 0;
+	if (!hasSemesters && !hasOptional) return;
+
+	const entry = {
+		academicYear: 2025,
+		graduateProfile: legacy.graduateProfile ?? [],
+		knowledgeGroups: legacy.knowledgeGroups ?? [],
+		structureSummary: legacy.structureSummary ?? '',
+		semesters: legacy.semesters ?? [],
+		optionalSubjects: legacy.optionalSubjects ?? [],
+		subjectRpsResources: legacy.subjectRpsResources ?? [],
+		source: 'sync' as const,
+		updatedAt: new Date(),
+	};
+	doc.curriculumByYear = [entry];
+	doc.markModified('curriculumByYear');
+	await doc.save();
+}
+
+async function getProdiCurriculumYears(): Promise<number[]> {
+	await ensureCurriculumByYearMigrated();
+	const doc = await getProdiContent();
+	const entries: any[] = doc.curriculumByYear ?? [];
+	return entries.map((e: any) => e.academicYear as number).sort((a: number, b: number) => b - a);
+}
+
+async function getProdiCurriculumByYear(year?: number): Promise<any> {
+	await ensureCurriculumByYearMigrated();
+	const doc = await getProdiContent();
+	const entries: any[] = doc.curriculumByYear ?? [];
+	if (!entries.length) return doc.content?.curriculum ?? null;
+
+	if (year !== undefined) {
+		const found = entries.find((e: any) => e.academicYear === year);
+		return found ? found.toObject?.() ?? found : null;
+	}
+	const activeYear = resolveAcademicYearByDate(new Date());
+	const found = entries.find((e: any) => e.academicYear === activeYear);
+	if (found) return found.toObject?.() ?? found;
+	const sorted = [...entries].sort((a: any, b: any) => b.academicYear - a.academicYear);
+	return sorted[0]?.toObject?.() ?? sorted[0] ?? null;
+}
+
+async function upsertProdiCurriculumByYear(
+	year: number,
+	payload: any,
+	options?: { overwrite?: boolean },
+): Promise<{ action: 'created' | 'overwritten' | 'needs_confirm'; year: number }> {
+	await ensureCurriculumByYearMigrated();
+	const doc = await getProdiContent();
+	if (!doc.curriculumByYear) doc.curriculumByYear = [];
+
+	const idx = (doc.curriculumByYear as any[]).findIndex((e: any) => e.academicYear === year);
+
+	if (idx >= 0 && !options?.overwrite) {
+		return { action: 'needs_confirm', year };
+	}
+
+	const entry = {
+		academicYear: year,
+		graduateProfile: payload.graduateProfile ?? [],
+		knowledgeGroups: payload.knowledgeGroups ?? [],
+		structureSummary: payload.structureSummary ?? '',
+		semesters: payload.semesters ?? [],
+		optionalSubjects: payload.optionalSubjects ?? [],
+		subjectRpsResources: payload.subjectRpsResources ?? [],
+		source: payload.source ?? 'sync',
+		updatedAt: new Date(),
+	};
+
+	if (idx >= 0) {
+		(doc.curriculumByYear as any[])[idx] = entry;
+	} else {
+		(doc.curriculumByYear as any[]).push(entry);
+	}
+
+	doc.markModified('curriculumByYear');
+
+	// keep legacy content.curriculum in sync with latest year
+	if (!doc.content) (doc as any).content = {};
+	if (!(doc as any).content.curriculum) (doc as any).content.curriculum = {};
+	(doc as any).content.curriculum.semesters = entry.semesters;
+	(doc as any).content.curriculum.optionalSubjects = entry.optionalSubjects;
+	(doc as any).content.curriculum.subjectRpsResources = entry.subjectRpsResources;
+	(doc as any).content.curriculum.graduateProfile = entry.graduateProfile;
+	(doc as any).content.curriculum.knowledgeGroups = entry.knowledgeGroups;
+	(doc as any).content.curriculum.structureSummary = entry.structureSummary;
+	doc.markModified('content');
+
+	await doc.save();
+	return { action: idx >= 0 ? 'overwritten' : 'created', year };
 }
 
 // ─── Feedback CRUD ───
@@ -1356,6 +1478,11 @@ const mongoDBStorage = {
 	updateProdiContent,
 	applyAutoSyncData,
 	setProdiSyncStatus,
+	resolveAcademicYearByDate,
+	getProdiCurriculumYears,
+	getProdiCurriculumByYear,
+	upsertProdiCurriculumByYear,
+	ensureCurriculumByYearMigrated,
 
 	// EventYear functions
 	getAllEventYears,
@@ -1394,6 +1521,7 @@ const mongoDBStorage = {
 	setActiveHomeImages,
 	copyHomeImages,
 	updateHomeImageSlot,
+	updateHomeImagePersonSlot,
 	seedDefaultHomeImages,
 
 	// Role and Permission functions
@@ -1666,11 +1794,48 @@ async function updateDivision(id: string, updateData: any) {
 
 async function deleteDivision(id: string) {
 	try {
-		return await Division.findByIdAndUpdate(
+		const doc: any = await Division.findByIdAndUpdate(
 			id,
 			{ isActive: false },
 			{ new: true }
 		);
+		if (!doc) return null;
+
+		const slotName = doc.name as string | undefined;
+		if (slotName) {
+			try {
+				const fs = await import('fs');
+				const path = await import('path');
+				const allYears: any[] = await HomeImages.find().lean();
+				for (const hi of allYears) {
+					const unsetFields: Record<string, 1> = {};
+					const urlsToDelete: string[] = [];
+
+					if (hi.banners && hi.banners[slotName]) {
+						urlsToDelete.push(hi.banners[slotName]);
+						unsetFields[`banners.${slotName}`] = 1;
+					}
+					if (hi.people && hi.people[slotName]) {
+						urlsToDelete.push(hi.people[slotName]);
+						unsetFields[`people.${slotName}`] = 1;
+					}
+
+					if (Object.keys(unsetFields).length > 0) {
+						await HomeImages.updateOne({ _id: hi._id }, { $unset: unsetFields });
+						for (const url of urlsToDelete) {
+							try {
+								const abs = path.resolve(process.cwd(), url.replace(/^\//, ''));
+								if (fs.existsSync(abs)) fs.unlinkSync(abs);
+							} catch {}
+						}
+					}
+				}
+			} catch (e) {
+				console.warn('Division HomeImages cleanup error (non-fatal):', e);
+			}
+		}
+
+		return doc;
 	} catch (error) {
 		console.error('Error deleting division:', error);
 		throw error;
@@ -2106,6 +2271,20 @@ async function initializeDefaultPermissions() {
 			description: 'Mengelola saran/kritik: edit, hapus, toggle tampil, dan membalas',
 			category: 'feedback',
 		},
+
+		// Registration permissions
+		{
+			name: 'registration.view',
+			displayName: 'View Registration',
+			description: 'Melihat daftar kode registrasi dan komunitas terdaftar',
+			category: 'registration',
+		},
+		{
+			name: 'registration.manage',
+			displayName: 'Manage Registration',
+			description: 'Membuat, menghapus kode registrasi, dan mengelola komunitas terdaftar',
+			category: 'registration',
+		},
 	];
 
 		// Upsert: tambahkan permission yang belum ada (tidak hapus yang sudah ada)
@@ -2481,5 +2660,231 @@ async function initializeDefaultDivisions() {
 	}
 }
 
+// ── Community CRUD (main DB) ──
+async function getAllCommunities() {
+	return Community.find().sort({ createdAt: -1 }).lean();
+}
+async function getActiveCommunities() {
+	return Community.find({ status: 'active' }).sort({ name: 1 }).lean();
+}
+async function getCommunityBySlug(slug: string) {
+	return Community.findOne({ slug }).lean();
+}
+async function getCommunityById(id: string) {
+	const oid = toObjectId(id); if (!oid) return null;
+	return Community.findById(oid).lean();
+}
+async function createCommunity(data: any) {
+	data.createdAt = new Date(); data.updatedAt = new Date();
+	return new Community(data).save();
+}
+async function updateCommunity(id: string, data: any) {
+	data.updatedAt = new Date();
+	const oid = toObjectId(id); if (!oid) return null;
+	return Community.findByIdAndUpdate(oid, { $set: data }, { new: true }).lean();
+}
+async function deleteCommunity(id: string) {
+	const oid = toObjectId(id); if (!oid) return;
+	await Community.findByIdAndDelete(oid);
+}
+async function getCommunitiesCount() {
+	return Community.countDocuments({ status: 'active' });
+}
+
+async function getAllCommunitiesWithRegistrationMeta() {
+	return Community.find()
+		.sort({ createdAt: -1 })
+		.populate({
+			path: 'registrationCodeId',
+			select: 'code createdByName createdAt expiresAt maxUses currentUses status note type',
+		})
+		.lean();
+}
+
+// ── Registration Code CRUD (main DB) ──
+function generateRandomRegistrationCodeString() {
+	return Array.from({ length: 4 }, () =>
+		Math.random().toString(36).substring(2, 6).toUpperCase()
+	).join('-');
+}
+
+async function generateUniqueRegistrationCode(): Promise<string> {
+	for (let i = 0; i < 50; i++) {
+		const c = generateRandomRegistrationCodeString();
+		const exists = await RegistrationCode.findOne({ code: c }).lean();
+		if (!exists) return c;
+	}
+	throw new Error('Gagal membuat kode unik, coba lagi');
+}
+
+function normalizeRegistrationCode(raw: string) {
+	return raw.trim().replace(/\s+/g, '').toUpperCase();
+}
+
+const REGISTRATION_CODE_FORMAT = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+
+function assertValidRegistrationCodeFormat(code: string) {
+	if (!REGISTRATION_CODE_FORMAT.test(code)) {
+		throw new Error('Format kode harus XXXX-XXXX-XXXX-XXXX (huruf atau angka per segmen)');
+	}
+}
+
+function recomputeRegistrationCodeStatus(doc: {
+	status: string;
+	expiresAt: Date;
+	currentUses: number;
+	maxUses: number;
+}): 'active' | 'used' | 'expired' | 'revoked' {
+	if (doc.status === 'revoked') return 'revoked';
+	if (new Date(doc.expiresAt).getTime() <= Date.now()) return 'expired';
+	if (doc.currentUses >= doc.maxUses) return 'used';
+	return 'active';
+}
+
+async function patchRegistrationCode(
+	id: string,
+	body: {
+		code?: string;
+		regenerateCode?: boolean;
+		maxUsesIncrement?: number;
+		extendHours?: number;
+		note?: string;
+	},
+) {
+	const existing = await getRegistrationCodeById(id);
+	if (!existing) return null;
+	if ((existing as any).status === 'revoked') {
+		throw new Error('Kode sudah direvoke dan tidak bisa diubah');
+	}
+
+	const updates: Record<string, unknown> = {};
+
+	if (body.regenerateCode) {
+		updates.code = await generateUniqueRegistrationCode();
+	} else if (body.code !== undefined && String(body.code).trim() !== '') {
+		const normalized = normalizeRegistrationCode(body.code);
+		assertValidRegistrationCodeFormat(normalized);
+		if (normalized !== (existing as any).code) {
+			const clash = await getRegistrationCodeByCode(normalized);
+			if (clash && String((clash as any)._id) !== String((existing as any)._id)) {
+				throw new Error('Kode sudah dipakai');
+			}
+			updates.code = normalized;
+		}
+	}
+
+	let nextMaxUses = (existing as any).maxUses;
+	if (body.maxUsesIncrement !== undefined) {
+		const inc = parseInt(String(body.maxUsesIncrement), 10);
+		if (!Number.isFinite(inc) || inc < 0) {
+			throw new Error('Penambahan max pemakaian tidak valid');
+		}
+		nextMaxUses = (existing as any).maxUses + inc;
+		if (nextMaxUses < (existing as any).currentUses) {
+			throw new Error('Max pemakaian tidak boleh kurang dari jumlah yang sudah terpakai');
+		}
+		updates.maxUses = nextMaxUses;
+	}
+
+	let nextExpires = new Date((existing as any).expiresAt);
+	if (body.extendHours !== undefined) {
+		const h = Number(body.extendHours);
+		if (!Number.isFinite(h) || h <= 0) {
+			throw new Error('Extend jam tidak valid');
+		}
+		const base = Math.max(nextExpires.getTime(), Date.now());
+		nextExpires = new Date(base + h * 60 * 60 * 1000);
+		updates.expiresAt = nextExpires;
+	}
+
+	if (body.note !== undefined) {
+		updates.note = String(body.note);
+	}
+
+	if (Object.keys(updates).length === 0) {
+		return existing;
+	}
+
+	const merged = {
+		...existing,
+		...updates,
+		expiresAt: new Date((updates.expiresAt as Date) ?? (existing as any).expiresAt),
+		maxUses: Number(updates.maxUses ?? (existing as any).maxUses),
+		currentUses: (existing as any).currentUses,
+		status: (existing as any).status,
+	};
+	updates.status = recomputeRegistrationCodeStatus(merged as any);
+
+	return updateRegistrationCode(id, updates as any);
+}
+
+async function getAllRegistrationCodes() {
+	return RegistrationCode.find().sort({ createdAt: -1 }).lean();
+}
+async function getRegistrationCodeByCode(code: string) {
+	return RegistrationCode.findOne({ code }).lean();
+}
+async function getRegistrationCodeById(id: string) {
+	const oid = toObjectId(id); if (!oid) return null;
+	return RegistrationCode.findById(oid).lean();
+}
+async function createRegistrationCode(data: any) {
+	data.createdAt = new Date(); data.updatedAt = new Date();
+	return new RegistrationCode(data).save();
+}
+async function updateRegistrationCode(id: string, data: any) {
+	data.updatedAt = new Date();
+	const oid = toObjectId(id); if (!oid) return null;
+	return RegistrationCode.findByIdAndUpdate(oid, { $set: data }, { new: true }).lean();
+}
+async function deleteRegistrationCode(id: string) {
+	const oid = toObjectId(id); if (!oid) return;
+	await RegistrationCode.findByIdAndDelete(oid);
+}
+async function redeemRegistrationCode(code: string, communityId: string, communityName: string, ownerEmail: string) {
+	const regCode = await RegistrationCode.findOne({ code, status: 'active' });
+	if (!regCode) return null;
+	if (regCode.expiresAt < new Date()) {
+		regCode.status = 'expired';
+		await regCode.save();
+		return null;
+	}
+	if (regCode.currentUses >= regCode.maxUses) {
+		regCode.status = 'used';
+		await regCode.save();
+		return null;
+	}
+	regCode.currentUses += 1;
+	(regCode as any).usedBy.push({ communityId, communityName, usedAt: new Date(), ownerEmail });
+	if (regCode.currentUses >= regCode.maxUses) regCode.status = 'used';
+	regCode.updatedAt = new Date();
+	await regCode.save();
+	return regCode.toObject();
+}
+
+const communityOps = {
+	getAllCommunities,
+	getAllCommunitiesWithRegistrationMeta,
+	getActiveCommunities,
+	getCommunityBySlug,
+	getCommunityById,
+	createCommunity,
+	updateCommunity,
+	deleteCommunity,
+	getCommunitiesCount,
+	getAllRegistrationCodes,
+	getRegistrationCodeByCode,
+	getRegistrationCodeById,
+	createRegistrationCode,
+	updateRegistrationCode,
+	deleteRegistrationCode,
+	redeemRegistrationCode,
+	patchRegistrationCode,
+	generateUniqueRegistrationCode,
+	generateRandomRegistrationCodeString,
+	normalizeRegistrationCode,
+	assertValidRegistrationCodeFormat,
+};
+
 // Export MongoDB storage directly (no more PostgreSQL fallback)
-export const mongoStorage = mongoDBStorage;
+export const mongoStorage = { ...mongoDBStorage, ...communityOps };

@@ -1,5 +1,6 @@
 import ContentEditor from '@/components/dashboard/content-editor';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import {
 	AlertDialog,
@@ -42,13 +43,16 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import type { AboutPageLambangItem, AboutPageTrackRecordItem } from '@shared/schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ExternalLink, FileEdit, GripVertical, Loader2, Plus, Trash2 } from 'lucide-react';
-import { useState } from 'react';
+import { useTenant } from '@/lib/tenant-context';
+import { ArrowLeft, ExternalLink, FileEdit, GripVertical, ImageIcon, Loader2, Plus, Trash2, Upload } from 'lucide-react';
+import { useRef, useState } from 'react';
 
 interface Settings {
 	_id?: string;
 	id?: number;
 	aboutUs?: string;
+	aboutVideoUrl?: string;
+	aboutVideoGdriveUrl?: string;
 	aboutPageTrackRecord?: AboutPageTrackRecordItem[];
 	aboutPageLambang?: AboutPageLambangItem[];
 	[key: string]: any;
@@ -250,6 +254,105 @@ function SortableLambangCard({
 }
 
 // ---------------------------------------------------------------------------
+// Logo Komunitas Section (tenant only)
+// ---------------------------------------------------------------------------
+function LogoKomunitasSection({ settings, canEdit }: { settings: Settings | undefined; canEdit: boolean }) {
+	const { toast } = useToast();
+	const queryClient = useQueryClient();
+	const fileRef = useRef<HTMLInputElement>(null);
+	const [uploading, setUploading] = useState(false);
+
+	const currentLogo = (settings as any)?.logoUrl || '';
+
+	const handleUpload = async (file: File) => {
+		if (!file) return;
+		setUploading(true);
+		try {
+			const formData = new FormData();
+			formData.append('file', file);
+			formData.append('category', 'organization');
+			if (currentLogo) formData.append('oldFileUrl', currentLogo);
+			const uploadRes = await fetch('/api/upload', {
+				method: 'POST',
+				body: formData,
+				credentials: 'include',
+			});
+			if (!uploadRes.ok) throw new Error('Upload gagal');
+			const { url } = await uploadRes.json();
+			await apiRequest('PUT', '/api/settings', { logoUrl: url });
+			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+			toast({ title: 'Berhasil', description: 'Logo komunitas berhasil diperbarui' });
+		} catch {
+			toast({ title: 'Error', description: 'Gagal mengupload logo', variant: 'destructive' });
+		} finally {
+			setUploading(false);
+			if (fileRef.current) fileRef.current.value = '';
+		}
+	};
+
+	const handleRemove = async () => {
+		setUploading(true);
+		try {
+			await apiRequest('PUT', '/api/settings', { logoUrl: '' });
+			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+			toast({ title: 'Berhasil', description: 'Logo komunitas dihapus' });
+		} catch {
+			toast({ title: 'Error', description: 'Gagal menghapus logo', variant: 'destructive' });
+		} finally {
+			setUploading(false);
+		}
+	};
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2"><ImageIcon className="h-5 w-5" /> Logo Komunitas</CardTitle>
+				<CardDescription>Upload atau ganti logo komunitas kamu. Logo akan ditampilkan di navbar dan halaman publik.</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				{currentLogo ? (
+					<div className="flex items-start gap-6">
+						<div className="border rounded-lg p-3 bg-muted/30">
+							<img src={currentLogo} alt="Logo Komunitas" className="h-24 w-24 object-contain" />
+						</div>
+						<div className="space-y-2">
+							<p className="text-sm text-muted-foreground">Logo saat ini</p>
+							<p className="text-xs font-mono text-muted-foreground break-all">{currentLogo}</p>
+						</div>
+					</div>
+				) : (
+					<div className="border-2 border-dashed rounded-lg p-8 text-center text-muted-foreground">
+						<ImageIcon className="h-10 w-10 mx-auto mb-2 opacity-40" />
+						<p className="text-sm">Belum ada logo. Upload logo komunitas kamu.</p>
+					</div>
+				)}
+				{canEdit && (
+					<div className="flex items-center gap-3">
+						<input
+							ref={fileRef}
+							type="file"
+							accept="image/*"
+							className="hidden"
+							onChange={(e) => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); }}
+						/>
+						<Button size="sm" disabled={uploading} onClick={() => fileRef.current?.click()}>
+							{uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+							{currentLogo ? 'Ganti Logo' : 'Upload Logo'}
+						</Button>
+						{currentLogo && (
+							<Button size="sm" variant="outline" className="text-destructive" disabled={uploading} onClick={handleRemove}>
+								<Trash2 className="h-4 w-4 mr-2" />
+								Hapus Logo
+							</Button>
+						)}
+					</div>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 export default function DashboardProfil() {
@@ -257,6 +360,7 @@ export default function DashboardProfil() {
 	const canEdit = hasSpecificPermission('profil.edit');
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
+	const { isTenant, basePath } = useTenant();
 	const [selectedTab, setSelectedTab] = useState('tentang-kami');
 	const [isEditing, setIsEditing] = useState(false);
 	const [isHeroEditing, setIsHeroEditing] = useState(false);
@@ -280,12 +384,16 @@ export default function DashboardProfil() {
 	});
 
 	const [aboutUs, setAboutUs] = useState('');
+	const [aboutVideoUrl, setAboutVideoUrl] = useState('');
+	const [aboutVideoGdriveUrl, setAboutVideoGdriveUrl] = useState('');
 	const [aboutPageTrackRecord, setAboutPageTrackRecord] = useState<AboutPageTrackRecordItem[]>([]);
 	const [aboutPageLambang, setAboutPageLambang] = useState<AboutPageLambangItem[]>([]);
 	const [initialized, setInitialized] = useState(false);
 
 	if (settings && !initialized) {
 		setAboutUs(settings.aboutUs || '');
+		setAboutVideoUrl(settings.aboutVideoUrl || '');
+		setAboutVideoGdriveUrl(settings.aboutVideoGdriveUrl || '');
 		setAboutPageTrackRecord(
 			ensureTrackRecordIds(
 				settings.aboutPageTrackRecord?.length ? settings.aboutPageTrackRecord : defaultTrackRecord,
@@ -344,6 +452,8 @@ export default function DashboardProfil() {
 		updateMutation.mutate({
 			...settings,
 			aboutUs,
+			aboutVideoUrl: aboutVideoUrl.trim(),
+			aboutVideoGdriveUrl: aboutVideoGdriveUrl.trim(),
 			aboutPageTrackRecord,
 			aboutPageLambang,
 		});
@@ -450,16 +560,16 @@ export default function DashboardProfil() {
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>
-						<h2 className="text-2xl font-bold">Profil Himpunan</h2>
+						<h2 className="text-2xl font-bold">{isTenant ? 'Profil Komunitas' : 'Profil Himpunan'}</h2>
 						<p className="text-muted-foreground text-sm mt-1">
 							Kelola konten halaman{' '}
-							<a href="/profil" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
-								/profil <ExternalLink className="h-3 w-3" />
+							<a href={isTenant ? `${basePath}/profil` : '/profil'} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+								{isTenant ? `${basePath}/profil` : '/profil'} <ExternalLink className="h-3 w-3" />
 							</a>
 						</p>
 					</div>
 				<div className="flex gap-2">
-					{selectedTab !== 'hero-warna' && (
+					{selectedTab !== 'hero-warna' && selectedTab !== 'logo' && (
 						isEditing ? (
 							<>
 								<Button variant="outline" onClick={() => setIsEditing(false)} size="sm">
@@ -481,6 +591,33 @@ export default function DashboardProfil() {
 				</div>
 				</div>
 
+				<DashboardHintCard
+					title="Cara memakai Profil"
+					variant="blue"
+					storageKey="dashboard-profil"
+					description="Halaman profil publik disusun dari beberapa tab (Tentang Kami, Sejarah, Hero, Logo, dll.). Setiap perubahan teks/gambar/urutan harus disimpan agar tersimpan di server.">
+					<ul className="list-disc list-inside space-y-1.5 text-sm">
+						<li>
+							<strong>Langkah</strong>: pilih tab → <strong>Edit Konten</strong> (jika ada) → sunting rich text atau unggah gambar → <strong>Simpan</strong> di bagian tersebut sebelum pindah tab jika diminta.
+						</li>
+						<li>
+							<strong>Contoh valid</strong>: paragraf HTML dari editor; gambar JPG/PNG/WebP di bawah batas unggah; blok diurutkan drag-and-drop lalu disimpan.
+						</li>
+						<li>
+							<strong>Contoh tidak valid</strong>: menyimpan saat unggah masih berjalan; file melebihi batas atau format ditolak server; mengedit tanpa izin <code className="text-xs bg-muted px-1 rounded">profil.edit</code> (tombol tidak ada).
+						</li>
+						<li>
+							<strong>Jika gagal</strong>: tunggu indikator upload selesai; perkecil gambar; baca pesan error di toast.
+						</li>
+						<li>
+							<strong>Pratinjau</strong>: gunakan tautan pratinjau di header halaman ini untuk melihat tampilan publik.
+						</li>
+						<li>
+							<strong>Izin</strong>: butuh izin edit profil untuk mengubah konten; pengunjung hanya melihat versi yang sudah tersimpan.
+						</li>
+					</ul>
+				</DashboardHintCard>
+
 				{isPending ? (
 					<div className="text-center p-8 text-muted-foreground">Memuat data...</div>
 				) : (
@@ -489,11 +626,35 @@ export default function DashboardProfil() {
 						<TabsTrigger value="tentang-kami">Tentang Kami</TabsTrigger>
 						<TabsTrigger value="sejarah">Sejarah</TabsTrigger>
 						<TabsTrigger value="filosofi">Filosofi</TabsTrigger>
-						<TabsTrigger value="hero-warna">Hero &amp; Warna</TabsTrigger>
+						{isTenant && <TabsTrigger value="logo">Logo Komunitas</TabsTrigger>}
+						{!isTenant && <TabsTrigger value="hero-warna">Hero &amp; Warna</TabsTrigger>}
 					</TabsList>
 
 						{/* Tab Tentang Kami */}
 						<TabsContent value="tentang-kami" className="space-y-4 mt-4">
+							<DashboardHintCard
+								title="Panduan tab: Tentang Kami"
+								variant="blue"
+								storageKey="dashboard-profil-tab-tentang-kami"
+								description="Mengisi teks profil himpunan mahasiswa Teknik Informatika UIN Malang, plus video embed YouTube (prioritas) dan fallback Google Drive jika perlu.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: klik <strong>Edit Konten</strong> → tempel URL video YouTube resmi himpunan (opsional) → isi fallback Drive jika embed YouTube sering gagal di perangkat pengunjung → tulis narasi di editor rich text → <strong>Simpan</strong>.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: YouTube <code className="text-xs bg-muted px-1 rounded">https://www.youtube.com/watch?v=...</code> atau short link; teks menjelaskan visi HMPS TI UIN Malang secara ringkas dengan paragraf rapi.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: URL bukan tautan video (mis. halaman beranda saja); Drive tanpa izin akses &quot;siapa pun yang punya link&quot;; menyimpan saat unggah masih berjalan.
+									</li>
+									<li>
+										<strong>Jika video tidak tampil</strong>: cek link di jendela incognito; aktifkan fallback Drive; pastikan tidak ada typo pada URL.
+									</li>
+									<li>
+										<strong>Izin</strong>: butuh <code className="text-xs bg-muted px-1 rounded">profil.edit</code> untuk mengubah konten tab ini.
+									</li>
+								</ul>
+							</DashboardHintCard>
 							<Card>
 								<CardHeader>
 									<CardTitle>Tentang Kami</CardTitle>
@@ -501,7 +662,47 @@ export default function DashboardProfil() {
 										Konten ini ditampilkan di bagian "Tentang Kami" pada halaman /profil dan beranda.
 									</CardDescription>
 								</CardHeader>
-								<CardContent>
+								<CardContent className="space-y-4">
+									{isEditing && (
+										<div className="space-y-2">
+											<Label htmlFor="about-video-url">Link video profil (YouTube)</Label>
+											<Input
+												id="about-video-url"
+												type="url"
+												placeholder="https://www.youtube.com/watch?v=..."
+												value={aboutVideoUrl}
+												onChange={(e) => setAboutVideoUrl(e.target.value)}
+											/>
+											<p className="text-xs text-muted-foreground">
+												Ditampilkan sebagai embed di beranda dan halaman profil, di atas teks Tentang Kami. Kosongkan untuk menyembunyikan.
+											</p>
+											<Label htmlFor="about-video-gdrive-url" className="pt-1 block">
+												Link video profil (Google Drive - fallback)
+											</Label>
+											<Input
+												id="about-video-gdrive-url"
+												type="url"
+												placeholder="https://drive.google.com/file/d/.../view"
+												value={aboutVideoGdriveUrl}
+												onChange={(e) => setAboutVideoGdriveUrl(e.target.value)}
+											/>
+											<p className="text-xs text-muted-foreground">
+												Digunakan otomatis saat YouTube gagal dimuat di sisi client. Jika dua-duanya ada, YouTube tetap prioritas.
+											</p>
+										</div>
+									)}
+									{!isEditing && settings?.aboutVideoUrl?.trim() && (
+										<div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+											<span className="text-muted-foreground">Video profil: </span>
+											<span className="font-mono text-xs break-all">{settings.aboutVideoUrl.trim()}</span>
+										</div>
+									)}
+									{!isEditing && settings?.aboutVideoGdriveUrl?.trim() && (
+										<div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+											<span className="text-muted-foreground">Fallback Google Drive: </span>
+											<span className="font-mono text-xs break-all">{settings.aboutVideoGdriveUrl.trim()}</span>
+										</div>
+									)}
 									{isEditing ? (
 										<RichTextEditor
 											value={aboutUs}
@@ -523,6 +724,29 @@ export default function DashboardProfil() {
 
 						{/* Tab Sejarah */}
 						<TabsContent value="sejarah" className="space-y-4 mt-4">
+							<DashboardHintCard
+								title="Panduan tab: Sejarah"
+								variant="blue"
+								storageKey="dashboard-profil-tab-sejarah"
+								description="Track record ketua himpunan dan susunan divisi per periode kepengurusan. Data tampil sebagai tabel di halaman profil publik.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: <strong>Edit Konten</strong> → isi kolom tahun, nama ketua, dan daftar divisi (pisahkan dengan koma jika satu baris) → seret handle untuk mengurutkan tahun → tambah baris lewat <strong>Tambah Baris</strong> jika perlu → <strong>Simpan</strong>.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: tahun <code className="text-xs bg-muted px-1 rounded">2025</code>; ketua <code className="text-xs bg-muted px-1 rounded">Nama Lengkap</code>; divisi mis. <code className="text-xs bg-muted px-1 rounded">Public Relation, Multimedia, Intelektual</code> untuk kepengurusan HMPS TI UIN Malang.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: tahun kosong atau tidak konsisten; nama ketua kosong; urutan tahun tidak sinkron dengan fakta organisasi.
+									</li>
+									<li>
+										<strong>Jika tabel berantakan</strong>: edit ulang per baris; gunakan drag untuk menyelaraskan urutan kronologis.
+									</li>
+									<li>
+										<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">profil.edit</code>.
+									</li>
+								</ul>
+							</DashboardHintCard>
 							<Card>
 								<CardHeader>
 									<CardTitle>Sejarah — Track Record Ketua & Divisi</CardTitle>
@@ -592,6 +816,29 @@ export default function DashboardProfil() {
 
 						{/* Tab Filosofi */}
 						<TabsContent value="filosofi" className="space-y-4 mt-4">
+							<DashboardHintCard
+								title="Panduan tab: Filosofi Lambang"
+								variant="blue"
+								storageKey="dashboard-profil-tab-filosofi"
+								description="Setiap elemen lambang HMPS TI UIN Malang punya judul, deskripsi makna, dan gambar ikon. Urutan kartu mengikuti drag-and-drop saat mode edit.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: <strong>Edit Konten</strong> → edit judul/deskripsi tiap kartu → unggah gambar ikon (PNG transparan disarankan) → urutkan dengan drag → tambah item lewat <strong>Tambah Filosofi</strong> jika ada elemen baru → <strong>Simpan</strong>.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: judul singkat seperti <code className="text-xs bg-muted px-1 rounded">Bidikan</code>; deskripsi 2–4 kalimat tentang makna bagi mahasiswa TI UIN Malang; gambar persegi dengan latar transparan.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: gambar sangat besar sehingga lambat dimuat; deskripsi kosong; menghapus kartu tanpa sengaja sebelum simpan (gunakan konfirmasi hapus).
+									</li>
+									<li>
+										<strong>Jika gambar tidak muncul</strong>: periksa path/URL; unggah ulang dengan format JPG/PNG/WebP yang didukung browser.
+									</li>
+									<li>
+										<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">profil.edit</code>.
+									</li>
+								</ul>
+							</DashboardHintCard>
 							<Card>
 								<CardHeader>
 									<CardTitle>Filosofi Lambang</CardTitle>
@@ -658,8 +905,58 @@ export default function DashboardProfil() {
 								</CardContent>
 							</Card>
 						</TabsContent>
+						{/* Tab Logo Komunitas (tenant only) */}
+						<TabsContent value="logo" className="space-y-4 mt-4">
+							<DashboardHintCard
+								title="Panduan tab: Logo Komunitas"
+								variant="purple"
+								storageKey="dashboard-profil-tab-logo"
+								description="Logo khusus komunitas (tenant) untuk navbar dan halaman publik. Terpisah dari logo utama kampus; unggah file gambar melalui API pengaturan.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: siapkan file PNG/SVG raster (via ekspor) atau JPG dengan latar transparan jika perlu → klik unggah → tunggu selesai → cek pratinjau di navbar komunitas.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: logo komunitas studi/prodi di UIN Malang dengan rasio mendekati persegi, ukuran wajar (&lt; beberapa MB), kontras baik di mode terang/gelap.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: file bukan gambar; ukuran sangat besar; menghapus logo tanpa mengganti jika komunitas masih butuh identitas visual.
+									</li>
+									<li>
+										<strong>Jika gagal</strong>: coba format lain; periksa toast error dari server upload.
+									</li>
+									<li>
+										<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">profil.edit</code> dan akses pengaturan logo komunitas.
+									</li>
+								</ul>
+							</DashboardHintCard>
+							<LogoKomunitasSection settings={settings} canEdit={canEdit} />
+						</TabsContent>
 						{/* Tab Hero & Warna Divisi */}
 						<TabsContent value="hero-warna" className="space-y-4 mt-4">
+							<DashboardHintCard
+								title="Panduan tab: Hero & Warna"
+								variant="green"
+								storageKey="dashboard-profil-tab-hero-warna"
+								description="Mengatur foto ketua, logo himpunan, kepala divisi, dan warna divisi pada hero beranda untuk representasi visual HMPS TI UIN Malang. Editor terbuka lewat tombol khusus di kartu.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: klik <strong>Edit Hero &amp; Warna</strong> → ikuti form di editor (unggah gambar, pilih warna divisi) → simpan dari dalam editor → verifikasi di beranda publik.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: foto resmi pengurus; warna divisi konsisten dengan pedoman himpunan; logo himpunan tidak terpotong di crop.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: menyimpan saat upload belum selesai; warna kontras rendah sehingga teks tidak terbaca di hero.
+									</li>
+									<li>
+										<strong>Jika tampilan beranda tidak berubah</strong>: hard refresh; pastikan simpan sukses; cek cache CDN jika ada.
+									</li>
+									<li>
+										<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">profil.edit</code> untuk membuka editor hero.
+									</li>
+								</ul>
+							</DashboardHintCard>
 							{isHeroEditing ? (
 								<ContentEditor
 									settings={settings as any}

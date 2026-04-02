@@ -87,6 +87,7 @@ activitySchema.index({ timestamp: -1 });
 activitySchema.index({ type: 1, timestamp: -1 });
 activitySchema.index({ userId: 1, timestamp: -1 });
 
+export { activitySchema };
 export const Activity = model<IActivity>('Activity', activitySchema);
 
 // Helper function to create activity log

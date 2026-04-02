@@ -2,10 +2,12 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Konfigurasi model Gemini dengan fallback
 export const GEMINI_MODELS = [
-	'gemini-2.5-flash-preview-05-20', // Primary model
-	'gemini-2.5-flash', // Fallback 1
-	'gemini-2.5-flash-lite', // Fallback 2
-	'gemini-2.5-flash-lite-06-17', // Fallback 3
+	// NOTE:
+	// - Hindari model *preview* yang bisa 404 pada v1beta generateContent.
+	// - Urutkan dari paling stabil → fallback.
+	'gemini-2.5-flash', // Primary (stable)
+	'gemini-2.5-flash-lite', // Fallback 1 (lebih hemat)
+	'gemini-3.1-flash', // Fallback 2 (jika tersedia di project/API key)
 ];
 
 export const GEMINI_MODEL = GEMINI_MODELS[0]; // Default model
@@ -262,6 +264,7 @@ export const GEMINI_PERSONALIZATION = {
        /prodi — Program Studi (semua tab)
        /kelembagaan — Kelembagaan (Visi Misi & Struktur)
        /profil — Profil Himatif
+       /communities — Daftar komunitas (jaringan komunitas Himatif Encoder)
    - LARANGAN URL yang salah (akan memunculkan halaman tidak ditemukan):
      * Jangan gunakan /berita/{slug} tanpa id — router aplikasi tidak memakai pola itu.
      * Jangan gunakan /events/{idEvent} tanpa tahun — gunakan selalu /events/{tahun}/{idEvent}.
@@ -300,15 +303,29 @@ export interface PageContext {
 // Membangun prompt konteks halaman berbasis path, permission, dan data halaman
 function contextPathIsDashboard(p: string | undefined): boolean {
 	if (!p || typeof p !== 'string') return false;
-	const t = p.trim();
+	let pathname = p.trim();
 	try {
-		if (/^https?:\/\//i.test(t)) {
-			return new URL(t).pathname.startsWith('/dashboard');
+		if (/^https?:\/\//i.test(pathname)) {
+			pathname = new URL(pathname).pathname;
 		}
 	} catch {
 		return false;
 	}
-	return t.startsWith('/dashboard');
+	if (pathname.startsWith('/dashboard')) return true;
+	return /^\/[^/]+\/dashboard(\/|$)/.test(pathname);
+}
+
+/** /slug/dashboard/berita -> /dashboard/berita untuk hint per modul (komunitas). */
+function normalizePathForModuleHints(pathStr: string): string {
+	let t = pathStr.trim();
+	try {
+		if (/^https?:\/\//i.test(t)) t = new URL(t).pathname;
+	} catch {
+		return pathStr;
+	}
+	const m = t.match(/^\/[a-zA-Z0-9_-]+(\/dashboard.*)$/);
+	if (m) return m[1];
+	return t;
 }
 
 export function buildPageContextPrompt(context?: PageContext): string {
@@ -500,51 +517,52 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	}
 
 	// Deskripsi khusus per path
-	if (path.startsWith('/dashboard/berita')) {
+	const pathMod = normalizePathForModuleHints(path);
+	if (pathMod.startsWith('/dashboard/berita')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Manajemen Berita. Di sini biasanya ada tabel daftar berita dengan aksi seperti Edit, Delete, dan toggle Publish. Jelaskan langkah-langkah umum untuk membuat berita baru, mengedit konten, mengatur status publish/unpublish, dan menggunakan filter/pencarian jika tersedia.',
 		);
-	} else if (path.startsWith('/dashboard/library')) {
+	} else if (pathMod.startsWith('/dashboard/library')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Library Media. Jelaskan cara mengunggah media baru (misalnya melalui tombol Upload), mengubah detail media, serta menghapus media yang tidak diperlukan lagi.',
 		);
-	} else if (path.startsWith('/dashboard/organization')) {
+	} else if (pathMod.startsWith('/dashboard/organization')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Organization. Jelaskan cara: memilih periode kepengurusan, memfilter berdasarkan divisi, menambah/mengedit/menghapus anggota pengurus, mengatur urutan posisi, serta mengelola daftar divisi dan atributnya.',
 		);
-	} else if (path.startsWith('/dashboard/users')) {
+	} else if (pathMod.startsWith('/dashboard/users')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Users. Jelaskan secara umum cara mencari user, melihat detail user, dan (jika diizinkan) membuat, mengedit, atau menonaktifkan user.',
 		);
-	} else if (path.startsWith('/dashboard/roles')) {
+	} else if (pathMod.startsWith('/dashboard/roles')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Roles. Jelaskan secara umum bagaimana role digunakan untuk mengatur permission dan langkah-langkah dasar mengubah atau membuat role baru jika diizinkan.',
 		);
-	} else if (path.startsWith('/dashboard/settings')) {
+	} else if (pathMod.startsWith('/dashboard/settings')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Settings. Jelaskan cara mengubah konfigurasi situs (seperti nama situs, deskripsi, visi-misi, kontak, social links, dan opsi maintenance mode) sesuai akses yang dimiliki.',
 		);
-	} else if (path.startsWith('/dashboard/content')) {
+	} else if (pathMod.startsWith('/dashboard/content')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Content. Jelaskan cara mengelola konten statis/dinamis seperti hero, about, visi-misi, dan struktur/divisi yang tampil di halaman publik.',
 		);
-	} else if (path.startsWith('/dashboard/profil')) {
+	} else if (pathMod.startsWith('/dashboard/profil')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Profil. Jelaskan cara mengelola konten Tentang Kami (teks intro), Sejarah/Rekam Jejak (ketua himpunan per tahun + divisi), dan Filosofi Lambang (gambar + deskripsi tiap elemen lambang).',
 		);
-	} else if (path.startsWith('/dashboard/kelembagaan')) {
+	} else if (pathMod.startsWith('/dashboard/kelembagaan')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Kelembagaan. Jelaskan cara mengelola visi-misi, nama-nama divisi, foto/nama ketua/wakil ketua, kepala divisi, serta anggota organisasi melalui tab Members, Positions, dan Divisions.',
 		);
-	} else if (path.startsWith('/dashboard/prodi')) {
+	} else if (pathMod.startsWith('/dashboard/prodi')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Prodi. Jelaskan cara: menjalankan Sync untuk mengambil data dari website prodi, mengedit konten profil/dosen/kurikulum/laboratorium, mengatur mode auto-sync, dan menyimpan perubahan.',
 		);
-	} else if (path.startsWith('/dashboard/events')) {
+	} else if (pathMod.startsWith('/dashboard/events')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Events. Jelaskan cara: membuat event baru (tombol "Buat Event"), mengedit event, menambahkan sub-event, mengatur tahun event, toggle publish, dan menambahkan lampiran/thumbnail.',
 		);
-	} else if (path.startsWith('/dashboard')) {
+	} else if (pathMod.startsWith('/dashboard')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard utama. Berikan gambaran umum cara membaca kartu statistik, melihat Recent Activities, dan menggunakan tombol-tombol Quick Actions untuk berpindah ke modul lain (Berita, Library, Organization, Settings, dll).',
 		);

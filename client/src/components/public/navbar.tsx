@@ -7,6 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
+import { useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -70,6 +71,20 @@ const sectionMap: Record<string, string> = {
 	berita: 'berita',
 };
 
+function prefixNavChildren(item: NavItem, basePath: string): NavItem {
+	if (!basePath || !('children' in item) || !item.children) return item;
+	return {
+		...item,
+		children: item.children.map((ch) => ({
+			...ch,
+			href:
+				ch.href && !ch.href.startsWith('http')
+					? basePath + ch.href
+					: ch.href,
+		})),
+	};
+}
+
 const baseNavItemsWithoutEvents: NavItem[] = [
 	{ id: 'home', label: 'Beranda', icon: <Home className="h-4 w-4" /> },
 	{
@@ -126,6 +141,20 @@ export default function Navbar({
 	const [location, navigate] = useLocation();
 	const { user, logout } = useAuth();
 	const { theme, toggleTheme } = useTheme();
+	const { isTenant, basePath } = useTenant();
+	const bp = isTenant ? basePath : '';
+	const userTenantSlug = (user as any)?.tenantSlug as string | undefined;
+	const needsAbsoluteDash = userTenantSlug
+		? (!isTenant || basePath !== `/${userTenantSlug}`)
+		: isTenant;
+	const absDashHref = userTenantSlug ? `/${userTenantSlug}/dashboard` : '/dashboard';
+	const loginHref = isTenant ? `${basePath}/login` : '/login';
+
+	const { data: communities = [] } = useQuery<any[]>({
+		queryKey: ['/api/communities'],
+		staleTime: 60000,
+		enabled: !isTenant,
+	});
 
 	// Dropdown open state (desktop + mobile)
 	const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
@@ -263,9 +292,20 @@ export default function Navbar({
 	const activeYears = useMemo(() => {
 		if (!eventsData) return [];
 		if (eventsData.years && eventsData.years.length > 0) {
-			return eventsData.years.map((y) => y.year.year).sort((a, b) => a - b);
+			return eventsData.years
+				.map((y) => {
+					const yr = y.year;
+					if (!yr) return 0;
+					return typeof yr === 'number' ? yr : (yr as any).year ?? 0;
+				})
+				.filter((n) => n > 0)
+				.sort((a, b) => a - b);
 		}
-		if (eventsData.year) return [eventsData.year.year];
+		if (eventsData.year) {
+			const yr = eventsData.year;
+			const num = typeof yr === 'number' ? yr : (yr as any).year ?? 0;
+			return num > 0 ? [num] : [];
+		}
 		return [];
 	}, [eventsData]);
 
@@ -274,9 +314,12 @@ export default function Navbar({
 		if (!eventsData) return [];
 		let evs: { month?: number; startDate?: string }[] = [];
 		if (eventsData.years && eventsData.years.length > 0) {
-			// Ambil bulan dari tahun terbaru
-			const latest = [...eventsData.years].sort((a, b) => b.year.year - a.year.year)[0];
-			evs = latest?.events ?? [];
+			const sorted = [...eventsData.years].sort((a, b) => {
+				const aYear = typeof a.year === 'number' ? a.year : (a.year as any)?.year ?? 0;
+				const bYear = typeof b.year === 'number' ? b.year : (b.year as any)?.year ?? 0;
+				return bYear - aYear;
+			});
+			evs = sorted[0]?.events ?? [];
 		} else if (eventsData.events) {
 			evs = eventsData.events;
 		}
@@ -293,6 +336,7 @@ export default function Navbar({
 
 	const navItems = useMemo(() => {
 		const yearCount = activeYears.length;
+		const px = (h: string) => (bp ? (h.startsWith('/') ? bp + h : `${bp}/${h}`) : h);
 
 		const isVisible = (id: string): boolean => {
 			if (!navCfgArr || navCfgArr.length === 0) return true;
@@ -300,8 +344,13 @@ export default function Navbar({
 			return item ? item.visible : true;
 		};
 
+		const sourceItems = isTenant
+			? baseNavItemsWithoutEvents.filter((i) => i.id !== 'prodi')
+			: baseNavItemsWithoutEvents;
+
 		const navItemMap = new Map<string, NavItem>();
-		for (const item of baseNavItemsWithoutEvents) {
+		for (const raw of sourceItems) {
+			const item = prefixNavChildren(raw, bp);
 			navItemMap.set(item.id, item);
 		}
 
@@ -310,16 +359,16 @@ export default function Navbar({
 			let children: { label: string; href?: string; month?: number }[];
 			if (yearCount === 1) {
 				children = [
-					{ label: `Lihat semua event ${activeYears[0]}`, href: `/events/${activeYears[0]}` },
+					{ label: `Lihat semua event ${activeYears[0]}`, href: px(`/events/${activeYears[0]}`) },
 					...eventMonths.map((m: number) => ({ label: MONTH_NAMES[m - 1], month: m })),
 				];
 			} else if (yearCount <= 5) {
 				children = activeYears.map((yr) => ({
 					label: `Lihat semua event ${yr}`,
-					href: `/events/${yr}`,
+					href: px(`/events/${yr}`),
 				}));
 			} else {
-				children = [{ label: 'Lihat semua event', href: '/events' }];
+				children = [{ label: 'Lihat semua event', href: px('/events') }];
 			}
 			eventsNavItem = {
 				id: 'events',
@@ -331,9 +380,12 @@ export default function Navbar({
 			navItemMap.set('events', eventsNavItem);
 		}
 
-		const orderedIds: string[] = navCfgArr && navCfgArr.length > 0
+		let orderedIds: string[] = navCfgArr && navCfgArr.length > 0
 			? navCfgArr.map((n) => n.id)
 			: ['home', 'profil', 'kelembagaan', 'events', 'berita', 'library'];
+		if (isTenant) {
+			orderedIds = orderedIds.filter((id) => id !== 'prodi');
+		}
 
 		const result: NavItem[] = [];
 		for (const id of orderedIds) {
@@ -342,8 +394,28 @@ export default function Navbar({
 			if (item) result.push(item);
 		}
 
+		// Add Komunitas dropdown if any communities exist (main site only)
+		if (!isTenant && communities && (communities as any[]).length > 0) {
+			const communityList = communities as any[];
+			const MAX_DROPDOWN = 10;
+			const children: { label: string; href?: string }[] = communityList.slice(0, MAX_DROPDOWN).map((c: any) => ({
+				label: c.name,
+				href: `/${c.slug}`,
+			}));
+			if (communityList.length > MAX_DROPDOWN) {
+				children.push({ label: 'Lihat semua komunitas', href: '/communities' });
+			}
+			result.push({
+				id: 'komunitas',
+				label: 'Komunitas',
+				icon: <Building2 className="h-4 w-4" />,
+				homeSection: '',
+				children,
+			});
+		}
+
 		return result;
-	}, [activeYears, eventMonths, navCfgArr]);
+	}, [activeYears, eventMonths, navCfgArr, communities, isTenant, bp]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.
@@ -448,7 +520,7 @@ export default function Navbar({
 				target
 			) {
 				// Klik kedua dalam waktu 1s → redirect ke beranda section terkait (fallback ke subItem jika parent hidden)
-				window.location.href = `/#${target}`;
+				window.location.href = bp ? `${bp}/#${target}` : `/#${target}`;
 				lastParentClickRef.current = null;
 				return;
 			}
@@ -479,7 +551,7 @@ export default function Navbar({
 			if (id === 'home') {
 				navigate('/');
 			} else {
-				window.location.href = `/#${id}`;
+				window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
 			}
 			return;
 		}
@@ -494,8 +566,12 @@ export default function Navbar({
 	const handleChildNav = (href: string) => {
 		// Parse pathname dan hash dari href
 		const url = new URL(href, window.location.origin);
-		const targetPath = url.pathname;
+		let targetPath = url.pathname;
 		const targetHash = url.hash; // mis. "#sejarah"
+		if (bp && targetPath.startsWith(bp)) {
+			const rest = targetPath.slice(bp.length);
+			targetPath = rest === '' || rest === '/' ? '/' : rest.startsWith('/') ? rest : `/${rest}`;
+		}
 
 		// Skenario 1: Sudah di halaman yang sama dan ada hash
 		// → update URL + smooth scroll tanpa reload (tanpa loncat instan)
@@ -539,7 +615,7 @@ export default function Navbar({
 										window.scrollTo({ top: 0, behavior: 'auto' });
 									});
 								} else {
-									window.history.replaceState(null, '', '/');
+									window.history.replaceState(null, '', bp || '/');
 									window.scrollTo({ top: 0, behavior: 'smooth' });
 								}
 							}}
@@ -592,7 +668,7 @@ export default function Navbar({
 															if (child.month != null) {
 																if (location !== '/') {
 																	sessionStorage.setItem('eventsScrollToMonth', String(child.month));
-																	window.location.href = `/#events`;
+																	window.location.href = bp ? `${bp}/#events` : '/#events';
 																} else {
 																	programmaticScrollRef.current = true;
 																	if (programmaticScrollTimerRef.current)
@@ -704,12 +780,17 @@ export default function Navbar({
 										<DropdownMenuSeparator />
 										{showDashLink !== false && (
 											<DropdownMenuItem asChild>
-												<Link
-													href="/dashboard"
-													className="cursor-pointer">
-													<Settings className="mr-2 h-4 w-4" />
-													Dashboard
-												</Link>
+												{needsAbsoluteDash ? (
+													<a href={absDashHref} className="cursor-pointer">
+														<Settings className="mr-2 h-4 w-4" />
+														Dashboard
+													</a>
+												) : (
+													<Link href="/dashboard" className="cursor-pointer">
+														<Settings className="mr-2 h-4 w-4" />
+														Dashboard
+													</Link>
+												)}
 											</DropdownMenuItem>
 										)}
 										<DropdownMenuSeparator />
@@ -723,7 +804,7 @@ export default function Navbar({
 								</DropdownMenu>
 							) : (
 								<Link
-									href="/login"
+									href={loginHref}
 									className="inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-[0_2px_10px_rgba(37,99,235,0.3)] hover:shadow-[0_2px_16px_rgba(37,99,235,0.45)] hover:scale-[1.03] transition-all duration-200">
 									Login
 								</Link>
@@ -850,7 +931,7 @@ export default function Navbar({
 																	if (child.month != null) {
 																		if (location !== '/') {
 																			sessionStorage.setItem('eventsScrollToMonth', String(child.month));
-																			window.location.href = `/#events`;
+																			window.location.href = bp ? `${bp}/#events` : '/#events';
 																		} else {
 																			scrollToSection('events');
 																			setTimeout(() => {
@@ -984,12 +1065,17 @@ export default function Navbar({
 													<DropdownMenuSeparator />
 													{showDashLink !== false && (
 														<DropdownMenuItem asChild>
-															<Link
-																href="/dashboard"
-																className="cursor-pointer">
-																<Settings className="mr-2 h-4 w-4" />
-																Dashboard
-															</Link>
+															{needsAbsoluteDash ? (
+																<a href={absDashHref} className="cursor-pointer">
+																	<Settings className="mr-2 h-4 w-4" />
+																	Dashboard
+																</a>
+															) : (
+																<Link href="/dashboard" className="cursor-pointer">
+																	<Settings className="mr-2 h-4 w-4" />
+																	Dashboard
+																</Link>
+															)}
 														</DropdownMenuItem>
 													)}
 													<DropdownMenuSeparator />
@@ -1003,7 +1089,7 @@ export default function Navbar({
 											</DropdownMenu>
 										) : (
 											<Link
-												href="/login"
+												href={loginHref}
 												aria-label="Login"
 												style={{
 													animationDelay: `${userDelay}ms`,

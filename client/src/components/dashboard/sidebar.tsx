@@ -2,6 +2,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
+import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import {
 	BookOpen,
@@ -12,6 +13,7 @@ import {
 	FileText,
 	Image,
 	Info,
+	KeyRound,
 	LayoutDashboard,
 	LogOut,
 	MessageSquareText,
@@ -37,6 +39,7 @@ export default function Sidebar({
 }: SidebarProps) {
 	const [location] = useLocation();
 	const { user, logout, hasPermission, hasSpecificPermission } = useAuth();
+	const { isTenant } = useTenant();
 	const [internalExpanded, setInternalExpanded] = useState(true);
 
 	// Auto-refresh permissions every 30 seconds to catch role changes
@@ -90,13 +93,17 @@ export default function Sidebar({
 			active: location.startsWith('/dashboard/kelembagaan'),
 			requirePermission: 'kelembagaan.view',
 		},
-		{
-			label: 'Prodi',
-			icon: <BookOpen className="h-5 w-5" />,
-			href: '/dashboard/prodi',
-			active: location.startsWith('/dashboard/prodi'),
-			requirePermission: 'prodi.view',
-		},
+		...(!isTenant
+			? [
+					{
+						label: 'Prodi',
+						icon: <BookOpen className="h-5 w-5" />,
+						href: '/dashboard/prodi',
+						active: location.startsWith('/dashboard/prodi'),
+						requirePermission: 'prodi.view',
+					},
+				]
+			: []),
 		{
 			label: 'Events',
 			icon: <Calendar className="h-5 w-5" />,
@@ -125,6 +132,17 @@ export default function Sidebar({
 			active: location.startsWith('/dashboard/roles'),
 			requirePermission: 'roles.view',
 		},
+		...(!isTenant
+			? [
+					{
+						label: 'Registration',
+						icon: <KeyRound className="h-5 w-5" />,
+						href: '/dashboard/registration',
+						active: location.startsWith('/dashboard/registration'),
+						requirePermission: 'registration.view',
+					},
+				]
+			: []),
 		{
 			label: 'Settings',
 			icon: <Settings className="h-5 w-5" />,
@@ -133,6 +151,20 @@ export default function Sidebar({
 			requirePermission: 'settings.view',
 		},
 	];
+
+	// Prevent dead links in tenant context if an item is not wired in CommunityShell.
+	const tenantEnabledRoutes = new Set([
+		'/dashboard',
+		'/dashboard/berita',
+		'/dashboard/library',
+		'/dashboard/profil',
+		'/dashboard/kelembagaan',
+		'/dashboard/events',
+		'/dashboard/feedback',
+		'/dashboard/users',
+		'/dashboard/roles',
+		'/dashboard/settings',
+	]);
 
 	return (
 		<>
@@ -179,6 +211,10 @@ export default function Sidebar({
 					{/* Navigation - takes up remaining space */}
 					<nav className="flex-1 p-4 space-y-1 overflow-y-auto">
 						{navItems.map((item) => {
+							if (isTenant && !tenantEnabledRoutes.has(item.href)) {
+								return null;
+							}
+
 							// Check permission-based access
 							if (item.requirePermission) {
 								// Handle multiple permissions for some items
@@ -222,14 +258,21 @@ export default function Sidebar({
 								) {
 									return null;
 								}
-								} else if (item.requirePermission === 'roles.view') {
-									if (
-										!hasSpecificPermission('roles.view') &&
-										!hasSpecificPermission('roles.edit') &&
-										!hasSpecificPermission('roles.create')
-									) {
-										return null;
-									}
+							} else if (item.requirePermission === 'registration.view') {
+								if (
+									!hasSpecificPermission('registration.view') &&
+									!hasSpecificPermission('registration.manage')
+								) {
+									return null;
+								}
+							} else if (item.requirePermission === 'roles.view') {
+								if (
+									!hasSpecificPermission('roles.view') &&
+									!hasSpecificPermission('roles.edit') &&
+									!hasSpecificPermission('roles.create')
+								) {
+									return null;
+								}
 							} else if (item.requirePermission === 'berita.view') {
 								if (
 									!hasSpecificPermission('berita.view') &&

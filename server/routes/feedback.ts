@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { Request } from 'express';
 import { Router } from 'express';
 import { authenticate, requirePermission } from '../auth';
 import { feedbackRateLimiter } from '../middleware/public-rate-limit';
@@ -7,6 +8,10 @@ import { sendFeedbackReplyEmail, sendFeedbackDecisionEmail } from '../services/e
 import { uploadMiddleware, uploadFeedbackImage } from '../upload';
 
 const router = Router();
+
+function resolveStorage(req: Request): any {
+	return (req as any).tenantStorage || mongoStorage;
+}
 
 const GUEST_PEPPER = process.env.GUEST_KEY_PEPPER || 'hmps-comment-pepper';
 
@@ -63,7 +68,7 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.array('media', 10), async
 		const guestKey = req.headers['x-guest-key'] as string | undefined;
 		const guestKeyHash = guestKey ? hashGuestKey(guestKey) : null;
 
-		const feedback = await mongoStorage.createFeedback({
+		const feedback = await resolveStorage(req).createFeedback({
 			target,
 			type,
 			body: body.trim(),
@@ -87,9 +92,10 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.array('media', 10), async
 // GET /api/feedback/public — visible feedback cards for public display
 router.get('/public', async (req, res) => {
 	try {
-		const settings: any = await mongoStorage.getSettings();
+		const storage = resolveStorage(req);
+		const settings: any = await storage.getSettings();
 		const typeFilter = settings?.feedbackPublicTypeFilter || 'all';
-		const cards = await mongoStorage.getVisibleFeedbackCardsFiltered(typeFilter);
+		const cards = await storage.getVisibleFeedbackCardsFiltered(typeFilter);
 
 		const guestKey = req.headers['x-guest-key'] as string | undefined;
 		const guestHash = guestKey ? hashGuestKey(guestKey) : null;
@@ -120,9 +126,9 @@ router.get('/public', async (req, res) => {
 });
 
 // GET /api/feedback/ratings — public rating averages
-router.get('/ratings', async (_req, res) => {
+router.get('/ratings', async (req, res) => {
 	try {
-		const averages = await mongoStorage.getFeedbackRatingAverages();
+		const averages = await resolveStorage(req).getFeedbackRatingAverages();
 		res.json(averages);
 	} catch (error) {
 		console.error('Error fetching rating averages:', error);
@@ -138,7 +144,8 @@ router.patch('/own/:id', feedbackRateLimiter, async (req, res) => {
 		const guestKey = req.headers['x-guest-key'] as string | undefined;
 		if (!guestKey) return res.status(401).json({ message: 'x-guest-key header required' });
 
-		const feedback = await mongoStorage.getFeedbackById(req.params.id);
+		const storage = resolveStorage(req);
+		const feedback = await storage.getFeedbackById(req.params.id);
 		if (!feedback) return res.status(404).json({ message: 'Feedback not found' });
 
 		if (!feedback.guestKeyHash || hashGuestKey(guestKey) !== feedback.guestKeyHash) {
@@ -149,7 +156,7 @@ router.patch('/own/:id', feedbackRateLimiter, async (req, res) => {
 		const updateData: any = {};
 		if (body !== undefined) updateData.body = body.trim();
 
-		const updated = await mongoStorage.updateFeedback(req.params.id, updateData);
+		const updated = await storage.updateFeedback(req.params.id, updateData);
 		res.json(updated);
 	} catch (error) {
 		console.error('Error editing own feedback:', error);
@@ -163,14 +170,15 @@ router.delete('/own/:id', feedbackRateLimiter, async (req, res) => {
 		const guestKey = req.headers['x-guest-key'] as string | undefined;
 		if (!guestKey) return res.status(401).json({ message: 'x-guest-key header required' });
 
-		const feedback = await mongoStorage.getFeedbackById(req.params.id);
+		const storage = resolveStorage(req);
+		const feedback = await storage.getFeedbackById(req.params.id);
 		if (!feedback) return res.status(404).json({ message: 'Feedback not found' });
 
 		if (!feedback.guestKeyHash || hashGuestKey(guestKey) !== feedback.guestKeyHash) {
 			return res.status(403).json({ message: 'Not authorized' });
 		}
 
-		await mongoStorage.deleteFeedback(req.params.id);
+		await storage.deleteFeedback(req.params.id);
 		res.json({ message: 'Feedback deleted' });
 	} catch (error) {
 		console.error('Error deleting own feedback:', error);
@@ -196,8 +204,9 @@ router.get(
 			if (page) options.page = parseInt(page as string, 10);
 			if (limit) options.limit = parseInt(limit as string, 10);
 
-			const feedback = await mongoStorage.getAllFeedback(options);
-			const count = await mongoStorage.getFeedbackCount({ target: options.target, type: options.type });
+			const storage = resolveStorage(req);
+			const feedback = await storage.getAllFeedback(options);
+			const count = await storage.getFeedbackCount({ target: options.target, type: options.type });
 			res.json({ items: feedback, total: count });
 		} catch (error) {
 			console.error('Error fetching managed feedback:', error);
@@ -211,9 +220,9 @@ router.get(
 	'/manage/ratings',
 	authenticate,
 	requirePermission('feedback.view'),
-	async (_req, res) => {
+	async (req, res) => {
 		try {
-			const averages = await mongoStorage.getFeedbackRatingAverages();
+			const averages = await resolveStorage(req).getFeedbackRatingAverages();
 			res.json(averages);
 		} catch (error) {
 			console.error('Error fetching rating summary:', error);
@@ -233,7 +242,7 @@ router.patch(
 			if (typeof visible !== 'boolean') {
 				return res.status(400).json({ message: 'visible (boolean) required' });
 			}
-			const updated = await mongoStorage.toggleFeedbackVisibility(req.params.id, visible);
+			const updated = await resolveStorage(req).toggleFeedbackVisibility(req.params.id, visible);
 			if (!updated) return res.status(404).json({ message: 'Feedback not found' });
 			res.json(updated);
 		} catch (error) {
@@ -256,10 +265,11 @@ router.post(
 			}
 
 			const user = req.user as any;
-			const feedback = await mongoStorage.getFeedbackById(req.params.id);
+			const storage = resolveStorage(req);
+			const feedback = await storage.getFeedbackById(req.params.id);
 			if (!feedback) return res.status(404).json({ message: 'Feedback not found' });
 
-			const updated = await mongoStorage.replyToFeedback(req.params.id, {
+			const updated = await storage.replyToFeedback(req.params.id, {
 				adminId: user._id.toString(),
 				adminName: user.name || user.username,
 				message: message.trim(),
@@ -299,7 +309,8 @@ router.post(
 				return res.status(400).json({ message: 'status harus accepted atau rejected' });
 			}
 
-			const feedback = await mongoStorage.getFeedbackById(req.params.id);
+			const storage = resolveStorage(req);
+			const feedback = await storage.getFeedbackById(req.params.id);
 			if (!feedback) return res.status(404).json({ message: 'Feedback not found' });
 
 			if (feedback.type !== 'saran') {
@@ -307,7 +318,7 @@ router.post(
 			}
 
 			const user = req.user as any;
-			const updated = await mongoStorage.decideSuggestion(req.params.id, {
+			const updated = await storage.decideSuggestion(req.params.id, {
 				status,
 				comment: (comment || '').trim(),
 				decidedBy: user._id.toString(),
@@ -350,7 +361,7 @@ router.patch(
 			if (target !== undefined) updateData.target = target;
 			if (type !== undefined) updateData.type = type;
 
-			const updated = await mongoStorage.updateFeedback(req.params.id, updateData);
+			const updated = await resolveStorage(req).updateFeedback(req.params.id, updateData);
 			if (!updated) return res.status(404).json({ message: 'Feedback not found' });
 			res.json(updated);
 		} catch (error) {
@@ -367,7 +378,7 @@ router.delete(
 	requirePermission('feedback.manage'),
 	async (req, res) => {
 		try {
-			await mongoStorage.deleteFeedback(req.params.id);
+			await resolveStorage(req).deleteFeedback(req.params.id);
 			res.json({ message: 'Feedback deleted' });
 		} catch (error) {
 			console.error('Error deleting feedback:', error);

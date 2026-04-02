@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import OrganizationStructureEditor from '@/components/dashboard/organization-structure-editor';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { Button } from '@/components/ui/button';
@@ -9,6 +10,7 @@ import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
+import { useTenant } from '@/lib/tenant-context';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ExternalLink, FileEdit, Loader2 } from 'lucide-react';
@@ -32,6 +34,7 @@ Mewujudkan Himpunan Mahasiswa Teknik Informatika yang berintegritas, progresif, 
 
 export default function DashboardKelembagaan() {
 	const { hasSpecificPermission } = useAuth();
+	const { isTenant, basePath } = useTenant();
 	const canEdit = hasSpecificPermission('kelembagaan.edit');
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
@@ -131,6 +134,42 @@ export default function DashboardKelembagaan() {
 					)}
 				</div>
 
+				<DashboardHintCard
+					title="Cara memakai Kelembagaan"
+					variant="blue"
+					storageKey="dashboard-kelembagaan"
+					description="Tab Visi & Misi menyimpan HTML rich text. Tab Struktur memakai periode kepengurusan (format tahun seperti 2024–2025), divisi, posisi, dan anggota. Tanpa simpan, perubahan hilang.">
+					<ul className="list-disc list-inside space-y-1.5 text-sm">
+						<li>
+							<strong>Langkah visi-misi</strong>: buka tab → Edit → ikuti blok <strong>VISI</strong> / <strong>MISI</strong> di petunjuk format → simpan.
+						</li>
+						<li>
+							<strong>Langkah struktur</strong>: pilih periode aktif → tambah divisi/posisi bila perlu → tambah anggota dengan nama dan jabatan → unggah foto sesuai form → simpan per blok jika diminta.
+						</li>
+						<li>
+							<strong>Contoh valid (periode)</strong>: <code className="text-xs bg-muted px-1 rounded">2025-2026</code> atau label yang konsisten dengan struktur organisasi; anggota terhubung ke divisi yang ada.
+						</li>
+						<li>
+							<strong>Contoh tidak valid</strong>: menyimpan visi kosong jika wajib diisi; memasukkan anggota tanpa periode yang dipilih; file foto terlalu besar atau format ditolak.
+						</li>
+						<li>
+							<strong>Jika gagal</strong>: cek toast; pastikan periode sudah dibuat sebelum menambah anggota; refresh jika data struktur tidak sinkron.
+						</li>
+						<li>
+							<strong>Pratinjau</strong>:{' '}
+							{isTenant ? (
+								<>halaman <code className="text-xs bg-muted px-1 rounded">{basePath || ''}/kelembagaan</code></>
+							) : (
+								<code className="text-xs bg-muted px-1 rounded">/kelembagaan</code>
+							)}
+							.
+						</li>
+						<li>
+							<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">kelembagaan.edit</code> untuk mengubah visi-misi dan struktur.
+						</li>
+					</ul>
+				</DashboardHintCard>
+
 				{isPending ? (
 					<div className="text-center p-8 text-muted-foreground">Memuat data...</div>
 				) : (
@@ -152,8 +191,22 @@ export default function DashboardKelembagaan() {
 								<CardContent>
 									{isEditing ? (
 										<div className="space-y-4">
-											<div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
-												<h4 className="text-sm font-semibold text-blue-700 dark:text-blue-300 mb-2">Petunjuk Format:</h4>
+											<DashboardHintCard
+												title="Petunjuk Format Visi & Misi"
+												variant="blue"
+												storageKey="dashboard-kelembagaan-visi-format"
+												description="Gunakan kerangka ini di editor agar heading dan bullet konsisten di halaman publik. Anda boleh menyesuaikan teks; jangan hapus label VISI/MISI jika tim desain memerlukannya.">
+												<ul className="list-disc list-inside space-y-1.5 text-sm mb-3">
+													<li>
+														<strong>Contoh valid</strong>: baris judul <code className="text-xs bg-muted px-1 rounded">VISI MISI</code>, lalu <code className="text-xs bg-muted px-1 rounded">- VISI</code> diikuti satu paragraf; <code className="text-xs bg-muted px-1 rounded">- MISI</code> diikuti daftar <code className="text-xs bg-muted px-1 rounded">*</code> per poin.
+													</li>
+													<li>
+														<strong>Contoh kurang rapi</strong>: hanya paste dari Word tanpa baris baru—bisa merusak jarak; gunakan Enter dan bullet di editor.
+													</li>
+													<li>
+														<strong>Jika tampilan aneh</strong>: bersihkan format (hapus style aneh), simpan, lalu cek pratinjau publik.
+													</li>
+												</ul>
 												<pre className="text-xs bg-muted p-2 rounded mt-1 text-foreground overflow-auto">
 {`VISI MISI
 
@@ -165,7 +218,7 @@ export default function DashboardKelembagaan() {
 * [Poin misi kedua]
 * [Dan seterusnya...]`}
 												</pre>
-											</div>
+											</DashboardHintCard>
 											<RichTextEditor
 												value={visionMission}
 												onChange={setVisionMission}

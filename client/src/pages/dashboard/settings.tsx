@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +23,6 @@ import {
 	InputOTPSlot,
 } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import {
 	Select,
 	SelectContent,
@@ -30,14 +30,42 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 // import { usePermissionGuardAny } from '@/hooks/use-permission-guard'; // Tidak digunakan lagi
+import {
+	HeroBannerContent,
+	HeroDesktopText,
+	HeroMobileSlideshow,
+	HeroPersonContent,
+	HeroPreviewCtx,
+	HeroScrollIndicator,
+	type HeroPreviewOverrides,
+} from '@/components/public/hero-renderer';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useTenant } from '@/lib/tenant-context';
+import {
+	closestCenter,
+	DndContext,
+	KeyboardSensor,
+	PointerSensor,
+	useSensor,
+	useSensors,
+	type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+	arrayMove,
+	SortableContext,
+	sortableKeyboardCoordinates,
+	useSortable,
+	verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
 	Calendar,
@@ -46,19 +74,34 @@ import {
 	Database,
 	Eye,
 	EyeOff,
+	GripVertical,
 	Image,
 	Laptop,
 	Loader2,
 	LogOut,
+	Monitor,
 	Plus,
 	RotateCcw,
 	Save,
 	Settings,
 	Shield,
+	Smartphone,
 	Trash2,
 	Upload,
+	X,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+	ALL_NAVBAR_ITEMS,
+	ALL_SECTION_BLOCKS,
+	ALL_SUBITEM_BLOCKS,
+	DEFAULT_HOME_CONFIG,
+	TENANT_NAVBAR_ITEMS,
+	TENANT_SECTION_BLOCKS,
+	type HomeBlockItem,
+	type HomeConfig,
+	type HomeNavbarItem,
+} from '../../../../shared/schema';
 
 interface SiteSettings {
 	siteName: string;
@@ -89,6 +132,7 @@ interface SiteSettings {
 		jurusanTeknikInformatika: string;
 		perpustakaan: string;
 	};
+	quickLinks?: Array<{ label: string; url: string }>;
 }
 
 interface MiddlewareSettings {
@@ -113,6 +157,7 @@ interface PasswordChangeData {
 
 export default function SettingsPage() {
 	const { user, hasSpecificPermission } = useAuth();
+	const { isTenant, slug: tenantSlug } = useTenant();
 
 	// Auto-refresh permissions every 5 seconds to catch role changes
 	usePermissionRefresh();
@@ -136,26 +181,36 @@ export default function SettingsPage() {
 	);
 	const [isResetting, setIsResetting] = useState(false);
 
-	// Update activeTab when permissions change
+	// Update activeTab when permissions change or tenant context prevents certain tabs
 	useEffect(() => {
-		if (!canViewSettings && activeTab !== 'profile' && activeTab !== 'home-config') {
+		if (
+			!canViewSettings &&
+			activeTab !== 'profile' &&
+			activeTab !== 'home-config'
+		) {
 			setActiveTab(canViewHomeConfig ? 'home-config' : 'profile');
 		}
-	}, [canViewSettings, canViewHomeConfig, activeTab]);
+		if (isTenant && activeTab === 'middleware') {
+			setActiveTab(canViewSettings ? 'general' : 'profile');
+		}
+	}, [canViewSettings, canViewHomeConfig, activeTab, isTenant]);
 
 	// Password change form
 	const [passwordData, setPasswordData] = useState<PasswordChangeData>({
 		newPassword: '',
-			confirmPassword: '',
+		confirmPassword: '',
 	});
 	const [showNew, setShowNew] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
 	const [showRevokeDialog, setShowRevokeDialog] = useState(false);
+	const [showBackupDialog, setShowBackupDialog] = useState(false);
 
 	// Restore backup state (owner-only)
 	const [showRestoreDialog, setShowRestoreDialog] = useState(false);
 	const [restoreSnapshotKey, setRestoreSnapshotKey] = useState('');
-	const [restoreOtpStep, setRestoreOtpStep] = useState<'confirm' | 'otp'>('confirm');
+	const [restoreOtpStep, setRestoreOtpStep] = useState<'confirm' | 'otp'>(
+		'confirm',
+	);
 	const [restoreChallengeId, setRestoreChallengeId] = useState('');
 	const [restoreOtpCode, setRestoreOtpCode] = useState('');
 
@@ -214,6 +269,12 @@ export default function SettingsPage() {
 			jurusanTeknikInformatika: 'https://informatika.uin-malang.ac.id/',
 			perpustakaan: 'https://library.uin-malang.ac.id/',
 		},
+		quickLinks: [
+			{ label: 'UIN Malang', url: 'https://uin-malang.ac.id/' },
+			{ label: 'Fakultas Sains dan Teknologi', url: 'https://saintek.uin-malang.ac.id/' },
+			{ label: 'Jurusan Teknik Informatika', url: 'https://informatika.uin-malang.ac.id/' },
+			{ label: 'Perpustakaan', url: 'https://library.uin-malang.ac.id/' },
+		],
 	};
 
 	// Fetch settings
@@ -243,21 +304,30 @@ export default function SettingsPage() {
 	});
 
 	// Fetch available backups (owner only, when security tab)
-	const { data: backupsList = [] } = useQuery<{ key: string; label: string }[]>({
-		queryKey: ['/api/backups/monthly'],
-		enabled: user?.role === 'owner' && activeTab === 'security',
-		staleTime: 60 * 1000,
-	});
+	const { data: backupsList = [] } = useQuery<{ key: string; label: string }[]>(
+		{
+			queryKey: ['/api/backups/monthly', isTenant ? tenantSlug : 'main'],
+			enabled: user?.role === 'owner' && activeTab === 'security',
+			staleTime: 60 * 1000,
+		},
+	);
 
 	const restoreRequestOtpMut = useMutation({
 		mutationFn: async () => {
-			const res = await apiRequest('POST', '/api/backups/restore/request-otp', {});
+			const res = await apiRequest(
+				'POST',
+				'/api/backups/restore/request-otp',
+				{},
+			);
 			return (await res.json()) as { challengeId: string };
 		},
 		onSuccess: (data) => {
 			setRestoreChallengeId(data.challengeId);
 			setRestoreOtpStep('otp');
-			toast({ title: 'OTP dikirim ke email', description: 'Masukkan kode untuk konfirmasi.' });
+			toast({
+				title: 'OTP dikirim ke email',
+				description: 'Masukkan kode untuk konfirmasi.',
+			});
 		},
 		onError: (err: any) => {
 			toast({
@@ -277,7 +347,12 @@ export default function SettingsPage() {
 			});
 		},
 		onSuccess: () => {
-			toast({ title: 'Berhasil', description: 'Database berhasil di-restore dari backup.' });
+			toast({
+				title: 'Berhasil',
+				description: isTenant
+					? 'Database komunitas berhasil di-restore dari backup.'
+					: 'Database berhasil di-restore dari backup.',
+			});
 			setShowRestoreDialog(false);
 			setRestoreOtpStep('confirm');
 			setRestoreOtpCode('');
@@ -289,6 +364,40 @@ export default function SettingsPage() {
 			toast({
 				title: 'Gagal',
 				description: err?.message || 'Restore gagal',
+				variant: 'destructive',
+			});
+		},
+	});
+
+	const backupNowMut = useMutation({
+		mutationFn: async () => {
+			const res = await apiRequest('POST', '/api/backups/now', {});
+			return (await res.json()) as { message: string; scope: string; snapshotKey: string; replaced: boolean };
+		},
+		onSuccess: (data) => {
+			const scopeLabel = data.scope === 'tenant' ? 'Komunitas' : 'Main Website';
+			const keyParts = data.snapshotKey?.split('_');
+			const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+			const keyLabel = keyParts?.length === 2
+				? `${monthNames[parseInt(keyParts[1], 10) - 1] || keyParts[1]} ${keyParts[0]}`
+				: data.snapshotKey;
+			toast({
+				title: `Backup ${scopeLabel} Berhasil`,
+				description: `Snapshot ${keyLabel}${data.replaced ? ' (override)' : ''} tersimpan.`,
+			});
+			setShowBackupDialog(false);
+			queryClient.invalidateQueries({ queryKey: ['/api/backups/monthly'] });
+		},
+		onError: (err: any) => {
+			const raw = err?.message || 'Gagal melakukan backup';
+			const friendly = raw.includes('too long')
+				? 'Nama database backup terlalu panjang. Hubungi administrator.'
+				: raw.includes('not configured')
+					? 'Backup cluster belum dikonfigurasi.'
+					: raw;
+			toast({
+				title: 'Backup Gagal',
+				description: friendly,
 				variant: 'destructive',
 			});
 		},
@@ -337,6 +446,20 @@ export default function SettingsPage() {
 					jurusanTeknikInformatika: 'https://informatika.uin-malang.ac.id/',
 					perpustakaan: 'https://library.uin-malang.ac.id/',
 				};
+			}
+
+			// Migrate old links format → quickLinks array
+			if (!settingsCopy.quickLinks || !settingsCopy.quickLinks.length) {
+				const oldLinks = settingsCopy.links;
+				const labelMap: Record<string, string> = {
+					uinMalang: 'UIN Malang',
+					fakultasSainsTeknologi: 'Fakultas Sains dan Teknologi',
+					jurusanTeknikInformatika: 'Jurusan Teknik Informatika',
+					perpustakaan: 'Perpustakaan',
+				};
+				settingsCopy.quickLinks = Object.entries(oldLinks)
+					.filter(([, url]) => url)
+					.map(([key, url]) => ({ label: labelMap[key] || key, url: url as string }));
 			}
 
 			setFormData(settingsCopy);
@@ -516,11 +639,19 @@ export default function SettingsPage() {
 	// Request OTP for change password
 	const requestPasswordOtp = async () => {
 		if (passwordData.newPassword !== passwordData.confirmPassword) {
-			toast({ title: 'Error', description: 'New passwords do not match.', variant: 'destructive' });
+			toast({
+				title: 'Error',
+				description: 'New passwords do not match.',
+				variant: 'destructive',
+			});
 			return;
 		}
 		if (passwordData.newPassword.length < 8) {
-			toast({ title: 'Error', description: 'Password should be at least 8 characters long.', variant: 'destructive' });
+			toast({
+				title: 'Error',
+				description: 'Password should be at least 8 characters long.',
+				variant: 'destructive',
+			});
 			return;
 		}
 		setPwOtpLoading(true);
@@ -532,15 +663,28 @@ export default function SettingsPage() {
 			});
 			const data = await res.json();
 			if (!res.ok) {
-				const retryInfo = data.retryAfterSeconds ? ` (tunggu ${data.retryAfterSeconds} detik)` : '';
-				toast({ title: 'Error', description: (data.message || 'Gagal mengirim OTP') + retryInfo, variant: 'destructive' });
+				const retryInfo = data.retryAfterSeconds
+					? ` (tunggu ${data.retryAfterSeconds} detik)`
+					: '';
+				toast({
+					title: 'Error',
+					description: (data.message || 'Gagal mengirim OTP') + retryInfo,
+					variant: 'destructive',
+				});
 				return;
 			}
 			if (data.challengeId) setPwChallengeId(data.challengeId);
 			setPwOtpStep('otp');
-			toast({ title: 'OTP Dikirim', description: 'Cek email Anda untuk kode OTP.' });
+			toast({
+				title: 'OTP Dikirim',
+				description: 'Cek email Anda untuk kode OTP.',
+			});
 		} catch {
-			toast({ title: 'Error', description: 'Gagal mengirim OTP', variant: 'destructive' });
+			toast({
+				title: 'Error',
+				description: 'Gagal mengirim OTP',
+				variant: 'destructive',
+			});
 		} finally {
 			setPwOtpLoading(false);
 		}
@@ -548,7 +692,9 @@ export default function SettingsPage() {
 
 	// Confirm change password with OTP
 	const changePasswordMutation = useMutation({
-		mutationFn: async (data: PasswordChangeData & { challengeId: string; otpCode: string }) => {
+		mutationFn: async (
+			data: PasswordChangeData & { challengeId: string; otpCode: string },
+		) => {
 			const res = await fetch('/api/auth/change-password/confirm', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -589,7 +735,8 @@ export default function SettingsPage() {
 		onError: (error: any) => {
 			toast({
 				title: 'Password Change Failed',
-				description: error.message || 'There was a problem changing your password.',
+				description:
+					error.message || 'There was a problem changing your password.',
 				variant: 'destructive',
 			});
 		},
@@ -718,8 +865,7 @@ export default function SettingsPage() {
 			// Check if all toggles have the same value
 			const firstToggleValue = updatedData[individualToggles[0]];
 			const allSame = individualToggles.every(
-				(toggle) =>
-					updatedData[toggle] === firstToggleValue,
+				(toggle) => updatedData[toggle] === firstToggleValue,
 			);
 
 			// Update state with synced allEnabled
@@ -782,7 +928,11 @@ export default function SettingsPage() {
 			await requestPasswordOtp();
 		} else {
 			if (pwOtpCode.length !== 6) {
-				toast({ title: 'Error', description: 'Masukkan 6 digit kode OTP.', variant: 'destructive' });
+				toast({
+					title: 'Error',
+					description: 'Masukkan 6 digit kode OTP.',
+					variant: 'destructive',
+				});
 				return;
 			}
 			await changePasswordMutation.mutateAsync({
@@ -908,14 +1058,18 @@ export default function SettingsPage() {
 					{(canViewHomeConfig || canEditHomeConfig) && (
 						<TabsTrigger value="home-config">Beranda</TabsTrigger>
 					)}
-					{user && user.role === 'owner' && (
+					{!isTenant && user && user.role === 'owner' && (
 						<TabsTrigger value="middleware">Middleware</TabsTrigger>
 					)}
 					<TabsTrigger value="profile">Profile</TabsTrigger>
 				</TabsList>
 
-				{(isLoading && activeTab !== 'middleware' && activeTab !== 'home-config') ||
-				(!formData && activeTab !== 'middleware' && activeTab !== 'home-config') ||
+				{(isLoading &&
+					activeTab !== 'middleware' &&
+					activeTab !== 'home-config') ||
+				(!formData &&
+					activeTab !== 'middleware' &&
+					activeTab !== 'home-config') ||
 				(isMiddlewareLoading &&
 					activeTab === 'middleware' &&
 					!middlewareSettings) ? (
@@ -925,6 +1079,30 @@ export default function SettingsPage() {
 				) : (
 					<>
 						<TabsContent value="general">
+							<div className="space-y-4">
+							<DashboardHintCard
+								title="Panduan: Pengaturan umum"
+								variant="blue"
+								storageKey="settings-tab-general"
+								description="Site Name, Navbar Brand, Tagline, Deskripsi, dan Footer mengisi identitas situs di banyak halaman. Nilai disimpan lewat API pengaturan; kosongkan tidak disarankan untuk nama situs.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: ubah field → scroll ke tombol <strong>Save</strong> di halaman Settings (atau alur simpan yang sama) → tunggu konfirmasi sukses.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: Site Name <code className="text-xs bg-muted px-1 rounded">Himpunan Mahasiswa TI</code>; Navbar Brand lebih pendek jika perlu; tagline satu kalimat; deskripsi 1–3 kalimat tanpa data rahasia.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: menyimpan tanpa izin <code className="text-xs bg-muted px-1 rounded">settings.edit</code> (field abu-abu); string sangat panjang yang memecahkan layout—pendekkan.
+									</li>
+									<li>
+										<strong>Jika gagal</strong>: cek toast; pastikan tidak ada karakter yang memutus JSON jika Anda paste dari dokumen luar; coba lagi setelah refresh.
+									</li>
+									<li>
+										<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">settings.edit</code> untuk mengubah field di tab ini.
+									</li>
+								</ul>
+							</DashboardHintCard>
 							<Card>
 								<CardHeader>
 									<CardTitle>General Settings</CardTitle>
@@ -993,129 +1171,198 @@ export default function SettingsPage() {
 									</div>
 								</CardContent>
 							</Card>
+							</div>
 						</TabsContent>
 
-					<TabsContent value="appearance">
-						<Card>
-							<CardHeader>
-								<CardTitle>Appearance Settings</CardTitle>
-								<CardDescription>
-									Customize how your website looks and behaves
-								</CardDescription>
-							</CardHeader>
-							<CardContent className="space-y-4">
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-									<div className="min-w-0">
-										<Label htmlFor="eventsAutoScrollEnabled">
-											Event Section: Auto-scroll
-										</Label>
-										<p className="text-sm text-muted-foreground">
-											Aktifkan animasi scroll otomatis (marquee) pada section event di halaman utama
-										</p>
+						<TabsContent value="appearance">
+							<div className="space-y-4">
+							<DashboardHintCard
+								title="Panduan: Tampilan & perilaku"
+								variant="blue"
+								storageKey="settings-tab-appearance"
+								description="Switch mengontrol auto-scroll section event di beranda dan visibilitas blok feedback di footer. Perubahan disimpan bersama pengaturan situs.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: atur switch → simpan halaman Settings → uji beranda dan footer sebagai pengunjung.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: auto-scroll ON untuk pameran event; feedback OFF saat pemeliharaan—card feedback ikut tersembunyi jika tombol kirim dimatikan.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: menggeser switch tanpa izin <code className="text-xs bg-muted px-1 rounded">settings.animations</code> (tetap nonaktif).
+									</li>
+									<li>
+										<strong>Jika tidak berubah di publik</strong>: hard refresh (Ctrl+F5); pastikan simpan sukses; cek cache CDN jika ada.
+									</li>
+									<li>
+										<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">settings.animations</code> untuk switch di tab ini.
+									</li>
+								</ul>
+							</DashboardHintCard>
+							<Card>
+								<CardHeader>
+									<CardTitle>Appearance Settings</CardTitle>
+									<CardDescription>
+										Customize how your website looks and behaves
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="space-y-4">
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+										<div className="min-w-0">
+											<Label htmlFor="eventsAutoScrollEnabled">
+												Event Section: Auto-scroll
+											</Label>
+											<p className="text-sm text-muted-foreground">
+												Aktifkan animasi scroll otomatis (marquee) pada section
+												event di halaman utama
+											</p>
+										</div>
+										<Switch
+											className="flex-shrink-0"
+											id="eventsAutoScrollEnabled"
+											checked={formData.eventsAutoScrollEnabled ?? true}
+											onCheckedChange={(checked) =>
+												handleSwitchChange('eventsAutoScrollEnabled', checked)
+											}
+											disabled={!canManageAnimations}
+										/>
 									</div>
-									<Switch
-										className="flex-shrink-0"
-										id="eventsAutoScrollEnabled"
-										checked={formData.eventsAutoScrollEnabled ?? true}
-										onCheckedChange={(checked) =>
-											handleSwitchChange('eventsAutoScrollEnabled', checked)
-										}
-										disabled={!canManageAnimations}
-									/>
-								</div>
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
-									<div className="min-w-0">
-										<Label htmlFor="feedbackSubmitEnabled">
-											Feedback: Tombol Kirim
-										</Label>
-										<p className="text-sm text-muted-foreground">
-											Tampilkan tombol &quot;Tulis Saran/Kritik&quot; di footer. Jika dimatikan, card feedback juga ikut tersembunyi.
-										</p>
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
+										<div className="min-w-0">
+											<Label htmlFor="feedbackSubmitEnabled">
+												Feedback: Tombol Kirim
+											</Label>
+											<p className="text-sm text-muted-foreground">
+												Tampilkan tombol &quot;Tulis Saran/Kritik&quot; di
+												footer. Jika dimatikan, card feedback juga ikut
+												tersembunyi.
+											</p>
+										</div>
+										<Switch
+											className="flex-shrink-0"
+											id="feedbackSubmitEnabled"
+											checked={formData.feedbackSubmitEnabled ?? true}
+											onCheckedChange={(checked) =>
+												handleSwitchChange('feedbackSubmitEnabled', checked)
+											}
+											disabled={!canManageAnimations}
+										/>
 									</div>
-									<Switch
-										className="flex-shrink-0"
-										id="feedbackSubmitEnabled"
-										checked={formData.feedbackSubmitEnabled ?? true}
-										onCheckedChange={(checked) =>
-											handleSwitchChange('feedbackSubmitEnabled', checked)
-										}
-										disabled={!canManageAnimations}
-									/>
-								</div>
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
-									<div className="min-w-0">
-										<Label htmlFor="feedbackCardsEnabled">
-											Feedback: Card di Footer
-										</Label>
-										<p className="text-sm text-muted-foreground">
-											Tampilkan section card saran/kritik di footer. Hanya berlaku jika tombol kirim aktif.
-										</p>
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
+										<div className="min-w-0">
+											<Label htmlFor="feedbackCardsEnabled">
+												Feedback: Card di Footer
+											</Label>
+											<p className="text-sm text-muted-foreground">
+												Tampilkan section card saran/kritik di footer. Hanya
+												berlaku jika tombol kirim aktif.
+											</p>
+										</div>
+										<Switch
+											className="flex-shrink-0"
+											id="feedbackCardsEnabled"
+											checked={formData.feedbackCardsEnabled ?? true}
+											onCheckedChange={(checked) =>
+												handleSwitchChange('feedbackCardsEnabled', checked)
+											}
+											disabled={
+												!canManageAnimations ||
+												!(formData.feedbackSubmitEnabled ?? true)
+											}
+										/>
 									</div>
-									<Switch
-										className="flex-shrink-0"
-										id="feedbackCardsEnabled"
-										checked={formData.feedbackCardsEnabled ?? true}
-										onCheckedChange={(checked) =>
-											handleSwitchChange('feedbackCardsEnabled', checked)
-										}
-										disabled={!canManageAnimations || !(formData.feedbackSubmitEnabled ?? true)}
-									/>
-								</div>
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
-									<div className="min-w-0">
-										<Label htmlFor="feedbackCardsAutoScrollEnabled">
-											Feedback Cards: Auto-scroll
-										</Label>
-										<p className="text-sm text-muted-foreground">
-											Aktifkan animasi scroll otomatis card saran/kritik di footer
-										</p>
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
+										<div className="min-w-0">
+											<Label htmlFor="feedbackCardsAutoScrollEnabled">
+												Feedback Cards: Auto-scroll
+											</Label>
+											<p className="text-sm text-muted-foreground">
+												Aktifkan animasi scroll otomatis card saran/kritik di
+												footer
+											</p>
+										</div>
+										<Switch
+											className="flex-shrink-0"
+											id="feedbackCardsAutoScrollEnabled"
+											checked={formData.feedbackCardsAutoScrollEnabled ?? true}
+											onCheckedChange={(checked) =>
+												handleSwitchChange(
+													'feedbackCardsAutoScrollEnabled',
+													checked,
+												)
+											}
+											disabled={
+												!canManageAnimations ||
+												!(formData.feedbackSubmitEnabled ?? true) ||
+												!(formData.feedbackCardsEnabled ?? true)
+											}
+										/>
 									</div>
-									<Switch
-										className="flex-shrink-0"
-										id="feedbackCardsAutoScrollEnabled"
-										checked={formData.feedbackCardsAutoScrollEnabled ?? true}
-										onCheckedChange={(checked) =>
-											handleSwitchChange('feedbackCardsAutoScrollEnabled', checked)
-										}
-										disabled={!canManageAnimations || !(formData.feedbackSubmitEnabled ?? true) || !(formData.feedbackCardsEnabled ?? true)}
-									/>
-								</div>
-								<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
-									<div className="min-w-0">
-										<Label htmlFor="feedbackPublicTypeFilter">
-											Feedback: Filter Tampilan Publik
-										</Label>
-										<p className="text-sm text-muted-foreground">
-											Pilih jenis feedback yang ditampilkan di footer publik
-										</p>
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
+										<div className="min-w-0">
+											<Label htmlFor="feedbackPublicTypeFilter">
+												Feedback: Filter Tampilan Publik
+											</Label>
+											<p className="text-sm text-muted-foreground">
+												Pilih jenis feedback yang ditampilkan di footer publik
+											</p>
+										</div>
+										<Select
+											value={formData.feedbackPublicTypeFilter ?? 'all'}
+											onValueChange={(value) =>
+												setFormData({
+													...formData,
+													feedbackPublicTypeFilter: value,
+												})
+											}
+											disabled={!canManageAnimations}>
+											<SelectTrigger className="w-[160px] flex-shrink-0">
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="all">Keduanya</SelectItem>
+												<SelectItem value="saran">Saran saja</SelectItem>
+												<SelectItem value="kritik">Kritik saja</SelectItem>
+											</SelectContent>
+										</Select>
 									</div>
-									<Select
-										value={formData.feedbackPublicTypeFilter ?? 'all'}
-										onValueChange={(value) =>
-											setFormData({ ...formData, feedbackPublicTypeFilter: value })
-										}
-										disabled={!canManageAnimations}
-									>
-										<SelectTrigger className="w-[160px] flex-shrink-0">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="all">Keduanya</SelectItem>
-											<SelectItem value="saran">Saran saja</SelectItem>
-											<SelectItem value="kritik">Kritik saja</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-								{!canManageAnimations && (
-									<p className="text-xs text-muted-foreground">
-										Kamu tidak memiliki permission <strong>settings.animations</strong> untuk mengubah pengaturan animasi. Hubungi owner/admin.
-									</p>
-								)}
-							</CardContent>
-						</Card>
-					</TabsContent>
+									{!canManageAnimations && (
+										<p className="text-xs text-muted-foreground">
+											Kamu tidak memiliki permission{' '}
+											<strong>settings.animations</strong> untuk mengubah
+											pengaturan animasi. Hubungi owner/admin.
+										</p>
+									)}
+								</CardContent>
+							</Card>
+							</div>
+						</TabsContent>
 
 						<TabsContent value="contact">
+							<div className="space-y-4">
+							<DashboardHintCard
+								title="Panduan: Kontak & sosial"
+								variant="blue"
+								storageKey="settings-tab-contact"
+								description="Email kontak, alamat teks, lokasi Maps, dan URL sosial disimpan di pengaturan. Email harus format valid; sosial harus URL penuh agar ikon/footer berfungsi.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: isi email → alamat multi-baris jika perlu → Lokasi Maps (teks alamat atau link <code className="text-xs bg-muted px-1 rounded">https://maps.app.goo.gl/...</code>) → isi Facebook/TikTok/Instagram/YouTube → simpan.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: <code className="text-xs bg-muted px-1 rounded">kontak@kampus.ac.id</code>; Maps share link publik; <code className="text-xs bg-muted px-1 rounded">https://instagram.com/akun_resmi</code>.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: email tanpa <code className="text-xs bg-muted px-1 rounded">@</code>; URL sosial tanpa skema (tambahkan <code className="text-xs bg-muted px-1 rounded">https://</code>); link Maps expired/private.
+									</li>
+									<li>
+										<strong>Jika gagal</strong>: periksa validasi field; paste ulang URL; simpan lagi.
+									</li>
+									<li>
+										<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">settings.edit</code> untuk mengubah kontak.
+									</li>
+								</ul>
+							</DashboardHintCard>
 							<Card>
 								<CardHeader>
 									<CardTitle>Contact Information</CardTitle>
@@ -1133,34 +1380,36 @@ export default function SettingsPage() {
 											disabled={!canEditSettings}
 										/>
 									</div>
-								<div className="space-y-2">
-									<Label htmlFor="address">Address</Label>
-									<Textarea
-										id="address"
-										name="address"
-										value={formData.address}
-										onChange={handleInputChange}
-										rows={3}
-										disabled={!canEditSettings}
-									/>
-								</div>
-								<div className="space-y-2">
-									<Label htmlFor="mapsLocationInput">Lokasi Maps</Label>
-									<Input
-										id="mapsLocationInput"
-										name="mapsLocationInput"
-										value={formData.mapsLocationInput || ''}
-										onChange={handleInputChange}
-										placeholder="Contoh: Jl. Gajayana No.50, Malang  atau  https://maps.app.goo.gl/..."
-										disabled={!canEditSettings}
-									/>
-									<p className="text-xs text-muted-foreground">
-										Isi dengan alamat teks atau link share Google Maps (termasuk maps.app.goo.gl). Kosongkan untuk pakai alamat default.
-									</p>
-								</div>
-								<h3 className="text-lg font-medium mt-6 mb-3">
-									Social Media Links
-								</h3>
+									<div className="space-y-2">
+										<Label htmlFor="address">Address</Label>
+										<Textarea
+											id="address"
+											name="address"
+											value={formData.address}
+											onChange={handleInputChange}
+											rows={3}
+											disabled={!canEditSettings}
+										/>
+									</div>
+									<div className="space-y-2">
+										<Label htmlFor="mapsLocationInput">Lokasi Maps</Label>
+										<Input
+											id="mapsLocationInput"
+											name="mapsLocationInput"
+											value={formData.mapsLocationInput || ''}
+											onChange={handleInputChange}
+											placeholder="Contoh: Jl. Gajayana No.50, Malang  atau  https://maps.app.goo.gl/..."
+											disabled={!canEditSettings}
+										/>
+										<p className="text-xs text-muted-foreground">
+											Isi dengan alamat teks atau link share Google Maps
+											(termasuk maps.app.goo.gl). Kosongkan untuk pakai alamat
+											default.
+										</p>
+									</div>
+									<h3 className="text-lg font-medium mt-6 mb-3">
+										Social Media Links
+									</h3>
 									<div className="space-y-4">
 										<div className="space-y-2">
 											<Label htmlFor="facebook">Facebook</Label>
@@ -1209,119 +1458,179 @@ export default function SettingsPage() {
 									</div>
 								</CardContent>
 							</Card>
+							</div>
 						</TabsContent>
 
 						<TabsContent value="links">
+							<div className="space-y-4">
+							<DashboardHintCard
+								title="Panduan: Tautan cepat"
+								variant="blue"
+								storageKey="settings-tab-links"
+								description="Quick links menampilkan label dan URL di footer. Setiap baris biasanya punya teks tampil dan href absolut. Jangan menyimpan secret atau token di URL.">
+								<ul className="list-disc list-inside space-y-1.5 text-sm">
+									<li>
+										<strong>Langkah</strong>: tambah atau edit baris → isi label (mis. &quot;Perpustakaan&quot;) → tempel URL lengkap → urutkan jika UI mendukung → simpan pengaturan.
+									</li>
+									<li>
+										<strong>Contoh valid</strong>: label <code className="text-xs bg-muted px-1 rounded">Fakultas</code>, URL <code className="text-xs bg-muted px-1 rounded">https://fst.uin-malang.ac.id</code>.
+									</li>
+									<li>
+										<strong>Contoh tidak valid</strong>: URL relatif tanpa domain jika server mengharapkan absolut; link login dengan user/pass di query; HTTP jika situs target memaksa HTTPS mixed content.
+									</li>
+									<li>
+										<strong>Jika gagal</strong>: buka URL di tab baru sebelum menyimpan; perbaiki typo; pastikan tidak ada spasi di awal/akhir.
+									</li>
+									<li>
+										<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">settings.edit</code>.
+									</li>
+								</ul>
+							</DashboardHintCard>
 							<Card>
 								<CardHeader>
 									<CardTitle>Quick Links</CardTitle>
 									<CardDescription>
-										Manage important links displayed in the footer
+										Kelola tautan penting yang ditampilkan di footer. Anda bisa mengubah label dan URL.
 									</CardDescription>
 								</CardHeader>
 								<CardContent className="space-y-4">
-									<div className="space-y-2">
-										<Label htmlFor="uinMalang">UIN Malang</Label>
-										<Input
-											id="uinMalang"
-											name="links.uinMalang"
-											value={formData.links?.uinMalang || ''}
-											onChange={handleInputChange}
-											placeholder="https://uin-malang.ac.id/"
-											disabled={!canEditSettings}
-										/>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="fakultasSainsTeknologi">
-											Fakultas Sains dan Teknologi
-										</Label>
-										<Input
-											id="fakultasSainsTeknologi"
-											name="links.fakultasSainsTeknologi"
-											value={formData.links?.fakultasSainsTeknologi || ''}
-											onChange={handleInputChange}
-											placeholder="https://saintek.uin-malang.ac.id/"
-											disabled={!canEditSettings}
-										/>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="jurusanTeknikInformatika">
-											Jurusan Teknik Informatika
-										</Label>
-										<Input
-											id="jurusanTeknikInformatika"
-											name="links.jurusanTeknikInformatika"
-											value={formData.links?.jurusanTeknikInformatika || ''}
-											onChange={handleInputChange}
-											placeholder="https://informatika.uin-malang.ac.id/"
-											disabled={!canEditSettings}
-										/>
-									</div>
-									<div className="space-y-2">
-										<Label htmlFor="perpustakaan">Perpustakaan</Label>
-										<Input
-											id="perpustakaan"
-											name="links.perpustakaan"
-											value={formData.links?.perpustakaan || ''}
-											onChange={handleInputChange}
-											placeholder="https://library.uin-malang.ac.id/"
-											disabled={!canEditSettings}
-										/>
-									</div>
+									{(formData.quickLinks ?? []).map((link, idx) => (
+										<div key={idx} className="flex items-end gap-2">
+											<div className="flex-1 space-y-1">
+												<Label>Label</Label>
+												<Input
+													value={link.label}
+													onChange={(e) => {
+														const updated = [...(formData.quickLinks ?? [])];
+														updated[idx] = { ...updated[idx], label: e.target.value };
+														setFormData({ ...formData, quickLinks: updated });
+													}}
+													placeholder="Nama tautan"
+													disabled={!canEditSettings}
+												/>
+											</div>
+											<div className="flex-1 space-y-1">
+												<Label>URL</Label>
+												<Input
+													value={link.url}
+													onChange={(e) => {
+														const updated = [...(formData.quickLinks ?? [])];
+														updated[idx] = { ...updated[idx], url: e.target.value };
+														setFormData({ ...formData, quickLinks: updated });
+													}}
+													placeholder="https://..."
+													disabled={!canEditSettings}
+												/>
+											</div>
+											<Button
+												type="button"
+												variant="ghost"
+												size="icon"
+												className="shrink-0 text-destructive hover:text-destructive"
+												disabled={!canEditSettings}
+												onClick={() => {
+													const updated = (formData.quickLinks ?? []).filter((_, i) => i !== idx);
+													setFormData({ ...formData, quickLinks: updated });
+												}}
+											>
+												<X className="h-4 w-4" />
+											</Button>
+										</div>
+									))}
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										disabled={!canEditSettings}
+										onClick={() => {
+											setFormData({
+												...formData,
+												quickLinks: [...(formData.quickLinks ?? []), { label: '', url: '' }],
+											});
+										}}
+									>
+										<Plus className="h-4 w-4 mr-1" /> Tambah Link
+									</Button>
 								</CardContent>
 							</Card>
+							</div>
 						</TabsContent>
 
 						<TabsContent value="security">
 							<div className="grid gap-6">
-								<Card>
-									<CardHeader>
-										<CardTitle>System Settings</CardTitle>
-										<CardDescription>
-											Configure system-wide settings
-										</CardDescription>
-									</CardHeader>
-									<CardContent className="space-y-4">
-										<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-											<div className="min-w-0">
-												<Label htmlFor="enableRegistration">
-													Enable Registration
-												</Label>
-												<p className="text-sm text-muted-foreground">
-													Allow new users to register
-												</p>
+								<DashboardHintCard
+									title="Panduan: Keamanan akun"
+									variant="amber"
+									storageKey="settings-tab-security"
+									description="Password, sesi, dan (pada situs utama) pengaturan sistem seperti registrasi publik atau backup DB memengaruhi seluruh pengguna. Tindakan berisiko tetap di luar hint ini agar selalu terlihat.">
+									<ul className="list-disc list-inside space-y-1.5 text-sm">
+										<li>
+											<strong>Langkah ubah password</strong>: isi password lama → password baru → konfirmasi → simpan → login ulang di perangkat lain jika perlu.
+										</li>
+										<li>
+											<strong>Contoh valid</strong>: password baru minimal sesuai kebijakan server (biasanya panjang + huruf/angka); tidak sama dengan password lama.
+										</li>
+										<li>
+											<strong>Contoh tidak valid</strong>: password tidak cocok; password lemah jika UI menolak; revoke sesi tanpa konfirmasi—batalkan jika tidak yakin.
+										</li>
+										<li>
+											<strong>Revoke semua sesi</strong>: semua perangkat keluar; gunakan saat kehilangan perangkat. Backup/restore: ikuti OTP dan teks konfirmasi; salah restore bisa menimpa data.
+										</li>
+										<li>
+											<strong>Izin</strong>: area owner/backup hanya untuk akun dengan peran sistem tertinggi.
+										</li>
+									</ul>
+								</DashboardHintCard>
+								{!isTenant && (
+									<Card>
+										<CardHeader>
+											<CardTitle>System Settings</CardTitle>
+											<CardDescription>
+												Configure system-wide settings
+											</CardDescription>
+										</CardHeader>
+										<CardContent className="space-y-4">
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0">
+													<Label htmlFor="enableRegistration">
+														Enable Registration
+													</Label>
+													<p className="text-sm text-muted-foreground">
+														Allow new users to register
+													</p>
+												</div>
+												<Switch
+													className="flex-shrink-0"
+													id="enableRegistration"
+													checked={formData.enableRegistration || false}
+													onCheckedChange={(checked) =>
+														handleSwitchChange('enableRegistration', checked)
+													}
+													disabled={!canEditSettings}
+												/>
 											</div>
-											<Switch
-												className="flex-shrink-0"
-												id="enableRegistration"
-												checked={formData.enableRegistration || false}
-												onCheckedChange={(checked) =>
-													handleSwitchChange('enableRegistration', checked)
-												}
-												disabled={!canEditSettings}
-											/>
-										</div>
-										<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-											<div className="min-w-0">
-												<Label htmlFor="maintenanceMode">
-													Maintenance Mode
-												</Label>
-												<p className="text-sm text-muted-foreground">
-													Put the site in maintenance mode
-												</p>
+											<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+												<div className="min-w-0">
+													<Label htmlFor="maintenanceMode">
+														Maintenance Mode
+													</Label>
+													<p className="text-sm text-muted-foreground">
+														Put the site in maintenance mode
+													</p>
+												</div>
+												<Switch
+													className="flex-shrink-0"
+													id="maintenanceMode"
+													checked={formData.maintenanceMode}
+													onCheckedChange={(checked) =>
+														handleSwitchChange('maintenanceMode', checked)
+													}
+													disabled={!canEditSettings}
+												/>
 											</div>
-											<Switch
-												className="flex-shrink-0"
-												id="maintenanceMode"
-												checked={formData.maintenanceMode}
-												onCheckedChange={(checked) =>
-													handleSwitchChange('maintenanceMode', checked)
-												}
-												disabled={!canEditSettings}
-											/>
-										</div>
-									</CardContent>
-								</Card>
+										</CardContent>
+									</Card>
+								)}
 
 								{(user?.role === 'owner' || user?.role === 'admin') && (
 									<Card>
@@ -1364,29 +1673,71 @@ export default function SettingsPage() {
 								)}
 
 								{user?.role === 'owner' && (
+									<Card className="border-blue-200/50 bg-blue-50/30 dark:border-blue-900/50 dark:bg-blue-950/20">
+										<CardHeader>
+											<CardTitle className="flex items-center gap-2">
+												<Database className="h-5 w-5" />
+												Backup Sekarang
+											</CardTitle>
+											<CardDescription>
+												{isTenant
+													? 'Buat snapshot backup komunitas ini untuk bulan berjalan. Jika sudah ada, snapshot lama akan di-override.'
+													: 'Buat snapshot backup main website untuk bulan berjalan. Jika sudah ada, snapshot lama akan di-override.'}
+											</CardDescription>
+										</CardHeader>
+										<CardContent>
+											<Button
+												onClick={() => {
+													setShowBackupDialog(true);
+												}}
+												disabled={backupNowMut.isPending}>
+												{backupNowMut.isPending ? (
+													<>
+														<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+														Sedang membackup...
+													</>
+												) : (
+													<>
+														<Save className="mr-2 h-4 w-4" />
+														{isTenant ? 'Backup Komunitas Ini' : 'Backup Main Website'}
+													</>
+												)}
+											</Button>
+										</CardContent>
+									</Card>
+								)}
+
+								{user?.role === 'owner' && (
 									<Card className="border-amber-200/50 bg-amber-50/30 dark:border-amber-900/50 dark:bg-amber-950/20">
 										<CardHeader>
 											<CardTitle className="flex items-center gap-2">
 												<Database className="h-5 w-5" />
-												Reset all to Backup
+												{isTenant ? 'Restore Komunitas dari Backup' : 'Reset all to Backup'}
 											</CardTitle>
 											<CardDescription>
-												Overwrite database utama dengan snapshot backup bulanan.
-												Memerlukan konfirmasi dan OTP ke email.
+												{isTenant
+													? 'Mengembalikan database komunitas ini dari snapshot backup bulanan komunitas (bukan website utama). Memerlukan konfirmasi dan OTP ke email.'
+													: 'Overwrite database utama dengan snapshot backup bulanan. Memerlukan konfirmasi dan OTP ke email.'}
 											</CardDescription>
 										</CardHeader>
 										<CardContent className="space-y-4">
 											<div>
-												<Label>Pilih backup bulan</Label>
+												<Label>
+													{isTenant
+														? 'Pilih snapshot backup komunitas (bulan)'
+														: 'Pilih backup bulan'}
+												</Label>
 												<Select
 													value={restoreSnapshotKey}
 													onValueChange={setRestoreSnapshotKey}>
 													<SelectTrigger className="mt-2">
-														<SelectValue placeholder="Pilih snapshot..." />
+														<SelectValue placeholder={isTenant ? 'Pilih snapshot komunitas...' : 'Pilih snapshot...'} />
 													</SelectTrigger>
 													<SelectContent>
 														{backupsList.map((b) => (
-															<SelectItem key={b.key} value={b.key}>
+															<SelectItem
+																key={b.key}
+																value={b.key}>
 																{b.label}
 															</SelectItem>
 														))}
@@ -1399,7 +1750,8 @@ export default function SettingsPage() {
 													if (!restoreSnapshotKey) {
 														toast({
 															title: 'Pilih backup',
-															description: 'Pilih bulan snapshot terlebih dahulu.',
+															description:
+																'Pilih bulan snapshot terlebih dahulu.',
 															variant: 'destructive',
 														});
 														return;
@@ -1409,24 +1761,80 @@ export default function SettingsPage() {
 													setRestoreOtpCode('');
 													setRestoreChallengeId('');
 												}}
-												disabled={restoreRequestOtpMut.isPending || restoreConfirmMut.isPending}>
+												disabled={
+													restoreRequestOtpMut.isPending ||
+													restoreConfirmMut.isPending
+												}>
 												<RotateCcw className="mr-2 h-4 w-4" />
-												Reset all to Backup
+												{isTenant ? 'Restore Komunitas' : 'Reset all to Backup'}
 											</Button>
 										</CardContent>
 									</Card>
 								)}
 
-								<Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+								<Dialog
+									open={showBackupDialog}
+									onOpenChange={setShowBackupDialog}>
 									<DialogContent>
 										<DialogHeader>
-											<DialogTitle>Reset Database ke Backup</DialogTitle>
+											<DialogTitle>
+												{isTenant ? 'Backup Komunitas Ini' : 'Backup Main Website'}
+											</DialogTitle>
+										</DialogHeader>
+										<div className="space-y-4">
+											<div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/30">
+												<p className="text-sm text-blue-800 dark:text-blue-200">
+													Buat snapshot backup untuk bulan ini.
+													Jika snapshot bulan ini sudah ada, data lama akan ditimpa
+													dengan data terbaru.
+												</p>
+											</div>
+										</div>
+										<DialogFooter>
+											<Button
+												variant="outline"
+												onClick={() => setShowBackupDialog(false)}
+												disabled={backupNowMut.isPending}>
+												Batal
+											</Button>
+											<Button
+												onClick={() => {
+													backupNowMut.mutate();
+												}}
+												disabled={backupNowMut.isPending}>
+												{backupNowMut.isPending ? (
+													<>
+														<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+														Sedang membackup...
+													</>
+												) : (
+													<>
+														<Save className="mr-2 h-4 w-4" />
+														Lanjutkan Backup
+													</>
+												)}
+											</Button>
+										</DialogFooter>
+									</DialogContent>
+								</Dialog>
+
+								<Dialog
+									open={showRestoreDialog}
+									onOpenChange={setShowRestoreDialog}>
+									<DialogContent>
+										<DialogHeader>
+											<DialogTitle>
+												{isTenant
+													? 'Restore Database Komunitas'
+													: 'Reset Database ke Backup'}
+											</DialogTitle>
 										</DialogHeader>
 										<div className="space-y-4">
 											<div className="rounded-lg border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
 												<p className="text-sm text-amber-800 dark:text-amber-200">
-													Semua data di database utama akan diganti dengan isi backup.
-													Ini tidak dapat dibatalkan.
+													{isTenant
+														? 'Semua data di database komunitas ini akan diganti dengan isi snapshot backup komunitas yang dipilih. Website utama tidak terpengaruh. Tindakan ini tidak dapat dibatalkan.'
+														: 'Semua data di database utama akan diganti dengan isi backup. Ini tidak dapat dibatalkan.'}
 												</p>
 											</div>
 											{restoreOtpStep === 'confirm' ? (
@@ -1497,7 +1905,9 @@ export default function SettingsPage() {
 										<Button
 											onClick={saveSettings}
 											disabled={
-												updateSettingsMutation.isPending || isLoading || !formData
+												updateSettingsMutation.isPending ||
+												isLoading ||
+												!formData
 											}>
 											{updateSettingsMutation.isPending ? (
 												<>
@@ -1521,12 +1931,35 @@ export default function SettingsPage() {
 						</TabsContent>
 
 						<TabsContent value="home-config">
-							<HomeConfigTab canEdit={canEditHomeConfig} />
+							<HomeConfigTab canEdit={canEditHomeConfig} isTenant={isTenant} />
 						</TabsContent>
 
 						<TabsContent value="middleware">
 							{middlewareSettings ? (
 								<div className="space-y-6">
+									<DashboardHintCard
+										title="Panduan: Middleware keamanan"
+										variant="rose"
+										storageKey="settings-tab-middleware"
+										description="Hanya owner situs utama. Opsi di sini mengatur perlindungan API, rate limit, dan perilaku server-side. Salah setel bisa memblokir pengguna sah atau sebaliknya membuka penyalahgunaan.">
+										<ul className="list-disc list-inside space-y-1.5 text-sm">
+											<li>
+												<strong>Langkah aman</strong>: catat nilai lama → ubah satu opsi → simpan → uji endpoint publik (login, halaman utama) → jika bermasalah, kembalikan nilai.
+											</li>
+											<li>
+												<strong>Contoh valid</strong>: rate limit moderat untuk API publik; protection ON di produksi; menonaktifkan sementara hanya saat debug dengan jendela waktu jelas.
+											</li>
+											<li>
+												<strong>Contoh tidak valid / berisiko</strong>: mematikan semua proteksi permanen; rate limit 0 atau sangat rendah sehingga pengguna kena throttle massal.
+											</li>
+											<li>
+												<strong>Jika situs error 429/403 massal</strong>: longgarkan limit sedikit atau kecualikan IP internal sesuai kebijakan; jangan hapus proteksi tanpa analisis.
+											</li>
+											<li>
+												<strong>Izin</strong>: hanya owner; pengguna biasa tidak melihat tab ini.
+											</li>
+										</ul>
+									</DashboardHintCard>
 									<Card>
 										<CardHeader>
 											<CardTitle className="flex items-center gap-2">
@@ -1801,8 +2234,8 @@ export default function SettingsPage() {
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="space-y-4">
-									<div className="space-y-2">
-										<Label htmlFor="newPassword">New Password</Label>
+										<div className="space-y-2">
+											<Label htmlFor="newPassword">New Password</Label>
 											<div className="relative">
 												<Input
 													id="newPassword"
@@ -1890,11 +2323,15 @@ export default function SettingsPage() {
 											)}
 											<Button
 												onClick={changePassword}
-												disabled={changePasswordMutation.isPending || pwOtpLoading}>
+												disabled={
+													changePasswordMutation.isPending || pwOtpLoading
+												}>
 												{changePasswordMutation.isPending || pwOtpLoading ? (
 													<>
 														<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-														{pwOtpStep === 'form' ? 'Mengirim OTP...' : 'Mengubah...'}
+														{pwOtpStep === 'form'
+															? 'Mengirim OTP...'
+															: 'Mengubah...'}
 													</>
 												) : pwOtpStep === 'form' ? (
 													'Kirim OTP & Ubah Password'
@@ -1994,15 +2431,19 @@ export default function SettingsPage() {
 				)}
 			</Tabs>
 
-		{(activeTab !== 'security' &&
-			activeTab !== 'profile' &&
-			activeTab !== 'middleware' &&
-			activeTab !== 'home-images' &&
-			activeTab !== 'home-config' &&
-			activeTab !== 'appearance' &&
-			canEditSettings) ||
-		(activeTab === 'appearance' && (canEditSettings || canManageAnimations)) ||
-		(activeTab === 'middleware' && user && user.role === 'owner') ? (
+			{(activeTab !== 'security' &&
+				activeTab !== 'profile' &&
+				activeTab !== 'middleware' &&
+				activeTab !== 'home-images' &&
+				activeTab !== 'home-config' &&
+				activeTab !== 'appearance' &&
+				canEditSettings) ||
+			(activeTab === 'appearance' &&
+				(canEditSettings || canManageAnimations)) ||
+			(activeTab === 'middleware' &&
+				!isTenant &&
+				user &&
+				user.role === 'owner') ? (
 				<div className="mt-6 flex justify-end">
 					<Button
 						onClick={
@@ -2131,6 +2572,7 @@ interface HomeImagesData {
 	bennerfull: string;
 	orang: string;
 	banners: Record<string, string>;
+	people?: Record<string, string>;
 }
 
 const SLOT_LABELS: Record<string, string> = {
@@ -2146,7 +2588,7 @@ const SLOT_LABELS: Record<string, string> = {
 	senor: 'Senor',
 };
 
-const BANNER_SLOTS = [
+const DEFAULT_BANNER_SLOTS = [
 	'public_relation',
 	'technopreneurship',
 	'intelektual',
@@ -2157,6 +2599,12 @@ const BANNER_SLOTS = [
 	'senor',
 ] as const;
 
+interface BannerSlotDef {
+	id: string;
+	label: string;
+	order: number;
+}
+
 function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 	const { toast } = useToast();
 	const [selectedYear, setSelectedYear] = useState<number | null>(null);
@@ -2165,6 +2613,94 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 	const [copyTargetYear, setCopyTargetYear] = useState('');
 	const [copyOverwrite, setCopyOverwrite] = useState(false);
 	const [showCopyDialog, setShowCopyDialog] = useState(false);
+
+	// Slot editor state
+	const [editingSlots, setEditingSlots] = useState<BannerSlotDef[] | null>(
+		null,
+	);
+	const [newSlotId, setNewSlotId] = useState('');
+	const [newSlotLabel, setNewSlotLabel] = useState('');
+	const [showPreview, setShowPreview] = useState(false);
+	const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>(
+		'desktop',
+	);
+
+	const { data: settingsData, refetch: refetchSettings } = useQuery<{
+		homeImageBannerSlots?: BannerSlotDef[];
+		siteName?: string;
+		siteTagline?: string;
+		siteDescription?: string;
+		logoUrl?: string;
+		navbarBrand?: string;
+	}>({
+		queryKey: ['/api/settings'],
+		staleTime: 0,
+	});
+
+	const dynamicSlots = useMemo(() => {
+		const slots = settingsData?.homeImageBannerSlots;
+		if (slots && slots.length > 0) {
+			return [...slots].sort((a, b) => a.order - b.order);
+		}
+		return null;
+	}, [settingsData?.homeImageBannerSlots]);
+
+	useEffect(() => {
+		if (dynamicSlots) {
+			setEditingSlots([...dynamicSlots]);
+		} else {
+			setEditingSlots(
+				DEFAULT_BANNER_SLOTS.map((id, i) => ({
+					id,
+					label: SLOT_LABELS[id] || id,
+					order: i,
+				})),
+			);
+		}
+	}, [dynamicSlots]);
+
+	const bannerSlotIds = useMemo(() => {
+		if (editingSlots && editingSlots.length > 0)
+			return editingSlots.map((s) => s.id);
+		if (dynamicSlots) return dynamicSlots.map((s) => s.id);
+		return [...DEFAULT_BANNER_SLOTS];
+	}, [editingSlots, dynamicSlots]);
+
+	const slotLabels = useMemo<Record<string, string>>(() => {
+		if (editingSlots && editingSlots.length > 0) {
+			const map: Record<string, string> = {};
+			for (const s of editingSlots) map[s.id] = s.label;
+			return map;
+		}
+		if (dynamicSlots) {
+			const map: Record<string, string> = {};
+			for (const s of dynamicSlots) map[s.id] = s.label;
+			return map;
+		}
+		return SLOT_LABELS;
+	}, [editingSlots, dynamicSlots]);
+
+	const saveSlotsMutation = useMutation({
+		mutationFn: async (slots: BannerSlotDef[]) => {
+			const ordered = slots.map((s, i) => ({ ...s, order: i }));
+			const res = await apiRequest('PUT', '/api/settings/home-image-slots', {
+				slots: ordered,
+			});
+			return res.json();
+		},
+		onSuccess: () => {
+			refetchSettings();
+			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+			toast({ title: 'Slot berhasil disimpan' });
+		},
+		onError: (err: any) => {
+			toast({
+				title: 'Gagal',
+				description: err.message || 'Gagal menyimpan slot',
+				variant: 'destructive',
+			});
+		},
+	});
 
 	const {
 		data: yearsList,
@@ -2421,6 +2957,19 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 				</CardContent>
 			</Card>
 
+			{/* Slot Editor (DnD) */}
+			{canEdit && editingSlots && (
+				<SlotEditorCard
+					editingSlots={editingSlots}
+					setEditingSlots={setEditingSlots}
+					newSlotId={newSlotId}
+					setNewSlotId={setNewSlotId}
+					newSlotLabel={newSlotLabel}
+					setNewSlotLabel={setNewSlotLabel}
+					saveSlotsMutation={saveSlotsMutation}
+				/>
+			)}
+
 			{/* Desktop mode toggle */}
 			{currentData && (
 				<Card>
@@ -2451,9 +3000,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 							</Button>
 							<Button
 								variant={
-									currentData.desktopMode === 'combined'
-										? 'default'
-										: 'outline'
+									currentData.desktopMode === 'combined' ? 'default' : 'outline'
 								}
 								size="sm"
 								disabled={!canEdit}
@@ -2484,7 +3031,32 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 							Upload banner full dan foto orang untuk tampilan desktop
 						</CardDescription>
 					</CardHeader>
-					<CardContent>
+					<CardContent className="space-y-4">
+						<DashboardHintCard
+							title="Panduan Upload Gambar Desktop"
+							variant="blue"
+							storageKey="settings-home-images-desktop"
+							description="Slot bennerfull dan orang desktop memakai batas piksel dan format berikut. Server menolak file terlalu besar atau tipe selain gambar; unggahan dikonversi ke WebP.">
+							<ul className="list-disc list-inside text-blue-700 dark:text-blue-400 space-y-1 text-sm">
+								<li><strong>Langkah</strong>: siapkan file di komputer → klik unggah pada slot → tunggu selesai → refresh pratinjau hero jika ada.</li>
+								<li><strong>Banner Full</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9). Satu lebar penuh untuk latar.</li>
+								<li><strong>Orang Desktop</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code>. PNG cutout transparan di depan banner.</li>
+								<li><strong>Contoh valid</strong>: JPG/PNG/WebP &lt; 100 MB, dimensi tidak melebihi maks; orang tanpa background putih besar di belakang.</li>
+								<li><strong>Contoh tidak valid</strong>: PDF/SVG sebagai foto; file &gt; 100 MB; resolusi jauh di atas maks sehingga ditolak kompresi.</li>
+								<li><strong>Jika gagal</strong>: kompres di editor gambar; ubah ke PNG/JPEG; coba jaringan lain; baca pesan error di toast.</li>
+								<li><strong>Izin</strong>: butuh akses edit pengaturan beranda/hero (field upload nonaktif jika hanya baca).</li>
+							</ul>
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+								<div className="space-y-2">
+									<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Banner Full</p>
+									<img src="/attached_assets/general/bennerfull.webp" alt="Contoh banner full" className="w-full h-28 object-cover rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+								</div>
+								<div className="space-y-2">
+									<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Orang Desktop</p>
+									<img src="/attached_assets/general/orang.webp" alt="Contoh orang desktop" className="w-full h-28 object-contain rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+								</div>
+							</div>
+						</DashboardHintCard>
 						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 							<SlotUploader
 								year={currentData.year}
@@ -2510,20 +3082,44 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-base">
-							Banner Mobile / Per-Divisi ({currentData.year})
+							Banner Per-Divisi / Background ({currentData.year})
 						</CardTitle>
 						<CardDescription>
-							Upload foto per-divisi untuk slideshow mobile (urutan: kiri ke
-							kanan). Juga dipakai mode &quot;Combined Cards&quot; di desktop.
+							Upload background per-divisi (di belakang orang). Dipakai untuk
+							slideshow mobile dan mode &quot;Combined Cards&quot; di desktop.
+							Urutan: kiri ke kanan sesuai slot.
 						</CardDescription>
 					</CardHeader>
-					<CardContent>
+					<CardContent className="space-y-4">
+						<DashboardHintCard
+							title="Panduan Upload Banner Slot"
+							variant="amber"
+							storageKey="settings-home-images-banner-slots"
+							description="Background per divisi untuk mobile dan mode Combined Cards. Urutan slot kiri–kanan mengikuti grid di bawah.">
+							<ul className="list-disc list-inside text-amber-700 dark:text-amber-400 space-y-1 text-sm">
+								<li><strong>Langkah</strong>: siapkan gambar portrait per slot → unggah berurutan sesuai label (Ketua, Wakil, …) → cek pratinjau mobile.</li>
+								<li>Resolusi maks: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">1920 × 2400 px</code> (portrait). Format JPG/PNG/GIF/WebP, maks 100 MB.</li>
+								<li><strong>Contoh valid</strong>: warna netral, area tengah tidak terlalu ramai agar teks tetap terbaca.</li>
+								<li><strong>Contoh tidak valid</strong>: gambar landscape dipaksa ke slot portrait sehingga terpotong tidak enak; file korup.</li>
+								<li><strong>Design tip</strong>: latar simetris/bersih karena foto orang di depan.</li>
+								<li><strong>Jika gagal</strong>: kecilkan file; pastikan format gambar; ulang unggah.</li>
+							</ul>
+							<div className="flex flex-wrap gap-3 mt-3">
+								{['ketua', 'wakil'].map((s) => (
+									<div key={s} className="space-y-1">
+										<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh: {SLOT_LABELS[s] || s}</p>
+										<img src={`/attached_assets/benner/${s}.webp`} alt={`Contoh ${s}`} className="h-24 w-auto object-cover rounded border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+									</div>
+								))}
+							</div>
+						</DashboardHintCard>
 						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-							{BANNER_SLOTS.map((slot) => (
+							{bannerSlotIds.map((slot) => (
 								<SlotUploader
 									key={slot}
 									year={currentData.year}
 									slot={slot}
+									label={slotLabels[slot] || slot}
 									currentUrl={currentData.banners?.[slot] || ''}
 									canEdit={canEdit}
 									onUploaded={refresh}
@@ -2531,6 +3127,135 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 							))}
 						</div>
 					</CardContent>
+				</Card>
+			)}
+
+			{/* Orang solo per-slot (foreground desktop) */}
+			{currentData && (
+				<Card
+					className={
+						currentData.desktopMode !== 'combined' ? 'opacity-60' : ''
+					}>
+					<CardHeader>
+						<CardTitle className="text-base">
+							Orang Per-Divisi / Foreground ({currentData.year})
+						</CardTitle>
+						<CardDescription>
+							{currentData.desktopMode !== 'combined' ? (
+								<span className="text-amber-500 font-medium">
+									Aktif saat mode desktop &quot;Combined Cards&quot;.{' '}
+								</span>
+							) : null}
+							Upload foto orang solo per-divisi. Foto akan digabung menjadi satu
+							komposisi di depan banner. Urutan: kiri ke kanan sesuai slot.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<DashboardHintCard
+							title="Panduan Upload Foto Orang Slot"
+							variant="green"
+							storageKey="settings-home-images-person-slots"
+							description="Hanya relevan saat mode desktop Combined Cards. Foto per slot digabung horizontal; gunakan PNG transparan dan pose seragam.">
+							<ul className="list-disc list-inside text-green-700 dark:text-green-400 space-y-1 text-sm">
+								<li><strong>Langkah</strong>: set mode <strong>Combined Cards</strong> → unggah tiap slot orang → samakan crop tinggi badan → simpan → cek Preview Hero.</li>
+								<li>Resolusi maks <code className="bg-green-100 dark:bg-green-900 px-1 rounded">3840 × 2160 px</code>; portrait atau square. PNG direkomendasikan.</li>
+								<li><strong>Contoh valid</strong>: cutout transparan, subjek sejajar kaki di bawah frame (<code className="bg-green-100 dark:bg-green-900 px-1 rounded">object-bottom</code>), pencahayaan mirip antar foto.</li>
+								<li><strong>Contoh tidak valid</strong>: JPG dengan background kantor putih di belakang seluruh tubuh; resolusi terlalu kecil sehingga pecah di layar lebar.</li>
+								<li><strong>Jika slot abu-abu</strong>: pastikan desktop mode = Combined Cards; tanpa itu upload dinonaktifkan sengaja.</li>
+							</ul>
+							<div className="flex flex-wrap gap-3 mt-3">
+								{[
+									{ id: 'ketua', label: 'Ketua' },
+									{ id: 'wakil_ketua', label: 'Wakil Ketua' },
+								].map((ex) => (
+									<div key={ex.id} className="space-y-1">
+										<p className="text-xs text-muted-foreground flex items-center gap-1">
+											<Eye className="h-3 w-3" /> Contoh Orang Slot: {ex.label}
+										</p>
+										<img
+											src={`/attached_assets/benner/2025/person__${ex.id}.webp`}
+											alt={`Contoh orang slot ${ex.id}`}
+											className="h-28 w-auto object-contain rounded border bg-muted"
+											onError={(e) => {
+												(e.target as HTMLImageElement).style.display = 'none';
+											}}
+										/>
+									</div>
+								))}
+							</div>
+						</DashboardHintCard>
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+							{bannerSlotIds.map((slot) => (
+								<PersonSlotUploader
+									key={slot}
+									year={currentData.year}
+									slot={slot}
+									label={slotLabels[slot] || slot}
+									currentUrl={currentData.people?.[slot] || ''}
+									canEdit={canEdit && currentData.desktopMode === 'combined'}
+									onUploaded={refresh}
+								/>
+							))}
+						</div>
+					</CardContent>
+				</Card>
+			)}
+
+			{/* Hero Preview */}
+			{currentData && (
+				<Card>
+					<CardHeader>
+						<div className="flex items-center justify-between">
+							<div>
+								<CardTitle className="text-base">Preview Hero</CardTitle>
+								<CardDescription>
+									Preview realtime tampilan hero desktop & mobile dari state
+									saat ini (belum disimpan).
+								</CardDescription>
+							</div>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setShowPreview((v) => !v)}>
+								<Eye className="h-3.5 w-3.5 mr-1" />
+								{showPreview ? 'Sembunyikan' : 'Tampilkan'}
+							</Button>
+						</div>
+					</CardHeader>
+					{showPreview && (
+						<CardContent className="space-y-4">
+							<div className="flex items-center gap-2">
+								<Button
+									variant={previewMode === 'desktop' ? 'default' : 'outline'}
+									size="sm"
+									onClick={() => setPreviewMode('desktop')}>
+									<Monitor className="h-3.5 w-3.5 mr-1" />
+									Desktop
+								</Button>
+								<Button
+									variant={previewMode === 'mobile' ? 'default' : 'outline'}
+									size="sm"
+									onClick={() => setPreviewMode('mobile')}>
+									<Smartphone className="h-3.5 w-3.5 mr-1" />
+									Mobile
+								</Button>
+							</div>
+							<HeroPreview
+								mode={previewMode}
+								desktopMode={currentData.desktopMode}
+								bennerfullSrc={currentData.bennerfull}
+								orangSrc={currentData.orang}
+								banners={currentData.banners || {}}
+								people={currentData.people || {}}
+								slotIds={bannerSlotIds}
+								siteName={settingsData?.siteName || 'HIMATIF'}
+								siteTagline={settingsData?.siteTagline || ''}
+								siteDescription={settingsData?.siteDescription || ''}
+								logoUrl={settingsData?.logoUrl}
+								navbarBrand={settingsData?.navbarBrand || 'HMTI'}
+							/>
+						</CardContent>
+					)}
 				</Card>
 			)}
 
@@ -2596,19 +3321,636 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 	);
 }
 
+function PreviewNavbar({
+	navbarBrand,
+	isMobile,
+}: {
+	navbarBrand: string;
+	isMobile?: boolean;
+}) {
+	const navLinks = [
+		'Beranda',
+		'Profil',
+		'Kelembagaan',
+		'Prodi',
+		'Berita',
+		'Galeri',
+	];
+	if (isMobile) {
+		return (
+			<header className="h-12 border-b border-border/60 bg-background/95 backdrop-blur-md shadow-[0_2px_12px_rgba(0,0,0,0.06)] relative z-50">
+				<div className="max-w-7xl mx-auto px-4 h-full flex justify-between items-center">
+					<span className="text-sm font-bold tracking-tight bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-cyan-200 dark:to-blue-100">
+						{navbarBrand}
+					</span>
+					<div className="flex items-center gap-1">
+						<div className="p-1.5 rounded-lg text-muted-foreground">
+							<svg
+								className="h-3.5 w-3.5 text-slate-500"
+								viewBox="0 0 24 24"
+								fill="none"
+								stroke="currentColor"
+								strokeWidth="2">
+								<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+							</svg>
+						</div>
+					</div>
+				</div>
+			</header>
+		);
+	}
+	return (
+		<header className="h-16 border-b border-border/60 bg-background/95 backdrop-blur-md shadow-[0_2px_12px_rgba(0,0,0,0.06)] relative z-50">
+			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex justify-between items-center">
+				<span className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-cyan-200 dark:to-blue-100">
+					{navbarBrand}
+				</span>
+				<nav className="flex items-center gap-1">
+					{navLinks.map((l, i) => (
+						<span
+							key={l}
+							className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${i === 0 ? 'bg-primary/10 text-primary' : 'text-foreground/70'}`}>
+							{l}
+							{l !== 'Beranda' && l !== 'Galeri' && (
+								<svg
+									className="inline-block ml-0.5 h-3 w-3 opacity-60"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									strokeWidth="2">
+									<path d="m6 9 6 6 6-6" />
+								</svg>
+							)}
+						</span>
+					))}
+				</nav>
+				<div className="flex items-center gap-2">
+					<div className="p-2 rounded-lg text-muted-foreground">
+						<svg
+							className="h-4 w-4 text-slate-500"
+							viewBox="0 0 24 24"
+							fill="none"
+							stroke="currentColor"
+							strokeWidth="2">
+							<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+						</svg>
+					</div>
+					<div className="flex items-center gap-2 px-2 py-1.5 rounded-lg">
+						<div className="h-7 w-7 rounded-full bg-primary flex items-center justify-center">
+							<span className="text-primary-foreground text-xs font-semibold">
+								A
+							</span>
+						</div>
+						<span className="text-sm font-medium text-foreground">Admin</span>
+					</div>
+				</div>
+			</div>
+		</header>
+	);
+}
+
+function MobileFloatingNavPreview() {
+	const icons = [
+		<svg
+			key="home"
+			className="h-4 w-4"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2">
+			<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+			<polyline points="9 22 9 12 15 12 15 22" />
+		</svg>,
+		<svg
+			key="info"
+			className="h-4 w-4"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2">
+			<circle
+				cx="12"
+				cy="12"
+				r="10"
+			/>
+			<path d="M12 16v-4" />
+			<path d="M12 8h.01" />
+		</svg>,
+		<svg
+			key="building"
+			className="h-4 w-4"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2">
+			<rect
+				x="4"
+				y="2"
+				width="16"
+				height="20"
+				rx="2"
+			/>
+			<path d="M9 22v-4h6v4" />
+			<path d="M8 6h.01" />
+			<path d="M16 6h.01" />
+			<path d="M12 6h.01" />
+			<path d="M12 10h.01" />
+			<path d="M12 14h.01" />
+			<path d="M16 10h.01" />
+			<path d="M16 14h.01" />
+			<path d="M8 10h.01" />
+			<path d="M8 14h.01" />
+		</svg>,
+		<svg
+			key="file"
+			className="h-4 w-4"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2">
+			<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+			<polyline points="14 2 14 8 20 8" />
+			<line
+				x1="16"
+				y1="13"
+				x2="8"
+				y2="13"
+			/>
+			<line
+				x1="16"
+				y1="17"
+				x2="8"
+				y2="17"
+			/>
+		</svg>,
+		<svg
+			key="book"
+			className="h-4 w-4"
+			viewBox="0 0 24 24"
+			fill="none"
+			stroke="currentColor"
+			strokeWidth="2">
+			<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+			<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+		</svg>,
+	];
+	return (
+		<div className="absolute right-2 top-1/2 -translate-y-1/2 z-[55] flex flex-col gap-1.5 p-2 rounded-2xl bg-background/92 backdrop-blur-md border border-border/80 shadow-xl shadow-black/10">
+			{icons.map((icon, i) => (
+				<div
+					key={i}
+					className={`w-8 h-8 flex items-center justify-center rounded-xl ${i === 0 ? 'bg-primary/15 text-primary' : 'text-muted-foreground'}`}>
+					{icon}
+				</div>
+			))}
+			<div className="h-px bg-border/60 mx-0.5" />
+			<div className="w-8 h-8 flex items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 text-white shadow-[0_2px_8px_rgba(37,99,235,0.4)]">
+				<svg
+					className="h-3.5 w-3.5"
+					viewBox="0 0 24 24"
+					fill="none"
+					stroke="currentColor"
+					strokeWidth="2">
+					<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+					<polyline points="10 17 15 12 10 7" />
+					<line
+						x1="15"
+						y1="12"
+						x2="3"
+						y2="12"
+					/>
+				</svg>
+			</div>
+		</div>
+	);
+}
+
+function HeroPreview({
+	mode,
+	desktopMode,
+	bennerfullSrc,
+	orangSrc,
+	banners,
+	people,
+	slotIds,
+	siteName,
+	siteTagline,
+	siteDescription,
+	logoUrl,
+	navbarBrand,
+}: {
+	mode: 'desktop' | 'mobile';
+	desktopMode: 'bennerfull' | 'combined';
+	bennerfullSrc: string;
+	orangSrc: string;
+	banners: Record<string, string>;
+	people: Record<string, string>;
+	slotIds: string[];
+	siteName: string;
+	siteTagline: string;
+	siteDescription: string;
+	logoUrl?: string;
+	navbarBrand?: string;
+}) {
+	const brand = navbarBrand || siteName || 'HMTI';
+	const overrides = useMemo<HeroPreviewOverrides>(
+		() => ({
+			settings: {
+				siteName,
+				siteTagline,
+				siteDescription,
+				logoUrl,
+				navbarBrand: brand,
+				homeImageBannerSlots: slotIds.map((id, i) => ({
+					id,
+					label: id,
+					order: i,
+				})),
+			},
+			homeImages: {
+				desktopMode,
+				bennerfull: bennerfullSrc,
+				orang: orangSrc,
+				banners,
+				people,
+			},
+		}),
+		[
+			siteName,
+			siteTagline,
+			siteDescription,
+			logoUrl,
+			brand,
+			slotIds,
+			desktopMode,
+			bennerfullSrc,
+			orangSrc,
+			banners,
+			people,
+		],
+	);
+
+	const vpRef = useRef<HTMLDivElement>(null);
+	const [vpScale, setVpScale] = useState(1);
+
+	useEffect(() => {
+		const el = vpRef.current;
+		if (!el) return;
+		const ro = new ResizeObserver(([entry]) => {
+			setVpScale(entry.contentRect.width / 1920);
+		});
+		ro.observe(el);
+		return () => ro.disconnect();
+	}, []);
+
+	if (mode === 'desktop') {
+		return (
+			<div
+				ref={vpRef}
+				className="relative w-full aspect-[16/9] rounded-lg overflow-hidden border bg-background shadow-lg">
+				<div
+					className="absolute top-0 left-0 origin-top-left"
+					style={{ width: 1920, height: 1080, transform: `scale(${vpScale})` }}>
+					<PreviewNavbar navbarBrand={brand} />
+					<HeroPreviewCtx.Provider value={overrides}>
+						<div
+							className="relative w-full overflow-hidden"
+							style={{ height: 'calc(100% - 64px)' }}>
+							<div className="absolute inset-0 z-0">
+								<HeroBannerContent
+									desktopMode={desktopMode}
+									slotOrder={slotIds}
+									banners={banners}
+									bennerfullSrc={bennerfullSrc}
+								/>
+							</div>
+							<div
+								className="absolute bottom-0 w-full h-full pointer-events-none z-[1]"
+								style={{
+									background:
+										'var(--gradient-hero-fog, linear-gradient(to top, hsl(var(--background)) 0%, transparent 50%))',
+								}}
+							/>
+							<div
+								className="absolute z-[5] text-center bg-white/90 dark:bg-card/80 border border-slate-200/80 dark:border-border/70 backdrop-blur-sm px-8 py-8 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)]"
+								style={{
+									left: '50%',
+									top: '35%',
+									transform: 'translate(-50%, -50%)',
+									minWidth: '340px',
+								}}>
+								<HeroDesktopText
+									siteName={siteName}
+									siteTagline={siteTagline}
+									siteDescription={siteDescription}
+								/>
+							</div>
+							<div className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[5]">
+								<HeroScrollIndicator />
+							</div>
+							<div className="absolute inset-0 z-[10] pointer-events-none">
+								<div
+									style={{
+										transform: 'translateZ(0)',
+										width: '100%',
+										height: '100%',
+									}}>
+									<HeroPersonContent
+										desktopMode={desktopMode}
+										slotOrder={slotIds}
+										people={people}
+										orangSrc={orangSrc}
+									/>
+								</div>
+							</div>
+							<div
+								className="absolute bottom-0 left-0 w-full h-1/2 pointer-events-none z-[11]"
+								style={{
+									background:
+										'var(--gradient-hero-fog-front, linear-gradient(to top, hsl(var(--background)) 0%, transparent 100%))',
+								}}
+							/>
+						</div>
+					</HeroPreviewCtx.Provider>
+				</div>
+			</div>
+		);
+	}
+
+	return (
+		<div
+			className="mx-auto rounded-xl overflow-hidden border shadow-lg bg-background relative"
+			style={{ width: '375px', height: '700px' }}>
+			<PreviewNavbar
+				navbarBrand={brand}
+				isMobile
+			/>
+			<HeroPreviewCtx.Provider value={overrides}>
+				<div
+					className="relative w-full overflow-hidden"
+					style={{ height: 'calc(100% - 48px)' }}>
+					<HeroMobileSlideshow
+						slotOrder={slotIds}
+						banners={banners}
+						siteName={siteName}
+						siteTagline={siteTagline}
+						siteDescription={siteDescription}
+						logoUrl={logoUrl}
+						stats={{ organizationMembers: 500, berita: 50, libraryItems: 100 }}
+					/>
+				</div>
+			</HeroPreviewCtx.Provider>
+			<MobileFloatingNavPreview />
+		</div>
+	);
+}
+
+function SortableSlotRow({
+	slot,
+	dndId,
+	idError,
+	onIdChange,
+	onLabelChange,
+	onRemove,
+}: {
+	slot: BannerSlotDef;
+	dndId: string;
+	idError?: string;
+	onIdChange: (val: string) => void;
+	onLabelChange: (val: string) => void;
+	onRemove: () => void;
+}) {
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: dndId });
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		opacity: isDragging ? 0.5 : 1,
+	};
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className="flex items-center gap-2 py-1.5 px-2 border rounded-lg bg-card">
+			<button
+				{...attributes}
+				{...listeners}
+				className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+				aria-label="Drag">
+				<GripVertical className="h-4 w-4" />
+			</button>
+			<div className="w-44 space-y-1">
+				<Input
+					value={slot.id}
+					className={`h-8 text-xs ${idError ? 'border-destructive focus-visible:ring-destructive/30' : ''}`}
+					onChange={(e) =>
+						onIdChange(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'))
+					}
+				/>
+				{idError && (
+					<p className="text-[11px] text-destructive leading-tight">
+						{idError}
+					</p>
+				)}
+			</div>
+			<Input
+				value={slot.label}
+				className="h-8 text-sm flex-1"
+				onChange={(e) => onLabelChange(e.target.value)}
+			/>
+			<button
+				className="text-destructive hover:text-destructive/80 p-1"
+				onClick={onRemove}
+				aria-label="Hapus slot">
+				<Trash2 className="h-4 w-4" />
+			</button>
+		</div>
+	);
+}
+
+function SlotEditorCard({
+	editingSlots,
+	setEditingSlots,
+	newSlotId,
+	setNewSlotId,
+	newSlotLabel,
+	setNewSlotLabel,
+	saveSlotsMutation,
+}: {
+	editingSlots: BannerSlotDef[];
+	setEditingSlots: (s: BannerSlotDef[]) => void;
+	newSlotId: string;
+	setNewSlotId: (v: string) => void;
+	newSlotLabel: string;
+	setNewSlotLabel: (v: string) => void;
+	saveSlotsMutation: {
+		isPending: boolean;
+		mutate: (s: BannerSlotDef[]) => void;
+	};
+}) {
+	const slotSensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
+	);
+	const dndItems = editingSlots.map((_, idx) => `slot-${idx}`);
+	const handleSlotDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+		if (over && active.id !== over.id) {
+			const oldIdx = dndItems.indexOf(String(active.id));
+			const newIdx = dndItems.indexOf(String(over.id));
+			if (oldIdx < 0 || newIdx < 0) return;
+			setEditingSlots(arrayMove(editingSlots, oldIdx, newIdx));
+		}
+	};
+	const hasDuplicateId = editingSlots.some(
+		(slot, idx) =>
+			!slot.id ||
+			editingSlots.some((other, j) => j !== idx && other.id === slot.id),
+	);
+	const hasInvalidRow = editingSlots.some(
+		(slot) => !slot.id.trim() || !slot.label.trim(),
+	);
+	const cannotSave =
+		saveSlotsMutation.isPending || hasDuplicateId || hasInvalidRow;
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-base">Slot Banner / Divisi</CardTitle>
+				<CardDescription>
+					Drag handle untuk mengatur urutan. Urutan dari atas ke bawah = kiri ke
+					kanan di tampilan.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<DndContext
+					sensors={slotSensors}
+					collisionDetection={closestCenter}
+					onDragEnd={handleSlotDragEnd}>
+					<SortableContext
+						items={dndItems}
+						strategy={verticalListSortingStrategy}>
+						<div className="space-y-2">
+							{editingSlots.map((slot, idx) => (
+								<SortableSlotRow
+									key={`${slot.id}-${idx}`}
+									slot={slot}
+									dndId={dndItems[idx]}
+									idError={
+										!slot.id.trim()
+											? 'ID slot wajib diisi'
+											: editingSlots.some(
+														(s, i) => i !== idx && s.id === slot.id,
+												  )
+												? 'ID slot harus unik'
+												: undefined
+									}
+									onIdChange={(val) => {
+										const next = [...editingSlots];
+										next[idx] = { ...next[idx], id: val };
+										setEditingSlots(next);
+									}}
+									onLabelChange={(val) => {
+										const next = [...editingSlots];
+										next[idx] = { ...next[idx], label: val };
+										setEditingSlots(next);
+									}}
+									onRemove={() =>
+										setEditingSlots(editingSlots.filter((_, i) => i !== idx))
+									}
+								/>
+							))}
+						</div>
+					</SortableContext>
+				</DndContext>
+				<div className="flex items-end gap-2 pt-2 border-t">
+					<div className="space-y-1 flex-1">
+						<Label className="text-xs">ID Slot Baru</Label>
+						<Input
+							value={newSlotId}
+							onChange={(e) =>
+								setNewSlotId(
+									e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
+								)
+							}
+							placeholder="divisi_baru"
+							className="h-8 text-sm"
+						/>
+					</div>
+					<div className="space-y-1 flex-1">
+						<Label className="text-xs">Label</Label>
+						<Input
+							value={newSlotLabel}
+							onChange={(e) => setNewSlotLabel(e.target.value)}
+							placeholder="Divisi Baru"
+							className="h-8 text-sm"
+						/>
+					</div>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={
+							!newSlotId ||
+							!newSlotLabel ||
+							editingSlots.some((s) => s.id === newSlotId)
+						}
+						onClick={() => {
+							setEditingSlots([
+								...editingSlots,
+								{
+									id: newSlotId,
+									label: newSlotLabel,
+									order: editingSlots.length,
+								},
+							]);
+							setNewSlotId('');
+							setNewSlotLabel('');
+						}}>
+						<Plus className="h-3.5 w-3.5 mr-1" />
+						Tambah
+					</Button>
+				</div>
+				<div className="flex justify-end pt-2">
+					<Button
+						size="sm"
+						disabled={cannotSave}
+						onClick={() => saveSlotsMutation.mutate(editingSlots)}>
+						{saveSlotsMutation.isPending ? (
+							<Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+						) : (
+							<Save className="h-3.5 w-3.5 mr-1" />
+						)}
+						Simpan Slot
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
 function SlotUploader({
 	year,
 	slot,
+	label,
 	currentUrl,
 	canEdit,
 	onUploaded,
 }: {
 	year: number;
 	slot: string;
+	label?: string;
 	currentUrl: string;
 	canEdit: boolean;
 	onUploaded: () => void;
 }) {
+	const displayLabel = label || SLOT_LABELS[slot] || slot;
 	const { toast } = useToast();
 	const fileRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
@@ -2629,7 +3971,7 @@ function SlotUploader({
 				throw new Error(err.message || 'Upload gagal');
 			}
 			onUploaded();
-			toast({ title: `${SLOT_LABELS[slot] || slot} berhasil diupload` });
+			toast({ title: `${displayLabel} berhasil diupload` });
 		} catch (err: any) {
 			toast({
 				title: 'Upload Gagal',
@@ -2644,7 +3986,7 @@ function SlotUploader({
 
 	const handleDelete = async () => {
 		if (!currentUrl) return;
-		if (!window.confirm(`Hapus gambar untuk ${SLOT_LABELS[slot] || slot}?`)) return;
+		if (!window.confirm(`Hapus gambar untuk ${displayLabel}?`)) return;
 		setDeleting(true);
 		try {
 			const res = await fetch(`/api/home-images/${year}/slot/${slot}`, {
@@ -2656,7 +3998,7 @@ function SlotUploader({
 				throw new Error(err.message || 'Hapus gagal');
 			}
 			onUploaded();
-			toast({ title: `${SLOT_LABELS[slot] || slot} berhasil dihapus` });
+			toast({ title: `${displayLabel} berhasil dihapus` });
 		} catch (err: any) {
 			toast({
 				title: 'Hapus Gagal',
@@ -2676,9 +4018,7 @@ function SlotUploader({
 
 	return (
 		<div className="space-y-2">
-			<Label className="text-sm font-medium">
-				{SLOT_LABELS[slot] || slot}
-			</Label>
+			<Label className="text-sm font-medium">{displayLabel}</Label>
 			<div
 				className="relative border-2 border-dashed rounded-lg overflow-hidden group"
 				onDragOver={(e) => e.preventDefault()}
@@ -2735,33 +4075,148 @@ function SlotUploader({
 	);
 }
 
-import {
-	DndContext,
-	closestCenter,
-	KeyboardSensor,
-	PointerSensor,
-	useSensor,
-	useSensors,
-	type DragEndEvent,
-} from '@dnd-kit/core';
-import {
-	arrayMove,
-	SortableContext,
-	sortableKeyboardCoordinates,
-	useSortable,
-	verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import { GripVertical } from 'lucide-react';
-import {
-	ALL_SECTION_BLOCKS,
-	ALL_SUBITEM_BLOCKS,
-	ALL_NAVBAR_ITEMS,
-	DEFAULT_HOME_CONFIG,
-	type HomeBlockItem,
-	type HomeNavbarItem,
-	type HomeConfig,
-} from '../../../../shared/schema';
+function PersonSlotUploader({
+	year,
+	slot,
+	label,
+	currentUrl,
+	canEdit,
+	onUploaded,
+}: {
+	year: number;
+	slot: string;
+	label?: string;
+	currentUrl: string;
+	canEdit: boolean;
+	onUploaded: () => void;
+}) {
+	const displayLabel = label || SLOT_LABELS[slot] || slot;
+	const { toast } = useToast();
+	const fileRef = useRef<HTMLInputElement>(null);
+	const [uploading, setUploading] = useState(false);
+	const [deleting, setDeleting] = useState(false);
+
+	const handleUpload = async (file: File) => {
+		setUploading(true);
+		try {
+			const form = new FormData();
+			form.append('image', file);
+			const res = await fetch(
+				`/api/home-images/${year}/upload-person/${slot}`,
+				{
+					method: 'POST',
+					body: form,
+					credentials: 'include',
+				},
+			);
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.message || 'Upload gagal');
+			}
+			onUploaded();
+			toast({ title: `Orang ${displayLabel} berhasil diupload` });
+		} catch (err: any) {
+			toast({
+				title: 'Upload Gagal',
+				description: err.message,
+				variant: 'destructive',
+			});
+		} finally {
+			setUploading(false);
+			if (fileRef.current) fileRef.current.value = '';
+		}
+	};
+
+	const handleDelete = async () => {
+		if (!currentUrl) return;
+		if (!window.confirm(`Hapus foto orang untuk ${displayLabel}?`)) return;
+		setDeleting(true);
+		try {
+			const res = await fetch(`/api/home-images/${year}/person/${slot}`, {
+				method: 'DELETE',
+				credentials: 'include',
+			});
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.message || 'Hapus gagal');
+			}
+			onUploaded();
+			toast({ title: `Orang ${displayLabel} berhasil dihapus` });
+		} catch (err: any) {
+			toast({
+				title: 'Hapus Gagal',
+				description: err.message,
+				variant: 'destructive',
+			});
+		} finally {
+			setDeleting(false);
+		}
+	};
+
+	const handleDrop = (e: React.DragEvent) => {
+		e.preventDefault();
+		const file = e.dataTransfer.files[0];
+		if (file && file.type.startsWith('image/')) handleUpload(file);
+	};
+
+	return (
+		<div className="space-y-2">
+			<Label className="text-sm font-medium">{displayLabel}</Label>
+			<div
+				className="relative border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-lg overflow-hidden group"
+				onDragOver={(e) => e.preventDefault()}
+				onDrop={canEdit ? handleDrop : undefined}>
+				{currentUrl ? (
+					<img
+						src={`${currentUrl}?t=${Date.now()}`}
+						alt={`Orang ${slot}`}
+						className="w-full h-32 object-contain bg-muted"
+					/>
+				) : (
+					<div className="w-full h-32 bg-muted/50 flex items-center justify-center text-muted-foreground text-sm">
+						Belum ada foto orang
+					</div>
+				)}
+				{canEdit && (
+					<div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+						{uploading || deleting ? (
+							<Loader2 className="h-6 w-6 text-white animate-spin" />
+						) : (
+							<div className="flex items-center gap-2">
+								<button
+									type="button"
+									className="flex items-center gap-1.5 text-white text-sm font-medium bg-white/20 backdrop-blur-sm rounded-lg px-3 py-1.5 hover:bg-white/30 transition"
+									onClick={() => fileRef.current?.click()}>
+									<Upload className="h-4 w-4" />
+									Upload
+								</button>
+								{currentUrl && (
+									<button
+										type="button"
+										className="flex items-center gap-1.5 text-white text-sm font-medium bg-red-500/70 backdrop-blur-sm rounded-lg px-3 py-1.5 hover:bg-red-500/85 transition"
+										onClick={handleDelete}>
+										<Trash2 className="h-4 w-4" />
+										Hapus
+									</button>
+								)}
+							</div>
+						)}
+					</div>
+				)}
+			</div>
+			<input
+				ref={fileRef}
+				type="file"
+				accept="image/*"
+				className="hidden"
+				onChange={(e) => {
+					const file = e.target.files?.[0];
+					if (file) handleUpload(file);
+				}}
+			/>
+		</div>
+	);
+}
 
 function SortableBlockRow({
 	item,
@@ -2778,28 +4233,58 @@ function SortableBlockRow({
 	onToggle: () => void;
 	onModeChange?: (mode: 'summary' | 'full') => void;
 }) {
-	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
-	const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: item.id });
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		opacity: isDragging ? 0.5 : 1,
+	};
 
 	return (
-		<div ref={setNodeRef} style={style} className="flex items-center gap-2 py-2.5 px-3 border rounded-lg bg-card mb-2">
-			<button {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground" disabled={!canEdit} aria-label="Drag">
+		<div
+			ref={setNodeRef}
+			style={style}
+			className="flex items-center gap-2 py-2.5 px-3 border rounded-lg bg-card mb-2">
+			<button
+				{...attributes}
+				{...listeners}
+				className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+				disabled={!canEdit}
+				aria-label="Drag">
 				<GripVertical className="h-4 w-4" />
 			</button>
 			<div className="flex-1 min-w-0">
 				<p className="text-sm font-medium truncate">{label}</p>
-				{kind === 'subItem' && <span className="text-xs text-muted-foreground">Sub-item</span>}
+				{kind === 'subItem' && (
+					<span className="text-xs text-muted-foreground">Sub-item</span>
+				)}
 			</div>
 			{kind === 'subItem' && onModeChange && (
-				<Select value={item.renderMode || 'summary'} onValueChange={(v) => onModeChange(v as 'summary' | 'full')} disabled={!canEdit}>
-					<SelectTrigger className="w-28 h-8 text-xs"><SelectValue /></SelectTrigger>
+				<Select
+					value={item.renderMode || 'summary'}
+					onValueChange={(v) => onModeChange(v as 'summary' | 'full')}
+					disabled={!canEdit}>
+					<SelectTrigger className="w-28 h-8 text-xs">
+						<SelectValue />
+					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="summary">Ringkasan</SelectItem>
 						<SelectItem value="full">Penuh</SelectItem>
 					</SelectContent>
 				</Select>
 			)}
-			<Switch checked={item.visible} onCheckedChange={onToggle} disabled={!canEdit} />
+			<Switch
+				checked={item.visible}
+				onCheckedChange={onToggle}
+				disabled={!canEdit}
+			/>
 		</div>
 	);
 }
@@ -2815,16 +4300,39 @@ function SortableNavRow({
 	canEdit: boolean;
 	onToggle: () => void;
 }) {
-	const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id });
-	const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+	const {
+		attributes,
+		listeners,
+		setNodeRef,
+		transform,
+		transition,
+		isDragging,
+	} = useSortable({ id: item.id });
+	const style = {
+		transform: CSS.Transform.toString(transform),
+		transition,
+		opacity: isDragging ? 0.5 : 1,
+	};
 
 	return (
-		<div ref={setNodeRef} style={style} className="flex items-center gap-2 py-2.5 px-3 border rounded-lg bg-card mb-2">
-			<button {...attributes} {...listeners} className="cursor-grab touch-none text-muted-foreground hover:text-foreground" disabled={!canEdit} aria-label="Drag">
+		<div
+			ref={setNodeRef}
+			style={style}
+			className="flex items-center gap-2 py-2.5 px-3 border rounded-lg bg-card mb-2">
+			<button
+				{...attributes}
+				{...listeners}
+				className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+				disabled={!canEdit}
+				aria-label="Drag">
 				<GripVertical className="h-4 w-4" />
 			</button>
 			<p className="flex-1 text-sm font-medium">{label}</p>
-			<Switch checked={item.visible} onCheckedChange={onToggle} disabled={!canEdit} />
+			<Switch
+				checked={item.visible}
+				onCheckedChange={onToggle}
+				disabled={!canEdit}
+			/>
 		</div>
 	);
 }
@@ -2842,13 +4350,15 @@ const navLabel = (id: string): string => {
 	return n ? n.label : id;
 };
 
-function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
+function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: boolean }) {
 	const { toast } = useToast();
 	const [showAddBlock, setShowAddBlock] = useState(false);
 
 	const sensors = useSensors(
 		useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-		useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
 	);
 
 	const { data: settings, isLoading } = useQuery<{ homeConfig?: HomeConfig }>({
@@ -2857,24 +4367,30 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 	});
 
 	const buildInitial = useCallback((): HomeConfig => {
+		const prodiFilter = (items: any[]) =>
+			isTenant ? items.filter((i: any) => i.id !== 'prodi') : items;
+
 		if (settings?.homeConfig?.blocks?.length) {
-			// Ensure all navbar items exist in form state.
-			// This prevents older saved configs from missing newly added items (e.g. `prodi`).
 			const currentNavbar = settings.homeConfig.navbar?.length
 				? settings.homeConfig.navbar
 				: [];
 			const currentIds = new Set(currentNavbar.map((n) => n.id));
-			const missing = DEFAULT_HOME_CONFIG.navbar.filter((n) => !currentIds.has(n.id));
+			const defaultCfg = isTenant ? DEFAULT_HOME_CONFIG : DEFAULT_HOME_CONFIG;
+			const missing = defaultCfg.navbar.filter(
+				(n) => !currentIds.has(n.id),
+			);
 			const mergedNavbar = [...currentNavbar, ...missing];
 
 			return {
-				blocks: settings.homeConfig.blocks,
-				navbar: mergedNavbar,
+				blocks: prodiFilter(settings.homeConfig.blocks),
+				navbar: prodiFilter(mergedNavbar),
 				showDashboardLink: settings.homeConfig.showDashboardLink ?? true,
 			};
 		}
-		return DEFAULT_HOME_CONFIG;
-	}, [settings]);
+		return isTenant
+			? { blocks: TENANT_SECTION_BLOCKS.map((s) => ({ id: s.id, kind: 'section' as const, visible: true })), navbar: TENANT_NAVBAR_ITEMS.map((n) => ({ id: n.id, visible: true })), showDashboardLink: true }
+			: DEFAULT_HOME_CONFIG;
+	}, [settings, isTenant]);
 
 	const [formBlocks, setFormBlocks] = useState<HomeBlockItem[]>([]);
 	const [formNavbar, setFormNavbar] = useState<HomeNavbarItem[]>([]);
@@ -2894,10 +4410,17 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
-			toast({ title: 'Berhasil', description: 'Pengaturan beranda berhasil disimpan.' });
+			toast({
+				title: 'Berhasil',
+				description: 'Pengaturan beranda berhasil disimpan.',
+			});
 		},
 		onError: (err: any) => {
-			toast({ title: 'Gagal', description: err?.message || 'Gagal menyimpan pengaturan beranda.', variant: 'destructive' });
+			toast({
+				title: 'Gagal',
+				description: err?.message || 'Gagal menyimpan pengaturan beranda.',
+				variant: 'destructive',
+			});
 		},
 	});
 
@@ -2923,23 +4446,37 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 
 	const toggleBlock = (id: string) => {
 		if (!canEdit) return;
-		setFormBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, visible: !b.visible } : b)));
+		setFormBlocks((prev) =>
+			prev.map((b) => (b.id === id ? { ...b, visible: !b.visible } : b)),
+		);
 	};
 
 	const setBlockMode = (id: string, mode: 'summary' | 'full') => {
 		if (!canEdit) return;
-		setFormBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, renderMode: mode } : b)));
+		setFormBlocks((prev) =>
+			prev.map((b) => (b.id === id ? { ...b, renderMode: mode } : b)),
+		);
 	};
 
 	const toggleNav = (id: string) => {
 		if (!canEdit) return;
-		setFormNavbar((prev) => prev.map((n) => (n.id === id ? { ...n, visible: !n.visible } : n)));
+		setFormNavbar((prev) =>
+			prev.map((n) => (n.id === id ? { ...n, visible: !n.visible } : n)),
+		);
 	};
 
 	const addBlock = (id: string, kind: 'section' | 'subItem') => {
 		if (!canEdit) return;
 		if (formBlocks.some((b) => b.id === id)) return;
-		setFormBlocks((prev) => [...prev, { id, kind, visible: true, renderMode: kind === 'subItem' ? 'summary' : undefined }]);
+		setFormBlocks((prev) => [
+			...prev,
+			{
+				id,
+				kind,
+				visible: true,
+				renderMode: kind === 'subItem' ? 'summary' : undefined,
+			},
+		]);
 		setShowAddBlock(false);
 	};
 
@@ -2948,8 +4485,13 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 		setFormBlocks((prev) => prev.filter((b) => b.id !== id));
 	};
 
-	const availableSections = ALL_SECTION_BLOCKS.filter((s) => !formBlocks.some((b) => b.id === s.id));
-	const availableSubItems = ALL_SUBITEM_BLOCKS.filter((s) => !formBlocks.some((b) => b.id === s.id));
+	const sectionSource = isTenant ? TENANT_SECTION_BLOCKS : ALL_SECTION_BLOCKS;
+	const availableSections = sectionSource.filter(
+		(s) => !formBlocks.some((b) => b.id === s.id),
+	);
+	const availableSubItems = ALL_SUBITEM_BLOCKS.filter(
+		(s) => !formBlocks.some((b) => b.id === s.id),
+	);
 
 	if (isLoading) {
 		return (
@@ -2964,10 +4506,35 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 			{!canEdit && (
 				<div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
 					<p className="text-sm text-yellow-800 dark:text-yellow-200">
-						Kamu hanya bisa melihat pengaturan beranda. Hubungi owner/admin untuk mendapatkan permission <strong>home_settings.edit</strong>.
+						Kamu hanya bisa melihat pengaturan beranda. Hubungi owner/admin
+						untuk mendapatkan permission <strong>home_settings.edit</strong>.
 					</p>
 				</div>
 			)}
+
+			<DashboardHintCard
+				title="Panduan: Susunan beranda"
+				variant="green"
+				storageKey="settings-home-config"
+				description="Mengatur blok konten beranda dan item navbar (show/hide, urutan, mode ringkasan/penuh jika ada). Daftar blok yang tersedia mengikuti konfigurasi situs; simpan agar perubahan diterapkan.">
+				<ul className="list-disc list-inside space-y-1.5 text-sm">
+					<li>
+						<strong>Langkah</strong>: drag blok untuk urutan vertikal → toggle tampil untuk setiap blok → atur sub-mode jika UI menyediakan (Ringkasan/Penuh) → <strong>Simpan</strong> → buka beranda publik di jendela penyamaran.
+					</li>
+					<li>
+						<strong>Contoh valid</strong>: Hero di atas, Berita di bawah; navbar menampilkan hanya menu yang relevan; blok yang tidak dipakai dimatikan agar halaman ringkas.
+					</li>
+					<li>
+						<strong>Contoh tidak valid</strong>: menyimpan tanpa izin <code className="text-xs bg-muted px-1 rounded">home_settings.edit</code>; menambah blok duplikat jika server melarang.
+					</li>
+					<li>
+						<strong>Jika tidak berubah</strong>: hard refresh; pastikan simpan sukses; cek apakah Anda di tenant vs utama (data berbeda).
+					</li>
+					<li>
+						<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">home_settings.edit</code> untuk mengubah susunan; peringatan kuning di atas tetap muncul jika hanya baca.
+					</li>
+				</ul>
+			</DashboardHintCard>
 
 			<Card>
 				<CardHeader>
@@ -2975,11 +4542,16 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 						<div>
 							<CardTitle>Urutan Beranda</CardTitle>
 							<CardDescription>
-								Drag & drop untuk mengatur urutan tampilan di halaman beranda. Toggle untuk show/hide. Untuk sub-item, pilih mode tampilan (Ringkasan / Penuh).
+								Drag & drop untuk mengatur urutan tampilan di halaman beranda.
+								Toggle untuk show/hide. Untuk sub-item, pilih mode tampilan
+								(Ringkasan / Penuh).
 							</CardDescription>
 						</div>
 						{canEdit && (
-							<Button variant="outline" size="sm" onClick={() => setShowAddBlock(!showAddBlock)}>
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() => setShowAddBlock(!showAddBlock)}>
 								<Plus className="h-4 w-4 mr-1" />
 								Tambah
 							</Button>
@@ -2989,13 +4561,22 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 				<CardContent>
 					{showAddBlock && (
 						<div className="mb-4 p-3 border rounded-lg bg-muted/30 space-y-3">
-							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Pilih block untuk ditambahkan:</p>
+							<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+								Pilih block untuk ditambahkan:
+							</p>
 							{availableSections.length > 0 && (
 								<div>
-									<p className="text-xs text-muted-foreground mb-1">Section utama</p>
+									<p className="text-xs text-muted-foreground mb-1">
+										Section utama
+									</p>
 									<div className="flex flex-wrap gap-1.5">
 										{availableSections.map((s) => (
-											<Button key={s.id} variant="outline" size="sm" className="text-xs h-7" onClick={() => addBlock(s.id, 'section')}>
+											<Button
+												key={s.id}
+												variant="outline"
+												size="sm"
+												className="text-xs h-7"
+												onClick={() => addBlock(s.id, 'section')}>
 												{s.label}
 											</Button>
 										))}
@@ -3004,33 +4585,54 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 							)}
 							{availableSubItems.length > 0 && (
 								<div>
-									<p className="text-xs text-muted-foreground mb-1">Sub-item (dropdown)</p>
+									<p className="text-xs text-muted-foreground mb-1">
+										Sub-item (dropdown)
+									</p>
 									<div className="flex flex-wrap gap-1.5">
 										{availableSubItems.map((s) => (
-											<Button key={s.id} variant="outline" size="sm" className="text-xs h-7" onClick={() => addBlock(s.id, 'subItem')}>
+											<Button
+												key={s.id}
+												variant="outline"
+												size="sm"
+												className="text-xs h-7"
+												onClick={() => addBlock(s.id, 'subItem')}>
 												{s.label}
 											</Button>
 										))}
 									</div>
 								</div>
 							)}
-							{availableSections.length === 0 && availableSubItems.length === 0 && (
-								<p className="text-sm text-muted-foreground">Semua block sudah ditambahkan.</p>
-							)}
+							{availableSections.length === 0 &&
+								availableSubItems.length === 0 && (
+									<p className="text-sm text-muted-foreground">
+										Semua block sudah ditambahkan.
+									</p>
+								)}
 						</div>
 					)}
 
-					<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleBlockDragEnd}>
-						<SortableContext items={formBlocks.map((b) => b.id)} strategy={verticalListSortingStrategy}>
+					<DndContext
+						sensors={sensors}
+						collisionDetection={closestCenter}
+						onDragEnd={handleBlockDragEnd}>
+						<SortableContext
+							items={formBlocks.map((b) => b.id)}
+							strategy={verticalListSortingStrategy}>
 							{formBlocks.map((block) => (
-								<div key={block.id} className="group relative">
+								<div
+									key={block.id}
+									className="group relative">
 									<SortableBlockRow
 										item={block}
 										label={blockLabel(block.id)}
 										kind={block.kind}
 										canEdit={canEdit}
 										onToggle={() => toggleBlock(block.id)}
-										onModeChange={block.kind === 'subItem' ? (mode) => setBlockMode(block.id, mode) : undefined}
+										onModeChange={
+											block.kind === 'subItem'
+												? (mode) => setBlockMode(block.id, mode)
+												: undefined
+										}
 									/>
 									{canEdit && (
 										<button
@@ -3046,7 +4648,9 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 					</DndContext>
 
 					{formBlocks.length === 0 && (
-						<p className="text-sm text-muted-foreground text-center py-8">Belum ada block. Klik "Tambah" untuk menambahkan.</p>
+						<p className="text-sm text-muted-foreground text-center py-8">
+							Belum ada block. Klik "Tambah" untuk menambahkan.
+						</p>
 					)}
 				</CardContent>
 			</Card>
@@ -3055,12 +4659,18 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 				<CardHeader>
 					<CardTitle>Navbar</CardTitle>
 					<CardDescription>
-						Drag & drop untuk mengatur urutan dan show/hide item navigasi utama di halaman publik. Dropdown children mengikuti parent.
+						Drag & drop untuk mengatur urutan dan show/hide item navigasi utama
+						di halaman publik. Dropdown children mengikuti parent.
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleNavDragEnd}>
-						<SortableContext items={formNavbar.map((n) => n.id)} strategy={verticalListSortingStrategy}>
+					<DndContext
+						sensors={sensors}
+						collisionDetection={closestCenter}
+						onDragEnd={handleNavDragEnd}>
+						<SortableContext
+							items={formNavbar.map((n) => n.id)}
+							strategy={verticalListSortingStrategy}>
 							{formNavbar.map((navItem) => (
 								<SortableNavRow
 									key={navItem.id}
@@ -3074,8 +4684,14 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 					</DndContext>
 
 					<div className="flex items-center justify-between py-2.5 px-3 border rounded-lg bg-card mt-2">
-						<p className="text-sm font-medium">Link Dashboard (di dropdown user)</p>
-						<Switch checked={formShowDashLink} onCheckedChange={(v) => canEdit && setFormShowDashLink(v)} disabled={!canEdit} />
+						<p className="text-sm font-medium">
+							Link Dashboard (di dropdown user)
+						</p>
+						<Switch
+							checked={formShowDashLink}
+							onCheckedChange={(v) => canEdit && setFormShowDashLink(v)}
+							disabled={!canEdit}
+						/>
 					</div>
 				</CardContent>
 			</Card>
@@ -3083,7 +4699,13 @@ function HomeConfigTab({ canEdit }: { canEdit: boolean }) {
 			{canEdit && (
 				<div className="flex justify-end">
 					<Button
-						onClick={() => mutation.mutate({ blocks: formBlocks, navbar: formNavbar, showDashboardLink: formShowDashLink })}
+						onClick={() =>
+							mutation.mutate({
+								blocks: formBlocks,
+								navbar: formNavbar,
+								showDashboardLink: formShowDashLink,
+							})
+						}
 						disabled={mutation.isPending}>
 						{mutation.isPending ? (
 							<>

@@ -6,6 +6,8 @@ interface RichTextEditorProps {
 	placeholder?: string;
 	height?: number;
 	beritaId?: string;
+	eventId?: string;
+	parentEventId?: string;
 }
 
 export default function RichTextEditor({
@@ -14,10 +16,12 @@ export default function RichTextEditor({
 	placeholder = 'Write your content here...',
 	height = 400,
 	beritaId,
+	eventId,
+	parentEventId,
 }: RichTextEditorProps) {
 	const editorRef = useRef<HTMLDivElement>(null);
 	const editorIdRef = useRef(
-		`tinymce-editor-${Math.random().toString(36).slice(2, 11)}`
+		`tinymce-editor-${Math.random().toString(36).slice(2, 11)}`,
 	);
 
 	useEffect(() => {
@@ -61,7 +65,7 @@ export default function RichTextEditor({
 				`;
 
 				const textarea = editorRef.current.querySelector(
-					'textarea'
+					'textarea',
 				) as HTMLTextAreaElement;
 				if (textarea) {
 					textarea.value = value;
@@ -138,10 +142,20 @@ export default function RichTextEditor({
 								const formData = new FormData();
 								formData.append('image', blobInfo.blob(), blobInfo.filename());
 
-								const targetBeritaId = beritaId || 'temp-' + Date.now();
-								formData.append('beritaId', targetBeritaId.toString());
+								let endpoint: string;
+								if (eventId) {
+									const targetEventId = eventId || 'temp-' + Date.now();
+									formData.append('eventId', targetEventId);
+									if (parentEventId)
+										formData.append('parentEventId', parentEventId);
+									endpoint = '/api/upload/event-content-image';
+								} else {
+									const targetBeritaId = beritaId || 'temp-' + Date.now();
+									formData.append('beritaId', targetBeritaId.toString());
+									endpoint = '/api/upload/content-image';
+								}
 
-								const response = await fetch('/api/upload/content-image', {
+								const response = await fetch(endpoint, {
 									method: 'POST',
 									body: formData,
 								});
@@ -176,10 +190,20 @@ export default function RichTextEditor({
 										const formData = new FormData();
 										formData.append('image', file);
 
-										const targetBeritaId = beritaId || 'temp-' + Date.now();
-										formData.append('beritaId', targetBeritaId.toString());
+										let endpoint: string;
+										if (eventId) {
+											const targetEventId = eventId || 'temp-' + Date.now();
+											formData.append('eventId', targetEventId);
+											if (parentEventId)
+												formData.append('parentEventId', parentEventId);
+											endpoint = '/api/upload/event-content-image';
+										} else {
+											const targetBeritaId = beritaId || 'temp-' + Date.now();
+											formData.append('beritaId', targetBeritaId.toString());
+											endpoint = '/api/upload/content-image';
+										}
 
-										const response = await fetch('/api/upload/content-image', {
+										const response = await fetch(endpoint, {
 											method: 'POST',
 											body: formData,
 										});
@@ -211,7 +235,7 @@ export default function RichTextEditor({
 								const dialogWraps =
 									document.querySelectorAll('.tox-dialog-wrap');
 								const backdrops = document.querySelectorAll(
-									'.tox-dialog-wrap__backdrop'
+									'.tox-dialog-wrap__backdrop',
 								);
 
 								// Target all possible input types in dialogs
@@ -228,12 +252,12 @@ export default function RichTextEditor({
 								`);
 
 								const buttons = document.querySelectorAll(
-									'.tox-dialog .tox-button'
+									'.tox-dialog .tox-button',
 								);
 
 								if (dialogs.length > 0) {
 									console.log(
-										`🔧 Fixing ${dialogs.length} dialogs with ${inputs.length} inputs`
+										`🔧 Fixing ${dialogs.length} dialogs with ${inputs.length} inputs`,
 									);
 								}
 
@@ -248,12 +272,12 @@ export default function RichTextEditor({
 									backdrop.style.setProperty(
 										'background',
 										'rgba(0, 0, 0, 0.5)',
-										'important'
+										'important',
 									);
 									backdrop.style.setProperty(
 										'pointer-events',
 										'auto',
-										'important'
+										'important',
 									);
 								});
 
@@ -271,7 +295,7 @@ export default function RichTextEditor({
 									wrap.style.setProperty(
 										'justify-content',
 										'center',
-										'important'
+										'important',
 									);
 								});
 
@@ -282,23 +306,23 @@ export default function RichTextEditor({
 									dialog.style.setProperty(
 										'pointer-events',
 										'auto',
-										'important'
+										'important',
 									);
 									dialog.style.setProperty(
 										'background-color',
 										'white',
-										'important'
+										'important',
 									);
 									dialog.style.setProperty(
 										'border',
 										'1px solid #ccc',
-										'important'
+										'important',
 									);
 									dialog.style.setProperty('border-radius', '8px', 'important');
 									dialog.style.setProperty(
 										'box-shadow',
 										'0 10px 25px rgba(0,0,0,0.3)',
-										'important'
+										'important',
 									);
 									dialog.style.setProperty('max-width', '90vw', 'important');
 									dialog.style.setProperty('max-height', '90vh', 'important');
@@ -385,12 +409,12 @@ export default function RichTextEditor({
 														newInput.style.setProperty(
 															'border-color',
 															'#3b82f6',
-															'important'
+															'important',
 														);
 														newInput.style.setProperty(
 															'box-shadow',
 															'0 0 0 2px rgba(59, 130, 246, 0.2)',
-															'important'
+															'important',
 														);
 													}
 
@@ -398,12 +422,12 @@ export default function RichTextEditor({
 														newInput.style.setProperty(
 															'border-color',
 															'#ccc',
-															'important'
+															'important',
 														);
 														newInput.style.setProperty(
 															'box-shadow',
 															'none',
-															'important'
+															'important',
 														);
 													}
 
@@ -413,7 +437,7 @@ export default function RichTextEditor({
 													) {
 													}
 												},
-												{ passive: false }
+												{ passive: false },
 											);
 										});
 
@@ -561,7 +585,7 @@ export default function RichTextEditor({
 				(window as any).tinymce.remove(editorRef.current);
 			}
 		};
-	}, [beritaId]);
+	}, [beritaId, eventId, parentEventId]);
 
 	// Update content when value prop changes
 	useEffect(() => {
@@ -614,7 +638,7 @@ export default function RichTextEditor({
 							const buttons = document.querySelectorAll('.tox-tbtn');
 							const dialogs = document.querySelectorAll('.tox-dialog');
 							const inputs = document.querySelectorAll(
-								'.tox-dialog input, .tox-textfield'
+								'.tox-dialog input, .tox-textfield',
 							);
 
 							// Debug info removed for cleaner console
@@ -641,7 +665,7 @@ export default function RichTextEditor({
 							}
 
 							alert(
-								'Debug completed! Check if dialogs are working properly now.'
+								'Debug completed! Check if dialogs are working properly now.',
 							);
 						}}
 						className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 mr-2">
@@ -663,7 +687,7 @@ export default function RichTextEditor({
 								.tox-dialog .tox-textarea
 							`);
 							const buttons = document.querySelectorAll(
-								'.tox-dialog .tox-button'
+								'.tox-dialog .tox-button',
 							);
 
 							// Applying comprehensive dialog fixes...
@@ -704,14 +728,14 @@ export default function RichTextEditor({
 								input.addEventListener('click', (e: Event) => {
 									e.stopPropagation();
 									console.log(
-										`✅ Input ${index + 1} clicked - attempting focus`
+										`✅ Input ${index + 1} clicked - attempting focus`,
 									);
 									setTimeout(() => {
 										input.focus();
 										input.style.setProperty(
 											'border-color',
 											'#3b82f6',
-											'important'
+											'important',
 										);
 									}, 10);
 								});
@@ -721,19 +745,19 @@ export default function RichTextEditor({
 									input.style.setProperty(
 										'border-color',
 										'#3b82f6',
-										'important'
+										'important',
 									);
 									input.style.setProperty(
 										'box-shadow',
 										'0 0 0 2px rgba(59, 130, 246, 0.2)',
-										'important'
+										'important',
 									);
 								});
 
 								input.addEventListener('input', () => {
 									console.log(
 										`📝 Input ${index + 1} value changed:`,
-										input.value
+										input.value,
 									);
 								});
 							});
@@ -752,7 +776,7 @@ export default function RichTextEditor({
 							// Test dialog interaction
 							if (dialogs.length > 0) {
 								console.log(
-									`✅ Fixed ${dialogs.length} dialogs with ${inputs.length} inputs and ${buttons.length} buttons`
+									`✅ Fixed ${dialogs.length} dialogs with ${inputs.length} inputs and ${buttons.length} buttons`,
 								);
 
 								// Try to focus the first input for testing
@@ -761,17 +785,17 @@ export default function RichTextEditor({
 										const firstInput = inputs[0] as HTMLInputElement;
 										firstInput.focus();
 										console.log(
-											'🔍 Attempting to focus first input for testing...'
+											'🔍 Attempting to focus first input for testing...',
 										);
 									}, 100);
 								}
 
 								alert(
-									`✅ Dialog Fix Applied!\n\nFixed: ${inputs.length} input field(s) and ${buttons.length} button(s)\n\nSekarang coba:\n1. Klik input field di dialog\n2. Ketik text\n3. Lihat console (F12) untuk log interaksi\n\nJika masih tidak bisa, tutup dialog dan buka lagi.`
+									`✅ Dialog Fix Applied!\n\nFixed: ${inputs.length} input field(s) and ${buttons.length} button(s)\n\nSekarang coba:\n1. Klik input field di dialog\n2. Ketik text\n3. Lihat console (F12) untuk log interaksi\n\nJika masih tidak bisa, tutup dialog dan buka lagi.`,
 								);
 							} else {
 								alert(
-									'❌ Tidak ada dialog yang terbuka!\n\nUntuk test:\n1. Klik tombol Link atau Image di toolbar\n2. Tunggu dialog muncul\n3. Klik tombol "Fix Dialogs" ini lagi\n4. Coba gunakan input field di dialog'
+									'❌ Tidak ada dialog yang terbuka!\n\nUntuk test:\n1. Klik tombol Link atau Image di toolbar\n2. Tunggu dialog muncul\n3. Klik tombol "Fix Dialogs" ini lagi\n4. Coba gunakan input field di dialog',
 								);
 							}
 						}}

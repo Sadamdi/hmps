@@ -1,4 +1,6 @@
+import { AboutVideoEmbed } from '@/components/public/about-video-embed';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
+import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'wouter';
@@ -8,6 +10,8 @@ interface Settings {
 	siteTagline: string;
 	siteDescription: string;
 	aboutUs: string;
+	aboutVideoUrl?: string;
+	aboutVideoGdriveUrl?: string;
 	visionMission: string;
 	contactEmail: string;
 	address: string;
@@ -202,6 +206,10 @@ export default function About() {
 		queryKey: ['/api/berita'],
 	});
 
+	const hasAboutVideo =
+		!!parseYouTubeVideoId(settings?.aboutVideoUrl || '') ||
+		!!parseGoogleDriveFileId(settings?.aboutVideoGdriveUrl || '');
+
 	// Combine and process images from both sources
 	const galleryImages = React.useMemo(() => {
 		const images: string[] = [];
@@ -277,6 +285,12 @@ export default function About() {
 					<div className="mx-auto w-32 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
 				</div>
 
+				<AboutVideoEmbed
+					aboutVideoUrl={settings?.aboutVideoUrl}
+					aboutVideoGdriveUrl={settings?.aboutVideoGdriveUrl}
+					aosDelay={180}
+				/>
+
 				<div
 					className="max-w-4xl mx-auto text-justify relative" // Back to text-justify
 					data-aos="fade-up"
@@ -299,6 +313,17 @@ export default function About() {
 									</button>
 								</Link>
 							</div>
+						</div>
+					) : hasAboutVideo ? (
+						<div className="flex justify-center mt-2">
+							<Link href="/profil">
+								<button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary/70 transition-all duration-200">
+									Baca selengkapnya
+									<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+									</svg>
+								</button>
+							</Link>
 						</div>
 					) : (
 						<div className="space-y-4">

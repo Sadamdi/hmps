@@ -1,5 +1,6 @@
 import MediaDisplay from '@/components/MediaDisplay';
 import { Card } from '@/components/ui/card';
+import { getDivisionFromPosition } from '@/lib/org-structure-division';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { User } from 'lucide-react';
@@ -40,6 +41,7 @@ export default function OrganizationStructure() {
 		const structure = {
 			ketua: null as OrgMember | null,
 			wakil: null as OrgMember | null,
+			bph: [] as OrgMember[],
 			divisions: {} as Record<string, Division>,
 		};
 
@@ -47,31 +49,36 @@ export default function OrganizationStructure() {
 			return structure;
 		}
 
-		members.forEach((member: OrgMember) => {
-			if (member.position === 'Ketua Himpunan') {
+		for (const member of members as OrgMember[]) {
+			const p = member.position.trim();
+			const isKetuaH =
+				/ketua\s+himpunan/i.test(p) &&
+				!/wakil/i.test(p) &&
+				!/divisi/i.test(p);
+			const isWakil = /wakil\s+ketua\s+himpunan/i.test(p);
+			if (isKetuaH) {
 				structure.ketua = member;
-			} else if (member.position === 'Wakil Ketua Himpunan') {
-				structure.wakil = member;
-			} else if (member.position.startsWith('Ketua Divisi')) {
-				const divisionName = member.position.replace('Ketua Divisi ', '');
-				if (!structure.divisions[divisionName]) {
-					structure.divisions[divisionName] = {
-						name: divisionName,
-						members: [],
-					};
-				}
-				structure.divisions[divisionName].members.unshift(member);
-			} else if (member.position.startsWith('Anggota Divisi')) {
-				const divisionName = member.position.replace('Anggota Divisi ', '');
-				if (!structure.divisions[divisionName]) {
-					structure.divisions[divisionName] = {
-						name: divisionName,
-						members: [],
-					};
-				}
-				structure.divisions[divisionName].members.push(member);
+				continue;
 			}
-		});
+			if (isWakil) {
+				structure.wakil = member;
+				continue;
+			}
+			const divKey = getDivisionFromPosition(p);
+			if (divKey === 'BPH') {
+				structure.bph.push(member);
+				continue;
+			}
+			if (divKey === 'Lainnya') continue;
+			if (!structure.divisions[divKey]) {
+				structure.divisions[divKey] = { name: divKey, members: [] };
+			}
+			if (/^ketua\s+divisi/i.test(p)) {
+				structure.divisions[divKey].members.unshift(member);
+			} else if (/^anggota\s+divisi/i.test(p)) {
+				structure.divisions[divKey].members.push(member);
+			}
+		}
 
 		return structure;
 	};
@@ -82,10 +89,13 @@ export default function OrganizationStructure() {
 		return <div>Loading...</div>;
 	}
 
-	// Mengurutkan divisi sesuai dengan DIVISION_ORDER
-	const sortedDivisions = DIVISION_ORDER.map(
-		(name) => structure.divisions[name]
-	).filter(Boolean);
+	const sortedDivisions = [
+		...DIVISION_ORDER.map((name) => structure.divisions[name]).filter(Boolean),
+		...Object.keys(structure.divisions)
+			.filter((k) => !DIVISION_ORDER.includes(k))
+			.sort((a, b) => a.localeCompare(b, 'id'))
+			.map((k) => structure.divisions[k]),
+	];
 
 	return (
 		<div className="flex flex-col items-center space-y-8 p-4">
@@ -143,6 +153,29 @@ export default function OrganizationStructure() {
 					</div>
 				)}
 			</div>
+
+			{structure.bph.length > 0 && (
+				<div className="flex flex-wrap justify-center gap-6 mb-12 w-full max-w-5xl">
+					{structure.bph.map((m) => (
+						<Card key={m.id} className="p-4 w-48 text-center">
+							<div className="w-24 h-24 mx-auto mb-2 rounded-full overflow-hidden">
+								{m.imageUrl ? (
+									<MediaDisplay
+										src={m.imageUrl}
+										alt={m.name}
+										className="w-full h-full object-cover"
+										type="image"
+									/>
+								) : (
+									<User className="w-full h-full p-4 text-gray-400" />
+								)}
+							</div>
+							<h3 className="font-bold">{m.name}</h3>
+							<p className="text-sm text-gray-600">{m.position}</p>
+						</Card>
+					))}
+				</div>
+			)}
 
 			{/* Level 2 & 3: Divisi dan Anggota */}
 			<div className="grid grid-cols-3 gap-8">
