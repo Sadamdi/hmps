@@ -3955,6 +3955,7 @@ function SlotUploader({
 	const fileRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
 	const [deleting, setDeleting] = useState(false);
+	const [cacheBust, setCacheBust] = useState(() => Date.now());
 
 	const handleUpload = async (file: File) => {
 		setUploading(true);
@@ -3970,6 +3971,7 @@ function SlotUploader({
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || 'Upload gagal');
 			}
+			setCacheBust(Date.now());
 			onUploaded();
 			toast({ title: `${displayLabel} berhasil diupload` });
 		} catch (err: any) {
@@ -3997,6 +3999,7 @@ function SlotUploader({
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || 'Hapus gagal');
 			}
+			setCacheBust(Date.now());
 			onUploaded();
 			toast({ title: `${displayLabel} berhasil dihapus` });
 		} catch (err: any) {
@@ -4025,7 +4028,7 @@ function SlotUploader({
 				onDrop={canEdit ? handleDrop : undefined}>
 				{currentUrl ? (
 					<img
-						src={`${currentUrl}?t=${Date.now()}`}
+						src={`${currentUrl}?v=${cacheBust}`}
 						alt={slot}
 						className="w-full h-32 object-cover bg-muted"
 					/>
@@ -4095,6 +4098,7 @@ function PersonSlotUploader({
 	const fileRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
 	const [deleting, setDeleting] = useState(false);
+	const [cacheBust, setCacheBust] = useState(() => Date.now());
 
 	const handleUpload = async (file: File) => {
 		setUploading(true);
@@ -4113,6 +4117,7 @@ function PersonSlotUploader({
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || 'Upload gagal');
 			}
+			setCacheBust(Date.now());
 			onUploaded();
 			toast({ title: `Orang ${displayLabel} berhasil diupload` });
 		} catch (err: any) {
@@ -4140,6 +4145,7 @@ function PersonSlotUploader({
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || 'Hapus gagal');
 			}
+			setCacheBust(Date.now());
 			onUploaded();
 			toast({ title: `Orang ${displayLabel} berhasil dihapus` });
 		} catch (err: any) {
@@ -4168,7 +4174,7 @@ function PersonSlotUploader({
 				onDrop={canEdit ? handleDrop : undefined}>
 				{currentUrl ? (
 					<img
-						src={`${currentUrl}?t=${Date.now()}`}
+						src={`${currentUrl}?v=${cacheBust}`}
 						alt={`Orang ${slot}`}
 						className="w-full h-32 object-contain bg-muted"
 					/>

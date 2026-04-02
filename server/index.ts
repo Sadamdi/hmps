@@ -82,11 +82,8 @@ app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: false, limit: '100mb' }));
 
 // Tambahkan middleware static agar file upload bisa diakses publik
-app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
-app.use(
-	'/attached_assets',
-	express.static(path.join(process.cwd(), 'attached_assets')),
-);
+app.use('/uploads', express.static(uploadDir));
+app.use('/attached_assets', express.static(assetsDir));
 
 // Serve static files from public folder (SEO files, favicon, etc.)
 // Serve sitemap dynamically before static to ensure fresh URLs
@@ -296,7 +293,7 @@ setInterval(cleanupAntiSpoofingData, 60 * 1000);
 setInterval(cleanupDnsLayerData, 5 * 60 * 1000);
 
 // ==================== TEMP ONBOARDING UPLOAD CLEANUP (every hour) ====================
-import { runTempUploadCleanup } from './upload';
+import { runTempUploadCleanup, uploadDir, assetsDir, PROJECT_ROOT } from './upload';
 setInterval(runTempUploadCleanup, 60 * 60 * 1000);
 
 // ==================== MONTHLY DB BACKUP SCHEDULER ====================

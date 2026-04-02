@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { deleteFile } from './upload';
+import { deleteFile, PROJECT_ROOT } from './upload';
 import {
 	Berita,
 	Community,
@@ -1824,7 +1824,7 @@ async function deleteDivision(id: string) {
 						await HomeImages.updateOne({ _id: hi._id }, { $unset: unsetFields });
 						for (const url of urlsToDelete) {
 							try {
-								const abs = path.resolve(process.cwd(), url.replace(/^\//, ''));
+								const abs = path.resolve(PROJECT_ROOT, url.replace(/^\//, ''));
 								if (fs.existsSync(abs)) fs.unlinkSync(abs);
 							} catch {}
 						}

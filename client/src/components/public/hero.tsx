@@ -48,6 +48,7 @@ interface HomeImagesData {
 	orang: string;
 	banners: Record<string, string>;
 	people?: Record<string, string>;
+	updatedAt?: string;
 }
 
 interface BannerSlotDef {
@@ -158,10 +159,35 @@ export default function Hero({
 
 	const desktopMode = homeImages?.desktopMode || 'bennerfull';
 	const enableCommunityCombinedFx = isTenant && desktopMode === 'combined';
+
+	const imgVersion = homeImages?.updatedAt
+		? new Date(homeImages.updatedAt).getTime()
+		: '';
+	const versionSuffix = imgVersion ? `?v=${imgVersion}` : '';
 	const bennerfullSrc =
-		homeImages?.bennerfull || '/attached_assets/general/bennerfull.webp';
+		(homeImages?.bennerfull || '/attached_assets/general/bennerfull.webp') + versionSuffix;
 	const orangSrc =
-		homeImages?.orang || '/attached_assets/general/orang.webp';
+		(homeImages?.orang || '/attached_assets/general/orang.webp') + versionSuffix;
+
+	const versionedBanners = useMemo(() => {
+		const raw = homeImages?.banners || {};
+		if (!versionSuffix) return raw;
+		const out: Record<string, string> = {};
+		for (const [k, v] of Object.entries(raw)) {
+			out[k] = v ? v + versionSuffix : v;
+		}
+		return out;
+	}, [homeImages?.banners, versionSuffix]);
+
+	const versionedPeople = useMemo(() => {
+		const raw = homeImages?.people || {};
+		if (!versionSuffix) return raw;
+		const out: Record<string, string> = {};
+		for (const [k, v] of Object.entries(raw)) {
+			out[k] = v ? v + versionSuffix : v;
+		}
+		return out;
+	}, [homeImages?.people, versionSuffix]);
 
 	const TOP_THRESHOLD = 80;
 
@@ -317,7 +343,7 @@ export default function Hero({
 					<HeroBannerContent
 						desktopMode={desktopMode}
 						slotOrder={slotOrder}
-						banners={homeImages?.banners || {}}
+						banners={versionedBanners}
 						bennerfullSrc={bennerfullSrc}
 						enableCommunityCombinedFx={enableCommunityCombinedFx}
 					/>
@@ -372,7 +398,7 @@ export default function Hero({
 						<HeroPersonContent
 							desktopMode={desktopMode}
 							slotOrder={slotOrder}
-							people={homeImages?.people || {}}
+							people={versionedPeople}
 							orangSrc={orangSrc}
 						/>
 					</div>
@@ -386,7 +412,7 @@ export default function Hero({
 			<div className="lg:hidden relative w-full h-screen overflow-hidden">
 				<HeroMobileSlideshow
 					slotOrder={slotOrder}
-					banners={homeImages?.banners || {}}
+					banners={versionedBanners}
 					siteName={settings?.siteName || 'HIMATIF ENCODER'}
 					siteTagline={settings?.siteTagline || 'Himpunan Mahasiswa Teknik Informatika'}
 					siteDescription={settings?.siteDescription || ''}

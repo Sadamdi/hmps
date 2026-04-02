@@ -71,6 +71,7 @@ import {
 	uploadTempOnboarding,
 	resolveTenantPaths,
 	tenantCtxFromReq,
+	PROJECT_ROOT,
 } from './upload';
 
 // Import security middleware
@@ -2493,7 +2494,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Also cleanup attached_assets/berita/{beritaId} if exists (legacy/misplaced)
 			try {
 				const assetsDir = path.join(
-					process.cwd(),
+					PROJECT_ROOT,
 					'attached_assets',
 					'berita',
 					beritaId,
@@ -3773,7 +3774,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								await models.HomeImages.updateOne({ _id: hi._id }, { $unset: unsetFields });
 								for (const url of urlsToDelete) {
 									try {
-										const abs = path.resolve(process.cwd(), url.replace(/^\//, ''));
+										const abs = path.resolve(PROJECT_ROOT, url.replace(/^\//, ''));
 										if (fs.existsSync(abs)) fs.unlinkSync(abs);
 									} catch {}
 								}
@@ -4647,8 +4648,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const copyMediaFile = (oldUrl: string, newUrl: string) => {
 					try {
-						const oldP = path.join(process.cwd(), oldUrl);
-						const newP = path.join(process.cwd(), newUrl);
+						const oldP = path.join(PROJECT_ROOT, oldUrl);
+						const newP = path.join(PROJECT_ROOT, newUrl);
 						if (!fs.existsSync(oldP)) return;
 						const dir = path.dirname(newP);
 						if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

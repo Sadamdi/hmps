@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import multer from 'multer';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { isProcessableImage, processImage } from './image-processor';
 
@@ -9,9 +10,16 @@ import { isProcessableImage, processImage } from './image-processor';
 const mkdir = promisify(fs.mkdir);
 const writeFile = promisify(fs.writeFile);
 
-// Create both upload and assets directories if they don't exist
-const uploadDir = path.join(process.cwd(), 'uploads');
-const assetsDir = path.join(process.cwd(), 'attached_assets');
+// Resolve project root from the script location rather than process.cwd(),
+// so uploads land in the correct directory even if PM2/systemd starts
+// the process from a different working directory.
+const __upload_filename = fileURLToPath(import.meta.url);
+const __upload_dirname = path.dirname(__upload_filename);
+const PROJECT_ROOT = path.resolve(__upload_dirname, '..');
+
+export const uploadDir = path.join(PROJECT_ROOT, 'uploads');
+export const assetsDir = path.join(PROJECT_ROOT, 'attached_assets');
+export { PROJECT_ROOT };
 
 if (!fs.existsSync(uploadDir)) {
 	fs.mkdirSync(uploadDir, { recursive: true });
