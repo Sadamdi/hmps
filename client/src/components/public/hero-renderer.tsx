@@ -534,6 +534,26 @@ export function HeroMobileSlideshow({
 	);
 }
 
+// ── Cache-bust helper for home image URLs ──
+
+export function homeImageVersionSuffix(updatedAt?: string): string {
+	if (!updatedAt) return '';
+	const ts = new Date(updatedAt).getTime();
+	return ts ? `?v=${ts}` : '';
+}
+
+export function versionHomeImageUrls<T extends Record<string, string>>(
+	urls: T,
+	suffix: string,
+): T {
+	if (!suffix) return urls;
+	const out = {} as Record<string, string>;
+	for (const [k, v] of Object.entries(urls)) {
+		out[k] = v ? v + suffix : v;
+	}
+	return out as T;
+}
+
 // ── Preview override context ──
 // When provided, Hero uses these values instead of fetching from API.
 

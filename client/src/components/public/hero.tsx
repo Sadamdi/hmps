@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { HeroBannerContent, HeroDesktopText, HeroMobileSlideshow, HeroPersonContent, HeroScrollIndicator, useHeroPreviewOverrides } from './hero-renderer';
+import { HeroBannerContent, HeroDesktopText, HeroMobileSlideshow, HeroPersonContent, HeroScrollIndicator, homeImageVersionSuffix, versionHomeImageUrls, useHeroPreviewOverrides } from './hero-renderer';
 import { useTenant } from '@/lib/tenant-context';
 
 interface HeroProps {
@@ -160,34 +160,21 @@ export default function Hero({
 	const desktopMode = homeImages?.desktopMode || 'bennerfull';
 	const enableCommunityCombinedFx = isTenant && desktopMode === 'combined';
 
-	const imgVersion = homeImages?.updatedAt
-		? new Date(homeImages.updatedAt).getTime()
-		: '';
-	const versionSuffix = imgVersion ? `?v=${imgVersion}` : '';
+	const versionSuffix = homeImageVersionSuffix(homeImages?.updatedAt);
 	const bennerfullSrc =
 		(homeImages?.bennerfull || '/attached_assets/general/bennerfull.webp') + versionSuffix;
 	const orangSrc =
 		(homeImages?.orang || '/attached_assets/general/orang.webp') + versionSuffix;
 
-	const versionedBanners = useMemo(() => {
-		const raw = homeImages?.banners || {};
-		if (!versionSuffix) return raw;
-		const out: Record<string, string> = {};
-		for (const [k, v] of Object.entries(raw)) {
-			out[k] = v ? v + versionSuffix : v;
-		}
-		return out;
-	}, [homeImages?.banners, versionSuffix]);
+	const versionedBanners = useMemo(
+		() => versionHomeImageUrls(homeImages?.banners || {}, versionSuffix),
+		[homeImages?.banners, versionSuffix],
+	);
 
-	const versionedPeople = useMemo(() => {
-		const raw = homeImages?.people || {};
-		if (!versionSuffix) return raw;
-		const out: Record<string, string> = {};
-		for (const [k, v] of Object.entries(raw)) {
-			out[k] = v ? v + versionSuffix : v;
-		}
-		return out;
-	}, [homeImages?.people, versionSuffix]);
+	const versionedPeople = useMemo(
+		() => versionHomeImageUrls(homeImages?.people || {}, versionSuffix),
+		[homeImages?.people, versionSuffix],
+	);
 
 	const TOP_THRESHOLD = 80;
 

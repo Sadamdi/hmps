@@ -41,6 +41,8 @@ import {
 	HeroPersonContent,
 	HeroPreviewCtx,
 	HeroScrollIndicator,
+	homeImageVersionSuffix,
+	versionHomeImageUrls,
 	type HeroPreviewOverrides,
 } from '@/components/public/hero-renderer';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
@@ -2573,6 +2575,7 @@ interface HomeImagesData {
 	orang: string;
 	banners: Record<string, string>;
 	people?: Record<string, string>;
+	updatedAt?: string;
 }
 
 const SLOT_LABELS: Record<string, string> = {
@@ -3253,6 +3256,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 								siteDescription={settingsData?.siteDescription || ''}
 								logoUrl={settingsData?.logoUrl}
 								navbarBrand={settingsData?.navbarBrand || 'HMTI'}
+								updatedAt={currentData.updatedAt}
 							/>
 						</CardContent>
 					)}
@@ -3538,6 +3542,7 @@ function HeroPreview({
 	siteDescription,
 	logoUrl,
 	navbarBrand,
+	updatedAt,
 }: {
 	mode: 'desktop' | 'mobile';
 	desktopMode: 'bennerfull' | 'combined';
@@ -3551,8 +3556,15 @@ function HeroPreview({
 	siteDescription: string;
 	logoUrl?: string;
 	navbarBrand?: string;
+	updatedAt?: string;
 }) {
 	const brand = navbarBrand || siteName || 'HMTI';
+	const vs = homeImageVersionSuffix(updatedAt);
+	const vBennerfull = bennerfullSrc ? bennerfullSrc + vs : bennerfullSrc;
+	const vOrang = orangSrc ? orangSrc + vs : orangSrc;
+	const vBanners = useMemo(() => versionHomeImageUrls(banners, vs), [banners, vs]);
+	const vPeople = useMemo(() => versionHomeImageUrls(people, vs), [people, vs]);
+
 	const overrides = useMemo<HeroPreviewOverrides>(
 		() => ({
 			settings: {
@@ -3569,10 +3581,10 @@ function HeroPreview({
 			},
 			homeImages: {
 				desktopMode,
-				bennerfull: bennerfullSrc,
-				orang: orangSrc,
-				banners,
-				people,
+				bennerfull: vBennerfull,
+				orang: vOrang,
+				banners: vBanners,
+				people: vPeople,
 			},
 		}),
 		[
@@ -3583,10 +3595,10 @@ function HeroPreview({
 			brand,
 			slotIds,
 			desktopMode,
-			bennerfullSrc,
-			orangSrc,
-			banners,
-			people,
+			vBennerfull,
+			vOrang,
+			vBanners,
+			vPeople,
 		],
 	);
 
@@ -3620,8 +3632,8 @@ function HeroPreview({
 								<HeroBannerContent
 									desktopMode={desktopMode}
 									slotOrder={slotIds}
-									banners={banners}
-									bennerfullSrc={bennerfullSrc}
+									banners={vBanners}
+									bennerfullSrc={vBennerfull}
 								/>
 							</div>
 							<div
@@ -3658,8 +3670,8 @@ function HeroPreview({
 									<HeroPersonContent
 										desktopMode={desktopMode}
 										slotOrder={slotIds}
-										people={people}
-										orangSrc={orangSrc}
+										people={vPeople}
+										orangSrc={vOrang}
 									/>
 								</div>
 							</div>
@@ -3691,7 +3703,7 @@ function HeroPreview({
 					style={{ height: 'calc(100% - 48px)' }}>
 					<HeroMobileSlideshow
 						slotOrder={slotIds}
-						banners={banners}
+						banners={vBanners}
 						siteName={siteName}
 						siteTagline={siteTagline}
 						siteDescription={siteDescription}
