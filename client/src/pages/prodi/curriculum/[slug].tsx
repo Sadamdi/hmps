@@ -40,6 +40,10 @@ function getCurriculum(data: any) {
 	return data?.curriculum ?? data?.content?.curriculum ?? null;
 }
 
+function slugFromCode(code: string): string {
+	return (code || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
 function findSubjectBySlug(data: any, slug: string) {
 	const norm = slug.toLowerCase().trim();
 	for (const curriculum of getAllCurriculumSources(data)) {
@@ -49,10 +53,16 @@ function findSubjectBySlug(data: any, slug: string) {
 				if (sub.rpsUrl && normalizeSlug(sub.rpsUrl) === norm) {
 					return { ...sub, semesterNum: sem.semester };
 				}
+				if (sub.code && slugFromCode(sub.code) === norm) {
+					return { ...sub, semesterNum: sem.semester };
+				}
 			}
 		}
 		for (const sub of optionalSubjects) {
 			if (sub.rpsUrl && normalizeSlug(sub.rpsUrl) === norm) {
+				return { ...sub, semesterNum: null };
+			}
+			if (sub.code && slugFromCode(sub.code) === norm) {
 				return { ...sub, semesterNum: null };
 			}
 		}

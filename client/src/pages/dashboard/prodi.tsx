@@ -1198,6 +1198,18 @@ function deriveSlugFromUrl(url: string): string {
 	}
 }
 
+function slugFromCode(code: string): string {
+	return (code || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function effectiveSlugForSubject(subject: any): string {
+	const fromUrl = deriveSlugFromUrl(subject?.rpsUrl || '');
+	if (fromUrl) return fromUrl;
+	if (subject?.code) return slugFromCode(subject.code);
+	if (subject?.name) return (subject.name as string).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+	return '';
+}
+
 function SubjectEditDialog({
 	open,
 	onOpenChange,
@@ -1219,9 +1231,13 @@ function SubjectEditDialog({
 	onChange: (field: string, val: any) => void;
 	readOnly: boolean;
 }) {
-	const slug = deriveSlugFromUrl(subject?.rpsUrl || '');
+	const slug = effectiveSlugForSubject(subject);
+	const urlSlug = deriveSlugFromUrl(subject?.rpsUrl || '');
 	const resources = (allData.subjectRpsResources ?? []).find(
-		(r: any) => (r.slug || '').toLowerCase() === slug,
+		(r: any) => {
+			const rs = (r.slug || '').toLowerCase();
+			return rs === slug || (urlSlug && rs === urlSlug);
+		},
 	);
 	const materiPpt: { label: string; url: string }[] = resources?.materiPpt ?? [];
 	const linkFileList: { label: string; url: string }[] = resources?.linkFile ?? [];
@@ -1244,9 +1260,10 @@ function SubjectEditDialog({
 
 	const updateResources = (materiPptNew: any[], linkFileNew: any[]) => {
 		const rps = [...(allData.subjectRpsResources ?? [])];
-		const idx = rps.findIndex((r: any) => (r.slug || '').toLowerCase() === slug);
+		const lookupSlug = urlSlug || slug;
+		const idx = rps.findIndex((r: any) => (r.slug || '').toLowerCase() === lookupSlug);
 		const entry = {
-			slug,
+			slug: lookupSlug,
 			subjectName: subject?.name || '',
 			materiPpt: materiPptNew,
 			linkFile: linkFileNew,
@@ -1254,7 +1271,7 @@ function SubjectEditDialog({
 		};
 		if (idx >= 0) {
 			rps[idx] = { ...rps[idx], ...entry };
-		} else if (slug) {
+		} else if (lookupSlug) {
 			rps.push(entry);
 		}
 		onChange('subjectRpsResources', rps);
@@ -1309,77 +1326,73 @@ function SubjectEditDialog({
 						<Input value={subject.rpsUrl || ''} onChange={(e) => updateSubject('rpsUrl', e.target.value)} disabled={readOnly} className="text-xs" placeholder="https://informatika.uin-malang.ac.id/..." />
 					</div>
 
-					{slug && (
-						<>
-							<div className="border-t pt-4">
-								<div className="flex items-center justify-between mb-3">
-									<h3 className="text-sm font-semibold flex items-center gap-2">
-										<BookOpen className="h-4 w-4 text-primary" /> Materi PPT
-									</h3>
+				<div className="border-t pt-4">
+					<div className="flex items-center justify-between mb-3">
+						<h3 className="text-sm font-semibold flex items-center gap-2">
+							<BookOpen className="h-4 w-4 text-primary" /> Materi PPT
+						</h3>
+						{!readOnly && (
+							<Button variant="outline" size="sm" onClick={addMateri}>
+								<Plus className="h-3 w-3 mr-1" /> Tambah
+							</Button>
+						)}
+					</div>
+					{materiPpt.length ? (
+						<div className="space-y-2">
+							{materiPpt.map((m, i) => (
+								<div key={i} className="flex gap-2 items-center">
+									<Input value={m.label} onChange={(e) => updateMateri(i, 'label', e.target.value)} disabled={readOnly} className="w-28 text-xs" placeholder="Label" />
+									<Input value={m.url} onChange={(e) => updateMateri(i, 'url', e.target.value)} disabled={readOnly} className="flex-1 text-xs" placeholder="URL" />
+									{m.url && (
+										<a href={m.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary hover:text-primary/80">
+											<ExternalLink className="h-3.5 w-3.5" />
+										</a>
+									)}
 									{!readOnly && (
-										<Button variant="outline" size="sm" onClick={addMateri}>
-											<Plus className="h-3 w-3 mr-1" /> Tambah
+										<Button variant="ghost" size="icon" className="shrink-0 h-7 w-7 text-destructive" onClick={() => removeMateri(i)}>
+											<Trash2 className="h-3.5 w-3.5" />
 										</Button>
 									)}
 								</div>
-								{materiPpt.length ? (
-									<div className="space-y-2">
-										{materiPpt.map((m, i) => (
-											<div key={i} className="flex gap-2 items-center">
-												<Input value={m.label} onChange={(e) => updateMateri(i, 'label', e.target.value)} disabled={readOnly} className="w-28 text-xs" placeholder="Label" />
-												<Input value={m.url} onChange={(e) => updateMateri(i, 'url', e.target.value)} disabled={readOnly} className="flex-1 text-xs" placeholder="URL" />
-												{m.url && (
-													<a href={m.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary hover:text-primary/80">
-														<ExternalLink className="h-3.5 w-3.5" />
-													</a>
-												)}
-												{!readOnly && (
-													<Button variant="ghost" size="icon" className="shrink-0 h-7 w-7 text-destructive" onClick={() => removeMateri(i)}>
-														<Trash2 className="h-3.5 w-3.5" />
-													</Button>
-												)}
-											</div>
-										))}
-									</div>
-								) : (
-									<p className="text-xs text-muted-foreground">Belum ada materi.</p>
-								)}
-							</div>
-
-							<div className="border-t pt-4">
-								<div className="flex items-center justify-between mb-3">
-									<h3 className="text-sm font-semibold">Link File</h3>
-									{!readOnly && (
-										<Button variant="outline" size="sm" onClick={addLinkFile}>
-											<Plus className="h-3 w-3 mr-1" /> Tambah
-										</Button>
-									)}
-								</div>
-								{linkFileList.length ? (
-									<div className="space-y-2">
-										{linkFileList.map((f, i) => (
-											<div key={i} className="flex gap-2 items-center">
-												<Input value={f.label} onChange={(e) => updateLinkFile(i, 'label', e.target.value)} disabled={readOnly} className="w-28 text-xs" placeholder="Label" />
-												<Input value={f.url} onChange={(e) => updateLinkFile(i, 'url', e.target.value)} disabled={readOnly} className="flex-1 text-xs" placeholder="URL" />
-												{f.url && (
-													<a href={f.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary hover:text-primary/80">
-														<ExternalLink className="h-3.5 w-3.5" />
-													</a>
-												)}
-												{!readOnly && (
-													<Button variant="ghost" size="icon" className="shrink-0 h-7 w-7 text-destructive" onClick={() => removeLinkFile(i)}>
-														<Trash2 className="h-3.5 w-3.5" />
-													</Button>
-												)}
-											</div>
-										))}
-									</div>
-								) : (
-									<p className="text-xs text-muted-foreground">Belum ada link file.</p>
-								)}
-							</div>
-						</>
+							))}
+						</div>
+					) : (
+						<p className="text-xs text-muted-foreground">Belum ada materi.</p>
 					)}
+				</div>
+
+				<div className="border-t pt-4">
+					<div className="flex items-center justify-between mb-3">
+						<h3 className="text-sm font-semibold">Link File</h3>
+						{!readOnly && (
+							<Button variant="outline" size="sm" onClick={addLinkFile}>
+								<Plus className="h-3 w-3 mr-1" /> Tambah
+							</Button>
+						)}
+					</div>
+					{linkFileList.length ? (
+						<div className="space-y-2">
+							{linkFileList.map((f, i) => (
+								<div key={i} className="flex gap-2 items-center">
+									<Input value={f.label} onChange={(e) => updateLinkFile(i, 'label', e.target.value)} disabled={readOnly} className="w-28 text-xs" placeholder="Label" />
+									<Input value={f.url} onChange={(e) => updateLinkFile(i, 'url', e.target.value)} disabled={readOnly} className="flex-1 text-xs" placeholder="URL" />
+									{f.url && (
+										<a href={f.url} target="_blank" rel="noopener noreferrer" className="shrink-0 text-primary hover:text-primary/80">
+											<ExternalLink className="h-3.5 w-3.5" />
+										</a>
+									)}
+									{!readOnly && (
+										<Button variant="ghost" size="icon" className="shrink-0 h-7 w-7 text-destructive" onClick={() => removeLinkFile(i)}>
+											<Trash2 className="h-3.5 w-3.5" />
+										</Button>
+									)}
+								</div>
+							))}
+						</div>
+					) : (
+						<p className="text-xs text-muted-foreground">Belum ada link file.</p>
+					)}
+				</div>
 				</div>
 			</DialogContent>
 		</Dialog>
@@ -1451,32 +1464,70 @@ function SemesterSubjectTable({
 							</tr>
 						))}
 					</tbody>
-					{totalSks && (
-						<tfoot>
-							<tr className="border-t bg-muted/50 font-semibold">
-								<td colSpan={3} className="p-2 text-right">Total SKS</td>
-								<td className="p-2 text-center">{totalSks}</td>
-								<td colSpan={readOnly ? 1 : 2} />
-							</tr>
-						</tfoot>
-					)}
-				</table>
-			</div>
+				<tfoot>
+					<tr className="border-t bg-muted/50 font-semibold">
+						<td colSpan={3} className="p-2 text-right">Total SKS</td>
+						<td className="p-2 text-center">
+							{!readOnly && !isOptional ? (
+								<Input
+									value={totalSks || ''}
+									onChange={(e) => {
+										const sems = [...(allData.semesters ?? [])];
+										sems[semIdx] = { ...sems[semIdx], totalSks: e.target.value };
+										onChange('semesters', sems);
+									}}
+									className="w-14 h-7 text-center text-sm p-1"
+								/>
+							) : (
+								totalSks || '–'
+							)}
+						</td>
+						<td colSpan={readOnly ? 1 : 2} />
+					</tr>
+				</tfoot>
+			</table>
+		</div>
 
-			{editIdx !== null && (
-				<SubjectEditDialog
-					open
-					onOpenChange={(v) => { if (!v) setEditIdx(null); }}
-					subject={subjects[editIdx]}
-					semIdx={semIdx}
-					subIdx={editIdx}
-					isOptional={isOptional}
-					allData={allData}
-					onChange={onChange}
-					readOnly={readOnly}
-				/>
-			)}
-		</>
+		{!readOnly && (
+			<div className="mt-2">
+				<Button
+					variant="outline"
+					size="sm"
+					onClick={() => {
+						if (isOptional) {
+							const list = [...(allData.optionalSubjects ?? [])];
+							list.push({ no: String(list.length + 1), code: '', name: '', sks: '', prerequisite: '' });
+							onChange('optionalSubjects', list);
+						} else {
+							const sems = [...(allData.semesters ?? [])];
+							const sem = { ...sems[semIdx] };
+							const subs = [...(sem.subjects ?? [])];
+							subs.push({ no: String(subs.length + 1), code: '', name: '', sks: '', prerequisite: '' });
+							sem.subjects = subs;
+							sems[semIdx] = sem;
+							onChange('semesters', sems);
+						}
+					}}
+				>
+					<Plus className="h-3 w-3 mr-1" /> Tambah Mata Kuliah
+				</Button>
+			</div>
+		)}
+
+		{editIdx !== null && (
+			<SubjectEditDialog
+				open
+				onOpenChange={(v) => { if (!v) setEditIdx(null); }}
+				subject={subjects[editIdx]}
+				semIdx={semIdx}
+				subIdx={editIdx}
+				isOptional={isOptional}
+				allData={allData}
+				onChange={onChange}
+				readOnly={readOnly}
+			/>
+		)}
+	</>
 	);
 }
 
