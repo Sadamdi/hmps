@@ -389,13 +389,13 @@ export default function BeritaDetail() {
 							data-aos="fade-up"
 							data-aos-delay="200">
 							<div className="p-6 md:p-10">
-								<div className="prose prose-lg max-w-none berita-content">
-									<div
-										className="text-foreground leading-relaxed"
-										dangerouslySetInnerHTML={{
-											__html: formatForDisplay(berita.content),
-										}}
-									/>
+							<div className="prose prose-lg max-w-none berita-content prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-blockquote:text-muted-foreground dark:prose-invert">
+								<div
+									className="text-foreground leading-relaxed"
+									dangerouslySetInnerHTML={{
+										__html: formatForDisplay(berita.content),
+									}}
+								/>
 								</div>
 							</div>
 						</div>
@@ -501,7 +501,7 @@ export default function BeritaDetail() {
 												onClick={() => setLocation(href)}>
 												<div className="aspect-video overflow-hidden">
 													<img
-														src={r.image}
+														src={r.image || '/placeholder-berita.jpg'}
 														alt={r.title}
 														className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
 														onError={(e) => {

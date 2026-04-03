@@ -8,6 +8,8 @@ type BeritaLite = {
 	tags?: string[];
 	author?: string;
 	createdAt?: string | Date;
+	image?: string;
+	slug?: string;
 };
 
 /**
@@ -64,6 +66,8 @@ export class RecommendationService {
 			tags: Array.isArray(a.tags) ? a.tags : [],
 			author: a.author || '',
 			createdAt: a.createdAt,
+			image: a.image || '',
+			slug: a.slug || '',
 		}));
 
 		// Build vocab and DF
