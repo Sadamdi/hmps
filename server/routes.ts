@@ -34,6 +34,14 @@ import {
 	applyOrganizationStructureAutoFill,
 	previewOrganizationStructureAutoFill,
 } from './services/organization-structure-auto-fill';
+import {
+	getDefaultBannerTemplatePath,
+	renderBannerTemplateWebp,
+} from './services/banner-template-render';
+import {
+	deriveBannerColorsFromTheme,
+	DEFAULT_THEME_COLOR,
+} from './services/banner-theme-derive';
 
 /**
  * Returns tenant storage for tenant requests, otherwise mongoStorage.
@@ -307,7 +315,9 @@ async function getEffectiveAuthors(
 			status: 'approved',
 		}).lean();
 		if (shares.length > 0) {
-			const targetIds = shares.map((s) => s.targetId);
+			const targetIds = (shares as { targetId: unknown }[]).map(
+				(s) => s.targetId,
+			);
 			const users = await m.User.find(
 				{ _id: { $in: targetIds } },
 				'name',
@@ -367,7 +377,9 @@ async function getEffectiveAuthorsByAuthorId(
 		}).lean();
 
 		if (shares.length > 0) {
-			const targetIds = shares.map((s) => s.targetId);
+			const targetIds = (shares as { targetId: unknown }[]).map(
+				(s) => s.targetId,
+			);
 			const users = (await m.User.find(
 				{ _id: { $in: targetIds } },
 				'name',
@@ -1808,9 +1820,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const existingIds = new Set(
 					beritaList.map((b: any) => String(b._id)),
 				);
-				const sharedIds = accessList
+				const sharedIds = (accessList as { entityId: unknown }[])
 					.map((s) => String(s.entityId))
-					.filter((id) => !existingIds.has(id));
+					.filter((id: string) => !existingIds.has(id));
 				for (const sid of sharedIds) {
 					const item = await resolveStorage(req).getBeritaById(sid);
 					if (item) beritaList.push(item);
@@ -1827,7 +1839,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					approvedPermissionMap.set(eid, perm);
 				}
 			}
-			const pendingIdSet = new Set(pendingAccess.map((s) => String(s.entityId)));
+			const pendingIdSet = new Set(
+				(pendingAccess as { entityId: unknown }[]).map((s) =>
+					String(s.entityId),
+				),
+			);
 			beritaList = beritaList.map((item: any) => {
 				const eid = String(item._id);
 				const sharingPermission = approvedPermissionMap.get(eid);
@@ -2615,7 +2631,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					approvedPermissionMap.set(eid, perm);
 				}
 			}
-			const pendingIdSet = new Set(pendingAccess.map((s) => String(s.entityId)));
+			const pendingIdSet = new Set(
+				(pendingAccess as { entityId: unknown }[]).map((s) =>
+					String(s.entityId),
+				),
+			);
 			items = items.map((item: any) => {
 				const eid = String(item._id || item.id);
 				const sharingPermission = approvedPermissionMap.get(eid);
@@ -4343,6 +4363,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
+	/** Render banner WebP di server (ag-psd + canvas), tanpa Photopea */
+	app.post(
+		'/api/home-images/:year/banner-render',
+		authenticate,
+		requirePermission('settings.edit'),
+		uploadLimiter,
+		uploadMiddleware.fields([
+			{ name: 'photo', maxCount: 1 },
+			{ name: 'logo', maxCount: 1 },
+		]),
+		async (req, res) => {
+			try {
+				const year = parseInt(req.params.year, 10);
+				const storage = resolveStorage(req);
+				const existing = await storage.getHomeImagesByYear(year);
+				if (!existing) {
+					return res.status(404).json({ message: 'Year not found' });
+				}
+
+				const personName = String(req.body.personName ?? '').trim();
+				const divisionText = String(req.body.divisionText ?? '').trim();
+
+				let themeRaw = String(
+					req.body.themeColor ?? '',
+				).trim();
+				if (themeRaw && !themeRaw.startsWith('#')) themeRaw = `#${themeRaw}`;
+
+				const palette =
+					themeRaw.length === 7
+						? deriveBannerColorsFromTheme(themeRaw)
+						: deriveBannerColorsFromTheme(DEFAULT_THEME_COLOR);
+
+				const showDivisionName =
+					req.body.showDivisionName === 'true' ||
+					req.body.showDivisionName === true;
+				const showLogo =
+					req.body.showLogo === 'true' || req.body.showLogo === true;
+
+				const files = req.files as
+					| Record<string, Express.Multer.File[]>
+					| undefined;
+				const photoBuffer = files?.photo?.[0]?.buffer ?? null;
+				const logoBuffer =
+					showLogo && files?.logo?.[0]?.buffer
+						? files.logo[0].buffer
+						: null;
+
+				const webp = await renderBannerTemplateWebp({
+					templatePsdPath: getDefaultBannerTemplatePath(),
+					personName: personName || 'Alfiya',
+					divisionText: divisionText || 'Divisi',
+					bgHex: palette.bgHex,
+					accentHex: palette.accentHex,
+					nameStripeHex: palette.nameStripeHex,
+					fogHex: palette.fogHex,
+					showNameDivision: showDivisionName,
+					photoBuffer,
+					logoBuffer,
+				});
+
+				res.setHeader('Content-Type', 'image/webp');
+				res.send(webp);
+			} catch (error: any) {
+				console.error('Banner render error:', error);
+				res.status(500).json({
+					message: error.message || 'Render banner gagal',
+				});
+			}
+		},
+	);
+
 	// Upload image for a specific slot
 	app.post(
 		'/api/home-images/:year/upload/:slot',
@@ -4389,13 +4480,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'File type not supported' });
 				}
 
-				// Process image → webp
+				// Process image → webp (banner slot quality tuned for small-but-sharp output)
+				const isFull = slot === 'bennerfull' || slot === 'orang';
 				const processedBuffer = await processImage(req.file.buffer, {
-					quality: 82,
-					maxWidth:
-						slot === 'bennerfull' ? 3840 : slot === 'orang' ? 3840 : 1920,
-					maxHeight:
-						slot === 'bennerfull' ? 2160 : slot === 'orang' ? 2160 : 2400,
+					quality: isFull ? 82 : 85,
+					maxWidth: isFull ? 3840 : 1920,
+					maxHeight: isFull ? 2160 : 2400,
 					format: 'webp',
 				});
 
@@ -6043,8 +6133,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}).lean();
 				includeSharedIds = Array.from(
 					new Set([
-						...sharedApproved.map((s) => String(s.entityId)),
-						...sharedPending.map((s) => String(s.entityId)),
+						...(sharedApproved as { entityId: unknown }[]).map((s) =>
+							String(s.entityId),
+						),
+						...(sharedPending as { entityId: unknown }[]).map((s) =>
+							String(s.entityId),
+						),
 					]),
 				);
 				for (const s of sharedApproved) {
@@ -6055,7 +6149,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 				pendingIdSet = new Set(
-					sharedPending.map((s) => String(s.entityId)),
+					(sharedPending as { entityId: unknown }[]).map((s) =>
+						String(s.entityId),
+					),
 				);
 
 				// If current parent (or any ancestor) is shared, sub-event list under it should be accessible too.

@@ -1,3 +1,4 @@
+import { BannerEditor } from '@/components/dashboard/banner-editor';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
@@ -90,6 +91,7 @@ import {
 	Smartphone,
 	Trash2,
 	Upload,
+	Wand2,
 	X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -2627,6 +2629,9 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 	const [previewMode, setPreviewMode] = useState<'desktop' | 'mobile'>(
 		'desktop',
 	);
+	const [showBannerEditor, setShowBannerEditor] = useState(false);
+	/** Naikkan saat `refresh()` agar `<img>` slot memakai URL baru meski path file sama (mis. setelah «Simpan ke slot» dari Banner Editor). */
+	const [slotImageParentNonce, setSlotImageParentNonce] = useState(0);
 
 	const { data: settingsData, refetch: refetchSettings } = useQuery<{
 		homeImageBannerSlots?: BannerSlotDef[];
@@ -2725,6 +2730,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 	const currentData = yearsList?.find((y) => y.year === selectedYear);
 
 	const refresh = useCallback(() => {
+		setSlotImageParentNonce((n) => n + 1);
 		refetchYears();
 		queryClient.invalidateQueries({ queryKey: ['/api/home-images/active'] });
 	}, [refetchYears]);
@@ -3067,6 +3073,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 								currentUrl={currentData.bennerfull}
 								canEdit={canEdit}
 								onUploaded={refresh}
+								parentImageNonce={slotImageParentNonce}
 							/>
 							<SlotUploader
 								year={currentData.year}
@@ -3074,6 +3081,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 								currentUrl={currentData.orang}
 								canEdit={canEdit}
 								onUploaded={refresh}
+								parentImageNonce={slotImageParentNonce}
 							/>
 						</div>
 					</CardContent>
@@ -3084,22 +3092,42 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 			{currentData && (
 				<Card>
 					<CardHeader>
-						<CardTitle className="text-base">
-							Banner Per-Divisi / Background ({currentData.year})
-						</CardTitle>
-						<CardDescription>
-							Upload background per-divisi (di belakang orang). Dipakai untuk
-							slideshow mobile dan mode &quot;Combined Cards&quot; di desktop.
-							Urutan: kiri ke kanan sesuai slot.
-						</CardDescription>
+						<div className="flex items-center justify-between">
+							<div>
+								<CardTitle className="text-base">
+									Banner Per-Divisi / Background ({currentData.year})
+								</CardTitle>
+								<CardDescription>
+									Upload background per-divisi (di belakang orang). Dipakai untuk
+									slideshow mobile dan mode &quot;Combined Cards&quot; di desktop.
+									Urutan: kiri ke kanan sesuai slot.
+								</CardDescription>
+							</div>
+							{canEdit && (
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() => setShowBannerEditor(true)}
+									className="shrink-0">
+									<Wand2 className="h-3.5 w-3.5 mr-1.5" />
+									Buat Banner Otomatis
+								</Button>
+							)}
+						</div>
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<DashboardHintCard
 							title="Panduan Upload Banner Slot"
 							variant="amber"
 							storageKey="settings-home-images-banner-slots"
-							description="Background per divisi untuk mobile dan mode Combined Cards. Urutan slot kiri–kanan mengikuti grid di bawah.">
+							description="Background per divisi untuk mobile dan mode Combined Cards. Urutan slot kiri–kanan mengikuti grid di bawah. Tombol «Buat Banner Otomatis» membuka editor: setelah mengubah isian, wajib klik «Perbarui pratinjau» (render di server), lalu «Simpan ke slot» — pratinjau tidak memperbarui sendiri.">
 							<ul className="list-disc list-inside text-amber-700 dark:text-amber-400 space-y-1 text-sm">
+								<li>
+									<strong>Banner otomatis</strong>: klik <strong>«Buat Banner Otomatis»</strong> →
+									isikan foto, warna tema, nama, divisi, logo → tiap kali mengubah sesuatu, klik{' '}
+									<strong>«Perbarui pratinjau»</strong> agar gambar di-render ulang; jika puas, klik{' '}
+									<strong>«Simpan ke slot»</strong> untuk mengunggah ke slot yang dipilih.
+								</li>
 								<li><strong>Langkah</strong>: siapkan gambar portrait per slot → unggah berurutan sesuai label (Ketua, Wakil, …) → cek pratinjau mobile.</li>
 								<li>Resolusi maks: <code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">1920 × 2400 px</code> (portrait). Format JPG/PNG/GIF/WebP, maks 100 MB.</li>
 								<li><strong>Contoh valid</strong>: warna netral, area tengah tidak terlalu ramai agar teks tetap terbaca.</li>
@@ -3126,6 +3154,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 									currentUrl={currentData.banners?.[slot] || ''}
 									canEdit={canEdit}
 									onUploaded={refresh}
+									parentImageNonce={slotImageParentNonce}
 								/>
 							))}
 						</div>
@@ -3197,6 +3226,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 									currentUrl={currentData.people?.[slot] || ''}
 									canEdit={canEdit && currentData.desktopMode === 'combined'}
 									onUploaded={refresh}
+									parentImageNonce={slotImageParentNonce}
 								/>
 							))}
 						</div>
@@ -3320,6 +3350,18 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 						</div>
 					</div>
 				</div>
+			)}
+
+			{/* Banner Editor Dialog */}
+			{currentData && (
+				<BannerEditor
+					open={showBannerEditor}
+					onOpenChange={setShowBannerEditor}
+					year={currentData.year}
+					slotIds={bannerSlotIds}
+					slotLabels={slotLabels}
+					onSaved={refresh}
+				/>
 			)}
 		</div>
 	);
@@ -3954,6 +3996,7 @@ function SlotUploader({
 	currentUrl,
 	canEdit,
 	onUploaded,
+	parentImageNonce = 0,
 }: {
 	year: number;
 	slot: string;
@@ -3961,6 +4004,8 @@ function SlotUploader({
 	currentUrl: string;
 	canEdit: boolean;
 	onUploaded: () => void;
+	/** Dinaikkan parent saat `refresh()` — memaksa gambar baru jika path URL sama (mis. upload dari Banner Editor). */
+	parentImageNonce?: number;
 }) {
 	const displayLabel = label || SLOT_LABELS[slot] || slot;
 	const { toast } = useToast();
@@ -4040,7 +4085,7 @@ function SlotUploader({
 				onDrop={canEdit ? handleDrop : undefined}>
 				{currentUrl ? (
 					<img
-						src={`${currentUrl}?v=${cacheBust}`}
+						src={`${currentUrl}?v=${cacheBust}&r=${parentImageNonce}`}
 						alt={slot}
 						className="w-full h-32 object-cover bg-muted"
 					/>
@@ -4097,6 +4142,7 @@ function PersonSlotUploader({
 	currentUrl,
 	canEdit,
 	onUploaded,
+	parentImageNonce = 0,
 }: {
 	year: number;
 	slot: string;
@@ -4104,6 +4150,7 @@ function PersonSlotUploader({
 	currentUrl: string;
 	canEdit: boolean;
 	onUploaded: () => void;
+	parentImageNonce?: number;
 }) {
 	const displayLabel = label || SLOT_LABELS[slot] || slot;
 	const { toast } = useToast();
@@ -4186,7 +4233,7 @@ function PersonSlotUploader({
 				onDrop={canEdit ? handleDrop : undefined}>
 				{currentUrl ? (
 					<img
-						src={`${currentUrl}?v=${cacheBust}`}
+						src={`${currentUrl}?v=${cacheBust}&r=${parentImageNonce}`}
 						alt={`Orang ${slot}`}
 						className="w-full h-32 object-contain bg-muted"
 					/>

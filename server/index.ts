@@ -83,7 +83,22 @@ app.use(express.urlencoded({ extended: false, limit: '100mb' }));
 
 // Tambahkan middleware static agar file upload bisa diakses publik
 app.use('/uploads', express.static(uploadDir));
-app.use('/attached_assets', express.static(assetsDir));
+// Photopea di iframe (origin photopea.com) memuat PSD lewat fetch/XHR dari URL kita.
+// Dokumentasi resmi mewajibkan CORS: https://www.photopea.com/api/ ("Access-Control-Allow-Origin: *")
+app.use(
+	'/attached_assets',
+	(req, res, next) => {
+		res.setHeader('Access-Control-Allow-Origin', '*');
+		res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+		// Override Helmet default (same-origin) agar Photopea bisa konsumsi aset lintas origin
+		res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+		if (req.method === 'OPTIONS') {
+			return res.sendStatus(204);
+		}
+		next();
+	},
+	express.static(assetsDir),
+);
 
 // Serve static files from public folder (SEO files, favicon, etc.)
 // Serve sitemap dynamically before static to ensure fresh URLs

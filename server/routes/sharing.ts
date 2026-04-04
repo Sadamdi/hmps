@@ -243,7 +243,7 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 
 			const duplicateIds = existingApproved
 				.slice(1)
-				.map((s) => s._id)
+				.map((s: { _id?: unknown }) => s._id)
 				.filter(Boolean);
 			if (duplicateIds.length > 0) {
 				await m.PostSharing.updateMany(

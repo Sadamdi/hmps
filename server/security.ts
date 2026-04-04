@@ -99,6 +99,8 @@ export const securityMiddleware = {
 				mediaSrc: ["'self'", 'data:', 'blob:'],
 				frameSrc: [
 					"'self'",
+					'https://www.photopea.com',
+					'https://photopea.com',
 					'https://www.google.com',
 					'https://maps.google.com',
 					'https://www.youtube.com',
