@@ -157,19 +157,47 @@ export default function MediaDisplay({
 			try {
 				const source = detectMediaSource(src);
 
-				if (source.type === 'gdrive' && source.fileId) {
-					// Prepare request body with media type hint
-					const requestBody: any = {
+				if (source.type === 'gdrive' && source.fileId && !source.isFolder) {
+					/** Satu file Drive: tampilkan langsung (lh3/uc di getAlternativeUrls), hindari gagal total jika media-url error */
+					let mediaType: 'image' | 'video' = 'image';
+					if (type === 'video') mediaType = 'video';
+					else if (type === 'image') mediaType = 'image';
+					else {
+						const lower = src.toLowerCase();
+						if (
+							lower.includes('/preview') ||
+							lower.includes('video') ||
+							/\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(src)
+						) {
+							mediaType = 'video';
+						}
+					}
+
+					setMediaState({
+						loading: false,
+						error: false,
+						files: [
+							{
+								id: source.fileId,
+								name: alt,
+								url: src,
+								type: mediaType,
+								mimeType:
+									mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
+							},
+						],
+						mediaType: 'single',
+						currentIndex: 0,
+					});
+				} else if (source.type === 'gdrive' && source.fileId && source.isFolder) {
+					const requestBody: Record<string, unknown> = {
 						url: src,
 						fileId: source.fileId,
 					};
-
-					// Add media type hint if provided and not auto
 					if (type !== 'auto') {
 						requestBody.mediaType = type;
 					}
 
-					// Fetch Google Drive media URL from server
 					const response = await fetch('/api/gdrive/media-url', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
@@ -177,10 +205,11 @@ export default function MediaDisplay({
 					});
 
 					if (!response.ok) {
-						const errorData = await response.json();
+						const errorData = await response.json().catch(() => ({}));
 						console.error('MediaDisplay: API error:', errorData);
 						throw new Error(
-							errorData.message || 'Failed to fetch Google Drive media'
+							(errorData as { message?: string }).message ||
+								'Failed to fetch Google Drive media'
 						);
 					}
 
@@ -281,7 +310,20 @@ export default function MediaDisplay({
 		originalUrl: string,
 		isVideo: boolean = false
 	) => {
-		if (!originalUrl.includes('drive.google.com')) return [originalUrl];
+		if (!originalUrl.includes('drive.google.com')) {
+			const lh = originalUrl.match(
+				/googleusercontent\.com\/d\/([a-zA-Z0-9-_]+)/i
+			);
+			if (lh?.[1]) {
+				const id = lh[1];
+				return [
+					`https://lh3.googleusercontent.com/d/${id}=s2000`,
+					`https://drive.google.com/uc?export=view&id=${id}`,
+					originalUrl,
+				];
+			}
+			return [originalUrl];
+		}
 
 		const fileIdMatch = originalUrl.match(
 			/[?&]id=([a-zA-Z0-9-_]+)|\/d\/([a-zA-Z0-9-_]+)/

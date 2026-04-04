@@ -161,6 +161,8 @@ export default function DashboardEvents() {
 	const [formAttachments, setFormAttachments] = useState<File[]>([]);
 	const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
 	const [selectedBeritaIds, setSelectedBeritaIds] = useState<string[]>([]);
+	const [selectedGalleryIds, setSelectedGalleryIds] = useState<string[]>([]);
+	const [gallerySearch, setGallerySearch] = useState('');
 	const [beritaSearch, setBeritaSearch] = useState('');
 
 	// Copy to berita state
@@ -179,6 +181,22 @@ export default function DashboardEvents() {
 	});
 
 	const multiYearMode = siteSettings?.eventsAllowMultipleYearsOnHome === true;
+
+	const { data: libraryForLink = [] } = useQuery<
+		{ _id: string; title: string; published?: boolean }[]
+	>({
+		queryKey: ['/api/library/manage'],
+		queryFn: async () => {
+			const res = await fetch('/api/library/manage', { credentials: 'include' });
+			if (!res.ok) return [];
+			const data = await res.json();
+			return Array.isArray(data) ? data : data.data || [];
+		},
+		enabled:
+			manageEnabled &&
+			hasSpecificPermission('events.edit') &&
+			isEventDialogOpen,
+	});
 
 	const { data: publishedBerita = [] } = useQuery<{ _id: string; title: string; slug?: string }[]>({
 		queryKey: ['/api/berita/manage'],
@@ -436,6 +454,8 @@ export default function DashboardEvents() {
 		setFormAttachments([]);
 		setExistingAttachments([]);
 		setSelectedBeritaIds([]);
+		setSelectedGalleryIds([]);
+		setGallerySearch('');
 		setBeritaSearch('');
 		setEditingEvent(null);
 	}, []);
@@ -461,6 +481,11 @@ export default function DashboardEvents() {
 			.map((a: any) => (typeof a === 'object' && a !== null ? a._id : typeof a === 'string' ? a : null))
 			.filter((id): id is string => typeof id === 'string' && id.length > 0);
 		setSelectedBeritaIds(beritaIds);
+		const gids = ((event as any).relatedGalleryIds || [])
+			.map((x: any) => (typeof x === 'object' && x?._id ? String(x._id) : String(x)))
+			.filter(Boolean);
+		setSelectedGalleryIds(gids);
+		setGallerySearch('');
 		setBeritaSearch('');
 		setIsEventDialogOpen(true);
 	}, []);
@@ -495,9 +520,13 @@ export default function DashboardEvents() {
 		fd.append('attachments', JSON.stringify(existingAttachments));
 		const cleanBeritaIds = selectedBeritaIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
 		fd.append('relatedBeritaIds', JSON.stringify(cleanBeritaIds));
+		const cleanGalleryIds = selectedGalleryIds.filter(
+			(id): id is string => typeof id === 'string' && id.length > 0,
+		);
+		fd.append('relatedGalleryIds', JSON.stringify(cleanGalleryIds));
 
 		saveEventMut.mutate({ formData: fd, isEditing });
-	}, [formTitle, formDesc, formStartDate, formEndDate, formPublished, formThumbnail, formAttachments, existingAttachments, selectedBeritaIds, selectedYearId, selectedParentEvent, editingEvent, saveEventMut, toast]);
+	}, [formTitle, formDesc, formStartDate, formEndDate, formPublished, formThumbnail, formAttachments, existingAttachments, selectedBeritaIds, selectedGalleryIds, selectedYearId, selectedParentEvent, editingEvent, saveEventMut, toast]);
 
 	const eventsByMonth = useMemo(() => {
 		const map = new Map<number, EventItem[]>();
@@ -1121,13 +1150,95 @@ export default function DashboardEvents() {
 							)}
 						</div>
 						{hasSpecificPermission('events.edit') && (
+							<div className="rounded-lg border border-border p-4 space-y-4 bg-muted/20">
+								<div>
+									<Label className="text-base">Berita &amp; galeri terkait</Label>
+									<p className="text-xs text-muted-foreground mt-1">
+										Cari dan centang seperti di editor berita — dokumentasi galeri dan liputan berita yang terhubung ke event ini.
+									</p>
+								</div>
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 							<div>
-								<Label className="flex items-center gap-1 mb-2">
+								<Label className="flex items-center gap-1 mb-2 text-sm font-medium">
+									Galeri
+								</Label>
+								{selectedGalleryIds.length > 0 && (
+									<div className="flex flex-wrap gap-1 mb-2">
+										{selectedGalleryIds.map((id) => {
+											const g = libraryForLink.find((x) => x._id === id);
+											return g ? (
+												<Badge key={id} variant="secondary" className="text-xs gap-1 max-w-full">
+													<span className="truncate max-w-[200px]">{g.title}</span>
+													<button
+														type="button"
+														className="ml-1 text-muted-foreground hover:text-destructive shrink-0"
+														onClick={() =>
+															setSelectedGalleryIds((prev) => prev.filter((i) => i !== id))
+														}
+													>
+														×
+													</button>
+												</Badge>
+											) : null;
+										})}
+									</div>
+								)}
+								<div className="relative mb-2">
+									<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+									<Input
+										className="pl-8 h-8 text-sm"
+										placeholder="Cari judul galeri..."
+										value={gallerySearch}
+										onChange={(e) => setGallerySearch(e.target.value)}
+									/>
+								</div>
+								<div className="border rounded-md max-h-36 overflow-y-auto bg-background">
+									{libraryForLink
+										.filter((g) =>
+											gallerySearch
+												? g.title.toLowerCase().includes(gallerySearch.toLowerCase())
+												: true,
+										)
+										.map((g) => {
+											const checked = selectedGalleryIds.includes(g._id);
+											return (
+												<label
+													key={g._id}
+													className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm"
+												>
+													<input
+														type="checkbox"
+														checked={checked}
+														onChange={() => {
+															setSelectedGalleryIds((prev) =>
+																checked
+																	? prev.filter((i) => i !== g._id)
+																	: [...prev, g._id],
+															);
+														}}
+														className="rounded"
+													/>
+													<span className="flex-1 truncate">{g.title}</span>
+													{g.published === false && (
+														<span className="text-xs text-muted-foreground">draf</span>
+													)}
+												</label>
+											);
+										})}
+									{libraryForLink.length === 0 && (
+										<p className="text-center text-sm text-muted-foreground py-4">
+											Tidak ada galeri atau memuat…
+										</p>
+									)}
+								</div>
+							</div>
+							<div>
+								<Label className="flex items-center gap-1 mb-2 text-sm font-medium">
 									<FileText className="h-4 w-4" />
-									Berita Terkait
+									Berita
 								</Label>
 								<p className="text-xs text-muted-foreground mb-2">
-									Pilih berita publish yang berkaitan dengan event ini.
+									Hanya berita yang sudah terbit.
 								</p>
 								<div className="relative mb-2">
 									<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -1196,6 +1307,8 @@ export default function DashboardEvents() {
 											{beritaSearch ? 'Tidak ada berita yang cocok' : 'Belum ada berita publish'}
 										</p>
 									)}
+								</div>
+							</div>
 								</div>
 							</div>
 						)}

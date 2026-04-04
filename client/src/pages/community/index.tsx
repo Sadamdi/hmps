@@ -30,6 +30,8 @@ const EventsIndex = lazy(() => import('@/pages/events/index'));
 const EventsAll = lazy(() => import('@/pages/events/all'));
 const EventsYear = lazy(() => import('@/pages/events/[year]'));
 const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
+const LibraryPage = lazy(() => import('@/pages/library/index'));
+const LibraryDetailPage = lazy(() => import('@/pages/library/detail'));
 
 function RouteLoadingFallback() {
 	return (
@@ -99,6 +101,8 @@ export default function CommunityShell() {
 							<Route path="/events/all" component={EventsAll} />
 							<Route path="/events/:year/:eventId" component={EventDetail} />
 							<Route path="/events/:year" component={EventsYear} />
+							<Route path="/library/:id" component={LibraryDetailPage} />
+							<Route path="/library" component={LibraryPage} />
 							<Route path="/login" component={LoginForm} />
 							<Route path="/forgot-password" component={ForgotPassword} />
 

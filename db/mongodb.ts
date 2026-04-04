@@ -133,6 +133,9 @@ const beritaSchema = new mongoose.Schema({
 		ref: 'Event',
 		default: null,
 	},
+	relatedGalleryIds: [
+		{ type: mongoose.Schema.Types.ObjectId, ref: 'Library' },
+	],
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
 });
@@ -142,10 +145,29 @@ beritaSchema.index({ slug: 1 });
 // Model Library
 const librarySchema = new mongoose.Schema({
 	title: { type: String, required: true },
-	description: { type: String, required: true },
-	fullDescription: { type: String, required: true },
+	description: { type: String, default: '' },
+	fullDescription: { type: String, default: '' },
 	images: [{ type: String }],
+	imageSources: [{ type: String }],
+	gdriveFileIds: [{ type: String }],
+	/** Sejajar images: 'image' | 'video' untuk campuran foto/video */
+	mediaKinds: [{ type: String, enum: ['image', 'video'] }],
 	type: { type: String, enum: ['photo', 'video'], default: 'photo' },
+	published: { type: Boolean, default: true },
+	activityDate: { type: Date, default: null },
+	relatedEventIds: [
+		{ type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
+	],
+	relatedBeritaIds: [
+		{ type: mongoose.Schema.Types.ObjectId, ref: 'Berita' },
+	],
+	/** Folder Drive yang ditampilkan sebagai embed di publik (tanpa ekspansi file di server) */
+	gdriveEmbedFolders: [
+		{
+			folderId: { type: String, default: '' },
+			url: { type: String, default: '' },
+		},
+	],
 	authorId: {
 		type: mongoose.Schema.Types.ObjectId,
 		ref: 'User',
@@ -656,6 +678,9 @@ const eventSchema = new mongoose.Schema(
 		ref: 'Berita',
 		default: null,
 	},
+	relatedGalleryIds: [
+		{ type: mongoose.Schema.Types.ObjectId, ref: 'Library' },
+	],
 	},
 	{ timestamps: true },
 );

@@ -1,5 +1,5 @@
 import { validateGoogleDriveUrl } from '@shared/mediaUtils';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface GDriveLinkInputProps {
 	value: string;
@@ -35,122 +35,160 @@ export function GDriveLinkInput({
 		isValid: false,
 	});
 
-	// Validate URL when value changes
-	useEffect(() => {
-		if (!value || value.trim() === '') {
+	const onValidationRef = useRef(onValidation);
+	onValidationRef.current = onValidation;
+
+	const lastCheckRef = useRef<{ url: string; at: number } | null>(null);
+
+	const runServerCheck = useCallback(async (url: string) => {
+		const trimmed = url.trim();
+		if (!trimmed) {
 			setValidation({ isValidating: false, isValid: false });
-			onValidation(false);
+			onValidationRef.current(false);
+			return;
+		}
+
+		const now = Date.now();
+		const last = lastCheckRef.current;
+		if (last && last.url === trimmed && now - last.at < 2500) {
+			return;
+		}
+
+		const result = validateGoogleDriveUrl(trimmed);
+		if (!result.isValid) {
+			setValidation({
+				isValidating: false,
+				isValid: false,
+				error: result.error,
+				suggestion: result.suggestion,
+			});
+			onValidationRef.current(false, result.error);
 			return;
 		}
 
 		setValidation((prev) => ({ ...prev, isValidating: true }));
+		lastCheckRef.current = { url: trimmed, at: now };
 
-		// Debounce validation
-		const timeoutId = setTimeout(async () => {
-			const result = validateGoogleDriveUrl(value);
+		try {
+			const response = await fetch('/api/gdrive/check-access', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ url: trimmed }),
+			});
 
-			if (result.isValid) {
-				// Check accessibility with server
-				try {
-					const response = await fetch('/api/gdrive/check-access', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ url: value }),
-					});
+			const data = await response.json();
 
-					const data = await response.json();
-
-					if (data.accessible) {
-						setValidation({
-							isValidating: false,
-							isValid: true,
-							isFolder: data.isFolder,
-						});
-						onValidation(true);
-					} else {
-						let errorMessage =
-							'File is private and cannot be accessed by the server';
-						let suggestionMessage =
-							'Make sure the file/folder is shared publicly with "Anyone with the link" permission';
-
-						if (data.isFolder) {
-							errorMessage =
-								'Folder content listing is not available with current setup';
-							suggestionMessage =
-								'Please copy individual file share links instead of the folder link';
-						}
-
-						setValidation({
-							isValidating: false,
-							isValid: false,
-							error: errorMessage,
-							suggestion: suggestionMessage,
-							isFolder: data.isFolder,
-						});
-						onValidation(false, errorMessage);
-					}
-				} catch (error) {
-					setValidation({
-						isValidating: false,
-						isValid: false,
-						error: 'Unable to verify file accessibility',
-						suggestion: 'Please check your internet connection and try again',
-					});
-					onValidation(false, 'Unable to verify file accessibility');
-				}
+			if (data.accessible) {
+				setValidation({
+					isValidating: false,
+					isValid: true,
+					isFolder: data.isFolder,
+				});
+				onValidationRef.current(true);
 			} else {
+				let errorMessage =
+					'File is private and cannot be accessed by the server';
+				let suggestionMessage =
+					'Make sure the file/folder is shared publicly with "Anyone with the link" permission';
+
+				if (data.isFolder) {
+					errorMessage =
+						'Folder content listing is not available with current setup';
+					suggestionMessage =
+						'Please copy individual file share links instead of the folder link';
+				}
+
 				setValidation({
 					isValidating: false,
 					isValid: false,
-					error: result.error,
-					suggestion: result.suggestion,
+					error: errorMessage,
+					suggestion: suggestionMessage,
+					isFolder: data.isFolder,
 				});
-				onValidation(false, result.error);
+				onValidationRef.current(false, errorMessage);
 			}
-		}, 500);
+		} catch {
+			setValidation({
+				isValidating: false,
+				isValid: false,
+				error: 'Unable to verify file accessibility',
+				suggestion: 'Please check your internet connection and try again',
+			});
+			onValidationRef.current(false, 'Unable to verify file accessibility');
+		}
+	}, []);
 
-		return () => clearTimeout(timeoutId);
-	}, [value, onValidation]);
+	const prevValueRef = useRef<string | undefined>(undefined);
 
-	const getInputClassName = () => {
-		let baseClass = `w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${className}`;
+	/**
+	 * Kosongkan status bila URL dikosongkan; satu kali check saat kosong → URL valid
+	 * (paste / load edit), tanpa memicu ulang setiap render parent.
+	 */
+	useEffect(() => {
+		const prev = prevValueRef.current;
+		const trimmed = value?.trim() ?? '';
+		const prevTrim = prev?.trim() ?? '';
 
-		if (validation.isValidating) {
-			return `${baseClass} border-yellow-300 focus:ring-yellow-500`;
+		if (!trimmed) {
+			setValidation({ isValidating: false, isValid: false });
+			onValidationRef.current(false);
+			prevValueRef.current = value;
+			return;
 		}
 
-		if (value && !validation.isValidating) {
-			if (validation.isValid) {
-				return `${baseClass} border-green-300 focus:ring-green-500`;
-			} else {
-				return `${baseClass} border-red-300 focus:ring-red-500`;
-			}
-		}
+		prevValueRef.current = value;
 
-		return `${baseClass} border-gray-300 focus:ring-blue-500`;
+		const becameFilled = !prevTrim && !!trimmed;
+		if (becameFilled && validateGoogleDriveUrl(trimmed).isValid) {
+			void runServerCheck(trimmed);
+		}
+	}, [value, runServerCheck]);
+
+	const handleBlur = () => {
+		const trimmed = value.trim();
+		if (!trimmed) {
+			setValidation({ isValidating: false, isValid: false });
+			onValidationRef.current(false);
+			return;
+		}
+		void runServerCheck(trimmed);
 	};
 
 	return (
 		<div className="space-y-2">
 			<label className="block text-sm font-medium text-gray-700">{label}</label>
 
-			<div className="relative">
+			<div className="relative flex gap-2">
 				<input
 					type="url"
 					value={value}
 					onChange={(e) => onChange(e.target.value)}
+					onBlur={handleBlur}
 					placeholder={placeholder}
-					className={getInputClassName()}
+					className={getInputClassName(
+						className,
+						value,
+						validation.isValidating,
+						validation.isValid,
+					)}
 				/>
 
+				<button
+					type="button"
+					onClick={() => void runServerCheck(value)}
+					disabled={!value.trim() || validation.isValidating}
+					className="shrink-0 px-3 py-2 text-sm border rounded-md border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">
+					Periksa akses
+				</button>
+
 				{validation.isValidating && (
-					<div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+					<div className="absolute right-[5.5rem] top-1/2 transform -translate-y-1/2 pointer-events-none">
 						<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-500"></div>
 					</div>
 				)}
 
 				{!validation.isValidating && value && validation.isValid && (
-					<div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+					<div className="absolute right-[5.5rem] top-1/2 transform -translate-y-1/2 pointer-events-none">
 						<svg
 							className="h-4 w-4 text-green-500"
 							fill="none"
@@ -167,7 +205,7 @@ export function GDriveLinkInput({
 				)}
 
 				{!validation.isValidating && value && !validation.isValid && (
-					<div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+					<div className="absolute right-[5.5rem] top-1/2 transform -translate-y-1/2 pointer-events-none">
 						<svg
 							className="h-4 w-4 text-red-500"
 							fill="none"
@@ -261,4 +299,26 @@ export function GDriveLinkInput({
 			)}
 		</div>
 	);
+}
+
+function getInputClassName(
+	className: string,
+	value: string,
+	isValidating: boolean,
+	isValid: boolean,
+) {
+	let base = `w-full min-w-0 flex-1 px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${className}`;
+
+	if (isValidating) {
+		return `${base} border-yellow-300 focus:ring-yellow-500`;
+	}
+
+	if (value && !isValidating) {
+		if (isValid) {
+			return `${base} border-green-300 focus:ring-green-500`;
+		}
+		return `${base} border-red-300 focus:ring-red-500`;
+	}
+
+	return `${base} border-gray-300 focus:ring-blue-500`;
 }

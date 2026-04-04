@@ -29,6 +29,7 @@ export interface Berita {
 	authorId: string;
 	author: string;
 	sourceEventId?: string | null;
+	relatedGalleryIds?: string[];
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -43,7 +44,15 @@ export interface LibraryItem {
 	images: string[];
 	imageSources?: ('local' | 'gdrive')[];
 	gdriveFileIds?: string[];
+	/** Per-file kind aligned with images[] */
+	mediaKinds?: ('image' | 'video')[];
 	type: 'photo' | 'video';
+	published?: boolean;
+	activityDate?: Date | string | null;
+	relatedEventIds?: string[];
+	relatedBeritaIds?: string[];
+	/** Folder Drive untuk iframe embeddedfolderview (bukan daftar file di DB) */
+	gdriveEmbedFolders?: { folderId: string; url: string }[];
 	authorId: string;
 	createdAt: Date;
 	updatedAt: Date;
@@ -269,6 +278,9 @@ export interface EventItem {
 	createdBy: string;
 	relatedBerita?: EventRelatedBerita[];
 	sourceBeritaId?: string | null;
+	relatedGalleryIds?: string[];
+	/** Dari enrich API untuk tampilan byline */
+	authorsDisplay?: string;
 	viewCount?: number;
 	children?: EventItem[];
 	createdAt: Date;

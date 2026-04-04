@@ -56,6 +56,13 @@ function resolveModels(req: Request): any {
 	// Lazy-require main models to avoid circular deps
 	return require('../db/mongodb');
 }
+import {
+	attachLibraryDisplayFields,
+	removeLibraryFromAllRelations,
+	syncBeritaGalleryLinksOnSave,
+	syncEventGalleryLinksOnSave,
+	syncLibraryLinksOnSave,
+} from './library-relations';
 import chatRouter from './routes/chat';
 import commentRouter from './routes/comments';
 import feedbackRouter from './routes/feedback';
@@ -301,6 +308,28 @@ async function checkLibraryPermission(
 	}
 }
 
+async function canViewLibraryItem(
+	user: UserWithRole | undefined,
+	libraryItem: any,
+	req?: Request,
+): Promise<boolean> {
+	if (libraryItem.published !== false) return true;
+	if (!user) return false;
+	const storage = req ? resolveStorage(req) : mongoStorage;
+	const permissions = await storage.getUserPermissions(String(user._id));
+	const isOwner =
+		user._id.toString() === (libraryItem.authorId || '').toString();
+	if (
+		(permissions.includes('library.view') && isOwner) ||
+		permissions.includes('library.view_others') ||
+		permissions.includes('library.edit') ||
+		permissions.includes('library.edit_others')
+	)
+		return true;
+	const itemId = String(libraryItem._id || libraryItem.id);
+	return hasApprovedSharing('library', itemId, user._id.toString(), 'view', req);
+}
+
 async function getEffectiveAuthors(
 	req: Request,
 	entityType: string,
@@ -430,6 +459,44 @@ async function enrichLibraryWithAuthors(
 		item.authors = authors;
 	}
 	return items;
+}
+
+async function enrichLibraryRelations(item: any, req: Request): Promise<void> {
+	try {
+		const m = resolveModels(req);
+		const eids = item.relatedEventIds;
+		const bids = item.relatedBeritaIds;
+		if (eids?.length) {
+			const evs = await m.Event.find({ _id: { $in: eids } })
+				.select('title yearId')
+				.populate('yearId', 'year')
+				.lean();
+			item.relatedEventsPreview = (evs || []).map((e: any) => ({
+				_id: String(e._id),
+				title: e.title,
+				year:
+					e.yearId && typeof e.yearId === 'object'
+						? (e.yearId as { year?: number }).year
+						: undefined,
+			}));
+		} else {
+			item.relatedEventsPreview = [];
+		}
+		if (bids?.length) {
+			const bs = await m.Berita.find({ _id: { $in: bids } })
+				.select('title slug')
+				.lean();
+			item.relatedBeritaPreview = (bs || []).map((b: any) => ({
+				_id: String(b._id),
+				title: b.title,
+				slug: b.slug,
+			}));
+		} else {
+			item.relatedBeritaPreview = [];
+		}
+	} catch (e) {
+		console.warn('enrichLibraryRelations:', e);
+	}
 }
 
 async function cleanupSingleEventFiles(
@@ -2131,6 +2198,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
+				let relatedGalleryIdsOnCreate: string[] = [];
+				if (req.body.relatedGalleryIds) {
+					try {
+						const g = JSON.parse(req.body.relatedGalleryIds);
+						if (Array.isArray(g)) relatedGalleryIdsOnCreate = g.map(String);
+					} catch {
+						relatedGalleryIdsOnCreate = [];
+					}
+				}
+
 				// Check create permission
 				const storage = resolveStorage(req);
 				const createPerms = await storage.getUserPermissions(
@@ -2321,6 +2398,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						);
 					}
 
+					if (beritaId && relatedGalleryIdsOnCreate.length > 0) {
+						await storage.updateBerita(beritaId, {
+							relatedGalleryIds: relatedGalleryIdsOnCreate,
+						});
+						await syncBeritaGalleryLinksOnSave(
+							resolveModels(req),
+							beritaId,
+							[],
+							relatedGalleryIdsOnCreate,
+						);
+						const again = await storage.getBeritaById(beritaId);
+						if (again) finalBerita = again;
+					}
+
 					res.status(201).json(finalBerita);
 				} catch (postErr) {
 					console.error('Create berita post-processing failed:', postErr);
@@ -2422,6 +2513,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updates.tags = tags;
 				}
 
+				const prevGalleryBerita = (
+					(existingBerita as any).relatedGalleryIds || []
+				).map((x: any) => String(x));
+				let nextGalleryBerita = prevGalleryBerita;
+				if (req.body.relatedGalleryIds !== undefined) {
+					try {
+						const parsed = JSON.parse(req.body.relatedGalleryIds);
+						nextGalleryBerita = Array.isArray(parsed)
+							? parsed.map((x: any) => String(x))
+							: [];
+						updates.relatedGalleryIds = nextGalleryBerita;
+					} catch {
+						nextGalleryBerita = [];
+						updates.relatedGalleryIds = [];
+					}
+				}
+
 				// Process image if uploaded (store inside uploads/berita/{beritaId})
 				if (req.file) {
 					// Hapus gambar lama jika ada dan berbeda dari default
@@ -2446,6 +2554,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					beritaId,
 					updates,
 				);
+
+				if (req.body.relatedGalleryIds !== undefined) {
+					await syncBeritaGalleryLinksOnSave(
+						resolveModels(req),
+						beritaId,
+						prevGalleryBerita,
+						nextGalleryBerita,
+					);
+				}
 
 				// Cleanup unused images in berita folder after update
 				if (typeof content === 'string') {
@@ -2538,13 +2655,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// Library routes
+	// Library routes (publik: hanya published)
 	app.get('/api/library', async (req, res) => {
 		try {
 			const { page, limit, isPaginated } = getPaginationParams(req.query);
-			const allItems = await resolveStorage(req).getAllLibraryItems(
-				isPaginated ? { page, limit } : undefined,
-			);
+			const pubOpts = isPaginated
+				? { page, limit, publishedOnly: true as const }
+				: { publishedOnly: true as const };
+			const allItems = await resolveStorage(req).getAllLibraryItems(pubOpts);
+
+			for (const item of allItems) {
+				attachLibraryDisplayFields(item as Record<string, unknown>);
+				await enrichLibraryRelations(item, req);
+			}
 
 			// Enrich byline multi-owner untuk kartu library.
 			try {
@@ -2554,7 +2677,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			if (isPaginated) {
-				const total = await resolveStorage(req).getLibraryItemsCount();
+				const total = await resolveStorage(req).getLibraryItemsCount({
+					publishedOnly: true,
+				});
 				return res.json({
 					data: allItems,
 					meta: {
@@ -2668,6 +2793,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 			}
 
+			for (const row of items) {
+				attachLibraryDisplayFields(row as Record<string, unknown>);
+				await enrichLibraryRelations(row, req);
+			}
+
 			res.json(items);
 		} catch (error) {
 			console.error('Get library management error:', error);
@@ -2675,13 +2805,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	app.get('/api/library/:id', async (req, res) => {
+	app.get('/api/library/:id', authenticateOptional, async (req, res) => {
 		try {
 			const itemId = req.params.id;
 			const item = await resolveStorage(req).getLibraryItemById(itemId);
 
 			if (!item) {
 				return res.status(404).json({ message: 'Library item not found' });
+			}
+
+			const user = req.user as UserWithRole | undefined;
+			const canView = await canViewLibraryItem(user, item, req);
+			if (!canView) {
+				return res.status(404).json({ message: 'Library item not found' });
+			}
+
+			attachLibraryDisplayFields(item as Record<string, unknown>);
+			await enrichLibraryRelations(item, req);
+			try {
+				await enrichLibraryWithAuthors([item], req);
+			} catch (e) {
+				console.warn('Failed to enrich library authors:', e);
 			}
 
 			res.json(item);
@@ -2695,29 +2839,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		'/api/library',
 		authenticate,
 		requirePermission('library.create'),
-		uploadMiddleware.array('images', 10),
+		uploadMiddleware.array('images', 50),
 		async (req, res) => {
 			try {
-				// Extract form data with proper validation
-				let title = req.body.title || '';
-				let description = req.body.description || '';
-				let fullDescription = req.body.fullDescription || '';
-				let type = req.body.type || 'photo';
-				let gdriveUrls = req.body.gdriveUrls || [];
+				const body = req.body;
+				const title = (body.title || '').trim();
+				const description = (body.description || '').trim();
+				const fullDescription = (body.fullDescription || '').trim();
+				let type = (body.type || 'photo') as 'photo' | 'video';
+				const published =
+					body.published === 'true' ||
+					body.published === true ||
+					body.published === undefined;
+				let activityDate: Date | null = null;
+				if (body.activityDate) {
+					const d = new Date(body.activityDate);
+					if (!Number.isNaN(d.getTime())) activityDate = d;
+				}
 
-				// Validate required fields
-				if (!title || title.trim() === '') {
+				const parseGdriveUrlList = (): string[] => {
+					const g = body.gdriveUrls;
+					if (Array.isArray(g)) return g.map(String).filter((u) => u.trim());
+					const out: string[] = [];
+					for (const k of Object.keys(body)) {
+						const m = k.match(/^gdriveUrls\[(\d+)\]$/);
+						if (m) out[Number(m[1])] = body[k];
+					}
+					const compact = out.filter(Boolean);
+					if (compact.length) return compact;
+					if (typeof g === 'string' && g.trim()) return [g];
+					return [];
+				};
+
+				const parseMediaTypeList = (): string[] => {
+					const g = body.gdriveMediaTypes;
+					if (Array.isArray(g)) return g.map(String);
+					const out: string[] = [];
+					for (const k of Object.keys(body)) {
+						const m = k.match(/^gdriveMediaTypes\[(\d+)\]$/);
+						if (m) out[Number(m[1])] = body[k];
+					}
+					return out.filter(Boolean);
+				};
+
+				const parseRelatedIds = (field: string): string[] => {
+					const raw = body[field];
+					if (!raw) return [];
+					if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+					if (typeof raw === 'string') {
+						try {
+							const j = JSON.parse(raw);
+							return Array.isArray(j) ? j.map(String).filter(Boolean) : [];
+						} catch {
+							return raw
+								.split(',')
+								.map((s) => s.trim())
+								.filter(Boolean);
+						}
+					}
+					return [];
+				};
+
+				const relatedEventIds = parseRelatedIds('relatedEventIds');
+				const relatedBeritaIds = parseRelatedIds('relatedBeritaIds');
+				const embedFoldersOnly =
+					body.embedFoldersOnly === 'true' || body.embedFoldersOnly === true;
+
+				if (!title) {
 					return res.status(400).json({ message: 'Title is required' });
-				}
-
-				if (!description || description.trim() === '') {
-					return res.status(400).json({ message: 'Description is required' });
-				}
-
-				if (!fullDescription || fullDescription.trim() === '') {
-					return res
-						.status(400)
-						.json({ message: 'Full description is required' });
 				}
 
 				const authorId = (req.user as UserWithRole)?._id;
@@ -2726,21 +2915,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(401).json({ message: 'Authentication required' });
 				}
 
+				const gdriveUrls = parseGdriveUrlList();
+				const gdriveMediaTypes = parseMediaTypeList();
+
 				let imageUrls: string[] = [];
 				let imageSources: string[] = [];
 				let gdriveFileIds: string[] = [];
+				let mediaKinds: ('image' | 'video')[] = [];
+				const gdriveEmbedFolders: { folderId: string; url: string }[] = [];
+				const folderCardPlaceholder =
+					'data:image/svg+xml,' +
+					encodeURIComponent(
+						'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="#e2e8f0" width="100%" height="100%"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="14">Google Drive folder</text></svg>',
+					);
 
-				// Handle Google Drive URLs if provided
-				if (gdriveUrls && gdriveUrls.length > 0) {
+				if (gdriveUrls.length > 0) {
 					const {
 						extractFileId,
 						checkAccessibility,
 						isValidGoogleDriveUrl,
-						getSimpleFolderContents,
+						getFolderMediaForLibrary,
 						isFolderUrl,
 					} = await import('./googleDrive');
 
-					for (const url of gdriveUrls) {
+					for (let i = 0; i < gdriveUrls.length; i++) {
+						const url = gdriveUrls[i];
 						if (!url || url.trim() === '') continue;
 
 						if (!isValidGoogleDriveUrl(url)) {
@@ -2763,68 +2962,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							});
 						}
 
-						// Check if it's a folder and get contents
 						const isFolder = isFolderUrl(url);
 						if (isFolder) {
-							console.log('Processing folder for library creation:', fileId);
-							try {
-								const folderFiles = await getSimpleFolderContents(fileId);
-								console.log(`Found ${folderFiles.length} files in folder`);
-
-								for (const file of folderFiles) {
-									// Store the original Google Drive file URLs
-									imageUrls.push(file.url);
-									imageSources.push('gdrive');
-									gdriveFileIds.push(file.id);
-								}
-							} catch (folderError) {
-								console.error('Error processing folder:', folderError);
-								// If folder processing fails, add the folder URL itself as fallback
-								imageUrls.push(url);
+							if (embedFoldersOnly) {
+								gdriveEmbedFolders.push({
+									folderId: fileId,
+									url: url.trim(),
+								});
+								imageUrls.push(folderCardPlaceholder);
 								imageSources.push('gdrive');
 								gdriveFileIds.push(fileId);
+								mediaKinds.push('image');
+							} else {
+								try {
+									const folderFiles = await getFolderMediaForLibrary(fileId);
+									for (const file of folderFiles) {
+										imageUrls.push(file.url);
+										imageSources.push('gdrive');
+										gdriveFileIds.push(file.id);
+										mediaKinds.push(file.type);
+									}
+								} catch (folderError) {
+									console.error('Error processing folder:', folderError);
+									imageUrls.push(url);
+									imageSources.push('gdrive');
+									gdriveFileIds.push(fileId);
+									mediaKinds.push('image');
+								}
 							}
 						} else {
-							// Single file
 							imageUrls.push(url);
 							imageSources.push('gdrive');
 							gdriveFileIds.push(fileId);
+							const hint = gdriveMediaTypes[i];
+							const asVid =
+								hint === 'video' ||
+								type === 'video' ||
+								(hint !== 'image' && hint === 'video');
+							mediaKinds.push(asVid ? 'video' : 'image');
 						}
 					}
 				}
 
-				// Handle uploaded files if provided
 				const files = req.files as Express.Multer.File[];
 				if (files && files.length > 0) {
 					const tCtx = tenantCtxFromReq(req);
 					const uploadedUrls = await Promise.all(
-						files.map((file) => uploadHandler(file, true, 'general', undefined, undefined, tCtx)),
+						files.map((file) =>
+							uploadHandler(file, true, 'general', undefined, undefined, tCtx),
+						),
 					);
 
-					imageUrls.push(...uploadedUrls);
-					imageSources.push(...uploadedUrls.map(() => 'local'));
-					gdriveFileIds.push(...uploadedUrls.map(() => ''));
+					for (let i = 0; i < uploadedUrls.length; i++) {
+						const file = files[i];
+						imageUrls.push(uploadedUrls[i]);
+						imageSources.push('local');
+						gdriveFileIds.push('');
+						const isVid = (file.mimetype || '').startsWith('video/');
+						mediaKinds.push(isVid ? 'video' : 'image');
+					}
 				}
 
-				// Use default image if no images provided
 				if (imageUrls.length === 0) {
-					imageUrls = ['/uploads/default-library-image.jpg'];
-					imageSources = ['local'];
-					gdriveFileIds = [''];
+					return res.status(400).json({
+						message: 'At least one media item is required (upload or Google Drive link)',
+					});
 				}
 
-				// Create library item with Google Drive support
+				if (mediaKinds.length !== imageUrls.length) {
+					mediaKinds = imageUrls.map(() => 'image');
+				}
+
+				const anyVideo = mediaKinds.some((k) => k === 'video');
+				const allVideo = mediaKinds.every((k) => k === 'video');
+				type = allVideo ? 'video' : anyVideo ? 'photo' : type;
+
+				const models = resolveModels(req);
 				const newItem = await resolveStorage(req).createLibraryItem({
-					title: title.trim(),
-					description: description.trim(),
-					fullDescription: fullDescription.trim(),
+					title,
+					description,
+					fullDescription,
 					images: imageUrls,
 					imageSources,
 					gdriveFileIds,
-					type: type,
+					mediaKinds,
+					gdriveEmbedFolders,
+					type,
+					published,
+					activityDate: activityDate || undefined,
+					relatedEventIds,
+					relatedBeritaIds,
 					authorId,
 				});
 
+				const nid = String((newItem as any)._id || (newItem as any).id);
+				await syncLibraryLinksOnSave(
+					models,
+					nid,
+					{ relatedEventIds: [], relatedBeritaIds: [] },
+					{ relatedEventIds, relatedBeritaIds },
+				);
+
+				attachLibraryDisplayFields(newItem as Record<string, unknown>);
 				res.status(201).json(newItem);
 			} catch (error) {
 				console.error('Create library item error:', error);
@@ -2836,20 +3075,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.put(
 		'/api/library/:id',
 		authenticate,
-		uploadMiddleware.array('images', 10),
+		uploadMiddleware.array('images', 50),
 		async (req, res) => {
 			try {
 				const itemId = req.params.id;
+				const body = req.body;
 
-				// Extract form data with proper validation
-				let title = req.body.title || '';
-				let description = req.body.description || '';
-				let fullDescription = req.body.fullDescription || '';
-				let type = req.body.type || 'photo';
-				let gdriveUrls = req.body.gdriveUrls || [];
-				let gdriveMediaTypes = req.body.gdriveMediaTypes || [];
-
-				// Get existing item
 				const storage = resolveStorage(req);
 				const existingItem = await storage.getLibraryItemById(itemId);
 				if (!existingItem) {
@@ -2869,26 +3100,112 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						.json({ message: 'You do not have permission to edit this item' });
 				}
 
-				// Process updates
+				const parseGdriveUrlList = (): string[] => {
+					const g = body.gdriveUrls;
+					if (Array.isArray(g)) return g.map(String).filter((u) => u.trim());
+					const out: string[] = [];
+					for (const k of Object.keys(body)) {
+						const m = k.match(/^gdriveUrls\[(\d+)\]$/);
+						if (m) out[Number(m[1])] = body[k];
+					}
+					const compact = out.filter(Boolean);
+					if (compact.length) return compact;
+					if (typeof g === 'string' && g.trim()) return [g];
+					return [];
+				};
+
+				const parseMediaTypeList = (): string[] => {
+					const g = body.gdriveMediaTypes;
+					if (Array.isArray(g)) return g.map(String);
+					const out: string[] = [];
+					for (const k of Object.keys(body)) {
+						const m = k.match(/^gdriveMediaTypes\[(\d+)\]$/);
+						if (m) out[Number(m[1])] = body[k];
+					}
+					return out.filter(Boolean);
+				};
+
+				const parseRelatedIds = (field: string): string[] => {
+					const raw = body[field];
+					if (raw === undefined) return [];
+					if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+					if (typeof raw === 'string') {
+						try {
+							const j = JSON.parse(raw);
+							return Array.isArray(j) ? j.map(String).filter(Boolean) : [];
+						} catch {
+							return raw
+								.split(',')
+								.map((s) => s.trim())
+								.filter(Boolean);
+						}
+					}
+					return [];
+				};
+
+				const title = (body.title ?? (existingItem as any).title ?? '').trim();
+				const description = (body.description ?? (existingItem as any).description ?? '').trim();
+				const fullDescription = (body.fullDescription ?? (existingItem as any).fullDescription ?? '').trim();
+				let type = (body.type || (existingItem as any).type || 'photo') as
+					| 'photo'
+					| 'video';
+				const published =
+					body.published !== undefined
+						? body.published === 'true' || body.published === true
+						: (existingItem as any).published !== false;
+				let activityDate: Date | undefined | null = (existingItem as any).activityDate ?? null;
+				if (body.activityDate !== undefined && body.activityDate !== '') {
+					const d = new Date(body.activityDate);
+					if (!Number.isNaN(d.getTime())) activityDate = d;
+				}
+
+				const relatedEventIds = parseRelatedIds('relatedEventIds');
+				const relatedBeritaIds = parseRelatedIds('relatedBeritaIds');
+				const hasRelE =
+					body.relatedEventIds !== undefined && body.relatedEventIds !== '';
+				const hasRelB =
+					body.relatedBeritaIds !== undefined && body.relatedBeritaIds !== '';
+				const embedFoldersOnly =
+					body.embedFoldersOnly === 'true' || body.embedFoldersOnly === true;
+
+				if (!title) {
+					return res.status(400).json({ message: 'Title is required' });
+				}
+
 				const updates: any = {
-					title: title.trim(),
-					description: description.trim(),
-					fullDescription: fullDescription.trim(),
-					type: type || 'photo',
+					title,
+					description,
+					fullDescription,
+					type,
+					published,
 					updatedAt: new Date(),
 				};
+				if (body.activityDate !== undefined) {
+					updates.activityDate = activityDate;
+				}
+				if (hasRelE) updates.relatedEventIds = relatedEventIds;
+				if (hasRelB) updates.relatedBeritaIds = relatedBeritaIds;
+
+				const gdriveUrls = parseGdriveUrlList();
+				const gdriveMediaTypes = parseMediaTypeList();
 
 				let imageUrls: string[] = [];
 				let imageSources: string[] = [];
 				let gdriveFileIds: string[] = [];
+				let mediaKinds: ('image' | 'video')[] = [];
+				const gdriveEmbedFolders: { folderId: string; url: string }[] = [];
+				const folderCardPlaceholderPut =
+					'data:image/svg+xml,' +
+					encodeURIComponent(
+						'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect fill="#e2e8f0" width="100%" height="100%"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" fill="#64748b" font-family="system-ui" font-size="14">Google Drive folder</text></svg>',
+					);
 
-				// Handle Google Drive URLs if provided
-				if (gdriveUrls && gdriveUrls.length > 0) {
+				if (gdriveUrls.length > 0) {
 					const {
 						extractFileId,
 						checkAccessibility,
 						isValidGoogleDriveUrl,
-						getSimpleFolderContents,
+						getFolderMediaForLibrary,
 						isFolderUrl,
 					} = await import('./googleDrive');
 
@@ -2909,13 +3226,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							});
 						}
 
-						// For edit, we may skip accessibility check for existing URLs
-						// to avoid breaking existing media if temporary access issues
 						try {
 							const accessible = await checkAccessibility(fileId);
 							if (!accessible) {
 								console.warn(`File may be temporarily inaccessible: ${url}`);
-								// Continue anyway for existing items
 							}
 						} catch (error) {
 							console.warn(
@@ -2924,68 +3238,121 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							);
 						}
 
-						// Check if it's a folder and get contents
 						const isFolder = isFolderUrl(url);
 						if (isFolder) {
-							console.log('Processing folder for library update:', fileId);
-							try {
-								const folderFiles = await getSimpleFolderContents(fileId);
-								console.log(`Found ${folderFiles.length} files in folder`);
-
-								for (const file of folderFiles) {
-									imageUrls.push(file.url);
-									imageSources.push('gdrive');
-									gdriveFileIds.push(file.id);
-								}
-							} catch (folderError) {
-								console.error('Error processing folder:', folderError);
-								// If folder processing fails, add the folder URL itself as fallback
-								imageUrls.push(url);
+							if (embedFoldersOnly) {
+								gdriveEmbedFolders.push({
+									folderId: fileId,
+									url: url.trim(),
+								});
+								imageUrls.push(folderCardPlaceholderPut);
 								imageSources.push('gdrive');
 								gdriveFileIds.push(fileId);
+								mediaKinds.push('image');
+							} else {
+								try {
+									const folderFiles = await getFolderMediaForLibrary(fileId);
+									for (const file of folderFiles) {
+										imageUrls.push(file.url);
+										imageSources.push('gdrive');
+										gdriveFileIds.push(file.id);
+										mediaKinds.push(file.type);
+									}
+								} catch (folderError) {
+									console.error('Error processing folder:', folderError);
+									imageUrls.push(url);
+									imageSources.push('gdrive');
+									gdriveFileIds.push(fileId);
+									mediaKinds.push('image');
+								}
 							}
 						} else {
-							// Single file
 							imageUrls.push(url);
 							imageSources.push('gdrive');
 							gdriveFileIds.push(fileId);
+							const hint = gdriveMediaTypes[i];
+							const asVid = hint === 'video' || type === 'video';
+							mediaKinds.push(asVid ? 'video' : 'image');
 						}
 					}
 				}
 
-				// Handle uploaded files if provided
 				const files = req.files as Express.Multer.File[];
 				if (files && files.length > 0) {
 					const tCtx = tenantCtxFromReq(req);
 					const uploadedUrls = await Promise.all(
-						files.map((file) => uploadHandler(file, true, 'general', undefined, undefined, tCtx)),
+						files.map((file) =>
+							uploadHandler(file, true, 'general', undefined, undefined, tCtx),
+						),
 					);
 
-					imageUrls.push(...uploadedUrls);
-					imageSources.push(...uploadedUrls.map(() => 'local'));
-					gdriveFileIds.push(...uploadedUrls.map(() => ''));
+					for (let i = 0; i < uploadedUrls.length; i++) {
+						const file = files[i];
+						imageUrls.push(uploadedUrls[i]);
+						imageSources.push('local');
+						gdriveFileIds.push('');
+						const isVid = (file.mimetype || '').startsWith('video/');
+						mediaKinds.push(isVid ? 'video' : 'image');
+					}
 				}
 
-				// Update images, imageSources, and gdriveFileIds
 				if (imageUrls.length > 0) {
+					if (mediaKinds.length !== imageUrls.length) {
+						mediaKinds = imageUrls.map(() => 'image');
+					}
+					const anyVideo = mediaKinds.some((k) => k === 'video');
+					const allVideo = mediaKinds.every((k) => k === 'video');
+					updates.type = allVideo ? 'video' : anyVideo ? 'photo' : type;
 					updates.images = imageUrls;
 					updates.imageSources = imageSources;
 					updates.gdriveFileIds = gdriveFileIds;
-				} else if (existingItem.images && existingItem.images.length > 0) {
-					// Keep existing images if no new ones provided
-					updates.images = existingItem.images;
+					updates.mediaKinds = mediaKinds;
+					updates.gdriveEmbedFolders = gdriveEmbedFolders;
+				} else if (
+					(existingItem as any).images &&
+					(existingItem as any).images.length > 0
+				) {
+					updates.images = (existingItem as any).images;
 					updates.imageSources =
-						existingItem.imageSources || existingItem.images.map(() => 'local');
+						(existingItem as any).imageSources ||
+						(existingItem as any).images.map(() => 'local');
 					updates.gdriveFileIds =
-						existingItem.gdriveFileIds || existingItem.images.map(() => '');
+						(existingItem as any).gdriveFileIds ||
+						(existingItem as any).images.map(() => '');
+					updates.mediaKinds =
+						(existingItem as any).mediaKinds ||
+						(existingItem as any).images.map(() => 'image');
+					updates.gdriveEmbedFolders =
+						(existingItem as any).gdriveEmbedFolders || [];
+				} else {
+					return res.status(400).json({
+						message: 'At least one media item is required',
+					});
 				}
 
-				// Update library item
-				const updatedItem = await storage.updateLibraryItem(
-					itemId,
-					updates,
+				const updatedItem = await storage.updateLibraryItem(itemId, updates);
+
+				const models = resolveModels(req);
+				const prevE = ((existingItem as any).relatedEventIds || []).map((x: any) =>
+					String(x),
+				);
+				const prevB = ((existingItem as any).relatedBeritaIds || []).map((x: any) =>
+					String(x),
+				);
+				const nextE = hasRelE
+					? relatedEventIds
+					: prevE;
+				const nextB = hasRelB
+					? relatedBeritaIds
+					: prevB;
+				await syncLibraryLinksOnSave(
+					models,
+					String(itemId),
+					{ relatedEventIds: prevE, relatedBeritaIds: prevB },
+					{ relatedEventIds: nextE, relatedBeritaIds: nextB },
 				);
 
+				attachLibraryDisplayFields((updatedItem || {}) as Record<string, unknown>);
 				res.json(updatedItem);
 			} catch (error) {
 				console.error('Update library item error:', error);
@@ -3023,6 +3390,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.json({ message: 'You do not have permission to delete this item' });
 			}
 
+			const models = resolveModels(req);
+			await removeLibraryFromAllRelations(models, itemId);
 			await storage.deleteLibraryItem(itemId);
 
 			res.json({ message: 'Library item deleted successfully' });
@@ -6328,6 +6697,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					try { relatedBerita = JSON.parse(body.relatedBeritaIds); } catch { /* ignore */ }
 				}
 
+				let relatedGalleryIds: string[] = [];
+				if (body.relatedGalleryIds) {
+					try {
+						const g = JSON.parse(body.relatedGalleryIds);
+						if (Array.isArray(g)) relatedGalleryIds = g.map((x: any) => String(x));
+					} catch { /* ignore */ }
+				}
+
 				let existingGdriveAtts: any[] = [];
 				if (body.attachments) {
 					try { existingGdriveAtts = JSON.parse(body.attachments); } catch { /* ignore */ }
@@ -6355,10 +6732,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					published: body.published === 'true' || body.published === true,
 					createdBy: user._id,
 					relatedBerita,
+					relatedGalleryIds,
 				};
 
 				const event = await storage.createEvent(eventData);
 				createdEventId = String((event as any)._id);
+
+				if (relatedGalleryIds.length > 0) {
+					const models = resolveModels(req);
+					await syncEventGalleryLinksOnSave(
+						models,
+						createdEventId,
+						[],
+						relatedGalleryIds,
+					);
+				}
 
 				if (files?.thumbnail?.[0]) {
 					const { uploadEventThumbnail } = await import('./upload');
@@ -6551,7 +6939,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
+				let prevGalleryIds: string[] = (
+					(existingEvent as any).relatedGalleryIds || []
+				).map((x: any) => String(x));
+				let nextGalleryIds = prevGalleryIds;
+				if (body.relatedGalleryIds !== undefined) {
+					try {
+						const parsed = JSON.parse(body.relatedGalleryIds);
+						nextGalleryIds = Array.isArray(parsed)
+							? parsed.map((x: any) => String(x))
+							: [];
+						updateData.relatedGalleryIds = nextGalleryIds;
+					} catch {
+						/* ignore */
+					}
+				}
+
 				const event = await storage.updateEvent(id, updateData);
+				if (body.relatedGalleryIds !== undefined) {
+					const models = resolveModels(req);
+					await syncEventGalleryLinksOnSave(
+						models,
+						id,
+						prevGalleryIds,
+						nextGalleryIds,
+					);
+				}
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
 			} catch (error) {

@@ -41,6 +41,8 @@ const EventsIndex = lazy(() => import('@/pages/events/index'));
 const EventsAll = lazy(() => import('@/pages/events/all'));
 const EventsYear = lazy(() => import('@/pages/events/[year]'));
 const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
+const LibraryPage = lazy(() => import('@/pages/library/index'));
+const LibraryDetailPage = lazy(() => import('@/pages/library/detail'));
 
 function RedirectTo({ to }: { to: string }) {
 	const [, setLocation] = useLocation();
@@ -115,6 +117,8 @@ function Router() {
 				<Route path="/events/all" component={EventsAll} />
 				<Route path="/events/:year/:eventId" component={EventDetail} />
 				<Route path="/events/:year" component={EventsYear} />
+				<Route path="/library/:id" component={LibraryDetailPage} />
+				<Route path="/library" component={LibraryPage} />
 
 				{/* Dashboard Routes - Protected */}
 				<Route path="/dashboard">

@@ -68,11 +68,17 @@ export default function ProdiPage() {
 
 		const origPush = window.history.pushState.bind(window.history);
 		const origReplace = window.history.replaceState.bind(window.history);
-		window.history.pushState = function (...args: any) {
+		window.history.pushState = function (
+			this: History,
+			...args: Parameters<History['pushState']>
+		) {
 			origPush(...args);
 			syncTabFromUrl();
 		};
-		window.history.replaceState = function (...args: any) {
+		window.history.replaceState = function (
+			this: History,
+			...args: Parameters<History['replaceState']>
+		) {
 			origReplace(...args);
 			syncTabFromUrl();
 		};

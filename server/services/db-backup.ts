@@ -261,7 +261,7 @@ export async function listAvailableTenantBackups(
 			const expected = buildTenantSnapshotName(tenantDbName, key);
 			if (expected === name) keys.push(key);
 		}
-		const unique = [...new Set(keys)].sort().reverse().slice(0, MAX_BACKUPS);
+		const unique = Array.from(new Set(keys)).sort().reverse().slice(0, MAX_BACKUPS);
 		return unique.map((key) => ({ key, label: backupKeyToLabel(key) }));
 	} finally {
 		if (shouldClose) await client.close().catch(() => {});

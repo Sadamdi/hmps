@@ -57,7 +57,15 @@ function toObjectId(id: string | number): mongoose.Types.ObjectId | null {
 type PaginationOptions = {
 	page?: number;
 	limit?: number;
+	/** Hanya untuk Library: item published atau dokumen lama tanpa field */
+	publishedOnly?: boolean;
 };
+
+function libraryPublishedFilter(): Record<string, unknown> {
+	return {
+		$or: [{ published: true }, { published: { $exists: false } }],
+	};
+}
 
 function applyPagination<T>(query: any, options?: PaginationOptions) {
 	const page = options?.page;
@@ -209,6 +217,12 @@ async function updateBerita(
 ): Promise<any> {
 	beritaData.updatedAt = new Date();
 
+	if (Array.isArray(beritaData.relatedGalleryIds)) {
+		beritaData.relatedGalleryIds = beritaData.relatedGalleryIds
+			.map((x: string) => toObjectId(x))
+			.filter(Boolean);
+	}
+
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 
@@ -232,12 +246,16 @@ async function getBeritaCount(): Promise<number> {
 
 // Library functions
 async function getAllLibraryItems(options?: PaginationOptions): Promise<any[]> {
-	const query = Library.find().sort({ createdAt: -1 });
+	const filter =
+		options?.publishedOnly === true ? libraryPublishedFilter() : {};
+	const query = Library.find(filter).sort({ createdAt: -1 });
 	return await applyPagination(query, options).lean();
 }
 
 async function getPublishedLibraryItems(): Promise<any[]> {
-	return await Library.find().sort({ createdAt: -1 }).lean();
+	return await Library.find(libraryPublishedFilter())
+		.sort({ createdAt: -1 })
+		.lean();
 }
 
 async function getLibraryItemsByAuthorId(
@@ -273,6 +291,16 @@ async function createLibraryItem(itemData: any): Promise<any> {
 			itemData.authorId = objectId;
 		}
 	}
+	if (Array.isArray(itemData.relatedEventIds)) {
+		itemData.relatedEventIds = itemData.relatedEventIds
+			.map((id: string) => toObjectId(id))
+			.filter(Boolean);
+	}
+	if (Array.isArray(itemData.relatedBeritaIds)) {
+		itemData.relatedBeritaIds = itemData.relatedBeritaIds
+			.map((id: string) => toObjectId(id))
+			.filter(Boolean);
+	}
 
 	// Set created and updated timestamps
 	itemData.createdAt = new Date();
@@ -289,7 +317,18 @@ async function updateLibraryItem(
 	// Set updated timestamp
 	itemData.updatedAt = new Date();
 
-	// Convert ID to ObjectId (handles both string MongoDB IDs and numeric PostgreSQL IDs)
+	if (Array.isArray(itemData.relatedEventIds)) {
+		itemData.relatedEventIds = itemData.relatedEventIds
+			.map((x: string) => toObjectId(x))
+			.filter(Boolean);
+	}
+	if (Array.isArray(itemData.relatedBeritaIds)) {
+		itemData.relatedBeritaIds = itemData.relatedBeritaIds
+			.map((x: string) => toObjectId(x))
+			.filter(Boolean);
+	}
+
+	// Convert ID to ObjectId (handles both string MongoDB IDs or numeric PostgreSQL IDs)
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 
@@ -308,7 +347,12 @@ async function deleteLibraryItem(id: string | number): Promise<void> {
 	await Library.findByIdAndDelete(objectId);
 }
 
-async function getLibraryItemsCount(): Promise<number> {
+async function getLibraryItemsCount(opts?: {
+	publishedOnly?: boolean;
+}): Promise<number> {
+	if (opts?.publishedOnly) {
+		return await Library.countDocuments(libraryPublishedFilter());
+	}
 	return await Library.countDocuments();
 }
 
@@ -885,11 +929,21 @@ async function createEvent(data: any): Promise<any> {
 			.map((id: string) => toObjectId(id))
 			.filter(Boolean);
 	}
+	if (Array.isArray(data.relatedGalleryIds)) {
+		data.relatedGalleryIds = data.relatedGalleryIds
+			.map((id: string) => toObjectId(id))
+			.filter(Boolean);
+	}
 	const doc = new Event(data);
 	return await doc.save();
 }
 
 async function updateEvent(id: string, data: any): Promise<any | null> {
+	if (Array.isArray(data.relatedGalleryIds)) {
+		data.relatedGalleryIds = data.relatedGalleryIds
+			.map((x: string) => toObjectId(x))
+			.filter(Boolean);
+	}
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 	return await Event.findByIdAndUpdate(

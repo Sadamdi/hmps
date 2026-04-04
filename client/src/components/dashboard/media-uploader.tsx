@@ -1,12 +1,14 @@
+import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest, queryClient } from '@/lib/queryClient';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import {
 	Image as ImageIcon,
 	Loader2,
@@ -20,21 +22,39 @@ import { GDriveLinkInput } from '../GDriveLinkInput';
 import MediaDisplay from '../MediaDisplay';
 
 interface LibraryItem {
-	id: number;
+	id?: number;
+	_id?: string;
 	title: string;
 	description: string;
 	fullDescription: string;
 	images: string[];
-	date: string;
-	time: string;
+	mediaKinds?: ('image' | 'video')[];
+	date?: string;
+	time?: string;
 	type: 'photo' | 'video';
-	createdAt: string;
+	createdAt?: string;
+	published?: boolean;
+	activityDate?: string;
+	relatedEventIds?: string[];
+	relatedBeritaIds?: string[];
+	gdriveEmbedFolders?: { folderId: string; url: string }[];
 }
 
 interface MediaUploaderProps {
 	item: LibraryItem | null;
 	onSave: () => void;
 	onCancel: () => void;
+}
+
+function toIsoDateInput(d: string | Date | undefined): string {
+	if (!d) return '';
+	try {
+		const x = new Date(d);
+		if (Number.isNaN(x.getTime())) return '';
+		return x.toISOString().slice(0, 10);
+	} catch {
+		return '';
+	}
 }
 
 export default function MediaUploader({
@@ -46,76 +66,118 @@ export default function MediaUploader({
 	const [title, setTitle] = useState(item?.title || '');
 	const [description, setDescription] = useState(item?.description || '');
 	const [fullDescription, setFullDescription] = useState(
-		item?.fullDescription || ''
+		item?.fullDescription || '',
 	);
 	const [mediaType, setMediaType] = useState<'photo' | 'video'>(
-		item?.type || 'photo'
+		item?.type || 'photo',
 	);
+	const [published, setPublished] = useState(item?.published !== false);
+	const [activityDate, setActivityDate] = useState(
+		toIsoDateInput(item?.activityDate as string) ||
+			toIsoDateInput(item?.createdAt),
+	);
+	const [relatedEventIds, setRelatedEventIds] = useState<string[]>([]);
+	const [relatedBeritaIds, setRelatedBeritaIds] = useState<string[]>([]);
+
 	const [gdriveUrls, setGdriveUrls] = useState<string[]>(['']);
 	const [gdriveValidations, setGdriveValidations] = useState<{
 		[key: number]: boolean;
 	}>({});
 	const [gdriveErrors, setGdriveErrors] = useState<{ [key: number]: string }>(
-		{}
+		{},
 	);
 	const [gdriveMediaTypes, setGdriveMediaTypes] = useState<{
 		[key: number]: 'image' | 'video';
 	}>({});
-	const [mediaUrls, setMediaUrls] = useState<string[]>(item?.images || []);
+	const [embedFoldersOnly, setEmbedFoldersOnly] = useState(false);
 
-	// Initialize form data when editing
+	const { data: eventsForLink = [] } = useQuery<
+		{ _id: string; title: string }[]
+	>({
+		queryKey: ['/api/events/published'],
+		queryFn: async () => {
+			const r = await fetch('/api/events/published');
+			if (!r.ok) return [];
+			return r.json();
+		},
+	});
+
+	const { data: beritaForLink = [] } = useQuery<
+		{ _id: string; title: string }[]
+	>({
+		queryKey: ['/api/berita/manage'],
+		queryFn: async () => {
+			const r = await apiRequest('GET', '/api/berita/manage');
+			return r.json();
+		},
+	});
+
 	useEffect(() => {
 		if (item) {
 			setTitle(item.title || '');
 			setDescription(item.description || '');
 			setFullDescription(item.fullDescription || '');
 			setMediaType(item.type || 'photo');
+			setPublished(item.published !== false);
+			setActivityDate(
+				toIsoDateInput(item.activityDate as string) ||
+					toIsoDateInput(item.createdAt),
+			);
+			setRelatedEventIds(
+				(item.relatedEventIds || []).map((x) => String(x)),
+			);
+			setRelatedBeritaIds(
+				(item.relatedBeritaIds || []).map((x) => String(x)),
+			);
 
-			// Load Google Drive URLs if they exist
-			if (item.images && item.images.length > 0) {
-				console.log('Loading existing images for edit:', item.images);
+			const embeds = (item as LibraryItem).gdriveEmbedFolders;
+			if (embeds && embeds.length > 0) {
+				setEmbedFoldersOnly(true);
+				setGdriveUrls(embeds.map((f) => f.url));
+				const validations: { [key: number]: boolean } = {};
+				embeds.forEach((_, index: number) => {
+					validations[index] = true;
+				});
+				setGdriveValidations(validations);
+				setGdriveMediaTypes({});
+			} else if (item.images && item.images.length > 0) {
+				setEmbedFoldersOnly(false);
 				setGdriveUrls(item.images);
-				setMediaUrls(item.images);
-
-				// Set all as valid since they're already saved
 				const validations: { [key: number]: boolean } = {};
 				const mediaTypes: { [key: number]: 'image' | 'video' } = {};
 				item.images.forEach((url: string, index: number) => {
 					validations[index] = true;
-					// Determine media type based on item type or URL
-					mediaTypes[index] = item.type === 'video' ? 'video' : 'image';
+					const mk = item.mediaKinds?.[index];
+					if (mk === 'video') mediaTypes[index] = 'video';
+					else if (mk === 'image') mediaTypes[index] = 'image';
+					else mediaTypes[index] = item.type === 'video' ? 'video' : 'image';
 				});
 				setGdriveValidations(validations);
 				setGdriveMediaTypes(mediaTypes);
 			}
+		} else {
+			setPublished(true);
+			setRelatedEventIds([]);
+			setRelatedBeritaIds([]);
+			setActivityDate('');
+			setEmbedFoldersOnly(false);
 		}
 	}, [item]);
 
-	// Save media mutation
 	const saveMediaMutation = useMutation({
 		mutationFn: async (formData: FormData) => {
 			if (item) {
-				// Update existing item - Use MongoDB _id or PostgreSQL id
 				const itemId = (item as any)._id || item.id;
-
-				console.log('Updating library item with ID:', itemId);
-
-				if (!itemId) {
-					throw new Error('Invalid item ID');
-				}
-
+				if (!itemId) throw new Error('Invalid item ID');
 				return await apiRequest('PUT', `/api/library/${itemId}`, formData);
-			} else {
-				// Create new item
-				return await apiRequest('POST', '/api/library', formData);
 			}
+			return await apiRequest('POST', '/api/library', formData);
 		},
 		onSuccess: async (data) => {
-			// Invalidate queries to refresh data
 			queryClient.invalidateQueries({ queryKey: ['/api/library'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/library/manage'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 
-			// Log activity
 			try {
 				const isEdit = !!item;
 				const responseData = await data.json();
@@ -123,18 +185,17 @@ export default function MediaUploader({
 
 				if (isEdit) {
 					await logActivity(
-						ActivityTemplates.libraryItemUpdated(title, String(itemId))
+						ActivityTemplates.libraryItemUpdated(title, String(itemId)),
 					);
 				} else {
 					await logActivity(
-						ActivityTemplates.libraryItemCreated(title, String(itemId))
+						ActivityTemplates.libraryItemCreated(title, String(itemId)),
 					);
 				}
 			} catch (error) {
 				console.warn('Failed to log library activity:', error);
 			}
 
-			// Clear form after successful upload
 			setTitle('');
 			setDescription('');
 			setFullDescription('');
@@ -142,7 +203,8 @@ export default function MediaUploader({
 			setGdriveValidations({});
 			setGdriveErrors({});
 			setGdriveMediaTypes({});
-			setMediaUrls([]);
+			setRelatedEventIds([]);
+			setRelatedBeritaIds([]);
 
 			toast({
 				title: 'Success',
@@ -153,9 +215,9 @@ export default function MediaUploader({
 		},
 		onError: (error: any) => {
 			const message =
-				error?.response?.data?.message || // kalau pakai axios & server kirim error message
-				error?.message || // pesan dari error JS biasa
-				'Failed to save the media item. Please try again.'; // fallback
+				error?.response?.data?.message ||
+				error?.message ||
+				'Failed to save the media item. Please try again.';
 
 			toast({
 				title: 'Error',
@@ -170,26 +232,18 @@ export default function MediaUploader({
 	const handleGdriveValidation = (
 		index: number,
 		isValid: boolean,
-		error?: string
+		error?: string,
 	) => {
 		setGdriveValidations((prev) => ({ ...prev, [index]: isValid }));
 		setGdriveErrors((prev) => ({ ...prev, [index]: error || '' }));
 
-		// Update media URLs when valid
-		if (isValid && gdriveUrls[index]) {
-			setMediaUrls((prev) => {
-				const newUrls = [...prev];
-				newUrls[index] = gdriveUrls[index];
-				return newUrls;
-			});
-		}
 	};
 
 	const handleGdriveMediaTypeChange = (
 		index: number,
-		type: 'image' | 'video'
+		t: 'image' | 'video',
 	) => {
-		setGdriveMediaTypes((prev) => ({ ...prev, [index]: type }));
+		setGdriveMediaTypes((prev) => ({ ...prev, [index]: t }));
 	};
 
 	const addGdriveInput = () => {
@@ -213,7 +267,6 @@ export default function MediaUploader({
 			delete newTypes[index];
 			return newTypes;
 		});
-		setMediaUrls((prev) => prev.filter((_, i) => i !== index));
 	};
 
 	const updateGdriveUrl = (index: number, url: string) => {
@@ -224,8 +277,19 @@ export default function MediaUploader({
 		});
 	};
 
+	const toggleEvent = (id: string) => {
+		setRelatedEventIds((prev) =>
+			prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+		);
+	};
+
+	const toggleBerita = (id: string) => {
+		setRelatedBeritaIds((prev) =>
+			prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+		);
+	};
+
 	const handleSave = async () => {
-		// Validation
 		if (!title.trim()) {
 			toast({
 				title: 'Error',
@@ -235,16 +299,6 @@ export default function MediaUploader({
 			return;
 		}
 
-		if (!description.trim()) {
-			toast({
-				title: 'Error',
-				description: 'Please provide a short description',
-				variant: 'destructive',
-			});
-			return;
-		}
-
-		// Validate Google Drive URLs
 		const validUrls = gdriveUrls.filter((url) => url.trim() !== '');
 		if (validUrls.length === 0) {
 			toast({
@@ -255,9 +309,8 @@ export default function MediaUploader({
 			return;
 		}
 
-		// Check if all provided URLs are valid
 		const hasInvalidUrls = validUrls.some(
-			(url, index) => !gdriveValidations[index]
+			(_url, index) => !gdriveValidations[index],
 		);
 		if (hasInvalidUrls) {
 			toast({
@@ -270,19 +323,23 @@ export default function MediaUploader({
 		}
 
 		try {
-			// Create FormData for submission
 			const formData = new FormData();
 			formData.append('title', title);
 			formData.append('description', description);
 			formData.append('fullDescription', fullDescription);
 			formData.append('type', mediaType);
+			formData.append('published', String(published));
+			if (activityDate) formData.append('activityDate', activityDate);
+			formData.append('relatedEventIds', JSON.stringify(relatedEventIds));
+			formData.append('relatedBeritaIds', JSON.stringify(relatedBeritaIds));
 
-			// Add Google Drive URLs with their types
 			validUrls.forEach((url, index) => {
 				formData.append(`gdriveUrls[${index}]`, url);
-				// Add media type for each URL (use global mediaType as default)
 				const urlMediaType = gdriveMediaTypes[index] || mediaType;
-				formData.append(`gdriveMediaTypes[${index}]`, urlMediaType);
+				formData.append(
+					`gdriveMediaTypes[${index}]`,
+					urlMediaType === 'video' ? 'video' : 'image',
+				);
 			});
 
 			await saveMediaMutation.mutateAsync(formData);
@@ -297,23 +354,36 @@ export default function MediaUploader({
 	};
 
 	return (
-		<div className="space-y-6">
-			<div className="space-y-4">
+		<div className="flex flex-col max-h-[85vh]">
+			<div className="space-y-6 max-h-[85vh] overflow-y-auto pr-1 pb-4 flex-1 min-h-0">
 				<div className="space-y-2">
-					<Label htmlFor="title">Title</Label>
+					<Label htmlFor="title">Judul</Label>
 					<Input
 						id="title"
-						placeholder="Enter media title"
+						placeholder="Judul galeri"
 						value={title}
 						onChange={(e) => setTitle(e.target.value)}
 					/>
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor="description">Short Description</Label>
+					<Label htmlFor="activityDate">Tanggal kegiatan</Label>
+					<Input
+						id="activityDate"
+						type="date"
+						value={activityDate}
+						onChange={(e) => setActivityDate(e.target.value)}
+					/>
+					<p className="text-xs text-muted-foreground">
+						Ditampilkan di kartu galeri; default ke tanggal dibuat jika kosong.
+					</p>
+				</div>
+
+				<div className="space-y-2">
+					<Label htmlFor="description">Deskripsi singkat (opsional)</Label>
 					<Textarea
 						id="description"
-						placeholder="Brief description (shown in previews)"
+						placeholder="Ringkasan untuk kartu (opsional)"
 						value={description}
 						onChange={(e) => setDescription(e.target.value)}
 						rows={2}
@@ -321,42 +391,31 @@ export default function MediaUploader({
 				</div>
 
 				<div className="space-y-2">
-					<Label htmlFor="fullDescription">Full Description</Label>
-					<Textarea
-						id="fullDescription"
-						placeholder="Detailed description (shown when item is opened)"
+					<Label>Deskripsi lengkap (opsional)</Label>
+					<RichTextEditor
 						value={fullDescription}
-						onChange={(e) => setFullDescription(e.target.value)}
-						rows={4}
+						onChange={setFullDescription}
+						placeholder="Detail kegiatan…"
+						height={280}
 					/>
 				</div>
 
 				<div className="space-y-3">
-					<Label>Media Type</Label>
+					<Label>Default tipe untuk tautan baru</Label>
 					<RadioGroup
 						value={mediaType}
 						onValueChange={(value) => setMediaType(value as 'photo' | 'video')}
 						className="flex space-x-4">
 						<div className="flex items-center space-x-2">
-							<RadioGroupItem
-								value="photo"
-								id="photo"
-							/>
-							<Label
-								htmlFor="photo"
-								className="flex items-center">
+							<RadioGroupItem value="photo" id="photo" />
+							<Label htmlFor="photo" className="flex items-center">
 								<ImageIcon className="h-4 w-4 mr-1" />
-								Photo
+								Foto
 							</Label>
 						</div>
 						<div className="flex items-center space-x-2">
-							<RadioGroupItem
-								value="video"
-								id="video"
-							/>
-							<Label
-								htmlFor="video"
-								className="flex items-center">
+							<RadioGroupItem value="video" id="video" />
+							<Label htmlFor="video" className="flex items-center">
 								<Video className="h-4 w-4 mr-1" />
 								Video
 							</Label>
@@ -364,17 +423,79 @@ export default function MediaUploader({
 					</RadioGroup>
 				</div>
 
+				<div className="space-y-2 rounded-md border p-3 max-h-40 overflow-y-auto">
+					<Label>Kaitkan ke event (opsional)</Label>
+					{eventsForLink.length === 0 ? (
+						<p className="text-xs text-muted-foreground">Memuat event…</p>
+					) : (
+						<div className="space-y-2">
+							{eventsForLink.map((ev) => (
+								<label
+									key={ev._id}
+									className="flex items-center gap-2 text-sm cursor-pointer">
+									<input
+										type="checkbox"
+										checked={relatedEventIds.includes(ev._id)}
+										onChange={() => toggleEvent(ev._id)}
+									/>
+									<span className="truncate">{ev.title}</span>
+								</label>
+							))}
+						</div>
+					)}
+				</div>
+
+				<div className="space-y-2 rounded-md border p-3 max-h-40 overflow-y-auto">
+					<Label>Kaitkan ke berita (opsional)</Label>
+					{beritaForLink.length === 0 ? (
+						<p className="text-xs text-muted-foreground">Memuat berita…</p>
+					) : (
+						<div className="space-y-2">
+							{beritaForLink.map((b) => (
+								<label
+									key={b._id}
+									className="flex items-center gap-2 text-sm cursor-pointer">
+									<input
+										type="checkbox"
+										checked={relatedBeritaIds.includes(b._id)}
+										onChange={() => toggleBerita(b._id)}
+									/>
+									<span className="truncate">{b.title}</span>
+								</label>
+							))}
+						</div>
+					)}
+				</div>
+
 				<div className="space-y-4">
-					<Label>Google Drive Media Links</Label>
+					<Label>Tautan Google Drive</Label>
+
+					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-3 bg-muted/30">
+						<div className="space-y-1">
+							<Label htmlFor="embed-folder">Folder: embed saja</Label>
+							<p className="text-xs text-muted-foreground max-w-xl">
+								Aktifkan jika tautan folder: jangan impor semua file ke database —
+								di situs tampil iframe folder Google (pengunjung membuka lewat
+								browser mereka).
+							</p>
+						</div>
+						<div className="flex items-center gap-2 shrink-0">
+							<span className="text-sm text-muted-foreground">Impor file</span>
+							<Switch
+								id="embed-folder"
+								checked={embedFoldersOnly}
+								onCheckedChange={setEmbedFoldersOnly}
+							/>
+							<span className="text-sm font-medium">Embed folder</span>
+						</div>
+					</div>
 
 					{gdriveUrls.map((url, index) => (
-						<div
-							key={index}
-							className="space-y-2">
+						<div key={index} className="space-y-2">
 							<div className="flex items-center space-x-2">
 								<div className="flex-1">
 									<GDriveLinkInput
-										label={`Media Link ${index + 1}`}
+										label={`Media ${index + 1}`}
 										value={url}
 										onChange={(newUrl) => updateGdriveUrl(index, newUrl)}
 										onValidation={(isValid, error) =>
@@ -384,7 +505,7 @@ export default function MediaUploader({
 											handleGdriveMediaTypeChange(index, type)
 										}
 										mediaType={gdriveMediaTypes[index] || mediaType}
-										placeholder={`Paste Google Drive link for ${mediaType}...`}
+										placeholder="Tautan file atau folder Google Drive…"
 									/>
 								</div>
 								{gdriveUrls.length > 1 && (
@@ -401,12 +522,14 @@ export default function MediaUploader({
 
 							{url && gdriveValidations[index] && (
 								<div className="mt-2">
-									<Label className="text-sm">Preview:</Label>
+									<Label className="text-sm">Pratinjau</Label>
 									<div className="w-32 h-32 border rounded-md overflow-hidden mt-1">
 										<MediaDisplay
 											src={url}
 											alt={`Media preview ${index + 1}`}
-											type={gdriveMediaTypes[index] || mediaType}
+											type={
+												gdriveMediaTypes[index] === 'video' ? 'video' : 'auto'
+											}
 											className="w-full h-full object-cover"
 										/>
 									</div>
@@ -421,38 +544,42 @@ export default function MediaUploader({
 						onClick={addGdriveInput}
 						className="w-full mt-2">
 						<Plus className="h-4 w-4 mr-2" />
-						Add Another {mediaType === 'photo' ? 'Photo' : 'Video'} Link
+						Tambah tautan
 					</Button>
-
-					<p className="text-sm text-gray-500 mt-2">
-						{mediaType === 'photo'
-							? 'You can add multiple Google Drive photo links'
-							: 'You can add multiple Google Drive video links'}
-					</p>
 				</div>
 			</div>
 
-			<div className="flex justify-end space-x-4">
-				<Button
-					variant="outline"
-					onClick={onCancel}>
-					Cancel
-				</Button>
-				<Button
-					onClick={handleSave}
-					disabled={saveMediaMutation.isPending}>
-					{saveMediaMutation.isPending ? (
-						<>
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-							Saving...
-						</>
-					) : (
-						<>
-							<Upload className="mr-2 h-4 w-4" />
-							Save
-						</>
-					)}
-				</Button>
+			<div className="shrink-0 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pt-4 mt-2 border-t border-border bg-background">
+				<div className="flex flex-col sm:flex-row sm:items-center gap-3">
+					<span className="text-sm text-muted-foreground">Status</span>
+					<div className="flex items-center gap-2">
+						<span className="text-sm text-muted-foreground">Draf</span>
+						<Switch
+							id="pub-footer"
+							checked={published}
+							onCheckedChange={setPublished}
+						/>
+						<span className="text-sm font-medium">Terbit</span>
+					</div>
+				</div>
+				<div className="flex justify-end gap-3">
+					<Button variant="outline" onClick={onCancel}>
+						Batal
+					</Button>
+					<Button onClick={handleSave} disabled={saveMediaMutation.isPending}>
+						{saveMediaMutation.isPending ? (
+							<>
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								Menyimpan…
+							</>
+						) : (
+							<>
+								<Upload className="mr-2 h-4 w-4" />
+								Simpan
+							</>
+						)}
+					</Button>
+				</div>
 			</div>
 		</div>
 	);

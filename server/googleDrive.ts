@@ -558,6 +558,59 @@ export function getFileTypeFromExtension(
 	return 'unknown';
 }
 
+/**
+ * Isi folder untuk galeri: pakai Drive API (mimeType) bila tersedia; fallback ke scraping.
+ */
+export async function getFolderMediaForLibrary(folderId: string): Promise<
+	Array<{
+		id: string;
+		url: string;
+		type: 'image' | 'video';
+		name: string;
+	}>
+> {
+	const seen = new Set<string>();
+	const out: Array<{
+		id: string;
+		url: string;
+		type: 'image' | 'video';
+		name: string;
+	}> = [];
+
+	try {
+		const fromApi = await getMediaFromFolder(folderId);
+		for (const f of fromApi) {
+			if (!f.id || seen.has(f.id)) continue;
+			seen.add(f.id);
+			const isVid =
+				(f.mimeType || '').startsWith('video/') ||
+				getFileTypeFromExtension(f.name) === 'video';
+			out.push({
+				id: f.id,
+				url: `https://drive.google.com/file/d/${f.id}/view`,
+				type: isVid ? 'video' : 'image',
+				name: f.name || `Media ${out.length + 1}`,
+			});
+		}
+		if (out.length > 0) {
+			console.log(
+				`getFolderMediaForLibrary: API returned ${out.length} files for folder ${folderId}`,
+			);
+			return out;
+		}
+	} catch (e) {
+		console.warn('getFolderMediaForLibrary: API path failed, falling back:', e);
+	}
+
+	const simple = await getSimpleFolderContents(folderId);
+	for (const s of simple) {
+		if (!s.id || seen.has(s.id)) continue;
+		seen.add(s.id);
+		out.push(s);
+	}
+	return out;
+}
+
 // Existing upload functionality (preserved)
 export async function uploadToDrive(
 	buffer: Buffer,

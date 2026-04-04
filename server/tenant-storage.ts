@@ -20,7 +20,17 @@ function toObjectId(id: string | number): mongoose.Types.ObjectId | null {
 	}
 }
 
-type PaginationOptions = { page?: number; limit?: number };
+type PaginationOptions = {
+	page?: number;
+	limit?: number;
+	publishedOnly?: boolean;
+};
+
+function libraryPublishedFilterTenant(): Record<string, unknown> {
+	return {
+		$or: [{ published: true }, { published: { $exists: false } }],
+	};
+}
 
 function applyPagination<T>(query: any, options?: PaginationOptions) {
 	const page = options?.page;
@@ -108,7 +118,12 @@ export function createTenantStorage(models: TenantModels) {
 
 	// ── Library ──
 	async function getAllLibrary(options?: PaginationOptions) {
-		return applyPagination(Library.find().sort({ createdAt: -1 }), options).lean();
+		const filter =
+			options?.publishedOnly === true ? libraryPublishedFilterTenant() : {};
+		return applyPagination(
+			Library.find(filter).sort({ createdAt: -1 }),
+			options,
+		).lean();
 	}
 	async function getLibraryById(id: string | number) {
 		const oid = toObjectId(id); if (!oid) return null;
@@ -116,11 +131,23 @@ export function createTenantStorage(models: TenantModels) {
 	}
 	async function createLibrary(data: any) {
 		if (data.authorId) { const oid = toObjectId(data.authorId); if (oid) data.authorId = oid; }
+		if (Array.isArray(data.relatedEventIds)) {
+			data.relatedEventIds = data.relatedEventIds.map((x: string) => toObjectId(x)).filter(Boolean);
+		}
+		if (Array.isArray(data.relatedBeritaIds)) {
+			data.relatedBeritaIds = data.relatedBeritaIds.map((x: string) => toObjectId(x)).filter(Boolean);
+		}
 		data.createdAt = new Date(); data.updatedAt = new Date();
 		return new Library(data).save();
 	}
 	async function updateLibrary(id: string | number, data: any) {
 		data.updatedAt = new Date();
+		if (Array.isArray(data.relatedEventIds)) {
+			data.relatedEventIds = data.relatedEventIds.map((x: string) => toObjectId(x)).filter(Boolean);
+		}
+		if (Array.isArray(data.relatedBeritaIds)) {
+			data.relatedBeritaIds = data.relatedBeritaIds.map((x: string) => toObjectId(x)).filter(Boolean);
+		}
 		const oid = toObjectId(id); if (!oid) return null;
 		return Library.findByIdAndUpdate(oid, { $set: data }, { new: true }).lean();
 	}
@@ -854,7 +881,12 @@ export function createTenantStorage(models: TenantModels) {
 	async function getOrganizationAlumniMembersCount() { return 0; }
 
 	// ── Library aliases for routes.ts compat ──
-	async function getLibraryItemsCount() { return Library.countDocuments(); }
+	async function getLibraryItemsCount(opts?: { publishedOnly?: boolean }) {
+		if (opts?.publishedOnly) {
+			return Library.countDocuments(libraryPublishedFilterTenant());
+		}
+		return Library.countDocuments();
+	}
 	async function getLibraryItemsByAuthorId(authorId: string | number) {
 		const oid = toObjectId(authorId); if (!oid) return [];
 		return Library.find({ authorId: oid }).sort({ createdAt: -1 }).lean();

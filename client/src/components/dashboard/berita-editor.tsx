@@ -42,6 +42,7 @@ interface BeritaData {
 	author: string;
 	createdAt: string;
 	tags?: string[];
+	relatedGalleryIds?: string[];
 }
 
 interface BeritaEditorProps {
@@ -86,6 +87,21 @@ export default function BeritaEditor({
 	const [attachEventYearId, setAttachEventYearId] = useState<string>('');
 	const [attachEventSearch, setAttachEventSearch] = useState('');
 	const [attachYearSelectOpen, setAttachYearSelectOpen] = useState(false);
+
+	const [selectedGalleryIds, setSelectedGalleryIds] = useState<string[]>([]);
+	const [gallerySearch, setGallerySearch] = useState('');
+
+	const { data: libraryForBeritaLink = [] } = useQuery<
+		{ _id: string; title: string; published?: boolean }[]
+	>({
+		queryKey: ['/api/library/manage'],
+		queryFn: async () => {
+			const res = await fetch('/api/library/manage', { credentials: 'include' });
+			if (!res.ok) return [];
+			const data = await res.json();
+			return Array.isArray(data) ? data : data.data || [];
+		},
+	});
 
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -569,6 +585,7 @@ export default function BeritaEditor({
 		formData.append('content', content);
 		formData.append('published', isPublished.toString());
 		formData.append('tags', JSON.stringify(tags));
+		formData.append('relatedGalleryIds', JSON.stringify(selectedGalleryIds));
 
 		// Kirim Google Drive URL jika ada dan valid
 		if (gdriveUrl && isGdriveValid) {
@@ -600,6 +617,10 @@ export default function BeritaEditor({
 			setImageUrl(berita.image || '');
 			setTags(berita.tags || []);
 			setIsPublished(berita.published || false);
+			setSelectedGalleryIds(
+				(berita.relatedGalleryIds || []).map((x) => String(x)),
+			);
+			setGallerySearch('');
 
 			if (berita.image && !berita.image.startsWith('blob:')) {
 				setImagePreview(berita.image);
@@ -732,6 +753,56 @@ export default function BeritaEditor({
 								</div>
 							</div>
 						)}
+					</div>
+				</div>
+
+				<div className="space-y-2 border rounded-md p-4">
+					<Label>Galeri terkait (opsional)</Label>
+					<p className="text-xs text-muted-foreground">
+						Pilih dokumentasi foto/video yang terkait berita ini.
+					</p>
+					<div className="relative mb-2">
+						<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+						<Input
+							className="pl-8 h-8 text-sm"
+							placeholder="Cari judul galeri..."
+							value={gallerySearch}
+							onChange={(e) => setGallerySearch(e.target.value)}
+						/>
+					</div>
+					<div className="border rounded-md max-h-36 overflow-y-auto">
+						{libraryForBeritaLink
+							.filter((g) =>
+								gallerySearch
+									? g.title.toLowerCase().includes(gallerySearch.toLowerCase())
+									: true,
+							)
+							.map((g) => {
+								const checked = selectedGalleryIds.includes(g._id);
+								return (
+									<label
+										key={g._id}
+										className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm"
+									>
+										<input
+											type="checkbox"
+											checked={checked}
+											onChange={() => {
+												setSelectedGalleryIds((prev) =>
+													checked
+														? prev.filter((i) => i !== g._id)
+														: [...prev, g._id],
+												);
+											}}
+											className="rounded"
+										/>
+										<span className="flex-1 truncate">{g.title}</span>
+										{g.published === false && (
+											<span className="text-xs text-muted-foreground">draf</span>
+										)}
+									</label>
+								);
+							})}
 					</div>
 				</div>
 

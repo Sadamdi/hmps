@@ -21,6 +21,7 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Badge } from '@/components/ui/badge';
 import {
 	Edit,
 	ImageIcon,
@@ -43,9 +44,14 @@ interface LibraryItem {
 	images: string[];
 	imageSources?: string[];
 	gdriveFileIds?: string[];
-	date: string;
-	time: string;
+	mediaKinds?: ('image' | 'video')[];
+	date?: string;
+	time?: string;
 	type: 'photo' | 'video';
+	published?: boolean;
+	activityDate?: string;
+	relatedEventIds?: string[];
+	relatedBeritaIds?: string[];
 	createdAt: string;
 	authorId?: string;
 	_sharingPermission?: 'view' | 'edit';
@@ -216,6 +222,10 @@ export default function DashboardLibrary() {
 		)
 		.filter((item) => {
 			if (activeTab === 'all') return true;
+			if (activeTab === 'draft')
+				return item.published === false;
+			if (activeTab === 'published')
+				return item.published !== false;
 			if (activeTab === 'photos') return item.type === 'photo';
 			if (activeTab === 'videos') return item.type === 'video';
 			return true;
@@ -291,10 +301,10 @@ export default function DashboardLibrary() {
 				title="Cara memakai Galeri Media"
 				variant="blue"
 				storageKey="dashboard-library"
-				description="Setiap entri galeri wajib punya judul, deskripsi singkat, dan deskripsi lengkap. Tipe foto/video dan lampiran drive mengikuti form. Unggahan gambar mengikuti aturan server (format gambar umum, max 100 MB per kebijakan upload).">
+				description="Wajib: judul dan minimal satu tautan Google Drive (file atau folder). Deskripsi dan relasi opsional. Gunakan draf/terbit seperti modul lain.">
 				<ul className="list-disc list-inside space-y-1.5 text-sm">
 					<li>
-						<strong>Langkah create</strong>: <strong>Upload Media</strong> → isi <strong>Title</strong> → <strong>deskripsi pendek</strong> → <strong>full description</strong> → pilih <strong>photo</strong> atau <strong>video</strong> → tambahkan media (file atau tautan yang diminta form) → simpan.
+						<strong>Langkah create</strong>: <strong>Upload Media</strong> → judul → (opsional) deskripsi & editor lengkap → tautan Drive → simpan (terbit atau draf).
 					</li>
 					<li>
 						<strong>Contoh valid</strong>: Judul <code className="text-xs bg-muted px-1 rounded">Dokumentasi Wisuda 2026</code>; deskripsi singkat satu kalimat; deskripsi lengkap paragraf; link Google Drive berbagi <strong>Anyone with the link / siapa pun yang punya link</strong> (bukan private).
@@ -387,10 +397,12 @@ export default function DashboardLibrary() {
 							value={activeTab}
 							onValueChange={setActiveTab}
 							className="w-full sm:w-auto">
-							<TabsList>
-								<TabsTrigger value="all">All</TabsTrigger>
-								<TabsTrigger value="photos">Photos</TabsTrigger>
-								<TabsTrigger value="videos">Videos</TabsTrigger>
+							<TabsList className="flex flex-wrap h-auto gap-1">
+								<TabsTrigger value="all">Semua</TabsTrigger>
+								<TabsTrigger value="published">Terbit</TabsTrigger>
+								<TabsTrigger value="draft">Draf</TabsTrigger>
+								<TabsTrigger value="photos">Foto</TabsTrigger>
+								<TabsTrigger value="videos">Video</TabsTrigger>
 							</TabsList>
 						</Tabs>
 					</div>
@@ -419,10 +431,21 @@ export default function DashboardLibrary() {
 									key={item._id || item.id}
 									className="overflow-hidden">
 									<div className="h-48 relative overflow-hidden group">
+										{item.published === false && (
+											<Badge
+												className="absolute top-2 left-2 z-10"
+												variant="secondary">
+												Draf
+											</Badge>
+										)}
 										<MediaDisplay
 											src={item.images[0]}
 											alt={item.title}
-											type={item.type === 'video' ? 'video' : 'image'}
+											type={
+												item.mediaKinds?.[0] === 'video' || item.type === 'video'
+													? 'video'
+													: 'auto'
+											}
 											className="w-full h-full"
 										/>
 
@@ -506,7 +529,7 @@ export default function DashboardLibrary() {
 			<Dialog
 				open={isUploaderOpen}
 				onOpenChange={setIsUploaderOpen}>
-				<DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+				<DialogContent className="max-w-4xl max-h-[92vh] overflow-hidden flex flex-col">
 					<DialogHeader>
 						<DialogTitle>
 							{editingItem ? 'Edit Media Item' : 'Upload New Media'}

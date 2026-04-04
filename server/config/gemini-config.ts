@@ -191,7 +191,7 @@ export const GEMINI_PERSONALIZATION = {
    - Data PUBLIK yang bisa Anda akses:
      * Visi dan misi terbaru organisasi (gunakan tool: get_visi_misi)
      * Berita yang dipublikasikan — pencarian keyword luas: judul, ringkasan, isi, tags (gunakan tool: search_berita, get_berita_detail)
-     * Koleksi media kegiatan: foto dan video dokumentasi; keyword bisa judul/deskripsi/deskripsi lengkap (gunakan tool: get_library_items)
+     * Koleksi media kegiatan: foto dan video dokumentasi; keyword bisa judul/deskripsi/deskripsi lengkap (gunakan tool: get_library_items) — hanya entri yang sudah terbit (published)
      * Struktur organisasi: ketua, wakil ketua, kepala divisi, anggota (gunakan tool: get_organization_structure)
      * Profil Himatif Encoder: tentang kami, sejarah rekam jejak, filosofi lambang (gunakan tool: get_profil_info)
      * Program Studi Teknik Informatika: profil, dosen, kurikulum, laboratorium (gunakan tool: get_prodi_info)
@@ -212,10 +212,11 @@ export const GEMINI_PERSONALIZATION = {
      * Menghapus event (gunakan tool: delete_event)
      * Mempublikasikan/menarik event (gunakan tool: toggle_event_publish)
      * Mengubah timestamp event (gunakan tool: set_event_timestamps)
-     * Membuat item galeri baru (gunakan tool: create_library_item) — authorId adalah pengguna yang sedang login
-     * Mengedit item galeri (gunakan tool: update_library_item)
+     * Membuat item galeri baru (gunakan tool: create_library_item) — authorId adalah pengguna yang sedang login; deskripsi singkat/panjang opsional; gunakan published (false = draf) dan activityDate (ISO) bila perlu; media sungguhan ditambahkan di Dashboard Galeri (tool membuat entri dengan placeholder agar valid)
+     * Mengedit item galeri (gunakan tool: update_library_item) — termasuk published dan activityDate
      * Menghapus item galeri (gunakan tool: delete_library_item)
      * Mengubah timestamp item galeri (gunakan tool: set_library_timestamps)
+     * Relasi galeri ↔ event/berita: di database di-sync dua arah (relatedEventIds/relatedBeritaIds pada Library; relatedGalleryIds pada Event/Berita); atur lewat Dashboard, bukan hanya lewat chat kecuali tool khusus ditambahkan
      * Menghubungkan / melepaskan berita ↔ event (link_berita_to_event, unlink_berita_from_event)
      * Menyalin berita ke event atau sebaliknya (copy_berita_to_event, copy_event_to_berita) memakai alur yang sama dengan Dashboard
      * Menyinkronkan konten antara berita dan event yang sudah terkait (sync_linked_berita_event_content)

@@ -448,7 +448,7 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 	{
 		name: 'create_library_item',
 		description:
-			'Buat item galeri/library baru (foto atau video). User kemudian bisa menambahkan gambar/video melalui Dashboard Galeri.',
+			'Buat item galeri/library baru (foto atau video). Media ditambahkan lewat Dashboard Galeri. Deskripsi opsional; bisa draf atau terbit.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -458,16 +458,24 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 				},
 				description: {
 					type: 'string',
-					description: 'Deskripsi singkat.',
+					description: 'Deskripsi singkat (opsional).',
 				},
 				fullDescription: {
 					type: 'string',
-					description: 'Deskripsi lengkap.',
+					description: 'Deskripsi lengkap HTML (opsional).',
 				},
 				type: {
 					type: 'string',
 					enum: ['photo', 'video'],
 					description: 'Tipe media. Default "photo".',
+				},
+				published: {
+					type: 'boolean',
+					description: 'Jika false, simpan sebagai draf. Default true.',
+				},
+				activityDate: {
+					type: 'string',
+					description: 'Tanggal kegiatan (ISO date, opsional).',
 				},
 			},
 			required: ['title'],
@@ -609,6 +617,8 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 				description: { type: 'string', description: 'Deskripsi singkat baru (opsional).' },
 				fullDescription: { type: 'string', description: 'Deskripsi lengkap baru (opsional).' },
 				type: { type: 'string', enum: ['photo', 'video'], description: 'Tipe media baru (opsional).' },
+				published: { type: 'boolean', description: 'Status terbit/draf (opsional).' },
+				activityDate: { type: 'string', description: 'Tanggal kegiatan ISO (opsional).' },
 			},
 			required: ['itemId'],
 		},
@@ -1136,7 +1146,7 @@ export async function executeToolCall(
 				const mediaType = args.type as string | undefined;
 				const keyword = args.keyword as string | undefined;
 				const limit = (args.limit as number) || 10;
-				const base: Record<string, unknown> = {};
+				const base: Record<string, unknown> = { published: true };
 				if (mediaType && mediaType !== 'all') {
 					base.type = mediaType;
 				}
@@ -1855,19 +1865,36 @@ export async function executeToolCall(
 				if (!title)
 					return { error: 'Judul diperlukan' };
 
+				const desc = (args.description as string) || '';
+				const fullDesc = (args.fullDescription as string) || '';
+				let actDate: Date | undefined;
+				if (args.activityDate) {
+					const d = new Date(args.activityDate as string);
+					if (!Number.isNaN(d.getTime())) actDate = d;
+				}
+				/** Placeholder 1×1 transparan agar memenuhi skema tanpa file statis di repo */
+				const placeholderImage =
+					'data:image/svg+xml,' +
+					encodeURIComponent(
+						'<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+					);
 				const item = await Library.create({
 					title,
-					description:
-						(args.description as string) || title,
-					fullDescription:
-						(args.fullDescription as string) ||
-						(args.description as string) ||
-						title,
+					description: desc,
+					fullDescription: fullDesc,
 					type:
 						(args.type as string) === 'video'
 							? 'video'
 							: 'photo',
-					images: [],
+					images: [placeholderImage],
+					imageSources: ['local'],
+					gdriveFileIds: [''],
+					mediaKinds: ['image'],
+					published:
+						args.published === false || args.published === 'false'
+							? false
+							: true,
+					activityDate: actDate,
 					authorId: (user as any)._id,
 				});
 
@@ -2012,9 +2039,21 @@ export async function executeToolCall(
 				if (ownerErr) return { error: ownerErr };
 				const updates: Record<string, unknown> = { updatedAt: new Date() };
 				if (args.title) updates.title = args.title;
-				if (args.description) updates.description = args.description;
-				if (args.fullDescription) updates.fullDescription = args.fullDescription;
+				if (args.description !== undefined) updates.description = args.description;
+				if (args.fullDescription !== undefined)
+					updates.fullDescription = args.fullDescription;
 				if (args.type) updates.type = args.type;
+				if (args.published !== undefined) {
+					const p = args.published;
+					if (p === true || p === 'true' || p === '1')
+						updates.published = true;
+					else if (p === false || p === 'false' || p === '0')
+						updates.published = false;
+				}
+				if (args.activityDate) {
+					const d = new Date(args.activityDate as string);
+					if (!Number.isNaN(d.getTime())) updates.activityDate = d;
+				}
 				await Library.findByIdAndUpdate(itemId, updates);
 				return { success: true, message: 'Item galeri berhasil diperbarui.' };
 			}
