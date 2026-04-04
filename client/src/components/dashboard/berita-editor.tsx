@@ -28,6 +28,9 @@ import { CalendarDays, Copy, Image, Link2, Loader2, Plus, Search, Upload, X } fr
 import { useEffect, useRef, useState } from 'react';
 import RichTextEditor from './rich-text-editor';
 
+/** Radix Select melarang SelectItem dengan value=""; gunakan sentinel untuk opsi "event utama baru". */
+const COPY_TO_EVENT_NO_PARENT_VALUE = '__no_parent_event__';
+
 interface BeritaData {
 	id?: number;
 	_id?: string;
@@ -989,14 +992,22 @@ export default function BeritaEditor({
 							</p>
 						) : (
 							<Select
-								value={selectedParentEventId}
-								onValueChange={(val) => setSelectedParentEventId(val)}
+								value={
+									selectedParentEventId || COPY_TO_EVENT_NO_PARENT_VALUE
+								}
+								onValueChange={(val) =>
+									setSelectedParentEventId(
+										val === COPY_TO_EVENT_NO_PARENT_VALUE ? '' : val,
+									)
+								}
 							>
 								<SelectTrigger className="w-full">
 									<SelectValue placeholder="(Buat event utama baru)" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value="">(Buat event utama baru)</SelectItem>
+									<SelectItem value={COPY_TO_EVENT_NO_PARENT_VALUE}>
+										(Buat event utama baru)
+									</SelectItem>
 									{parentEventOptions.map((ev) => {
 										const monthLabel =
 											ev.month >= 1 && ev.month <= 12

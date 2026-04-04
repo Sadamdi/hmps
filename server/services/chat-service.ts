@@ -130,6 +130,7 @@ export class ChatService {
 						functionCalls.map((fc) => fc.name).join(', ')
 					);
 
+					// tenantDbName: DB tenant komunitas; authUserId: pemilik konten untuk tool tulis
 					const toolResults = await Promise.all(
 						functionCalls.map(async (fc) => ({
 							functionResponse: {

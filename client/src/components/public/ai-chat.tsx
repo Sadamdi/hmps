@@ -27,16 +27,18 @@ const ALLOWED_NAV_PATHS = new Set([
 	'/dashboard/berita',
 	'/dashboard/events',
 	'/dashboard/library',
-	'/dashboard/organization',
 	'/dashboard/profil',
 	'/dashboard/kelembagaan',
 	'/dashboard/prodi',
 	'/dashboard/users',
 	'/dashboard/roles',
 	'/dashboard/settings',
+	'/dashboard/feedback',
+	'/dashboard/registration',
 	'/',
 	'/berita',
 	'/events',
+	'/events/all',
 	'/prodi',
 	'/kelembagaan',
 	'/profil',
@@ -64,6 +66,12 @@ function isAllowedNavPath(path: string): boolean {
 	if (!p.startsWith('/') || p.includes('..') || p.includes('//'))
 		return false;
 	if (ALLOWED_NAV_PATHS.has(p)) return true;
+	/** Komunitas: /slug/dashboard/..., /slug/berita, ... */
+	if (/^\/[a-zA-Z0-9_-]+\/dashboard(\/|$)/.test(p)) return true;
+	if (
+		/^\/[a-zA-Z0-9_-]+\/(berita|events|profil|kelembagaan)(\/|$)/.test(p)
+	)
+		return true;
 	if (p.startsWith('/dashboard')) return true;
 	if (p === '/berita' || p.startsWith('/berita/')) return true;
 	if (p === '/events' || p.startsWith('/events/')) return true;
@@ -102,8 +110,8 @@ function isNavConfirmText(text: string): boolean {
 	const raw = text.trim();
 	if (!raw || raw.length > 120) return false;
 	const t = raw
-		.replace(/^[\s!?.,:;'"“”✅👍]+/gu, '')
-		.replace(/[\s!?.,:;'"“”✅👍…]+$/gu, '')
+		.replace(/^[\s!?.,:;'"“”✅👍]+/g, '')
+		.replace(/[\s!?.,:;'"“”✅👍…]+$/g, '')
 		.trim();
 	if (!t || t.length > 100) return false;
 	return (
@@ -125,19 +133,19 @@ function isLikelyNavAffirmativeShort(text: string): boolean {
 	const raw = text.trim();
 	if (!raw || raw.length > 28) return false;
 	const t = raw
-		.replace(/^[\s!?.,:;'"“”✅👍]+/gu, '')
-		.replace(/[\s!?.,:;'"“”✅👍…]+$/gu, '')
+		.replace(/^[\s!?.,:;'"“”✅👍]+/g, '')
+		.replace(/[\s!?.,:;'"“”✅👍…]+$/g, '')
 		.trim()
 		.toLowerCase();
 	if (!t || t.length > 24) return false;
 	if (
-		/^(ya|yaa|iya|iyaa|ok|oke|okay|sip|lanjut|gas|ayo|monggo|sok)\b/u.test(
+		/^(ya|yaa|iya|iyaa|ok|oke|okay|sip|lanjut|gas|ayo|monggo|sok)\b/i.test(
 			t
 		)
 	)
 		return true;
 	if (
-		/^(ya|oke|ok|iya)\s+(dong|nih|deh|tolong|buka|lanjut|monggo)\b/u.test(
+		/^(ya|oke|ok|iya)\s+(dong|nih|deh|tolong|buka|lanjut|monggo)\b/i.test(
 			t
 		)
 	)
@@ -177,6 +185,10 @@ interface PageContext {
 	permissions: string[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	pageData?: Record<string, any>;
+	/** Komunitas: slug tenant untuk NAV dan prompt server */
+	tenantSlug?: string | null;
+	basePath?: string;
+	isTenant?: boolean;
 }
 
 interface AIChatProps {
@@ -451,6 +463,15 @@ export default function AIChat({ pageContext }: AIChatProps) {
 				path: pageContext?.path || locationPath,
 				permissions: pageContext?.permissions || permissions || [],
 				pageData: pageContext?.pageData,
+				...(pageContext?.tenantSlug !== undefined && {
+					tenantSlug: pageContext.tenantSlug,
+				}),
+				...(pageContext?.basePath !== undefined && {
+					basePath: pageContext.basePath,
+				}),
+				...(pageContext?.isTenant !== undefined && {
+					isTenant: pageContext.isTenant,
+				}),
 			};
 
 			if (imageFile) {

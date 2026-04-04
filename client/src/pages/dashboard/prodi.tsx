@@ -51,7 +51,8 @@ import {
 	Trash2,
 	Users,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { cn } from '@/lib/utils';
 
 export default function DashboardProdi() {
@@ -169,9 +170,24 @@ export default function DashboardProdi() {
 		setDirty(true);
 	}, []);
 
+	const prodiPageDataForSpyro = useMemo(() => {
+		if (isLoading || !localContent) {
+			return buildSimpleSpyroPageData(
+				'prodi',
+				'prodi.permissions_loading',
+				'Memuat konten Program Studi dari server.',
+			);
+		}
+		return buildSimpleSpyroPageData(
+			'prodi',
+			'prodi.main',
+			'Kelola konten Prodi S1 Teknik Informatika: sync dari sumber, profil, dosen, kurikulum, laboratorium.',
+		);
+	}, [isLoading, localContent]);
+
 	if (isLoading || !localContent) {
 		return (
-			<DashboardLayout title="Prodi">
+			<DashboardLayout title="Prodi" pageContextExtra={{ pageData: prodiPageDataForSpyro }}>
 				<div className="flex justify-center py-24">
 					<Loader2 className="h-8 w-8 animate-spin text-primary" />
 				</div>
@@ -184,7 +200,7 @@ export default function DashboardProdi() {
 	const lastManualSync = doc?.lastManualSyncAt ? new Date(doc.lastManualSyncAt).toLocaleString('id-ID') : '—';
 
 	return (
-		<DashboardLayout title="Prodi">
+		<DashboardLayout title="Prodi" pageContextExtra={{ pageData: prodiPageDataForSpyro }}>
 			<div className="space-y-6">
 				<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 					<div>

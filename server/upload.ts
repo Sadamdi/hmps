@@ -21,6 +21,23 @@ export const uploadDir = path.join(PROJECT_ROOT, 'uploads');
 export const assetsDir = path.join(PROJECT_ROOT, 'attached_assets');
 export { PROJECT_ROOT };
 
+/** Thumbnail bawaan berita (file di `uploads/default-berita-image.png`) — jangan hapus dari disk saat ganti/hapus berita. */
+export const DEFAULT_BERITA_IMAGE_PATH =
+	'/uploads/default-berita-image.png';
+
+/** Path lama (.jpg); tetap dianggap default agar tidak terhapus & migrasi DB bertahap aman. */
+const LEGACY_DEFAULT_BERITA_IMAGE_JPG = '/uploads/default-berita-image.jpg';
+
+export function isDefaultBeritaImageUrl(
+	fileUrl: string | undefined | null,
+): boolean {
+	if (!fileUrl || typeof fileUrl !== 'string') return false;
+	const t = fileUrl.trim();
+	return (
+		t === DEFAULT_BERITA_IMAGE_PATH || t === LEGACY_DEFAULT_BERITA_IMAGE_JPG
+	);
+}
+
 if (!fs.existsSync(uploadDir)) {
 	fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -176,7 +193,7 @@ export async function uploadBeritaImage(
 	tenant?: TenantPathContext,
 ): Promise<string> {
 	try {
-		if (oldFileUrl) {
+		if (oldFileUrl && !isDefaultBeritaImageUrl(oldFileUrl)) {
 			await deleteFile(oldFileUrl);
 		}
 
@@ -721,6 +738,7 @@ export async function uploadFeedbackImage(
 export async function deleteFile(fileUrl: string): Promise<void> {
 	try {
 		if (!fileUrl || fileUrl === '') return;
+		if (isDefaultBeritaImageUrl(fileUrl)) return;
 
 		// Extract filename and category from URL
 		const urlParts = fileUrl.split('/');

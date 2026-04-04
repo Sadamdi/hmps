@@ -23,7 +23,8 @@ import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Edit, Loader2, Plus, Search, Share2, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { buildBeritaSpyroPageData } from '@shared/dashboard-spyro-context';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface BeritaData {
 	_id: string;
@@ -252,10 +253,30 @@ export default function DashboardBerita() {
 		});
 	};
 
+	const beritaPageDataForSpyro = useMemo(
+		() =>
+			buildBeritaSpyroPageData({
+				permissionsLoading: isPermissionLoading,
+				requestOnly,
+				isEditorOpen,
+				editingBerita,
+				activeTab,
+			}),
+		[
+			isPermissionLoading,
+			requestOnly,
+			isEditorOpen,
+			editingBerita,
+			activeTab,
+		],
+	);
+
 	// Show loading jika permission masih loading
 	if (isPermissionLoading) {
 		return (
-		<DashboardLayout title="Berita">
+		<DashboardLayout
+			title="Berita"
+			pageContextExtra={{ pageData: beritaPageDataForSpyro }}>
 			<div className="flex items-center justify-center h-64">
 					<div className="flex items-center space-x-2">
 						<Loader2 className="h-6 w-6 animate-spin" />
@@ -273,7 +294,9 @@ export default function DashboardBerita() {
 	}
 
 	return (
-		<DashboardLayout title="Berita">
+		<DashboardLayout
+			title="Berita"
+			pageContextExtra={{ pageData: beritaPageDataForSpyro }}>
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 				<h1 className="text-2xl font-bold">
 					{requestOnly ? 'Ajukan Akses Berita' : 'Kelola Berita'}

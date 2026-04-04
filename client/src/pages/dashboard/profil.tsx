@@ -41,11 +41,12 @@ import {
 	verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
 import type { AboutPageLambangItem, AboutPageTrackRecordItem } from '@shared/schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/lib/tenant-context';
 import { ArrowLeft, ExternalLink, FileEdit, GripVertical, ImageIcon, Loader2, Plus, Trash2, Upload } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 interface Settings {
 	_id?: string;
@@ -542,9 +543,35 @@ export default function DashboardProfil() {
 		setDeleteDialog((d) => ({ ...d, open: false }));
 	};
 
+	const profilPageDataForSpyro = useMemo(() => {
+		if (isPermissionLoading) {
+			return buildSimpleSpyroPageData(
+				'profil',
+				'profil.permissions_loading',
+				'Memuat izin halaman Profil.',
+			);
+		}
+		const loadHint = isPending ? ' Memuat konten dari server.' : '';
+		const editHint =
+			isEditing || isHeroEditing ? ' Mode sunting konten aktif.' : '';
+		return buildSimpleSpyroPageData(
+			'profil',
+			'profil.main',
+			`${isTenant ? 'Profil komunitas' : 'Profil himpunan'} — mengelola konten halaman publik (tab aktif).${loadHint}${editHint}`,
+			{ tab: selectedTab },
+		);
+	}, [
+		isPermissionLoading,
+		isPending,
+		selectedTab,
+		isEditing,
+		isHeroEditing,
+		isTenant,
+	]);
+
 	if (isPermissionLoading) {
 		return (
-			<DashboardLayout title="Dashboard Profil">
+			<DashboardLayout title="Dashboard Profil" pageContextExtra={{ pageData: profilPageDataForSpyro }}>
 				<div className="flex items-center justify-center h-64">
 					<Loader2 className="h-6 w-6 animate-spin" />
 					<span className="ml-2">Memuat...</span>
@@ -556,7 +583,7 @@ export default function DashboardProfil() {
 	if (!hasAccess) return null;
 
 	return (
-		<DashboardLayout title="Dashboard Profil">
+		<DashboardLayout title="Dashboard Profil" pageContextExtra={{ pageData: profilPageDataForSpyro }}>
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>

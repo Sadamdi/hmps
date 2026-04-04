@@ -4,6 +4,8 @@ import RoleManagement from '../../components/dashboard/role-management';
 import { usePermissionGuardAny } from '../../hooks/use-permission-guard';
 import { usePermissionRefresh } from '../../hooks/use-permission-refresh';
 import { useAuth } from '../../lib/auth';
+import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { useMemo } from 'react';
 
 export default function RolesPage() {
 	const { user } = useAuth();
@@ -14,6 +16,21 @@ export default function RolesPage() {
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasRoleAccess, isLoading: isPermissionLoading } =
 		usePermissionGuardAny(['roles.view', 'roles.edit', 'roles.create']);
+
+	const rolesPageDataForSpyro = useMemo(() => {
+		if (isPermissionLoading) {
+			return buildSimpleSpyroPageData(
+				'roles',
+				'roles.permissions_loading',
+				'Memuat izin halaman Role Management.',
+			);
+		}
+		return buildSimpleSpyroPageData(
+			'roles',
+			'roles.main',
+			'Mengelola role dan permission: daftar role, edit permission per role.',
+		);
+	}, [isPermissionLoading]);
 
 	if (!user) {
 		return null;
@@ -40,7 +57,7 @@ export default function RolesPage() {
 	}
 
 	return (
-		<DashboardLayout title="Role Management">
+		<DashboardLayout title="Role Management" pageContextExtra={{ pageData: rolesPageDataForSpyro }}>
 			<RoleManagement userRole={user.role} />
 		</DashboardLayout>
 	);

@@ -201,18 +201,18 @@ export const GEMINI_PERSONALIZATION = {
      * Daftar berita termasuk draft (gunakan tool: get_dashboard_berita_list)
      * Daftar event termasuk yang belum dipublikasikan (gunakan tool: get_dashboard_events_list)
      * Daftar item galeri (gunakan tool: get_dashboard_library_list)
-   - Kemampuan MENULIS (hanya jika pengguna memiliki permission yang sesuai DAN sedang berada di halaman Dashboard, path diawali /dashboard):
-     * Membuat berita draft (gunakan tool: create_berita_draft) — ikuti gaya penulisan berita yang sudah ada
+   - Kemampuan MENULIS (hanya jika pengguna memiliki permission yang sesuai DAN sedang berada di halaman Dashboard: path /dashboard/... atau /{slug-komunitas}/dashboard/...):
+     * Membuat berita draft (gunakan tool: create_berita_draft) — ikuti gaya penulisan berita yang sudah ada; pemilik berita (authorId) selalu pengguna yang sedang login
      * Mengedit berita (gunakan tool: update_berita) — hanya field yang diberikan yang berubah
      * Menghapus berita (gunakan tool: delete_berita)
      * Mempublikasikan/menarik berita (gunakan tool: toggle_berita_publish)
      * Mengubah timestamp berita (gunakan tool: set_berita_timestamps)
-     * Membuat event baru (gunakan tool: create_event) dan sub-event (create_sub_event)
+     * Membuat event baru (gunakan tool: create_event) dan sub-event (create_sub_event) — createdBy adalah pengguna yang sedang login
      * Mengedit event (gunakan tool: update_event)
      * Menghapus event (gunakan tool: delete_event)
      * Mempublikasikan/menarik event (gunakan tool: toggle_event_publish)
      * Mengubah timestamp event (gunakan tool: set_event_timestamps)
-     * Membuat item galeri baru (gunakan tool: create_library_item)
+     * Membuat item galeri baru (gunakan tool: create_library_item) — authorId adalah pengguna yang sedang login
      * Mengedit item galeri (gunakan tool: update_library_item)
      * Menghapus item galeri (gunakan tool: delete_library_item)
      * Mengubah timestamp item galeri (gunakan tool: set_library_timestamps)
@@ -224,7 +224,8 @@ export const GEMINI_PERSONALIZATION = {
    - SELALU gunakan tools ini ketika user bertanya tentang informasi spesifik Himatif Encoder yang mungkin berubah
    - Prioritaskan data dari database daripada pengetahuan statis Anda, karena data database adalah yang paling akurat dan terbaru
    - Jika data tidak tersedia di database, baru gunakan pengetahuan umum Anda
-   - Untuk fitur write/tulis, SELALU buat sebagai draft dan instruksikan user untuk memfinalisasi melalui Dashboard
+   - Untuk fitur write/tulis, buat sebagai draft bila perlu lalu instruksikan user untuk memfinalisasi (thumbnail, lampiran, publish) melalui Dashboard bila tool tidak mengisi semua field
+   - Otomatisasi: jika pengguna di Dashboard meminta membuat/mengedit konten yang didukung tool dan punya permission, utamakan memanggil tool yang sesuai (bukan hanya menjelaskan lokasi tombol), kecuali user hanya bertanya konsep
    - Jika tools tertentu tidak tersedia (tidak muncul di daftar tools Anda), artinya user tidak memiliki permission — tolak dengan sopan
 
 10. Navigasi Interaktif (WAJIB digunakan saat relevan):
@@ -238,19 +239,23 @@ export const GEMINI_PERSONALIZATION = {
      * Saat pengguna bertanya tentang topik yang ada di halaman lain (mis. di events bertanya soal kurikulum) → tawarkan buka halaman publik yang relevan.
      * Saat pengguna sudah di Dashboard tapi di modul berbeda dari yang dibahas → tawarkan pindah ke modul dashboard yang tepat.
      * Saat pengguna belum login tapi meminta aksi yang butuh login → jangan tawarkan navigasi, cukup beritahu perlu login.
-   - DAFTAR PATH YANG VALID (gunakan HANYA path dari daftar ini):
-     Dashboard:
+   - Jika KONTEKS SISTEM menyebut komunitas (slug/prefix /{slug}/): untuk blok [[NAV:...]] gunakan path PENUH dengan prefix komunitas, mis. /nama-komunitas/dashboard/berita — jangan hanya /dashboard/berita agar navigasi di chat berfungsi.
+   - Komunitas (jaringan komunitas): modul Dashboard yang di-route di komunitas umumnya: /{slug}/dashboard, berita, library, users, roles, settings, profil, kelembagaan, events, feedback. Tidak tersedia di rute komunitas: Dashboard Prodi, Dashboard Registrasi — fitur itu hanya di situs utama; sarankan buka situs utama jika user membutuhkannya.
+   - Struktur organisasi/pengurus diatur lewat Dashboard Kelembagaan (bukan path /dashboard/organization; path itu tidak dipakai di router).
+   - DAFTAR PATH YANG VALID (gunakan path dari daftar ini; untuk komunitas tambahkan prefix /{slug} di depan):
+     Dashboard (situs utama — tanpa prefix; komunitas — dengan prefix /{slug}):
        /dashboard — Halaman utama dashboard
        /dashboard/berita — Manajemen Berita
        /dashboard/events — Manajemen Events
        /dashboard/library — Manajemen Library/Galeri
-       /dashboard/organization — Manajemen Organisasi
        /dashboard/profil — Manajemen Profil
-       /dashboard/kelembagaan — Manajemen Kelembagaan
-       /dashboard/prodi — Manajemen Prodi
+       /dashboard/kelembagaan — Manajemen Kelembagaan (visi-misi & struktur organisasi)
+       /dashboard/prodi — Manajemen Prodi (hanya situs utama)
        /dashboard/users — Manajemen Users
        /dashboard/roles — Manajemen Roles
        /dashboard/settings — Pengaturan Situs
+       /dashboard/feedback — Masukan/saran (feedback)
+       /dashboard/registration — Registrasi & kode undangan (hanya situs utama)
      Publik:
        / — Beranda
        /berita — Daftar Berita
@@ -273,6 +278,8 @@ export const GEMINI_PERSONALIZATION = {
    - CONTOH penggunaan:
      * User di beranda minta edit berita → jawab "Anda perlu membuka Dashboard Berita untuk mengedit." lalu sisipkan:
        [[NAV:{"path":"/dashboard/berita","label":"Buka Dashboard Berita"}]]
+     * User di komunitas slug my-hmps di dashboard utama minta ke berita → sisipkan:
+       [[NAV:{"path":"/my-hmps/dashboard/berita","label":"Buka Dashboard Berita"}]]
      * User di events bertanya tentang kurikulum → jawab informasinya lalu sisipkan:
        [[NAV:{"path":"/prodi","label":"Lihat Halaman Prodi"}]]
      * User di dashboard/events mau kelola berita → sisipkan:
@@ -282,7 +289,21 @@ export const GEMINI_PERSONALIZATION = {
      * User minta buka detail event setelah search_events mengembalikan id dan year → sisipkan:
        [[NAV:{"path":"/events/2024/673def...","label":"Buka event"}]]
    - JANGAN sisipkan blok navigasi jika pengguna SUDAH berada di halaman yang tepat.
-   - Blok navigasi HARUS di akhir teks, setelah semua penjelasan. Jangan taruh di tengah kalimat.`,
+   - Blok navigasi HARUS di akhir teks, setelah semua penjelasan. Jangan taruh di tengah kalimat.
+
+11. Panduan ringkas modul Dashboard (bantu user langkah demi langkah; hormati izin):
+   - Beranda (/dashboard): ringkasan statistik (jika ada izin), aktivitas, quick action; tidak ada form create di sini.
+   - Berita: Buat Berita Baru → judul, excerpt, editor, thumbnail, tag → simpan; publish butuh berita.publish; sharing ajuan jika perlu.
+   - Events: Buat Event → tahun, tanggal, deskripsi, sub-event, lampiran/thumbnail, publish.
+   - Library/Galeri: unggah media, edit judul/deskripsi, tipe foto/video, sharing serupa berita jika diaktifkan.
+   - Kelembagaan: visi-misi; struktur organisasi lewat tab Members, Positions, Divisions (bukan URL /dashboard/organization).
+   - Profil organisasi: Tentang Kami, Rekam Jejak, Filosofi Lambang.
+   - Prodi: sync konten prodi, edit profil/dosen/kurikulum/lab (utama situs).
+   - Users & Roles: kelola user dan permission role sesuai akses.
+   - Settings: tab General, Appearance, Contact, Links, Security, Home Images, Beranda (home-config), Middleware (owner, situs utama), Profile akun — simpan per tab; izin settings.view/edit.
+   - Feedback: tinjau dan ubah status masukan.
+   - Registrasi (situs utama): kode undangan, komunitas baru/hapus (OTP).
+   - Editor berita (dalam form): ikuti hint di editor untuk publish, sharing, dan lampiran.`,
 
 	// Konfigurasi tambahan untuk model
 	modelConfig: {
@@ -298,6 +319,10 @@ export interface PageContext {
 	permissions: string[];
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	pageData?: Record<string, any>;
+	/** Komunitas: slug untuk prefix NAV dan batasan modul */
+	tenantSlug?: string | null;
+	basePath?: string;
+	isTenant?: boolean;
 }
 
 // Membangun prompt konteks halaman berbasis path, permission, dan data halaman
@@ -328,16 +353,124 @@ function normalizePathForModuleHints(pathStr: string): string {
 	return t;
 }
 
+/** /slug/berita -> /berita agar cabang hint publik cocok untuk komunitas */
+function normalizePathStripTenantPrefix(pathStr: string): string {
+	let t = pathStr.trim();
+	try {
+		if (/^https?:\/\//i.test(t)) t = new URL(t).pathname;
+	} catch {
+		return pathStr;
+	}
+	const m = t.match(/^\/[a-zA-Z0-9_-]+(\/.*)$/);
+	if (m && m[1]) return m[1];
+	return t;
+}
+
+function appendSettingsTabHints(
+	tab: string | undefined,
+	lines: string[],
+): void {
+	if (!tab) return;
+	const t = String(tab);
+	const map: Record<string, string> = {
+		general:
+			'Tab General: Site Name, Navbar Brand, Tagline, Deskripsi, Footer — simpan lewat Save; butuh settings.edit.',
+		appearance:
+			'Tab Appearance: tema/warna/tampilan situs sesuai form; simpan perubahan; butuh settings.edit.',
+		contact:
+			'Tab Contact: kontak/email/telepon/alamat untuk situs; simpan; butuh settings.edit.',
+		links:
+			'Tab Links: tautan sosial/media; simpan; butuh settings.edit.',
+		security:
+			'Tab Security: pengaturan keamanan (mis. sandi/API jika ada); hati-hati mengubah; biasanya owner.',
+		'home-images':
+			'Tab Home Images: gambar hero/beranda; unggah/sesuai petunjuk di halaman; simpan.',
+		'home-config':
+			'Tab Beranda (home-config): konfigurasi konten beranda (hero, blok, dll.) sesuai form di halaman.',
+		middleware:
+			'Tab Middleware: pengaturan middleware (hanya situs utama, owner); jangan ubah tanpa paham dampaknya.',
+		profile:
+			'Tab Profile: profil akun pengguna (bukan konten organisasi publik).',
+	};
+	const extra = map[t];
+	if (extra) {
+		lines.push(`- Tab Settings aktif: "${t}". ${extra}`);
+	} else {
+		lines.push(`- Tab Settings aktif: "${t}". Ikuti hint di UI dan izin settings.view/settings.edit.`);
+	}
+}
+
+/** Konteks UI dari klien (pageData): URL sering tetap /dashboard/... sementara pengguna di sub-alur. */
+function appendDashboardSurfaceFromPageData(
+	pageData: Record<string, unknown> | undefined,
+	lines: string[],
+): void {
+	if (!pageData || typeof pageData !== 'object') return;
+	const mod = pageData.module;
+	const surface = pageData.surface;
+	if (typeof mod !== 'string' || typeof surface !== 'string') return;
+
+	lines.push(
+		`- Konteks UI dashboard (dari aplikasi, bukan URL saja): modul "${mod}", surface "${surface}". Path browser bisa tetap sama saat navigasi dalam halaman.`,
+	);
+	if (typeof pageData.summary === 'string' && pageData.summary.trim()) {
+		lines.push(`- Ringkasan lokasi pengguna: ${pageData.summary.trim()}`);
+	}
+	if (pageData.requestOnly === true) {
+		lines.push(
+			'- Pengguna sedang dalam mode terbatas (ajuan/request sharing): jelaskan langkah request akses, bukan seolah punya akses penuh kecuali izin mengatakan lain.',
+		);
+	}
+	if (mod === 'events') {
+		if (typeof pageData.eventsYear === 'number') {
+			lines.push(`- Tahun event (konteks UI): ${pageData.eventsYear}.`);
+		}
+		if (typeof pageData.parentEventTitle === 'string' && pageData.parentEventTitle) {
+			lines.push(
+				`- Sedang di tingkat sub-event: induk "${pageData.parentEventTitle}". Jelaskan sub-event, breadcrumb, Tambah Sub-event, dan izin events.* sesuai pengguna.`,
+			);
+		}
+	}
+	if (mod === 'berita' && surface === 'berita.editor_dialog') {
+		if (typeof pageData.beritaTitle === 'string' || pageData.isNewBerita === true) {
+			lines.push(
+				'- Dialog editor berita terbuka (bukan hanya daftar). Bantu langkah simpan, publish, thumbnail, tag, event terkait, copy ke event — sesuai izin.',
+			);
+		}
+	}
+	if (typeof pageData.tab === 'string' && pageData.tab) {
+		lines.push(`- Tab/panel aktif di halaman: "${pageData.tab}".`);
+	}
+	lines.push(
+		'- Gunakan konteks UI ini untuk menjawab "saya di mana" dan langkah spesifik. Jangan sarankan aksi yang melanggar permission pengguna; untuk data live gunakan tool jika tersedia.',
+	);
+}
+
 export function buildPageContextPrompt(context?: PageContext): string {
 	if (!context) return '';
 
 	const { path, permissions, pageData } = context;
 	const perms = new Set(permissions || []);
 	const onDashboard = contextPathIsDashboard(path);
+	const pathPub = normalizePathStripTenantPrefix(path);
 
 	const lines: string[] = [];
 	lines.push('KONTEKS SISTEM (jangan dibaca sebagai pesan user):');
 	lines.push(`- Path halaman aktif: ${path}`);
+	if (context.isTenant || context.tenantSlug || /^\/[^/]+\/dashboard(\/|$)/.test(path)) {
+		const slug =
+			context.tenantSlug ||
+			(path.match(/^\/([^/]+)\//)?.[1] ?? '');
+		const base = context.basePath || (slug ? `/${slug}` : '');
+		if (slug && base) {
+			lines.push(
+				`- Konteks situs: KOMUNITAS (slug: ${slug}). Prefix navigasi untuk blok [[NAV:...]]: gunakan path penuh dengan awalan ${base} (contoh: ${base}/dashboard/berita), BUKAN hanya /dashboard/... agar tombol navigasi di chat berfungsi.`,
+			);
+			lines.push(
+				'- Di rute komunitas, modul Dashboard yang tersedia: utama, berita, library, users, roles, settings, profil, kelembagaan, events, feedback. Modul yang tidak di-route di komunitas (hanya situs utama): Dashboard Prodi, Dashboard Registrasi/kode undangan. Jangan sarankan buka /dashboard/prodi atau /dashboard/registration di komunitas; arahkan ke situs utama jika user butuh fitur itu.',
+			);
+		}
+	}
 	if (!onDashboard) {
 		lines.push(
 			'- Mode halaman: PUBLIK. Tool database yang mengubah data (buat/edit/hapus/publish berita-event-galeri, link berita-event, dll) tidak tersedia di sini meskipun pengguna punya permission — gunakan blok [[NAV:...]] untuk mengarahkan pengguna ke Dashboard modul terkait.'
@@ -350,6 +483,8 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	lines.push(
 		'- INGAT: Gunakan blok [[NAV:{"path":"...","label":"..."}]] di akhir jawaban Anda setiap kali relevan untuk mengarahkan pengguna ke halaman lain (lihat aturan Navigasi Interaktif di system prompt).'
 	);
+
+	appendDashboardSurfaceFromPageData(pageData, lines);
 
 	// Info akses fitur berbasis permission
 	const canViewBerita =
@@ -526,9 +661,13 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Library Media. Jelaskan cara mengunggah media baru (misalnya melalui tombol Upload), mengubah detail media, serta menghapus media yang tidak diperlukan lagi.',
 		);
-	} else if (pathMod.startsWith('/dashboard/organization')) {
+	} else if (pathMod.startsWith('/dashboard/registration')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Organization. Jelaskan cara: memilih periode kepengurusan, memfilter berdasarkan divisi, menambah/mengedit/menghapus anggota pengurus, mengatur urutan posisi, serta mengelola daftar divisi dan atributnya.',
+			'- Pengguna sedang di Dashboard Registrasi: buat/kelola kode undangan, expiry, max uses; kelola komunitas (slug unik); hapus komunitas membutuhkan OTP owner. Izin: registration.view / registration.manage.',
+		);
+	} else if (pathMod.startsWith('/dashboard/feedback')) {
+		lines.push(
+			'- Pengguna sedang di Dashboard Feedback: tinjau masukan pengguna (saran/kritik), status, rating; moderasi sesuai izin.',
 		);
 	} else if (pathMod.startsWith('/dashboard/users')) {
 		lines.push(
@@ -540,8 +679,9 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		);
 	} else if (pathMod.startsWith('/dashboard/settings')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Settings. Jelaskan cara mengubah konfigurasi situs (seperti nama situs, deskripsi, visi-misi, kontak, social links, dan opsi maintenance mode) sesuai akses yang dimiliki.',
+			'- Pengguna sedang berada di halaman Dashboard Settings. Jelaskan cara mengubah konfigurasi situs (nama, tampilan, kontak, tautan, keamanan, gambar beranda, konfigurasi beranda, middleware jika ada, profil akun) sesuai tab dan izin settings.view/settings.edit.',
 		);
+		appendSettingsTabHints(pageData?.settingsTab as string | undefined, lines);
 	} else if (pathMod.startsWith('/dashboard/content')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Content. Jelaskan cara mengelola konten statis/dinamis seperti hero, about, visi-misi, dan struktur/divisi yang tampil di halaman publik.',
@@ -566,43 +706,43 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard utama. Berikan gambaran umum cara membaca kartu statistik, melihat Recent Activities, dan menggunakan tombol-tombol Quick Actions untuk berpindah ke modul lain (Berita, Library, Organization, Settings, dll).',
 		);
-	} else if (path.startsWith('/berita/')) {
+	} else if (pathPub.startsWith('/berita/')) {
 		lines.push(
 			'- Pengguna sedang melihat halaman detail berita publik. Bantu menjelaskan isi berita dan cara kerjanya jika diperlukan.',
 		);
-	} else if (path === '/berita') {
+	} else if (pathPub === '/berita') {
 		lines.push(
 			'- Pengguna sedang berada di halaman daftar berita publik. Bantu jelaskan cara mencari dan membuka berita.',
 		);
-	} else if (path === '/profil') {
+	} else if (pathPub === '/profil') {
 		lines.push(
 			'- Pengguna sedang berada di halaman Profil publik yang berisi Tentang Kami, Sejarah Rekam Jejak Ketua Himpunan, dan Filosofi Lambang Himatif Encoder.',
 		);
-	} else if (path === '/kelembagaan') {
+	} else if (pathPub === '/kelembagaan') {
 		lines.push(
 			'- Pengguna sedang berada di halaman Kelembagaan publik yang berisi Visi & Misi serta Struktur Organisasi Himatif Encoder.',
 		);
-	} else if (path.startsWith('/prodi/dosen/')) {
+	} else if (pathPub.startsWith('/prodi/dosen/')) {
 		lines.push(
 			'- Pengguna sedang melihat halaman detail dosen publik. Bantu jelaskan informasi tentang dosen tersebut.',
 		);
-	} else if (path.startsWith('/prodi/curriculum/')) {
+	} else if (pathPub.startsWith('/prodi/curriculum/')) {
 		lines.push(
 			'- Pengguna sedang melihat halaman detail mata kuliah publik termasuk materi PPT dan link file.',
 		);
-	} else if (path.startsWith('/prodi/laboratorium/')) {
+	} else if (pathPub.startsWith('/prodi/laboratorium/')) {
 		lines.push(
 			'- Pengguna sedang melihat halaman detail laboratorium publik.',
 		);
-	} else if (path === '/prodi' || path.startsWith('/prodi')) {
+	} else if (pathPub === '/prodi' || pathPub.startsWith('/prodi')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Prodi publik yang berisi Profil, Dosen, Kurikulum, dan Laboratorium Prodi S1 Teknik Informatika UIN Malang.',
 		);
-	} else if (path.startsWith('/events/') && path.split('/').length > 3) {
+	} else if (pathPub.startsWith('/events/') && pathPub.split('/').length > 3) {
 		lines.push(
 			'- Pengguna sedang melihat halaman detail event publik. Bantu jelaskan informasi event tersebut.',
 		);
-	} else if (path.startsWith('/events')) {
+	} else if (pathPub.startsWith('/events')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Events publik yang berisi daftar kegiatan Himatif Encoder.',
 		);

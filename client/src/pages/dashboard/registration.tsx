@@ -50,7 +50,8 @@ import {
 	Ban,
 	Users,
 } from 'lucide-react';
-import { useState } from 'react';
+import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { useMemo, useState } from 'react';
 
 function formatDate(d: string | Date) {
 	return new Date(d).toLocaleDateString('id-ID', {
@@ -343,8 +344,18 @@ export default function DashboardRegistration() {
 		});
 	};
 
+	const registrationPageDataForSpyro = useMemo(
+		() =>
+			buildSimpleSpyroPageData(
+				'registration',
+				'registration.main',
+				'Kelola kode undangan registrasi dan daftar komunitas terdaftar (tab Kode / Komunitas).',
+			),
+		[],
+	);
+
 	return (
-	<DashboardLayout title="Registration">
+	<DashboardLayout title="Registration" pageContextExtra={{ pageData: registrationPageDataForSpyro }}>
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>

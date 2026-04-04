@@ -31,7 +31,8 @@ import {
 	Share2,
 	Users,
 } from 'lucide-react';
-import { useState } from 'react';
+import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 
 interface Activity {
@@ -65,6 +66,21 @@ export default function Dashboard() {
 	// Guard permission - redirect jika tidak ada akses
 	const { hasPermission: hasDashboardAccess, isLoading: isPermissionLoading } =
 		usePermissionGuard('dashboard.view');
+
+	const homePageDataForSpyro = useMemo(() => {
+		if (isPermissionLoading) {
+			return buildSimpleSpyroPageData(
+				'home',
+				'home.permissions_loading',
+				'Memuat izin halaman Dashboard.',
+			);
+		}
+		return buildSimpleSpyroPageData(
+			'home',
+			'home.main',
+			'Ringkasan dashboard: statistik (jika izin), aktivitas terbaru, dan pintasan ke modul.',
+		);
+	}, [isPermissionLoading]);
 
 	// Dashboard stats
 	const {
@@ -256,7 +272,7 @@ export default function Dashboard() {
 	}
 
 	return (
-		<DashboardLayout title="Dashboard">
+		<DashboardLayout title="Dashboard" pageContextExtra={{ pageData: homePageDataForSpyro }}>
 			<div className="mb-6 sm:mb-8">
 				<h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
 					Welcome back, {user?.name || user?.username}

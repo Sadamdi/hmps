@@ -1,23 +1,42 @@
 import AIChat from '@/components/public/ai-chat';
 import { useAuth } from '@/lib/auth';
-import { useState } from 'react';
+import { useTenant } from '@/lib/tenant-context';
+import { useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import Header from './header';
 import Sidebar from './sidebar';
 
+/** Path penuh untuk chat AI: di komunitas gabungkan basePath + path relatif nested router. */
+function useResolvedDashboardPath(locationPath: string): string {
+	const { isTenant, basePath } = useTenant();
+	return useMemo(() => {
+		if (!isTenant || !basePath) return locationPath;
+		const loc = locationPath.startsWith('/')
+			? locationPath
+			: `/${locationPath}`;
+		if (loc === basePath || loc.startsWith(`${basePath}/`)) return loc;
+		return `${basePath}${loc}`;
+	}, [isTenant, basePath, locationPath]);
+}
+
 interface DashboardLayoutProps {
 	title: string;
 	children: React.ReactNode;
+	/** Gabung ke pageContext.pageData (mis. settingsTab untuk Settings). */
+	pageContextExtra?: { pageData?: Record<string, unknown> };
 }
 
 export default function DashboardLayout({
 	title,
 	children,
+	pageContextExtra,
 }: DashboardLayoutProps) {
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [sidebarExpanded, setSidebarExpanded] = useState(true);
 	const { permissions } = useAuth();
 	const [locationPath] = useLocation();
+	const { isTenant, slug, basePath } = useTenant();
+	const fullPath = useResolvedDashboardPath(locationPath);
 
 	return (
 		<div
@@ -42,8 +61,14 @@ export default function DashboardLayout({
 					{/* AI Chat untuk semua halaman dashboard, dengan context path + permissions */}
 					<AIChat
 						pageContext={{
-							path: locationPath,
+							path: fullPath,
 							permissions,
+							isTenant,
+							tenantSlug: isTenant ? slug : undefined,
+							basePath: isTenant ? basePath : undefined,
+							...(pageContextExtra?.pageData
+								? { pageData: pageContextExtra.pageData }
+								: {}),
 						}}
 					/>
 				</main>

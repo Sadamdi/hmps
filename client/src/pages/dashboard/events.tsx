@@ -20,6 +20,7 @@ import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
+import { buildEventsSpyroPageData } from '@shared/dashboard-spyro-context';
 import type { EventItem, EventYear } from '@shared/schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -224,6 +225,26 @@ export default function DashboardEvents() {
 	const selectedYear = useMemo(
 		() => eventYears.find((y) => y._id === selectedYearId),
 		[eventYears, selectedYearId],
+	);
+
+	const eventsPageDataForSpyro = useMemo(
+		() =>
+			buildEventsSpyroPageData({
+				requestOnly,
+				manageEnabled,
+				permissionsLoading: isPermLoading,
+				selectedYearId,
+				selectedYear: selectedYear ?? null,
+				selectedParentEvent,
+			}),
+		[
+			requestOnly,
+			manageEnabled,
+			isPermLoading,
+			selectedYearId,
+			selectedYear,
+			selectedParentEvent,
+		],
 	);
 
 	const requestSharingSearchBlock = showRequestSharingSearch ? (
@@ -490,7 +511,9 @@ export default function DashboardEvents() {
 
 	if (isPermLoading) {
 		return (
-			<DashboardLayout title="Events">
+			<DashboardLayout
+				title="Events"
+				pageContextExtra={{ pageData: eventsPageDataForSpyro }}>
 				<div className="flex items-center justify-center h-64">
 					<Loader2 className="h-8 w-8 animate-spin" />
 				</div>
@@ -501,7 +524,9 @@ export default function DashboardEvents() {
 	// ─── Year List View ──────────────────────────────────────────────
 	if (!selectedYearId) {
 		return (
-			<DashboardLayout title={requestOnly ? 'Events' : 'Manajemen Event'}>
+			<DashboardLayout
+				title={requestOnly ? 'Events' : 'Manajemen Event'}
+				pageContextExtra={{ pageData: eventsPageDataForSpyro }}>
 				<div className="space-y-6">
 					{requestSharingSearchBlock}
 					<DashboardHintCard
@@ -793,7 +818,9 @@ export default function DashboardEvents() {
 
 	// ─── Event List View (inside a year) ────────────────────────────
 	return (
-		<DashboardLayout title={`Event ${selectedYear?.year || ''}`}>
+		<DashboardLayout
+			title={`Event ${selectedYear?.year || ''}`}
+			pageContextExtra={{ pageData: eventsPageDataForSpyro }}>
 			<div className="space-y-6">
 				{requestSharingSearchBlock}
 				{selectedParentEvent ? (

@@ -31,7 +31,8 @@ import {
 	Trash2,
 	VideoIcon,
 } from 'lucide-react';
-import { useState } from 'react';
+import { buildLibrarySpyroPageData } from '@shared/dashboard-spyro-context';
+import { useMemo, useState } from 'react';
 
 interface LibraryItem {
 	id?: number;
@@ -83,6 +84,19 @@ export default function DashboardLibrary() {
 		);
 
 	const requestOnly = !hasRolePermission && !hasSharedAccess;
+
+	const libraryPageDataForSpyro = useMemo(
+		() =>
+			buildLibrarySpyroPageData({
+				permissionsLoading: isPermissionLoading,
+				requestOnly,
+				activeTab,
+				isUploaderOpen,
+				editingItem,
+			}),
+		[isPermissionLoading, requestOnly, activeTab, isUploaderOpen, editingItem],
+	);
+
 	const showRequestSharingSearch =
 		hasLibraryAccess && !hasSpecificPermission('library.view_others');
 
@@ -260,7 +274,7 @@ export default function DashboardLibrary() {
 	}
 
 	return (
-		<DashboardLayout title="Galeri">
+		<DashboardLayout title="Galeri" pageContextExtra={{ pageData: libraryPageDataForSpyro }}>
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 				<h1 className="text-2xl font-bold">
 					{requestOnly ? 'Ajukan Akses Galeri' : 'Galeri Media'}

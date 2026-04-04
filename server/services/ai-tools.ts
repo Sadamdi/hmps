@@ -11,6 +11,7 @@ import {
 import { getTenantModels } from '../../db/tenant';
 import { mongoStorage } from '../mongo-storage';
 import { createTenantStorage } from '../tenant-storage';
+import { DEFAULT_BERITA_IMAGE_PATH } from '../upload';
 
 type ToolModelsBundle = {
 	Berita: typeof MainBerita;
@@ -1729,7 +1730,8 @@ export async function executeToolCall(
 					slug,
 					excerpt,
 					content,
-					image: '',
+					image: DEFAULT_BERITA_IMAGE_PATH,
+					imageSource: 'local',
 					tags,
 					published: false,
 					authorId: (user as any)._id,

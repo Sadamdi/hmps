@@ -38,7 +38,8 @@ import {
 	User,
 	UserPlus,
 } from 'lucide-react';
-import { useState } from 'react';
+import { buildUsersSpyroPageData } from '@shared/dashboard-spyro-context';
+import { useMemo, useState } from 'react';
 // Define user type to match MongoDB schema
 interface UserWithRole {
 	_id: string;
@@ -117,6 +118,17 @@ export default function UsersPage() {
 	};
 
 	const currentUserLevel = currentUser ? getRoleOrder(currentUser.role) : 999;
+
+	const usersPageDataForSpyro = useMemo(
+		() =>
+			buildUsersSpyroPageData({
+				permissionsLoading: isPermissionLoading,
+				isUserDialogOpen,
+				editingUser,
+				selectedRoleFilter: selectedRole,
+			}),
+		[isPermissionLoading, isUserDialogOpen, editingUser, selectedRole],
+	);
 
 	// Filter users based on search and role tab
 	const filteredUsers = users
@@ -267,7 +279,7 @@ export default function UsersPage() {
 	// Show loading jika permission masih loading
 	if (isPermissionLoading) {
 		return (
-			<DashboardLayout title="User Management">
+			<DashboardLayout title="User Management" pageContextExtra={{ pageData: usersPageDataForSpyro }}>
 				<div className="flex items-center justify-center h-64">
 					<div className="flex items-center space-x-2">
 						<Loader2 className="h-6 w-6 animate-spin" />
@@ -285,7 +297,7 @@ export default function UsersPage() {
 	}
 
 	return (
-		<DashboardLayout title="User Management">
+		<DashboardLayout title="User Management" pageContextExtra={{ pageData: usersPageDataForSpyro }}>
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 				<h1 className="text-2xl font-bold">User Management</h1>
 				{canCreate && (

@@ -64,6 +64,7 @@ import { PostSharing } from '../db/mongodb';
 import {
 	cleanupBeritaImages,
 	cleanupTempDir,
+	DEFAULT_BERITA_IMAGE_PATH,
 	deleteFile,
 	extractImageUrlsFromContent,
 	promoteTempFile,
@@ -2172,7 +2173,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(401).json({ message: 'Authentication required' });
 				}
 
-				let imageUrl = '/uploads/default-berita-image.jpg';
+				let imageUrl = DEFAULT_BERITA_IMAGE_PATH;
 				let imageSource = 'local';
 				let gdriveFileId = null;
 
@@ -2425,7 +2426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (req.file) {
 					// Hapus gambar lama jika ada dan berbeda dari default
 					const oldImageUrl =
-						existingBerita.image !== '/uploads/default-berita-image.jpg'
+						existingBerita.image !== DEFAULT_BERITA_IMAGE_PATH
 							? existingBerita.image
 							: undefined;
 

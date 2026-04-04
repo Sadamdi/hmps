@@ -999,7 +999,9 @@ export default function SettingsPage() {
 	// Show loading jika permission masih loading
 	if (isPermissionLoading) {
 		return (
-			<DashboardLayout title="Settings">
+			<DashboardLayout
+				title="Settings"
+				pageContextExtra={{ pageData: { settingsTab: activeTab } }}>
 				<div className="flex items-center justify-center h-64">
 					<div className="flex items-center space-x-2">
 						<Loader2 className="h-6 w-6 animate-spin" />
@@ -1017,7 +1019,9 @@ export default function SettingsPage() {
 	}
 
 	return (
-		<DashboardLayout title="Settings">
+		<DashboardLayout
+			title="Settings"
+			pageContextExtra={{ pageData: { settingsTab: activeTab } }}>
 			<div className="mb-6">
 				<h1 className="text-2xl font-bold">
 					{canViewSettings ? 'Site Settings' : 'Account Settings'}

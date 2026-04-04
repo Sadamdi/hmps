@@ -42,7 +42,8 @@ import {
 	Trash2,
 	XCircle,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
 import type { FeedbackItem } from '@shared/schema';
 
 const TARGET_LABELS: Record<string, string> = {
@@ -191,9 +192,39 @@ export default function FeedbackPage() {
 		onError: () => toast({ title: 'Gagal memproses keputusan', variant: 'destructive' }),
 	});
 
+	const feedbackPageDataForSpyro = useMemo(() => {
+		if (!user || isPermLoading) {
+			return buildSimpleSpyroPageData(
+				'feedback',
+				'feedback.permissions_loading',
+				'Memuat izin atau sesi untuk moderasi saran & kritik.',
+			);
+		}
+		const filterSummary = `sasaran:${filterTarget}, jenis:${filterType}, balasan:${filterReply}`;
+		const dialogHint =
+			replyDialogOpen || deleteDialogOpen || decisionDialogOpen
+				? ' Dialog moderasi (balasan/hapus/keputusan) terbuka.'
+				: '';
+		return buildSimpleSpyroPageData(
+			'feedback',
+			'feedback.main',
+			`Moderasi masukan pengunjung.${dialogHint} Filter aktif: ${filterSummary}.`,
+			{ tab: `${filterTarget}/${filterType}/${filterReply}` },
+		);
+	}, [
+		user,
+		isPermLoading,
+		filterTarget,
+		filterType,
+		filterReply,
+		replyDialogOpen,
+		deleteDialogOpen,
+		decisionDialogOpen,
+	]);
+
 	if (!user || isPermLoading) {
 		return (
-			<DashboardLayout title="Saran & Kritik">
+			<DashboardLayout title="Saran & Kritik" pageContextExtra={{ pageData: feedbackPageDataForSpyro }}>
 				<div className="flex items-center justify-center h-64">
 					<Loader2 className="h-6 w-6 animate-spin" />
 				</div>
@@ -206,7 +237,7 @@ export default function FeedbackPage() {
 	const items = data?.items ?? [];
 
 	return (
-		<DashboardLayout title="Saran & Kritik">
+		<DashboardLayout title="Saran & Kritik" pageContextExtra={{ pageData: feedbackPageDataForSpyro }}>
 			<div className="space-y-6">
 				<DashboardHintCard
 					title="Cara memakai moderasi feedback"
