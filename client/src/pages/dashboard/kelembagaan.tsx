@@ -165,13 +165,13 @@ export default function DashboardKelembagaan() {
 					title="Cara memakai Kelembagaan"
 					variant="blue"
 					storageKey="dashboard-kelembagaan"
-					description="Tab Visi & Misi menyimpan HTML rich text. Tab Struktur memakai periode kepengurusan (format tahun seperti 2024–2025), divisi, posisi, dan anggota. Tanpa simpan, perubahan hilang.">
+					description="Tab Visi & Misi menyimpan HTML rich text. Tab Struktur memakai periode kepengurusan (format tahun seperti 2024–2025), divisi, daftar jabatan per periode, dan anggota. Tanpa simpan, perubahan hilang.">
 					<ul className="list-disc list-inside space-y-1.5 text-sm">
 						<li>
 							<strong>Langkah visi-misi</strong>: buka tab → Edit → ikuti blok <strong>VISI</strong> / <strong>MISI</strong> di petunjuk format → simpan.
 						</li>
 						<li>
-							<strong>Langkah struktur</strong>: pilih periode aktif → tambah divisi/posisi bila perlu → tambah anggota dengan nama dan jabatan → unggah foto sesuai form → simpan per blok jika diminta.
+							<strong>Langkah struktur</strong>: di tab <strong>Jabatan</strong> pilih/tambah periode (tombol +) dan kelola daftar nama jabatan; di tab <strong>Divisi</strong> kelola divisi; di tab <strong>Anggota</strong> tambah anggota dengan nama jabatan dan foto → simpan per blok jika diminta.
 						</li>
 						<li>
 							<strong>Contoh valid (periode)</strong>: <code className="text-xs bg-muted px-1 rounded">2025-2026</code> atau label yang konsisten dengan struktur organisasi; anggota terhubung ke divisi yang ada.

@@ -476,6 +476,10 @@ async function deleteOrganizationMember(id: string | number): Promise<void> {
 	await Organization.findByIdAndDelete(objectId);
 }
 
+async function deleteOrganizationMembersByPeriod(period: string): Promise<void> {
+	await Organization.deleteMany({ period });
+}
+
 async function getOrganizationMembersCount(): Promise<number> {
 	return await Organization.countDocuments();
 }
@@ -1512,6 +1516,7 @@ const mongoDBStorage = {
 	createOrganizationMember,
 	updateOrganizationMember,
 	deleteOrganizationMember,
+	deleteOrganizationMembersByPeriod,
 	getOrganizationMembersCount,
 	getOrganizationActiveMembersCount,
 	getOrganizationAlumniMembersCount,

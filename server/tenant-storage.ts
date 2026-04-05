@@ -310,8 +310,19 @@ export function createTenantStorage(models: TenantModels) {
 	// ── Organization extended ──
 	async function getOrganizationPeriods() {
 		const orgs = await Organization.find().select('period').lean();
-		const periods = Array.from(new Set(orgs.map((o: any) => o.period).filter(Boolean))) as string[];
-		return periods.sort().reverse();
+		const fromMembers = Array.from(
+			new Set(orgs.map((o: any) => o.period).filter(Boolean)),
+		) as string[];
+		const posDocs = await Position.find().select('period').lean();
+		const fromPositions = Array.from(
+			new Set((posDocs as any[]).map((p) => p.period).filter(Boolean)),
+		) as string[];
+		const periods = Array.from(new Set([...fromMembers, ...fromPositions]));
+		return periods.sort((a, b) => {
+			const ya = parseInt(String(a).split('-')[0], 10) || 0;
+			const yb = parseInt(String(b).split('-')[0], 10) || 0;
+			return yb - ya;
+		});
 	}
 	async function getPositionsByPeriod(period: string) {
 		const positionRecord = (await Position.findOne({ period }).lean()) as any;
@@ -877,8 +888,22 @@ export function createTenantStorage(models: TenantModels) {
 	async function createOrganizationMember(data: any) { return createOrganization(data); }
 	async function updateOrganizationMember(id: string, data: any) { return updateOrganization(id, data); }
 	async function deleteOrganizationMember(id: string) { return deleteOrganization(id); }
-	async function createOrganizationPeriod(_period: string) { /* periods derived from members */ }
-	async function deleteOrganizationPeriod(_period: string) { /* periods derived from members */ }
+	async function deleteOrganizationMembersByPeriod(period: string) {
+		await Organization.deleteMany({ period });
+	}
+	async function createOrganizationPeriod(period: string) {
+		const existing = await Position.findOne({ period });
+		if (existing) return existing;
+		return new Position({
+			period,
+			positions: [],
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		}).save();
+	}
+	async function deleteOrganizationPeriod(period: string) {
+		await Position.deleteMany({ period });
+	}
 	async function getOrganizationActiveMembersCount() { return Organization.countDocuments(); }
 	async function getOrganizationAlumniMembersCount() { return 0; }
 
@@ -1096,6 +1121,7 @@ export function createTenantStorage(models: TenantModels) {
 		getAllOrganization, getOrganizationById, createOrganization, updateOrganization, deleteOrganization,
 		getOrganizationPeriods, getPositionsByPeriod, getOrganizationMembers, getOrganizationMemberById, getOrganizationMembersCount,
 		getOrganizationMembersByPeriod, createOrganizationMember, updateOrganizationMember, deleteOrganizationMember,
+		deleteOrganizationMembersByPeriod,
 		createOrganizationPeriod, deleteOrganizationPeriod,
 		getOrganizationActiveMembersCount, getOrganizationAlumniMembersCount,
 		// Settings

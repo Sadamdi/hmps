@@ -84,6 +84,24 @@ function sanitizeSlug(slug: string): string {
 		.replace(/^_|_$/g, '') || 'unknown';
 }
 
+/**
+ * Hapus seluruh folder unggahan komunitas tenant di `uploads/community/{slug}` dan
+ * `attached_assets/community/{slug}`. Best-effort; dipanggil saat komunitas dihapus.
+ */
+export function removeCommunityUploadDirectories(tenantSlug: string): void {
+	const safe = sanitizeSlug(tenantSlug);
+	for (const base of [uploadDir, assetsDir]) {
+		const dir = path.join(base, 'community', safe);
+		try {
+			if (fs.existsSync(dir)) {
+				fs.rmSync(dir, { recursive: true, force: true });
+			}
+		} catch (e) {
+			console.warn(`removeCommunityUploadDirectories(${safe}):`, e);
+		}
+	}
+}
+
 export interface TenantPathContext {
 	isTenant: boolean;
 	tenantSlug?: string;

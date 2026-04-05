@@ -1,6 +1,7 @@
 import ContentEditor from '@/components/dashboard/content-editor';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
+import { TenantOwnerDeleteAccountSection } from '@/components/dashboard/tenant-owner-delete-account-section';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import {
 	AlertDialog,
@@ -363,11 +364,6 @@ export default function DashboardProfil() {
 	const queryClient = useQueryClient();
 	const { isTenant, basePath } = useTenant();
 	const [selectedTab, setSelectedTab] = useState('tentang-kami');
-	const [tenantDeleteOpen, setTenantDeleteOpen] = useState(false);
-	const [tenantDeleteStep, setTenantDeleteStep] = useState<'confirm' | 'otp'>('confirm');
-	const [tenantOtpChallengeId, setTenantOtpChallengeId] = useState('');
-	const [tenantOtpCode, setTenantOtpCode] = useState('');
-	const [tenantDeleteLoading, setTenantDeleteLoading] = useState(false);
 	const [isEditing, setIsEditing] = useState(false);
 	const [isHeroEditing, setIsHeroEditing] = useState(false);
 
@@ -439,49 +435,6 @@ export default function DashboardProfil() {
 			toast({ title: 'Gagal menyimpan', description: 'Terjadi kesalahan.', variant: 'destructive' });
 		},
 	});
-
-	const requestTenantDeleteOtp = async () => {
-		setTenantDeleteLoading(true);
-		try {
-			const res = await apiRequest('POST', '/api/community/request-delete-otp', {});
-			const data = await res.json();
-			setTenantOtpChallengeId(data.challengeId);
-			setTenantDeleteStep('otp');
-			toast({ title: 'OTP terkirim', description: data.message || 'Periksa email Anda.' });
-		} catch (e: unknown) {
-			const msg = e instanceof Error ? e.message : 'Gagal meminta OTP';
-			toast({ title: 'Gagal', description: msg, variant: 'destructive' });
-		} finally {
-			setTenantDeleteLoading(false);
-		}
-	};
-
-	const completeTenantDelete = async () => {
-		if (!tenantOtpChallengeId || !tenantOtpCode.trim()) {
-			toast({ title: 'OTP diperlukan', variant: 'destructive' });
-			return;
-		}
-		setTenantDeleteLoading(true);
-		try {
-			const v = await apiRequest('POST', '/api/community/verify-delete-otp', {
-				challengeId: tenantOtpChallengeId,
-				otp: tenantOtpCode.trim(),
-			});
-			const { resetToken } = await v.json();
-			await apiRequest('DELETE', '/api/community', {
-				challengeId: tenantOtpChallengeId,
-				resetToken,
-			});
-			toast({ title: 'Komunitas dihapus', description: 'Mengalihkan ke beranda…' });
-			setTenantDeleteOpen(false);
-			window.location.href = '/';
-		} catch (e: unknown) {
-			const msg = e instanceof Error ? e.message : 'Gagal menghapus';
-			toast({ title: 'Gagal', description: msg, variant: 'destructive' });
-		} finally {
-			setTenantDeleteLoading(false);
-		}
-	};
 
 	const handleSave = () => {
 		// Validate filosofi keys before saving
@@ -1006,29 +959,7 @@ export default function DashboardProfil() {
 								</ul>
 							</DashboardHintCard>
 							<LogoKomunitasSection settings={settings} canEdit={canEdit} />
-							{isTenant && user?.role === 'owner' && (
-								<Card className="border-destructive/40 bg-destructive/5">
-									<CardHeader>
-										<CardTitle className="text-destructive">Zona berbahaya</CardTitle>
-										<CardDescription>
-											Hapus akun komunitas beserta seluruh data di database-nya. Tindakan ini permanen dan memerlukan OTP ke email Anda.
-										</CardDescription>
-									</CardHeader>
-									<CardContent>
-										<Button
-											type="button"
-											variant="destructive"
-											onClick={() => {
-												setTenantDeleteStep('confirm');
-												setTenantOtpCode('');
-												setTenantOtpChallengeId('');
-												setTenantDeleteOpen(true);
-											}}>
-											Hapus komunitas
-										</Button>
-									</CardContent>
-								</Card>
-							)}
+							<TenantOwnerDeleteAccountSection />
 						</TabsContent>
 						{/* Tab Hero & Warna Divisi */}
 						<TabsContent value="hero-warna" className="space-y-4 mt-4">
@@ -1086,70 +1017,6 @@ export default function DashboardProfil() {
 					</Tabs>
 				)}
 			</div>
-
-			<AlertDialog
-				open={tenantDeleteOpen}
-				onOpenChange={(open) => {
-					setTenantDeleteOpen(open);
-					if (!open) {
-						setTenantDeleteStep('confirm');
-						setTenantOtpCode('');
-						setTenantOtpChallengeId('');
-					}
-				}}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>
-							{tenantDeleteStep === 'confirm' ? 'Hapus komunitas?' : 'Masukkan kode OTP'}
-						</AlertDialogTitle>
-						<AlertDialogDescription>
-							{tenantDeleteStep === 'confirm' ? (
-								<>
-									Semua data komunitas akan dihapus permanen. Klik lanjut untuk mengirim OTP ke email pemilik.
-								</>
-							) : (
-								<>Masukkan kode OTP yang dikirim ke email Anda.</>
-							)}
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					{tenantDeleteStep === 'otp' && (
-						<div className="py-2">
-							<Label htmlFor="tenant-del-otp">Kode OTP</Label>
-							<Input
-								id="tenant-del-otp"
-								className="mt-1.5"
-								inputMode="numeric"
-								autoComplete="one-time-code"
-								placeholder="6 digit"
-								value={tenantOtpCode}
-								onChange={(e) => setTenantOtpCode(e.target.value)}
-							/>
-						</div>
-					)}
-					<AlertDialogFooter className="gap-2 sm:gap-0">
-						<AlertDialogCancel disabled={tenantDeleteLoading}>Batal</AlertDialogCancel>
-						{tenantDeleteStep === 'confirm' ? (
-							<Button
-								type="button"
-								variant="destructive"
-								disabled={tenantDeleteLoading}
-								onClick={() => void requestTenantDeleteOtp()}>
-								{tenantDeleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-								Kirim OTP
-							</Button>
-						) : (
-							<Button
-								type="button"
-								variant="destructive"
-								disabled={tenantDeleteLoading || !tenantOtpCode.trim()}
-								onClick={() => void completeTenantDelete()}>
-								{tenantDeleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-								Hapus permanen
-							</Button>
-						)}
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
 
 			{/* Delete confirmation dialog */}
 			<AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog((d) => ({ ...d, open }))}>

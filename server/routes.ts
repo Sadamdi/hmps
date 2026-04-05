@@ -91,6 +91,7 @@ import {
 	deleteFile,
 	extractImageUrlsFromContent,
 	promoteTempFile,
+	removeCommunityUploadDirectories,
 	TEMP_UPLOAD_TTL_MS,
 	uploadBeritaImage,
 	uploadFilosofiImage,
@@ -3717,19 +3718,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const storage = resolveStorage(req);
 				const period = decodeURIComponent(req.params.period);
 
-				// Check if period has any members
 				const membersInPeriod =
 					await storage.getOrganizationMembersByPeriod(period);
-				if (membersInPeriod.length > 0) {
-					return res.status(400).json({
-						message: `Cannot delete period "${period}" because it has ${membersInPeriod.length} member(s). Please remove all members first.`,
-					});
+				for (const m of membersInPeriod) {
+					const url = (m as any).imageUrl;
+					if (url && typeof url === 'string') {
+						try {
+							await deleteFile(url);
+						} catch (e) {
+							console.warn('delete period: hapus file anggota', url, e);
+						}
+					}
 				}
 
-				// Delete the period from dedicated collection
+				await storage.deleteOrganizationMembersByPeriod(period);
+				await storage.deletePositionsForPeriod(period);
 				await storage.deleteOrganizationPeriod(period);
 
-				res.json({ message: `Period "${period}" deleted successfully` });
+				res.json({
+					message: `Periode "${period}" beserta anggota, jabatan, dan berkas lokal terkait telah dihapus.`,
+				});
 			} catch (error) {
 				console.error('Delete organization period error:', error);
 				res.status(500).json({ message: 'Internal server error' });
@@ -7699,6 +7707,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const tenantConn = getTenantConnection((community as any).dbName);
 				await tenantConn.dropDatabase();
 
+				removeCommunityUploadDirectories(String((community as any).slug || ''));
+
 				await mongoStorage.deleteCommunity(req.params.id);
 				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
 				invalidateCommunityCache((community as any).slug);
@@ -7803,10 +7813,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { getTenantConnection } = await import('../db/tenant');
 				const tenantConn = getTenantConnection((community as any).dbName);
 				await tenantConn.dropDatabase();
+				removeCommunityUploadDirectories(String((community as any).slug || req.tenantSlug || ''));
 				await mongoStorage.deleteCommunity(String((community as any)._id));
 				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
 				invalidateCommunityCache((community as any).slug);
-				res.json({ message: 'Komunitas dan semua datanya berhasil dihapus' });
+				res.json({
+					message:
+						'Akun owner, database komunitas, dan data terkait telah dihapus. Anda akan keluar dari situs ini.',
+				});
 			} catch (error: any) {
 				res.status(500).json({ message: error.message || 'Internal server error' });
 			}

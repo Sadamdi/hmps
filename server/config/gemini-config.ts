@@ -297,7 +297,7 @@ export const GEMINI_PERSONALIZATION = {
    - Berita: Buat Berita Baru → judul, excerpt, editor (HTML), thumbnail, tag → simpan; publish butuh berita.publish; sharing ajuan jika perlu. Di isi artikel, pengguna bisa menempel URL embed: YouTube, Google Drive (link file foto/video atau folder — tampil otomatis); host lain hanya jika admin menambahkan domain di Settings (domain embed).
    - Events: Buat Event → tahun, tanggal, deskripsi rich text, sub-event, lampiran/thumbnail, publish. Penyematan Drive/YouTube di deskripsi sama seperti berita.
    - Library/Galeri: wajib minimal satu tautan Google Drive — bisa satu atau beberapa file (foto/video), atau satu folder (isi folder dijadikan galeri), atau mode embed folder (iframe pratinjau Drive). Berbagi file harus "Siapa pun yang punya link". Edit judul/deskripsi/tag; sharing ajuan jika diaktifkan.
-   - Kelembagaan: visi-misi; struktur organisasi lewat tab Members, Positions, Divisions (bukan URL /dashboard/organization).
+   - Kelembagaan: visi-misi; struktur organisasi lewat tab Anggota, Jabatan, Divisi (bukan URL /dashboard/organization). Tab Jabatan berisi daftar nama jabatan per periode; di sana bisa tambah periode (+) dan mengurutkan jabatan.
    - Profil organisasi: Tentang Kami, Rekam Jejak, Filosofi Lambang.
    - Prodi: sync konten prodi, edit profil/dosen/kurikulum/lab (utama situs).
    - Users & Roles: kelola user dan permission role sesuai akses.
@@ -540,7 +540,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 
 	if (canViewOrganization) {
 		lines.push(
-			'- Pengguna memiliki akses ke pengelolaan struktur organisasi/pengurus. Jelaskan bahwa di tab Members dapat: memilih periode, memfilter berdasarkan divisi, menambah/mengedit/menghapus anggota. Di tab Positions dapat mengatur urutan jabatan (drag & drop). Di tab Divisions dapat mengelola daftar divisi dan atributnya.',
+			'- Pengguna memiliki akses ke pengelolaan struktur organisasi/pengurus. Jelaskan bahwa di tab Anggota dapat: memilih periode, memfilter berdasarkan divisi, menambah/mengedit/menghapus anggota. Di tab Jabatan dapat menambah periode (tombol +), mengelola daftar nama jabatan per periode, dan mengatur urutan (seret/naik-turun). Di tab Divisi dapat mengelola daftar divisi dan atributnya.',
 		);
 	}
 
@@ -582,7 +582,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 
 	if (canViewKelembagaan) {
 		lines.push(
-			'- Pengguna memiliki akses ke manajemen Kelembagaan. Ia bisa mengelola visi-misi, struktur organisasi, dan divisi melalui Dashboard > Kelembagaan.',
+			'- Pengguna memiliki akses ke manajemen Kelembagaan. Ia bisa mengelola visi-misi, struktur organisasi (tab Anggota, Jabatan, Divisi), dan divisi melalui Dashboard > Kelembagaan.',
 		);
 	}
 
@@ -696,7 +696,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		);
 	} else if (pathMod.startsWith('/dashboard/kelembagaan')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Kelembagaan. Jelaskan cara mengelola visi-misi, nama-nama divisi, foto/nama ketua/wakil ketua, kepala divisi, serta anggota organisasi melalui tab Members, Positions, dan Divisions.',
+			'- Pengguna sedang berada di halaman Dashboard Kelembagaan. Jelaskan cara mengelola visi-misi, nama-nama divisi, foto/nama ketua/wakil ketua, kepala divisi, serta anggota organisasi melalui tab Anggota, Jabatan, dan Divisi.',
 		);
 	} else if (pathMod.startsWith('/dashboard/prodi')) {
 		lines.push(

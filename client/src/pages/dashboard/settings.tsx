@@ -1,6 +1,7 @@
 import { BannerEditor } from '@/components/dashboard/banner-editor';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
+import { TenantOwnerDeleteAccountSection } from '@/components/dashboard/tenant-owner-delete-account-section';
 import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
 import { Button } from '@/components/ui/button';
 import {
@@ -2363,6 +2364,8 @@ export default function SettingsPage() {
 										});
 									}}
 								/>
+
+								<TenantOwnerDeleteAccountSection />
 
 								{/* Change Password Section */}
 								<Card>
