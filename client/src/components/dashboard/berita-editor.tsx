@@ -856,10 +856,6 @@ export default function BeritaEditor({
 								}
 							/>
 						</div>
-						<p className="text-sm text-gray-500">
-							Note: In a real implementation, a full WYSIWYG editor like
-							TinyMCE, CKEditor, or Quill would be used here.
-						</p>
 					</TabsContent>
 					<TabsContent
 						value="preview"

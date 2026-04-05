@@ -597,6 +597,9 @@ export default function RichTextEditor({
 		}
 	}, [value]);
 
+	/** Panel bantuan/debug hanya jika kunci API belum di-set (status "Not Connected"). */
+	const showTinyMceSetupHelp = !import.meta.env.VITE_TINYMCE_API_KEY;
+
 	return (
 		<div className="rich-text-editor">
 			{/* Container dengan z-index yang tepat */}
@@ -617,200 +620,86 @@ export default function RichTextEditor({
 				/>
 			</div>
 
-			{/* API Key Status & Shortcuts help */}
-			<div className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">
-				<div className="mb-1">
-					<strong>🔑 API Status:</strong>
-					<span className="ml-1">
-						{import.meta.env.VITE_TINYMCE_API_KEY ? (
-							<span className="text-green-600">✅ Connected</span>
-						) : (
-							<span className="text-red-600">❌ No API Key</span>
-						)}
-					</span>
-				</div>
-
-				{/* Debug Test Button */}
-				<div className="mb-2">
-					<button
-						onClick={() => {
-							const toolbar = document.querySelector('.tox-toolbar');
-							const buttons = document.querySelectorAll('.tox-tbtn');
-							const dialogs = document.querySelectorAll('.tox-dialog');
-							const inputs = document.querySelectorAll(
-								'.tox-dialog input, .tox-textfield',
-							);
-
-							// Debug info removed for cleaner console
-
-							if (toolbar) {
-								// Toolbar debug info removed
-							}
-
-							buttons.forEach((btn, i) => {
-								// Button debug info removed
-							});
-
-							// Test dialog inputs if any exist
-							if (inputs.length > 0) {
-								// Input debug info removed
-								inputs.forEach((input: any, i) => {
-									// Try to focus the input
+			{showTinyMceSetupHelp && (
+				<div className="text-xs text-muted-foreground mt-2 p-2 bg-muted rounded">
+					<div className="mb-1">
+						<strong>🔑 API Status:</strong>
+						<span className="ml-1 text-red-600">❌ No API Key</span>
+					</div>
+					<p className="mb-2 text-amber-700 dark:text-amber-300">
+						Set environment variable{' '}
+						<code className="rounded bg-background px-1">VITE_TINYMCE_API_KEY</code> lalu
+						build ulang agar TinyMCE memuat dari Tiny Cloud.
+					</p>
+					<div className="mb-2">
+						<button
+							type="button"
+							onClick={() => {
+								const inputs = document.querySelectorAll(
+									'.tox-dialog input, .tox-textfield',
+								);
+								inputs.forEach((input: any) => {
 									try {
 										input.focus();
-									} catch (e) {
-										// Focus failed silently
+									} catch {
+										/* noop */
 									}
 								});
-							}
-
-							alert(
-								'Debug completed! Check if dialogs are working properly now.',
-							);
-						}}
-						className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 mr-2">
-						🔍 Debug Toolbar
-					</button>
-
-					<button
-						onClick={() => {
-							// Comprehensive dialog fix for testing
-							const dialogs = document.querySelectorAll('.tox-dialog');
-							const inputs = document.querySelectorAll(`
-								.tox-dialog input[type="text"],
-								.tox-dialog input[type="url"],
-								.tox-dialog input[type="email"],
-								.tox-dialog textarea,
-								.tox-textfield,
-								.tox-textarea,
-								.tox-dialog .tox-textfield,
-								.tox-dialog .tox-textarea
-							`);
-							const buttons = document.querySelectorAll(
-								'.tox-dialog .tox-button',
-							);
-
-							// Applying comprehensive dialog fixes...
-
-							// Fix input fields
-							inputs.forEach((input: any, index) => {
-								// Remove all restrictions
-								input.removeAttribute('readonly');
-								input.removeAttribute('disabled');
-								input.removeAttribute('aria-disabled');
-								input.disabled = false;
-								input.readOnly = false;
-
-								// Apply critical styles
-								const criticalStyles = [
-									['pointer-events', 'auto'],
-									['cursor', 'text'],
-									['z-index', '10002'],
-									['background-color', 'white'],
-									['border', '1px solid #ccc'],
-									['padding', '8px 12px'],
-									['font-size', '14px'],
-									['color', '#333'],
-									['width', '100%'],
-									['box-sizing', 'border-box'],
-									['border-radius', '4px'],
-									['opacity', '1'],
-									['visibility', 'visible'],
-								];
-
-								criticalStyles.forEach(([prop, val]) => {
-									input.style.setProperty(prop, val, 'important');
-								});
-
-								input.setAttribute('tabindex', '0');
-
-								// Test input functionality
-								input.addEventListener('click', (e: Event) => {
-									e.stopPropagation();
-									console.log(
-										`✅ Input ${index + 1} clicked - attempting focus`,
-									);
-									setTimeout(() => {
-										input.focus();
-										input.style.setProperty(
-											'border-color',
-											'#3b82f6',
-											'important',
-										);
-									}, 10);
-								});
-
-								input.addEventListener('focus', () => {
-									console.log(`🎯 Input ${index + 1} successfully focused!`);
-									input.style.setProperty(
-										'border-color',
-										'#3b82f6',
-										'important',
-									);
-									input.style.setProperty(
-										'box-shadow',
-										'0 0 0 2px rgba(59, 130, 246, 0.2)',
-										'important',
-									);
-								});
-
-								input.addEventListener('input', () => {
-									console.log(
-										`📝 Input ${index + 1} value changed:`,
-										input.value,
-									);
-								});
-							});
-
-							// Fix buttons
-							buttons.forEach((button: any) => {
-								[
-									['pointer-events', 'auto'],
-									['cursor', 'pointer'],
-									['z-index', '10002'],
-								].forEach(([prop, val]) => {
-									button.style.setProperty(prop, val, 'important');
-								});
-							});
-
-							// Test dialog interaction
-							if (dialogs.length > 0) {
-								console.log(
-									`✅ Fixed ${dialogs.length} dialogs with ${inputs.length} inputs and ${buttons.length} buttons`,
+								alert(
+									'Debug completed! Check if dialogs are working properly now.',
 								);
-
-								// Try to focus the first input for testing
-								if (inputs.length > 0) {
-									setTimeout(() => {
-										const firstInput = inputs[0] as HTMLInputElement;
-										firstInput.focus();
-										console.log(
-											'🔍 Attempting to focus first input for testing...',
-										);
-									}, 100);
+							}}
+							className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 mr-2">
+							🔍 Debug Toolbar
+						</button>
+						<button
+							type="button"
+							onClick={() => {
+								const dialogs = document.querySelectorAll('.tox-dialog');
+								const inputs = document.querySelectorAll(`
+									.tox-dialog input[type="text"],
+									.tox-dialog input[type="url"],
+									.tox-dialog input[type="email"],
+									.tox-dialog textarea,
+									.tox-textfield,
+									.tox-textarea,
+									.tox-dialog .tox-textfield,
+									.tox-dialog .tox-textarea
+								`);
+								const buttons = document.querySelectorAll(
+									'.tox-dialog .tox-button',
+								);
+								inputs.forEach((input: any) => {
+									input.removeAttribute('readonly');
+									input.removeAttribute('disabled');
+									input.disabled = false;
+									input.readOnly = false;
+								});
+								buttons.forEach((button: any) => {
+									button.style.setProperty('pointer-events', 'auto', 'important');
+								});
+								if (dialogs.length > 0) {
+									alert(
+										`✅ Dialog Fix Applied!\n\nFixed: ${inputs.length} input field(s) and ${buttons.length} button(s)`,
+									);
+								} else {
+									alert(
+										'❌ Tidak ada dialog yang terbuka!\n\nBuka dialog Link atau Image dari toolbar lalu coba lagi.',
+									);
 								}
-
-								alert(
-									`✅ Dialog Fix Applied!\n\nFixed: ${inputs.length} input field(s) and ${buttons.length} button(s)\n\nSekarang coba:\n1. Klik input field di dialog\n2. Ketik text\n3. Lihat console (F12) untuk log interaksi\n\nJika masih tidak bisa, tutup dialog dan buka lagi.`,
-								);
-							} else {
-								alert(
-									'❌ Tidak ada dialog yang terbuka!\n\nUntuk test:\n1. Klik tombol Link atau Image di toolbar\n2. Tunggu dialog muncul\n3. Klik tombol "Fix Dialogs" ini lagi\n4. Coba gunakan input field di dialog',
-								);
-							}
-						}}
-						className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600">
-						🔧 Fix Dialogs
-					</button>
+							}}
+							className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600">
+							🔧 Fix Dialogs
+						</button>
+					</div>
+					<strong>💡 Shortcuts:</strong>
+					<span className="ml-2">
+						<kbd>Ctrl+B</kbd> Bold •<kbd>Ctrl+I</kbd> Italic •<kbd>Ctrl+U</kbd>{' '}
+						Underline •<kbd>-</kbd>+<kbd>Space</kbd> Bullet List •<kbd>1.</kbd>+
+						<kbd>Space</kbd> Numbered List
+					</span>
 				</div>
-
-				<strong>💡 Shortcuts:</strong>
-				<span className="ml-2">
-					<kbd>Ctrl+B</kbd> Bold •<kbd>Ctrl+I</kbd> Italic •<kbd>Ctrl+U</kbd>{' '}
-					Underline •<kbd>-</kbd>+<kbd>Space</kbd> Bullet List •<kbd>1.</kbd>+
-					<kbd>Space</kbd> Numbered List
-				</span>
-			</div>
+			)}
 
 			{/* Enhanced CSS Override untuk fix conflicts */}
 			<style>{`
