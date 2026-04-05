@@ -862,7 +862,7 @@ export default function DashboardEvents() {
 						title="Panduan: sub-event (di bawah event induk)"
 						variant="blue"
 						storageKey="dashboard-events-subevent-level"
-						description="Anda sedang melihat sub-agenda dari satu event induk (mis. rangkaian hari dalam acara besar HMPS TI UIN Malang). Sub-event punya form yang sama: judul, deskripsi, tanggal, lampiran, publish, berita terkait, dan berbagi akses.">
+						description="Sub-agenda dari satu event induk. Form sama: judul, deskripsi rich text (bisa menyematkan URL YouTube atau Google Drive: file foto/video atau folder — seperti di berita), tanggal, lampiran, publish, berita terkait, sharing.">
 						<ul className="list-disc list-inside space-y-1.5 text-sm">
 							<li>
 								<strong>Langkah</strong>: gunakan breadcrumb <strong>Event {selectedYear?.year}</strong> untuk kembali ke daftar event utama tahun ini → untuk menambah agenda turunan, klik <strong>Tambah Sub-event</strong> → isi judul (mis. &quot;Hari 2: Lomba CP&quot;) → set tanggal mulai/selesai di dalam rentang logis acara induk → lampiran/thumbnail jika perlu → simpan → publish bila siap.
@@ -886,10 +886,10 @@ export default function DashboardEvents() {
 						title="Panduan: event dalam tahun (level utama)"
 						variant="blue"
 						storageKey="dashboard-events-detail"
-						description="Di dalam satu tahun kalender, event utama dikelompokkan per bulan. Buat event besar (mis. seminar TI, pelatihan desain himpunan) lalu pecah menjadi sub-event lewat tombol Sub-event pada kartu.">
+						description="Event utama per tahun; bisa dipecah sub-event. Di deskripsi (rich text) Anda bisa menempel URL YouTube atau Google Drive — satu file, banyak file, atau folder — agar tampil di halaman publik (sama seperti modul berita). Domain lain: allowlist di Settings.">
 						<ul className="list-disc list-inside space-y-1.5 text-sm">
 							<li>
-								<strong>Langkah</strong>: klik <strong>Tambah Event</strong> → isi judul &amp; deskripsi rich text → tanggal mulai/selesai (input tanggal di dialog) → thumbnail, lampiran, berita terkait → simpan → aktifkan publish jika siap → untuk agenda turunan, buka kartu lalu <strong>Sub-event</strong>.
+								<strong>Langkah</strong>: klik <strong>Tambah Event</strong> → isi judul &amp; deskripsi rich text (sertakan URL Drive/YouTube jika perlu) → tanggal mulai/selesai (input tanggal di dialog) → thumbnail, lampiran, berita terkait → simpan → aktifkan publish jika siap → untuk agenda turunan, buka kartu lalu <strong>Sub-event</strong>.
 							</li>
 							<li>
 								<strong>Contoh valid</strong>: judul <code className="text-xs bg-muted px-1 rounded">Seminar Nasional Teknik Informatika UIN Malang 2026</code>; rentang tanggal konsisten; thumbnail poster himpunan; lampiran PDF rundown.

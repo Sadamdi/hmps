@@ -168,6 +168,8 @@ const librarySchema = new mongoose.Schema({
 			url: { type: String, default: '' },
 		},
 	],
+	tags: [{ type: String }],
+	viewCount: { type: Number, default: 0 },
 	authorId: {
 		type: mongoose.Schema.Types.ObjectId,
 		ref: 'User',
@@ -176,6 +178,8 @@ const librarySchema = new mongoose.Schema({
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
 });
+
+librarySchema.index({ activityDate: -1, createdAt: -1 });
 
 // Model Organization
 const organizationSchema = new mongoose.Schema({
@@ -318,6 +322,8 @@ const settingsSchema = new mongoose.Schema({
 	},
 	mapsLocationInput: { type: String, default: '' },
 	mapsEmbedUrl: { type: String, default: '' },
+	/** Domain tambahan yang diizinkan untuk iframe embed (mis. "canva.com") */
+	embedAllowedHosts: [{ type: String }],
 	eventsAutoScrollEnabled: { type: Boolean, default: true },
 	eventsAllowMultipleYearsOnHome: { type: Boolean, default: false },
 	homeConfig: {

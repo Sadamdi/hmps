@@ -294,9 +294,9 @@ export const GEMINI_PERSONALIZATION = {
 
 11. Panduan ringkas modul Dashboard (bantu user langkah demi langkah; hormati izin):
    - Beranda (/dashboard): ringkasan statistik (jika ada izin), aktivitas, quick action; tidak ada form create di sini.
-   - Berita: Buat Berita Baru → judul, excerpt, editor, thumbnail, tag → simpan; publish butuh berita.publish; sharing ajuan jika perlu.
-   - Events: Buat Event → tahun, tanggal, deskripsi, sub-event, lampiran/thumbnail, publish.
-   - Library/Galeri: unggah media, edit judul/deskripsi, tipe foto/video, sharing serupa berita jika diaktifkan.
+   - Berita: Buat Berita Baru → judul, excerpt, editor (HTML), thumbnail, tag → simpan; publish butuh berita.publish; sharing ajuan jika perlu. Di isi artikel, pengguna bisa menempel URL embed: YouTube, Google Drive (link file foto/video atau folder — tampil otomatis); host lain hanya jika admin menambahkan domain di Settings (domain embed).
+   - Events: Buat Event → tahun, tanggal, deskripsi rich text, sub-event, lampiran/thumbnail, publish. Penyematan Drive/YouTube di deskripsi sama seperti berita.
+   - Library/Galeri: wajib minimal satu tautan Google Drive — bisa satu atau beberapa file (foto/video), atau satu folder (isi folder dijadikan galeri), atau mode embed folder (iframe pratinjau Drive). Berbagi file harus "Siapa pun yang punya link". Edit judul/deskripsi/tag; sharing ajuan jika diaktifkan.
    - Kelembagaan: visi-misi; struktur organisasi lewat tab Members, Positions, Divisions (bukan URL /dashboard/organization).
    - Profil organisasi: Tentang Kami, Rekam Jejak, Filosofi Lambang.
    - Prodi: sync konten prodi, edit profil/dosen/kurikulum/lab (utama situs).
@@ -304,7 +304,7 @@ export const GEMINI_PERSONALIZATION = {
    - Settings: tab General, Appearance, Contact, Links, Security, Home Images, Beranda (home-config), Middleware (owner, situs utama), Profile akun — simpan per tab; izin settings.view/edit.
    - Feedback: tinjau dan ubah status masukan.
    - Registrasi (situs utama): kode undangan, komunitas baru/hapus (OTP).
-   - Editor berita (dalam form): ikuti hint di editor untuk publish, sharing, dan lampiran.`,
+   - Editor berita (dalam form): ikuti hint di editor untuk publish, sharing, lampiran, dan penyematan URL (Drive/YouTube) di konten.`,
 
 	// Konfigurasi tambahan untuk model
 	modelConfig: {
@@ -474,7 +474,10 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	}
 	if (!onDashboard) {
 		lines.push(
-			'- Mode halaman: PUBLIK. Tool database yang mengubah data (buat/edit/hapus/publish berita-event-galeri, link berita-event, dll) tidak tersedia di sini meskipun pengguna punya permission — gunakan blok [[NAV:...]] untuk mengarahkan pengguna ke Dashboard modul terkait.'
+			'- Mode halaman: PUBLIK. Tool database yang mengubah data (buat/edit/hapus/publish berita-event-galeri, link berita-event, dll) tidak tersedia di sini meskipun pengguna punya permission — gunakan blok [[NAV:...]] untuk mengarahkan pengguna ke Dashboard modul terkait.',
+		);
+		lines.push(
+			'- Penyematan media: di berita & event, pengunjung bisa melihat embed dari URL YouTube atau Google Drive (satu file foto/video atau folder) yang ditulis di konten; domain selain default bisa ditambahkan admin di Settings (domain embed). Galeri di beranda/daftar: sumbernya dari Dashboard Galeri memakai tautan Drive (file tunggal, banyak file, atau folder / mode embed folder).',
 		);
 	} else {
 		lines.push(
@@ -656,11 +659,11 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	const pathMod = normalizePathForModuleHints(path);
 	if (pathMod.startsWith('/dashboard/berita')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Manajemen Berita. Di sini biasanya ada tabel daftar berita dengan aksi seperti Edit, Delete, dan toggle Publish. Jelaskan langkah-langkah umum untuk membuat berita baru, mengedit konten, mengatur status publish/unpublish, dan menggunakan filter/pencarian jika tersedia.',
+			'- Pengguna sedang berada di halaman Dashboard Manajemen Berita. Di sini biasanya ada tabel daftar berita dengan aksi seperti Edit, Delete, dan toggle Publish. Jelaskan langkah-langkah umum untuk membuat berita baru, mengedit konten, mengatur status publish/unpublish, dan menggunakan filter/pencarian jika tersedia. Saat membahas isi artikel: di editor bisa menempel URL YouTube atau Google Drive (file atau folder) agar tampil sebagai embed di publik; domain lain membutuhkan allowlist di Settings.',
 		);
 	} else if (pathMod.startsWith('/dashboard/library')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Library Media. Jelaskan cara mengunggah media baru (misalnya melalui tombol Upload), mengubah detail media, serta menghapus media yang tidak diperlukan lagi.',
+			'- Pengguna sedang berada di halaman Dashboard Galeri/Library. Media dari Google Drive: tautan file tunggal (foto/video), beberapa tautan untuk banyak file, atau tautan folder (isi folder dijadikan item galeri) atau mode embed folder. Pastikan berbagi Drive untuk pengunjung (siapa pun yang punya link).',
 		);
 	} else if (pathMod.startsWith('/dashboard/registration')) {
 		lines.push(
@@ -701,7 +704,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		);
 	} else if (pathMod.startsWith('/dashboard/events')) {
 		lines.push(
-			'- Pengguna sedang berada di halaman Dashboard Events. Jelaskan cara: membuat event baru (tombol "Buat Event"), mengedit event, menambahkan sub-event, mengatur tahun event, toggle publish, dan menambahkan lampiran/thumbnail.',
+			'- Pengguna sedang berada di halaman Dashboard Events. Jelaskan cara: membuat event baru (tombol "Buat Event"), mengedit event, menambahkan sub-event, mengatur tahun event, toggle publish, dan menambahkan lampiran/thumbnail. Di deskripsi event (rich text) bisa menyematkan YouTube atau Google Drive seperti di berita.',
 		);
 	} else if (pathMod.startsWith('/dashboard')) {
 		lines.push(
@@ -709,7 +712,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		);
 	} else if (pathPub.startsWith('/berita/')) {
 		lines.push(
-			'- Pengguna sedang melihat halaman detail berita publik. Bantu menjelaskan isi berita dan cara kerjanya jika diperlukan.',
+			'- Pengguna sedang melihat halaman detail berita publik. Konten bisa menyertakan embed dari URL yang ditulis di artikel (YouTube, Google Drive file/folder, dll. sesuai pengaturan situs).',
 		);
 	} else if (pathPub === '/berita') {
 		lines.push(
@@ -741,11 +744,15 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		);
 	} else if (pathPub.startsWith('/events/') && pathPub.split('/').length > 3) {
 		lines.push(
-			'- Pengguna sedang melihat halaman detail event publik. Bantu jelaskan informasi event tersebut.',
+			'- Pengguna sedang melihat halaman detail event publik. Deskripsi bisa berisi embed YouTube/Google Drive seperti halaman berita.',
 		);
 	} else if (pathPub.startsWith('/events')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Events publik yang berisi daftar kegiatan Himatif Encoder.',
+		);
+	} else if (pathPub === '/library') {
+		lines.push(
+			'- Pengguna sedang di halaman Galeri publik: item berisi media dari Google Drive (file atau folder) sesuai yang diatur di Dashboard Galeri.',
 		);
 	}
 

@@ -4,6 +4,7 @@ import AIChat from '@/components/public/ai-chat';
 import CommentThread from '@/components/public/comment-thread';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
+import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import { apiRequest } from '@/lib/queryClient';
 import {
 	formatContentDisplay as formatContentDisplayFn,
@@ -389,14 +390,10 @@ export default function BeritaDetail() {
 							data-aos="fade-up"
 							data-aos-delay="200">
 							<div className="p-6 md:p-10">
-							<div className="prose prose-lg max-w-none berita-content prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-blockquote:text-muted-foreground dark:prose-invert">
-								<div
-									className="text-foreground leading-relaxed"
-									dangerouslySetInnerHTML={{
-										__html: formatForDisplay(berita.content),
-									}}
-								/>
-								</div>
+							<RichHtmlWithEmbeds
+								content={berita.content}
+								className="prose prose-lg max-w-none berita-content prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-blockquote:text-muted-foreground dark:prose-invert text-foreground leading-relaxed"
+							/>
 							</div>
 						</div>
 

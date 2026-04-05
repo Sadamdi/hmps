@@ -313,8 +313,11 @@ export default function DashboardBerita() {
 				title="Cara memakai halaman Berita"
 				variant="blue"
 				storageKey="dashboard-berita"
-				description="Membuat artikel membutuhkan judul, ringkasan (excerpt), dan isi konten. Server menerima unggahan thumbnail dan tag opsional. Publish hanya jika akun punya izin publish.">
+				description="Judul, excerpt, dan konten wajib diisi. Di isi artikel Anda bisa menyematkan media lewat URL: YouTube, Google Drive (satu file foto/video atau folder), dan sumber lain jika admin menambahkan domain di Pengaturan → domain embed. Thumbnail dan tag opsional. Publish hanya jika akun punya izin publish.">
 				<ul className="list-disc list-inside space-y-1.5 text-sm">
+					<li>
+						<strong>Embed di konten</strong>: di editor, tempel saja URL lengkap (baris sendiri atau tautan) ke file atau folder Google Drive, atau YouTube — halaman detail akan menampilkannya. Domain di luar daftar default membutuhkan allowlist di Settings.
+					</li>
 					<li>
 						<strong>Langkah create</strong>: klik <strong>Berita Baru</strong> → isi <strong>Judul</strong>, <strong>Short Excerpt</strong> (1–2 kalimat untuk kartu daftar), <strong>konten</strong> di editor → unggah thumbnail jika perlu → pilih tag → simpan. Aktifkan publish di editor hanya jika siap tampil di publik.
 					</li>

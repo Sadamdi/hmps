@@ -310,10 +310,13 @@ export default function DashboardLibrary() {
 				title="Cara memakai Galeri Media"
 				variant="blue"
 				storageKey="dashboard-library"
-				description="Wajib: judul dan minimal satu tautan Google Drive (file atau folder). Deskripsi dan relasi opsional. Gunakan draf/terbit seperti modul lain.">
+				description="Wajib: judul dan minimal satu tautan Google Drive. Satu atau beberapa file (foto/video), atau satu folder (isi folder dijadikan galeri), atau mode embed folder (iframe Drive). Deskripsi dan relasi opsional. Draf/terbit seperti modul lain.">
 				<ul className="list-disc list-inside space-y-1.5 text-sm">
 					<li>
-						<strong>Langkah create</strong>: <strong>Upload Media</strong> → judul → (opsional) deskripsi & editor lengkap → tautan Drive → simpan (terbit atau draf).
+						<strong>Google Drive</strong>: tempel link <strong>file</strong> tunggal (foto atau video), atau tambah beberapa baris untuk banyak file, atau tempel link <strong>folder</strong> — sistem mengambil foto/video di dalamnya. Jika Anda menempel folder, mode <strong>folder embed</strong> bisa menampilkan folder sebagai pratinjau di situs. Set berbagi ke <strong>Siapa pun yang punya link</strong>.
+					</li>
+					<li>
+						<strong>Langkah create</strong>: <strong>Upload Media</strong> → judul → (opsional) deskripsi &amp; editor lengkap → tautan Drive → simpan (terbit atau draf).
 					</li>
 					<li>
 						<strong>Contoh valid</strong>: Judul <code className="text-xs bg-muted px-1 rounded">Dokumentasi Wisuda 2026</code>; deskripsi singkat satu kalimat; deskripsi lengkap paragraf; link Google Drive berbagi <strong>Anyone with the link / siapa pun yang punya link</strong> (bukan private).

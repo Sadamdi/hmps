@@ -697,19 +697,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							name: f.name,
 							mimeType: f.mimeType,
 						}));
-						console.log(
-							`getMediaFromFolder: ${mediaRows.length} file(s) in folder`,
-						);
 					} catch (folderListErr) {
-						console.log('getMediaFromFolder failed:', folderListErr);
+						console.warn(
+							'getMediaFromFolder failed, trying fallback:',
+							folderListErr,
+						);
 					}
 
 					if (mediaRows.length === 0) {
 						const { getSimpleFolderContents } = await import('./googleDrive');
 						const simple = await getSimpleFolderContents(actualFileId);
-						console.log(
-							`getSimpleFolderContents: ${simple.length} id(s), enriching with metadata`,
-						);
 						for (const item of simple) {
 							const meta = await getFileMetadata(item.id);
 							if (!meta) continue;
@@ -2700,6 +2697,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			for (const item of allItems) {
 				attachLibraryDisplayFields(item as Record<string, unknown>);
 				await enrichLibraryRelations(item, req);
+				// Normalisasi untuk item lama tanpa mediaKinds
+				const a = item as any;
+				if ((!a.mediaKinds || a.mediaKinds.length === 0) && a.images?.length > 0) {
+					a.mediaKinds = a.images.map(() => a.type === 'video' ? 'video' : 'image');
+				}
 			}
 
 			// Enrich byline multi-owner untuk kartu library.
@@ -2853,8 +2855,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(404).json({ message: 'Library item not found' });
 			}
 
+			// Increment viewCount (fire-and-forget, like berita/event)
+			try {
+				const currentViews = typeof (item as any).viewCount === 'number' ? (item as any).viewCount : 0;
+				const nextViews = currentViews + 1;
+				await resolveStorage(req).updateLibraryItem(itemId, { viewCount: nextViews });
+				(item as any).viewCount = nextViews;
+			} catch (incError) {
+				console.warn('Failed to increment library viewCount:', incError);
+			}
+
 			attachLibraryDisplayFields(item as Record<string, unknown>);
 			await enrichLibraryRelations(item, req);
+			// Normalisasi untuk item lama tanpa mediaKinds
+			const a = item as any;
+			if ((!a.mediaKinds || a.mediaKinds.length === 0) && a.images?.length > 0) {
+				a.mediaKinds = a.images.map(() => a.type === 'video' ? 'video' : 'image');
+			}
 			try {
 				await enrichLibraryWithAuthors([item], req);
 			} catch (e) {
@@ -2987,6 +3004,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const relatedBeritaIds = parseRelatedIds('relatedBeritaIds');
 				const embedFoldersOnly =
 					body.embedFoldersOnly === 'true' || body.embedFoldersOnly === true;
+
+				const parseTags = (): string[] => {
+					const raw = body.tags;
+					if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+					if (typeof raw === 'string') {
+						try { const j = JSON.parse(raw); if (Array.isArray(j)) return j.map(String).filter(Boolean); } catch { /* ignore */ }
+						return raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+					}
+					return [];
+				};
+				const tags = parseTags();
 
 				if (!title) {
 					return res.status(400).json({ message: 'Title is required' });
@@ -3141,6 +3169,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					relatedEventIds,
 					relatedBeritaIds,
 					authorId,
+					tags,
 				});
 
 				const nid = String((newItem as any)._id || (newItem as any).id);
@@ -3256,6 +3285,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const embedFoldersOnly =
 					body.embedFoldersOnly === 'true' || body.embedFoldersOnly === true;
 
+				const parseTags = (): string[] => {
+					const raw = body.tags;
+					if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
+					if (typeof raw === 'string') {
+						try { const j = JSON.parse(raw); if (Array.isArray(j)) return j.map(String).filter(Boolean); } catch { /* ignore */ }
+						return raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+					}
+					return [];
+				};
+
 				if (!title) {
 					return res.status(400).json({ message: 'Title is required' });
 				}
@@ -3273,6 +3312,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 				if (hasRelE) updates.relatedEventIds = relatedEventIds;
 				if (hasRelB) updates.relatedBeritaIds = relatedBeritaIds;
+				if (body.tags !== undefined) {
+					updates.tags = parseTags();
+				}
 
 				const gdriveUrls = parseGdriveUrlList();
 				const gdriveMediaTypes = parseMediaTypeList();

@@ -137,6 +137,7 @@ interface SiteSettings {
 		perpustakaan: string;
 	};
 	quickLinks?: Array<{ label: string; url: string }>;
+	embedAllowedHosts?: string[];
 }
 
 interface MiddlewareSettings {
@@ -252,6 +253,7 @@ export default function SettingsPage() {
 			'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang',
 		mapsLocationInput: '',
 		mapsEmbedUrl: '',
+		embedAllowedHosts: [],
 		enableRegistration: false,
 		maintenanceMode: false,
 		eventsAutoScrollEnabled: true,
@@ -1415,6 +1417,52 @@ export default function SettingsPage() {
 											default.
 										</p>
 									</div>
+									<h3 className="text-lg font-medium mt-6 mb-3">
+										Domain Embed yang Diizinkan
+									</h3>
+									<p className="text-sm text-muted-foreground mb-2">
+										Tambahkan hostname (tanpa https://) untuk mengizinkan embed iframe di konten berita, event, dan galeri.
+										Domain default (YouTube, Google Drive, dll.) sudah diizinkan.
+									</p>
+									<div className="space-y-2">
+										{(formData.embedAllowedHosts ?? []).map((host, idx) => (
+											<div key={idx} className="flex items-center gap-2">
+												<Input
+													value={host}
+													onChange={(e) => {
+														const next = [...(formData.embedAllowedHosts ?? [])];
+														next[idx] = e.target.value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+														setFormData((p) => ({ ...p, embedAllowedHosts: next }));
+													}}
+													placeholder="contoh: canva.com"
+													disabled={!canEditSettings}
+													className="flex-1"
+												/>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													disabled={!canEditSettings}
+													onClick={() => {
+														const next = (formData.embedAllowedHosts ?? []).filter((_, i) => i !== idx);
+														setFormData((p) => ({ ...p, embedAllowedHosts: next }));
+													}}>
+													Hapus
+												</Button>
+											</div>
+										))}
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											disabled={!canEditSettings}
+											onClick={() => {
+												setFormData((p) => ({ ...p, embedAllowedHosts: [...(p.embedAllowedHosts ?? []), ''] }));
+											}}>
+											+ Tambah domain
+										</Button>
+									</div>
+
 									<h3 className="text-lg font-medium mt-6 mb-3">
 										Social Media Links
 									</h3>
@@ -4585,7 +4633,7 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 				title="Panduan: Susunan beranda"
 				variant="green"
 				storageKey="settings-home-config"
-				description="Mengatur blok konten beranda dan item navbar (show/hide, urutan, mode ringkasan/penuh jika ada). Daftar blok yang tersedia mengikuti konfigurasi situs; simpan agar perubahan diterapkan.">
+				description="Mengatur blok konten beranda dan navbar. Konten Berita, Event, dan Galeri di beranda mengikuti data di masing-masing modul: penyematan YouTube/Google Drive di artikel/event diatur di editor; galeri memakai tautan Drive (file/folder) di Dashboard Galeri. Domain embed tambahan di tab Settings terkait (domain embed).">
 				<ul className="list-disc list-inside space-y-1.5 text-sm">
 					<li>
 						<strong>Langkah</strong>: drag blok untuk urutan vertikal → toggle tampil untuk setiap blok → atur sub-mode jika UI menyediakan (Ringkasan/Penuh) → <strong>Simpan</strong> → buka beranda publik di jendela penyamaran.

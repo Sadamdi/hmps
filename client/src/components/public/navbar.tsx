@@ -130,7 +130,16 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 			{ label: 'Lihat semua berita', href: '/berita' },
 		],
 	},
-	{ id: 'library', label: 'Galeri', icon: <BookOpen className="h-4 w-4" /> },
+	{
+		id: 'library',
+		label: 'Galeri',
+		icon: <BookOpen className="h-4 w-4" />,
+		homeSection: 'library',
+		children: [
+			{ label: 'Galeri', href: '/#library' },
+			{ label: 'Lihat semua galeri', href: '/library' },
+		],
+	},
 ];
 
 export default function Navbar({
@@ -483,8 +492,8 @@ export default function Navbar({
 				return null;
 			}
 
-			if (itemId === 'berita' || itemId === 'events') {
-				const sectionId = itemId === 'berita' ? 'berita' : 'events';
+			if (itemId === 'berita' || itemId === 'events' || itemId === 'library') {
+				const sectionId = itemId;
 				if (isVisible(sectionId, 'section')) return item.homeSection ?? sectionId;
 				return null;
 			}

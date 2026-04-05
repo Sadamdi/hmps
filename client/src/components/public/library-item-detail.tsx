@@ -10,7 +10,8 @@ import {
 	DialogContent,
 } from '@/components/ui/dialog';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, ExternalLink, Film, ImageIcon, Loader2, X } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Calendar, ChevronLeft, ChevronRight, ExternalLink, Eye, Film, ImageIcon, Loader2, Tag, User, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'wouter';
 import MediaDisplay from '../MediaDisplay';
@@ -27,6 +28,10 @@ export interface LibraryDetailItem {
 	time?: string;
 	type: 'photo' | 'video';
 	authorsDisplay?: string;
+	tags?: string[];
+	viewCount?: number;
+	activityDate?: string;
+	createdAt?: string;
 	relatedEventsPreview?: { _id: string; title: string; year?: number }[];
 	relatedBeritaPreview?: { _id: string; title: string; slug?: string }[];
 	gdriveEmbedFolders?: { folderId: string; url: string }[];
@@ -316,11 +321,27 @@ export function LibraryItemDetailContent({
 				</>
 			) : null}
 
-			<div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-				<span>
-					{item.date && item.time ? `${item.date} · ${item.time}` : ''}
-				</span>
+			<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+				{item.authorsDisplay && (
+					<span className="flex items-center gap-1"><User className="h-3.5 w-3.5" /> {item.authorsDisplay}</span>
+				)}
+				{item.date && (
+					<span className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> {item.date}{item.time ? ` · ${item.time}` : ''}</span>
+				)}
+				{typeof item.viewCount === 'number' && (
+					<span className="flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {item.viewCount} pembaca</span>
+				)}
 			</div>
+
+			{item.tags && item.tags.length > 0 && (
+				<div className="flex flex-wrap gap-1.5">
+					{item.tags.map((t) => (
+						<Badge key={t} variant="outline" className="text-xs">
+							<Tag className="h-3 w-3 mr-1" />{t}
+						</Badge>
+					))}
+				</div>
+			)}
 
 			{item.description ? (
 				<p className="text-sm text-muted-foreground">{item.description}</p>

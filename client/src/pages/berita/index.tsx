@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { Pagination } from '@/components/ui/pagination';
 import AIChat from '@/components/public/ai-chat';
@@ -9,8 +10,8 @@ import { usePagination } from '@/hooks/use-pagination';
 import Navbar from '@/components/public/navbar';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
-import { ArrowLeft, Calendar, Search, Tag, User } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { ArrowLeft, Calendar, ChevronDown, Filter, Search, Tag, User } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
 
 interface BeritaItem {
@@ -34,7 +35,9 @@ export default function AllBerita() {
 	const [error, setError] = useState<string | null>(null);
 	const [searchTerm, setSearchTerm] = useState('');
 	const [selectedTags, setSelectedTags] = useState<string[]>([]);
+	const [selectedYear, setSelectedYear] = useState<number | null>(null);
 	const [allTags, setAllTags] = useState<string[]>([]);
+	const [filtersOpen, setFiltersOpen] = useState(false);
 	const beritaContainerRef = useRef<HTMLDivElement>(null);
 
 	const scrollToSection = (id: string) => {
@@ -84,7 +87,7 @@ export default function AllBerita() {
 
 	useEffect(() => {
 		filterBerita();
-	}, [beritaList, searchTerm, selectedTags]);
+	}, [beritaList, searchTerm, selectedTags, selectedYear]);
 
 	const fetchBerita = async () => {
 		try {
@@ -107,6 +110,15 @@ export default function AllBerita() {
 		}
 	};
 
+	const allYears = useMemo(() => {
+		const s = new Set<number>();
+		beritaList.forEach((item) => {
+			const y = new Date(item.createdAt).getFullYear();
+			if (y > 2000) s.add(y);
+		});
+		return Array.from(s).sort((a, b) => b - a);
+	}, [beritaList]);
+
 	const filterBerita = () => {
 		let filtered = beritaList;
 		if (searchTerm) {
@@ -122,6 +134,11 @@ export default function AllBerita() {
 					item.tags && selectedTags.some((tag) => item.tags.includes(tag))
 			);
 		}
+		if (selectedYear !== null) {
+			filtered = filtered.filter(
+				(item) => new Date(item.createdAt).getFullYear() === selectedYear,
+			);
+		}
 		setFilteredBerita(filtered);
 		setCurrentPage(1);
 	};
@@ -135,7 +152,10 @@ export default function AllBerita() {
 	const clearFilters = () => {
 		setSearchTerm('');
 		setSelectedTags([]);
+		setSelectedYear(null);
 	};
+
+	const hasActiveFilters = selectedTags.length > 0 || selectedYear !== null;
 
 	useEffect(() => {
 		if (beritaContainerRef.current) {
@@ -211,7 +231,7 @@ export default function AllBerita() {
 					className="bg-card border border-border rounded-xl shadow-sm p-6 mb-8"
 					data-aos="fade-up"
 					data-aos-delay="100">
-					<div className="space-y-4">
+					<div className="space-y-3">
 						<div className="relative">
 							<Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
 							<Input
@@ -222,32 +242,55 @@ export default function AllBerita() {
 							/>
 						</div>
 
-						{allTags.length > 0 && (
-							<div className="space-y-2">
-								<div className="flex items-center gap-2">
-									<Tag className="h-4 w-4 text-muted-foreground" />
-									<span className="text-sm font-medium text-foreground/80">
-										Filter berdasarkan tags:
-									</span>
-								</div>
-								<div className="flex flex-wrap gap-2">
-									{allTags.map((tag) => (
-										<Badge
-											key={tag}
-											variant={selectedTags.includes(tag) ? 'default' : 'outline'}
-											className="cursor-pointer"
-											onClick={() => toggleTag(tag)}>
-											{tag}
-										</Badge>
-									))}
-								</div>
-							</div>
-						)}
-
-						{(searchTerm || selectedTags.length > 0) && (
-							<Button variant="outline" size="sm" onClick={clearFilters}>
-								Hapus Filter
-							</Button>
+						{(allTags.length > 0 || allYears.length > 1) && (
+							<Collapsible open={filtersOpen} onOpenChange={setFiltersOpen}>
+								<CollapsibleTrigger asChild>
+									<Button variant="outline" size="sm" className="flex items-center gap-1.5 text-xs">
+										<Filter className="h-3.5 w-3.5" />
+										Filter{hasActiveFilters ? ` (${selectedTags.length + (selectedYear ? 1 : 0)})` : ''}
+										<ChevronDown className={`h-3.5 w-3.5 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+									</Button>
+								</CollapsibleTrigger>
+								<CollapsibleContent className="mt-3 space-y-3 bg-muted/40 border border-border rounded-lg p-4">
+									{allYears.length > 1 && (
+										<div className="space-y-1.5">
+											<span className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Tahun</span>
+											<div className="flex flex-wrap gap-1.5">
+												{allYears.map((y) => (
+													<Badge
+														key={y}
+														variant={selectedYear === y ? 'default' : 'outline'}
+														className="cursor-pointer text-xs"
+														onClick={() => setSelectedYear(selectedYear === y ? null : y)}>
+														{y}
+													</Badge>
+												))}
+											</div>
+										</div>
+									)}
+									{allTags.length > 0 && (
+										<div className="space-y-1.5">
+											<span className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Tag className="h-3 w-3" /> Tag</span>
+											<div className="flex flex-wrap gap-2">
+												{allTags.map((tag) => (
+													<Badge
+														key={tag}
+														variant={selectedTags.includes(tag) ? 'default' : 'outline'}
+														className="cursor-pointer text-xs"
+														onClick={() => toggleTag(tag)}>
+														{tag}
+													</Badge>
+												))}
+											</div>
+										</div>
+									)}
+									{hasActiveFilters && (
+										<Button variant="ghost" size="sm" className="text-xs" onClick={clearFilters}>
+											Hapus semua filter
+										</Button>
+									)}
+								</CollapsibleContent>
+							</Collapsible>
 						)}
 					</div>
 				</div>

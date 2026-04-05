@@ -117,11 +117,13 @@ export function createTenantStorage(models: TenantModels) {
 	async function getPublishedBeritaCount() { return Berita.countDocuments({ published: true }); }
 
 	// ── Library ──
+	const LIBRARY_SORT = { activityDate: -1 as const, createdAt: -1 as const };
+
 	async function getAllLibrary(options?: PaginationOptions) {
 		const filter =
 			options?.publishedOnly === true ? libraryPublishedFilterTenant() : {};
 		return applyPagination(
-			Library.find(filter).sort({ createdAt: -1 }),
+			Library.find(filter).sort(LIBRARY_SORT),
 			options,
 		).lean();
 	}
@@ -889,7 +891,7 @@ export function createTenantStorage(models: TenantModels) {
 	}
 	async function getLibraryItemsByAuthorId(authorId: string | number) {
 		const oid = toObjectId(authorId); if (!oid) return [];
-		return Library.find({ authorId: oid }).sort({ createdAt: -1 }).lean();
+		return Library.find({ authorId: oid }).sort(LIBRARY_SORT).lean();
 	}
 	async function createLibraryItem(data: any) { return createLibrary(data); }
 	async function updateLibraryItem(id: string | number, data: any) { return updateLibrary(id, data); }

@@ -46,6 +46,7 @@ interface LibraryItem {
 	relatedEventIds?: string[];
 	relatedBeritaIds?: string[];
 	gdriveEmbedFolders?: { folderId: string; url: string }[];
+	tags?: string[];
 }
 
 interface MediaUploaderProps {
@@ -86,6 +87,8 @@ export default function MediaUploader({
 	);
 	const [relatedEventIds, setRelatedEventIds] = useState<string[]>([]);
 	const [relatedBeritaIds, setRelatedBeritaIds] = useState<string[]>([]);
+	const [tags, setTags] = useState<string[]>(item?.tags ?? []);
+	const [tagInput, setTagInput] = useState('');
 
 	const [gdriveUrls, setGdriveUrls] = useState<string[]>(['']);
 	const [gdriveValidations, setGdriveValidations] = useState<{
@@ -138,9 +141,10 @@ export default function MediaUploader({
 			setRelatedEventIds(
 				(item.relatedEventIds || []).map((x) => String(x)),
 			);
-			setRelatedBeritaIds(
-				(item.relatedBeritaIds || []).map((x) => String(x)),
-			);
+		setRelatedBeritaIds(
+			(item.relatedBeritaIds || []).map((x) => String(x)),
+		);
+		setTags(item.tags ?? []);
 
 			const embeds = (item as LibraryItem).gdriveEmbedFolders;
 			if (embeds && embeds.length > 0) {
@@ -356,6 +360,7 @@ export default function MediaUploader({
 			formData.append('relatedEventIds', JSON.stringify(relatedEventIds));
 			formData.append('relatedBeritaIds', JSON.stringify(relatedBeritaIds));
 			formData.append('embedFoldersOnly', String(embedFoldersOnly));
+			if (tags.length > 0) formData.append('tags', JSON.stringify(tags));
 
 			validUrls.forEach((url, index) => {
 				formData.append(`gdriveUrls[${index}]`, url);
@@ -421,6 +426,50 @@ export default function MediaUploader({
 						placeholder="Detail kegiatan…"
 						height={280}
 					/>
+				</div>
+
+				<div className="space-y-2">
+					<Label>Tags (opsional)</Label>
+					<div className="flex flex-wrap gap-1.5 mb-1.5">
+						{tags.map((t, idx) => (
+							<Badge key={idx} variant="secondary" className="gap-1 text-xs">
+								{t}
+								<button
+									type="button"
+									onClick={() => setTags((p) => p.filter((_, i) => i !== idx))}
+									className="ml-0.5 hover:text-destructive">
+									<X className="h-3 w-3" />
+								</button>
+							</Badge>
+						))}
+					</div>
+					<div className="flex gap-2">
+						<Input
+							placeholder="Tambah tag, tekan Enter"
+							value={tagInput}
+							onChange={(e) => setTagInput(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === 'Enter' || e.key === ',') {
+									e.preventDefault();
+									const v = tagInput.trim().replace(/,$/,'');
+									if (v && !tags.includes(v)) setTags((p) => [...p, v]);
+									setTagInput('');
+								}
+							}}
+							className="flex-1"
+						/>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								const v = tagInput.trim();
+								if (v && !tags.includes(v)) setTags((p) => [...p, v]);
+								setTagInput('');
+							}}>
+							<Plus className="h-3.5 w-3.5" />
+						</Button>
+					</div>
 				</div>
 
 				{/* Tipe media dideteksi otomatis — radio dihapus */}
@@ -527,6 +576,17 @@ export default function MediaUploader({
 
 				<div className="space-y-4">
 					<Label>Tautan Google Drive</Label>
+					<div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs text-muted-foreground space-y-2">
+						<p>
+							<strong className="text-foreground">Satu atau beberapa file:</strong> tempel link file foto atau video (bukan akses private). Tambah baris &quot;Tambah tautan&quot; untuk banyak file.
+						</p>
+						<p>
+							<strong className="text-foreground">Satu folder:</strong> tempel link folder — sistem mengambil foto/video di dalamnya sebagai galeri. Jika terdeteksi folder, mode <strong>folder embed</strong> menampilkan pratinjau folder Drive di situs (bisa diganti ke mode file lewat tautan di bawah).
+						</p>
+						<p>
+							<strong className="text-foreground">Berbagi:</strong> di Drive, set <strong>Siapa pun yang punya link</strong> agar pengunjung bisa melihat.
+						</p>
+					</div>
 
 					{embedFoldersOnly ? (
 						<>

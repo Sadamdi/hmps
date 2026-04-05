@@ -272,8 +272,6 @@ export async function getFolderContents(
 	folderId: string
 ): Promise<GoogleDriveFile[]> {
 	try {
-		console.log('Getting contents for folder ID:', folderId);
-
 		// Use authenticated drive instance
 		const response = await publicDrive.files.list({
 			q: `'${folderId}' in parents and trashed=false`,
@@ -283,7 +281,6 @@ export async function getFolderContents(
 		});
 
 		const files = response.data.files || [];
-		console.log(`Found ${files.length} files in folder ${folderId}`);
 
 		const processedFiles = files.map((file) => ({
 			id: file.id!,
@@ -294,11 +291,6 @@ export async function getFolderContents(
 			thumbnailLink: file.thumbnailLink || undefined,
 			size: file.size || undefined,
 		}));
-
-		console.log(
-			'Processed files:',
-			processedFiles.map((f) => `${f.name} (${f.mimeType})`)
-		);
 
 		return processedFiles;
 	} catch (error: any) {
@@ -315,15 +307,12 @@ export async function getFolderContents(
  */
 export async function getMediaUrl(fileId: string): Promise<string | null> {
 	try {
-		console.log('Getting media URL for file ID:', fileId);
-
 		// Skip API calls completely to avoid JWT issues
 		// Use direct URL patterns that work for most public files
 
 		// For most files, this format works well
 		const directUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
 
-		console.log('Generated direct media URL:', directUrl);
 		return directUrl;
 	} catch (error) {
 		console.error('Error getting media URL:', error);
@@ -363,7 +352,6 @@ export async function getMediaFromFolder(
 	folderId: string
 ): Promise<GoogleDriveFile[]> {
 	try {
-		console.log('Getting media from folder:', folderId);
 		const allFiles = await getFolderContents(folderId);
 
 		// Filter only supported media files (images and videos)
@@ -372,18 +360,9 @@ export async function getMediaFromFolder(
 				isSupportedMediaType(file.mimeType) ||
 				getFileTypeFromExtension(file.name) !== 'unknown';
 
-			if (isSupported) {
-				console.log(`✓ Media file: ${file.name} (${file.mimeType})`);
-			} else {
-				console.log(`✗ Skipped: ${file.name} (${file.mimeType})`);
-			}
-
 			return isSupported;
 		});
 
-		console.log(
-			`Filtered ${mediaFiles.length} media files from ${allFiles.length} total files`
-		);
 		return mediaFiles;
 	} catch (error) {
 		console.error('Error getting media from folder:', error);
@@ -463,12 +442,9 @@ export async function getSimpleFolderContents(folderId: string): Promise<
 	}>
 > {
 	try {
-		console.log('Getting simple folder contents for:', folderId);
-
 		const fileIds = await extractFolderFileIds(folderId);
 
 		if (fileIds.length === 0) {
-			console.log('No file IDs extracted from folder');
 			return [];
 		}
 
@@ -486,7 +462,6 @@ export async function getSimpleFolderContents(folderId: string): Promise<
 			};
 		});
 
-		console.log(`Generated ${mediaFiles.length} media file objects`);
 		return mediaFiles;
 	} catch (error) {
 		console.error('Error getting simple folder contents:', error);
@@ -637,9 +612,6 @@ export async function getFolderMediaForLibrary(folderId: string): Promise<
 			});
 		}
 		if (out.length > 0) {
-			console.log(
-				`getFolderMediaForLibrary: API returned ${out.length} files for folder ${folderId}`,
-			);
 			return out;
 		}
 	} catch (e) {

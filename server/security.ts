@@ -135,6 +135,34 @@ export const securityMiddleware = {
 
 	hpp: hpp(),
 
+	/**
+	 * Middleware yang menambahkan host dari Settings.embedAllowedHosts ke CSP frame-src
+	 * agar admin bisa menambah domain embed tanpa deploy ulang.
+	 */
+	dynamicFrameSrc: async (req: any, res: any, next: any) => {
+		try {
+			const { Settings } = await import('../db/mongodb');
+			const settings: any = await Settings.findOne().lean();
+			const extraHosts: string[] = settings?.embedAllowedHosts ?? [];
+			if (extraHosts.length === 0) return next();
+
+			const additional = extraHosts
+				.map((h: string) => h.trim().toLowerCase())
+				.filter(Boolean)
+				.map((h: string) => `https://${h}`);
+
+			const existing = res.getHeader('Content-Security-Policy') as string | undefined;
+			if (existing) {
+				const updated = existing.replace(
+					/frame-src\s+([^;]+)/,
+					(_, v: string) => `frame-src ${v} ${additional.join(' ')}`,
+				);
+				res.setHeader('Content-Security-Policy', updated);
+			}
+		} catch { /* continue without dynamic CSP */ }
+		next();
+	},
+
 	securityErrorHandler: (err: any, req: any, res: any, next: any) => {
 		if (err.type === 'entity.too.large') {
 			return res.status(413).json({

@@ -245,16 +245,18 @@ async function getBeritaCount(): Promise<number> {
 }
 
 // Library functions
+const LIBRARY_SORT = { activityDate: -1 as const, createdAt: -1 as const };
+
 async function getAllLibraryItems(options?: PaginationOptions): Promise<any[]> {
 	const filter =
 		options?.publishedOnly === true ? libraryPublishedFilter() : {};
-	const query = Library.find(filter).sort({ createdAt: -1 });
+	const query = Library.find(filter).sort(LIBRARY_SORT);
 	return await applyPagination(query, options).lean();
 }
 
 async function getPublishedLibraryItems(): Promise<any[]> {
 	return await Library.find(libraryPublishedFilter())
-		.sort({ createdAt: -1 })
+		.sort(LIBRARY_SORT)
 		.lean();
 }
 
@@ -265,7 +267,7 @@ async function getLibraryItemsByAuthorId(
 	if (!objectId) return [];
 
 	return await Library.find({ authorId: objectId })
-		.sort({ createdAt: -1 })
+		.sort(LIBRARY_SORT)
 		.lean();
 }
 

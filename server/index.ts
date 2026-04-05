@@ -48,6 +48,7 @@ app.set('trust proxy', true);
 // ==================== SECURITY MIDDLEWARE SETUP ====================
 // Apply security headers and basic protection
 app.use(securityMiddleware.helmet);
+app.use(securityMiddleware.dynamicFrameSrc);
 app.use(securityMiddleware.hpp);
 
 // Apply DDoS protection

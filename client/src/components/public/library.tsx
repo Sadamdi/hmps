@@ -13,13 +13,14 @@ import {
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { useQuery } from '@tanstack/react-query';
 import {
-	getLibraryKindLabel,
 	getLibraryVisualKind,
 	getMediaDisplayTypeForSlot,
 	normalizeLibraryImageUrl,
 } from '@/lib/library-display';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import AOS from 'aos';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Eye, Filter, Search, Tag, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import MediaDisplay from '../MediaDisplay';
@@ -149,26 +150,46 @@ function LibraryGalleryCard({
 				)}
 			</div>
 
-			<div className="p-6">
-				<div className="flex justify-between items-center mb-3">
-					<span className="text-xs text-muted-foreground">
-						{item.date && item.time ? `${item.date} · ${item.time}` : ''}
-					</span>
-					<span className="capitalize text-xs px-2 py-1 bg-secondary text-slate-200 rounded-full max-w-[11rem] truncate text-right">
-						{getLibraryKindLabel(kind)}
-					</span>
+			<div className="p-4 sm:p-5">
+				<div className="mb-2">
+					<h3 className="font-bold text-lg leading-snug line-clamp-2">{item.title}</h3>
 				</div>
-				<h3 className="font-bold text-xl mb-2">{item.title}</h3>
 				{item.authorsDisplay && (
-					<p className="text-sm text-muted-foreground mb-3">
-						By {item.authorsDisplay}
+					<p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+						<User className="h-3 w-3 shrink-0" /> {item.authorsDisplay}
 					</p>
 				)}
+				<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground mb-2">
+					{item.date && (
+						<span className="flex items-center gap-1">
+							<Calendar className="h-3 w-3" /> {item.date}
+						</span>
+					)}
+					{typeof item.viewCount === 'number' && (
+						<span className="flex items-center gap-1">
+							<Eye className="h-3 w-3" /> {item.viewCount} pembaca
+						</span>
+					)}
+				</div>
 				{item.description ? (
-					<p className="text-muted-foreground mb-4 line-clamp-2">
+					<p className="text-sm text-muted-foreground mb-3 line-clamp-2">
 						{item.description}
 					</p>
 				) : null}
+				{item.tags && item.tags.length > 0 && (
+					<div className="flex flex-wrap gap-1 mb-3">
+						{item.tags.slice(0, 3).map((t) => (
+							<Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">
+								{t}
+							</Badge>
+						))}
+						{item.tags.length > 3 && (
+							<Badge variant="outline" className="text-[10px] px-1.5 py-0">
+								+{item.tags.length - 3}
+							</Badge>
+						)}
+					</div>
+				)}
 				<div className="flex flex-wrap items-center gap-x-4 gap-y-1">
 					<Dialog>
 						<DialogTrigger asChild>
@@ -208,8 +229,18 @@ function LibraryGalleryCard({
 	);
 }
 
+function deriveItemYear(item: LibraryItem): number | null {
+	const raw = item.activityDate || item.createdAt;
+	if (!raw) return null;
+	const d = new Date(raw);
+	return Number.isNaN(d.getTime()) ? null : d.getFullYear();
+}
+
 export default function Library({ variant = 'section' }: LibraryProps) {
 	const [searchQuery, setSearchQuery] = useState('');
+	const [selectedTags, setSelectedTags] = useState<string[]>([]);
+	const [selectedYear, setSelectedYear] = useState<number | null>(null);
+	const [filtersOpen, setFiltersOpen] = useState(false);
 	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
 
 	const listLimit = variant === 'page' ? 100 : 18;
@@ -229,12 +260,20 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 		staleTime: 60 * 1000,
 	});
 
-	const searchLibrary = (items: LibraryItem[]) => {
-		if (!searchQuery) return items;
-		return items.filter((item) =>
-			item.title.toLowerCase().includes(searchQuery.toLowerCase()),
-		);
-	};
+	const allTags = useMemo(() => {
+		const s = new Set<string>();
+		libraryItems.forEach((i) => i.tags?.forEach((t) => s.add(t)));
+		return Array.from(s).sort();
+	}, [libraryItems]);
+
+	const allYears = useMemo(() => {
+		const s = new Set<number>();
+		libraryItems.forEach((i) => {
+			const y = deriveItemYear(i);
+			if (y) s.add(y);
+		});
+		return Array.from(s).sort((a, b) => b - a);
+	}, [libraryItems]);
 
 	useEffect(() => {
 		if (libraryItems.length > 0) {
@@ -243,10 +282,29 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 		}
 	}, [libraryItems.length]);
 
-	const filteredLibraryItems = useMemo(
-		() => searchLibrary(libraryItems),
-		[libraryItems, searchQuery],
-	);
+	const filteredLibraryItems = useMemo(() => {
+		let items = libraryItems;
+		if (searchQuery) {
+			const q = searchQuery.toLowerCase();
+			items = items.filter((i) =>
+				i.title.toLowerCase().includes(q) ||
+				i.description?.toLowerCase().includes(q),
+			);
+		}
+		if (selectedTags.length > 0) {
+			items = items.filter((i) =>
+				i.tags && selectedTags.some((t) => i.tags!.includes(t)),
+			);
+		}
+		if (selectedYear !== null) {
+			items = items.filter((i) => deriveItemYear(i) === selectedYear);
+		}
+		return items;
+	}, [libraryItems, searchQuery, selectedTags, selectedYear]);
+
+	const toggleTag = (tag: string) =>
+		setSelectedTags((p) => p.includes(tag) ? p.filter((t) => t !== tag) : [...p, tag]);
+	const hasActiveFilters = selectedTags.length > 0 || selectedYear !== null;
 
 	const outerClass =
 		variant === 'page'
@@ -270,7 +328,7 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 					</p>
 				</div>
 
-				<div className="mb-8" data-aos="fade-up" data-aos-delay="100">
+				<div className="mb-6 space-y-3" data-aos="fade-up" data-aos-delay="100">
 					<div className="relative max-w-lg mx-auto">
 						<div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
 							<Search className="h-5 w-5 text-muted-foreground" />
@@ -283,6 +341,57 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 							placeholder="Cari di galeri..."
 						/>
 					</div>
+
+					{variant === 'page' && (allTags.length > 0 || allYears.length > 1) && (
+						<Collapsible open={filtersOpen} onOpenChange={setFiltersOpen} className="max-w-2xl mx-auto">
+							<CollapsibleTrigger asChild>
+								<Button variant="outline" size="sm" className="mx-auto flex items-center gap-1.5 text-xs">
+									<Filter className="h-3.5 w-3.5" />
+									Filter{hasActiveFilters ? ` (${selectedTags.length + (selectedYear ? 1 : 0)})` : ''}
+									<ChevronDown className={`h-3.5 w-3.5 transition-transform ${filtersOpen ? 'rotate-180' : ''}`} />
+								</Button>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="mt-3 space-y-3 bg-card border border-border rounded-lg p-4">
+								{allYears.length > 1 && (
+									<div className="space-y-1.5">
+										<span className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Tahun</span>
+										<div className="flex flex-wrap gap-1.5">
+											{allYears.map((y) => (
+												<Badge
+													key={y}
+													variant={selectedYear === y ? 'default' : 'outline'}
+													className="cursor-pointer text-xs"
+													onClick={() => setSelectedYear(selectedYear === y ? null : y)}>
+													{y}
+												</Badge>
+											))}
+										</div>
+									</div>
+								)}
+								{allTags.length > 0 && (
+									<div className="space-y-1.5">
+										<span className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Tag className="h-3 w-3" /> Tag</span>
+										<div className="flex flex-wrap gap-1.5">
+											{allTags.map((t) => (
+												<Badge
+													key={t}
+													variant={selectedTags.includes(t) ? 'default' : 'outline'}
+													className="cursor-pointer text-xs"
+													onClick={() => toggleTag(t)}>
+													{t}
+												</Badge>
+											))}
+										</div>
+									</div>
+								)}
+								{hasActiveFilters && (
+									<Button variant="ghost" size="sm" className="text-xs" onClick={() => { setSelectedTags([]); setSelectedYear(null); }}>
+										Hapus semua filter
+									</Button>
+								)}
+							</CollapsibleContent>
+						</Collapsible>
+					)}
 				</div>
 
 				{isLoading ? (

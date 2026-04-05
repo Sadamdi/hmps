@@ -646,10 +646,13 @@ export default function BeritaEditor({
 				title="Tips mengisi berita"
 				variant="blue"
 				storageKey="dashboard-berita-editor"
-				description="Form ini mengirim judul, excerpt, HTML konten, thumbnail, tag, dan status publish ke API. Field wajib harus terisi; publish membutuhkan izin berita.publish di server.">
+				description="Form mengirim judul, excerpt, HTML konten, thumbnail, tag, dan publish. Di isi artikel Anda bisa menyematkan YouTube atau Google Drive (link file foto/video atau folder) dengan menempel URL; host lain perlu diizinkan admin di Settings (domain embed).">
 				<ul className="list-disc list-inside space-y-1.5 text-sm">
 					<li>
-						<strong>Langkah</strong>: isi judul &amp; excerpt → tulis isi di editor (bold, list, gambar inline) → unggah thumbnail jika perlu → atur tag → centang publish jika siap → <strong>Simpan</strong>.
+						<strong>Embed</strong>: salin tautan Google Drive (buka file/folder → bagikan → siapa pun dengan link) atau YouTube, tempel di paragraf — tampil otomatis di halaman publik. Satu URL per baris atau sebagai tautan.
+					</li>
+					<li>
+						<strong>Langkah</strong>: isi judul &amp; excerpt → tulis isi di editor (bold, list, gambar inline, URL embed) → unggah thumbnail jika perlu → atur tag → centang publish jika siap → <strong>Simpan</strong>.
 					</li>
 					<li>
 						<strong>Contoh valid</strong>: judul ≤ panjang wajar; excerpt 1–2 kalimat; gambar thumbnail JPG/PNG/WebP sesuai batas upload; tag dari daftar atau input yang diterima form.
