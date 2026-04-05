@@ -31,10 +31,12 @@ const DialogContent = React.forwardRef<
 	React.ElementRef<typeof DialogPrimitive.Content>,
 	React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
 		hideCloseButton?: boolean; // Add option to hide close button
+		/** Overlay z-index / style when stacking dialogs (e.g. picker above parent modal). */
+		overlayClassName?: string;
 	}
->(({ className, children, hideCloseButton = false, ...props }, ref) => (
+>(({ className, children, hideCloseButton = false, overlayClassName, ...props }, ref) => (
 	<DialogPortal>
-		<DialogOverlay />
+		<DialogOverlay className={overlayClassName} />
 		<DialogPrimitive.Content
 			ref={ref}
 			className={cn(

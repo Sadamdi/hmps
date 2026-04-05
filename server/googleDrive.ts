@@ -1,7 +1,35 @@
+import fs from 'fs';
 import { google } from 'googleapis';
 import path from 'path';
 import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
+
+const SERVICE_ACCOUNT_JSON = 'gen-lang-client-0095636115-01e39d148e40.json';
+
+/** JSON lives under server/; when running from dist/, __dirname alone breaks (ENOENT). */
+function resolveServiceAccountKeyPath(): string {
+	const envPath = process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim();
+	if (envPath && fs.existsSync(envPath)) {
+		console.log('Google Drive: using GOOGLE_APPLICATION_CREDENTIALS:', envPath);
+		return envPath;
+	}
+	const candidates = [
+		path.join(__dirname, SERVICE_ACCOUNT_JSON),
+		path.join(process.cwd(), 'server', SERVICE_ACCOUNT_JSON),
+		path.join(process.cwd(), SERVICE_ACCOUNT_JSON),
+	];
+	for (const p of candidates) {
+		if (fs.existsSync(p)) {
+			console.log('Google Drive credential path:', p);
+			return p;
+		}
+	}
+	console.warn(
+		'Google Drive: service account JSON not found. Tried:',
+		candidates.join(', '),
+	);
+	return path.join(process.cwd(), 'server', SERVICE_ACCOUNT_JSON);
+}
 
 // Google Drive file interface
 export interface GoogleDriveFile {
@@ -25,13 +53,7 @@ export interface MediaSource {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Authentication for upload (existing functionality) - Updated to use new credential file
-const credentialPath = path.join(
-	__dirname,
-	'gen-lang-client-0095636115-01e39d148e40.json'
-);
-
-console.log('Google Drive credential path:', credentialPath);
+const credentialPath = resolveServiceAccountKeyPath();
 
 const auth = new google.auth.GoogleAuth({
 	keyFile: credentialPath,
@@ -224,6 +246,26 @@ export async function getFileMetadata(
 }
 
 /**
+ * Tentukan slot galeri (foto vs video) untuk satu file Google Drive.
+ * Hint form (`gdriveMediaTypes`) menang; jika tidak ada, pakai MIME dari Drive API.
+ */
+export async function resolveLibrarySlotMediaKindFromDrive(
+	fileId: string,
+	hint: string | undefined,
+	formLibraryType: 'photo' | 'video',
+): Promise<'image' | 'video'> {
+	const h = hint?.toLowerCase().trim();
+	if (h === 'video') return 'video';
+	if (h === 'image') return 'image';
+	const meta = await getFileMetadata(fileId);
+	const mime = meta?.mimeType || '';
+	if (mime.startsWith('video/')) return 'video';
+	if (mime.startsWith('image/')) return 'image';
+	if (formLibraryType === 'video') return 'video';
+	return 'image';
+}
+
+/**
  * Get folder contents from Google Drive
  */
 export async function getFolderContents(
@@ -260,9 +302,11 @@ export async function getFolderContents(
 
 		return processedFiles;
 	} catch (error: any) {
-		console.error('Error getting folder contents:', error.message);
+		console.error('Error getting folder contents:', error?.message || error);
 		console.error('Error details:', error);
-		return [];
+		throw error instanceof Error
+			? error
+			: new Error(String(error?.message || 'Drive folder listing failed'));
 	}
 }
 
@@ -343,7 +387,7 @@ export async function getMediaFromFolder(
 		return mediaFiles;
 	} catch (error) {
 		console.error('Error getting media from folder:', error);
-		return [];
+		throw error;
 	}
 }
 

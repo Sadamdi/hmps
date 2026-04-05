@@ -10,6 +10,10 @@ interface GDriveLinkInputProps {
 	label?: string;
 	mediaType?: 'image' | 'video' | 'auto';
 	onMediaTypeChange?: (type: 'image' | 'video') => void;
+	/** Sembunyikan pemilih foto/video manual (auto saja) */
+	hideMediaTypeSelector?: boolean;
+	/** Dipanggil saat check-access mendeteksi folder */
+	onFolderDetected?: (isFolder: boolean) => void;
 }
 
 interface ValidationState {
@@ -29,6 +33,8 @@ export function GDriveLinkInput({
 	label = 'Google Drive Link',
 	mediaType = 'auto',
 	onMediaTypeChange,
+	hideMediaTypeSelector = false,
+	onFolderDetected,
 }: GDriveLinkInputProps) {
 	const [validation, setValidation] = useState<ValidationState>({
 		isValidating: false,
@@ -37,6 +43,8 @@ export function GDriveLinkInput({
 
 	const onValidationRef = useRef(onValidation);
 	onValidationRef.current = onValidation;
+	const onFolderDetectedRef = useRef(onFolderDetected);
+	onFolderDetectedRef.current = onFolderDetected;
 
 	const lastCheckRef = useRef<{ url: string; at: number } | null>(null);
 
@@ -85,6 +93,7 @@ export function GDriveLinkInput({
 					isFolder: data.isFolder,
 				});
 				onValidationRef.current(true);
+				onFolderDetectedRef.current?.(!!data.isFolder);
 			} else {
 				let errorMessage =
 					'File is private and cannot be accessed by the server';
@@ -223,7 +232,7 @@ export function GDriveLinkInput({
 			</div>
 
 			{/* Media Type Selector for valid single files */}
-			{validation.isValid && !validation.isFolder && onMediaTypeChange && (
+			{validation.isValid && !validation.isFolder && onMediaTypeChange && !hideMediaTypeSelector && (
 				<div className="mt-3 p-3 bg-blue-50 rounded-md">
 					<label className="block text-sm font-medium text-gray-700 mb-2">
 						Media Type (if auto-detection fails):
@@ -275,9 +284,8 @@ export function GDriveLinkInput({
 			)}
 
 			{validation.isValid && validation.isFolder && (
-				<div className="text-sm text-yellow-600">
-					⚠️ Folder detected - individual file links recommended for better
-					compatibility
+				<div className="text-sm text-green-600">
+					✓ Folder terdeteksi dan bisa diakses — akan ditampilkan sebagai embed.
 				</div>
 			)}
 

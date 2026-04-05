@@ -34,9 +34,12 @@ export function detectMediaSource(src: string) {
 	// Improved Google Drive detection with better patterns
 	const gdrivePatterns = [
 		/drive\.google\.com\/file\/d\/([a-zA-Z0-9-_]+)/, // file links
+		/drive\.google\.com\/open\?id=([a-zA-Z0-9-_]+)/, // "Open with" link
 		/drive\.google\.com\/folders\/([a-zA-Z0-9-_]+)/, // folder links
 		/drive\.google\.com\/drive\/folders\/([a-zA-Z0-9-_]+)/, // folder with /drive/
 		/drive\.google\.com\/uc\?.*id=([a-zA-Z0-9-_]+)/, // export links
+		// Thumbnail / CDN URL — same file id as Drive (video was misclassified as "local")
+		/googleusercontent\.com\/d\/([a-zA-Z0-9-_]+)/,
 	];
 
 	for (const pattern of gdrivePatterns) {

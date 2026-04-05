@@ -1,8 +1,14 @@
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -10,11 +16,13 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
-	Image as ImageIcon,
+	CalendarDays,
+	FileText,
+	Link2,
 	Loader2,
 	Plus,
+	Search,
 	Upload,
-	Video,
 	X,
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -90,6 +98,10 @@ export default function MediaUploader({
 		[key: number]: 'image' | 'video';
 	}>({});
 	const [embedFoldersOnly, setEmbedFoldersOnly] = useState(false);
+	const [showAttachEventDialog, setShowAttachEventDialog] = useState(false);
+	const [showAttachBeritaDialog, setShowAttachBeritaDialog] = useState(false);
+	const [eventLinkSearch, setEventLinkSearch] = useState('');
+	const [beritaLinkSearch, setBeritaLinkSearch] = useState('');
 
 	const { data: eventsForLink = [] } = useQuery<
 		{ _id: string; title: string }[]
@@ -103,7 +115,7 @@ export default function MediaUploader({
 	});
 
 	const { data: beritaForLink = [] } = useQuery<
-		{ _id: string; title: string }[]
+		{ _id: string; title: string; published?: boolean }[]
 	>({
 		queryKey: ['/api/berita/manage'],
 		queryFn: async () => {
@@ -236,7 +248,18 @@ export default function MediaUploader({
 	) => {
 		setGdriveValidations((prev) => ({ ...prev, [index]: isValid }));
 		setGdriveErrors((prev) => ({ ...prev, [index]: error || '' }));
+	};
 
+	const handleFolderDetected = (index: number, isFolder: boolean) => {
+		if (!isFolder) return;
+		setEmbedFoldersOnly(true);
+		setGdriveUrls((prev) => {
+			const url = prev[index];
+			return url ? [url] : [''];
+		});
+		setGdriveValidations({ 0: true });
+		setGdriveErrors({});
+		setGdriveMediaTypes({});
 	};
 
 	const handleGdriveMediaTypeChange = (
@@ -332,13 +355,13 @@ export default function MediaUploader({
 			if (activityDate) formData.append('activityDate', activityDate);
 			formData.append('relatedEventIds', JSON.stringify(relatedEventIds));
 			formData.append('relatedBeritaIds', JSON.stringify(relatedBeritaIds));
+			formData.append('embedFoldersOnly', String(embedFoldersOnly));
 
 			validUrls.forEach((url, index) => {
 				formData.append(`gdriveUrls[${index}]`, url);
-				const urlMediaType = gdriveMediaTypes[index] || mediaType;
 				formData.append(
 					`gdriveMediaTypes[${index}]`,
-					urlMediaType === 'video' ? 'video' : 'image',
+					'image',
 				);
 			});
 
@@ -400,152 +423,203 @@ export default function MediaUploader({
 					/>
 				</div>
 
-				<div className="space-y-3">
-					<Label>Default tipe untuk tautan baru</Label>
-					<RadioGroup
-						value={mediaType}
-						onValueChange={(value) => setMediaType(value as 'photo' | 'video')}
-						className="flex space-x-4">
-						<div className="flex items-center space-x-2">
-							<RadioGroupItem value="photo" id="photo" />
-							<Label htmlFor="photo" className="flex items-center">
-								<ImageIcon className="h-4 w-4 mr-1" />
-								Foto
-							</Label>
-						</div>
-						<div className="flex items-center space-x-2">
-							<RadioGroupItem value="video" id="video" />
-							<Label htmlFor="video" className="flex items-center">
-								<Video className="h-4 w-4 mr-1" />
-								Video
-							</Label>
-						</div>
-					</RadioGroup>
-				</div>
+				{/* Tipe media dideteksi otomatis — radio dihapus */}
 
-				<div className="space-y-2 rounded-md border p-3 max-h-40 overflow-y-auto">
-					<Label>Kaitkan ke event (opsional)</Label>
-					{eventsForLink.length === 0 ? (
-						<p className="text-xs text-muted-foreground">Memuat event…</p>
-					) : (
-						<div className="space-y-2">
-							{eventsForLink.map((ev) => (
-								<label
-									key={ev._id}
-									className="flex items-center gap-2 text-sm cursor-pointer">
-									<input
-										type="checkbox"
-										checked={relatedEventIds.includes(ev._id)}
-										onChange={() => toggleEvent(ev._id)}
-									/>
-									<span className="truncate">{ev.title}</span>
-								</label>
-							))}
+				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div className="space-y-2 rounded-lg border border-border p-3 bg-muted/20">
+						<div className="flex items-center justify-between gap-2">
+							<div className="flex items-center gap-2 min-w-0">
+								<CalendarDays className="h-4 w-4 text-primary shrink-0" />
+								<Label className="text-sm font-medium">Event terkait</Label>
+							</div>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="shrink-0"
+								disabled={eventsForLink.length === 0}
+								onClick={() => {
+									setEventLinkSearch('');
+									setShowAttachEventDialog(true);
+								}}>
+								<Plus className="h-3.5 w-3.5 mr-1" />
+								Tambah Event
+							</Button>
 						</div>
-					)}
-				</div>
+						{eventsForLink.length === 0 ? (
+							<p className="text-xs text-muted-foreground">Memuat event…</p>
+						) : relatedEventIds.length === 0 ? (
+							<p className="text-xs text-muted-foreground">Belum ada event terpilih.</p>
+						) : (
+							<div className="flex flex-wrap gap-2">
+								{relatedEventIds.map((id) => {
+									const ev = eventsForLink.find((e) => e._id === id);
+									return ev ? (
+										<Badge
+											key={id}
+											variant="outline"
+											className="text-xs gap-1.5 py-1 px-2 max-w-full">
+											<Link2 className="h-3 w-3 shrink-0" />
+											<span className="truncate max-w-[180px]">{ev.title}</span>
+											<button
+												type="button"
+												className="ml-0.5 hover:text-destructive shrink-0"
+												onClick={() => toggleEvent(id)}
+												title="Hapus">
+												<X className="h-3 w-3" />
+											</button>
+										</Badge>
+									) : null;
+								})}
+							</div>
+						)}
+					</div>
 
-				<div className="space-y-2 rounded-md border p-3 max-h-40 overflow-y-auto">
-					<Label>Kaitkan ke berita (opsional)</Label>
-					{beritaForLink.length === 0 ? (
-						<p className="text-xs text-muted-foreground">Memuat berita…</p>
-					) : (
-						<div className="space-y-2">
-							{beritaForLink.map((b) => (
-								<label
-									key={b._id}
-									className="flex items-center gap-2 text-sm cursor-pointer">
-									<input
-										type="checkbox"
-										checked={relatedBeritaIds.includes(b._id)}
-										onChange={() => toggleBerita(b._id)}
-									/>
-									<span className="truncate">{b.title}</span>
-								</label>
-							))}
+					<div className="space-y-2 rounded-lg border border-border p-3 bg-muted/20">
+						<div className="flex items-center justify-between gap-2">
+							<div className="flex items-center gap-2 min-w-0">
+								<FileText className="h-4 w-4 text-primary shrink-0" />
+								<Label className="text-sm font-medium">Berita terkait</Label>
+							</div>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="shrink-0"
+								disabled={beritaForLink.length === 0}
+								onClick={() => {
+									setBeritaLinkSearch('');
+									setShowAttachBeritaDialog(true);
+								}}>
+								<Plus className="h-3.5 w-3.5 mr-1" />
+								Tambah Berita
+							</Button>
 						</div>
-					)}
+						{beritaForLink.length === 0 ? (
+							<p className="text-xs text-muted-foreground">Memuat berita…</p>
+						) : relatedBeritaIds.length === 0 ? (
+							<p className="text-xs text-muted-foreground">Belum ada berita terpilih.</p>
+						) : (
+							<div className="flex flex-wrap gap-2">
+								{relatedBeritaIds.map((id) => {
+									const b = beritaForLink.find((x) => x._id === id);
+									return b ? (
+										<Badge
+											key={id}
+											variant="outline"
+											className="text-xs gap-1.5 py-1 px-2 max-w-full">
+											<Link2 className="h-3 w-3 shrink-0" />
+											<span className="truncate max-w-[180px]">{b.title}</span>
+											<button
+												type="button"
+												className="ml-0.5 hover:text-destructive shrink-0"
+												onClick={() => toggleBerita(id)}
+												title="Hapus">
+												<X className="h-3 w-3" />
+											</button>
+										</Badge>
+									) : null;
+								})}
+							</div>
+						)}
+					</div>
 				</div>
 
 				<div className="space-y-4">
 					<Label>Tautan Google Drive</Label>
 
-					<div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border p-3 bg-muted/30">
-						<div className="space-y-1">
-							<Label htmlFor="embed-folder">Folder: embed saja</Label>
-							<p className="text-xs text-muted-foreground max-w-xl">
-								Aktifkan jika tautan folder: jangan impor semua file ke database —
-								di situs tampil iframe folder Google (pengunjung membuka lewat
-								browser mereka).
-							</p>
-						</div>
-						<div className="flex items-center gap-2 shrink-0">
-							<span className="text-sm text-muted-foreground">Impor file</span>
-							<Switch
-								id="embed-folder"
-								checked={embedFoldersOnly}
-								onCheckedChange={setEmbedFoldersOnly}
-							/>
-							<span className="text-sm font-medium">Embed folder</span>
-						</div>
-					</div>
-
-					{gdriveUrls.map((url, index) => (
-						<div key={index} className="space-y-2">
-							<div className="flex items-center space-x-2">
-								<div className="flex-1">
-									<GDriveLinkInput
-										label={`Media ${index + 1}`}
-										value={url}
-										onChange={(newUrl) => updateGdriveUrl(index, newUrl)}
-										onValidation={(isValid, error) =>
-											handleGdriveValidation(index, isValid, error)
-										}
-										onMediaTypeChange={(type) =>
-											handleGdriveMediaTypeChange(index, type)
-										}
-										mediaType={gdriveMediaTypes[index] || mediaType}
-										placeholder="Tautan file atau folder Google Drive…"
-									/>
-								</div>
-								{gdriveUrls.length > 1 && (
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										onClick={() => removeGdriveInput(index)}
-										className="mt-6">
-										<X className="h-4 w-4" />
-									</Button>
-								)}
+					{embedFoldersOnly ? (
+						<>
+							<div className="rounded-lg border p-3 bg-muted/30 space-y-1">
+								<p className="text-sm font-medium">Mode folder embed aktif</p>
+								<p className="text-xs text-muted-foreground">
+									Folder ditampilkan langsung di situs sebagai iframe Google Drive.
+									File tidak diimpor satu per satu.
+								</p>
+								<button
+									type="button"
+									className="text-xs underline text-muted-foreground hover:text-foreground mt-1"
+									onClick={() => {
+										setEmbedFoldersOnly(false);
+										setGdriveUrls(['']);
+										setGdriveValidations({});
+										setGdriveErrors({});
+										setGdriveMediaTypes({});
+									}}>
+									Ganti ke mode file satu-satu
+								</button>
 							</div>
 
-							{url && gdriveValidations[index] && (
-								<div className="mt-2">
-									<Label className="text-sm">Pratinjau</Label>
-									<div className="w-32 h-32 border rounded-md overflow-hidden mt-1">
-										<MediaDisplay
-											src={url}
-											alt={`Media preview ${index + 1}`}
-											type={
-												gdriveMediaTypes[index] === 'video' ? 'video' : 'auto'
-											}
-											className="w-full h-full object-cover"
-										/>
+							<GDriveLinkInput
+								label="Tautan folder Google Drive"
+								value={gdriveUrls[0] || ''}
+								onChange={(newUrl) => setGdriveUrls([newUrl])}
+								onValidation={(isValid, error) =>
+									handleGdriveValidation(0, isValid, error)
+								}
+								hideMediaTypeSelector
+								onFolderDetected={(isF) => handleFolderDetected(0, isF)}
+								placeholder="https://drive.google.com/drive/folders/…"
+							/>
+						</>
+					) : (
+						<>
+							{gdriveUrls.map((url, index) => (
+								<div key={index} className="space-y-2">
+									<div className="flex items-center space-x-2">
+										<div className="flex-1">
+											<GDriveLinkInput
+												label={`Media ${index + 1}`}
+												value={url}
+												onChange={(newUrl) => updateGdriveUrl(index, newUrl)}
+												onValidation={(isValid, error) =>
+													handleGdriveValidation(index, isValid, error)
+												}
+												hideMediaTypeSelector
+												onFolderDetected={(isF) =>
+													handleFolderDetected(index, isF)
+												}
+												placeholder="Tautan file atau folder Google Drive…"
+											/>
+										</div>
+										{gdriveUrls.length > 1 && (
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												onClick={() => removeGdriveInput(index)}
+												className="mt-6">
+												<X className="h-4 w-4" />
+											</Button>
+										)}
 									</div>
-								</div>
-							)}
-						</div>
-					))}
 
-					<Button
-						type="button"
-						variant="outline"
-						onClick={addGdriveInput}
-						className="w-full mt-2">
-						<Plus className="h-4 w-4 mr-2" />
-						Tambah tautan
-					</Button>
+									{url && gdriveValidations[index] && !embedFoldersOnly && (
+										<div className="mt-2">
+											<Label className="text-sm">Pratinjau</Label>
+											<div className="w-32 h-32 border rounded-md overflow-hidden mt-1">
+												<MediaDisplay
+													src={url}
+													alt={`Media preview ${index + 1}`}
+													type="auto"
+													className="w-full h-full object-cover"
+												/>
+											</div>
+										</div>
+									)}
+								</div>
+							))}
+
+							<Button
+								type="button"
+								variant="outline"
+								onClick={addGdriveInput}
+								className="w-full mt-2">
+								<Plus className="h-4 w-4 mr-2" />
+								Tambah tautan
+							</Button>
+						</>
+					)}
 				</div>
 			</div>
 
@@ -581,6 +655,157 @@ export default function MediaUploader({
 					</Button>
 				</div>
 			</div>
+
+			<Dialog
+				open={showAttachEventDialog}
+				onOpenChange={(open) => {
+					setShowAttachEventDialog(open);
+					if (!open) setEventLinkSearch('');
+				}}>
+				<DialogContent
+					overlayClassName="z-[100]"
+					className="z-[100] sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Pilih Event Terkait</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm text-muted-foreground">
+							Centang event yang ingin dihubungkan dengan galeri ini.
+						</p>
+						<div className="relative">
+							<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+							<Input
+								className="pl-8 h-8 text-sm"
+								placeholder="Cari judul event..."
+								value={eventLinkSearch}
+								onChange={(e) => setEventLinkSearch(e.target.value)}
+							/>
+						</div>
+						<div className="border rounded-md max-h-60 overflow-y-auto overflow-x-hidden pr-2">
+							{eventsForLink
+								.filter((ev) =>
+									eventLinkSearch
+										? ev.title.toLowerCase().includes(eventLinkSearch.toLowerCase())
+										: true,
+								)
+								.map((ev) => {
+									const checked = relatedEventIds.includes(ev._id);
+									return (
+										<label
+											key={ev._id}
+											className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm border-b last:border-b-0 overflow-hidden">
+											<input
+												type="checkbox"
+												checked={checked}
+												onChange={() => toggleEvent(ev._id)}
+												className="rounded mt-1"
+											/>
+											<div className="min-w-0">
+												<span
+													className="block whitespace-normal break-words overflow-hidden"
+													style={{
+														display: '-webkit-box',
+														WebkitLineClamp: 2 as const,
+														WebkitBoxOrient: 'vertical' as const,
+													}}>
+													{ev.title}
+												</span>
+											</div>
+										</label>
+									);
+								})}
+							{eventsForLink.length === 0 && (
+								<p className="text-center text-sm text-muted-foreground py-4">
+									Tidak ada event.
+								</p>
+							)}
+						</div>
+						<div className="flex justify-end pt-2">
+							<Button variant="outline" onClick={() => setShowAttachEventDialog(false)}>
+								Selesai
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={showAttachBeritaDialog}
+				onOpenChange={(open) => {
+					setShowAttachBeritaDialog(open);
+					if (!open) setBeritaLinkSearch('');
+				}}>
+				<DialogContent
+					overlayClassName="z-[100]"
+					className="z-[100] sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Pilih Berita Terkait</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm text-muted-foreground">
+							Centang berita yang ingin dihubungkan dengan galeri ini.
+						</p>
+						<div className="relative">
+							<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+							<Input
+								className="pl-8 h-8 text-sm"
+								placeholder="Cari judul berita..."
+								value={beritaLinkSearch}
+								onChange={(e) => setBeritaLinkSearch(e.target.value)}
+							/>
+						</div>
+						<div className="border rounded-md max-h-60 overflow-y-auto overflow-x-hidden pr-2">
+							{beritaForLink
+								.filter((b) =>
+									beritaLinkSearch
+										? b.title.toLowerCase().includes(beritaLinkSearch.toLowerCase())
+										: true,
+								)
+								.map((b) => {
+									const checked = relatedBeritaIds.includes(b._id);
+									return (
+										<label
+											key={b._id}
+											className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm border-b last:border-b-0 overflow-hidden">
+											<input
+												type="checkbox"
+												checked={checked}
+												onChange={() => toggleBerita(b._id)}
+												className="rounded mt-1"
+											/>
+											<div className="min-w-0">
+												<span
+													className="block whitespace-normal break-words overflow-hidden"
+													style={{
+														display: '-webkit-box',
+														WebkitLineClamp: 2 as const,
+														WebkitBoxOrient: 'vertical' as const,
+													}}>
+													{b.title}
+												</span>
+												{b.published === false && (
+													<span className="text-xs text-muted-foreground mt-0.5 block">
+														(draf)
+													</span>
+												)}
+											</div>
+										</label>
+									);
+								})}
+							{beritaForLink.length === 0 && (
+								<p className="text-center text-sm text-muted-foreground py-4">
+									Tidak ada berita.
+								</p>
+							)}
+						</div>
+						<div className="flex justify-end pt-2">
+							<Button variant="outline" onClick={() => setShowAttachBeritaDialog(false)}>
+								Selesai
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

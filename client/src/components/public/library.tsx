@@ -12,8 +12,14 @@ import {
 } from '@/components/ui/dialog';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { useQuery } from '@tanstack/react-query';
+import {
+	getLibraryKindLabel,
+	getLibraryVisualKind,
+	getMediaDisplayTypeForSlot,
+	normalizeLibraryImageUrl,
+} from '@/lib/library-display';
 import AOS from 'aos';
-import { Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import MediaDisplay from '../MediaDisplay';
@@ -26,16 +32,6 @@ interface PaginatedResponse<T> {
 		total: number;
 		totalPages: number;
 	};
-}
-
-function slideMediaType(
-	item: LibraryItem,
-	index: number,
-): 'image' | 'video' | 'auto' {
-	const k = item.mediaKinds?.[index];
-	if (k === 'video') return 'video';
-	if (k === 'image') return 'image';
-	return 'auto';
 }
 
 type LibraryVariant = 'section' | 'page';
@@ -51,12 +47,22 @@ function LibraryGalleryCard({
 	item: LibraryItem;
 	index: number;
 }) {
+	const [slideIndex, setSlideIndex] = useState(0);
+	const [hidePlayHint, setHidePlayHint] = useState(false);
+	const kind = getLibraryVisualKind(item);
+	const images = item.images ?? [];
+	const hasFolder = !!item.gdriveEmbedFolders && item.gdriveEmbedFolders.length > 0;
+	const showCarousel = !hasFolder && images.length > 1;
+	const slide = Math.min(slideIndex, Math.max(0, images.length - 1));
+
 	return (
 		<div
 			className="bg-card rounded-lg overflow-hidden shadow-md border border-border/70 hover:shadow-lg hover:border-primary/40 transition-all"
 			data-aos="fade-up"
 			data-aos-delay={index * 100}>
-			<div className="h-48 relative overflow-hidden group">
+			<div
+				className="h-48 relative overflow-hidden group touch-pan-y"
+				onPointerDownCapture={() => setHidePlayHint(true)}>
 				{item.gdriveEmbedFolders && item.gdriveEmbedFolders.length > 0 ? (
 					<div className="h-full w-full flex flex-col items-center justify-center bg-muted text-muted-foreground">
 						<span className="text-sm font-medium">Folder Drive</span>
@@ -66,20 +72,20 @@ function LibraryGalleryCard({
 					</div>
 				) : (
 					<MediaDisplay
-						src={item.images[0]}
+						src={normalizeLibraryImageUrl(images[slide])}
 						alt={item.title}
-						type={slideMediaType(item, 0)}
+						type={getMediaDisplayTypeForSlot(item, slide)}
 						className="w-full h-full object-cover"
+						mediaFrameClassName="h-full min-h-[12rem] w-full max-h-48"
 					/>
 				)}
 
-				{item.type === 'video' &&
-				(!item.gdriveEmbedFolders || item.gdriveEmbedFolders.length === 0) && (
-					<div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 pointer-events-none">
-						<div className="bg-white rounded-full p-3">
+				{kind === 'video' && !hidePlayHint && (
+					<div className="absolute inset-0 flex items-center justify-center bg-black/35 pointer-events-none transition-opacity duration-200">
+						<div className="bg-white rounded-full p-2.5 sm:p-3 shadow-md">
 							<svg
 								xmlns="http://www.w3.org/2000/svg"
-								className="h-8 w-8 text-primary"
+								className="h-7 w-7 sm:h-8 sm:w-8 text-primary"
 								fill="none"
 								viewBox="0 0 24 24"
 								stroke="currentColor">
@@ -100,10 +106,45 @@ function LibraryGalleryCard({
 					</div>
 				)}
 
+				{showCarousel && (
+					<>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							aria-label="Media sebelumnya"
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								setSlideIndex((i) => Math.max(0, i - 1));
+							}}
+							disabled={slide === 0}
+							className="absolute left-1 top-1/2 z-10 h-9 w-9 sm:h-10 sm:w-10 -translate-y-1/2 rounded-full bg-black/55 text-white hover:bg-black/75 disabled:opacity-30">
+							<ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
+						</Button>
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon"
+							aria-label="Media berikutnya"
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								setSlideIndex((i) =>
+									Math.min(i + 1, images.length - 1),
+								);
+							}}
+							disabled={slide >= images.length - 1}
+							className="absolute right-1 top-1/2 z-10 h-9 w-9 sm:h-10 sm:w-10 -translate-y-1/2 rounded-full bg-black/55 text-white hover:bg-black/75 disabled:opacity-30">
+							<ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
+						</Button>
+					</>
+				)}
+
 				{item.images.length > 1 &&
 					(!item.gdriveEmbedFolders || item.gdriveEmbedFolders.length === 0) && (
-					<div className="absolute bottom-2 right-2 bg-black bg-opacity-60 text-white text-xs rounded px-2 py-1">
-						<span>{`1/${item.images.length}`}</span>
+					<div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs rounded px-2 py-1 z-10">
+						<span>{`${slide + 1}/${item.images.length}`}</span>
 					</div>
 				)}
 			</div>
@@ -113,8 +154,8 @@ function LibraryGalleryCard({
 					<span className="text-xs text-muted-foreground">
 						{item.date && item.time ? `${item.date} · ${item.time}` : ''}
 					</span>
-					<span className="capitalize text-xs px-2 py-1 bg-secondary text-slate-200 rounded-full">
-						{item.type}
+					<span className="capitalize text-xs px-2 py-1 bg-secondary text-slate-200 rounded-full max-w-[11rem] truncate text-right">
+						{getLibraryKindLabel(kind)}
 					</span>
 				</div>
 				<h3 className="font-bold text-xl mb-2">{item.title}</h3>
@@ -138,9 +179,9 @@ function LibraryGalleryCard({
 							</Button>
 						</DialogTrigger>
 						<DialogContent className="max-w-4xl w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
-							<div className="shrink-0 px-6 pt-6 pb-2 border-b border-border">
+							<div className="shrink-0 px-4 sm:px-6 pt-5 sm:pt-6 pb-2 border-b border-border">
 								<DialogHeader>
-									<DialogTitle className="text-2xl font-bold font-serif pr-8">
+									<DialogTitle className="text-xl sm:text-2xl font-bold font-serif pr-8">
 										{item.title}
 									</DialogTitle>
 									{item.authorsDisplay && (
@@ -151,7 +192,7 @@ function LibraryGalleryCard({
 								</DialogHeader>
 							</div>
 
-							<div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+							<div className="overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 max-h-[calc(90vh-7rem)]">
 								<LibraryItemDetailContent item={item} showHeader={false} />
 							</div>
 						</DialogContent>

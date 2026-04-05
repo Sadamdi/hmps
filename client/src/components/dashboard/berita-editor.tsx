@@ -89,7 +89,8 @@ export default function BeritaEditor({
 	const [attachYearSelectOpen, setAttachYearSelectOpen] = useState(false);
 
 	const [selectedGalleryIds, setSelectedGalleryIds] = useState<string[]>([]);
-	const [gallerySearch, setGallerySearch] = useState('');
+	const [showAttachGalleryDialog, setShowAttachGalleryDialog] = useState(false);
+	const [attachGallerySearch, setAttachGallerySearch] = useState('');
 
 	const { data: libraryForBeritaLink = [] } = useQuery<
 		{ _id: string; title: string; published?: boolean }[]
@@ -620,7 +621,7 @@ export default function BeritaEditor({
 			setSelectedGalleryIds(
 				(berita.relatedGalleryIds || []).map((x) => String(x)),
 			);
-			setGallerySearch('');
+			setAttachGallerySearch('');
 
 			if (berita.image && !berita.image.startsWith('blob:')) {
 				setImagePreview(berita.image);
@@ -753,56 +754,6 @@ export default function BeritaEditor({
 								</div>
 							</div>
 						)}
-					</div>
-				</div>
-
-				<div className="space-y-2 border rounded-md p-4">
-					<Label>Galeri terkait (opsional)</Label>
-					<p className="text-xs text-muted-foreground">
-						Pilih dokumentasi foto/video yang terkait berita ini.
-					</p>
-					<div className="relative mb-2">
-						<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-						<Input
-							className="pl-8 h-8 text-sm"
-							placeholder="Cari judul galeri..."
-							value={gallerySearch}
-							onChange={(e) => setGallerySearch(e.target.value)}
-						/>
-					</div>
-					<div className="border rounded-md max-h-36 overflow-y-auto">
-						{libraryForBeritaLink
-							.filter((g) =>
-								gallerySearch
-									? g.title.toLowerCase().includes(gallerySearch.toLowerCase())
-									: true,
-							)
-							.map((g) => {
-								const checked = selectedGalleryIds.includes(g._id);
-								return (
-									<label
-										key={g._id}
-										className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm"
-									>
-										<input
-											type="checkbox"
-											checked={checked}
-											onChange={() => {
-												setSelectedGalleryIds((prev) =>
-													checked
-														? prev.filter((i) => i !== g._id)
-														: [...prev, g._id],
-												);
-											}}
-											className="rounded"
-										/>
-										<span className="flex-1 truncate">{g.title}</span>
-										{g.published === false && (
-											<span className="text-xs text-muted-foreground">draf</span>
-										)}
-									</label>
-								);
-							})}
 					</div>
 				</div>
 
@@ -978,6 +929,60 @@ export default function BeritaEditor({
 				)}
 			</div>
 		)}
+
+		<div className="border rounded-lg p-4 space-y-3">
+			<div className="flex items-center justify-between gap-2">
+				<div className="flex items-center gap-2 min-w-0">
+					<Image className="h-4 w-4 text-primary shrink-0" />
+					<h3 className="font-medium text-sm">Galeri Terkait</h3>
+				</div>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="shrink-0"
+					onClick={() => {
+						setAttachGallerySearch('');
+						setShowAttachGalleryDialog(true);
+					}}>
+					<Plus className="h-3.5 w-3.5 mr-1" />
+					Tambah Galeri
+				</Button>
+			</div>
+			{selectedGalleryIds.length === 0 ? (
+				<p className="text-xs text-muted-foreground">
+					Belum ada galeri yang terhubung. Klik Tambah Galeri untuk memilih dokumentasi foto/video.
+				</p>
+			) : (
+				<div className="flex flex-wrap gap-2">
+					{selectedGalleryIds.map((id) => {
+						const g = libraryForBeritaLink.find((x) => x._id === id);
+						if (!g) return null;
+						return (
+							<Badge
+								key={id}
+								variant="outline"
+								className="gap-1.5 text-xs py-1 px-2 max-w-full">
+								<Link2 className="h-3 w-3 shrink-0" />
+								<span className="truncate">{g.title}</span>
+								{g.published === false && (
+									<span className="text-muted-foreground shrink-0">(draf)</span>
+								)}
+								<button
+									type="button"
+									onClick={() =>
+										setSelectedGalleryIds((prev) => prev.filter((i) => i !== id))
+									}
+									className="ml-0.5 hover:text-destructive transition-colors shrink-0"
+									title="Hapus">
+									<X className="h-2.5 w-2.5" />
+								</button>
+							</Badge>
+						);
+					})}
+				</div>
+			)}
+		</div>
 
 		<div className="flex justify-end space-x-4">
 			<Button
@@ -1256,6 +1261,77 @@ export default function BeritaEditor({
 
 					<div className="flex justify-end pt-2">
 						<Button variant="outline" onClick={() => setShowAttachEventDialog(false)}>
+							Selesai
+						</Button>
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
+
+		<Dialog
+			open={showAttachGalleryDialog}
+			onOpenChange={(open) => {
+				setShowAttachGalleryDialog(open);
+				if (!open) setAttachGallerySearch('');
+			}}>
+			<DialogContent className="sm:max-w-md">
+				<DialogHeader>
+					<DialogTitle>Pilih Galeri Terkait</DialogTitle>
+				</DialogHeader>
+				<div className="space-y-4">
+					<p className="text-sm text-muted-foreground">
+						Centang galeri yang berkaitan dengan berita ini. Perubahan ikut disimpan saat Anda
+						menekan Simpan Berita.
+					</p>
+					<div className="relative">
+						<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+						<Input
+							className="pl-8 h-8 text-sm"
+							placeholder="Cari judul galeri..."
+							value={attachGallerySearch}
+							onChange={(e) => setAttachGallerySearch(e.target.value)}
+						/>
+					</div>
+					<div className="border rounded-md max-h-60 overflow-y-auto">
+						{libraryForBeritaLink
+							.filter((g) =>
+								attachGallerySearch
+									? g.title.toLowerCase().includes(attachGallerySearch.toLowerCase())
+									: true,
+							)
+							.map((g) => {
+								const checked = selectedGalleryIds.includes(g._id);
+								return (
+									<label
+										key={g._id}
+										className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm border-b last:border-b-0">
+										<input
+											type="checkbox"
+											checked={checked}
+											onChange={() => {
+												setSelectedGalleryIds((prev) =>
+													checked
+														? prev.filter((i) => i !== g._id)
+														: [...prev, g._id],
+												);
+											}}
+											className="rounded"
+										/>
+										<span className="flex-1 truncate">{g.title}</span>
+										{g.published === false && (
+											<span className="text-xs text-muted-foreground">draf</span>
+										)}
+									</label>
+								);
+							})}
+						{libraryForBeritaLink.length === 0 && (
+							<p className="text-center text-sm text-muted-foreground py-4">
+								Belum ada galeri atau memuat…
+							</p>
+						)}
+					</div>
+					<div className="flex justify-end pt-2">
+						<Button variant="outline" onClick={() => setShowAttachGalleryDialog(false)}>
 							Selesai
 						</Button>
 					</div>

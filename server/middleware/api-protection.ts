@@ -56,6 +56,7 @@ const ALLOWED_API_ROUTES = [
 	'/api/settings',
 	'/api/stats',
 	'/api/library',
+	'/api/gdrive',
 	'/api/organization/members',
 	'/api/organization/periods',
 	'/api/organization/periods/', // For POST requests
@@ -154,6 +155,8 @@ export const apiProtectionMiddleware = async (
 		const isFromFrontend =
 			referer.includes('localhost:5000') ||
 			origin.includes('localhost:5000') ||
+			referer.includes('localhost:5173') ||
+			origin.includes('localhost:5173') ||
 			referer.includes('43.157.211.134') ||
 			origin.includes('43.157.211.134') ||
 			referer.includes('https://43.157.211.134') ||

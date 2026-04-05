@@ -24,14 +24,22 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Badge } from '@/components/ui/badge';
 import {
 	Edit,
+	FolderOpen,
 	ImageIcon,
 	Loader2,
+	Layers,
 	Plus,
 	Search,
 	Share2,
 	Trash2,
 	VideoIcon,
 } from 'lucide-react';
+import {
+	getLibraryKindLabel,
+	getLibraryVisualKind,
+	getMediaDisplayTypeForSlot,
+	normalizeLibraryImageUrl,
+} from '@/lib/library-display';
 import { buildLibrarySpyroPageData } from '@shared/dashboard-spyro-context';
 import { useMemo, useState } from 'react';
 
@@ -45,6 +53,7 @@ interface LibraryItem {
 	imageSources?: string[];
 	gdriveFileIds?: string[];
 	mediaKinds?: ('image' | 'video')[];
+	gdriveEmbedFolders?: { folderId: string; url: string }[];
 	date?: string;
 	time?: string;
 	type: 'photo' | 'video';
@@ -439,40 +448,37 @@ export default function DashboardLibrary() {
 											</Badge>
 										)}
 										<MediaDisplay
-											src={item.images[0]}
+											src={normalizeLibraryImageUrl(item.images[0])}
 											alt={item.title}
-											type={
-												item.mediaKinds?.[0] === 'video' || item.type === 'video'
-													? 'video'
-													: 'auto'
-											}
+											type={getMediaDisplayTypeForSlot(item, 0)}
 											className="w-full h-full"
 										/>
 
 								{/* Type indicator */}
-								<div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs rounded px-2 py-1 flex items-center">
-									{item.type === 'photo' ? (
-										<>
-											<ImageIcon className="h-3 w-3 mr-1" />
+								{(() => {
+									const kind = getLibraryVisualKind(item);
+									const label = getLibraryKindLabel(kind);
+									const Icon =
+										kind === 'folder'
+											? FolderOpen
+											: kind === 'video'
+												? VideoIcon
+												: kind === 'mixed'
+													? Layers
+													: ImageIcon;
+									const count = kind === 'folder'
+										? (item.gdriveEmbedFolders?.length ?? 0)
+										: item.images.length;
+									return (
+										<div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs rounded px-2 py-1 flex items-center">
+											<Icon className="h-3 w-3 mr-1" />
 											<span>
-												Photo
-												{item.images.length > 1
-													? ` (${item.images.length})`
-													: ''}
+												{label}
+												{count > 1 ? ` (${count})` : ''}
 											</span>
-										</>
-									) : (
-										<>
-											<VideoIcon className="h-3 w-3 mr-1" />
-											<span>
-												Video
-												{item.images.length > 1
-													? ` (${item.images.length})`
-													: ''}
-											</span>
-										</>
-									)}
-								</div>
+										</div>
+									);
+								})()}
 							</div>
 							<CardContent className="p-4">
 								<div className="flex flex-col space-y-2">

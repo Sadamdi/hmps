@@ -1,12 +1,17 @@
 import { detectMediaSource } from '@shared/mediaUtils';
 import React, { useEffect, useState } from 'react';
 
+const DEFAULT_MEDIA_FRAME =
+	'min-h-[12rem] max-h-[min(75vh,56rem)] w-full sm:min-h-[14rem]';
+
 interface MediaDisplayProps {
 	src: string;
 	alt: string;
 	className?: string;
 	fallback?: React.ReactNode;
 	type?: 'image' | 'video' | 'auto';
+	/** Mengganti tinggi bawaan area iframe/video/gambar (sebelumnya h-64). */
+	mediaFrameClassName?: string;
 }
 
 interface MediaFile {
@@ -15,6 +20,28 @@ interface MediaFile {
 	url: string;
 	type: 'image' | 'video';
 	mimeType: string;
+}
+
+/** Google Drive video embed URLs are HTML pages — use iframe, not <video src>. */
+function isDriveEmbedVideoPlayback(
+	file: MediaFile,
+	playUrl: string,
+): boolean {
+	if (file.type !== 'video') return false;
+	const u = playUrl.toLowerCase();
+	if (/\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(u)) return false;
+	if (file.mimeType?.startsWith('video/')) {
+		if (
+			u.includes('drive.google.com') ||
+			u.includes('docs.google.com/file')
+		) {
+			return true;
+		}
+	}
+	return (
+		u.includes('drive.google.com') ||
+		u.includes('docs.google.com/file')
+	);
 }
 
 interface MediaState {
@@ -120,7 +147,9 @@ export default function MediaDisplay({
 	className = '',
 	fallback,
 	type = 'auto',
+	mediaFrameClassName,
 }: MediaDisplayProps) {
+	const frameCn = mediaFrameClassName ?? DEFAULT_MEDIA_FRAME;
 	// Simple single image display for organization members (only for non-GDrive URLs)
 	if (type === 'image' && src && !src.includes('drive.google.com')) {
 		return (
@@ -158,37 +187,71 @@ export default function MediaDisplay({
 				const source = detectMediaSource(src);
 
 				if (source.type === 'gdrive' && source.fileId && !source.isFolder) {
-					/** Satu file Drive: tampilkan langsung (lh3/uc di getAlternativeUrls), hindari gagal total jika media-url error */
-					let mediaType: 'image' | 'video' = 'image';
-					if (type === 'video') mediaType = 'video';
-					else if (type === 'image') mediaType = 'image';
-					else {
-						const lower = src.toLowerCase();
-						if (
-							lower.includes('/preview') ||
-							lower.includes('video') ||
-							/\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(src)
-						) {
-							mediaType = 'video';
+					// Single Drive file: call media-url API for accurate MIME detection
+					let resolved = false;
+
+					if (type === 'auto' || type === 'video' || type === 'image') {
+						try {
+							const body: Record<string, unknown> = { url: src, fileId: source.fileId };
+							if (type !== 'auto') body.mediaType = type;
+							const resp = await fetch('/api/gdrive/media-url', {
+								method: 'POST',
+								headers: { 'Content-Type': 'application/json' },
+								body: JSON.stringify(body),
+							});
+							if (resp.ok) {
+								const data = await resp.json();
+								const raw = data.files?.[0];
+								if (raw) {
+									let resolvedType = raw.type as 'image' | 'video';
+									if (raw.mimeType?.startsWith('video/'))
+										resolvedType = 'video';
+									else if (raw.mimeType?.startsWith('image/'))
+										resolvedType = 'image';
+									const file = { ...raw, type: resolvedType };
+									setMediaState({
+										loading: false,
+										error: false,
+										files: [file],
+										mediaType: 'single',
+										currentIndex: 0,
+										debugInfo: data,
+									});
+									resolved = true;
+								}
+							}
+						} catch {
+							// fall through to heuristic
 						}
 					}
 
-					setMediaState({
-						loading: false,
-						error: false,
-						files: [
-							{
+					if (!resolved) {
+						let mediaType: 'image' | 'video' = 'image';
+						if (type === 'video') mediaType = 'video';
+						else if (type === 'image') mediaType = 'image';
+						else {
+							const lower = src.toLowerCase();
+							if (
+								lower.includes('video') ||
+								/\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(src)
+							) {
+								mediaType = 'video';
+							}
+						}
+						setMediaState({
+							loading: false,
+							error: false,
+							files: [{
 								id: source.fileId,
 								name: alt,
 								url: src,
 								type: mediaType,
-								mimeType:
-									mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
-							},
-						],
-						mediaType: 'single',
-						currentIndex: 0,
-					});
+								mimeType: mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
+							}],
+							mediaType: 'single',
+							currentIndex: 0,
+						});
+					}
 				} else if (source.type === 'gdrive' && source.fileId && source.isFolder) {
 					const requestBody: Record<string, unknown> = {
 						url: src,
@@ -215,10 +278,19 @@ export default function MediaDisplay({
 
 					const data = await response.json();
 
+					const normalizedFiles: MediaFile[] = (data.files || []).map(
+						(f: MediaFile) => {
+							let t = f.type;
+							if (f.mimeType?.startsWith('video/')) t = 'video';
+							else if (f.mimeType?.startsWith('image/')) t = 'image';
+							return { ...f, type: t };
+						},
+					);
+
 					setMediaState({
 						loading: false,
 						error: false,
-						files: data.files || [],
+						files: normalizedFiles,
 						mediaType: data.type === 'folder' ? 'folder' : 'single',
 						currentIndex: 0,
 						debugInfo: data,
@@ -310,6 +382,21 @@ export default function MediaDisplay({
 		originalUrl: string,
 		isVideo: boolean = false
 	) => {
+		const fileIdFromAny = originalUrl.match(
+			/(?:[?&]id=|\/d\/)([a-zA-Z0-9-_]+)/i
+		);
+		const fileId = fileIdFromAny?.[1];
+
+		// Video: selalu utamakan embed Drive — jangan pakai <video src> ke lh3/uc (bukan stream)
+		if (isVideo && fileId) {
+			return [
+				`https://drive.google.com/file/d/${fileId}/preview`,
+				`https://docs.google.com/file/d/${fileId}/preview`,
+				originalUrl,
+				`https://drive.google.com/file/d/${fileId}/view`,
+			];
+		}
+
 		if (!originalUrl.includes('drive.google.com')) {
 			const lh = originalUrl.match(
 				/googleusercontent\.com\/d\/([a-zA-Z0-9-_]+)/i
@@ -330,25 +417,16 @@ export default function MediaDisplay({
 		);
 		if (!fileIdMatch) return [originalUrl];
 
-		const fileId = fileIdMatch[1] || fileIdMatch[2];
-
-		if (isVideo) {
-			return [
-				originalUrl,
-				`https://drive.google.com/file/d/${fileId}/preview`,
-				`https://drive.google.com/file/d/${fileId}/view`,
-				`https://docs.google.com/file/d/${fileId}/preview`,
-			];
-		}
+		const fileIdDrive = fileIdMatch[1] || fileIdMatch[2];
 
 		return [
-			`https://lh3.googleusercontent.com/d/${fileId}=s2000`, // High resolution - most reliable
-			`https://lh3.googleusercontent.com/d/${fileId}=w2000-h2000`, // Specific dimensions
+			`https://lh3.googleusercontent.com/d/${fileIdDrive}=s2000`, // High resolution - most reliable
+			`https://lh3.googleusercontent.com/d/${fileIdDrive}=w2000-h2000`, // Specific dimensions
 			originalUrl,
-			`https://drive.google.com/uc?export=view&id=${fileId}`,
-			`https://drive.google.com/uc?id=${fileId}&export=download`,
-			`https://drive.google.com/thumbnail?id=${fileId}&sz=w2000`,
-			`https://docs.google.com/uc?export=view&id=${fileId}`, // Alternative docs URL
+			`https://drive.google.com/uc?export=view&id=${fileIdDrive}`,
+			`https://drive.google.com/uc?id=${fileIdDrive}&export=download`,
+			`https://drive.google.com/thumbnail?id=${fileIdDrive}&sz=w2000`,
+			`https://docs.google.com/uc?export=view&id=${fileIdDrive}`, // Alternative docs URL
 		];
 	};
 
@@ -473,13 +551,17 @@ export default function MediaDisplay({
 
 	const MediaContent = () => {
 		if (currentFile.type === 'video') {
-			const isGoogleDriveVideo = currentFile.url.includes('drive.google.com');
 			const urls = getAlternativeUrls(currentFile.url, true);
 			const currentUrl = urls[currentUrlIndex] || currentFile.url;
+			// Embed halaman Drive — bukan stream; jangan pakai <video src> ke /preview
+			const useDriveIframe =
+				/drive\.google\.com\/file\/d\//i.test(currentUrl) ||
+				/docs\.google\.com\/file\/d\//i.test(currentUrl);
 
 			if (imageError && currentUrlIndex >= urls.length - 1) {
 				return (
-					<div className="w-full h-64 flex items-center justify-center bg-gray-100 text-gray-500 rounded">
+					<div
+						className={`${frameCn} flex items-center justify-center bg-gray-100 text-gray-500 rounded`}>
 						<div className="text-center p-4">
 							<p className="text-sm">Failed to load video</p>
 							<p className="text-xs text-gray-400">
@@ -498,13 +580,13 @@ export default function MediaDisplay({
 				);
 			}
 
-			// Google Drive videos work better with iframe
-			if (isGoogleDriveVideo) {
+			if (useDriveIframe) {
 				return (
-					<div className="w-full h-64 flex items-center justify-center bg-black rounded relative group">
+					<div
+						className={`${frameCn} flex items-center justify-center bg-black rounded relative group aspect-video max-h-[min(75vh,56rem)]`}>
 						<iframe
 							src={currentUrl}
-							className="w-full h-full rounded cursor-pointer"
+							className="w-full h-full min-h-0 rounded cursor-pointer"
 							allow="autoplay; encrypted-media"
 							allowFullScreen
 							onError={handleVideoError}
@@ -539,9 +621,10 @@ export default function MediaDisplay({
 
 			// Regular video element for non-Google Drive videos
 			return (
-				<div className="w-full h-64 flex justify-center items-center bg-black rounded relative group">
+				<div
+					className={`${frameCn} flex justify-center items-center bg-black rounded relative group`}>
 					<video
-						className="w-full h-full object-cover cursor-pointer"
+						className="w-full h-full max-h-[min(75vh,56rem)] object-contain cursor-pointer"
 						controls
 						preload="metadata"
 						onClick={toggleFullscreen}
@@ -576,7 +659,8 @@ export default function MediaDisplay({
 
 		if (imageError && currentUrlIndex >= urls.length - 1) {
 			return (
-				<div className="w-full h-64 flex items-center justify-center bg-gray-100 text-gray-500 rounded">
+				<div
+					className={`${frameCn} flex items-center justify-center bg-gray-100 text-gray-500 rounded`}>
 					<div className="text-center p-4">
 						<p className="text-sm">Failed to load image</p>
 						<p className="text-xs text-gray-400">
@@ -596,11 +680,12 @@ export default function MediaDisplay({
 		}
 
 		return (
-			<div className="w-full h-64 flex justify-center items-center bg-gray-50 rounded relative group">
+			<div
+				className={`${frameCn} flex justify-center items-center bg-gray-50 rounded relative group`}>
 				<img
 					src={currentUrl}
 					alt={alt}
-					className="w-full h-full object-cover cursor-pointer"
+					className="w-full h-full max-h-[min(75vh,56rem)] object-contain cursor-pointer"
 					onError={handleImageError}
 					onClick={toggleFullscreen}
 					onLoad={() => {
@@ -709,17 +794,29 @@ export default function MediaDisplay({
 						</>
 					)}
 
-					{/* Main image */}
+					{/* Main image / video / Drive embed */}
 					{currentFile.type === 'video' ? (
-						<div className="max-w-full max-h-full flex items-center justify-center">
-							<video
-								src={currentUrl}
-								className="max-w-full max-h-full object-contain"
-								controls
-								autoPlay={false}>
-								<p>Your browser does not support the video element.</p>
-							</video>
-						</div>
+						isDriveEmbedVideoPlayback(currentFile, currentUrl) ? (
+							<div className="w-full h-[min(90vh,calc(100vw-2rem))] max-w-[min(100vw-2rem,1200px)] flex items-center justify-center">
+								<iframe
+									src={currentUrl}
+									className="w-full h-full min-h-[50vh] rounded border-0 bg-black"
+									allow="autoplay; encrypted-media; fullscreen"
+									allowFullScreen
+									title={alt}
+								/>
+							</div>
+						) : (
+							<div className="max-w-full max-h-full flex items-center justify-center">
+								<video
+									src={currentUrl}
+									className="max-w-full max-h-full object-contain"
+									controls
+									autoPlay={false}>
+									<p>Your browser does not support the video element.</p>
+								</video>
+							</div>
+						)
 					) : (
 						<img
 							src={currentUrl}

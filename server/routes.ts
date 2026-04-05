@@ -639,40 +639,98 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const isFolder = url && isFolderUrl(url);
 
 			if (isFolder) {
-				// Handle folder - try simple extraction approach
 				console.log('Processing folder:', actualFileId);
 
+				type DriveMediaRow = {
+					id: string;
+					name: string;
+					mimeType: string;
+				};
+
+				const mapFolderFileToResponse = (
+					file: DriveMediaRow,
+					index: number,
+				) => {
+					let mediaType: 'image' | 'video';
+					if (userSpecifiedType === 'video') {
+						mediaType = 'video';
+					} else if (userSpecifiedType === 'image') {
+						mediaType = 'image';
+					} else {
+						mediaType = file.mimeType.startsWith('video/')
+							? 'video'
+							: 'image';
+					}
+
+					const mimeType =
+						mediaType === 'video'
+							? file.mimeType.startsWith('video/')
+								? file.mimeType
+								: 'video/mp4'
+							: file.mimeType.startsWith('image/')
+								? file.mimeType
+								: 'image/jpeg';
+
+					const mediaUrl =
+						mediaType === 'video'
+							? `https://drive.google.com/file/d/${file.id}/preview`
+							: `https://lh3.googleusercontent.com/d/${file.id}=s2000`;
+
+					return {
+						id: file.id,
+						name:
+							file.name?.trim() ||
+							`${mediaType === 'video' ? 'Video' : 'Image'} ${index + 1}`,
+						url: mediaUrl,
+						type: mediaType,
+						mimeType,
+					};
+				};
+
 				try {
-					const { getSimpleFolderContents } = await import('./googleDrive');
+					let mediaRows: DriveMediaRow[] = [];
 
-					// Try to extract file IDs from folder
-					const folderFiles = await getSimpleFolderContents(actualFileId);
+					try {
+						const fromApi = await getMediaFromFolder(actualFileId);
+						mediaRows = fromApi.map((f) => ({
+							id: f.id,
+							name: f.name,
+							mimeType: f.mimeType,
+						}));
+						console.log(
+							`getMediaFromFolder: ${mediaRows.length} file(s) in folder`,
+						);
+					} catch (folderListErr) {
+						console.log('getMediaFromFolder failed:', folderListErr);
+					}
 
-					if (folderFiles.length > 0) {
-						console.log(`Found ${folderFiles.length} files in folder`);
-
-						// Convert to proper format with media URLs
-						const mediaWithUrls = folderFiles.map((file, index) => {
-							// Generate proper media URL based on auto-detected or default type
-							let mediaUrl: string;
-							const detectedType = userSpecifiedType || 'image'; // Default to image
-
-							if (detectedType === 'video') {
-								mediaUrl = `https://drive.google.com/file/d/${file.id}/preview`;
-							} else {
-								mediaUrl = `https://lh3.googleusercontent.com/d/${file.id}=s2000`;
+					if (mediaRows.length === 0) {
+						const { getSimpleFolderContents } = await import('./googleDrive');
+						const simple = await getSimpleFolderContents(actualFileId);
+						console.log(
+							`getSimpleFolderContents: ${simple.length} id(s), enriching with metadata`,
+						);
+						for (const item of simple) {
+							const meta = await getFileMetadata(item.id);
+							if (!meta) continue;
+							if (
+								!isSupportedMediaType(meta.mimeType) &&
+								getFileTypeFromExtension(meta.name) === 'unknown'
+							) {
+								continue;
 							}
+							mediaRows.push({
+								id: meta.id,
+								name: meta.name,
+								mimeType: meta.mimeType,
+							});
+						}
+					}
 
-							return {
-								id: file.id,
-								name: `${detectedType === 'video' ? 'Video' : 'Image'} ${
-									index + 1
-								}`,
-								url: mediaUrl,
-								type: detectedType,
-								mimeType: detectedType === 'video' ? 'video/mp4' : 'image/jpeg',
-							};
-						});
+					if (mediaRows.length > 0) {
+						const mediaWithUrls = mediaRows.map((file, index) =>
+							mapFolderFileToResponse(file, index),
+						);
 
 						return res.json({
 							type: 'folder',
@@ -684,21 +742,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								folderUrl: `https://drive.google.com/drive/folders/${actualFileId}`,
 							},
 						});
-					} else {
-						// No files found - return guidance
-						return res.json({
-							type: 'folder',
-							accessible: true,
-							files: [],
-							count: 0,
-							message:
-								'Folder is accessible but no media files were found. For best results, please copy individual file links.',
-							instruction:
-								'Open the folder → Right-click each file → Get link → Paste those links individually',
-							folderUrl: `https://drive.google.com/drive/folders/${actualFileId}`,
-							isFolder: true,
-						});
 					}
+
+					return res.json({
+						type: 'folder',
+						accessible: true,
+						files: [],
+						count: 0,
+						message:
+							'Folder is accessible but no media files were found. For best results, please copy individual file links.',
+						instruction:
+							'Open the folder → Right-click each file → Get link → Paste those links individually',
+						folderUrl: `https://drive.google.com/drive/folders/${actualFileId}`,
+						isFolder: true,
+					});
 				} catch (error) {
 					console.log('Folder extraction failed:', error);
 					return res.status(400).json({
@@ -714,64 +771,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					});
 				}
 			} else {
-				// Handle single file
+				// Handle single file — use Drive API metadata for accurate MIME detection
+				let mediaType: string = userSpecifiedType || 'image';
+				let mimeType = 'image/jpeg';
+				let fileName = `File ${actualFileId}`;
 
-				// For single files, use user-specified type if provided, otherwise guess
-				let mediaType = userSpecifiedType || 'image'; // Use user choice or default
-				let mimeType = 'image/jpeg'; // Default
-
-				// Set appropriate mimeType based on mediaType
-				if (mediaType === 'video') {
-					mimeType = 'video/mp4';
-				}
-
-				// Try to get some basic info by testing the URL (for logging)
 				try {
-					const testUrl = `https://drive.google.com/file/d/${actualFileId}/view`;
-					const testResponse = await fetch(testUrl, {
-						method: 'HEAD',
-						headers: {
-							'User-Agent':
-								'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-						},
-					});
-
-					// Only auto-detect if user didn't specify type
+					const meta = await getFileMetadata(actualFileId);
+					if (meta && meta.mimeType) {
+						fileName = meta.name || fileName;
+						mimeType = meta.mimeType;
+						if (!userSpecifiedType) {
+							mediaType = meta.mimeType.startsWith('video/') ? 'video' : 'image';
+						}
+					}
+				} catch {
+					// Fallback: heuristic from URL
 					if (!userSpecifiedType && url) {
+						const lower = (url as string).toLowerCase();
+						// Jangan pakai /view atau /preview — dipakai Drive untuk foto & video
 						if (
-							url.includes('video') ||
-							url.toLowerCase().includes('mp4') ||
-							url.toLowerCase().includes('mov')
+							lower.includes('video') ||
+							lower.includes('mp4') ||
+							lower.includes('mov')
 						) {
 							mediaType = 'video';
 							mimeType = 'video/mp4';
 						}
 					}
-				} catch (e) {
-					console.log('Could not test URL, using user choice or defaults');
 				}
 
-				// Generate appropriate URL based on media type
-				let mediaUrl: string;
-				if (mediaType === 'video') {
-					// For videos, use preview format for better compatibility
-					mediaUrl = `https://drive.google.com/file/d/${actualFileId}/preview`;
-				} else {
-					// For images, use lh3.googleusercontent.com which is more reliable
-					mediaUrl = `https://lh3.googleusercontent.com/d/${actualFileId}=s2000`;
-				}
+				const mediaUrl = mediaType === 'video'
+					? `https://drive.google.com/file/d/${actualFileId}/preview`
+					: `https://lh3.googleusercontent.com/d/${actualFileId}=s2000`;
 
-				if (!mediaUrl) {
-					return res
-						.status(404)
-						.json({ message: 'Could not generate media URL' });
-				}
-
-				// Create basic metadata
 				const metadata = {
 					id: actualFileId,
-					name: `${mediaType === 'video' ? 'Video' : 'Image'} ${actualFileId}`,
-					mimeType: mimeType,
+					name: fileName,
+					mimeType,
 					webViewLink: `https://drive.google.com/file/d/${actualFileId}/view`,
 					webContentLink: mediaUrl,
 				};
@@ -780,17 +817,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					type: mediaType,
 					url: mediaUrl,
 					metadata,
-					files: [
-						{
-							id: actualFileId,
-							name: `${
-								mediaType === 'video' ? 'Video' : 'Image'
-							} ${actualFileId}`,
-							url: mediaUrl,
-							type: mediaType,
-							mimeType: mimeType,
-						},
-					],
+					files: [{
+						id: actualFileId,
+						name: fileName,
+						url: mediaUrl,
+						type: mediaType,
+						mimeType,
+					}],
 				});
 			}
 		} catch (error) {
@@ -2835,6 +2868,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	app.get(
+		'/api/library/:libraryId/folder/:folderId/files',
+		authenticateOptional,
+		async (req, res) => {
+			try {
+				const { libraryId, folderId } = req.params;
+				const storage = resolveStorage(req);
+				const { Library } = resolveModels(req);
+				const item = await Library.findById(libraryId).lean();
+				if (!item) return res.status(404).json({ message: 'Library item not found' });
+
+				const user = req.user as any;
+				const isAdmin = !!user;
+				if (!isAdmin && !(item as any).published) {
+					return res.status(404).json({ message: 'Not found' });
+				}
+
+				const embeds: { folderId: string; url: string }[] = (item as any).gdriveEmbedFolders || [];
+				if (!embeds.some((e) => e.folderId === folderId)) {
+					return res.status(403).json({ message: 'Folder not linked to this library item' });
+				}
+
+				const { getFolderContents } = await import('./googleDrive');
+				let files;
+				try {
+					files = await getFolderContents(folderId);
+				} catch (driveErr: any) {
+					console.error('Get library folder files (Drive API):', driveErr);
+					return res.status(503).json({
+						message:
+							'Layanan Google Drive tidak dapat diakses (kredensial atau kuota). Coba lagi nanti atau buka folder di Drive.',
+						folderId,
+					});
+				}
+
+				const mapped = files.map((f) => ({
+					id: f.id,
+					name: f.name,
+					mimeType: f.mimeType,
+					thumbnailLink: f.thumbnailLink || `https://drive.google.com/thumbnail?id=${f.id}&sz=w400`,
+				}));
+
+				res.json({ files: mapped, folderId });
+			} catch (error) {
+				console.error('Get library folder files error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
 	app.post(
 		'/api/library',
 		authenticate,
@@ -2936,6 +3019,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						isValidGoogleDriveUrl,
 						getFolderMediaForLibrary,
 						isFolderUrl,
+						resolveLibrarySlotMediaKindFromDrive,
 					} = await import('./googleDrive');
 
 					for (let i = 0; i < gdriveUrls.length; i++) {
@@ -2995,11 +3079,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							imageSources.push('gdrive');
 							gdriveFileIds.push(fileId);
 							const hint = gdriveMediaTypes[i];
-							const asVid =
-								hint === 'video' ||
-								type === 'video' ||
-								(hint !== 'image' && hint === 'video');
-							mediaKinds.push(asVid ? 'video' : 'image');
+							const slotKind = await resolveLibrarySlotMediaKindFromDrive(
+								fileId,
+								hint,
+								type,
+							);
+							mediaKinds.push(slotKind);
 						}
 					}
 				}
@@ -3029,8 +3114,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					});
 				}
 
-				if (mediaKinds.length !== imageUrls.length) {
-					mediaKinds = imageUrls.map(() => 'image');
+				while (mediaKinds.length < imageUrls.length) {
+					mediaKinds.push('image');
+				}
+				if (mediaKinds.length > imageUrls.length) {
+					mediaKinds = mediaKinds.slice(0, imageUrls.length);
 				}
 
 				const anyVideo = mediaKinds.some((k) => k === 'video');
@@ -3207,6 +3295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						isValidGoogleDriveUrl,
 						getFolderMediaForLibrary,
 						isFolderUrl,
+						resolveLibrarySlotMediaKindFromDrive,
 					} = await import('./googleDrive');
 
 					for (let i = 0; i < gdriveUrls.length; i++) {
@@ -3271,8 +3360,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							imageSources.push('gdrive');
 							gdriveFileIds.push(fileId);
 							const hint = gdriveMediaTypes[i];
-							const asVid = hint === 'video' || type === 'video';
-							mediaKinds.push(asVid ? 'video' : 'image');
+							const slotKind = await resolveLibrarySlotMediaKindFromDrive(
+								fileId,
+								hint,
+								type,
+							);
+							mediaKinds.push(slotKind);
 						}
 					}
 				}
@@ -3297,8 +3390,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				if (imageUrls.length > 0) {
-					if (mediaKinds.length !== imageUrls.length) {
-						mediaKinds = imageUrls.map(() => 'image');
+					while (mediaKinds.length < imageUrls.length) {
+						mediaKinds.push('image');
+					}
+					if (mediaKinds.length > imageUrls.length) {
+						mediaKinds = mediaKinds.slice(0, imageUrls.length);
 					}
 					const anyVideo = mediaKinds.some((k) => k === 'video');
 					const allVideo = mediaKinds.every((k) => k === 'video');

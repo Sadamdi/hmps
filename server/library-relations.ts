@@ -4,11 +4,20 @@ import mongoose from 'mongoose';
 export function attachLibraryDisplayFields(item: Record<string, unknown>): void {
 	if (!item) return;
 	const raw = item.activityDate ?? item.createdAt;
-	const d = raw ? new Date(raw as string | Date) : new Date();
+	let d = raw ? new Date(raw as string | Date) : new Date();
 	if (Number.isNaN(d.getTime())) {
 		item.date = '';
 		item.time = '';
 		return;
+	}
+	const y = d.getFullYear();
+	if (y < 1900) {
+		const fb = item.createdAt
+			? new Date(item.createdAt as string | Date)
+			: new Date();
+		if (!Number.isNaN(fb.getTime())) {
+			d = fb;
+		}
 	}
 	try {
 		item.date = d.toLocaleDateString('id-ID', {

@@ -17,6 +17,7 @@ const RESERVED_FIRST_SEGMENTS = new Set([
 	'kelembagaan',
 	'prodi',
 	'events',
+	'library',
 	'dashboard',
 	'communities',
 	'sitemap.xml',

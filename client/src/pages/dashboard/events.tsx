@@ -33,11 +33,14 @@ import {
 	EyeOff,
 	FileText,
 	GitBranch,
+	Image,
+	Link2,
 	Loader2,
 	Plus,
 	Search,
 	Share2,
 	Trash2,
+	X,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -164,6 +167,8 @@ export default function DashboardEvents() {
 	const [selectedGalleryIds, setSelectedGalleryIds] = useState<string[]>([]);
 	const [gallerySearch, setGallerySearch] = useState('');
 	const [beritaSearch, setBeritaSearch] = useState('');
+	const [showAttachGalleryDialog, setShowAttachGalleryDialog] = useState(false);
+	const [showAttachBeritaDialog, setShowAttachBeritaDialog] = useState(false);
 
 	// Copy to berita state
 	const [copyToBeritaEvent, setCopyToBeritaEvent] = useState<EventItem | null>(null);
@@ -1154,161 +1159,114 @@ export default function DashboardEvents() {
 								<div>
 									<Label className="text-base">Berita &amp; galeri terkait</Label>
 									<p className="text-xs text-muted-foreground mt-1">
-										Cari dan centang seperti di editor berita — dokumentasi galeri dan liputan berita yang terhubung ke event ini.
+										Klik Tambah untuk memilih di dialog — sama seperti menautkan event di editor berita.
 									</p>
 								</div>
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<div>
-								<Label className="flex items-center gap-1 mb-2 text-sm font-medium">
-									Galeri
-								</Label>
-								{selectedGalleryIds.length > 0 && (
-									<div className="flex flex-wrap gap-1 mb-2">
-										{selectedGalleryIds.map((id) => {
-											const g = libraryForLink.find((x) => x._id === id);
-											return g ? (
-												<Badge key={id} variant="secondary" className="text-xs gap-1 max-w-full">
-													<span className="truncate max-w-[200px]">{g.title}</span>
-													<button
-														type="button"
-														className="ml-1 text-muted-foreground hover:text-destructive shrink-0"
-														onClick={() =>
-															setSelectedGalleryIds((prev) => prev.filter((i) => i !== id))
-														}
-													>
-														×
-													</button>
-												</Badge>
-											) : null;
-										})}
+									<div className="space-y-2 rounded-lg border border-border/80 p-3 bg-background/50">
+										<div className="flex items-center justify-between gap-2">
+											<div className="flex items-center gap-2 min-w-0">
+												<Image className="h-4 w-4 text-primary shrink-0" />
+												<span className="text-sm font-medium">Galeri</span>
+											</div>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="shrink-0"
+												onClick={() => {
+													setGallerySearch('');
+													setShowAttachGalleryDialog(true);
+												}}>
+												<Plus className="h-3.5 w-3.5 mr-1" />
+												Tambah Galeri
+											</Button>
+										</div>
+										{selectedGalleryIds.length === 0 ? (
+											<p className="text-xs text-muted-foreground">Belum ada galeri terpilih.</p>
+										) : (
+											<div className="flex flex-wrap gap-2">
+												{selectedGalleryIds.map((id) => {
+													const g = libraryForLink.find((x) => x._id === id);
+													return g ? (
+														<Badge
+															key={id}
+															variant="outline"
+															className="text-xs gap-1.5 py-1 px-2 max-w-full">
+															<Link2 className="h-3 w-3 shrink-0" />
+															<span className="truncate max-w-[220px]">{g.title}</span>
+															{g.published === false && (
+																<span className="text-muted-foreground shrink-0">(draf)</span>
+															)}
+															<button
+																type="button"
+																className="ml-0.5 hover:text-destructive shrink-0"
+																onClick={() =>
+																	setSelectedGalleryIds((prev) =>
+																		prev.filter((i) => i !== id),
+																	)
+																}
+																title="Hapus">
+																<X className="h-3 w-3" />
+															</button>
+														</Badge>
+													) : null;
+												})}
+											</div>
+										)}
 									</div>
-								)}
-								<div className="relative mb-2">
-									<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-									<Input
-										className="pl-8 h-8 text-sm"
-										placeholder="Cari judul galeri..."
-										value={gallerySearch}
-										onChange={(e) => setGallerySearch(e.target.value)}
-									/>
-								</div>
-								<div className="border rounded-md max-h-36 overflow-y-auto bg-background">
-									{libraryForLink
-										.filter((g) =>
-											gallerySearch
-												? g.title.toLowerCase().includes(gallerySearch.toLowerCase())
-												: true,
-										)
-										.map((g) => {
-											const checked = selectedGalleryIds.includes(g._id);
-											return (
-												<label
-													key={g._id}
-													className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm"
-												>
-													<input
-														type="checkbox"
-														checked={checked}
-														onChange={() => {
-															setSelectedGalleryIds((prev) =>
-																checked
-																	? prev.filter((i) => i !== g._id)
-																	: [...prev, g._id],
-															);
-														}}
-														className="rounded"
-													/>
-													<span className="flex-1 truncate">{g.title}</span>
-													{g.published === false && (
-														<span className="text-xs text-muted-foreground">draf</span>
-													)}
-												</label>
-											);
-										})}
-									{libraryForLink.length === 0 && (
-										<p className="text-center text-sm text-muted-foreground py-4">
-											Tidak ada galeri atau memuat…
+									<div className="space-y-2 rounded-lg border border-border/80 p-3 bg-background/50">
+										<div className="flex items-center justify-between gap-2">
+											<div className="flex items-center gap-2 min-w-0">
+												<FileText className="h-4 w-4 text-primary shrink-0" />
+												<span className="text-sm font-medium">Berita</span>
+											</div>
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="shrink-0"
+												onClick={() => {
+													setBeritaSearch('');
+													setShowAttachBeritaDialog(true);
+												}}>
+												<Plus className="h-3.5 w-3.5 mr-1" />
+												Tambah Berita
+											</Button>
+										</div>
+										<p className="text-xs text-muted-foreground">
+											Hanya berita yang sudah terbit.
 										</p>
-									)}
-								</div>
-							</div>
-							<div>
-								<Label className="flex items-center gap-1 mb-2 text-sm font-medium">
-									<FileText className="h-4 w-4" />
-									Berita
-								</Label>
-								<p className="text-xs text-muted-foreground mb-2">
-									Hanya berita yang sudah terbit.
-								</p>
-								<div className="relative mb-2">
-									<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-									<Input
-										className="pl-8 h-8 text-sm"
-										placeholder="Cari judul berita..."
-										value={beritaSearch}
-										onChange={(e) => setBeritaSearch(e.target.value)}
-									/>
-								</div>
-								{selectedBeritaIds.length > 0 && (
-									<div className="flex flex-wrap gap-1 mb-2">
-										{selectedBeritaIds.map((id) => {
-											const art = publishedBerita.find((a) => a._id === id);
-											return art ? (
-												<Badge key={id} variant="secondary" className="text-xs gap-1">
-													{art.title.length > 30 ? art.title.slice(0, 30) + '…' : art.title}
-													<button
-														type="button"
-														className="ml-1 text-muted-foreground hover:text-destructive"
-														onClick={() => setSelectedBeritaIds((prev) => prev.filter((i) => i !== id))}
-													>
-														×
-													</button>
-												</Badge>
-											) : null;
-										})}
+										{selectedBeritaIds.length === 0 ? (
+											<p className="text-xs text-muted-foreground">Belum ada berita terpilih.</p>
+										) : (
+											<div className="flex flex-wrap gap-2">
+												{selectedBeritaIds.map((id) => {
+													const art = publishedBerita.find((a) => a._id === id);
+													return art ? (
+														<Badge
+															key={id}
+															variant="outline"
+															className="text-xs gap-1.5 py-1 px-2 max-w-full">
+															<Link2 className="h-3 w-3 shrink-0" />
+															<span className="truncate max-w-[220px]">{art.title}</span>
+															<button
+																type="button"
+																className="ml-0.5 hover:text-destructive shrink-0"
+																onClick={() =>
+																	setSelectedBeritaIds((prev) =>
+																		prev.filter((i) => i !== id),
+																	)
+																}
+																title="Hapus">
+																<X className="h-3 w-3" />
+															</button>
+														</Badge>
+													) : null;
+												})}
+											</div>
+										)}
 									</div>
-								)}
-								<div className="border rounded-md max-h-40 overflow-y-auto">
-									{publishedBerita
-										.filter((a) =>
-											beritaSearch
-												? a.title.toLowerCase().includes(beritaSearch.toLowerCase())
-												: true
-										)
-										.map((a) => {
-											const checked = selectedBeritaIds.includes(a._id);
-											return (
-												<label
-													key={a._id}
-													className="flex items-center gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm"
-												>
-													<input
-														type="checkbox"
-														checked={checked}
-														onChange={() => {
-															setSelectedBeritaIds((prev) =>
-																checked
-																	? prev.filter((i) => i !== a._id)
-																	: [...prev, a._id]
-															);
-														}}
-														className="rounded"
-													/>
-													<span className="flex-1 truncate">{a.title}</span>
-												</label>
-											);
-										})}
-									{publishedBerita.filter((a) =>
-										beritaSearch
-											? a.title.toLowerCase().includes(beritaSearch.toLowerCase())
-											: true
-									).length === 0 && (
-										<p className="text-center text-sm text-muted-foreground py-4">
-											{beritaSearch ? 'Tidak ada berita yang cocok' : 'Belum ada berita publish'}
-										</p>
-									)}
-								</div>
-							</div>
 								</div>
 							</div>
 						)}
@@ -1324,6 +1282,173 @@ export default function DashboardEvents() {
 							{saveEventMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
 							{editingEvent ? 'Simpan Perubahan' : 'Buat Event'}
 						</Button>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={showAttachGalleryDialog}
+				onOpenChange={(open) => {
+					setShowAttachGalleryDialog(open);
+					if (!open) setGallerySearch('');
+				}}>
+				<DialogContent
+					overlayClassName="z-[100]"
+					className="z-[100] sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Pilih Galeri Terkait</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm text-muted-foreground">
+							Centang galeri yang terhubung ke event ini. Simpan event untuk menerapkan.
+						</p>
+						<div className="relative">
+							<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+							<Input
+								className="pl-8 h-8 text-sm"
+								placeholder="Cari judul galeri..."
+								value={gallerySearch}
+								onChange={(e) => setGallerySearch(e.target.value)}
+							/>
+						</div>
+						<div className="border rounded-md max-h-60 overflow-y-auto overflow-x-hidden pr-2">
+							{libraryForLink
+								.filter((g) =>
+									gallerySearch
+										? g.title.toLowerCase().includes(gallerySearch.toLowerCase())
+										: true,
+								)
+								.map((g) => {
+									const checked = selectedGalleryIds.includes(g._id);
+									return (
+										<label
+											key={g._id}
+											className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm border-b last:border-b-0 overflow-hidden">
+											<input
+												type="checkbox"
+												checked={checked}
+												onChange={() => {
+													setSelectedGalleryIds((prev) =>
+														checked
+															? prev.filter((i) => i !== g._id)
+															: [...prev, g._id],
+													);
+												}}
+												className="rounded mt-1"
+											/>
+											<div className="min-w-0">
+												<span
+													className="block whitespace-normal break-words overflow-hidden"
+													style={{
+														display: '-webkit-box',
+														WebkitLineClamp: 2 as const,
+														WebkitBoxOrient: 'vertical' as const,
+													}}>
+													{g.title}
+												</span>
+												{g.published === false && (
+													<span className="text-xs text-muted-foreground mt-0.5 block">
+														(draf)
+													</span>
+												)}
+											</div>
+										</label>
+									);
+								})}
+							{libraryForLink.length === 0 && (
+								<p className="text-center text-sm text-muted-foreground py-4">
+									Tidak ada galeri atau memuat…
+								</p>
+							)}
+						</div>
+						<div className="flex justify-end pt-2">
+							<Button variant="outline" onClick={() => setShowAttachGalleryDialog(false)}>
+								Selesai
+							</Button>
+						</div>
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={showAttachBeritaDialog}
+				onOpenChange={(open) => {
+					setShowAttachBeritaDialog(open);
+					if (!open) setBeritaSearch('');
+				}}>
+				<DialogContent
+					overlayClassName="z-[100]"
+					className="z-[100] sm:max-w-md">
+					<DialogHeader>
+						<DialogTitle>Pilih Berita Terkait</DialogTitle>
+					</DialogHeader>
+					<div className="space-y-4">
+						<p className="text-sm text-muted-foreground">
+							Hanya berita yang sudah terbit. Centang yang relevan dengan event ini.
+						</p>
+						<div className="relative">
+							<Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+							<Input
+								className="pl-8 h-8 text-sm"
+								placeholder="Cari judul berita..."
+								value={beritaSearch}
+								onChange={(e) => setBeritaSearch(e.target.value)}
+							/>
+						</div>
+						<div className="border rounded-md max-h-60 overflow-y-auto overflow-x-hidden pr-2">
+							{publishedBerita
+								.filter((a) =>
+									beritaSearch
+										? a.title.toLowerCase().includes(beritaSearch.toLowerCase())
+										: true,
+								)
+								.map((a) => {
+									const checked = selectedBeritaIds.includes(a._id);
+									return (
+										<label
+											key={a._id}
+											className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-start gap-2 px-3 py-2 hover:bg-muted/50 cursor-pointer text-sm border-b last:border-b-0 overflow-hidden">
+											<input
+												type="checkbox"
+												checked={checked}
+												onChange={() => {
+													setSelectedBeritaIds((prev) =>
+														checked
+															? prev.filter((i) => i !== a._id)
+															: [...prev, a._id],
+													);
+												}}
+												className="rounded mt-1"
+											/>
+											<div className="min-w-0">
+												<span
+													className="block whitespace-normal break-words overflow-hidden"
+													style={{
+														display: '-webkit-box',
+														WebkitLineClamp: 2 as const,
+														WebkitBoxOrient: 'vertical' as const,
+													}}>
+													{a.title}
+												</span>
+											</div>
+										</label>
+									);
+								})}
+							{publishedBerita.filter((a) =>
+								beritaSearch
+									? a.title.toLowerCase().includes(beritaSearch.toLowerCase())
+									: true,
+							).length === 0 && (
+								<p className="text-center text-sm text-muted-foreground py-4">
+									{beritaSearch ? 'Tidak ada berita yang cocok' : 'Belum ada berita publish'}
+								</p>
+							)}
+						</div>
+						<div className="flex justify-end pt-2">
+							<Button variant="outline" onClick={() => setShowAttachBeritaDialog(false)}>
+								Selesai
+							</Button>
+						</div>
 					</div>
 				</DialogContent>
 			</Dialog>
