@@ -87,6 +87,7 @@ import {
 	RotateCcw,
 	Save,
 	Settings,
+	Globe,
 	Shield,
 	Smartphone,
 	Trash2,
@@ -106,6 +107,7 @@ import {
 	type HomeConfig,
 	type HomeNavbarItem,
 } from '../../../../shared/schema';
+import { DEFAULT_EMBED_HOSTNAMES } from '../../../../shared/embed-default-hosts';
 
 interface SiteSettings {
 	siteName: string;
@@ -185,6 +187,7 @@ export default function SettingsPage() {
 		canViewSettings ? 'general' : canViewHomeConfig ? 'home-config' : 'profile',
 	);
 	const [isResetting, setIsResetting] = useState(false);
+	const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
 
 	// Update activeTab when permissions change or tenant context prevents certain tabs
 	useEffect(() => {
@@ -1417,51 +1420,6 @@ export default function SettingsPage() {
 											default.
 										</p>
 									</div>
-									<h3 className="text-lg font-medium mt-6 mb-3">
-										Domain Embed yang Diizinkan
-									</h3>
-									<p className="text-sm text-muted-foreground mb-2">
-										Tambahkan hostname (tanpa https://) untuk mengizinkan embed iframe di konten berita, event, dan galeri.
-										Domain default (YouTube, Google Drive, dll.) sudah diizinkan.
-									</p>
-									<div className="space-y-2">
-										{(formData.embedAllowedHosts ?? []).map((host, idx) => (
-											<div key={idx} className="flex items-center gap-2">
-												<Input
-													value={host}
-													onChange={(e) => {
-														const next = [...(formData.embedAllowedHosts ?? [])];
-														next[idx] = e.target.value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-														setFormData((p) => ({ ...p, embedAllowedHosts: next }));
-													}}
-													placeholder="contoh: canva.com"
-													disabled={!canEditSettings}
-													className="flex-1"
-												/>
-												<Button
-													type="button"
-													variant="ghost"
-													size="sm"
-													disabled={!canEditSettings}
-													onClick={() => {
-														const next = (formData.embedAllowedHosts ?? []).filter((_, i) => i !== idx);
-														setFormData((p) => ({ ...p, embedAllowedHosts: next }));
-													}}>
-													Hapus
-												</Button>
-											</div>
-										))}
-										<Button
-											type="button"
-											variant="outline"
-											size="sm"
-											disabled={!canEditSettings}
-											onClick={() => {
-												setFormData((p) => ({ ...p, embedAllowedHosts: [...(p.embedAllowedHosts ?? []), ''] }));
-											}}>
-											+ Tambah domain
-										</Button>
-									</div>
 
 									<h3 className="text-lg font-medium mt-6 mb-3">
 										Social Media Links
@@ -1637,6 +1595,131 @@ export default function SettingsPage() {
 										</li>
 									</ul>
 								</DashboardHintCard>
+
+								{/* ── Domain Embed ── */}
+								<Card>
+									<CardHeader>
+										<CardTitle className="flex items-center gap-2">
+											<Globe className="h-5 w-5" />
+											Domain Embed
+										</CardTitle>
+										<CardDescription>
+											Kelola domain yang diizinkan untuk embed iframe di berita, event, dan galeri.
+										</CardDescription>
+									</CardHeader>
+									<CardContent className="space-y-3">
+										<p className="text-sm text-muted-foreground">
+											{(formData.embedAllowedHosts ?? []).filter(Boolean).length === 0
+												? 'Menggunakan domain bawaan saja (YouTube, Google Drive, Maps, Photopea).'
+												: `${(formData.embedAllowedHosts ?? []).filter(Boolean).length} domain tambahan diizinkan selain domain bawaan.`}
+										</p>
+										<Button
+											variant="outline"
+											onClick={() => setEmbedDialogOpen(true)}>
+											<Globe className="h-4 w-4 mr-2" />
+											Kelola domain embed
+										</Button>
+									</CardContent>
+								</Card>
+
+								{/* ── Dialog Domain Embed ── */}
+								<Dialog open={embedDialogOpen} onOpenChange={setEmbedDialogOpen}>
+									<DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto">
+										<DialogHeader>
+											<DialogTitle>Domain Embed yang Diizinkan</DialogTitle>
+										</DialogHeader>
+
+										<div className="space-y-5">
+											{/* Daftar bawaan (read-only) */}
+											<div>
+												<h4 className="text-sm font-semibold mb-1.5">Domain bawaan</h4>
+												<p className="text-xs text-muted-foreground mb-2">
+													Domain ini selalu diizinkan dan tidak bisa dihapus dari sini.
+												</p>
+												<div className="flex flex-wrap gap-1.5">
+													{[...DEFAULT_EMBED_HOSTNAMES].sort().map((h) => (
+														<span
+															key={h}
+															className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+															{h}
+														</span>
+													))}
+												</div>
+											</div>
+
+											{/* Daftar tambahan (editable) */}
+											<div>
+												<h4 className="text-sm font-semibold mb-1.5">Domain tambahan</h4>
+												<p className="text-xs text-muted-foreground mb-2">
+													Hostname (tanpa <code className="bg-muted px-1 rounded">https://</code>) yang ditambahkan akan diizinkan untuk iframe embed dan CSP.
+												</p>
+												<div className="space-y-2">
+													{(formData.embedAllowedHosts ?? []).map((host, idx) => (
+														<div key={idx} className="flex items-center gap-2">
+															<Input
+																value={host}
+																onChange={(e) => {
+																	const next = [...(formData.embedAllowedHosts ?? [])];
+																	next[idx] = e.target.value.trim().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+																	setFormData((p) => ({ ...p, embedAllowedHosts: next }));
+																}}
+																placeholder="contoh: canva.com"
+																disabled={!canEditSettings}
+																className="flex-1 h-8 text-sm"
+															/>
+															<Button
+																type="button"
+																variant="ghost"
+																size="icon"
+																className="h-8 w-8 shrink-0"
+																disabled={!canEditSettings}
+																onClick={() => {
+																	const next = (formData.embedAllowedHosts ?? []).filter((_, i) => i !== idx);
+																	setFormData((p) => ({ ...p, embedAllowedHosts: next }));
+																}}>
+																<X className="h-4 w-4" />
+															</Button>
+														</div>
+													))}
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														disabled={!canEditSettings}
+														onClick={() => {
+															setFormData((p) => ({ ...p, embedAllowedHosts: [...(p.embedAllowedHosts ?? []), ''] }));
+														}}>
+														<Plus className="h-4 w-4 mr-1" />
+														Tambah domain
+													</Button>
+												</div>
+											</div>
+										</div>
+
+										<DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												disabled={!canEditSettings || (formData.embedAllowedHosts ?? []).length === 0}
+												onClick={() => {
+													if (window.confirm('Reset domain tambahan ke kosong? Hanya domain bawaan yang akan diizinkan.')) {
+														setFormData((p) => ({ ...p, embedAllowedHosts: [] }));
+													}
+												}}>
+												<RotateCcw className="h-4 w-4 mr-1" />
+												Reset ke default
+											</Button>
+											<Button
+												variant="secondary"
+												size="sm"
+												onClick={() => setEmbedDialogOpen(false)}>
+												Tutup
+											</Button>
+										</DialogFooter>
+									</DialogContent>
+								</Dialog>
+
 								{!isTenant && (
 									<Card>
 										<CardHeader>

@@ -379,11 +379,11 @@ function appendSettingsTabHints(
 		appearance:
 			'Tab Appearance: tema/warna/tampilan situs sesuai form; simpan perubahan; butuh settings.edit.',
 		contact:
-			'Tab Contact: kontak/email/telepon/alamat untuk situs; simpan; butuh settings.edit.',
+			'Tab Contact: kontak/email/telepon/alamat dan sosial media untuk situs; simpan; butuh settings.edit.',
 		links:
 			'Tab Links: tautan sosial/media; simpan; butuh settings.edit.',
 		security:
-			'Tab Security: pengaturan keamanan (mis. sandi/API jika ada); hati-hati mengubah; biasanya owner.',
+			'Tab Security: pengaturan keamanan (sandi, sesi, registrasi publik, backup). Di sini juga ada pengaturan Domain Embed: kelola domain tambahan yang diizinkan untuk iframe/CSP selain domain bawaan (YouTube, Google Drive, Maps, Photopea); buka dialog lewat tombol "Kelola domain embed"; perubahan disimpan bersama Save pengaturan situs.',
 		'home-images':
 			'Tab Home Images: gambar hero/beranda; unggah/sesuai petunjuk di halaman; simpan.',
 		'home-config':

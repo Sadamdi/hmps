@@ -1,5 +1,6 @@
 import { parseYouTubeVideoId, getYouTubeEmbedSrc } from '@/lib/youtube-embed';
 import { detectMediaSource } from '@shared/mediaUtils';
+import { getDefaultEmbedHostSet } from '@shared/embed-default-hosts';
 import { formatContentForDisplay } from '@/utils/formatContent';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, ShieldAlert } from 'lucide-react';
@@ -12,18 +13,7 @@ type Segment =
 	| { kind: 'drivefolder'; url: string }
 	| { kind: 'external'; url: string; host: string };
 
-const DEFAULT_EMBED_HOSTS = new Set([
-	'www.youtube.com',
-	'youtube.com',
-	'youtu.be',
-	'www.youtube-nocookie.com',
-	'drive.google.com',
-	'docs.google.com',
-	'www.google.com',
-	'maps.google.com',
-	'www.photopea.com',
-	'photopea.com',
-]);
+const DEFAULT_EMBED_HOSTS = getDefaultEmbedHostSet();
 
 const EMBEDDABLE_URL_RE =
 	/https?:\/\/[^\s<"'`)}\]]+/gi;
