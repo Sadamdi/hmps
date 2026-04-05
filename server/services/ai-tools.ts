@@ -664,7 +664,7 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 	{
 		name: 'link_berita_to_event',
 		description:
-			'Hubungkan berita yang sudah ada ke event yang sudah ada: menambahkan berita ke relatedBerita event (sama seperti Dashboard attach). Opsional menyalin gambar cover berita ke lampiran event.',
+			'Hubungkan berita yang sudah ada ke event yang sudah ada (dalam konteks situs aktif: utama atau komunitas): menambahkan berita ke relatedBerita event (sama seperti Dashboard attach). Opsional menyalin gambar cover berita ke lampiran event.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -700,7 +700,7 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 	{
 		name: 'copy_berita_to_event',
 		description:
-			'Buat event baru dari berita (salin judul, konten, gambar; parsing tanggal dari konten jika ada). Opsi tahun, parentEventId untuk sub-event, dan copyAttachments. Otomatis mengaitkan berita ke event baru.',
+			'Buat event baru dari berita dalam konteks situs aktif (salin judul, konten, gambar; parsing tanggal dari konten jika ada). Opsi tahun, parentEventId untuk sub-event, dan copyAttachments. Otomatis mengaitkan berita ke event baru.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -721,7 +721,7 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 	{
 		name: 'copy_event_to_berita',
 		description:
-			'Buat berita draft baru dari event (judul, ringkasan, konten dengan header tanggal; opsi salin lampiran sebagai tautan). Mengaitkan berita ke event (relatedBerita + sourceEventId).',
+			'Buat berita draft baru dari event dalam konteks situs aktif (judul, ringkasan, konten dengan header tanggal; opsi salin lampiran sebagai tautan). Mengaitkan berita ke event (relatedBerita + sourceEventId).',
 		parameters: {
 			type: 'object',
 			properties: {

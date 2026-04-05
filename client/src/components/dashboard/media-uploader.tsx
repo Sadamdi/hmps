@@ -479,7 +479,10 @@ export default function MediaUploader({
 						<div className="flex items-center justify-between gap-2">
 							<div className="flex items-center gap-2 min-w-0">
 								<CalendarDays className="h-4 w-4 text-primary shrink-0" />
-								<Label className="text-sm font-medium">Event terkait</Label>
+								<div className="min-w-0">
+									<Label className="text-sm font-medium">Event terkait</Label>
+									<p className="text-[11px] text-muted-foreground leading-tight">Relasi dua arah. Di komunitas, hanya data komunitas ini.</p>
+								</div>
 							</div>
 							<Button
 								type="button"
@@ -528,7 +531,10 @@ export default function MediaUploader({
 						<div className="flex items-center justify-between gap-2">
 							<div className="flex items-center gap-2 min-w-0">
 								<FileText className="h-4 w-4 text-primary shrink-0" />
-								<Label className="text-sm font-medium">Berita terkait</Label>
+								<div className="min-w-0">
+									<Label className="text-sm font-medium">Berita terkait</Label>
+									<p className="text-[11px] text-muted-foreground leading-tight">Relasi dua arah. Di komunitas, hanya data komunitas ini.</p>
+								</div>
 							</div>
 							<Button
 								type="button"

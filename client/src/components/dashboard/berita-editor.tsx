@@ -883,9 +883,12 @@ export default function BeritaEditor({
 	{beritaId && (
 		<div className="border rounded-lg p-4 space-y-3">
 			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-2">
-					<CalendarDays className="h-4 w-4 text-primary" />
-					<h3 className="font-medium text-sm">Event Terkait</h3>
+				<div className="flex items-center gap-2 min-w-0">
+					<CalendarDays className="h-4 w-4 text-primary shrink-0" />
+					<div className="min-w-0">
+						<h3 className="font-medium text-sm">Event Terkait</h3>
+						<p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Relasi dua arah — perubahan di sini juga terlihat di detail event. Di komunitas, hanya berlaku untuk data komunitas tersebut.</p>
+					</div>
 				</div>
 				<div className="flex items-center gap-2">
 					<Button
@@ -940,7 +943,10 @@ export default function BeritaEditor({
 			<div className="flex items-center justify-between gap-2">
 				<div className="flex items-center gap-2 min-w-0">
 					<Image className="h-4 w-4 text-primary shrink-0" />
-					<h3 className="font-medium text-sm">Galeri Terkait</h3>
+					<div className="min-w-0">
+						<h3 className="font-medium text-sm">Galeri Terkait</h3>
+						<p className="text-[11px] text-muted-foreground leading-tight mt-0.5">Hubungkan dokumentasi foto/video. Relasi tersimpan dua arah dengan galeri.</p>
+					</div>
 				</div>
 				<Button
 					type="button"

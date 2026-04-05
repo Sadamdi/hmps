@@ -521,8 +521,9 @@ async function enrichBeritaListRelations(items: any[], req: Request): Promise<vo
 	if (!items?.length) return;
 	try {
 		const m = resolveModels(req);
+		const safeItems = items.filter(Boolean);
 		const allGalleryIds = new Set<string>();
-		for (const it of items) {
+		for (const it of safeItems) {
 			const gids = it?.relatedGalleryIds;
 			if (Array.isArray(gids)) {
 				for (const g of gids) {
@@ -547,7 +548,7 @@ async function enrichBeritaListRelations(items: any[], req: Request): Promise<vo
 		}
 
 		const beritaIdSet = new Set(
-			items.map((it) => String(it._id || it.id)).filter(Boolean),
+			safeItems.map((it) => String(it._id || it.id)).filter(Boolean),
 		);
 		const beritaIds = Array.from(beritaIdSet);
 		const eventsByBerita = new Map<string, { _id: string; title: string; year?: number }[]>();
@@ -562,7 +563,7 @@ async function enrichBeritaListRelations(items: any[], req: Request): Promise<vo
 			for (const ev of events || []) {
 				const rb = (ev as any).relatedBerita || [];
 				const bidList = Array.isArray(rb)
-					? rb.map((x: any) => String(x._id ?? x))
+					? rb.filter((x: any) => x != null).map((x: any) => String(x._id ?? x))
 					: [];
 				const year =
 					(ev as any).yearId && typeof (ev as any).yearId === 'object'
@@ -581,7 +582,7 @@ async function enrichBeritaListRelations(items: any[], req: Request): Promise<vo
 			}
 		}
 
-		for (const it of items) {
+		for (const it of safeItems) {
 			const id = String(it._id || it.id);
 			const gids = (it.relatedGalleryIds || []) as unknown[];
 			it.relatedGalleryPreview = gids
@@ -592,6 +593,7 @@ async function enrichBeritaListRelations(items: any[], req: Request): Promise<vo
 	} catch (e) {
 		console.warn('enrichBeritaListRelations:', e);
 		for (const it of items) {
+			if (!it) continue;
 			it.relatedGalleryPreview = [];
 			it.linkedEventsPreview = [];
 		}

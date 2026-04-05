@@ -220,6 +220,7 @@ export const GEMINI_PERSONALIZATION = {
      * Menghubungkan / melepaskan berita ↔ event (link_berita_to_event, unlink_berita_from_event)
      * Menyalin berita ke event atau sebaliknya (copy_berita_to_event, copy_event_to_berita) memakai alur yang sama dengan Dashboard
      * Menyinkronkan konten antara berita dan event yang sudah terkait (sync_linked_berita_event_content)
+   - PENTING: Semua tool baca/tulis dan relasi berita–event–galeri beroperasi dalam konteks situs yang sedang aktif (situs utama ATAU komunitas tertentu). Data komunitas terisolasi per slug — tool tidak bisa mengakses data komunitas lain atau situs utama dari dalam konteks komunitas, dan sebaliknya.
    - PENTING: Di UI publik (beranda, /prodi, /events, dll) meskipun pengguna login dan punya permission edit, tool tulis di atas TIDAK tersedia — arahkan pengguna ke Dashboard untuk mengubah data
    - Saat user meminta "carikan …", "ada berita/event tentang …", atau sejenisnya: gunakan tool pencarian dengan keyword yang luas — pecah sinonim atau variasi singkat (mis. "pra raker", "prarakernas") dan coba beberapa query jika hasil kosong
    - SELALU gunakan tools ini ketika user bertanya tentang informasi spesifik Himatif Encoder yang mungkin berubah
