@@ -35,6 +35,7 @@ import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { getDivisionFromPosition } from '@/lib/org-structure-division';
 import { apiRequest } from '@/lib/queryClient';
+import { useTenant } from '@/lib/tenant-context';
 import {
 	closestCenter,
 	DndContext,
@@ -232,6 +233,8 @@ function DivisionEditor({
 	onSaved: (id: string, data: any) => void;
 	availablePositions: string[];
 }) {
+	const { slug, isTenant } = useTenant();
+	const scope = isTenant && slug ? slug : 'main';
 	const [formData, setFormData] = useState({
 		displayName: '',
 		description: '',
@@ -268,13 +271,13 @@ function DivisionEditor({
 		if (newPosition.trim() && !formData.positions.includes(newPosition.trim())) {
 			setFormData((prev) => ({ ...prev, positions: [...prev.positions, newPosition.trim()] }));
 			setNewPosition('');
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
 		}
 	};
 
 	const handleRemovePosition = (pos: string) => {
 		setFormData((prev) => ({ ...prev, positions: prev.positions.filter((p) => p !== pos) }));
-		queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+		queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
 	};
 
 	const handleDragEnd = (event: DragEndEvent) => {
@@ -336,7 +339,7 @@ function DivisionEditor({
 						</div>
 					</div>
 					<div>
-						<Label>Positions</Label>
+						<Label>Nama jabatan (divisi)</Label>
 						<div className="space-y-2">
 							<div className="flex gap-2">
 								<Select value={newPosition} onValueChange={setNewPosition}>
@@ -429,11 +432,16 @@ export default function OrganizationStructureEditor() {
 	>('upload');
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
+	const { slug, isTenant } = useTenant();
+	const scope = isTenant && slug ? slug : 'main';
 
 	const { data: membersData, isLoading: isMembersLoading } = useQuery({
-		queryKey: ['/api/organization/members', selectedPeriod],
+		queryKey: [scope, '/api/organization/members', selectedPeriod],
 		queryFn: async () => {
-			const response = await fetch(`/api/organization/members?period=${selectedPeriod}`);
+			const response = await apiRequest(
+				'GET',
+				`/api/organization/members?period=${encodeURIComponent(selectedPeriod)}`,
+			);
 			return response.json();
 		},
 		placeholderData: [],
@@ -443,9 +451,9 @@ export default function OrganizationStructureEditor() {
 	const members = Array.isArray(membersData) ? membersData : [];
 
 	const { data: periods = [], isLoading: isPeriodsLoading } = useQuery({
-		queryKey: ['/api/organization/periods'],
+		queryKey: [scope, '/api/organization/periods'],
 		queryFn: async () => {
-			const response = await fetch('/api/organization/periods');
+			const response = await apiRequest('GET', '/api/organization/periods');
 			return response.json();
 		},
 		placeholderData: ['2023-2024'],
@@ -495,10 +503,13 @@ export default function OrganizationStructureEditor() {
 	});
 
 	const { data: positionData = [], isLoading: isPositionsLoading } = useQuery({
-		queryKey: ['/api/organization/positions', selectedPeriod],
+		queryKey: [scope, '/api/organization/positions', selectedPeriod],
 		queryFn: async () => {
 			if (!selectedPeriod) return [];
-			const response = await fetch(`/api/organization/positions/${selectedPeriod}`);
+			const response = await apiRequest(
+				'GET',
+				`/api/organization/positions/${encodeURIComponent(selectedPeriod)}`,
+			);
 			return response.json();
 		},
 		enabled: !!selectedPeriod,
@@ -506,18 +517,18 @@ export default function OrganizationStructureEditor() {
 	});
 
 	const { data: divisions = [], isLoading: isDivisionsLoading } = useQuery({
-		queryKey: ['/api/divisions'],
+		queryKey: [scope, '/api/divisions'],
 		queryFn: async () => {
-			const response = await fetch('/api/divisions');
+			const response = await apiRequest('GET', '/api/divisions');
 			return response.json();
 		},
 		placeholderData: [],
 	});
 
 	const { data: availablePositions = [] } = useQuery({
-		queryKey: ['/api/divisions/available-positions'],
+		queryKey: [scope, '/api/divisions/available-positions'],
 		queryFn: async () => {
-			const response = await fetch('/api/divisions/available-positions');
+			const response = await apiRequest('GET', '/api/divisions/available-positions');
 			return response.json();
 		},
 		placeholderData: [],
@@ -531,11 +542,11 @@ export default function OrganizationStructureEditor() {
 
 	const invalidateAfterAutoFill = () => {
 		queryClient.invalidateQueries({
-			queryKey: ['/api/organization/members', selectedPeriod],
+			queryKey: [scope, '/api/organization/members', selectedPeriod],
 		});
-		queryClient.invalidateQueries({ queryKey: ['/api/organization/members'] });
+		queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/members'] });
 		queryClient.invalidateQueries({
-			queryKey: ['/api/organization/positions', selectedPeriod],
+			queryKey: [scope, '/api/organization/positions', selectedPeriod],
 		});
 	};
 
@@ -639,17 +650,17 @@ export default function OrganizationStructureEditor() {
 		mutationFn: async (memberId: string | number) =>
 			apiRequest('DELETE', `/api/organization/members/${memberId}`),
 		onMutate: async (memberId) => {
-			await queryClient.cancelQueries({ queryKey: ['/api/organization/members', selectedPeriod] });
-			const prev = queryClient.getQueryData<OrgMember[]>(['/api/organization/members', selectedPeriod]);
+			await queryClient.cancelQueries({ queryKey: [scope, '/api/organization/members', selectedPeriod] });
+			const prev = queryClient.getQueryData<OrgMember[]>([scope, '/api/organization/members', selectedPeriod]);
 			queryClient.setQueryData<OrgMember[]>(
-				['/api/organization/members', selectedPeriod],
+				[scope, '/api/organization/members', selectedPeriod],
 				(old) => (old ?? []).filter((m) => ((m as any)._id || m.id) !== memberId),
 			);
 			return { prev };
 		},
 		onSuccess: async (_, memberId) => {
 			const deletedMember = members.find((m) => ((m as any)._id || m.id) === memberId);
-			queryClient.invalidateQueries({ queryKey: ['/api/organization/members'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/members'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 			if (deletedMember) {
 				try {
@@ -660,7 +671,7 @@ export default function OrganizationStructureEditor() {
 			toast({ title: 'Success', description: 'Organization member deleted successfully' });
 		},
 		onError: (_err, _id, ctx) => {
-			if (ctx?.prev) queryClient.setQueryData(['/api/organization/members', selectedPeriod], ctx.prev);
+			if (ctx?.prev) queryClient.setQueryData([scope, '/api/organization/members', selectedPeriod], ctx.prev);
 			toast({ title: 'Error', description: 'Failed to delete organization member', variant: 'destructive' });
 		},
 	});
@@ -669,24 +680,24 @@ export default function OrganizationStructureEditor() {
 		mutationFn: async (period: string) =>
 			apiRequest('DELETE', `/api/organization/periods/${encodeURIComponent(period)}`),
 		onMutate: async (period) => {
-			await queryClient.cancelQueries({ queryKey: ['/api/organization/periods'] });
-			const prev = queryClient.getQueryData<string[]>(['/api/organization/periods']);
+			await queryClient.cancelQueries({ queryKey: [scope, '/api/organization/periods'] });
+			const prev = queryClient.getQueryData<string[]>([scope, '/api/organization/periods']);
 			queryClient.setQueryData<string[]>(
-				['/api/organization/periods'],
+				[scope, '/api/organization/periods'],
 				(old) => (old ?? []).filter((p) => p !== period),
 			);
 			return { prev };
 		},
 		onSuccess: async (_, period) => {
-			queryClient.invalidateQueries({ queryKey: ['/api/organization/periods'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/organization/members'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/periods'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/members'] });
 			try {
 				await logActivity(ActivityTemplates.organizationPeriodDeleted(period));
 			} catch {}
 			toast({ title: 'Period Deleted', description: `Period "${period}" has been deleted successfully` });
 		},
 		onError: (_err, _period, ctx) => {
-			if (ctx?.prev) queryClient.setQueryData(['/api/organization/periods'], ctx.prev);
+			if (ctx?.prev) queryClient.setQueryData([scope, '/api/organization/periods'], ctx.prev);
 			toast({ title: 'Error', description: 'Failed to delete period', variant: 'destructive' });
 		},
 	});
@@ -695,8 +706,8 @@ export default function OrganizationStructureEditor() {
 		mutationFn: async ({ period, positions }: { period: string; positions: { name: string; order: number }[] }) =>
 			apiRequest('POST', '/api/organization/positions', { period, positions }),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['/api/organization/positions', selectedPeriod] });
-			queryClient.invalidateQueries({ queryKey: ['/api/organization/positions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/positions', selectedPeriod] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/positions'] });
 			toast({ title: 'Success', description: 'Positions updated successfully' });
 		},
 		onError: () => toast({ title: 'Error', description: 'Failed to update positions', variant: 'destructive' }),
@@ -706,7 +717,7 @@ export default function OrganizationStructureEditor() {
 		mutationFn: async ({ sourcePeriod, targetPeriod }: { sourcePeriod: string; targetPeriod: string }) =>
 			apiRequest('POST', '/api/organization/positions/copy', { sourcePeriod, targetPeriod }),
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['/api/organization/positions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/positions'] });
 			toast({ title: 'Success', description: 'Positions copied successfully' });
 		},
 		onError: () => toast({ title: 'Error', description: 'Failed to copy positions', variant: 'destructive' }),
@@ -718,9 +729,9 @@ export default function OrganizationStructureEditor() {
 			return res.json();
 		},
 		onSuccess: (newDiv) => {
-			queryClient.setQueryData<any[]>(['/api/divisions'], (old) => [...(old ?? []), newDiv]);
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			queryClient.setQueryData<any[]>([scope, '/api/divisions'], (old) => [...(old ?? []), newDiv]);
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images/active'] });
 			toast({ title: 'Success', description: 'Division created successfully' });
@@ -734,11 +745,11 @@ export default function OrganizationStructureEditor() {
 			return res.json();
 		},
 		onSuccess: (updated) => {
-			queryClient.setQueryData<any[]>(['/api/divisions'], (old) =>
+			queryClient.setQueryData<any[]>([scope, '/api/divisions'], (old) =>
 				(old ?? []).map((d) => (d._id === updated._id ? updated : d)),
 			);
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images/active'] });
 			toast({ title: 'Success', description: 'Division updated successfully' });
@@ -749,23 +760,23 @@ export default function OrganizationStructureEditor() {
 	const deleteDivisionMutation = useMutation({
 		mutationFn: async (id: string) => apiRequest('DELETE', `/api/divisions/${id}`),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: ['/api/divisions'] });
-			const prev = queryClient.getQueryData<any[]>(['/api/divisions']);
+			await queryClient.cancelQueries({ queryKey: [scope, '/api/divisions'] });
+			const prev = queryClient.getQueryData<any[]>([scope, '/api/divisions']);
 			queryClient.setQueryData<any[]>(
-				['/api/divisions'],
+				[scope, '/api/divisions'],
 				(old) => (old ?? []).filter((d) => d._id !== id),
 			);
 			return { prev };
 		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images/active'] });
 			toast({ title: 'Success', description: 'Division deleted successfully' });
 		},
 		onError: (_err, _id, ctx) => {
-			if (ctx?.prev) queryClient.setQueryData(['/api/divisions'], ctx.prev);
+			if (ctx?.prev) queryClient.setQueryData([scope, '/api/divisions'], ctx.prev);
 			toast({ title: 'Error', description: 'Failed to delete division', variant: 'destructive' });
 		},
 	});
@@ -774,8 +785,8 @@ export default function OrganizationStructureEditor() {
 	const closeEditor = () => { setIsEditorOpen(false); setEditingMember(null); };
 
 	const handleMemberSaved = () => {
-		queryClient.invalidateQueries({ queryKey: ['/api/organization/members'] });
-		queryClient.invalidateQueries({ queryKey: ['/api/organization/periods'] });
+		queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/members'] });
+		queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/periods'] });
 		queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 		closeEditor();
 		toast({ title: 'Success', description: `Organization member ${editingMember ? 'updated' : 'created'} successfully` });
@@ -833,7 +844,7 @@ export default function OrganizationStructureEditor() {
 			if (oldIndex !== -1 && newIndex !== -1) {
 				const newPositions = arrayMove(positions, oldIndex, newIndex);
 				newPositions.forEach((pos: Position, index: number) => { pos.order = index + 1; });
-				queryClient.setQueryData(['/api/organization/positions', selectedPeriod], newPositions);
+				queryClient.setQueryData([scope, '/api/organization/positions', selectedPeriod], newPositions);
 				updatePositionsMutation.mutate({ period: selectedPeriod, positions: newPositions });
 			}
 		}

@@ -1,6 +1,8 @@
 import MediaDisplay from '@/components/MediaDisplay';
 import { SimpleSelect } from '@/components/public/SimpleSelect';
 import { getDivisionFromPosition } from '@/lib/org-structure-division';
+import { apiRequest } from '@/lib/queryClient';
+import { useTenant } from '@/lib/tenant-context';
 import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
@@ -56,6 +58,7 @@ const MemberNode = ({ data }: { data: { member: OrgMember } }) => {
 			</div>
 			<div className="text-center">
 				<h3 className="font-bold text-base">{member.name}</h3>
+				<p className="text-muted-foreground text-[11px] mt-1">Nama jabatan</p>
 				<p className="text-primary font-medium text-sm">{member.position}</p>
 			</div>
 		</div>
@@ -189,6 +192,8 @@ const sortMembersByPosition = (
 };
 
 export default function Structure() {
+	const { slug, isTenant } = useTenant();
+	const scope = isTenant && slug ? slug : 'main';
 	const [currentPeriod, setCurrentPeriod] = useState<string>('');
 	const [activeView, setActiveView] = useState<string>('flow');
 	const [selectedDivision, setSelectedDivision] = useState<string>('all');
@@ -245,23 +250,14 @@ export default function Structure() {
 		isLoading: membersLoading,
 		error: membersError,
 	} = useQuery({
-		queryKey: ['/api/organization/members', currentPeriod || '2025-2026'],
+		queryKey: [scope, '/api/organization/members', currentPeriod || '2025-2026'],
 		queryFn: async () => {
 			const period = currentPeriod || '2025-2026'; // Use currentPeriod or fallback
-			try {
-				const response = await fetch(
-					`/api/organization/members?period=${period}`,
-				);
-
-				if (!response.ok) {
-					throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-				}
-
-				const data = await response.json();
-				return data;
-			} catch (error) {
-				throw error;
-			}
+			const response = await apiRequest(
+				'GET',
+				`/api/organization/members?period=${encodeURIComponent(period)}`,
+			);
+			return response.json();
 		},
 		placeholderData: (previousData) => previousData ?? [],
 		// Keep previous data when period changes so diagram never flashes empty
@@ -272,25 +268,24 @@ export default function Structure() {
 
 	// Fetch organization periods
 	const { data: periods = [], isLoading: periodsLoading } = useQuery({
-		queryKey: ['/api/organization/periods'],
+		queryKey: [scope, '/api/organization/periods'],
 		queryFn: async () => {
-			const response = await fetch('/api/organization/periods');
-			const data = await response.json();
-			return data;
+			const response = await apiRequest('GET', '/api/organization/periods');
+			return response.json();
 		},
 		placeholderData: [],
 	});
 
 	// Fetch positions for sorting
 	const { data: positionsData = [], isLoading: positionsLoading } = useQuery({
-		queryKey: ['/api/organization/positions', currentPeriod],
+		queryKey: [scope, '/api/organization/positions', currentPeriod],
 		queryFn: async () => {
 			if (!currentPeriod) return [];
-			const response = await fetch(
-				`/api/organization/positions/${currentPeriod}`,
+			const response = await apiRequest(
+				'GET',
+				`/api/organization/positions/${encodeURIComponent(currentPeriod)}`,
 			);
-			const data = await response.json();
-			return data;
+			return response.json();
 		},
 		enabled: !!currentPeriod,
 		placeholderData: [],

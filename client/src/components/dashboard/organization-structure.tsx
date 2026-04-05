@@ -2,6 +2,7 @@ import MediaDisplay from '@/components/MediaDisplay';
 import { Card } from '@/components/ui/card';
 import { getDivisionFromPosition } from '@/lib/org-structure-division';
 import { apiRequest } from '@/lib/queryClient';
+import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import { User } from 'lucide-react';
 
@@ -29,11 +30,14 @@ const DIVISION_ORDER = [
 ];
 
 export default function OrganizationStructure() {
+	const { slug, isTenant } = useTenant();
+	const scope = isTenant && slug ? slug : 'main';
 	const { data: members = [], isLoading } = useQuery({
-		queryKey: ['/api/organization/members'],
+		queryKey: [scope, '/api/organization/members'],
 		queryFn: async () => {
-			const response = await apiRequest('GET', '/api/organization/members');
-			return Array.isArray(response) ? response : [];
+			const res = await apiRequest('GET', '/api/organization/members');
+			const data = await res.json();
+			return Array.isArray(data) ? data : [];
 		},
 	});
 

@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { getCroppedImg } from '@/lib/cropImage';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { useTenant } from '@/lib/tenant-context';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, User } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -47,6 +48,8 @@ export default function OrganizationEditor({
 	member,
 	onSaved,
 }: OrganizationEditorProps) {
+	const { slug, isTenant } = useTenant();
+	const scope = isTenant && slug ? slug : 'main';
 	const { toast } = useToast();
 	const [name, setName] = useState(member?.name || '');
 	const [position, setPosition] = useState(member?.position || '');
@@ -101,12 +104,14 @@ export default function OrganizationEditor({
 
 	// Query positions for the selected period
 	const { data: positions = [], isLoading: isPositionsLoading } = useQuery({
-		queryKey: ['/api/organization/positions', period],
+		queryKey: [scope, '/api/organization/positions', period],
 		queryFn: async () => {
 			if (!period) return [];
-			const response = await fetch(`/api/organization/positions/${period}`);
-			const data = await response.json();
-			return data;
+			const response = await apiRequest(
+				'GET',
+				`/api/organization/positions/${encodeURIComponent(period)}`,
+			);
+			return response.json();
 		},
 		enabled: !!period,
 		placeholderData: [],
@@ -147,7 +152,11 @@ export default function OrganizationEditor({
 
 	// Fetch available periods from API
 	const { data: periods = [], isLoading: isPeriodsLoading } = useQuery({
-		queryKey: ['/api/organization/periods'],
+		queryKey: [scope, '/api/organization/periods'],
+		queryFn: async () => {
+			const res = await apiRequest('GET', '/api/organization/periods');
+			return res.json();
+		},
 		placeholderData: [period],
 	});
 
@@ -165,7 +174,7 @@ export default function OrganizationEditor({
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({
-				queryKey: ['/api/organization/periods'],
+				queryKey: [scope, '/api/organization/periods'],
 			});
 		},
 		onError: (error: any) => {
@@ -192,10 +201,10 @@ export default function OrganizationEditor({
 		},
 		onSuccess: async (data) => {
 			queryClient.invalidateQueries({
-				queryKey: ['/api/organization/members'],
+				queryKey: [scope, '/api/organization/members'],
 			});
 			queryClient.invalidateQueries({
-				queryKey: ['/api/organization/periods'],
+				queryKey: [scope, '/api/organization/periods'],
 			});
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 
@@ -250,7 +259,7 @@ export default function OrganizationEditor({
 		if (!position) {
 			toast({
 				title: 'Error',
-				description: 'Please select a position',
+				description: 'Pilih nama jabatan',
 				variant: 'destructive',
 			});
 			return;
@@ -259,7 +268,7 @@ export default function OrganizationEditor({
 		if (!period) {
 			toast({
 				title: 'Error',
-				description: 'Please select a period',
+				description: 'Pilih periode kepengurusan',
 				variant: 'destructive',
 			});
 			return;
@@ -403,105 +412,8 @@ export default function OrganizationEditor({
 						</p>
 					</DialogHeader>
 					<div className="space-y-4">
-						<div className="flex justify-center mb-4">
-							<div
-								onClick={() => fileInputRef.current?.click()}
-								className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-gray-300 cursor-pointer hover:border-gray-400 flex items-center justify-center bg-gray-50">
-								{imagePreview ? (
-									<MediaDisplay
-										src={imagePreview}
-										alt="Profile Preview"
-										className="w-full h-full object-cover"
-										type="image"
-									/>
-								) : (
-									<User className="h-12 w-12 text-gray-400" />
-								)}
-								<div className="absolute bottom-0 inset-x-0 bg-black bg-opacity-50 text-white text-xs text-center py-1">
-									{imagePreview ? 'Change' : 'Upload'}
-								</div>
-							</div>
-							<input
-								ref={fileInputRef}
-								type="file"
-								accept="image/*"
-								className="hidden"
-								onChange={handleFileChange}
-							/>
-						</div>
-
-						{/* Toggle sumber gambar */}
 						<div className="space-y-2">
-							<Label>Sumber Foto</Label>
-							<div className="flex gap-2">
-								<button
-									type="button"
-									className={`px-3 py-1 rounded border ${
-										!useGdrive
-											? 'bg-primary text-white border-primary'
-											: 'border-gray-300'
-									}`}
-									onClick={() => setUseGdrive(false)}>
-									Upload File
-								</button>
-								<button
-									type="button"
-									className={`px-3 py-1 rounded border ${
-										useGdrive
-											? 'bg-primary text-white border-primary'
-											: 'border-gray-300'
-									}`}
-									onClick={() => setUseGdrive(true)}>
-									Google Drive Link
-								</button>
-							</div>
-						</div>
-
-						{/* Input Link GDrive (single) */}
-						{useGdrive && (
-							<div className="space-y-2">
-								<GDriveLinkInput
-									label="Google Drive Link (foto tunggal)"
-									value={gdriveUrl}
-									onChange={(val) => setGdriveUrl(val)}
-									onValidation={(ok) => setIsGdriveValid(!!ok)}
-									mediaType="image"
-								/>
-							</div>
-						)}
-
-						<div className="space-y-2">
-							<Label htmlFor="name">Full Name</Label>
-							<Input
-								id="name"
-								placeholder="Enter full name"
-								value={name}
-								onChange={(e) => setName(e.target.value)}
-							/>
-						</div>
-
-						<div className="space-y-2">
-							<Label htmlFor="position">Position</Label>
-							<Select
-								value={position}
-								onValueChange={setPosition}>
-								<SelectTrigger id="position">
-									<SelectValue placeholder="Select position" />
-								</SelectTrigger>
-								<SelectContent>
-									{availablePositions.map((pos: string) => (
-										<SelectItem
-											key={pos}
-											value={pos}>
-											{pos}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-
-						<div className="space-y-2">
-							<Label htmlFor="period">Period</Label>
+							<Label htmlFor="period">Periode kepengurusan</Label>
 							{!isAddingPeriod ? (
 								<div className="flex gap-2">
 									<div className="flex-1">
@@ -509,7 +421,7 @@ export default function OrganizationEditor({
 											value={period}
 											onValueChange={setPeriod}>
 											<SelectTrigger id="period">
-												<SelectValue placeholder="Select period" />
+												<SelectValue placeholder="Pilih periode" />
 											</SelectTrigger>
 											<SelectContent>
 												{sortedPeriods.map((p: string) => (
@@ -526,14 +438,16 @@ export default function OrganizationEditor({
 										type="button"
 										variant="outline"
 										size="icon"
+										title="Tambah periode"
 										onClick={() => setIsAddingPeriod(true)}>
 										<Plus className="h-4 w-4" />
 									</Button>
 								</div>
 							) : (
-								<div className="flex gap-2">
+								<div className="flex flex-wrap gap-2">
 									<Input
-										placeholder="YYYY-YYYY (e.g. 2023-2024)"
+										className="min-w-[10rem] flex-1"
+										placeholder="YYYY-YYYY (contoh 2023-2024)"
 										value={newPeriod}
 										onChange={(e) => setNewPeriod(e.target.value)}
 									/>
@@ -547,24 +461,24 @@ export default function OrganizationEditor({
 													setPeriod(newPeriod);
 													setIsAddingPeriod(false);
 													toast({
-														title: 'New Period Added',
-														description: `Period ${newPeriod} has been created and selected.`,
+														title: 'Periode ditambahkan',
+														description: `Periode ${newPeriod} dibuat dan dipilih.`,
 													});
 												} catch (error: any) {
 													if (error?.message?.includes('already exists')) {
 														toast({
-															title: 'Period Exists',
+															title: 'Periode sudah ada',
 															description:
-																'This period already exists. Please use a different year range.',
+																'Gunakan rentang tahun yang berbeda.',
 															variant: 'destructive',
 														});
 													}
 												}
 											} else {
 												toast({
-													title: 'Invalid Format',
+													title: 'Format tidak valid',
 													description:
-														'Please use the format YYYY-YYYY (e.g. 2023-2024)',
+														'Gunakan format YYYY-YYYY (contoh 2023-2024)',
 													variant: 'destructive',
 												});
 											}
@@ -573,10 +487,10 @@ export default function OrganizationEditor({
 										{createPeriodMutation.isPending ? (
 											<>
 												<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-												Creating...
+												Menyimpan...
 											</>
 										) : (
-											'Add'
+											'Tambah'
 										)}
 									</Button>
 									<Button
@@ -586,11 +500,106 @@ export default function OrganizationEditor({
 											setNewPeriod('');
 											setIsAddingPeriod(false);
 										}}>
-										Cancel
+										Batal
 									</Button>
 								</div>
 							)}
 						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="position">Nama jabatan</Label>
+							<Select
+								value={position}
+								onValueChange={setPosition}>
+								<SelectTrigger id="position">
+									<SelectValue placeholder="Pilih nama jabatan" />
+								</SelectTrigger>
+								<SelectContent>
+									{availablePositions.map((pos: string) => (
+										<SelectItem
+											key={pos}
+											value={pos}>
+											{pos}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="name">Nama lengkap</Label>
+							<Input
+								id="name"
+								placeholder="Nama anggota"
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+							/>
+						</div>
+
+						<div className="flex justify-center mb-2">
+							<div
+								onClick={() => fileInputRef.current?.click()}
+								className="relative w-32 h-32 rounded-full overflow-hidden border-2 border-dashed border-gray-300 cursor-pointer hover:border-gray-400 flex items-center justify-center bg-gray-50">
+								{imagePreview ? (
+									<MediaDisplay
+										src={imagePreview}
+										alt="Pratinjau foto"
+										className="w-full h-full object-cover"
+										type="image"
+									/>
+								) : (
+									<User className="h-12 w-12 text-gray-400" />
+								)}
+								<div className="absolute bottom-0 inset-x-0 bg-black bg-opacity-50 text-white text-xs text-center py-1">
+									{imagePreview ? 'Ganti' : 'Unggah'}
+								</div>
+							</div>
+							<input
+								ref={fileInputRef}
+								type="file"
+								accept="image/*"
+								className="hidden"
+								onChange={handleFileChange}
+							/>
+						</div>
+
+						<div className="space-y-2">
+							<Label>Sumber foto</Label>
+							<div className="flex gap-2">
+								<button
+									type="button"
+									className={`px-3 py-1 rounded border ${
+										!useGdrive
+											? 'bg-primary text-white border-primary'
+											: 'border-gray-300'
+									}`}
+									onClick={() => setUseGdrive(false)}>
+									Unggah file
+								</button>
+								<button
+									type="button"
+									className={`px-3 py-1 rounded border ${
+										useGdrive
+											? 'bg-primary text-white border-primary'
+											: 'border-gray-300'
+									}`}
+									onClick={() => setUseGdrive(true)}>
+									Link Google Drive
+								</button>
+							</div>
+						</div>
+
+						{useGdrive && (
+							<div className="space-y-2">
+								<GDriveLinkInput
+									label="Link Google Drive (satu foto)"
+									value={gdriveUrl}
+									onChange={(val) => setGdriveUrl(val)}
+									onValidation={(ok) => setIsGdriveValid(!!ok)}
+									mediaType="image"
+								/>
+							</div>
+						)}
 					</div>
 
 					<div className="flex justify-end space-x-4 mt-6">

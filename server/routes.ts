@@ -56,6 +56,22 @@ function resolveModels(req: Request): any {
 	// Lazy-require main models to avoid circular deps
 	return require('../db/mongodb');
 }
+
+/** Pastikan role ada di koleksi Role dan aktif (untuk create/update user). */
+async function assertActiveRoleForStorage(storage: any, roleName: unknown): Promise<void> {
+	if (typeof roleName !== 'string' || !roleName.trim()) {
+		const e: any = new Error('Role tidak valid');
+		e.statusCode = 400;
+		throw e;
+	}
+	const name = roleName.trim();
+	const roleDoc = await storage.getRoleByName(name);
+	if (!roleDoc || (roleDoc as any).isActive === false) {
+		const e: any = new Error('Role tidak ditemukan atau tidak aktif');
+		e.statusCode = 400;
+		throw e;
+	}
+}
 import {
 	attachLibraryDisplayFields,
 	removeLibraryFromAllRelations,
@@ -1604,7 +1620,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				const updateData: any = {};
-				if (role) updateData.role = role;
+				if (role) {
+					try {
+						await assertActiveRoleForStorage(storage, role);
+					} catch (e: any) {
+						return res.status(e.statusCode || 400).json({ message: e.message || 'Role tidak valid' });
+					}
+					updateData.role = role;
+				}
 				if (division !== undefined) updateData.division = division;
 
 				const updatedUser = await storage.updateUser(userId, updateData);
@@ -1689,6 +1712,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (existingUser) {
 					return res.status(400).json({ message: 'Username already exists' });
 				}
+				try {
+					await assertActiveRoleForStorage(storage, role);
+				} catch (e: any) {
+					return res.status(e.statusCode || 400).json({ message: e.message || 'Role tidak valid' });
+				}
 				const hashedPassword = await hashPassword(password);
 				const newUser = await storage.createUser({
 					username,
@@ -1747,7 +1775,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (username) updates.username = username;
 				if (name) updates.name = name;
 				if (email) updates.email = email;
-				if (role) updates.role = role;
+				if (role) {
+					try {
+						await assertActiveRoleForStorage(storage, role);
+					} catch (e: any) {
+						return res.status(e.statusCode || 400).json({ message: e.message || 'Role tidak valid' });
+					}
+					updates.role = role;
+				}
 				if (division !== undefined) updates.division = division;
 				const updatedUser = await storage.updateUser(userId, updates);
 				const { password: _, ...userWithoutPassword } = updatedUser;
@@ -7668,6 +7703,109 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
 				invalidateCommunityCache((community as any).slug);
 
+				res.json({ message: 'Komunitas dan semua datanya berhasil dihapus' });
+			} catch (error: any) {
+				res.status(500).json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
+
+	// Tenant owner: hapus komunitas sendiri (OTP) — dipanggil sebagai /api/c/:slug/community/... (bukan mainOnly)
+	app.post(
+		'/api/community/request-delete-otp',
+		authenticate,
+		async (req, res) => {
+			try {
+				if (!req.isTenantRequest || !req.tenantSlug) {
+					return res.status(403).json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
+				}
+				const u = req.user as any;
+				if ((u?.role || '').toString() !== 'owner') {
+					return res.status(403).json({ message: 'Hanya owner yang dapat menghapus komunitas' });
+				}
+				const community = await mongoStorage.getCommunityBySlug(req.tenantSlug);
+				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
+				if ((community as any).ownerUsername && (community as any).ownerUsername !== u.username) {
+					return res.status(403).json({ message: 'Akun tidak sesuai dengan owner komunitas' });
+				}
+				if (!u.email) return res.status(400).json({ message: 'Email tidak tersedia untuk OTP' });
+				const { challengeId } = await createOtpChallenge({
+					purpose: 'delete_community',
+					email: u.email,
+					userId: u._id?.toString?.() || u._id,
+					requestIp: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '',
+				});
+				res.json({ challengeId, message: 'OTP telah dikirim ke email Anda' });
+			} catch (error: any) {
+				if (error instanceof RateLimitError) {
+					return res.status(429).json({ message: error.message, retryAfter: error.retryAfterSeconds });
+				}
+				res.status(500).json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
+
+	app.post(
+		'/api/community/verify-delete-otp',
+		authenticate,
+		async (req, res) => {
+			try {
+				if (!req.isTenantRequest || !req.tenantSlug) {
+					return res.status(403).json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
+				}
+				const u = req.user as any;
+				if ((u?.role || '').toString() !== 'owner') {
+					return res.status(403).json({ message: 'Hanya owner yang dapat menghapus komunitas' });
+				}
+				const { challengeId, otp } = req.body || {};
+				if (!challengeId || !otp) return res.status(400).json({ message: 'challengeId dan otp diperlukan' });
+				const { resetToken } = await verifyAndIssueResetToken({
+					challengeId,
+					code: otp,
+					purpose: 'delete_community',
+				});
+				res.json({ resetToken });
+			} catch (error: any) {
+				if (error instanceof OtpError) {
+					return res.status(400).json({ message: error.message });
+				}
+				res.status(500).json({ message: error.message || 'Internal server error' });
+			}
+		},
+	);
+
+	app.delete(
+		'/api/community',
+		authenticate,
+		async (req, res) => {
+			try {
+				if (!req.isTenantRequest || !req.tenantSlug) {
+					return res.status(403).json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
+				}
+				const u = req.user as any;
+				if ((u?.role || '').toString() !== 'owner') {
+					return res.status(403).json({ message: 'Hanya owner yang dapat menghapus komunitas' });
+				}
+				const { challengeId, resetToken } = req.body || {};
+				if (!challengeId || !resetToken) {
+					return res.status(400).json({ message: 'OTP konfirmasi diperlukan untuk menghapus komunitas' });
+				}
+				const community = await mongoStorage.getCommunityBySlug(req.tenantSlug);
+				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
+				if ((community as any).ownerUsername && (community as any).ownerUsername !== u.username) {
+					return res.status(403).json({ message: 'Akun tidak sesuai dengan owner komunitas' });
+				}
+				try {
+					await confirmWithResetToken({ challengeId, resetToken, purpose: 'delete_community' });
+				} catch {
+					return res.status(400).json({ message: 'OTP tidak valid atau sudah expired' });
+				}
+				const { getTenantConnection } = await import('../db/tenant');
+				const tenantConn = getTenantConnection((community as any).dbName);
+				await tenantConn.dropDatabase();
+				await mongoStorage.deleteCommunity(String((community as any)._id));
+				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
+				invalidateCommunityCache((community as any).slug);
 				res.json({ message: 'Komunitas dan semua datanya berhasil dihapus' });
 			} catch (error: any) {
 				res.status(500).json({ message: error.message || 'Internal server error' });

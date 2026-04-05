@@ -7,7 +7,8 @@ export interface UserWithRole {
 	username: string;
 	name: string;
 	email: string;
-	role: 'owner' | 'admin' | 'chair' | 'vice_chair' | 'division_head';
+	/** Nama role sesuai koleksi Role (termasuk role kustom) */
+	role: string;
 	division?: string;
 	password?: string;
 	lastLogin?: Date;

@@ -52,9 +52,10 @@ const userSchema = new mongoose.Schema({
 	password: { type: String, required: true },
 	name: { type: String, required: true },
 	email: { type: String, required: true },
+	// Nama role mengacu ke dokumen Role (koleksi roles), bukan enum statis — mendukung role kustom
 	role: {
 		type: String,
-		enum: ['owner', 'admin', 'chair', 'vice_chair', 'bph', 'division_head'],
+		required: true,
 		default: 'division_head',
 	},
 	division: { type: String, default: '' },

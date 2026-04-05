@@ -1,194 +1,331 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { cn } from '@/lib/utils';
 
-// Tambahkan deklarasi global untuk window.dinoCheat
-// @ts-ignore
-declare global {
-	interface Window {
-		dinoCheat?: (command: string) => void;
+const GAME_W = 520;
+const GAME_H = 200;
+const GROUND = 36;
+const DINO_X = 76;
+const DINO_W = 44;
+const DINO_H = 50;
+const OBS_W = 30;
+const OBS_H = 52;
+const GRAVITY = 2400;
+const JUMP_V0 = 680;
+const BASE_SPEED = 280;
+const SPEED_PER_SCORE = 14;
+const MAX_SPEED = 560;
+
+type GameMutable = {
+	running: boolean;
+	dinoY: number;
+	dinoVy: number;
+	obstacleX: number;
+	score: number;
+	scoredThisLap: boolean;
+	lastTime: number;
+};
+
+function createInitialGame(): GameMutable {
+	return {
+		running: true,
+		dinoY: 0,
+		dinoVy: 0,
+		obstacleX: GAME_W + 60,
+		score: 0,
+		scoredThisLap: false,
+		lastTime: 0,
+	};
+}
+
+function applyPhysics(g: GameMutable, dt: number) {
+	g.dinoVy -= GRAVITY * dt;
+	g.dinoY += g.dinoVy * dt;
+	if (g.dinoY < 0) {
+		g.dinoY = 0;
+		g.dinoVy = 0;
+	}
+	const spd = Math.min(BASE_SPEED + g.score * SPEED_PER_SCORE, MAX_SPEED);
+	g.obstacleX -= spd * dt;
+}
+
+function updateScoreAndRespawn(
+	g: GameMutable,
+	onScore: (n: number) => void
+) {
+	if (g.obstacleX + OBS_W < DINO_X && !g.scoredThisLap) {
+		g.scoredThisLap = true;
+		g.score += 1;
+		onScore(g.score);
+	}
+	if (g.obstacleX < -OBS_W) {
+		g.obstacleX = GAME_W + 48 + Math.random() * 120;
+		g.scoredThisLap = false;
 	}
 }
 
-// Komponen Dino Run sederhana
+function isCollision(g: GameMutable): boolean {
+	const hitX =
+		g.obstacleX < DINO_X + DINO_W - 6 && g.obstacleX + OBS_W > DINO_X + 8;
+	const hitY = g.dinoY < OBS_H - 8;
+	return hitX && hitY;
+}
+
+function syncSprites(
+	g: GameMutable,
+	dino: HTMLDivElement | null,
+	obs: HTMLDivElement | null
+) {
+	if (dino) dino.style.bottom = `${g.dinoY}px`;
+	if (obs) obs.style.left = `${g.obstacleX}px`;
+}
+
 function DinoRun() {
-	const [isJumping, setIsJumping] = useState(false);
-	const [dinoBottom, setDinoBottom] = useState(0);
-	const [obstacleLeft, setObstacleLeft] = useState(400);
 	const [score, setScore] = useState(0);
 	const [gameOver, setGameOver] = useState(false);
-	const [obstacleSpeed, setObstacleSpeed] = useState(4);
-	const [obstaclesEnabled, setObstaclesEnabled] = useState(true);
-	const [isInvisible, setIsInvisible] = useState(false);
-	const gameRef = useRef<HTMLDivElement>(null);
-	const jumpHeight = 80;
-	const gravity = 4;
-
-	// Dino jump
-	const handleJump = () => {
-		if (!isJumping && !gameOver) {
-			setIsJumping(true);
-			let upInterval = setInterval(() => {
-				setDinoBottom((prev) => {
-					if (prev < jumpHeight) {
-						return prev + 8;
-					} else {
-						clearInterval(upInterval);
-						let downInterval = setInterval(() => {
-							setDinoBottom((down) => {
-								if (down > 0) {
-									return down - gravity;
-								} else {
-									clearInterval(downInterval);
-									setIsJumping(false);
-									return 0;
-								}
-							});
-						}, 20);
-						return prev;
-					}
-				});
-			}, 20);
+	const [highScore, setHighScore] = useState(() => {
+		try {
+			return Number(localStorage.getItem('hmps-runner-hi')) || 0;
+		} catch {
+			return 0;
 		}
-	};
+	});
 
-	// Obstacle movement
-	useEffect(() => {
-		if (gameOver) return;
-		const moveObstacle = setInterval(() => {
-			setObstacleLeft((prev) => {
-				if (prev > -40) {
-					return prev - obstacleSpeed;
-				} else {
-					setScore((s) => s + 1);
-					return 400;
-				}
-			});
-		}, 20);
-		return () => clearInterval(moveObstacle);
-	}, [gameOver, obstacleSpeed]);
+	const game = useRef<GameMutable>(createInitialGame());
+	const highScoreRef = useRef(0);
+	const dinoRef = useRef<HTMLDivElement>(null);
+	const obstacleRef = useRef<HTMLDivElement>(null);
+	const rafRef = useRef(0);
+	const startLoopRef = useRef<() => void>(() => {});
 
-	// Collision detection
-	useEffect(() => {
-		if (
-			!isInvisible &&
-			obstaclesEnabled &&
-			obstacleLeft > 40 &&
-			obstacleLeft < 80 &&
-			dinoBottom < 40
-		) {
-			setGameOver(true);
+	const [brokeRecordThisGame, setBrokeRecordThisGame] = useState(false);
+	highScoreRef.current = highScore;
+
+	const tryJump = useCallback(() => {
+		const g = game.current;
+		if (!g.running || gameOver) return;
+		if (g.dinoY <= 2) {
+			g.dinoVy = JUMP_V0;
 		}
-	}, [obstacleLeft, dinoBottom, isInvisible, obstaclesEnabled]);
+	}, [gameOver]);
 
-	// Restart game
-	const handleRestart = () => {
+	const handleRestart = useCallback(() => {
+		cancelAnimationFrame(rafRef.current);
+		game.current = createInitialGame();
+		setBrokeRecordThisGame(false);
 		setGameOver(false);
 		setScore(0);
-		setObstacleLeft(400);
-		setDinoBottom(0);
-		setObstacleSpeed(4);
-		setObstaclesEnabled(true);
-		setIsInvisible(false);
-	};
+		if (dinoRef.current) dinoRef.current.style.bottom = '0px';
+		if (obstacleRef.current)
+			obstacleRef.current.style.left = `${game.current.obstacleX}px`;
+		startLoopRef.current();
+	}, []);
 
-	// Keyboard control
 	useEffect(() => {
-		const handleKey = (e: KeyboardEvent) => {
+		const step = (now: number) => {
+			const g = game.current;
+			if (!g.running) return;
+
+			const dt = Math.min((now - g.lastTime) / 1000, 0.055);
+			if (g.lastTime === 0) {
+				g.lastTime = now;
+				rafRef.current = requestAnimationFrame(step);
+				return;
+			}
+			g.lastTime = now;
+
+			applyPhysics(g, dt);
+			updateScoreAndRespawn(g, setScore);
+
+			if (isCollision(g)) {
+				g.running = false;
+				setBrokeRecordThisGame(g.score > highScoreRef.current);
+				setGameOver(true);
+				setHighScore((hi) => {
+					const next = Math.max(hi, g.score);
+					try {
+						localStorage.setItem('hmps-runner-hi', String(next));
+					} catch {
+						/* ignore */
+					}
+					return next;
+				});
+				return;
+			}
+
+			syncSprites(g, dinoRef.current, obstacleRef.current);
+			rafRef.current = requestAnimationFrame(step);
+		};
+
+		startLoopRef.current = () => {
+			cancelAnimationFrame(rafRef.current);
+			game.current.lastTime = 0;
+			rafRef.current = requestAnimationFrame(step);
+		};
+
+		startLoopRef.current();
+		return () => cancelAnimationFrame(rafRef.current);
+	}, []);
+
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => {
 			if (e.code === 'Space' || e.key === ' ') {
-				handleJump();
+				e.preventDefault();
+				if (gameOver) return;
+				tryJump();
 			}
 			if (gameOver && (e.code === 'Enter' || e.key === 'Enter')) {
+				e.preventDefault();
 				handleRestart();
 			}
 		};
-		window.addEventListener('keydown', handleKey);
-		return () => window.removeEventListener('keydown', handleKey);
-	});
-
-	// Cheat system
-	useEffect(() => {
-		function dinoCheat(command: string) {
-			if (typeof command !== 'string') return;
-			command = command.trim();
-			if (command.startsWith('/speed ')) {
-				const speed = parseInt(command.split(' ')[1]);
-				if (!isNaN(speed)) {
-					setObstacleSpeed(speed);
-					console.log(`Speed set to ${speed}`);
-				}
-			} else if (command === '/obstacle') {
-				setObstaclesEnabled((prev) => {
-					console.log(`Obstacles ${prev ? 'disabled' : 'enabled'}`);
-					return !prev;
-				});
-			} else if (command === '/invisible') {
-				setIsInvisible((prev) => {
-					console.log(`Invisible mode ${prev ? 'disabled' : 'enabled'}`);
-					return !prev;
-				});
-			}
-		}
-		// Pasang ke window agar bisa dipanggil dari console
-		window.dinoCheat = dinoCheat;
-		return () => {
-			delete window.dinoCheat;
-		};
-	}, []);
+		window.addEventListener('keydown', onKey, { passive: false });
+		return () => window.removeEventListener('keydown', onKey);
+	}, [tryJump, gameOver, handleRestart]);
 
 	return (
 		<div
-			ref={gameRef}
-			className="relative w-[400px] h-[150px] mx-auto bg-white border rounded-lg overflow-hidden shadow-lg mt-8">
-			{/* Dino */}
+			className="mx-auto mt-8 w-full max-w-[540px] px-3"
+			role="application"
+			aria-label="Mini runner: spasi untuk lompat">
 			<div
-				className={`absolute left-10 w-10 h-10 bg-green-600 rounded-b-full border-b-4 border-green-800 ${
-					isInvisible ? 'opacity-50' : ''
-				}`}
-				style={{ bottom: dinoBottom }}
-			/>
-			{/* Obstacle */}
-			{obstaclesEnabled && (
+				className={cn(
+					'relative overflow-hidden rounded-2xl border border-white/10',
+					'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950',
+					'shadow-[0_24px_48px_-12px_rgba(0,0,0,0.45)] ring-1 ring-white/5'
+				)}
+				style={{ width: GAME_W, height: GAME_H, maxWidth: '100%' }}>
 				<div
-					className="absolute bottom-0 w-8 h-16 bg-gray-700 rounded"
-					style={{ left: obstacleLeft }}
+					className="pointer-events-none absolute inset-0 opacity-40"
+					style={{
+						backgroundImage: [
+							'radial-gradient(1px 1px at 20% 30%, white, transparent)',
+							'radial-gradient(1px 1px at 70% 18%, white, transparent)',
+							'radial-gradient(1px 1px at 40% 55%, white, transparent)',
+							'radial-gradient(1px 1px at 88% 42%, white, transparent)',
+						].join(', '),
+					}}
 				/>
-			)}
-			{/* Ground */}
-			<div className="absolute bottom-0 left-0 w-full h-4 bg-yellow-400" />
-			{/* Score */}
-			<div className="absolute top-2 right-4 text-gray-700 font-bold">
-				Score: {score}
-			</div>
-			{/* Game Over */}
-			{gameOver && (
-				<div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80">
-					<div className="text-2xl font-bold text-red-600 mb-2">Game Over</div>
-					<button
-						onClick={handleRestart}
-						className="px-4 py-2 bg-blue-500 text-white rounded shadow hover:bg-blue-600">
-						Restart
-					</button>
+
+				<div className="pointer-events-none absolute left-[10%] top-6 h-3 w-20 rounded-full bg-white/5 blur-sm" />
+				<div className="pointer-events-none absolute right-[15%] top-10 h-2 w-14 rounded-full bg-white/5 blur-sm" />
+
+				<div className="absolute right-4 top-3 z-10 flex flex-col items-end gap-0.5 font-mono text-[11px] text-slate-400 sm:text-xs">
+					<span className="text-emerald-400/90">
+						<span className="text-slate-500">SKOR</span> {score}
+					</span>
+					<span className="text-slate-500">
+						REKOR <span className="text-slate-300">{highScore}</span>
+					</span>
 				</div>
-			)}
+
+				<div
+					ref={dinoRef}
+					className="absolute z-[2] flex flex-col items-center justify-end"
+					style={{
+						left: DINO_X,
+						bottom: 0,
+						width: DINO_W,
+						height: DINO_H,
+					}}>
+					<div className="relative h-full w-[85%]">
+						<div className="absolute bottom-0 left-1/2 h-[70%] w-[55%] -translate-x-1/2 rounded-lg bg-gradient-to-b from-emerald-400 to-emerald-700 shadow-[inset_0_-4px_0_rgba(0,0,0,0.15)]" />
+						<div className="absolute bottom-[52%] left-[22%] h-2 w-2 rounded-full bg-white shadow-sm" />
+						<div className="absolute bottom-0 left-[8%] h-2 w-[22%] rounded-sm bg-emerald-900/80" />
+						<div className="absolute bottom-0 right-[8%] h-2 w-[22%] rounded-sm bg-emerald-900/80" />
+					</div>
+				</div>
+
+				<div
+					ref={obstacleRef}
+					className="absolute bottom-0 z-[1]"
+					style={{ left: game.current.obstacleX, width: OBS_W, height: OBS_H }}>
+					<div className="h-full w-full rounded-t-md bg-gradient-to-b from-rose-900/90 to-slate-900 shadow-[inset_0_4px_0_rgba(255,255,255,0.06)]">
+						<div className="mx-auto mt-1 h-1/3 w-1/2 rounded-sm bg-black/25" />
+					</div>
+				</div>
+
+				<div
+					className="absolute bottom-0 left-0 right-0 overflow-hidden border-t border-emerald-500/20 bg-gradient-to-b from-slate-800 to-slate-950"
+					style={{ height: GROUND }}>
+					<div
+						className="absolute bottom-[14px] left-0 h-px w-[200%] opacity-50"
+						style={{
+							background:
+								'repeating-linear-gradient(90deg, transparent, transparent 10px, rgba(148,163,184,0.35) 10px, rgba(148,163,184,0.35) 22px)',
+							animation: 'maint-ground 5.5s linear infinite',
+						}}
+					/>
+				</div>
+
+				{gameOver && (
+					<div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-slate-950/75 backdrop-blur-[2px]">
+						<p className="mb-1 font-mono text-[10px] uppercase tracking-[0.35em] text-slate-500">
+							Berhenti
+						</p>
+						<p className="mb-4 text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+							Game over
+						</p>
+						<p className="mb-5 font-mono text-sm text-emerald-400/90">
+							Skor: {score}
+							{brokeRecordThisGame ? (
+								<span className="ml-2 text-amber-400/90">Rekor baru!</span>
+							) : null}
+						</p>
+						<button
+							type="button"
+							onClick={handleRestart}
+							className={cn(
+								'rounded-full px-6 py-2.5 text-sm font-medium',
+								'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/25',
+								'transition hover:bg-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/50'
+							)}>
+							Main lagi
+						</button>
+						<p className="mt-4 text-xs text-slate-500">
+							Enter — mulai lagi
+						</p>
+					</div>
+				)}
+
+				<button
+					type="button"
+					className="absolute inset-0 z-[5] cursor-pointer bg-transparent md:hidden"
+					aria-label="Ketuk untuk lompat"
+					onClick={() => !gameOver && tryJump()}
+				/>
+			</div>
+
+			<style>{`
+				@keyframes maint-ground {
+					from { transform: translateX(0); }
+					to { transform: translateX(-50%); }
+				}
+			`}</style>
+
+			<p className="mt-4 text-center text-xs text-slate-500">
+				<span className="text-slate-400">Spasi</span> lompat ·{' '}
+				<span className="text-slate-400">Enter</span> saat game over untuk ulang
+			</p>
 		</div>
 	);
 }
 
 export default function MaintenanceMode() {
 	return (
-		<div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
-			<h1 className="text-4xl font-bold text-gray-900 mb-4 animate-fade-in">
-				Web Maintenance
+		<div className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 text-slate-100">
+			<div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-slate-400">
+				Status
+			</div>
+			<h1 className="mb-2 text-center text-3xl font-semibold tracking-tight text-white sm:text-4xl">
+				Sedang pemeliharaan
 			</h1>
-			<p className="text-gray-600 mb-2">Website sedang dalam pemeliharaan.</p>
-			<p className="text-gray-500 mb-4">Mainkan Dino Run sambil menunggu!</p>
+			<p className="mb-1 max-w-md text-center text-sm text-slate-400 sm:text-base">
+				Kami sedang memperbarui sistem. Silakan kembali lagi nanti.
+			</p>
+			<p className="mb-2 max-w-md text-center text-xs text-slate-500 sm:text-sm">
+				Sambil menunggu, kamu bisa main runner ringan di bawah.
+			</p>
 			<DinoRun />
-			<div className="mt-6 text-gray-400 text-xs">
-				Tekan <b>Spasi</b> untuk lompat, <b>Enter</b> untuk restart
-			</div>
-			<div className="mt-2 text-gray-400 text-xs">
-				Cheat: <b>/speed [angka]</b> untuk mengubah kecepatan, <b>/obstacle</b>{' '}
-				untuk toggle obstacle, <b>/invisible</b> untuk mode invisible
-			</div>
 		</div>
 	);
 }

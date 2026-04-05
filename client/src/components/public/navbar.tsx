@@ -71,18 +71,9 @@ const sectionMap: Record<string, string> = {
 	berita: 'berita',
 };
 
-function prefixNavChildren(item: NavItem, basePath: string): NavItem {
-	if (!basePath || !('children' in item) || !item.children) return item;
-	return {
-		...item,
-		children: item.children.map((ch) => ({
-			...ch,
-			href:
-				ch.href && !ch.href.startsWith('http')
-					? basePath + ch.href
-					: ch.href,
-		})),
-	};
+/** Nav child hrefs are passed to wouter Link; nested Router base already includes /:slug — do not prefix slug twice. */
+function prefixNavChildren(item: NavItem, _basePath: string): NavItem {
+	return item;
 }
 
 const baseNavItemsWithoutEvents: NavItem[] = [
@@ -157,7 +148,7 @@ export default function Navbar({
 		? (!isTenant || basePath !== `/${userTenantSlug}`)
 		: isTenant;
 	const absDashHref = userTenantSlug ? `/${userTenantSlug}/dashboard` : '/dashboard';
-	const loginHref = isTenant ? `${basePath}/login` : '/login';
+	const loginHref = '/login';
 
 	const { data: communities = [] } = useQuery<any[]>({
 		queryKey: ['/api/communities'],
@@ -345,7 +336,7 @@ export default function Navbar({
 
 	const navItems = useMemo(() => {
 		const yearCount = activeYears.length;
-		const px = (h: string) => (bp ? (h.startsWith('/') ? bp + h : `${bp}/${h}`) : h);
+		const px = (h: string) => h;
 
 		const isVisible = (id: string): boolean => {
 			if (!navCfgArr || navCfgArr.length === 0) return true;

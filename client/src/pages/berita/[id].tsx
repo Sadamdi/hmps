@@ -6,7 +6,6 @@ import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import { apiRequest } from '@/lib/queryClient';
-import { useTenant } from '@/lib/tenant-context';
 import {
 	formatContentDisplay as formatContentDisplayFn,
 	formatContentForDisplay as formatContentForDisplayFn,
@@ -51,9 +50,6 @@ interface RelatedBerita {
 export default function BeritaDetail() {
 	const { id, slug } = useParams();
 	const [, setLocation] = useLocation();
-	const { basePath } = useTenant();
-	const bp = basePath || '';
-
 	const scrollToSection = (sectionId: string) => {
 		window.location.href = `/#${sectionId}`;
 	};
@@ -436,7 +432,7 @@ export default function BeritaDetail() {
 							</div>
 							<div className="flex flex-wrap gap-2">
 								{berita.relatedGalleryPreview.map((g) => (
-									<Link key={g._id} href={`${bp}/library/${g._id}`}>
+									<Link key={g._id} href={`/library/${g._id}`}>
 										<Badge
 											variant="outline"
 											className="cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors gap-1.5 text-sm py-1 px-3"
@@ -466,7 +462,7 @@ export default function BeritaDetail() {
 									return (
 										<Link
 											key={ev._id}
-											href={year ? `${bp}/events/${year}/${ev._id}` : `${bp}/events`}
+											href={year ? `/events/${year}/${ev._id}` : '/events'}
 										>
 											<Badge
 												variant="outline"
