@@ -7,12 +7,15 @@ import VisionMission from '@/components/public/vision-mission';
 import { Button } from '@/components/ui/button';
 import { Suspense, useEffect } from 'react';
 import { useLocation } from 'wouter';
+import { useTenant } from '@/lib/tenant-context';
 
 export default function KelembagaanPage() {
 	const [, setLocation] = useLocation();
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 
 	const scrollToSection = (sectionId: string) => {
-		window.location.href = `/#${sectionId}`;
+		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
 	};
 
 	useEffect(() => {

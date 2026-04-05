@@ -10,6 +10,7 @@ import Navbar from '@/components/public/navbar';
 import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import {
 	ArrowLeft,
@@ -58,8 +59,10 @@ export default function EventDetailPage() {
 		enabled: !!eventId,
 	});
 
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = `/#${id}`;
+		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
 	};
 
 	if (error || (!isLoading && !event)) {

@@ -4873,7 +4873,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const currentYear = new Date().getFullYear();
 			const existing = await storage.getHomeImagesByYear(currentYear);
 			if (!existing) {
-				await storage.createHomeImages({ year: currentYear, isActive: false });
+				await storage.createHomeImages({ year: currentYear, isActive: false, desktopMode: 'combined' });
 			}
 			const list = await storage.getAllHomeImages();
 			res.json(list);
@@ -4904,6 +4904,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const doc = await storage.createHomeImages({
 					year,
 					isActive: false,
+					desktopMode: 'combined',
 				});
 				res.status(201).json(doc);
 			} catch (error) {
@@ -8209,10 +8210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					if (Array.isArray(onboardTrackRecord) && onboardTrackRecord.length > 0) {
 						profileUpdate.aboutPageTrackRecord = onboardTrackRecord;
 					} else {
-						const yr = new Date().getFullYear();
-						profileUpdate.aboutPageTrackRecord = [
-							{ year: String(yr), chairpersonName: ownerName || ownerUsername, divisions: divList.map(d => d.label) },
-						];
+						profileUpdate.aboutPageTrackRecord = [];
 					}
 
 					if (Array.isArray(onboardLambang) && onboardLambang.length > 0) {
@@ -8221,9 +8219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							imageUrl: item.imageUrl ? resolveUrl(item.imageUrl) : '',
 						}));
 					} else {
-						profileUpdate.aboutPageLambang = [
-							{ key: 'contoh', title: 'Elemen Contoh', description: 'Ganti elemen ini dengan filosofi lambang komunitas Anda melalui Dashboard > Profil.', imageUrl: '' },
-						];
+						profileUpdate.aboutPageLambang = [];
 					}
 
 					const finalLogoUrl = onboardLogoUrl ? resolveUrl(onboardLogoUrl) : '';

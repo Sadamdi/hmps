@@ -5,10 +5,13 @@ import Navbar from '@/components/public/navbar';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 import { Link } from 'wouter';
+import { useTenant } from '@/lib/tenant-context';
 
 export default function LibraryPage() {
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = `/#${id}`;
+		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
 	};
 
 	return (

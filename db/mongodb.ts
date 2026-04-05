@@ -705,7 +705,7 @@ const homeImagesSchema = new mongoose.Schema(
 		desktopMode: {
 			type: String,
 			enum: ['bennerfull', 'combined'],
-			default: 'bennerfull',
+			default: 'combined',
 		},
 		bennerfull: { type: String, default: '' },
 		orang: { type: String, default: '' },

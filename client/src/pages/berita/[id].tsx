@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, BookOpen, Calendar, CalendarDays, Images, Share2, Tag, User } from 'lucide-react';
 import { Suspense, lazy, useEffect } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
+import { useTenant } from '@/lib/tenant-context';
 
 const TableOfContents = lazy(
 	() => import('@/components/berita/table-of-contents')
@@ -50,8 +51,10 @@ interface RelatedBerita {
 export default function BeritaDetail() {
 	const { id, slug } = useParams();
 	const [, setLocation] = useLocation();
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 	const scrollToSection = (sectionId: string) => {
-		window.location.href = `/#${sectionId}`;
+		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
 	};
 
 	let apiEndpoint: string;

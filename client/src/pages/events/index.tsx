@@ -6,6 +6,7 @@ import Navbar from '@/components/public/navbar';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Calendar } from 'lucide-react';
 import { Link } from 'wouter';
+import { useTenant } from '@/lib/tenant-context';
 
 interface EventYearDoc {
 	_id: string;
@@ -25,8 +26,10 @@ export default function EventsYearPicker() {
 
 	const years = (data ?? []).sort((a, b) => b.year - a.year);
 
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = `/#${id}`;
+		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
 	};
 
 	return (

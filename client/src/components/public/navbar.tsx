@@ -39,6 +39,8 @@ import type { HomeNavbarItem, HomeConfig, HomeBlockItem } from '../../../../shar
 interface NavbarSettings {
 	navbarBrand?: string;
 	homeConfig?: HomeConfig;
+	aboutPageTrackRecord?: any[];
+	aboutPageLambang?: any[];
 }
 
 type NavItem =
@@ -71,9 +73,12 @@ const sectionMap: Record<string, string> = {
 	berita: 'berita',
 };
 
-/** Nav child hrefs are passed to wouter Link; nested Router base already includes /:slug — do not prefix slug twice. */
-function prefixNavChildren(item: NavItem, _basePath: string): NavItem {
-	return item;
+/** Prefix an internal path with the tenant basePath (e.g. "/gdgoc") when applicable; external / absolute URLs and "/" itself are left untouched so portal/community links stay correct. */
+function prefixHref(href: string, basePath: string): string {
+	if (!basePath || !href.startsWith('/')) return href;
+	if (href === '/') return href;
+	if (href.startsWith(basePath + '/') || href === basePath) return href;
+	return basePath + href;
 }
 
 const baseNavItemsWithoutEvents: NavItem[] = [
@@ -336,9 +341,12 @@ export default function Navbar({
 	const navCfgArr: HomeNavbarItem[] | undefined = settings?.homeConfig?.navbar;
 	const showDashLink = settings?.homeConfig?.showDashboardLink ?? true;
 
+	const hasTrackRecord = (settings?.aboutPageTrackRecord?.length ?? 0) > 0;
+	const hasLambang = (settings?.aboutPageLambang?.length ?? 0) > 0;
+
 	const navItems = useMemo(() => {
 		const yearCount = activeYears.length;
-		const px = (h: string) => h;
+		const px = (h: string) => prefixHref(h, bp);
 
 		const isVisible = (id: string): boolean => {
 			if (!navCfgArr || navCfgArr.length === 0) return true;
@@ -352,8 +360,24 @@ export default function Navbar({
 
 		const navItemMap = new Map<string, NavItem>();
 		for (const raw of sourceItems) {
-			const item = prefixNavChildren(raw, bp);
-			navItemMap.set(item.id, item);
+			let children = raw.children;
+			if (children && raw.id === 'profil') {
+				children = children.filter((c) => {
+					if (c.href?.includes('#sejarah') && !hasTrackRecord) return false;
+					if (c.href?.includes('#filosofi') && !hasLambang) return false;
+					return true;
+				});
+			}
+			const prefixed: NavItem = children
+				? {
+						...raw,
+						children: children.map((c) => ({
+							...c,
+							href: c.href ? px(c.href) : c.href,
+						})),
+					}
+				: raw;
+			navItemMap.set(prefixed.id, prefixed);
 		}
 
 		let eventsNavItem: NavItem | null = null;
@@ -440,7 +464,7 @@ export default function Navbar({
 		}
 
 		return result;
-	}, [activeYears, eventMonths, navCfgArr, communities, isTenant, bp, tenantSlug]);
+	}, [activeYears, eventMonths, navCfgArr, communities, isTenant, bp, tenantSlug, hasTrackRecord, hasLambang]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.

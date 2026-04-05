@@ -11,12 +11,15 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, useParams } from 'wouter';
+import { useTenant } from '@/lib/tenant-context';
 
 export default function LibraryDetailPage() {
 	const { id } = useParams();
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 
 	const scrollToSection = (sectionId: string) => {
-		window.location.href = `/#${sectionId}`;
+		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
 	};
 
 	const {

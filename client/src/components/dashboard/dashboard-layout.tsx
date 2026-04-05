@@ -40,7 +40,7 @@ export default function DashboardLayout({
 
 	return (
 		<div
-			className="min-h-screen text-foreground"
+			className="min-h-screen text-foreground transition-colors duration-150 ease-out"
 			style={{ background: 'var(--gradient-dashboard)' }}>
 			<Sidebar
 				mobileOpen={mobileMenuOpen}
@@ -56,7 +56,7 @@ export default function DashboardLayout({
 					title={title}
 					onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
 				/>
-				<main className="flex-1 min-w-0 p-3 sm:p-4 lg:p-6 relative">
+				<main className="relative min-w-0 flex-1 p-3 transition-colors duration-150 ease-out sm:p-4 lg:p-6">
 					<div className="mx-auto max-w-7xl min-w-0">{children}</div>
 					{/* AI Chat untuk semua halaman dashboard, dengan context path + permissions */}
 					<AIChat

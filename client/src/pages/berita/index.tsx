@@ -13,6 +13,7 @@ import 'aos/dist/aos.css';
 import { ArrowLeft, Calendar, ChevronDown, Filter, Search, Tag, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
+import { useTenant } from '@/lib/tenant-context';
 
 interface BeritaItem {
 	_id: string;
@@ -40,8 +41,10 @@ export default function AllBerita() {
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const beritaContainerRef = useRef<HTMLDivElement>(null);
 
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = `/#${id}`;
+		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
 	};
 
 	const {

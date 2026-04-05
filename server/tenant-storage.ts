@@ -205,6 +205,7 @@ export function createTenantStorage(models: TenantModels) {
 		mapsEmbedUrl: '',
 		enableRegistration: false,
 		maintenanceMode: false,
+		feedbackCardsEnabled: false,
 		socialLinks: { facebook: '', tiktok: '', instagram: '', youtube: '' },
 		links: { uinMalang: '', fakultasSainsTeknologi: '', jurusanTeknikInformatika: '', perpustakaan: '' },
 		quickLinks: [],

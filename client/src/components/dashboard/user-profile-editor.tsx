@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../hooks/use-toast';
 import { logActivity } from '../../lib/activity-logger';
 import { useAuth } from '../../lib/auth';
+import { useTenant } from '../../lib/tenant-context';
 import { apiRequest } from '../../lib/queryClient';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -46,6 +47,7 @@ interface UserProfileEditorProps {
 
 export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 	const { user: currentUser, hasSpecificPermission, refreshPermissions } = useAuth();
+	const { isTenant } = useTenant();
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 
@@ -443,8 +445,8 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 				</CardContent>
 			</Card>
 
-			{/* Role Management */}
-			{canEditRole && (
+			{/* Role Management — tidak ditampilkan di dashboard komunitas */}
+			{canEditRole && !isTenant && (
 				<Card>
 					<CardHeader>
 						<CardTitle>Role Management</CardTitle>

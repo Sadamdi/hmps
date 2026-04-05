@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect, useLayoutEffect } from 'react';
 import { useLocation } from 'wouter';
+import { useTenant } from '@/lib/tenant-context';
 
 interface Settings {
 	aboutUs?: string;
@@ -24,9 +25,11 @@ interface Settings {
 
 export default function ProfilPage() {
 	const [, setLocation] = useLocation();
+	const { isTenant, basePath } = useTenant();
+	const bp = basePath || '';
 
 	const scrollToSection = (sectionId: string) => {
-		window.location.href = `/#${sectionId}`;
+		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
 	};
 
 	const { data: settings, isLoading } = useQuery<Settings>({

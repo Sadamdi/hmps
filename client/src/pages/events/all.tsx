@@ -9,6 +9,7 @@ import { getEventStatus, formatEventDate, StatusBadge } from '@/components/publi
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, Eye, FileText } from 'lucide-react';
 import { Link } from 'wouter';
+import { useTenant } from '@/lib/tenant-context';
 
 const MONTH_NAMES = [
 	'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -73,8 +74,10 @@ export default function EventsAllPage() {
 
 	const grouped = data ? groupEvents(data) : [];
 
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = `/#${id}`;
+		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
 	};
 
 	return (

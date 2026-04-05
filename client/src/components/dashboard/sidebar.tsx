@@ -176,14 +176,14 @@ export default function Sidebar({
 				/>
 			)}
 
-			{/* Sidebar */}
+			{/* Sidebar: lebar/transform pakai 300ms; warna tema pakai 150ms (bukan transition-all — supaya selaras dengan header/konten) */}
 			<aside
-				className={`bg-sidebar border-r border-sidebar-border transition-all fixed h-screen z-50 ${
+				className={`fixed z-50 h-screen overflow-hidden transition-[width,transform] duration-300 ease-out ${
 					isExpanded ? 'w-64' : 'w-20'
 				} ${
 					mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
 				}`}>
-				<div className="h-full flex flex-col">
+				<div className="flex h-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm transition-colors duration-150 ease-out">
 					{/* Header */}
 					<div className="p-6 flex items-center justify-between border-b border-sidebar-border flex-shrink-0">
 				<div className="flex items-center space-x-2">
@@ -304,9 +304,9 @@ export default function Sidebar({
 								<Link
 									key={item.href}
 									href={item.href}
-									className={`flex items-center ${
+									className={`flex items-center transition-colors duration-150 ease-out ${
 										isExpanded ? 'px-4' : 'justify-center px-2'
-									} py-3 text-sm font-medium rounded-md ${
+									} rounded-md py-3 text-sm font-medium ${
 										item.active
 											? 'bg-primary text-primary-foreground'
 											: 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground'
@@ -319,7 +319,7 @@ export default function Sidebar({
 					</nav>
 
 					{/* User Profile - always at bottom */}
-					<div className="p-4 border-t border-sidebar-border bg-sidebar flex-shrink-0">
+					<div className="flex-shrink-0 border-t border-sidebar-border p-4">
 						<div
 							className={`flex ${
 								isExpanded ? 'items-center' : 'flex-col items-center'
