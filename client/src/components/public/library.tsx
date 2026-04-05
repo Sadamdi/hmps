@@ -17,6 +17,7 @@ import {
 	getMediaDisplayTypeForSlot,
 	normalizeLibraryImageUrl,
 } from '@/lib/library-display';
+import { useTenant } from '@/lib/tenant-context';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import AOS from 'aos';
@@ -50,6 +51,8 @@ function LibraryGalleryCard({
 }) {
 	const [slideIndex, setSlideIndex] = useState(0);
 	const [hidePlayHint, setHidePlayHint] = useState(false);
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 	const kind = getLibraryVisualKind(item);
 	const images = item.images ?? [];
 	const hasFolder = !!item.gdriveEmbedFolders && item.gdriveEmbedFolders.length > 0;
@@ -190,6 +193,40 @@ function LibraryGalleryCard({
 						)}
 					</div>
 				)}
+				{(item.relatedBeritaPreview && item.relatedBeritaPreview.length > 0) ||
+				(item.relatedEventsPreview && item.relatedEventsPreview.length > 0) ? (
+					<div className="flex flex-wrap gap-2 mb-3 pt-2 border-t border-border">
+						<span className="text-xs font-semibold text-muted-foreground w-full">
+							Terkait:
+						</span>
+						{item.relatedBeritaPreview?.map((b) => (
+							<Link
+								key={b._id}
+								href={
+									b.slug
+										? `${bp}/berita/${b._id}/${b.slug}`
+										: `${bp}/berita/${b._id}`
+								}>
+								<span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[10px] sm:text-xs hover:bg-primary/20">
+									Berita: {b.title}
+								</span>
+							</Link>
+						))}
+						{item.relatedEventsPreview?.map((ev) => (
+							<Link
+								key={ev._id}
+								href={
+									ev.year
+										? `${bp}/events/${ev.year}/${ev._id}`
+										: `${bp}/events/all`
+								}>
+								<span className="inline-flex items-center rounded-full bg-secondary text-foreground px-3 py-1 text-[10px] sm:text-xs hover:bg-secondary/80">
+									Event: {ev.title}
+								</span>
+							</Link>
+						))}
+					</div>
+				) : null}
 				<div className="flex flex-wrap items-center gap-x-4 gap-y-1">
 					<Dialog>
 						<DialogTrigger asChild>
@@ -219,7 +256,7 @@ function LibraryGalleryCard({
 						</DialogContent>
 					</Dialog>
 					<Link
-						href={`/library/${item._id || item.id}`}
+						href={`${bp}/library/${item._id || item.id}`}
 						className="text-sm font-medium text-muted-foreground hover:text-primary underline underline-offset-2">
 						Halaman detail
 					</Link>

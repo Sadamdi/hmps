@@ -6,12 +6,13 @@ import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import { apiRequest } from '@/lib/queryClient';
+import { useTenant } from '@/lib/tenant-context';
 import {
 	formatContentDisplay as formatContentDisplayFn,
 	formatContentForDisplay as formatContentForDisplayFn,
 } from '@/utils/formatContent';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, BookOpen, Calendar, CalendarDays, Share2, Tag, User } from 'lucide-react';
+import { ArrowLeft, BookOpen, Calendar, CalendarDays, Images, Share2, Tag, User } from 'lucide-react';
 import { Suspense, lazy, useEffect } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 
@@ -50,6 +51,8 @@ interface RelatedBerita {
 export default function BeritaDetail() {
 	const { id, slug } = useParams();
 	const [, setLocation] = useLocation();
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 
 	const scrollToSection = (sectionId: string) => {
 		window.location.href = `/#${sectionId}`;
@@ -421,6 +424,32 @@ export default function BeritaDetail() {
 							</div>
 						)}
 
+					{/* Galeri terkait */}
+					{berita.relatedGalleryPreview && berita.relatedGalleryPreview.length > 0 && (
+						<div
+							className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
+							data-aos="fade-up"
+							data-aos-delay="255">
+							<div className="flex items-center gap-2 mb-3">
+								<Images className="w-4 h-4 text-primary" />
+								<h3 className="text-base font-semibold text-foreground">Galeri Terkait</h3>
+							</div>
+							<div className="flex flex-wrap gap-2">
+								{berita.relatedGalleryPreview.map((g) => (
+									<Link key={g._id} href={`${bp}/library/${g._id}`}>
+										<Badge
+											variant="outline"
+											className="cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors gap-1.5 text-sm py-1 px-3"
+										>
+											<Images className="w-3 h-3" />
+											{g.title}
+										</Badge>
+									</Link>
+								))}
+							</div>
+						</div>
+					)}
+
 					{/* Event Badge */}
 					{linkedEvents && linkedEvents.length > 0 && (
 						<div
@@ -437,7 +466,7 @@ export default function BeritaDetail() {
 									return (
 										<Link
 											key={ev._id}
-											href={year ? `/events/${year}/${ev._id}` : '/events'}
+											href={year ? `${bp}/events/${year}/${ev._id}` : `${bp}/events`}
 										>
 											<Badge
 												variant="outline"

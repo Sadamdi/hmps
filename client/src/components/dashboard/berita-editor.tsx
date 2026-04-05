@@ -169,6 +169,7 @@ export default function BeritaEditor({
 			// Invalidate queries
 			queryClient.invalidateQueries({ queryKey: ['/api/berita'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/berita/manage'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/library'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 
 			// Log activity
@@ -338,6 +339,8 @@ export default function BeritaEditor({
 			return res.json();
 		},
 		onSuccess: (data: any) => {
+			queryClient.invalidateQueries({ queryKey: ['/api/berita'], exact: false });
+			queryClient.invalidateQueries({ queryKey: ['/api/events'], exact: false });
 			setShowCopyToEventDialog(false);
 			const parentName = selectedParentEventId
 				? parentEventOptions.find((e) => e._id === selectedParentEventId)?.title
@@ -361,6 +364,8 @@ export default function BeritaEditor({
 			await apiRequest('DELETE', `/api/berita/${beritaId}/attach-event/${eventId}`);
 		},
 		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/berita'], exact: false });
+			queryClient.invalidateQueries({ queryKey: ['/api/events'], exact: false });
 			refetchLinkedEvents();
 			toast({ title: 'Event berhasil dilepas dari berita' });
 		},
@@ -391,6 +396,8 @@ export default function BeritaEditor({
 			});
 		},
 		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/berita'], exact: false });
+			queryClient.invalidateQueries({ queryKey: ['/api/events'], exact: false });
 			refetchLinkedEvents();
 		},
 		onError: (err: any) => {

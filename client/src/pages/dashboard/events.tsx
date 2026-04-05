@@ -411,6 +411,8 @@ export default function DashboardEvents() {
 		},
 		onSuccess: (_data, { isEditing }) => {
 			queryClient.invalidateQueries({ queryKey: ['/api/events'], exact: false });
+			queryClient.invalidateQueries({ queryKey: ['/api/berita'], exact: false });
+			queryClient.invalidateQueries({ queryKey: ['/api/library'], exact: false });
 			setIsEventDialogOpen(false);
 			resetForm();
 			toast({ title: isEditing ? 'Event berhasil diupdate' : 'Event berhasil dibuat' });
@@ -426,6 +428,8 @@ export default function DashboardEvents() {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/berita'], exact: false });
+			queryClient.invalidateQueries({ queryKey: ['/api/library'], exact: false });
 			toast({ title: 'Event berhasil dihapus' });
 		},
 	});

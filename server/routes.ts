@@ -499,6 +499,88 @@ async function enrichLibraryRelations(item: any, req: Request): Promise<void> {
 	}
 }
 
+/** Preview galeri + event (batch) untuk daftar berita publik / home */
+async function enrichBeritaListRelations(items: any[], req: Request): Promise<void> {
+	if (!items?.length) return;
+	try {
+		const m = resolveModels(req);
+		const allGalleryIds = new Set<string>();
+		for (const it of items) {
+			const gids = it?.relatedGalleryIds;
+			if (Array.isArray(gids)) {
+				for (const g of gids) {
+					if (g) allGalleryIds.add(String(g));
+				}
+			}
+		}
+		const galleryMap = new Map<string, { _id: string; title: string }>();
+		if (allGalleryIds.size > 0) {
+			const libs = await m.Library.find({
+				_id: { $in: Array.from(allGalleryIds) },
+				published: true,
+			})
+				.select('title')
+				.lean();
+			for (const lib of libs || []) {
+				galleryMap.set(String(lib._id), {
+					_id: String(lib._id),
+					title: String(lib.title || ''),
+				});
+			}
+		}
+
+		const beritaIdSet = new Set(
+			items.map((it) => String(it._id || it.id)).filter(Boolean),
+		);
+		const beritaIds = Array.from(beritaIdSet);
+		const eventsByBerita = new Map<string, { _id: string; title: string; year?: number }[]>();
+		if (beritaIds.length > 0) {
+			const events = await m.Event.find({
+				relatedBerita: { $in: beritaIds },
+				published: true,
+			})
+				.select('title yearId relatedBerita')
+				.populate('yearId', 'year')
+				.lean();
+			for (const ev of events || []) {
+				const rb = (ev as any).relatedBerita || [];
+				const bidList = Array.isArray(rb)
+					? rb.map((x: any) => String(x._id ?? x))
+					: [];
+				const year =
+					(ev as any).yearId && typeof (ev as any).yearId === 'object'
+						? ((ev as any).yearId as { year?: number }).year
+						: undefined;
+				const preview = {
+					_id: String((ev as any)._id),
+					title: String((ev as any).title || ''),
+					year,
+				};
+				for (const bid of bidList) {
+					if (!beritaIdSet.has(bid)) continue;
+					if (!eventsByBerita.has(bid)) eventsByBerita.set(bid, []);
+					eventsByBerita.get(bid)!.push(preview);
+				}
+			}
+		}
+
+		for (const it of items) {
+			const id = String(it._id || it.id);
+			const gids = (it.relatedGalleryIds || []) as unknown[];
+			it.relatedGalleryPreview = gids
+				.map((g) => galleryMap.get(String(g)))
+				.filter(Boolean) as { _id: string; title: string }[];
+			it.linkedEventsPreview = eventsByBerita.get(id) || [];
+		}
+	} catch (e) {
+		console.warn('enrichBeritaListRelations:', e);
+		for (const it of items) {
+			it.relatedGalleryPreview = [];
+			it.linkedEventsPreview = [];
+		}
+	}
+}
+
 async function cleanupSingleEventFiles(
 	event: any,
 	tCtx: { isTenant: boolean; tenantSlug?: string },
@@ -1805,6 +1887,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				isPaginated ? { page, limit } : undefined,
 			);
 			await enrichBeritaWithAuthors(allBerita, req);
+			await enrichBeritaListRelations(allBerita, req);
 			if (isPaginated) {
 				const total = await storage.getBeritaCount();
 				return res.json({
@@ -2025,6 +2108,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			await enrichBeritaWithAuthors([beritaItem], req);
+			await enrichBeritaListRelations([beritaItem], req);
 			res.json(beritaItem);
 		} catch (error) {
 			console.error('Get berita by ID and slug error:', error);
@@ -2075,6 +2159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			await enrichBeritaWithAuthors([beritaItem], req);
+			await enrichBeritaListRelations([beritaItem], req);
 			res.json(beritaItem);
 		} catch (error) {
 			console.error('Get berita by slug error:', error);
@@ -2120,6 +2205,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			await enrichBeritaWithAuthors([beritaItem], req);
+			await enrichBeritaListRelations([beritaItem], req);
 			res.json(beritaItem);
 		} catch (error) {
 			console.error('Get berita error:', error);

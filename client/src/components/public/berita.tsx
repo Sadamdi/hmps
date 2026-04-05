@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import OptimizedImage from '@/components/ui/optimized-image';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { apiRequest } from '@/lib/queryClient';
+import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -30,6 +31,8 @@ interface BeritaItem {
 	published: boolean;
 	tags?: string[];
 	viewCount?: number;
+	relatedGalleryPreview?: { _id: string; title: string }[];
+	linkedEventsPreview?: { _id: string; title: string; year?: number }[];
 }
 
 interface PaginatedResponse<T> {
@@ -46,6 +49,8 @@ export default function BeritaList() {
 	const [showAll, setShowAll] = useState(false);
 	const [isMobile, setIsMobile] = useState(false);
 	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
+	const { basePath } = useTenant();
+	const bp = basePath || '';
 
 	const { data: beritaList = [], isLoading } = useQuery<BeritaItem[]>({
 		queryKey: ['/api/berita'],
@@ -80,9 +85,9 @@ export default function BeritaList() {
 	const getBeritaUrl = (item: BeritaItem) => {
 		const beritaId = item.id || item._id;
 		if (item.slug && beritaId) {
-			return `/berita/${beritaId}/${item.slug}`;
+			return `${bp}/berita/${beritaId}/${item.slug}`;
 		}
-		return `/berita/${beritaId}`;
+		return `${bp}/berita/${beritaId}`;
 	};
 
 	const truncateText = (text: string, maxLength: number = 150) => {
@@ -230,6 +235,38 @@ export default function BeritaList() {
 												)}
 											</div>
 										)}
+										{(item.relatedGalleryPreview &&
+											item.relatedGalleryPreview.length > 0) ||
+										(item.linkedEventsPreview &&
+											item.linkedEventsPreview.length > 0) ? (
+											<div className="flex flex-wrap gap-2 pt-2 mt-2 border-t border-border">
+												<span className="text-xs font-semibold text-muted-foreground w-full">
+													Terkait:
+												</span>
+												{item.relatedGalleryPreview?.map((g) => (
+													<Link
+														key={g._id}
+														href={`${bp}/library/${g._id}`}>
+														<span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs hover:bg-primary/20">
+															Galeri: {g.title}
+														</span>
+													</Link>
+												))}
+												{item.linkedEventsPreview?.map((ev) => (
+													<Link
+														key={ev._id}
+														href={
+															ev.year
+																? `${bp}/events/${ev.year}/${ev._id}`
+																: `${bp}/events/all`
+														}>
+														<span className="inline-flex items-center rounded-full bg-secondary text-foreground px-3 py-1 text-xs hover:bg-secondary/80">
+															Event: {ev.title}
+														</span>
+													</Link>
+												))}
+											</div>
+										) : null}
 									</CardContent>
 
 									<CardFooter className="pt-0">
@@ -266,7 +303,7 @@ export default function BeritaList() {
 							className="text-center mt-8"
 							data-aos="fade-up"
 							data-aos-delay="300">
-						<Link href="/berita">
+						<Link href={`${bp}/berita`}>
 							<Button
 								variant="default"
 								className="px-8 py-2">
