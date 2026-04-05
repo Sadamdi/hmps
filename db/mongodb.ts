@@ -616,9 +616,10 @@ const positionSchema = new mongoose.Schema({
 	updatedAt: { type: Date, default: Date.now },
 });
 
-// Division Schema - untuk mengelola divisions dan posisi di dalamnya
+// Division Schema - per periode kepengurusan (sama seperti jabatan per periode)
 const divisionSchema = new mongoose.Schema({
-	name: { type: String, required: true, unique: true },
+	name: { type: String, required: true },
+	period: { type: String, default: '' },
 	displayName: { type: String, required: true },
 	description: { type: String, default: '' },
 	positions: [{ type: String }], // Array of position names in this division
@@ -628,6 +629,7 @@ const divisionSchema = new mongoose.Schema({
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
 });
+divisionSchema.index({ period: 1, name: 1 }, { unique: true });
 
 // Model EventYear — container event per tahun
 const eventYearSchema = new mongoose.Schema(

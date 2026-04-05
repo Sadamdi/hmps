@@ -759,7 +759,54 @@ export function createTenantStorage(models: TenantModels) {
 		const oid = toObjectId(id); if (!oid) return;
 		await Position.findByIdAndDelete(oid);
 	}
-	async function getAllDivisions() { return Division.find().lean(); }
+	let _tenantDivPeriodMigrated = false;
+	async function migrateLegacyTenantDivisionsOnce() {
+		if (_tenantDivPeriodMigrated) return;
+		try {
+			const n = await Division.countDocuments({
+				$or: [{ period: { $exists: false } }, { period: null }, { period: '' }],
+			});
+			if (n === 0) {
+				_tenantDivPeriodMigrated = true;
+				return;
+			}
+			const periods = await getOrganizationPeriods();
+			const fb = periods[0] || 'legacy';
+			await Division.updateMany(
+				{ $or: [{ period: { $exists: false } }, { period: null }, { period: '' }] },
+				{ $set: { period: fb } },
+			);
+			_tenantDivPeriodMigrated = true;
+		} catch (e) {
+			console.warn('migrateLegacyTenantDivisionsOnce:', e);
+		}
+	}
+	async function getAllDivisions(period?: string) {
+		await migrateLegacyTenantDivisionsOnce();
+		const q: Record<string, unknown> = {};
+		if (period) q.period = period;
+		return Division.find(q).sort({ name: 1 }).lean();
+	}
+	async function copyDivisionsFromPeriod(sourcePeriod: string, targetPeriod: string) {
+		await migrateLegacyTenantDivisionsOnce();
+		const sources = await Division.find({ period: sourcePeriod }).lean();
+		const existing = await Division.find({ period: targetPeriod }).lean();
+		const taken = new Set((existing as any[]).map((d) => d.name));
+		for (const s of sources as any[]) {
+			if (taken.has(s.name)) continue;
+			const { _id, __v, ...rest } = s;
+			await new Division({
+				...rest,
+				period: targetPeriod,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			}).save();
+			taken.add(s.name);
+		}
+	}
+	async function deleteDivisionsForPeriod(period: string) {
+		await Division.deleteMany({ period });
+	}
 	async function getDivisionById(id: string) {
 		const oid = toObjectId(id); if (!oid) return null;
 		return Division.findById(oid).lean();
@@ -1144,7 +1191,7 @@ export function createTenantStorage(models: TenantModels) {
 		getAllPositions, createPosition, updatePosition, deletePosition,
 		createPositionsForPeriod, copyPositionsFromPeriod, deletePositionsForPeriod,
 		// Divisions
-		getAllDivisions, getDivisionById, createDivision, updateDivision, deleteDivision,
+		getAllDivisions, copyDivisionsFromPeriod, deleteDivisionsForPeriod, getDivisionById, createDivision, updateDivision, deleteDivision,
 		// Feedback
 		getAllFeedback, getFeedbackById, createFeedback, updateFeedback, deleteFeedback, getFeedbackCount,
 		getVisibleFeedbackCardsFiltered, toggleFeedbackVisibility, replyToFeedback, decideSuggestion, getFeedbackRatingAverages,

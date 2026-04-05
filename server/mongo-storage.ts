@@ -1603,6 +1603,8 @@ const mongoDBStorage = {
 
 	// Division functions
 	getAllDivisions,
+	copyDivisionsFromPeriod,
+	deleteDivisionsForPeriod,
 	getDivisionByName,
 	getDivisionById,
 	createDivision,
@@ -1805,14 +1807,62 @@ async function updateUserPermissionOverrides(
 	}
 }
 
-// Division management functions
-async function getAllDivisions() {
+// Division management functions — legacy tanpa period disamakan ke periode terbaru sekali
+let _divisionsPeriodMigrated = false;
+async function migrateLegacyDivisionPeriodsOnce() {
+	if (_divisionsPeriodMigrated) return;
 	try {
-		return await Division.find({ isActive: true }).sort({ name: 1 });
+		const n = await Division.countDocuments({
+			$or: [{ period: { $exists: false } }, { period: null }, { period: '' }],
+		});
+		if (n === 0) {
+			_divisionsPeriodMigrated = true;
+			return;
+		}
+		const periods = await getOrganizationPeriods();
+		const fb = periods[0] || 'legacy';
+		await Division.updateMany(
+			{ $or: [{ period: { $exists: false } }, { period: null }, { period: '' }] },
+			{ $set: { period: fb } },
+		);
+		_divisionsPeriodMigrated = true;
+	} catch (e) {
+		console.warn('migrateLegacyDivisionPeriodsOnce:', e);
+	}
+}
+
+async function getAllDivisions(period?: string) {
+	try {
+		await migrateLegacyDivisionPeriodsOnce();
+		const q: Record<string, unknown> = { isActive: true };
+		if (period) q.period = period;
+		return await Division.find(q).sort({ name: 1 });
 	} catch (error) {
 		console.error('Error getting all divisions:', error);
 		throw error;
 	}
+}
+
+async function copyDivisionsFromPeriod(sourcePeriod: string, targetPeriod: string) {
+	await migrateLegacyDivisionPeriodsOnce();
+	const sources = await Division.find({ isActive: true, period: sourcePeriod }).lean();
+	const existing = await Division.find({ isActive: true, period: targetPeriod }).lean();
+	const taken = new Set((existing as any[]).map((d) => d.name));
+	for (const s of sources as any[]) {
+		if (taken.has(s.name)) continue;
+		const { _id, __v, ...rest } = s;
+		await new Division({
+			...rest,
+			period: targetPeriod,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		}).save();
+		taken.add(s.name);
+	}
+}
+
+async function deleteDivisionsForPeriod(period: string) {
+	await Division.deleteMany({ period });
 }
 
 async function getDivisionByName(name: string) {
@@ -2636,9 +2686,13 @@ async function initializeDefaultDivisions() {
 			return;
 		}
 
+		const periods = await getOrganizationPeriods();
+		const periodLabel = periods[0] || 'legacy';
+
 		const defaultDivisions = [
 			{
 				name: 'bph',
+				period: periodLabel,
 				displayName: 'BPH',
 				description: 'Badan Pengurus Harian - Sekretaris dan Bendahara',
 				positions: [
@@ -2654,6 +2708,7 @@ async function initializeDefaultDivisions() {
 			},
 			{
 				name: 'senor',
+				period: periodLabel,
 				displayName: 'Senor',
 				description: 'Divisi Seni dan Olahraga',
 				positions: ['Ketua Divisi Senor', 'Anggota Divisi Senor'],
@@ -2663,6 +2718,7 @@ async function initializeDefaultDivisions() {
 			},
 			{
 				name: 'public_relation',
+				period: periodLabel,
 				displayName: 'Public Relation',
 				description: 'Divisi Hubungan Masyarakat',
 				positions: [
@@ -2675,6 +2731,7 @@ async function initializeDefaultDivisions() {
 			},
 			{
 				name: 'religius',
+				period: periodLabel,
 				displayName: 'Religius',
 				description: 'Divisi Keagamaan dan Spiritual',
 				positions: ['Ketua Divisi Religius', 'Anggota Divisi Religius'],
@@ -2684,6 +2741,7 @@ async function initializeDefaultDivisions() {
 			},
 			{
 				name: 'technopreneurship',
+				period: periodLabel,
 				displayName: 'Technopreneurship',
 				description: 'Divisi Teknologi dan Kewirausahaan',
 				positions: [
@@ -2696,6 +2754,7 @@ async function initializeDefaultDivisions() {
 			},
 			{
 				name: 'medinfo',
+				period: periodLabel,
 				displayName: 'Medinfo',
 				description: 'Divisi Media dan Informasi',
 				positions: ['Ketua Divisi Medinfo', 'Anggota Divisi Medinfo'],
@@ -2705,6 +2764,7 @@ async function initializeDefaultDivisions() {
 			},
 			{
 				name: 'intelektual',
+				period: periodLabel,
 				displayName: 'Intelektual',
 				description: 'Divisi Akademik dan Penelitian',
 				positions: ['Ketua Divisi Intelektual', 'Anggota Divisi Intelektual'],

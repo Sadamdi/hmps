@@ -16,13 +16,10 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/lib/auth';
-import { useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 	Bell,
-	Building2,
-	ChevronDown,
 	Edit3,
 	Eye,
 	FileText,
@@ -48,17 +45,8 @@ interface HeaderProps {
 export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 	const { logout } = useAuth();
 	const { theme, toggleTheme } = useTheme();
-	const { isTenant, slug: tenantSlug } = useTenant();
 	const [showAllNotifications, setShowAllNotifications] = useState(false);
 	const queryClient = useQueryClient();
-
-	const { data: communities = [] } = useQuery<
-		Array<{ _id?: string; name: string; slug: string }>
-	>({
-		queryKey: ['/api/communities'],
-		staleTime: 60_000,
-		enabled: isTenant,
-	});
 
 	// User-specific sharing notifications
 	const { data: userNotifData } = useQuery({
@@ -237,46 +225,6 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 						onClick={onMobileMenuToggle}>
 						<Menu className="h-5 w-5" />
 					</Button>
-					{isTenant && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									className="shrink-0 gap-1.5 max-w-[min(100%,14rem)]">
-									<Building2 className="h-4 w-4 shrink-0" />
-									<span className="truncate hidden sm:inline">Komunitas</span>
-									<ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="start" className="w-64">
-								<DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
-									Pindah situs
-								</DropdownMenuLabel>
-								<DropdownMenuItem asChild>
-									<a href="/" className="cursor-pointer font-medium">
-										Himatif Encoder
-									</a>
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								{(communities as { name: string; slug: string }[]).map((c) => (
-									<DropdownMenuItem key={c.slug} asChild>
-										<a
-											href={`/${c.slug}`}
-											className={`cursor-pointer ${c.slug === tenantSlug ? 'bg-accent' : ''}`}>
-											<span className="truncate">{c.name}</span>
-											{c.slug === tenantSlug && (
-												<span className="ml-2 text-xs text-muted-foreground shrink-0">
-													(aktif)
-												</span>
-											)}
-										</a>
-									</DropdownMenuItem>
-								))}
-							</DropdownMenuContent>
-						</DropdownMenu>
-					)}
 					<h1 className="text-lg lg:text-xl font-semibold truncate min-w-0">{title}</h1>
 				</div>
 

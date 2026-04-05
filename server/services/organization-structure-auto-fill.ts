@@ -746,11 +746,12 @@ function isBphPosition(position: string): boolean {
 	);
 }
 
-async function syncDivisionPositionsFromRows(
+async function syncDivisionPositionsForPeriod(
 	rows: WorkingRow[],
+	period: string,
 	storage: TenantStorageType,
 ): Promise<void> {
-	const divisions = (await storage.getAllDivisions()) as DivisionDoc[];
+	const divisions = (await storage.getAllDivisions(period)) as DivisionDoc[];
 	const buckets = new Map<string, Set<string>>();
 	const labels = new Map<string, string>();
 
@@ -799,6 +800,7 @@ async function syncDivisionPositionsFromRows(
 			}
 			const created = await storage.createDivision({
 				name: uniqueSlug,
+				period,
 				displayName: label,
 				description: label === 'BPH' ? 'Badan Pengurus Harian' : '',
 				positions: desiredPositions,
@@ -819,6 +821,26 @@ async function syncDivisionPositionsFromRows(
 		if (merged.length === current.length) continue;
 		await storage.updateDivision(String(target._id), { positions: merged });
 		target.positions = merged;
+	}
+}
+
+async function syncDivisionPositionsFromRows(
+	rows: WorkingRow[],
+	storage: TenantStorageType,
+): Promise<void> {
+	let periodList = Array.from(
+		new Set(rows.map((r) => r.period).filter((p) => p && p !== '_none_')),
+	);
+	if (periodList.length === 0) {
+		const fb = (await storage.getOrganizationPeriods())[0];
+		if (fb) periodList = [fb];
+	}
+	for (const period of periodList) {
+		await syncDivisionPositionsForPeriod(
+			rows.filter((r) => r.period === period),
+			period,
+			storage,
+		);
 	}
 }
 
@@ -1640,7 +1662,13 @@ export async function previewOrganizationStructureAutoFill(opts: {
 	}
 
 	const knownPeriods: string[] = await storage.getOrganizationPeriods();
-	const divisions = (await storage.getAllDivisions()) as DivisionDoc[];
+	const divisionPeriod =
+		normalizePeriodCanonical(periodHint || '', { knownPeriods }) ||
+		knownPeriods[0] ||
+		'';
+	const divisions = (await storage.getAllDivisions(
+		divisionPeriod || undefined,
+	)) as DivisionDoc[];
 
 	const extracted = await extractAssignmentsWithGemini(file.buffer, file, {
 		hintPeriod: periodHint || undefined,
@@ -1740,7 +1768,14 @@ export async function applyOrganizationStructureAutoFill(opts: {
 		throw new Error('previewData tidak valid');
 	}
 
-	const divisions = (await storage.getAllDivisions()) as DivisionDoc[];
+	const { periodHint, knownPeriods } = previewData.context;
+	const divisionPeriod =
+		normalizePeriodCanonical(periodHint || '', { knownPeriods }) ||
+		knownPeriods[0] ||
+		'';
+	const divisions = (await storage.getAllDivisions(
+		divisionPeriod || undefined,
+	)) as DivisionDoc[];
 	const getPositionsForPeriod = async (p: string) => {
 		const list = await storage.getPositionsByPeriod(p);
 		return orgDocsToPositionRefs((list || []) as PositionRef[]);

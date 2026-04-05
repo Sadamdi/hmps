@@ -3733,10 +3733,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				await storage.deleteOrganizationMembersByPeriod(period);
 				await storage.deletePositionsForPeriod(period);
+				await storage.deleteDivisionsForPeriod(period);
 				await storage.deleteOrganizationPeriod(period);
 
 				res.json({
-					message: `Periode "${period}" beserta anggota, jabatan, dan berkas lokal terkait telah dihapus.`,
+					message: `Periode "${period}" beserta anggota, jabatan, divisi, dan berkas lokal terkait telah dihapus.`,
 				});
 			} catch (error) {
 				console.error('Delete organization period error:', error);
@@ -6170,7 +6171,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		// requirePermission('divisions.view'), // Temporarily disabled
 		async (req, res) => {
 			try {
-				const divisions = await resolveStorage(req).getAllDivisions();
+				const period =
+					typeof req.query.period === 'string' ? req.query.period.trim() : '';
+				const divisions = await resolveStorage(req).getAllDivisions(
+					period || undefined,
+				);
 				res.json(divisions);
 			} catch (error) {
 				console.error('Error getting divisions:', error);
@@ -6179,16 +6184,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	// Get available positions (positions that are not assigned to any division)
+	// Get available positions (positions that are not assigned to any division for this period)
 	app.get(
 		'/api/divisions/available-positions',
 		authenticate,
 		async (req, res) => {
 			try {
-				const divisions = await resolveStorage(req).getAllDivisions();
+				const storage = resolveStorage(req);
+				const period =
+					typeof req.query.period === 'string' ? req.query.period.trim() : '';
+				const divisions = await storage.getAllDivisions(period || undefined);
 				const allAssignedPositions = new Set();
 
-				// Collect all assigned positions
 				divisions.forEach((division: any) => {
 					if (division.positions) {
 						division.positions.forEach((position: string) => {
@@ -6197,25 +6204,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				});
 
-				// Get all positions from organization positions
-				const allPositions = await resolveStorage(req).getAllPositions();
-				const availablePositions = [];
-
-				// Find positions that are not assigned to any division
-				for (const periodData of allPositions) {
-					if (periodData.positions) {
-						for (const position of periodData.positions) {
-							if (!allAssignedPositions.has(position.name)) {
-								availablePositions.push(position.name);
+				const availablePositions: string[] = [];
+				if (period) {
+					const posList = await storage.getPositionsByPeriod(period);
+					for (const position of posList || []) {
+						const nm = (position as any).name;
+						if (nm && !allAssignedPositions.has(nm)) {
+							availablePositions.push(nm);
+						}
+					}
+				} else {
+					const allPositions = await storage.getAllPositions();
+					for (const periodData of allPositions as any[]) {
+						if (periodData.positions) {
+							for (const position of periodData.positions) {
+								if (!allAssignedPositions.has(position.name)) {
+									availablePositions.push(position.name);
+								}
 							}
 						}
 					}
 				}
 
-				// Remove duplicates
-				const uniqueAvailablePositions = Array.from(
-					new Set(availablePositions),
-				);
+				const uniqueAvailablePositions = Array.from(new Set(availablePositions));
 
 				res.json(uniqueAvailablePositions);
 			} catch (error) {
@@ -6226,13 +6237,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	);
 
 	app.post(
+		'/api/divisions/copy',
+		authenticate,
+		async (req, res) => {
+			try {
+				const { sourcePeriod, targetPeriod } = req.body || {};
+				if (!sourcePeriod || !targetPeriod) {
+					return res
+						.status(400)
+						.json({ message: 'sourcePeriod dan targetPeriod wajib diisi' });
+				}
+				await resolveStorage(req).copyDivisionsFromPeriod(
+					String(sourcePeriod),
+					String(targetPeriod),
+				);
+				res.json({ message: 'Divisi disalin ke periode tujuan' });
+			} catch (error: any) {
+				console.error('Error copying divisions:', error);
+				res.status(500).json({
+					message: error?.message || 'Internal server error',
+				});
+			}
+		},
+	);
+
+	app.post(
 		'/api/divisions',
 		authenticate,
 		// requirePermission('divisions.create'), // Temporarily disabled
 		async (req, res) => {
 			try {
-				const { name, displayName, description, positions, color, logo } =
-					req.body;
+				const {
+					name,
+					displayName,
+					description,
+					positions,
+					color,
+					logo,
+					period: bodyPeriod,
+				} = req.body;
 
 				if (!name || !displayName) {
 					return res.status(400).json({
@@ -6241,15 +6284,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				const divStorage = resolveStorage(req);
-				const existingDivisions = await divStorage.getAllDivisions();
+				const periods = await divStorage.getOrganizationPeriods();
+				const period =
+					(typeof bodyPeriod === 'string' && bodyPeriod.trim()) ||
+					(periods[0] ?? '');
+
+				const existingDivisions = await divStorage.getAllDivisions(period);
 				if (existingDivisions.some((d: any) => d.name === name)) {
 					return res.status(400).json({
-						message: 'Division with this name already exists',
+						message: 'Divisi dengan nama ini sudah ada untuk periode tersebut',
 					});
 				}
 
 				const division = await divStorage.createDivision({
 					name,
+					period,
 					displayName,
 					description: description || '',
 					positions: positions || [],

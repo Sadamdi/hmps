@@ -235,12 +235,15 @@ function DivisionEditor({
 	division,
 	onSaved,
 	availablePositions,
+	periodScope,
 }: {
 	isOpen: boolean;
 	onClose: () => void;
 	division: any;
 	onSaved: (id: string, data: any) => void;
 	availablePositions: string[];
+	/** Periode kepengurusan — untuk invalidate cache posisi tersedia */
+	periodScope: string;
 }) {
 	const { slug, isTenant } = useTenant();
 	const scope = isTenant && slug ? slug : 'main';
@@ -280,13 +283,17 @@ function DivisionEditor({
 		if (newPosition.trim() && !formData.positions.includes(newPosition.trim())) {
 			setFormData((prev) => ({ ...prev, positions: [...prev.positions, newPosition.trim()] }));
 			setNewPosition('');
-			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({
+				queryKey: [scope, '/api/divisions/available-positions', periodScope],
+			});
 		}
 	};
 
 	const handleRemovePosition = (pos: string) => {
 		setFormData((prev) => ({ ...prev, positions: prev.positions.filter((p) => p !== pos) }));
-		queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
+		queryClient.invalidateQueries({
+			queryKey: [scope, '/api/divisions/available-positions', periodScope],
+		});
 	};
 
 	const handleDragEnd = (event: DragEndEvent) => {
@@ -530,20 +537,30 @@ export default function OrganizationStructureEditor() {
 	});
 
 	const { data: divisions = [], isLoading: isDivisionsLoading } = useQuery({
-		queryKey: [scope, '/api/divisions'],
+		queryKey: [scope, '/api/divisions', selectedPeriod],
 		queryFn: async () => {
-			const response = await apiRequest('GET', '/api/divisions');
+			if (!selectedPeriod) return [];
+			const response = await apiRequest(
+				'GET',
+				`/api/divisions?period=${encodeURIComponent(selectedPeriod)}`,
+			);
 			return response.json();
 		},
+		enabled: !!selectedPeriod,
 		placeholderData: [],
 	});
 
 	const { data: availablePositions = [] } = useQuery({
-		queryKey: [scope, '/api/divisions/available-positions'],
+		queryKey: [scope, '/api/divisions/available-positions', selectedPeriod],
 		queryFn: async () => {
-			const response = await apiRequest('GET', '/api/divisions/available-positions');
+			if (!selectedPeriod) return [];
+			const response = await apiRequest(
+				'GET',
+				`/api/divisions/available-positions?period=${encodeURIComponent(selectedPeriod)}`,
+			);
 			return response.json();
 		},
+		enabled: !!selectedPeriod,
 		placeholderData: [],
 	});
 
@@ -560,6 +577,10 @@ export default function OrganizationStructureEditor() {
 		queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/members'] });
 		queryClient.invalidateQueries({
 			queryKey: [scope, '/api/organization/positions', selectedPeriod],
+		});
+		queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
+		queryClient.invalidateQueries({
+			queryKey: [scope, '/api/divisions/available-positions'],
 		});
 	};
 
@@ -705,14 +726,17 @@ export default function OrganizationStructureEditor() {
 			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/periods'] });
 			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/members'] });
 			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/positions'] });
-			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
+			queryClient.invalidateQueries({
+				queryKey: [scope, '/api/divisions/available-positions'],
+			});
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
 			try {
 				await logActivity(ActivityTemplates.organizationPeriodDeleted(period));
 			} catch {}
 			toast({
 				title: 'Periode dihapus',
-				description: `Periode ${period} beserta anggota, jabatan, dan berkas foto lokal (jika ada) telah dihapus.`,
+				description: `Periode ${period} beserta anggota, jabatan, divisi, dan berkas foto lokal (jika ada) telah dihapus.`,
 			});
 		},
 		onError: (_err, _period, ctx) => {
@@ -783,20 +807,35 @@ export default function OrganizationStructureEditor() {
 		onError: () => toast({ title: 'Gagal', description: 'Salin jabatan gagal.', variant: 'destructive' }),
 	});
 
+	const copyDivisionsMutation = useMutation({
+		mutationFn: async ({ sourcePeriod, targetPeriod }: { sourcePeriod: string; targetPeriod: string }) =>
+			apiRequest('POST', '/api/divisions/copy', { sourcePeriod, targetPeriod }),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
+			toast({ title: 'Berhasil', description: 'Divisi disalin ke periode tujuan.' });
+		},
+		onError: () =>
+			toast({ title: 'Gagal', description: 'Salin divisi gagal.', variant: 'destructive' }),
+	});
+
 	const createDivisionMutation = useMutation({
 		mutationFn: async (data: any) => {
 			const res = await apiRequest('POST', '/api/divisions', data);
 			return res.json();
 		},
 		onSuccess: (newDiv) => {
-			queryClient.setQueryData<any[]>([scope, '/api/divisions'], (old) => [...(old ?? []), newDiv]);
+			const p = (newDiv as any)?.period ?? selectedPeriod;
+			queryClient.setQueryData<any[]>([scope, '/api/divisions', p], (old) => [...(old ?? []), newDiv]);
 			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({
+				queryKey: [scope, '/api/divisions/available-positions', p],
+			});
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images/active'] });
-			toast({ title: 'Success', description: 'Division created successfully' });
+			toast({ title: 'Berhasil', description: 'Divisi berhasil dibuat.' });
 		},
-		onError: () => toast({ title: 'Error', description: 'Failed to create division', variant: 'destructive' }),
+		onError: () =>
+			toast({ title: 'Gagal', description: 'Tidak dapat membuat divisi.', variant: 'destructive' }),
 	});
 
 	const updateDivisionMutation = useMutation({
@@ -805,39 +844,45 @@ export default function OrganizationStructureEditor() {
 			return res.json();
 		},
 		onSuccess: (updated) => {
-			queryClient.setQueryData<any[]>([scope, '/api/divisions'], (old) =>
+			const p = (updated as any)?.period ?? selectedPeriod;
+			queryClient.setQueryData<any[]>([scope, '/api/divisions', p], (old) =>
 				(old ?? []).map((d) => (d._id === updated._id ? updated : d)),
 			);
 			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({
+				queryKey: [scope, '/api/divisions/available-positions', p],
+			});
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images/active'] });
-			toast({ title: 'Success', description: 'Division updated successfully' });
+			toast({ title: 'Berhasil', description: 'Divisi diperbarui.' });
 		},
-		onError: () => toast({ title: 'Error', description: 'Failed to update division', variant: 'destructive' }),
+		onError: () =>
+			toast({ title: 'Gagal', description: 'Tidak dapat memperbarui divisi.', variant: 'destructive' }),
 	});
 
 	const deleteDivisionMutation = useMutation({
 		mutationFn: async (id: string) => apiRequest('DELETE', `/api/divisions/${id}`),
 		onMutate: async (id) => {
-			await queryClient.cancelQueries({ queryKey: [scope, '/api/divisions'] });
-			const prev = queryClient.getQueryData<any[]>([scope, '/api/divisions']);
+			await queryClient.cancelQueries({ queryKey: [scope, '/api/divisions', selectedPeriod] });
+			const prev = queryClient.getQueryData<any[]>([scope, '/api/divisions', selectedPeriod]);
 			queryClient.setQueryData<any[]>(
-				[scope, '/api/divisions'],
+				[scope, '/api/divisions', selectedPeriod],
 				(old) => (old ?? []).filter((d) => d._id !== id),
 			);
 			return { prev };
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
-			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions/available-positions'] });
+			queryClient.invalidateQueries({
+				queryKey: [scope, '/api/divisions/available-positions', selectedPeriod],
+			});
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/home-images/active'] });
-			toast({ title: 'Success', description: 'Division deleted successfully' });
+			toast({ title: 'Berhasil', description: 'Divisi dihapus.' });
 		},
 		onError: (_err, _id, ctx) => {
-			if (ctx?.prev) queryClient.setQueryData([scope, '/api/divisions'], ctx.prev);
-			toast({ title: 'Error', description: 'Failed to delete division', variant: 'destructive' });
+			if (ctx?.prev) queryClient.setQueryData([scope, '/api/divisions', selectedPeriod], ctx.prev);
+			toast({ title: 'Gagal', description: 'Tidak dapat menghapus divisi.', variant: 'destructive' });
 		},
 	});
 
@@ -934,9 +979,10 @@ export default function OrganizationStructureEditor() {
 	};
 
 	const handleAddDivision = () => {
-		if (newDivision.trim()) {
+		if (newDivision.trim() && selectedPeriod) {
 			createDivisionMutation.mutate({
 				name: newDivision.toLowerCase().replace(/\s+/g, '_'),
+				period: selectedPeriod,
 				displayName: newDivision,
 				description: '',
 				positions: [],
@@ -1237,7 +1283,12 @@ export default function OrganizationStructureEditor() {
 								<strong>Langkah</strong>: pilih atau <strong>tambah periode</strong> (tombol +) → di <strong>Tambah jabatan baru</strong> ketik nama jabatan lalu Enter atau tombol tambah → seret/naik-turun untuk mengurutkan.
 							</li>
 							<li>
-								<strong>Contoh valid</strong>: <code className="text-xs bg-muted px-1 rounded">Ketua HMPS</code>, <code className="text-xs bg-muted px-1 rounded">Wakil Ketua</code>, <code className="text-xs bg-muted px-1 rounded">Koordinator Public Relation</code>—nama unik per periode, konsisten dengan yang dipilih saat menambah anggota.
+								<strong>Contoh valid</strong>: <code className="text-xs bg-muted px-1 rounded">Ketua HMPS</code>, <code className="text-xs bg-muted px-1 rounded">Wakil Ketua</code>, <code className="text-xs bg-muted px-1 rounded">Sekretaris</code>—nama unik per periode, sama persis dengan yang dipilih saat menambah anggota.
+							</li>
+							<li>
+								<strong>Divisi ↔ jabatan (wajib selaras)</strong>: untuk tiap divisi (mis. Public Relation), di tab Jabatan untuk <strong>periode yang sama</strong> sediakan jabatan seperti{' '}
+								<code className="text-xs bg-muted px-1 rounded">Ketua Divisi Public Relation</code> dan{' '}
+								<code className="text-xs bg-muted px-1 rounded">Anggota Divisi Public Relation</code>. Di tab Divisi, hubungkan nama jabatan itu ke divisi bersangkutan. Anggota yang memakai salah satu nama jabatan itu otomatis terhitung di divisi tersebut (filter &amp; bagan mengikuti nama jabatan).
 							</li>
 							<li>
 								<strong>Contoh tidak valid</strong>: duplikat nama jabatan; menghapus jabatan yang masih terpasang pada anggota (biasanya ditolak).
@@ -1413,30 +1464,49 @@ export default function OrganizationStructureEditor() {
 						title="Panduan tab: Divisi"
 						variant="green"
 						storageKey="dashboard-org-structure-tab-divisions"
-						description="Divisi mengelompokkan program kerja HMPS TI UIN Malang (warna, deskripsi, daftar nama jabatan terkait). Mengubah nama/warna memengaruhi tampilan publik dan filter anggota.">
+						description="Divisi mengikuti periode kepengurusan (seperti jabatan): tiap periode bisa punya daftar divisi sendiri. Warna &amp; deskripsi memengaruhi tampilan publik; daftar nama jabatan di divisi harus cocok dengan tab Jabatan untuk periode yang sama.">
 						<ul className="list-disc list-inside space-y-1.5 text-sm">
 							<li>
-								<strong>Langkah</strong>: <strong>Tambah Divisi Baru</strong> → isi nama tampilan → edit lewat ikon pensil untuk warna dan deskripsi → hubungkan jabatan jika di dialog editor tersedia → hapus divisi hanya jika tidak ada ketergantungan.
+								<strong>Langkah</strong>: pilih <strong>periode</strong> → <strong>Tambah Divisi Baru</strong> → edit lewat ikon pensil untuk warna, deskripsi, dan daftar nama jabatan yang termasuk divisi ini → gunakan <strong>Salin divisi ke periode lain</strong> untuk menyalin struktur divisi ke periode baru (nama yang sudah ada di periode tujuan dilewati).
 							</li>
 							<li>
-								<strong>Contoh valid</strong>: nama <code className="text-xs bg-muted px-1 rounded">Public Relation</code> dengan warna aksen yang kontras; deskripsi satu kalimat tentang tugas divisi di himpunan TI UIN Malang.
+								<strong>Korelasi dengan jabatan</strong>: contoh divisi <code className="text-xs bg-muted px-1 rounded">Public Relation</code> — di tab Jabatan untuk periode yang sama harus ada jabatan seperti{' '}
+								<code className="text-xs bg-muted px-1 rounded">Ketua Divisi Public Relation</code> dan{' '}
+								<code className="text-xs bg-muted px-1 rounded">Anggota Divisi Public Relation</code>, lalu di editor divisi pilih jabatan-jabatan itu. Anggota dengan nama jabatan tersebut masuk ke divisi lewat nama jabatannya.
 							</li>
 							<li>
-								<strong>Contoh tidak valid</strong>: nama kosong; warna terlalu mirip antar divisi sehingga sulit dibedakan; menghapus divisi yang masih dipetakan ke anggota.
+								<strong>Contoh valid</strong>: nama <code className="text-xs bg-muted px-1 rounded">Public Relation</code> dengan warna aksen yang kontras; deskripsi satu kalimat tentang tugas divisi.
 							</li>
 							<li>
-								<strong>Jika tidak muncul di filter</strong>: simpan perubahan divisi; refresh; pastikan anggota memakai penamaan jabatan/divisi yang konsisten.
+								<strong>Contoh tidak valid</strong>: nama kosong; menghubungkan jabatan yang tidak ada di tab Jabatan untuk periode itu; warna terlalu mirip antar divisi.
+							</li>
+							<li>
+								<strong>Jika tidak muncul di filter anggota</strong>: pastikan periode sama; pastikan nama jabatan anggota persis dengan yang ada di tab Jabatan dan terhubung di divisi.
 							</li>
 							<li>
 								<strong>Izin</strong>: <code className="text-xs bg-muted px-1 rounded">kelembagaan.edit</code>.
 							</li>
 						</ul>
 					</DashboardHintCard>
+					<div className="mb-6 flex flex-col gap-3">
+						<div className="flex flex-col sm:flex-row sm:flex-wrap gap-2 sm:items-center">
+							<Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+								<SelectTrigger className="w-full sm:w-[200px]">
+									<SelectValue placeholder="Periode divisi" />
+								</SelectTrigger>
+								<SelectContent>
+									{sortedPeriods.map((period: string) => (
+										<SelectItem key={period} value={period}>{period}</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
 					<div className="mb-6 flex flex-col gap-4">
-						{hasSpecificPermission('kelembagaan.edit') && (
+						{hasSpecificPermission('kelembagaan.edit') && selectedPeriod && (
 							<Card>
 								<CardContent className="p-6">
-									<h3 className="text-lg font-semibold mb-4">Tambah Divisi Baru</h3>
+									<h3 className="text-lg font-semibold mb-4">Tambah Divisi Baru — {selectedPeriod}</h3>
 									<div className="flex gap-2">
 										<Input
 											placeholder="Nama divisi..."
@@ -1452,15 +1522,61 @@ export default function OrganizationStructureEditor() {
 							</Card>
 						)}
 
+						{hasSpecificPermission('kelembagaan.edit') &&
+							selectedPeriod &&
+							sortedPeriods.filter((p) => p !== selectedPeriod).length > 0 && (
+								<Card>
+									<CardContent className="p-6">
+										<h3 className="text-lg font-semibold mb-4">Salin divisi ke periode lain</h3>
+										<p className="text-sm text-muted-foreground mb-3">
+											Sumber: <strong>{selectedPeriod}</strong>. Nama divisi yang sudah ada di periode tujuan tidak ditimpa.
+										</p>
+										<div className="grid gap-2">
+											{sortedPeriods
+												.filter((period) => period !== selectedPeriod)
+												.map((period) => (
+													<div
+														key={period}
+														className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between border rounded">
+														<span className="min-w-0">{period}</span>
+														<Button
+															className="flex-shrink-0"
+															variant="outline"
+															size="sm"
+															onClick={() =>
+																copyDivisionsMutation.mutateAsync({
+																	sourcePeriod: selectedPeriod,
+																	targetPeriod: period,
+																})
+															}
+															disabled={copyDivisionsMutation.isPending}>
+															{copyDivisionsMutation.isPending ? (
+																<Loader2 className="h-4 w-4 animate-spin" />
+															) : (
+																<Copy className="h-4 w-4" />
+															)}
+															Salin
+														</Button>
+													</div>
+												))}
+										</div>
+									</CardContent>
+								</Card>
+							)}
+
 						<Card>
 							<CardContent className="p-6">
-								<h3 className="text-lg font-semibold mb-4">Divisi Saat Ini</h3>
-								{isDivisionsLoading ? (
+								<h3 className="text-lg font-semibold mb-4">
+									{selectedPeriod ? `Divisi — ${selectedPeriod}` : 'Divisi per periode'}
+								</h3>
+								{!selectedPeriod ? (
+									<p className="text-muted-foreground">Pilih periode terlebih dahulu.</p>
+								) : isDivisionsLoading ? (
 									<div className="flex justify-center items-center h-32">
 										<Loader2 className="h-8 w-8 animate-spin" />
 									</div>
 								) : divisions.length === 0 ? (
-									<p className="text-muted-foreground">Belum ada divisi.</p>
+									<p className="text-muted-foreground">Belum ada divisi untuk periode ini.</p>
 								) : (
 									<div className="space-y-4">
 										{divisions.map((division: any) => (
@@ -1829,6 +1945,7 @@ export default function OrganizationStructureEditor() {
 				division={editingDivision}
 				onSaved={handleUpdateDivision}
 				availablePositions={availablePositions}
+				periodScope={selectedPeriod || ''}
 			/>
 
 			<AlertDialog
@@ -1848,6 +1965,7 @@ export default function OrganizationStructureEditor() {
 							<ul className="list-disc list-inside text-sm text-muted-foreground">
 								<li>semua anggota struktur untuk periode ini;</li>
 								<li>daftar jabatan (nama jabatan) untuk periode ini;</li>
+								<li>divisi yang terdaftar untuk periode ini;</li>
 								<li>foto anggota yang tersimpan di server (unggahan lokal untuk anggota tersebut).</li>
 							</ul>
 							<span className="block text-destructive font-medium text-sm">

@@ -133,6 +133,9 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 	},
 ];
 
+/** Teks baris pertama menu Komunitas di situs tenant: link ke portal utama. Bukan `navbarBrand` tenant (itu nama komunitas seperti MOCAP). */
+const MAIN_PORTAL_COMMUNITY_LABEL = 'Himatif Encoder';
+
 export default function Navbar({
 	activeSection,
 	scrollToSection,
@@ -141,7 +144,7 @@ export default function Navbar({
 	const [location, navigate] = useLocation();
 	const { user, logout } = useAuth();
 	const { theme, toggleTheme } = useTheme();
-	const { isTenant, basePath } = useTenant();
+	const { isTenant, basePath, slug: tenantSlug } = useTenant();
 	const bp = isTenant ? basePath : '';
 	const userTenantSlug = (user as any)?.tenantSlug as string | undefined;
 	const needsAbsoluteDash = userTenantSlug
@@ -153,7 +156,6 @@ export default function Navbar({
 	const { data: communities = [] } = useQuery<any[]>({
 		queryKey: ['/api/communities'],
 		staleTime: 60000,
-		enabled: !isTenant,
 	});
 
 	// Dropdown open state (desktop + mobile)
@@ -394,14 +396,37 @@ export default function Navbar({
 			if (item) result.push(item);
 		}
 
-		// Add Komunitas dropdown if any communities exist (main site only)
-		if (!isTenant && communities && (communities as any[]).length > 0) {
-			const communityList = communities as any[];
-			const MAX_DROPDOWN = 10;
-			const children: { label: string; href?: string }[] = communityList.slice(0, MAX_DROPDOWN).map((c: any) => ({
-				label: c.name,
-				href: `/${c.slug}`,
-			}));
+		// Komunitas: situs utama = daftar komunitas; situs tenant = beranda Himatif dulu, lalu komunitas lain (+ aktif)
+		const communityList = Array.isArray(communities) ? (communities as any[]) : [];
+		const MAX_DROPDOWN = 10;
+		if (isTenant) {
+			const slotsForCommunities = Math.max(0, MAX_DROPDOWN - 1);
+			const rest = communityList.slice(0, slotsForCommunities);
+			const children: { label: string; href?: string }[] = [
+				{ label: MAIN_PORTAL_COMMUNITY_LABEL, href: '/' },
+				...rest.map((c: any) => ({
+					label:
+						c.slug === tenantSlug ? `${c.name} (aktif)` : c.name,
+					href: `/${c.slug}`,
+				})),
+			];
+			if (communityList.length > slotsForCommunities) {
+				children.push({ label: 'Lihat semua komunitas', href: '/communities' });
+			}
+			result.push({
+				id: 'komunitas',
+				label: 'Komunitas',
+				icon: <Building2 className="h-4 w-4" />,
+				homeSection: '',
+				children,
+			});
+		} else if (communityList.length > 0) {
+			const children: { label: string; href?: string }[] = communityList
+				.slice(0, MAX_DROPDOWN)
+				.map((c: any) => ({
+					label: c.name,
+					href: `/${c.slug}`,
+				}));
 			if (communityList.length > MAX_DROPDOWN) {
 				children.push({ label: 'Lihat semua komunitas', href: '/communities' });
 			}
@@ -415,7 +440,7 @@ export default function Navbar({
 		}
 
 		return result;
-	}, [activeYears, eventMonths, navCfgArr, communities, isTenant, bp]);
+	}, [activeYears, eventMonths, navCfgArr, communities, isTenant, bp, tenantSlug]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.
