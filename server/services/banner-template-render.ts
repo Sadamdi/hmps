@@ -17,7 +17,7 @@ import sharp from 'sharp';
 
 /**
  * Font teks banner: urutan pertama yang ada di `attached_assets/fonts/` dipakai.
- * Taruh salah satu: Vipnagorgialla (sesuai PSD), Owners Wide Black Italic, Montserrat ExtraBold, dll.
+ * Taruh salah satu: Helvetica-BoldOblique (prioritas), Vipnagorgialla, Owners Wide Black Italic, Montserrat, dll.
  */
 const _fontsDir = path.join(process.cwd(), 'attached_assets', 'fonts');
 
@@ -28,6 +28,22 @@ const BANNER_FONT_SETUPS: ReadonlyArray<{
 	register: (fontPath: string) => void;
 	makeFont: BannerFontFn;
 }> = [
+	/* Helvetica Bold Oblique — file di repo: Helvetica-BoldOblique.ttf */
+	{
+		files: [
+			'Helvetica-BoldOblique.ttf',
+			'Helvetica-BoldOblique.otf',
+			'Helvetica-Bold-Oblique.otf',
+			'Helvetica-Bold-Oblique.ttf',
+		],
+		register: (p) =>
+			registerFont(p, {
+				family: 'BannerTemplateText',
+				weight: 'bold',
+				style: 'italic',
+			}),
+		makeFont: (fsz) => `italic 900 ${fsz}px "BannerTemplateText", sans-serif`,
+	},
 	{
 		files: ['Vipnagorgialla-BoldItalic.ttf', 'Vipnagorgialla-BoldItalic.otf'],
 		register: (p) =>

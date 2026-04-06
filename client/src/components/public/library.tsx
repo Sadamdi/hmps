@@ -198,12 +198,12 @@ function LibraryGalleryCard({
 						</span>
 						{item.relatedBeritaPreview?.map((b) => (
 							<Link
-								key={b._id}
-								href={
-									b.slug
-										? `/berita/${b._id}/${b.slug}`
-										: `/berita/${b._id}`
-								}>
+							key={b._id}
+							href={
+								b.slug
+									? `/berita/${b.slug}`
+									: `/berita/${b._id}`
+							}>
 								<span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[10px] sm:text-xs hover:bg-primary/20">
 									Berita: {b.title}
 								</span>

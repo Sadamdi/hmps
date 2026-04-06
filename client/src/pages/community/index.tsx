@@ -94,7 +94,7 @@ export default function CommunityShell() {
 							<Route path="/" component={Home} />
 							<Route path="/berita" component={AllBerita} />
 							<Route path="/berita/:id/:slug" component={BeritaDetail} />
-							<Route path="/berita/:id" component={BeritaDetail} />
+							<Route path="/berita/:slug" component={BeritaDetail} />
 							<Route path="/profil" component={ProfilPage} />
 							<Route path="/kelembagaan" component={KelembagaanPage} />
 							<Route path="/events" component={EventsIndex} />

@@ -181,8 +181,8 @@ app.get('/sitemap.xml', async (_req, res) => {
 
 					console.log(`📄 Found ${beritaList.length} published berita`);
 
-				beritaUrls = beritaList.map((a: any) => {
-					const url = `${host}/berita/${a._id}/${a.slug}`;
+				beritaUrls = beritaList.filter((a: any) => a.slug).map((a: any) => {
+					const url = `${host}/berita/${a.slug}`;
 					console.log(`📝 Adding berita URL: ${url}`);
 						return {
 							loc: url,
@@ -439,34 +439,43 @@ setInterval(
 	} else {
 		console.log('📦 Setting up static files (production mode)');
 
-		// ==================== BERITA SEO PRERENDER MIDDLEWARE ====================
-		app.get(['/berita/:id/:slug', '/berita/:id'], async (req, res, next) => {
+		// ==================== BERITA 301 REDIRECT: old /berita/:id/:slug → /berita/:slug ====================
+		app.get('/berita/:id/:slug', async (req, res) => {
+			const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+			return res.redirect(301, `/berita/${req.params.slug}${qs}`);
+		});
+
+		// ==================== BERITA SEO PRERENDER MIDDLEWARE (slug-only) ====================
+		app.get('/berita/:slugOrId', async (req, res, next) => {
 			try {
+				const { slugOrId } = req.params;
+				const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+
+				const { Berita } = await import('../db/mongodb');
+				const mongoose = await import('mongoose');
+
+				// Old ID-based URL → redirect 301 to slug
+				const isObjectId = mongoose.default.Types.ObjectId.isValid(slugOrId) && /^[0-9a-fA-F]{24}$/.test(slugOrId);
+				if (isObjectId) {
+					try {
+						const found = await Berita.findById(slugOrId).select('slug').lean() as any;
+						if (found?.slug) {
+							return res.redirect(301, `/berita/${found.slug}${qs}`);
+						}
+					} catch {}
+					return next();
+				}
+
+				// New slug-based URL → SSR prerender
 				const distPath = path.resolve(process.cwd(), 'dist', 'public');
 				const htmlPath = path.join(distPath, 'index.html');
 				if (!fs.existsSync(htmlPath)) return next();
 
 				let beritaItem: any = null;
 				try {
-					const { Berita } = await import('../db/mongodb');
-					const mongoose = await import('mongoose');
-					const { id, slug } = req.params as { id?: string; slug?: string };
-
-					if (slug && id) {
-						beritaItem = await Berita.findById(id)
-							.select('title excerpt image author createdAt updatedAt slug _id')
-							.lean();
-					} else if (id) {
-						if (mongoose.default.Types.ObjectId.isValid(id)) {
-							beritaItem = await Berita.findById(id)
-								.select('title excerpt image author createdAt updatedAt slug _id')
-								.lean();
-						} else {
-							beritaItem = await Berita.findOne({ slug: id })
-								.select('title excerpt image author createdAt updatedAt slug _id')
-								.lean();
-						}
-					}
+					beritaItem = await Berita.findOne({ slug: slugOrId })
+						.select('title excerpt image author createdAt updatedAt slug _id')
+						.lean();
 				} catch (dbErr) {
 					console.log('Berita prerender DB fetch skipped:', dbErr);
 				}
@@ -486,7 +495,7 @@ setInterval(
 						beritaItem.excerpt ||
 							'Berita dari Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 					).slice(0, 160);
-					const canonicalUrl = `https://himatif-encoder.com/berita/${beritaItem._id}/${beritaItem.slug || ''}`;
+					const canonicalUrl = `https://himatif-encoder.com/berita/${beritaItem.slug}`;
 					const defaultOgImage =
 						'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
 					const ogImage =
@@ -547,7 +556,6 @@ setInterval(
 							`<meta property="twitter:image" content="${ogImage}" />`,
 						);
 
-					// Inject JSON-LD schema for rich results
 					const beritaSchema = JSON.stringify({
 						'@context': 'https://schema.org',
 						'@type': 'Article',

@@ -75,11 +75,7 @@ function Router() {
 				component={BeritaDetail}
 			/>
 			<Route
-				path="/berita/slug/:slug"
-				component={BeritaDetail}
-			/>
-			<Route
-				path="/berita/:id"
+				path="/berita/:slug"
 				component={BeritaDetail}
 			/>
 			<Route

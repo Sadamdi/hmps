@@ -361,7 +361,7 @@ export function LibraryItemDetailContent({
 						<Link
 							key={b._id}
 							href={
-								b.slug ? `/berita/${b._id}/${b.slug}` : `/berita/${b._id}`
+								b.slug ? `/berita/${b.slug}` : `/berita/${b._id}`
 							}>
 							<span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs hover:bg-primary/20">
 								Berita: {b.title}

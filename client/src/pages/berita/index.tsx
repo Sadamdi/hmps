@@ -327,14 +327,14 @@ export default function AllBerita() {
 								data-aos="fade-up"
 								data-aos-delay={`${index * 40}`}>
 								<CardHeader className="p-0">
-									<Link
-										href={
-											item.slug
-												? `/berita/${item._id}/${item.slug}`
-												: `/berita/${item._id}`
-										}>
-										<div className="relative h-48 overflow-hidden">
-											<img
+								<Link
+									href={
+										item.slug
+											? `/berita/${item.slug}`
+											: `/berita/${item._id}`
+									}>
+									<div className="relative h-48 overflow-hidden">
+										<img
 												src={item.image}
 												alt={item.title}
 												className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -348,13 +348,13 @@ export default function AllBerita() {
 									</Link>
 								</CardHeader>
 								<CardContent className="p-4">
-									<Link
-										href={
-											item.slug
-												? `/berita/${item._id}/${item.slug}`
-												: `/berita/${item._id}`
-										}>
-										<CardTitle className="text-base mb-2 hover:text-primary transition-colors line-clamp-2 text-foreground">
+								<Link
+									href={
+										item.slug
+											? `/berita/${item.slug}`
+											: `/berita/${item._id}`
+									}>
+									<CardTitle className="text-base mb-2 hover:text-primary transition-colors line-clamp-2 text-foreground">
 											{item.title}
 										</CardTitle>
 									</Link>
@@ -391,14 +391,14 @@ export default function AllBerita() {
 										</div>
 									</div>
 
-									<Link
-										href={
-											item.slug
-												? `/berita/${item._id}/${item.slug}`
-												: `/berita/${item._id}`
-										}>
-										<Button
-											variant="link"
+								<Link
+									href={
+										item.slug
+											? `/berita/${item.slug}`
+											: `/berita/${item._id}`
+									}>
+									<Button
+										variant="link"
 											className="text-primary hover:text-primary/80 p-0 h-auto font-medium text-sm">
 											Baca selengkapnya →
 										</Button>

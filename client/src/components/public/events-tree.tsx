@@ -807,11 +807,11 @@ export default function EventsTree({
 								<div>
 									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Berita Terkait</h4>
 									<div className="space-y-1.5">
-										{showSubEvents.relatedBerita.map((art) => (
-											<Link
-												key={art._id}
-												href={`/berita/${art._id}${art.slug ? `/${art.slug}` : ''}`}
-												className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-primary"
+									{showSubEvents.relatedBerita.map((art) => (
+										<Link
+											key={art._id}
+											href={art.slug ? `/berita/${art.slug}` : `/berita/${art._id}`}
+											className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-primary"
 											>
 												<FileText className="h-4 w-4 flex-shrink-0" />
 												<span className="flex-1 truncate">{art.title}</span>
@@ -921,11 +921,11 @@ export default function EventsTree({
 								<div>
 									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Berita Terkait</h4>
 									<div className="space-y-1.5">
-										{selectedEvent.relatedBerita.map((art) => (
-											<Link
-												key={art._id}
-												href={`/berita/${art._id}${art.slug ? `/${art.slug}` : ''}`}
-												className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-primary"
+									{selectedEvent.relatedBerita.map((art) => (
+										<Link
+											key={art._id}
+											href={art.slug ? `/berita/${art.slug}` : `/berita/${art._id}`}
+											className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-primary"
 											>
 												<FileText className="h-4 w-4 flex-shrink-0" />
 												<span className="flex-1 truncate">{art.title}</span>

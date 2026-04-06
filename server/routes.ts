@@ -1945,7 +1945,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// Events linked to a berita (PLACE BEFORE /api/berita/:id/:slug)
+	// Events linked to a berita by ID (internal/dashboard use)
 	app.get('/api/berita/:id/events', authenticateOptional, async (req, res) => {
 		try {
 			const { id } = req.params;
@@ -1956,6 +1956,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.json(events);
 		} catch (error) {
 			console.error('Get berita events error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Events linked to a berita by slug (public use)
+	app.get('/api/berita/slug/:slug/events', authenticateOptional, async (req, res) => {
+		try {
+			const storage = resolveStorage(req);
+			const beritaItem = await storage.getBeritaBySlug(req.params.slug);
+			if (!beritaItem) {
+				return res.status(404).json({ message: 'Berita not found' });
+			}
+			let events = await storage.getEventsByBeritaId(String(beritaItem._id));
+			if (!req.user) {
+				events = events.filter((e: any) => e.published);
+			}
+			res.json(events);
+		} catch (error) {
+			console.error('Get berita events by slug error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
@@ -2101,9 +2120,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// Hybrid route: /berita/:id/:slug (for SEO-friendly URLs)
+	// Hybrid legacy route: /berita/:id/:slug (for backward compatibility)
 	app.get(
-		'/api/berita/:id/:slug',
+		'/api/berita/:id([a-fA-F0-9]{24})/:slug',
 		authenticateOptional,
 		async (req, res) => {
 			try {
@@ -2439,13 +2458,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					gdriveFileId = fileId;
 				}
 
-				// Generate unique slug from title
+				// Generate unique slug from title (check ALL berita, not just published)
 				const { generateUniqueSlug } = await import('../shared/utils');
-				const existingBeritas = await storage.getPublishedBerita();
-				const existingSlugs = existingBeritas.map(
+				const m = resolveModels(req);
+				const allSlugs = (await m.Berita.find({}).select('slug').lean()).map(
 					(b: any) => b.slug || '',
 				);
-				const slug = generateUniqueSlug(title.trim(), existingSlugs);
+				const slug = generateUniqueSlug(title.trim(), allSlugs);
 
 				const newBerita = await storage.createBerita({
 					title: title.trim(),

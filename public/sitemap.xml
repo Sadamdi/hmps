@@ -22,7 +22,7 @@
     <!-- Berita contoh (akan diganti dengan berita yang benar-benar ada) -->
     <!-- 
     <url>
-        <loc>https://himatif-encoder.com/berita/{id}/{slug}</loc>
+        <loc>https://himatif-encoder.com/berita/{slug}</loc>
         <lastmod>2025-01-21</lastmod>
         <changefreq>monthly</changefreq>
         <priority>0.8</priority>

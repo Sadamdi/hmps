@@ -115,7 +115,7 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 	{
 		name: 'search_berita',
 		description:
-			'Cari dan ambil daftar berita Himatif Encoder yang sudah dipublikasikan. Kata kunci dicocokkan ke judul, ringkasan (excerpt), isi (content), dan tags. Setiap item memuat id (MongoDB) dan slug untuk membangun URL publik: /berita/{id}/{slug} atau /berita/{id} jika slug kosong. Gunakan saat user bertanya tentang berita atau tulisan Himatif Encoder.',
+			'Cari dan ambil daftar berita Himatif Encoder yang sudah dipublikasikan. Kata kunci dicocokkan ke judul, ringkasan (excerpt), isi (content), dan tags. Setiap item memuat slug untuk membangun URL publik: /berita/{slug}. Gunakan saat user bertanya tentang berita atau tulisan Himatif Encoder.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -136,7 +136,7 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 	{
 		name: 'get_berita_detail',
 		description:
-			'Ambil detail lengkap satu berita berdasarkan ID atau slug. Respons menyertakan publicPath siap pakai untuk blok NAV (/berita/{id}/{slug} atau /berita/{id}). Gunakan setelah search_berita.',
+			'Ambil detail lengkap satu berita berdasarkan ID atau slug. Respons menyertakan publicPath siap pakai untuk blok NAV (/berita/{slug}). Gunakan setelah search_berita.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -1080,18 +1080,15 @@ export async function executeToolCall(
 							tags: a.tags,
 							slug: slug || undefined,
 							createdAt: a.createdAt,
-							publicPath:
-								id && slug
-									? `/berita/${id}/${slug}`
-									: id
-										? `/berita/${id}`
-										: undefined,
-						};
-					}),
-				};
-			}
+						publicPath: slug
+							? `/berita/${slug}`
+							: undefined,
+					};
+				}),
+			};
+		}
 
-			case 'get_berita_detail': {
+		case 'get_berita_detail': {
 				const id = args.id as string;
 				if (!id) return { error: 'ID berita diperlukan' };
 				let item = null;
@@ -1124,22 +1121,19 @@ export async function executeToolCall(
 					(item as any).slug.trim()
 						? (item as any).slug.trim()
 						: '';
-				return {
-					id: bid,
-					title: (item as any).title,
-					content: (item as any).content,
-					excerpt: (item as any).excerpt,
-					author: (item as any).author,
-					tags: (item as any).tags,
-					slug: bslug || undefined,
-					createdAt: (item as any).createdAt,
-					publicPath:
-						bid && bslug
-							? `/berita/${bid}/${bslug}`
-							: bid
-								? `/berita/${bid}`
-								: undefined,
-				};
+			return {
+				id: bid,
+				title: (item as any).title,
+				content: (item as any).content,
+				excerpt: (item as any).excerpt,
+				author: (item as any).author,
+				tags: (item as any).tags,
+				slug: bslug || undefined,
+				createdAt: (item as any).createdAt,
+				publicPath: bslug
+					? `/berita/${bslug}`
+					: undefined,
+			};
 			}
 
 			case 'get_library_items': {
@@ -1727,7 +1721,11 @@ export async function executeToolCall(
 				if (!title)
 					return { error: 'Judul berita diperlukan' };
 
-				const slug = slugify(title);
+				const { generateUniqueSlug } = await import('../../shared/utils');
+				const allSlugs = (await Berita.find({}).select('slug').lean()).map(
+					(b: any) => b.slug || '',
+				);
+				const slug = generateUniqueSlug(title, allSlugs);
 				const excerpt =
 					(args.excerpt as string) || title;
 				const content =

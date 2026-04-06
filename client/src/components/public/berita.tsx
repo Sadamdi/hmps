@@ -79,11 +79,10 @@ export default function BeritaList() {
 		: beritaList.slice(0, initialCount);
 
 	const getBeritaUrl = (item: BeritaItem) => {
-		const beritaId = item.id || item._id;
-		if (item.slug && beritaId) {
-			return `/berita/${beritaId}/${item.slug}`;
+		if (item.slug) {
+			return `/berita/${item.slug}`;
 		}
-		return `/berita/${beritaId}`;
+		return `/berita/${item.id || item._id}`;
 	};
 
 	const truncateText = (text: string, maxLength: number = 150) => {

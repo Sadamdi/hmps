@@ -175,7 +175,7 @@ export default function EventDetailPage() {
 										{event.relatedBerita.map((art) => (
 											<Link
 												key={art._id}
-												href={`/berita/${art._id}${art.slug ? `/${art.slug}` : ''}`}
+												href={art.slug ? `/berita/${art.slug}` : `/berita/${art._id}`}
 												className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors">
 												<FileText className="h-4 w-4 flex-shrink-0 text-primary" />
 												<span className="flex-1 truncate font-medium">

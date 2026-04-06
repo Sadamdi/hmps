@@ -153,7 +153,7 @@ export default function EventsYearPage() {
 																		{ev.relatedBerita.map((art) => (
 																			<Link
 																				key={art._id}
-																				href={`/berita/${art._id}${art.slug ? `/${art.slug}` : ''}`}
+																				href={art.slug ? `/berita/${art.slug}` : `/berita/${art._id}`}
 																			>
 																				<Badge variant="secondary" className="text-xs gap-1 cursor-pointer hover:bg-secondary/80">
 																					<FileText className="h-2.5 w-2.5" />

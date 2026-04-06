@@ -49,25 +49,23 @@ interface RelatedBerita {
 }
 
 export default function BeritaDetail() {
-	const { id, slug } = useParams();
+	const { id, slug } = useParams<{ id?: string; slug?: string }>();
 	const [, setLocation] = useLocation();
 	const { basePath } = useTenant();
 	const bp = basePath || '';
+	const isObjectId = (v?: string) => !!v && /^[a-f\d]{24}$/i.test(v);
+	const isLegacyHybridRoute = !!id && !!slug;
+	const normalizedSlug = isLegacyHybridRoute ? slug : slug && !isObjectId(slug) ? slug : undefined;
+	const fallbackId = isLegacyHybridRoute ? id : slug && isObjectId(slug) ? slug : undefined;
 	const scrollToSection = (sectionId: string) => {
 		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
 	};
 
-	let apiEndpoint: string;
-	let isHybridRoute = false;
-
-	if (id && slug) {
-		apiEndpoint = `/api/berita/${id}/${slug}`;
-		isHybridRoute = true;
-	} else if (slug && !id) {
-		apiEndpoint = `/api/berita/slug/${slug}`;
-	} else {
-		apiEndpoint = `/api/berita/${id}`;
-	}
+	const apiEndpoint = normalizedSlug
+		? `/api/berita/slug/${normalizedSlug}`
+		: fallbackId
+			? `/api/berita/${fallbackId}`
+			: '';
 
 	const {
 		data: berita,
@@ -82,35 +80,45 @@ export default function BeritaDetail() {
 		enabled: !!apiEndpoint,
 	});
 
-	let relatedEndpoint: string | null = null;
-	if (id) {
-		relatedEndpoint = `/api/berita/${id}/related?limit=2`;
-	} else if (slug && !id) {
-		relatedEndpoint = `/api/berita/slug/${slug}/related?limit=2`;
-	}
+	const relatedEndpoint = normalizedSlug
+		? `/api/berita/slug/${normalizedSlug}/related?limit=2`
+		: fallbackId
+			? `/api/berita/${fallbackId}/related?limit=2`
+			: '';
 
 	const { data: related = [] } = useQuery<RelatedBerita[]>({
-		queryKey: [relatedEndpoint || ''],
+		queryKey: [relatedEndpoint],
 		queryFn: async () => {
-			const response = await apiRequest('GET', relatedEndpoint as string);
+			const response = await apiRequest('GET', relatedEndpoint);
 			return response.json();
 		},
 		enabled: !!relatedEndpoint,
 		placeholderData: [],
 	});
 
-	const beritaId = id || null;
+	const eventsEndpoint = normalizedSlug
+		? `/api/berita/slug/${normalizedSlug}/events`
+		: fallbackId
+			? `/api/berita/${fallbackId}/events`
+			: '';
 
 	const { data: linkedEvents = [] } = useQuery<{ _id: string; title: string; yearId: { year: number }; startDate: string; endDate: string }[]>({
-		queryKey: [`/api/berita/${beritaId}/events`],
+		queryKey: [eventsEndpoint],
 		queryFn: async () => {
-			const response = await fetch(`/api/berita/${beritaId}/events`);
+			const response = await fetch(eventsEndpoint);
 			if (!response.ok) return [];
 			return response.json();
 		},
-		enabled: !!beritaId,
+		enabled: !!eventsEndpoint,
 		placeholderData: [],
 	});
+
+	useEffect(() => {
+		// Normalize old /berita/:id/:slug links to /berita/:slug
+		if (isLegacyHybridRoute && slug) {
+			setLocation(`/berita/${slug}`);
+		}
+	}, [isLegacyHybridRoute, setLocation, slug]);
 
 	useEffect(() => {
 		if (berita) {
@@ -129,9 +137,7 @@ export default function BeritaDetail() {
 				document.head.appendChild(newMeta);
 			}
 
-			const canonicalUrl = `https://himatif-encoder.com/berita/${
-				berita._id || berita.id
-			}/${berita.slug || slug || ''}`;
+			const canonicalUrl = `https://himatif-encoder.com/berita/${berita.slug || normalizedSlug || ''}`;
 			const canonical = document.querySelector('link[rel="canonical"]');
 			if (canonical) {
 				canonical.setAttribute('href', canonicalUrl);
@@ -189,7 +195,7 @@ export default function BeritaDetail() {
 			});
 			document.head.appendChild(script);
 		}
-	}, [berita, id, slug]);
+	}, [berita, normalizedSlug]);
 
 	const formatDate = (dateString: string) => {
 		const date = new Date(dateString);
@@ -514,14 +520,12 @@ export default function BeritaDetail() {
 							{related && related.length > 0 ? (
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 									{related.slice(0, 2).map((r, idx) => {
-										const rid = (r._id || r.id) as string | number;
-										const href =
-											r.slug && rid
-												? `/berita/${rid}/${r.slug}`
-												: `/berita/${rid}`;
+									const href = r.slug
+										? `/berita/${r.slug}`
+										: `/berita/${r._id || r.id}`;
 										return (
 											<div
-												key={String(rid) + '-' + idx}
+												key={String(r._id || r.id || idx) + '-' + idx}
 												className="group cursor-pointer bg-muted/40 rounded-lg overflow-hidden border border-border hover:shadow-md hover:border-primary/30 transition-all duration-200"
 												onClick={() => setLocation(href)}>
 												<div className="aspect-video overflow-hidden">
@@ -602,7 +606,7 @@ export default function BeritaDetail() {
 		{/* AI Chat dengan context berita yang sedang dibaca */}
 		<AIChat
 			pageContext={{
-				path: `/berita/${berita._id || berita.id || id || ''}`,
+				path: `/berita/${berita.slug || normalizedSlug || fallbackId || ''}`,
 				permissions: [],
 				pageData: {
 					title: berita.title,
