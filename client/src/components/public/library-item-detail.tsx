@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, ChevronLeft, ChevronRight, ExternalLink, Eye, Film, ImageIcon, Loader2, Tag, User, X } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'wouter';
+import { toSlug } from '@/utils/slug';
 import MediaDisplay from '../MediaDisplay';
 
 export interface LibraryDetailItem {
@@ -372,7 +373,7 @@ export function LibraryItemDetailContent({
 						<Link
 							key={ev._id}
 							href={
-								ev.year ? `/events/${ev.year}/${ev._id}` : '/events/all'
+								ev.year ? `/events/${ev.year}/${toSlug(ev.title) || ev._id}` : '/events/all'
 							}>
 							<span className="inline-flex items-center rounded-full bg-secondary text-foreground px-3 py-1 text-xs hover:bg-secondary/80">
 								Event: {ev.title}

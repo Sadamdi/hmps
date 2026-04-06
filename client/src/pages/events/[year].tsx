@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, Eye, FileText } from 'lucide-react';
 import { Link, useParams } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
+import { toSlug } from '@/utils/slug';
 
 const MONTH_NAMES = [
 	'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -119,7 +120,7 @@ export default function EventsYearPage() {
 											{eventsByMonth[month].map((ev) => {
 												const status = getEventStatus(ev.startDate, ev.endDate);
 												return (
-													<Link key={ev._id} href={`/events/${year}/${ev._id}`}>
+													<Link key={ev._id} href={`/events/${year}/${toSlug(ev.title) || ev._id}`}>
 														<Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer h-full">
 															{ev.thumbnail && (
 																<div className="aspect-video overflow-hidden">

@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
+import { toSlug } from '@/utils/slug';
 
 interface BeritaItem {
 	id?: number;
@@ -241,7 +242,7 @@ export default function BeritaList() {
 												{item.relatedGalleryPreview?.map((g) => (
 													<Link
 														key={g._id}
-														href={`/library/${g._id}`}>
+														href={`/library/${toSlug(g.title) || g._id}`}>
 														<span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs hover:bg-primary/20">
 															Galeri: {g.title}
 														</span>
@@ -252,7 +253,7 @@ export default function BeritaList() {
 														key={ev._id}
 														href={
 															ev.year
-																? `/events/${ev.year}/${ev._id}`
+																? `/events/${ev.year}/${toSlug(ev.title) || ev._id}`
 																: `/events/all`
 														}>
 														<span className="inline-flex items-center rounded-full bg-secondary text-foreground px-3 py-1 text-xs hover:bg-secondary/80">

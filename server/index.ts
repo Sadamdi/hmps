@@ -109,6 +109,15 @@ app.get('/sitemap.xml', async (_req, res) => {
 
 		const host = 'https://himatif-encoder.com';
 		const now = new Date().toISOString().slice(0, 10);
+		const toUrlSlug = (value: string) =>
+			(value || '')
+				.toLowerCase()
+				.trim()
+				.replace(/[^\w\s-]/g, '')
+				.replace(/[\s_]+/g, '-')
+				.replace(/-+/g, '-')
+				.replace(/^-+|-+$/g, '')
+				.substring(0, 80);
 
 		// Always include base URLs
 		const baseUrls = [
@@ -117,6 +126,18 @@ app.get('/sitemap.xml', async (_req, res) => {
 			loc: `${host}/berita`,
 			changefreq: 'daily',
 			priority: '0.9',
+			lastmod: now,
+		},
+		{
+			loc: `${host}/events`,
+			changefreq: 'weekly',
+			priority: '0.8',
+			lastmod: now,
+		},
+		{
+			loc: `${host}/library`,
+			changefreq: 'weekly',
+			priority: '0.8',
 			lastmod: now,
 		},
 			{
@@ -165,6 +186,8 @@ app.get('/sitemap.xml', async (_req, res) => {
 		];
 
 		let beritaUrls: any[] = [];
+		let eventUrls: any[] = [];
+		let libraryUrls: any[] = [];
 
 		try {
 			// Check database connection first
@@ -172,7 +195,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 			const isConnected = await connectDB();
 
 			if (isConnected) {
-				const { Berita } = await import('../db/mongodb');
+				const { Berita, Event, EventYear, Library } = await import('../db/mongodb');
 
 				if (Berita) {
 					const beritaList = await Berita.find({ published: true })
@@ -198,6 +221,50 @@ app.get('/sitemap.xml', async (_req, res) => {
 						'⚠️ Berita model not found, continuing with base URLs only',
 					);
 				}
+				if (Event && EventYear) {
+					const yearDocs = await EventYear.find({}).select('_id year').lean();
+					const yearMap = new Map(
+						(yearDocs || []).map((y: any) => [String(y._id), Number(y.year)]),
+					);
+					const events = await Event.find({ published: true })
+						.select('_id title yearId updatedAt createdAt')
+						.lean();
+					eventUrls = (events || [])
+						.map((e: any) => {
+							const year = yearMap.get(String(e.yearId));
+							if (!year) return null;
+							const slug = toUrlSlug(String(e.title || ''));
+							if (!slug) return null;
+							return {
+								loc: `${host}/events/${year}/${slug}`,
+								lastmod:
+									(e.updatedAt || e.createdAt)?.toISOString?.().slice(0, 10) ||
+									now,
+								changefreq: 'monthly',
+								priority: '0.7',
+							};
+						})
+						.filter(Boolean) as any[];
+				}
+				if (Library) {
+					const libraries = await Library.find({ published: true })
+						.select('_id title updatedAt createdAt')
+						.lean();
+					libraryUrls = (libraries || [])
+						.map((l: any) => {
+							const slug = toUrlSlug(String(l.title || ''));
+							if (!slug) return null;
+							return {
+								loc: `${host}/library/${slug}`,
+								lastmod:
+									(l.updatedAt || l.createdAt)?.toISOString?.().slice(0, 10) ||
+									now,
+								changefreq: 'monthly',
+								priority: '0.7',
+							};
+						})
+						.filter(Boolean) as any[];
+				}
 			} else {
 				console.log(
 					'⚠️ Database not connected, continuing with base URLs only',
@@ -210,16 +277,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 			);
 		}
 
-		// Library items tidak ada halaman terpisah, hanya section di beranda
-		// const libraryUrls = libraryItems.map((l: any) => ({
-		// 	loc: `${host}/perpus/${l._id}`,
-		// 	lastmod:
-		// 		(l.updatedAt || l.createdAt)?.toISOString?.().slice(0, 10) || now,
-		// 	changefreq: 'monthly',
-		// 	priority: '0.7',
-		// }));
-
-		const urls = [...baseUrls, ...beritaUrls];
+		const urls = [...baseUrls, ...beritaUrls, ...eventUrls, ...libraryUrls];
 
 		console.log(`🌐 Generated ${urls.length} total URLs for sitemap`);
 		console.log(

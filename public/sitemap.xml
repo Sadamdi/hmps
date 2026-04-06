@@ -29,4 +29,24 @@
     </url>
     -->
 
+    <!-- Event contoh -->
+    <!--
+    <url>
+        <loc>https://himatif-encoder.com/events/{year}/{slug-judul}</loc>
+        <lastmod>2025-01-21</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    -->
+
+    <!-- Galeri contoh -->
+    <!--
+    <url>
+        <loc>https://himatif-encoder.com/library/{slug-judul}</loc>
+        <lastmod>2025-01-21</lastmod>
+        <changefreq>monthly</changefreq>
+        <priority>0.7</priority>
+    </url>
+    -->
+
 </urlset>

@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, Download, ExternalLink, Eye, FileText } from 'lucide-react';
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
+import { toSlug } from '@/utils/slug';
 
 const BASE_SPEED_PPS = 100;
 const EASING_K = 3;
@@ -787,7 +788,7 @@ export default function EventsTree({
 								<p className="text-sm text-gray-300">{showSubEvents.description.replace(/<[^>]*>/g, '')}</p>
 							)}
 							<div className="flex gap-2 flex-wrap">
-								<Link href={`/events/${new Date(showSubEvents.startDate).getFullYear()}/${showSubEvents._id}`}>
+								<Link href={`/events/${new Date(showSubEvents.startDate).getFullYear()}/${toSlug(showSubEvents.title) || showSubEvents._id}`}>
 									<Button variant="outline" size="sm" className="border-white/20 text-white hover:bg-white/10">
 										<ExternalLink className="h-4 w-4 mr-2" />
 										Lihat Detail
@@ -935,7 +936,7 @@ export default function EventsTree({
 									</div>
 								</div>
 							)}
-							<Link href={`/events/${new Date(selectedEvent.startDate).getFullYear()}/${selectedEvent._id}`}>
+							<Link href={`/events/${new Date(selectedEvent.startDate).getFullYear()}/${toSlug(selectedEvent.title) || selectedEvent._id}`}>
 								<Button variant="outline" className="w-full border-white/20 text-white hover:bg-white/10">
 									<ExternalLink className="h-4 w-4 mr-2" />
 									Lihat Detail (Halaman Baru)

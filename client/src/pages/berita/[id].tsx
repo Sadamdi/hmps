@@ -15,6 +15,7 @@ import { ArrowLeft, BookOpen, Calendar, CalendarDays, Images, Share2, Tag, User 
 import { Suspense, lazy, useEffect } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
+import { toSlug } from '@/utils/slug';
 
 const TableOfContents = lazy(
 	() => import('@/components/berita/table-of-contents')
@@ -441,7 +442,7 @@ export default function BeritaDetail() {
 							</div>
 							<div className="flex flex-wrap gap-2">
 								{berita.relatedGalleryPreview.map((g) => (
-									<Link key={g._id} href={`/library/${g._id}`}>
+									<Link key={g._id} href={`/library/${toSlug(g.title) || g._id}`}>
 										<Badge
 											variant="outline"
 											className="cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors gap-1.5 text-sm py-1 px-3"
@@ -471,7 +472,7 @@ export default function BeritaDetail() {
 									return (
 										<Link
 											key={ev._id}
-											href={year ? `/events/${year}/${ev._id}` : '/events'}
+											href={year ? `/events/${year}/${toSlug(ev.title) || ev._id}` : '/events'}
 										>
 											<Badge
 												variant="outline"

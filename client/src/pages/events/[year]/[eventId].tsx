@@ -20,7 +20,9 @@ import {
 	Eye,
 	FileText,
 } from 'lucide-react';
-import { Link, useParams } from 'wouter';
+import { useEffect } from 'react';
+import { Link, useLocation, useParams } from 'wouter';
+import { isObjectId, toSlug } from '@/utils/slug';
 
 interface RelatedBerita {
 	_id: string;
@@ -44,19 +46,25 @@ interface EventItem {
 
 export default function EventDetailPage() {
 	const { year, eventId } = useParams<{ year: string; eventId: string }>();
+	const [, setLocation] = useLocation();
+	const eventSlug = eventId && !isObjectId(eventId) ? eventId : undefined;
+	const eventObjectId = eventId && isObjectId(eventId) ? eventId : undefined;
+	const endpoint = eventSlug
+		? `/api/events/year/${year}/slug/${eventSlug}?children=true`
+		: `/api/events/${eventObjectId}?children=true`;
 
 	const {
 		data: event,
 		isLoading,
 		error,
 	} = useQuery<EventItem>({
-		queryKey: ['/api/events', eventId],
+		queryKey: ['event-detail', year, eventId],
 		queryFn: async () => {
-			const res = await fetch(`/api/events/${eventId}?children=true`);
+			const res = await fetch(endpoint);
 			if (!res.ok) throw new Error('Event not found');
 			return res.json();
 		},
-		enabled: !!eventId,
+		enabled: !!year && !!eventId,
 	});
 
 	const { basePath } = useTenant();
@@ -64,6 +72,13 @@ export default function EventDetailPage() {
 	const scrollToSection = (id: string) => {
 		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
 	};
+
+	useEffect(() => {
+		if (event && year && eventId && isObjectId(eventId)) {
+			const normalized = toSlug(event.title);
+			if (normalized) setLocation(`/events/${year}/${normalized}`);
+		}
+	}, [event, eventId, setLocation, year]);
 
 	if (error || (!isLoading && !event)) {
 		return (
@@ -195,7 +210,7 @@ export default function EventDetailPage() {
 										{event.children.map((child) => (
 											<Link
 												key={child._id}
-												href={`/events/${year}/${child._id}`}>
+												href={`/events/${year}/${toSlug(child.title) || child._id}`}>
 												<Card className="hover:shadow-md transition-shadow cursor-pointer">
 													<CardContent className="p-4 flex items-center gap-4">
 														{child.thumbnail && (
@@ -241,7 +256,7 @@ export default function EventDetailPage() {
 			</main>
 			<Footer />
 			<AIChat
-				pageContext={{ path: `/events/${year}/${eventId}`, permissions: [] }}
+				pageContext={{ path: `/events/${year}/${eventSlug || (event ? toSlug(event.title) : eventId)}`, permissions: [] }}
 			/>
 		</div>
 	);

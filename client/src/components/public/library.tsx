@@ -23,6 +23,7 @@ import AOS from 'aos';
 import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Eye, Filter, Search, Tag, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
+import { toSlug } from '@/utils/slug';
 import MediaDisplay from '../MediaDisplay';
 
 interface PaginatedResponse<T> {
@@ -214,7 +215,7 @@ function LibraryGalleryCard({
 								key={ev._id}
 								href={
 									ev.year
-										? `/events/${ev.year}/${ev._id}`
+										? `/events/${ev.year}/${toSlug(ev.title) || ev._id}`
 										: `/events/all`
 								}>
 								<span className="inline-flex items-center rounded-full bg-secondary text-foreground px-3 py-1 text-[10px] sm:text-xs hover:bg-secondary/80">
@@ -253,7 +254,7 @@ function LibraryGalleryCard({
 						</DialogContent>
 					</Dialog>
 					<Link
-						href={`/library/${item._id || item.id}`}
+						href={`/library/${toSlug(item.title) || item._id || item.id}`}
 						className="text-sm font-medium text-muted-foreground hover:text-primary underline underline-offset-2">
 						Halaman detail
 					</Link>

@@ -9,6 +9,7 @@ import { getEventStatus, formatEventDate, StatusBadge } from '@/components/publi
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft, Calendar, Eye, FileText } from 'lucide-react';
 import { Link } from 'wouter';
+import { toSlug } from '@/utils/slug';
 import { useTenant } from '@/lib/tenant-context';
 
 const MONTH_NAMES = [
@@ -133,7 +134,7 @@ export default function EventsAllPage() {
 												{events.map((ev) => {
 													const status = getEventStatus(ev.startDate, ev.endDate);
 													return (
-														<Link key={ev._id} href={`/events/${year}/${ev._id}`}>
+														<Link key={ev._id} href={`/events/${year}/${toSlug(ev.title) || ev._id}`}>
 															<Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer h-full">
 																{ev.thumbnail && (
 																	<div className="aspect-video overflow-hidden">

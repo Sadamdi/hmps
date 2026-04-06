@@ -142,6 +142,17 @@ function getPaginationParams(query: any) {
 	return { page, limit, isPaginated };
 }
 
+function toUrlSlug(value: string): string {
+	return (value || '')
+		.toLowerCase()
+		.trim()
+		.replace(/[^\w\s-]/g, '')
+		.replace(/[\s_]+/g, '-')
+		.replace(/-+/g, '-')
+		.replace(/^-+|-+$/g, '')
+		.substring(0, 80);
+}
+
 async function hasApprovedSharing(
 	entityType: string,
 	entityId: string,
@@ -2979,6 +2990,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.json(items);
 		} catch (error) {
 			console.error('Get library management error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.get('/api/library/slug/:slug', authenticateOptional, async (req, res) => {
+		try {
+			const slug = String(req.params.slug || '').trim();
+			if (!slug) return res.status(400).json({ message: 'Invalid library slug' });
+			const items = await resolveStorage(req).getPublishedLibraryItems();
+			const item = (items || []).find((it: any) => toUrlSlug(String(it?.title || '')) === slug);
+			if (!item) return res.status(404).json({ message: 'Library item not found' });
+			res.json(item);
+		} catch (error) {
+			console.error('Get library by slug error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
@@ -6951,6 +6976,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.json(enrichedEvents);
 		} catch (error) {
 			console.error('Error getting events:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	app.get('/api/events/year/:year/slug/:slug', authenticateOptional, async (req, res) => {
+		try {
+			const year = parseInt(req.params.year, 10);
+			const slug = String(req.params.slug || '').trim();
+			if (Number.isNaN(year) || !slug) {
+				return res.status(400).json({ message: 'Invalid event year/slug' });
+			}
+			const withChildren = req.query.children === 'true';
+			const storage = resolveStorage(req);
+			const yearData = await storage.getEventsByYear(year, false, false);
+			if (!yearData) return res.status(404).json({ message: 'Year not found' });
+			const matched = (yearData.events || []).find(
+				(ev: any) => toUrlSlug(String(ev?.title || '')) === slug,
+			);
+			if (!matched) return res.status(404).json({ message: 'Event not found' });
+			const event = withChildren
+				? await storage.getEventWithChildren(String((matched as any)._id))
+				: await storage.getEventById(String((matched as any)._id));
+			if (!event) return res.status(404).json({ message: 'Event not found' });
+
+			if (!(event as any).published) {
+				if (!req.user) {
+					return res.status(403).json({
+						message: 'You do not have permission to view this event',
+					});
+				}
+				const canView = await checkEventPermission(
+					req.user as UserWithRole,
+					event,
+					'view',
+					req,
+				);
+				if (!canView) {
+					return res.status(403).json({
+						message: 'You do not have permission to view this event',
+					});
+				}
+			}
+
+			try {
+				const currentViews = typeof (event as any).viewCount === 'number' ? (event as any).viewCount : 0;
+				const nextViews = currentViews + 1;
+				await storage.updateEvent(String((event as any)._id), { viewCount: nextViews });
+				(event as any).viewCount = nextViews;
+			} catch (incError) {
+				console.warn('Failed to increment event viewCount (slug):', incError);
+			}
+
+			try {
+				await enrichEventTreeWithAuthors(event, req);
+			} catch (e) {
+				console.warn('Failed to enrich event authors:', e);
+			}
+
+			res.json(event);
+		} catch (error) {
+			console.error('Error getting event by year/slug:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});

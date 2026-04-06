@@ -216,7 +216,7 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 	{
 		name: 'search_events',
 		description:
-			'Cari dan ambil daftar event/kegiatan Himatif Encoder yang dipublikasikan. Kata kunci dicocokkan ke judul dan deskripsi event induk; jika cocok pada sub-event, event induk ikut tampil. Setiap item memuat id dan year (tahun kalender dari yearId) untuk URL detail publik: /events/{year}/{id}. Gunakan saat user bertanya tentang kegiatan atau event.',
+			'Cari dan ambil daftar event/kegiatan Himatif Encoder yang dipublikasikan. Kata kunci dicocokkan ke judul dan deskripsi event induk; jika cocok pada sub-event, event induk ikut tampil. Setiap item memuat id dan year (tahun kalender dari yearId) untuk URL detail publik: /events/{year}/{slug-judul}. Gunakan saat user bertanya tentang kegiatan atau event.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -241,7 +241,7 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 	{
 		name: 'get_event_detail',
 		description:
-			'Ambil detail lengkap satu event berdasarkan ID, termasuk sub-event dan berita terkait. Respons menyertakan year dan publicPath siap pakai untuk NAV (/events/{year}/{id}). Gunakan setelah search_events.',
+			'Ambil detail lengkap satu event berdasarkan ID, termasuk sub-event dan berita terkait. Respons menyertakan year dan publicPath siap pakai untuk NAV (/events/{year}/{slug-judul}). Gunakan setelah search_events.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -1490,7 +1490,7 @@ export async function executeToolCall(
 								?.substring(0, 200),
 							publicPath:
 								year != null && !Number.isNaN(year)
-									? `/events/${year}/${id}`
+									? `/events/${year}/${slugify(String(e.title || id)) || id}`
 									: undefined,
 						};
 					}),
@@ -1542,7 +1542,7 @@ export async function executeToolCall(
 					attachments: (event as any).attachments,
 					publicPath:
 						evYear != null && !Number.isNaN(evYear)
-							? `/events/${evYear}/${eid}`
+							? `/events/${evYear}/${slugify(String((event as any).title || eid)) || eid}`
 							: undefined,
 					relatedBerita: (
 						(event as any).relatedBerita ?? []

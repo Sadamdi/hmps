@@ -10,11 +10,14 @@ import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowLeft } from 'lucide-react';
 import { useEffect } from 'react';
-import { Link, useParams } from 'wouter';
+import { Link, useLocation, useParams } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
+import { isObjectId, toSlug } from '@/utils/slug';
 
 export default function LibraryDetailPage() {
-	const { id } = useParams();
+	const { id } = useParams<{ id: string }>();
+	const [, setLocation] = useLocation();
+	const apiPath = isObjectId(id) ? `/api/library/${id}` : `/api/library/slug/${id}`;
 	const { basePath } = useTenant();
 	const bp = basePath || '';
 
@@ -27,9 +30,9 @@ export default function LibraryDetailPage() {
 		isLoading,
 		error,
 	} = useQuery<LibraryDetailItem>({
-		queryKey: ['library-item', id],
+		queryKey: ['library-item', id, apiPath],
 		queryFn: async () => {
-			const res = await apiRequest('GET', `/api/library/${id}`);
+			const res = await apiRequest('GET', apiPath);
 			return res.json();
 		},
 		enabled: !!id,
@@ -41,6 +44,13 @@ export default function LibraryDetailPage() {
 			document.title = `${item.title} | Galeri`;
 		}
 	}, [item?.title]);
+
+	useEffect(() => {
+		if (item?.title && id && isObjectId(id)) {
+			const normalized = toSlug(item.title);
+			if (normalized) setLocation(`/library/${normalized}`);
+		}
+	}, [id, item?.title, setLocation]);
 
 	return (
 		<div className="min-h-screen flex flex-col bg-background">
