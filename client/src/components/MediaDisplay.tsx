@@ -23,25 +23,16 @@ interface MediaFile {
 }
 
 /** Google Drive video embed URLs are HTML pages — use iframe, not <video src>. */
-function isDriveEmbedVideoPlayback(
-	file: MediaFile,
-	playUrl: string,
-): boolean {
+function isDriveEmbedVideoPlayback(file: MediaFile, playUrl: string): boolean {
 	if (file.type !== 'video') return false;
 	const u = playUrl.toLowerCase();
 	if (/\.(mp4|webm|ogg|mov|m4v)(\?|$)/i.test(u)) return false;
 	if (file.mimeType?.startsWith('video/')) {
-		if (
-			u.includes('drive.google.com') ||
-			u.includes('docs.google.com/file')
-		) {
+		if (u.includes('drive.google.com') || u.includes('docs.google.com/file')) {
 			return true;
 		}
 	}
-	return (
-		u.includes('drive.google.com') ||
-		u.includes('docs.google.com/file')
-	);
+	return u.includes('drive.google.com') || u.includes('docs.google.com/file');
 }
 
 interface MediaState {
@@ -80,7 +71,7 @@ const LazyThumbnail = ({
 					observer.disconnect();
 				}
 			},
-			{ threshold: 0.1 }
+			{ threshold: 0.1 },
 		);
 
 		const element = document.getElementById(`thumbnail-${index}`);
@@ -192,7 +183,10 @@ export default function MediaDisplay({
 
 					if (type === 'auto' || type === 'video' || type === 'image') {
 						try {
-							const body: Record<string, unknown> = { url: src, fileId: source.fileId };
+							const body: Record<string, unknown> = {
+								url: src,
+								fileId: source.fileId,
+							};
 							if (type !== 'auto') body.mediaType = type;
 							const resp = await fetch('/api/gdrive/media-url', {
 								method: 'POST',
@@ -241,18 +235,24 @@ export default function MediaDisplay({
 						setMediaState({
 							loading: false,
 							error: false,
-							files: [{
-								id: source.fileId,
-								name: alt,
-								url: src,
-								type: mediaType,
-								mimeType: mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
-							}],
+							files: [
+								{
+									id: source.fileId,
+									name: alt,
+									url: src,
+									type: mediaType,
+									mimeType: mediaType === 'video' ? 'video/mp4' : 'image/jpeg',
+								},
+							],
 							mediaType: 'single',
 							currentIndex: 0,
 						});
 					}
-				} else if (source.type === 'gdrive' && source.fileId && source.isFolder) {
+				} else if (
+					source.type === 'gdrive' &&
+					source.fileId &&
+					source.isFolder
+				) {
 					const requestBody: Record<string, unknown> = {
 						url: src,
 						fileId: source.fileId,
@@ -272,7 +272,7 @@ export default function MediaDisplay({
 						console.error('MediaDisplay: API error:', errorData);
 						throw new Error(
 							(errorData as { message?: string }).message ||
-								'Failed to fetch Google Drive media'
+								'Failed to fetch Google Drive media',
 						);
 					}
 
@@ -380,10 +380,10 @@ export default function MediaDisplay({
 	// For Google Drive media, we can try alternative URLs if one fails
 	const getAlternativeUrls = (
 		originalUrl: string,
-		isVideo: boolean = false
+		isVideo: boolean = false,
 	) => {
 		const fileIdFromAny = originalUrl.match(
-			/(?:[?&]id=|\/d\/)([a-zA-Z0-9-_]+)/i
+			/(?:[?&]id=|\/d\/)([a-zA-Z0-9-_]+)/i,
 		);
 		const fileId = fileIdFromAny?.[1];
 
@@ -399,7 +399,7 @@ export default function MediaDisplay({
 
 		if (!originalUrl.includes('drive.google.com')) {
 			const lh = originalUrl.match(
-				/googleusercontent\.com\/d\/([a-zA-Z0-9-_]+)/i
+				/googleusercontent\.com\/d\/([a-zA-Z0-9-_]+)/i,
 			);
 			if (lh?.[1]) {
 				const id = lh[1];
@@ -413,7 +413,7 @@ export default function MediaDisplay({
 		}
 
 		const fileIdMatch = originalUrl.match(
-			/[?&]id=([a-zA-Z0-9-_]+)|\/d\/([a-zA-Z0-9-_]+)/
+			/[?&]id=([a-zA-Z0-9-_]+)|\/d\/([a-zA-Z0-9-_]+)/,
 		);
 		if (!fileIdMatch) return [originalUrl];
 
@@ -721,7 +721,7 @@ export default function MediaDisplay({
 
 		const urls = getAlternativeUrls(
 			currentFile.url,
-			currentFile.type === 'video'
+			currentFile.type === 'video',
 		);
 		const currentUrl = urls[currentUrlIndex] || currentFile.url;
 

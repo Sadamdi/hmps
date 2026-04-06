@@ -1,7 +1,7 @@
-import { parseYouTubeVideoId, getYouTubeEmbedSrc } from '@/lib/youtube-embed';
-import { detectMediaSource } from '@shared/mediaUtils';
-import { getDefaultEmbedHostSet } from '@shared/embed-default-hosts';
+import { getYouTubeEmbedSrc, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { formatContentForDisplay } from '@/utils/formatContent';
+import { getDefaultEmbedHostSet } from '@shared/embed-default-hosts';
+import { detectMediaSource } from '@shared/mediaUtils';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, ShieldAlert } from 'lucide-react';
 import MediaDisplay from '../MediaDisplay';
@@ -15,11 +15,9 @@ type Segment =
 
 const DEFAULT_EMBED_HOSTS = getDefaultEmbedHostSet();
 
-const EMBEDDABLE_URL_RE =
-	/https?:\/\/[^\s<"'`)}\]]+/gi;
+const EMBEDDABLE_URL_RE = /https?:\/\/[^\s<"'`)}\]]+/gi;
 
-const ANCHOR_EMBED_RE =
-	/<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
+const ANCHOR_EMBED_RE = /<a[^>]+href="(https?:\/\/[^"]+)"[^>]*>[\s\S]*?<\/a>/gi;
 
 const MARKER_PREFIX = '<!--EMBED:';
 const MARKER_SUFFIX = '-->';
@@ -28,7 +26,9 @@ function isKnownEmbedDomain(url: string): boolean {
 	try {
 		const host = new URL(url).hostname.toLowerCase();
 		return DEFAULT_EMBED_HOSTS.has(host);
-	} catch { return false; }
+	} catch {
+		return false;
+	}
 }
 
 function classifyUrl(url: string, allowedHosts?: Set<string>): Segment | null {
@@ -50,7 +50,9 @@ function classifyUrl(url: string, allowedHosts?: Set<string>): Segment | null {
 		if (parsed.protocol === 'https:') {
 			return { kind: 'external', url, host };
 		}
-	} catch { /* not a valid URL */ }
+	} catch {
+		/* not a valid URL */
+	}
 
 	return null;
 }
@@ -62,7 +64,10 @@ function replaceAnchorEmbedsWithMarkers(html: string): string {
 	});
 }
 
-function splitStandaloneUrls(html: string, allowedHosts?: Set<string>): Segment[] {
+function splitStandaloneUrls(
+	html: string,
+	allowedHosts?: Set<string>,
+): Segment[] {
 	const segments: Segment[] = [];
 	let lastIndex = 0;
 	let m: RegExpExecArray | null;
@@ -88,21 +93,31 @@ function splitStandaloneUrls(html: string, allowedHosts?: Set<string>): Segment[
 	return segments;
 }
 
-function parseMarkerSegment(markerInner: string, allowedHosts?: Set<string>): Segment | null {
+function parseMarkerSegment(
+	markerInner: string,
+	allowedHosts?: Set<string>,
+): Segment | null {
 	try {
 		const url = decodeURIComponent(markerInner);
 		return classifyUrl(url, allowedHosts);
-	} catch { return null; }
+	} catch {
+		return null;
+	}
 }
 
 function embedDedupeKey(seg: Segment): string {
 	if (seg.kind === 'youtube') return `yt:${seg.embedSrc}`;
-	if (seg.kind === 'drive' || seg.kind === 'drivefolder') return `gd:${seg.url}`;
+	if (seg.kind === 'drive' || seg.kind === 'drivefolder')
+		return `gd:${seg.url}`;
 	if (seg.kind === 'external') return `ext:${seg.url}`;
 	return '';
 }
 
-function pushEmbedDeduped(out: Segment[], seg: Segment, lastKey: { v: string }) {
+function pushEmbedDeduped(
+	out: Segment[],
+	seg: Segment,
+	lastKey: { v: string },
+) {
 	const k = embedDedupeKey(seg);
 	if (k && k === lastKey.v) return;
 	lastKey.v = k || lastKey.v;
@@ -121,8 +136,10 @@ function buildSegments(html: string, allowedHosts?: Set<string>): Segment[] {
 		const before = withMarkers.slice(last, m.index);
 		if (before) {
 			for (const s of splitStandaloneUrls(before, allowedHosts)) {
-				if (s.kind === 'html') { out.push(s); lastEmbedKey.v = ''; }
-				else pushEmbedDeduped(out, s, lastEmbedKey);
+				if (s.kind === 'html') {
+					out.push(s);
+					lastEmbedKey.v = '';
+				} else pushEmbedDeduped(out, s, lastEmbedKey);
 			}
 		}
 		const seg = parseMarkerSegment(m[1], allowedHosts);
@@ -133,8 +150,10 @@ function buildSegments(html: string, allowedHosts?: Set<string>): Segment[] {
 	const tail = withMarkers.slice(last);
 	if (tail) {
 		for (const s of splitStandaloneUrls(tail, allowedHosts)) {
-			if (s.kind === 'html') { out.push(s); lastEmbedKey.v = ''; }
-			else pushEmbedDeduped(out, s, lastEmbedKey);
+			if (s.kind === 'html') {
+				out.push(s);
+				lastEmbedKey.v = '';
+			} else pushEmbedDeduped(out, s, lastEmbedKey);
 		}
 	}
 
@@ -166,19 +185,22 @@ export default function RichHtmlWithEmbeds({
 
 	const html = formatContentForDisplay(content);
 	const merged = [...(allowedEmbedHosts ?? []), ...hostsFromSettings];
-	const extraHosts = merged.length > 0
-		? new Set(merged.map((h) => h.toLowerCase()))
-		: undefined;
+	const extraHosts =
+		merged.length > 0 ? new Set(merged.map((h) => h.toLowerCase())) : undefined;
 	const segments = buildSegments(html, extraHosts);
 
 	if (segments.length === 0) return null;
 
-	const proseClass = className ??
+	const proseClass =
+		className ??
 		'prose prose-sm max-w-none dark:prose-invert prose-p:text-foreground prose-headings:text-foreground';
 
 	if (segments.length === 1 && segments[0].kind === 'html') {
 		return (
-			<div className={proseClass} dangerouslySetInnerHTML={{ __html: segments[0].html }} />
+			<div
+				className={proseClass}
+				dangerouslySetInnerHTML={{ __html: segments[0].html }}
+			/>
 		);
 	}
 
@@ -190,12 +212,21 @@ export default function RichHtmlWithEmbeds({
 			{segments.map((seg, i) => {
 				if (seg.kind === 'html') {
 					if (!seg.html.trim()) return null;
-					return <div key={i} dangerouslySetInnerHTML={{ __html: seg.html }} />;
+					return (
+						<div
+							key={i}
+							dangerouslySetInnerHTML={{ __html: seg.html }}
+						/>
+					);
 				}
 				if (seg.kind === 'youtube') {
 					return (
-						<div key={i} className="not-prose my-4 rounded-lg overflow-hidden bg-black">
-							<div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+						<div
+							key={i}
+							className="not-prose my-4 rounded-lg overflow-hidden bg-black">
+							<div
+								className="relative w-full"
+								style={{ paddingBottom: '56.25%' }}>
 								<iframe
 									src={seg.embedSrc}
 									className="absolute inset-0 w-full h-full border-0"
@@ -209,7 +240,9 @@ export default function RichHtmlWithEmbeds({
 				}
 				if (seg.kind === 'drive' || seg.kind === 'drivefolder') {
 					return (
-						<div key={i} className="not-prose my-4 max-w-full">
+						<div
+							key={i}
+							className="not-prose my-4 max-w-full">
 							<MediaDisplay
 								src={seg.url}
 								alt="Google Drive media"
@@ -222,8 +255,12 @@ export default function RichHtmlWithEmbeds({
 				if (seg.kind === 'external') {
 					if (isAllowed(seg.host)) {
 						return (
-							<div key={i} className="not-prose my-4 rounded-lg overflow-hidden bg-black/5 dark:bg-white/5">
-								<div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+							<div
+								key={i}
+								className="not-prose my-4 rounded-lg overflow-hidden bg-black/5 dark:bg-white/5">
+								<div
+									className="relative w-full"
+									style={{ paddingBottom: '56.25%' }}>
 									<iframe
 										src={seg.url}
 										className="absolute inset-0 w-full h-full border-0"
@@ -236,11 +273,17 @@ export default function RichHtmlWithEmbeds({
 						);
 					}
 					return (
-						<div key={i} className="not-prose my-4 flex items-center gap-3 rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm">
+						<div
+							key={i}
+							className="not-prose my-4 flex items-center gap-3 rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm">
 							<ShieldAlert className="h-5 w-5 shrink-0 text-amber-600" />
 							<div className="min-w-0 flex-1">
-								<p className="font-medium text-amber-800 dark:text-amber-300">Domain belum diizinkan untuk embed</p>
-								<p className="text-amber-700/80 dark:text-amber-400/70 text-xs truncate">{seg.host}</p>
+								<p className="font-medium text-amber-800 dark:text-amber-300">
+									Domain belum diizinkan untuk embed
+								</p>
+								<p className="text-amber-700/80 dark:text-amber-400/70 text-xs truncate">
+									{seg.host}
+								</p>
 							</div>
 							<a
 								href={seg.url}

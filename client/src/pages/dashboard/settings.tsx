@@ -2719,7 +2719,7 @@ interface HomeImagesData {
 }
 
 const SLOT_LABELS: Record<string, string> = {
-	bennerfull: 'Banner Full (Desktop)',
+	bennerfull: 'Banner Utama (Desktop)',
 	orang: 'Foto Orang (Desktop)',
 	public_relation: 'Public Relation',
 	technopreneurship: 'Technopreneurship',
@@ -3123,8 +3123,9 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 					<CardHeader>
 						<CardTitle className="text-base">Mode Desktop Banner</CardTitle>
 						<CardDescription>
-							Pilih tampilan banner desktop: satu gambar gabungan (bennerfull)
-							atau gabungan card per-divisi
+							Pilih tampilan banner desktop: satu gambar gabungan (Banner Utama)
+							atau gabungan card per-divisi. Direkomendasikan menggunakan mode
+							Combined Cards.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
@@ -3143,7 +3144,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 										desktopMode: 'bennerfull',
 									})
 								}>
-								Banner Full
+								Banner Utama
 							</Button>
 							<Button
 								variant={
@@ -3168,14 +3169,14 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 			)}
 
 			{/* Desktop uploads: bennerfull + orang */}
-			{currentData && (
+			{currentData && currentData.desktopMode === 'bennerfull' && (
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-base">
 							Gambar Desktop ({currentData.year})
 						</CardTitle>
 						<CardDescription>
-							Upload banner full dan foto orang untuk tampilan desktop
+							Upload banner utama dan foto orang untuk tampilan desktop
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
@@ -3186,7 +3187,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 							description="Slot bennerfull dan orang desktop memakai batas piksel dan format berikut. Server menolak file terlalu besar atau tipe selain gambar; unggahan dikonversi ke WebP.">
 							<ul className="list-disc list-inside text-blue-700 dark:text-blue-400 space-y-1 text-sm">
 								<li><strong>Langkah</strong>: siapkan file di komputer → klik unggah pada slot → tunggu selesai → refresh pratinjau hero jika ada.</li>
-								<li><strong>Banner Full</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9). Satu lebar penuh untuk latar.</li>
+								<li><strong>Banner Utama</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9). Satu lebar penuh untuk latar.</li>
 								<li><strong>Orang Desktop</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code>. PNG cutout transparan di depan banner.</li>
 								<li><strong>Contoh valid</strong>: JPG/PNG/WebP &lt; 100 MB, dimensi tidak melebihi maks; orang tanpa background putih besar di belakang.</li>
 								<li><strong>Contoh tidak valid</strong>: PDF/SVG sebagai foto; file &gt; 100 MB; resolusi jauh di atas maks sehingga ditolak kompresi.</li>
@@ -3195,7 +3196,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 							</ul>
 							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
 								<div className="space-y-2">
-									<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Banner Full</p>
+									<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Banner Utama</p>
 									<img src="/attached_assets/general/bennerfull.webp" alt="Contoh banner full" className="w-full h-28 object-cover rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 								</div>
 								<div className="space-y-2">
