@@ -15,7 +15,7 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
 	const { user, isLoading, hasPermission } = useAuth();
 	const [location, setLocation] = useLocation();
-	const { slug: currentSlug } = useTenant();
+	const { isTenant, slug: currentSlug } = useTenant();
 
 	useEffect(() => {
 		if (isLoading) return;
@@ -26,29 +26,29 @@ export default function ProtectedRoute({
 		}
 
 		const userSlug = (user as any)?.tenantSlug as string | undefined;
-		const isOnDashboardPath = location.includes('/dashboard');
-		const isWrongTenantContext = Boolean(
-			currentSlug && userSlug && userSlug !== currentSlug,
-		);
-		const isMainUserInsideTenant = Boolean(currentSlug && !userSlug);
-		const isTenantUserInsideMain = Boolean(!currentSlug && userSlug);
-
-		if (
-			isOnDashboardPath &&
-			(isWrongTenantContext || isMainUserInsideTenant || isTenantUserInsideMain)
-		) {
-			if (userSlug) {
+		const isDashboardPath = location.includes('/dashboard');
+		if (isDashboardPath) {
+			if (isTenant) {
+				// On tenant routes, redirect to the correct dashboard scope.
+				if (userSlug && userSlug !== currentSlug) {
+					window.location.href = `/${userSlug}/dashboard`;
+					return;
+				}
+				if (!userSlug) {
+					window.location.href = '/dashboard';
+					return;
+				}
+			} else if (userSlug) {
+				// On main routes, tenant users should land in their tenant dashboard.
 				window.location.href = `/${userSlug}/dashboard`;
-			} else {
-				window.location.href = '/dashboard';
+				return;
 			}
-			return;
 		}
 
 		if (allowedRoles.length > 0 && !hasPermission(allowedRoles)) {
 			setLocation('/dashboard');
 		}
-	}, [isLoading, user, hasPermission, allowedRoles, setLocation, currentSlug, location]);
+	}, [isLoading, user, hasPermission, allowedRoles, setLocation, isTenant, currentSlug, location]);
 
 	if (isLoading) {
 		return (
@@ -64,15 +64,12 @@ export default function ProtectedRoute({
 	}
 
 	const userSlug = (user as any)?.tenantSlug as string | undefined;
-	const showCrossContextLoader = Boolean(
-		location.includes('/dashboard') &&
-			(
-				(currentSlug && !userSlug) ||
-				(currentSlug && userSlug && userSlug !== currentSlug) ||
-				(!currentSlug && userSlug)
-			),
-	);
-	if (showCrossContextLoader) {
+	const needsDashboardRedirect = location.includes('/dashboard')
+		&& (
+			(isTenant && ((!userSlug) || userSlug !== currentSlug))
+			|| (!isTenant && !!userSlug)
+		);
+	if (needsDashboardRedirect) {
 		return (
 			<div className="min-h-screen flex flex-col items-center justify-center">
 				<Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
