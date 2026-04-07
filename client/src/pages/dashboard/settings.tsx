@@ -3272,12 +3272,21 @@ function HomeImagesTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 									description="Upload 1 foto landscape lebar yang akan menjadi background seluruh area hero desktop. Fog gradient dan card teks tetap tampil di atasnya.">
 									<ul className="list-disc list-inside text-blue-700 dark:text-blue-400 space-y-1 text-sm">
 										<li><strong>Langkah</strong>: siapkan foto landscape (misal seluruh anggota atau foto divisi) → unggah → cek Preview Hero.</li>
-										<li><strong>Contoh file lokal</strong>: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">D:\Adam_Project\hmps_new\attached_assets\benner\BackgroundFull.jpg</code></li>
+										<li><strong>Contoh file</strong>: gunakan <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">BackgroundFull.jpg</code> sebagai acuan gambar landscape.</li>
 										<li><strong>Resolusi</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9 direkomendasikan). Semakin lebar semakin baik.</li>
 										<li><strong>Tips</strong>: gunakan foto grup/landscape dengan komposisi tengah agar teks card tidak menabrak subjek utama.</li>
 										<li><strong>Format</strong>: JPG/PNG/WebP &lt; 100 MB. Dikonversi ke WebP otomatis.</li>
 										<li><strong>Fog & Card</strong>: gradient fog dan card &quot;Tentang Kami&quot; tetap tampil di atas background ini.</li>
 									</ul>
+									<div className="space-y-2 mt-3">
+										<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Background Full</p>
+										<img
+											src="/attached_assets/benner/BackgroundFull.jpg"
+											alt="Contoh background full"
+											className="w-full h-32 object-cover rounded-md border bg-muted"
+											onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+										/>
+									</div>
 								</DashboardHintCard>
 								<div className="max-w-md">
 									<SlotUploader
