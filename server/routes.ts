@@ -1107,7 +1107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		let authScope: 'main' | 'tenant' = 'main';
 		let tenantSlug: string | undefined;
 
-		if (req.isTenantRequest && req.tenantDbName) {
+		if (req.isTenantRequest && req.tenantDbName && !(req as any)._authResolvedFromMainInTenant) {
 			authScope = 'tenant';
 			try {
 				const { Community } = await import('../db/mongodb');

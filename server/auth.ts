@@ -92,6 +92,7 @@ export async function authenticate(
 
 		let user: any;
 		let SessionModel: any;
+		(req as any)._authResolvedFromMainInTenant = false;
 		if (req.isTenantRequest && req.tenantModels) {
 			user = await req.tenantModels.User.findById(decoded.id).lean();
 			SessionModel = req.tenantModels.Session;
@@ -99,6 +100,7 @@ export async function authenticate(
 				user = await mongoStorage.getUserById(decoded.id);
 				const { Session: MainSession } = await import('../db/mongodb');
 				SessionModel = MainSession;
+				(req as any)._authResolvedFromMainInTenant = true;
 			}
 		} else if ((decoded as any).tenant) {
 			try {

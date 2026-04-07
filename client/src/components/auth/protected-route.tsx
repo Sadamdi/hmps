@@ -26,23 +26,15 @@ export default function ProtectedRoute({
 		}
 
 		const userSlug = (user as any)?.tenantSlug as string | undefined;
-		const isDashboardPath = location.includes('/dashboard');
-		if (isDashboardPath) {
-			if (isTenant) {
-				// On tenant routes, redirect to the correct dashboard scope.
-				if (userSlug && userSlug !== currentSlug) {
-					window.location.href = `/${userSlug}/dashboard`;
-					return;
-				}
-				if (!userSlug) {
-					window.location.href = '/dashboard';
-					return;
-				}
-			} else if (userSlug) {
-				// On main routes, tenant users should land in their tenant dashboard.
+		const isCross = (user as any)?._crossTenant === true;
+
+		if (isCross && location.includes('/dashboard')) {
+			if (userSlug) {
 				window.location.href = `/${userSlug}/dashboard`;
-				return;
+			} else {
+				window.location.href = '/dashboard';
 			}
+			return;
 		}
 
 		if (allowedRoles.length > 0 && !hasPermission(allowedRoles)) {
@@ -63,13 +55,7 @@ export default function ProtectedRoute({
 		return null;
 	}
 
-	const userSlug = (user as any)?.tenantSlug as string | undefined;
-	const needsDashboardRedirect = location.includes('/dashboard')
-		&& (
-			(isTenant && ((!userSlug) || userSlug !== currentSlug))
-			|| (!isTenant && !!userSlug)
-		);
-	if (needsDashboardRedirect) {
+	if ((user as any)?._crossTenant && location.includes('/dashboard')) {
 		return (
 			<div className="min-h-screen flex flex-col items-center justify-center">
 				<Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
