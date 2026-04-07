@@ -15,7 +15,7 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
 	const { user, isLoading, hasPermission } = useAuth();
 	const [location, setLocation] = useLocation();
-	const { isTenant, slug: currentSlug } = useTenant();
+	const { slug: currentSlug } = useTenant();
 
 	useEffect(() => {
 		if (isLoading) return;
@@ -26,9 +26,17 @@ export default function ProtectedRoute({
 		}
 
 		const userSlug = (user as any)?.tenantSlug as string | undefined;
-		const isCross = (user as any)?._crossTenant === true;
+		const isOnDashboardPath = location.includes('/dashboard');
+		const isWrongTenantContext = Boolean(
+			currentSlug && userSlug && userSlug !== currentSlug,
+		);
+		const isMainUserInsideTenant = Boolean(currentSlug && !userSlug);
+		const isTenantUserInsideMain = Boolean(!currentSlug && userSlug);
 
-		if (isCross && location.includes('/dashboard')) {
+		if (
+			isOnDashboardPath &&
+			(isWrongTenantContext || isMainUserInsideTenant || isTenantUserInsideMain)
+		) {
 			if (userSlug) {
 				window.location.href = `/${userSlug}/dashboard`;
 			} else {
@@ -40,7 +48,7 @@ export default function ProtectedRoute({
 		if (allowedRoles.length > 0 && !hasPermission(allowedRoles)) {
 			setLocation('/dashboard');
 		}
-	}, [isLoading, user, hasPermission, allowedRoles, setLocation, isTenant, currentSlug, location]);
+	}, [isLoading, user, hasPermission, allowedRoles, setLocation, currentSlug, location]);
 
 	if (isLoading) {
 		return (
@@ -55,7 +63,16 @@ export default function ProtectedRoute({
 		return null;
 	}
 
-	if ((user as any)?._crossTenant && location.includes('/dashboard')) {
+	const userSlug = (user as any)?.tenantSlug as string | undefined;
+	const showCrossContextLoader = Boolean(
+		location.includes('/dashboard') &&
+			(
+				(currentSlug && !userSlug) ||
+				(currentSlug && userSlug && userSlug !== currentSlug) ||
+				(!currentSlug && userSlug)
+			),
+	);
+	if (showCrossContextLoader) {
 		return (
 			<div className="min-h-screen flex flex-col items-center justify-center">
 				<Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />

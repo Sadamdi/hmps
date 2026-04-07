@@ -1,7 +1,7 @@
 import ForgotPassword from '@/components/auth/forgot-password';
 import LoginForm from '@/components/auth/login-form';
 import ProtectedRoute from '@/components/auth/protected-route';
-import { useMainAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/auth';
 import { TenantAuthProvider } from '@/lib/tenant-auth';
 import { TenantProvider } from '@/lib/tenant-context';
 import { Button } from '@/components/ui/button';
@@ -42,19 +42,33 @@ function RouteLoadingFallback() {
 }
 
 function CrossTenantGuard({ slug, children }: { slug: string; children: ReactNode }) {
-	const mainAuth = useMainAuth();
-	const mainUser = mainAuth?.user;
-	const mainTenantSlug = (mainUser as any)?.tenantSlug as string | undefined;
+	const { user, isLoading } = useAuth();
 
 	useEffect(() => {
-		if (!mainTenantSlug || mainTenantSlug === slug) return;
+		if (isLoading || !user) return;
+
+		const loggedTenantSlug = (user as any)?.tenantSlug as string | undefined;
 		const path = window.location.pathname;
 		const tenantPrefix = `/${slug}`;
 		const rest = path.startsWith(tenantPrefix) ? path.slice(tenantPrefix.length) : path;
-		if (rest === '/login' || rest.startsWith('/dashboard')) {
-			window.location.href = `/${mainTenantSlug}/dashboard`;
+		const isAuthOrDashboardPath = rest === '/login' || rest.startsWith('/dashboard');
+
+		if (!isAuthOrDashboardPath) return;
+
+		if (!loggedTenantSlug) {
+			window.location.href = '/dashboard';
+			return;
 		}
-	}, [mainTenantSlug, slug]);
+
+		if (loggedTenantSlug !== slug) {
+			window.location.href = `/${loggedTenantSlug}/dashboard`;
+			return;
+		}
+
+		if (rest === '/login') {
+			window.location.href = `/${slug}/dashboard`;
+		}
+	}, [user, isLoading, slug]);
 
 	return <>{children}</>;
 }
