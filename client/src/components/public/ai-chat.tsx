@@ -60,6 +60,29 @@ function normalizeNavPath(path: string): string {
 	return p;
 }
 
+function resolveNavTargetPath(
+	inputPath: string,
+	opts: { isTenant: boolean; tenantSlug: string | null; basePath: string },
+): string {
+	let p = normalizeNavPath(inputPath);
+	if (!opts.isTenant || !opts.tenantSlug) return p;
+
+	const slug = opts.tenantSlug;
+	const base = opts.basePath || `/${slug}`;
+	const dupPrefix = `${base}${base}/`;
+	if (p.startsWith(dupPrefix)) {
+		p = `${base}/${p.slice(dupPrefix.length)}`;
+	}
+
+	// Collapse repeated leading slug segments: /slug/slug/... -> /slug/...
+	const repeated = new RegExp(`^/${slug}/${slug}(/|$)`);
+	if (repeated.test(p)) {
+		p = p.replace(new RegExp(`^/${slug}`), '');
+	}
+
+	return normalizeNavPath(p);
+}
+
 /** Izinkan path dinamis (detail berita, event per tahun, sub-rute prodi, dll). */
 function isAllowedNavPath(path: string): boolean {
 	if (!path || typeof path !== 'string') return false;
@@ -416,7 +439,13 @@ export default function AIChat({ pageContext }: AIChatProps) {
 				setNavOfferWaitingConfirm(null);
 				lastNavOfferFromBotRef.current = null;
 				setPendingNav(null);
-				setLocation(normalizeNavPath(target.path));
+				setLocation(
+					resolveNavTargetPath(target.path, {
+						isTenant,
+						tenantSlug: slug,
+						basePath: basePath || '',
+					}),
+				);
 				setIsChatOpen(false);
 				return;
 			}
@@ -899,8 +928,15 @@ export default function AIChat({ pageContext }: AIChatProps) {
 									<button
 										onClick={() => {
 											setLocation(
-												normalizeNavPath(
-													pendingNav.path
+												resolveNavTargetPath(
+													pendingNav.path,
+													{
+														isTenant,
+														tenantSlug: slug,
+														basePath:
+															basePath ||
+															'',
+													}
 												)
 											);
 											setPendingNav(null);
