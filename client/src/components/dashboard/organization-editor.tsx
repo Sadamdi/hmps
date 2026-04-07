@@ -285,20 +285,6 @@ export default function OrganizationEditor({
 			return;
 		}
 
-		if (
-			!imagePreview &&
-			!imageFile &&
-			!(useGdrive && isGdriveValid && gdriveUrl)
-		) {
-			toast({
-				title: 'Error',
-				description:
-					'Please upload a profile image or provide a valid Google Drive link',
-				variant: 'destructive',
-			});
-			return;
-		}
-
 		try {
 			const formData = new FormData();
 			formData.append('name', name);
@@ -623,7 +609,7 @@ export default function OrganizationEditor({
 						</div>
 
 						<div className="space-y-2">
-							<Label>Sumber foto</Label>
+							<Label>Sumber foto (opsional)</Label>
 							<div className="flex gap-2">
 								<button
 									type="button"
