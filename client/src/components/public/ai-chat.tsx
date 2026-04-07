@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
-import { useTenant } from '@/lib/tenant-context';
+import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import {
 	ArrowRight,
 	Clock,
@@ -225,6 +225,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	const lastNavOfferFromBotRef = useRef<NavAction[] | null>(null);
 	const { permissions } = useAuth();
 	const { isTenant, slug, basePath } = useTenant();
+	const chatApiBase = useApiUrl('/chat');
 	const [locationPath, setLocation] = useLocation();
 
 	const resolveTenantAwarePath = useCallback(
@@ -241,7 +242,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 
 	const loadChatList = useCallback(async () => {
 		try {
-			const res = await fetch('/api/chat/all', {
+			const res = await fetch(`${chatApiBase}/all`, {
 				credentials: 'include',
 			});
 			if (!res.ok) return;
@@ -254,7 +255,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 
 	const loadChatMessages = useCallback(async (chatId: string) => {
 		try {
-			const res = await fetch(`/api/chat/${chatId}/messages`, {
+			const res = await fetch(`${chatApiBase}/${chatId}/messages`, {
 				credentials: 'include',
 			});
 			if (!res.ok) return;
@@ -298,7 +299,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 
 	const createNewChat = useCallback(async () => {
 		try {
-			const res = await fetch('/api/chat/new', {
+			const res = await fetch(`${chatApiBase}/new`, {
 				method: 'POST',
 				credentials: 'include',
 			});
@@ -321,7 +322,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	const deleteChat = useCallback(
 		async (chatId: string) => {
 			try {
-				await fetch(`/api/chat/${chatId}`, {
+				await fetch(`${chatApiBase}/${chatId}`, {
 					method: 'DELETE',
 					credentials: 'include',
 				});
@@ -502,13 +503,13 @@ export default function AIChat({ pageContext }: AIChatProps) {
 					JSON.stringify(effectiveContext)
 				);
 				if (activeChatId) formData.append('chatId', activeChatId);
-				response = await fetch('/api/chat/message', {
+				response = await fetch(`${chatApiBase}/message`, {
 					method: 'POST',
 					body: formData,
 					credentials: 'include',
 				});
 			} else {
-				response = await fetch('/api/chat/message', {
+				response = await fetch(`${chatApiBase}/message`, {
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
