@@ -1244,7 +1244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const models = resolveModels(req);
 			const user = await models.User.findOne({ email: email.trim().toLowerCase() }).lean() as any;
 			if (!user) {
-				return res.json({ message: 'Jika email terdaftar, kode OTP telah dikirim.' });
+				return res.status(404).json({ message: 'Tidak ada email yang tersedia' });
 			}
 
 			const { challengeId } = await createOtpChallenge({
