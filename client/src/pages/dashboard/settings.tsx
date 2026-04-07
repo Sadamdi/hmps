@@ -2067,7 +2067,7 @@ export default function SettingsPage() {
 						</TabsContent>
 
 						<TabsContent value="home-images">
-							<HomeImagesTab canEdit={canEditSettings} />
+							<HomeImagesTab canEdit={canEditSettings} isTenant={isTenant} />
 						</TabsContent>
 
 						<TabsContent value="home-config">
@@ -2751,7 +2751,7 @@ interface BannerSlotDef {
 	order: number;
 }
 
-function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
+function HomeImagesTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: boolean }) {
 	const { toast } = useToast();
 	const [selectedYear, setSelectedYear] = useState<number | null>(null);
 	const [newYear, setNewYear] = useState('');
@@ -2869,6 +2869,11 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 	}, [yearsList, selectedYear]);
 
 	const currentData = yearsList?.find((y) => y.year === selectedYear);
+	const effectiveDesktopBannerSource: 'classic' | 'fullBackground' = isTenant
+		? 'fullBackground'
+		: ((currentData?.desktopBannerSource || 'classic') as
+				| 'classic'
+				| 'fullBackground');
 
 	const refresh = useCallback(() => {
 		setSlotImageParentNonce((n) => n + 1);
@@ -3181,22 +3186,24 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<div className="flex items-center gap-3 mb-2">
+							{!isTenant && (
+								<Button
+									variant={effectiveDesktopBannerSource === 'classic' ? 'default' : 'outline'}
+									size="sm"
+									disabled={!canEdit}
+									onClick={() =>
+										updateModeMutation.mutate({
+											year: currentData.year,
+											desktopBannerSource: 'classic',
+										})
+									}>
+									Klasik (Banner + Orang)
+								</Button>
+							)}
 							<Button
-								variant={(currentData.desktopBannerSource || 'classic') === 'classic' ? 'default' : 'outline'}
+								variant={effectiveDesktopBannerSource === 'fullBackground' ? 'default' : 'outline'}
 								size="sm"
-								disabled={!canEdit}
-								onClick={() =>
-									updateModeMutation.mutate({
-										year: currentData.year,
-										desktopBannerSource: 'classic',
-									})
-								}>
-								Klasik (Banner + Orang)
-							</Button>
-							<Button
-								variant={(currentData.desktopBannerSource || 'classic') === 'fullBackground' ? 'default' : 'outline'}
-								size="sm"
-								disabled={!canEdit}
+								disabled={!canEdit || isTenant}
 								onClick={() =>
 									updateModeMutation.mutate({
 										year: currentData.year,
@@ -3210,7 +3217,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 							)}
 						</div>
 
-						{(currentData.desktopBannerSource || 'classic') === 'classic' ? (
+						{effectiveDesktopBannerSource === 'classic' ? (
 							<>
 								<DashboardHintCard
 									title="Panduan Upload Gambar Desktop (Klasik)"
@@ -3265,6 +3272,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 									description="Upload 1 foto landscape lebar yang akan menjadi background seluruh area hero desktop. Fog gradient dan card teks tetap tampil di atasnya.">
 									<ul className="list-disc list-inside text-blue-700 dark:text-blue-400 space-y-1 text-sm">
 										<li><strong>Langkah</strong>: siapkan foto landscape (misal seluruh anggota atau foto divisi) → unggah → cek Preview Hero.</li>
+										<li><strong>Contoh file lokal</strong>: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">D:\Adam_Project\hmps_new\attached_assets\benner\BackgroundFull.jpg</code></li>
 										<li><strong>Resolusi</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9 direkomendasikan). Semakin lebar semakin baik.</li>
 										<li><strong>Tips</strong>: gunakan foto grup/landscape dengan komposisi tengah agar teks card tidak menabrak subjek utama.</li>
 										<li><strong>Format</strong>: JPG/PNG/WebP &lt; 100 MB. Dikonversi ke WebP otomatis.</li>
@@ -3475,7 +3483,7 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 							<HeroPreview
 								mode={previewMode}
 								desktopMode={currentData.desktopMode}
-								desktopBannerSource={currentData.desktopBannerSource || 'classic'}
+								desktopBannerSource={effectiveDesktopBannerSource}
 								bennerfullSrc={currentData.bennerfull}
 								orangSrc={currentData.orang}
 								desktopBackgroundSrc={currentData.desktopBackground || ''}
