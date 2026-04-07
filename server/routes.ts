@@ -85,6 +85,7 @@ import {
 	syncEventGalleryLinksOnSave,
 	syncLibraryLinksOnSave,
 } from './library-relations';
+import { normalizeEventAttachmentArray } from './event-attachments';
 import chatRouter from './routes/chat';
 import commentRouter from './routes/comments';
 import feedbackRouter from './routes/feedback';
@@ -7332,9 +7333,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					} catch { /* ignore */ }
 				}
 
-				let existingGdriveAtts: any[] = [];
+				let existingLinkAtts: any[] = [];
 				if (body.attachments) {
-					try { existingGdriveAtts = JSON.parse(body.attachments); } catch { /* ignore */ }
+					try {
+						const parsed = JSON.parse(body.attachments);
+						const normalized = normalizeEventAttachmentArray(parsed);
+						if (!normalized.ok) {
+							return res.status(400).json({ message: normalized.message });
+						}
+						existingLinkAtts = normalized.attachments;
+					} catch {
+						return res.status(400).json({ message: 'Format attachments tidak valid.' });
+					}
 				}
 
 				let thumbnailSource: 'local' | 'gdrive' = 'local';
@@ -7355,7 +7365,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					startDate,
 					endDate: new Date(body.endDate),
 					month,
-					attachments: existingGdriveAtts,
+					attachments: existingLinkAtts,
 					published: body.published === 'true' || body.published === true,
 					createdBy: user._id,
 					relatedBerita,
@@ -7385,7 +7395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				if (files?.attachmentFiles) {
 					const { uploadEventAttachment } = await import('./upload');
-					const attachments = [...existingGdriveAtts];
+					const attachments = [...existingLinkAtts];
 					for (const f of files.attachmentFiles) {
 						const url = await uploadEventAttachment(f, createdEventId, parentId, tCtx);
 						uploadedLocalUrls.push(url);
@@ -7514,10 +7524,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (body.attachments) {
 					try {
 						const parsed = JSON.parse(body.attachments);
-						updateData.attachments = parsed;
-						if (Array.isArray(parsed)) {
+						const normalized = normalizeEventAttachmentArray(parsed);
+						if (!normalized.ok) {
+							return res.status(400).json({ message: normalized.message });
+						}
+						updateData.attachments = normalized.attachments;
+						if (Array.isArray(normalized.attachments)) {
 							const newUrls = new Set(
-								parsed
+								normalized.attachments
 									.map((a: any) => String(a?.url || ''))
 									.filter(Boolean),
 							);

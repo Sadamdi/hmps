@@ -9,6 +9,10 @@ installGlobalFetchRewrite();
 
 let _redirecting401 = false;
 
+function isProtectedDashboardPath(pathname: string): boolean {
+	return /^\/dashboard(?:\/|$)/.test(pathname) || /^\/[a-zA-Z0-9_-]+\/dashboard(?:\/|$)/.test(pathname);
+}
+
 async function throwIfResNotOk(res: Response) {
 	if (!res.ok) {
 		let text = res.statusText;
@@ -21,7 +25,8 @@ async function throwIfResNotOk(res: Response) {
 		if (res.status === 401 && !_redirecting401) {
 			const url = res.url || '';
 			const isAuthCheck = url.includes('/auth/me') || url.includes('/auth/permissions');
-			if (!isAuthCheck) {
+			const onProtectedRoute = typeof window !== 'undefined' && isProtectedDashboardPath(window.location.pathname);
+			if (!isAuthCheck && onProtectedRoute) {
 				_redirecting401 = true;
 				try {
 					sessionStorage.setItem(

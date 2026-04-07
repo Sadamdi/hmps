@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { useTenant } from '@/lib/tenant-context';
 import {
 	ArrowRight,
 	Clock,
@@ -223,7 +224,18 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	/** Setelah klik tombol NAV, tawaran teks dibersihkan; dipakai lagi jika user Batal di overlay. */
 	const lastNavOfferFromBotRef = useRef<NavAction[] | null>(null);
 	const { permissions } = useAuth();
+	const { isTenant, slug, basePath } = useTenant();
 	const [locationPath, setLocation] = useLocation();
+
+	const resolveTenantAwarePath = useCallback(
+		(rawPath: string): string => {
+			const p = rawPath?.startsWith('/') ? rawPath : `/${rawPath || ''}`;
+			if (!isTenant || !basePath) return p || '/';
+			if (p === basePath || p.startsWith(`${basePath}/`)) return p;
+			return `${basePath}${p === '/' ? '' : p}` || basePath;
+		},
+		[isTenant, basePath],
+	);
 
 	// ──────────────── Chat list & persistence ────────────────
 
@@ -460,18 +472,25 @@ export default function AIChat({ pageContext }: AIChatProps) {
 			let response;
 
 			const effectiveContext: PageContext = {
-				path: pageContext?.path || locationPath,
+				path: resolveTenantAwarePath(pageContext?.path || locationPath),
 				permissions: pageContext?.permissions || permissions || [],
 				pageData: pageContext?.pageData,
-				...(pageContext?.tenantSlug !== undefined && {
-					tenantSlug: pageContext.tenantSlug,
-				}),
-				...(pageContext?.basePath !== undefined && {
-					basePath: pageContext.basePath,
-				}),
-				...(pageContext?.isTenant !== undefined && {
-					isTenant: pageContext.isTenant,
-				}),
+				tenantSlug:
+					pageContext?.tenantSlug !== undefined
+						? pageContext.tenantSlug
+						: isTenant
+							? slug
+							: undefined,
+				basePath:
+					pageContext?.basePath !== undefined
+						? pageContext.basePath
+						: isTenant
+							? basePath
+							: undefined,
+				isTenant:
+					pageContext?.isTenant !== undefined
+						? pageContext.isTenant
+						: isTenant,
 			};
 
 			if (imageFile) {

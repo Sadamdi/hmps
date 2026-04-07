@@ -165,7 +165,7 @@ export function buildEventsSpyroPageData(input: {
 		return {
 			module: 'events',
 			surface: 'events.subevents_under_parent',
-			summary: `Tahun ${year ?? '?'}: daftar sub-event di bawah induk "${input.selectedParentEvent.title}" (deskripsi bisa berisi URL embed YouTube/Drive). URL tetap /dashboard/events.`,
+			summary: `Tahun ${year ?? '?'}: daftar sub-event di bawah induk "${input.selectedParentEvent.title}" (deskripsi bisa berisi URL embed YouTube/Drive; lampiran mendukung upload file + link online, termasuk Drive single-file). URL tetap /dashboard/events.`,
 			requestOnly: input.requestOnly,
 			eventsYear: year,
 			eventsYearId: yearId,
@@ -176,7 +176,7 @@ export function buildEventsSpyroPageData(input: {
 	return {
 		module: 'events',
 		surface: 'events.year_events_root',
-		summary: `Tahun ${year ?? '?'}: daftar event utama (bukan sub-event). Deskripsi event mendukung URL embed YouTube/Google Drive seperti berita. Buka Sub-event pada kartu untuk level lebih dalam.`,
+		summary: `Tahun ${year ?? '?'}: daftar event utama (bukan sub-event). Deskripsi event mendukung URL embed YouTube/Google Drive seperti berita; lampiran mendukung upload file + link online, termasuk Drive single-file. Buka Sub-event pada kartu untuk level lebih dalam.`,
 		requestOnly: input.requestOnly,
 		eventsYear: year,
 		eventsYearId: yearId,

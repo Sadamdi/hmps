@@ -30,7 +30,12 @@ async function resolveCommunity(slug: string): Promise<{ dbName: string; status:
 		return null;
 	}
 
-	const entry = { dbName: community.dbName, status: community.status, cachedAt: Date.now() };
+	const dbName =
+		typeof community.dbName === 'string' ? community.dbName.trim() : '';
+	if (!dbName) {
+		throw new Error(`Invalid tenant dbName for slug "${slug}"`);
+	}
+	const entry = { dbName, status: community.status, cachedAt: Date.now() };
 	communityCache.set(slug, entry);
 	return entry;
 }

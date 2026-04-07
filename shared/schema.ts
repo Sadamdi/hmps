@@ -258,7 +258,7 @@ export interface EventAttachment {
 	name: string;
 	url: string;
 	type: string;
-	source: 'local' | 'gdrive';
+	source: 'local' | 'gdrive' | 'url';
 }
 
 // Event Types

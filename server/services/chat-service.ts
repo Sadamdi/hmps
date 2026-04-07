@@ -59,21 +59,29 @@ export class ChatService {
 	}
 
 	// Mendapatkan atau membuat chat baru
-	static async getOrCreateChat(userId: string, forceNew = false) {
+	static async getOrCreateChat(
+		userId: string,
+		forceNew = false,
+		contextScope = 'main'
+	) {
 		if (forceNew) {
 			const selectedSlot = await this.pickSlotAndIncrement();
 			const chat = await Chat.create({
 				userId,
+				contextScope,
 				messages: [],
 				apiKeySlot: selectedSlot,
 			});
 			return chat;
 		}
-		let chat = await Chat.findOne({ userId }).sort({ createdAt: -1 });
+		let chat = await Chat.findOne({ userId, contextScope }).sort({
+			createdAt: -1,
+		});
 		if (!chat) {
 			const selectedSlot = await this.pickSlotAndIncrement();
 			chat = await Chat.create({
 				userId,
+				contextScope,
 				messages: [],
 				apiKeySlot: selectedSlot,
 			});
@@ -99,7 +107,8 @@ export class ChatService {
 		authUserId: string | undefined,
 		pagePath: string | undefined,
 		geminiTools: FunctionDeclarationsTool[],
-		tenantDbName?: string | null
+		tenantDbName?: string | null,
+		isTenantContext = false
 	): Promise<GeminiLoopSuccess | GeminiLoopFailure> {
 		let lastError: Error | null = null;
 		let sawQuotaLike = false;
@@ -141,7 +150,8 @@ export class ChatService {
 									permissions || [],
 									authUserId,
 									pagePath,
-									tenantDbName
+									tenantDbName,
+									isTenantContext
 								),
 							},
 						}))
@@ -186,14 +196,15 @@ export class ChatService {
 		pageContext?: PageContext,
 		permissions?: string[],
 		authUserId?: string,
-		tenantDbName?: string | null
+		tenantDbName?: string | null,
+		contextScope = 'main'
 	) {
 		let chat;
 		if (chatId) {
-			chat = await Chat.findOne({ _id: chatId, userId });
+			chat = await Chat.findOne({ _id: chatId, userId, contextScope });
 		}
 		if (!chat) {
-			chat = await this.getOrCreateChat(userId);
+			chat = await this.getOrCreateChat(userId, false, contextScope);
 		}
 		// Tambahkan pesan user
 		chat.messages.push({
@@ -270,6 +281,7 @@ export class ChatService {
 		});
 
 		const pagePath = pageContext?.path;
+		const isTenantContext = pageContext?.isTenant === true;
 		const allowedTools = getToolsForPermissions(
 			permissions || [],
 			pagePath
@@ -317,7 +329,8 @@ export class ChatService {
 				authUserId,
 				pagePath,
 				geminiTools,
-				tenantDbName
+				tenantDbName,
+				isTenantContext
 			);
 
 			if (loopResult.ok) {
@@ -405,14 +418,14 @@ export class ChatService {
 	}
 
 	// Mendapatkan riwayat chat
-	static async getChatHistory(userId: string) {
-		const chat = await Chat.findOne({ userId });
+	static async getChatHistory(userId: string, contextScope = 'main') {
+		const chat = await Chat.findOne({ userId, contextScope });
 		return chat?.messages || [];
 	}
 
 	// Menghapus chat
-	static async deleteChat(userId: string) {
-		await Chat.deleteOne({ userId });
+	static async deleteChat(userId: string, contextScope = 'main') {
+		await Chat.deleteOne({ userId, contextScope });
 	}
 
 	/**

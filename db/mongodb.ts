@@ -667,7 +667,7 @@ const eventSchema = new mongoose.Schema(
 				name: { type: String, required: true },
 				url: { type: String, required: true },
 				type: { type: String, default: 'file' },
-				source: { type: String, enum: ['local', 'gdrive'], default: 'local' },
+				source: { type: String, enum: ['local', 'gdrive', 'url'], default: 'local' },
 			},
 		],
 		published: { type: Boolean, default: false },

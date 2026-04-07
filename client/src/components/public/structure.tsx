@@ -294,11 +294,18 @@ export default function Structure() {
 		queryKey: [scope, '/api/divisions', currentPeriod],
 		queryFn: async () => {
 			if (!currentPeriod) return [];
-			const response = await apiRequest(
-				'GET',
-				`/api/divisions?period=${encodeURIComponent(currentPeriod)}`,
-			);
-			return response.json();
+			try {
+				const response = await apiRequest(
+					'GET',
+					`/api/divisions?period=${encodeURIComponent(currentPeriod)}`,
+				);
+				return response.json();
+			} catch (error: any) {
+				// Endpoint divisions bersifat protected; untuk halaman publik cukup fallback kosong.
+				const message = String(error?.message || '');
+				if (message.startsWith('401:')) return [];
+				throw error;
+			}
 		},
 		enabled: !!currentPeriod,
 		placeholderData: [],

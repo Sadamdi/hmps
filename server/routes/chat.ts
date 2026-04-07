@@ -11,6 +11,25 @@ import type { Request } from 'express';
 function resolveStorage(req: Request): any {
 	return req.tenantStorage || mongoStorage;
 }
+
+function getContextScope(req: Request): string {
+	if (req.isTenantRequest && req.tenantSlug) {
+		return `tenant:${req.tenantSlug}`;
+	}
+	return 'main';
+}
+
+function normalizePathForTenant(pathValue: unknown, tenantSlug?: string): string {
+	const fallback = tenantSlug ? `/${tenantSlug}` : '/';
+	if (typeof pathValue !== 'string' || !pathValue.trim()) return fallback;
+	const p = pathValue.trim().startsWith('/')
+		? pathValue.trim()
+		: `/${pathValue.trim()}`;
+	if (!tenantSlug) return p;
+	const base = `/${tenantSlug}`;
+	if (p === base || p.startsWith(`${base}/`)) return p;
+	return `${base}${p === '/' ? '' : p}`;
+}
 import { chatUploadRateLimiter } from '../middleware/public-rate-limit';
 import { ChatService } from '../services/chat-service';
 dotenv.config();
@@ -30,10 +49,11 @@ const upload = multer({
 router.get('/all', async (req, res) => {
 	try {
 		const userId = req.cookies.userId || uuidv4();
+		const contextScope = getContextScope(req);
 		if (!req.cookies.userId) {
 			res.cookie('userId', userId, { maxAge: 86400000 });
 		}
-		const chats = await Chat.find({ userId })
+		const chats = await Chat.find({ userId, contextScope })
 			.sort({ lastActivityAt: -1, createdAt: -1 })
 			.lean();
 		const summaries = (chats as any[]).map((chat) => {
@@ -61,10 +81,11 @@ router.get('/all', async (req, res) => {
 router.post('/new', async (req, res) => {
 	try {
 		const userId = req.cookies.userId || uuidv4();
+		const contextScope = getContextScope(req);
 		if (!req.cookies.userId) {
 			res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 		}
-		const chat = await ChatService.getOrCreateChat(userId, true); // true = force new
+		const chat = await ChatService.getOrCreateChat(userId, true, contextScope); // true = force new
 		// Remove sensitive data before sending response
 		const { apiKeySlot, apiKey, ...safeChat } = chat.toObject() as any;
 		res.json({ chat: safeChat });
@@ -79,13 +100,14 @@ router.delete('/:id', async (req, res) => {
 	try {
 		const userId = req.cookies.userId;
 		const chatId = req.params.id;
+		const contextScope = getContextScope(req);
 		if (!userId || !chatId) {
 			return res.status(400).json({ error: 'No user ID or chat ID found' });
 		}
-		const chat = await Chat.findOne({ _id: chatId, userId });
+		const chat = await Chat.findOne({ _id: chatId, userId, contextScope });
 		if (chat) {
 			await ChatService.cleanupChatFiles(chat.messages);
-			await Chat.deleteOne({ _id: chatId, userId });
+			await Chat.deleteOne({ _id: chatId, userId, contextScope });
 		}
 		res.json({ message: 'Chat deleted successfully' });
 	} catch (error) {
@@ -99,12 +121,13 @@ router.get('/:id/messages', async (req, res) => {
 	try {
 		const userId = req.cookies.userId;
 		const chatId = req.params.id;
+		const contextScope = getContextScope(req);
 		if (!userId || !chatId) {
 			return res
 				.status(400)
 				.json({ error: 'No user ID or chat ID found' });
 		}
-		const chat = await Chat.findOne({ _id: chatId, userId }).lean();
+		const chat = await Chat.findOne({ _id: chatId, userId, contextScope }).lean();
 		if (!chat) {
 			return res.status(404).json({ error: 'Chat not found' });
 		}
@@ -119,11 +142,12 @@ router.get('/:id/messages', async (req, res) => {
 router.get('/history', async (req, res) => {
 	try {
 		const userId = req.cookies.userId || uuidv4();
+		const contextScope = getContextScope(req);
 		if (!req.cookies.userId) {
 			res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 		}
 
-		const chat = await Chat.findOne({ userId }).sort({ createdAt: -1 });
+		const chat = await Chat.findOne({ userId, contextScope }).sort({ createdAt: -1 });
 		const history = chat ? chat.messages : [];
 		// Don't send chat object, only messages history
 		res.json({ history });
@@ -142,6 +166,7 @@ router.post(
 	async (req, res) => {
 		try {
 			const userId = req.cookies.userId || uuidv4();
+			const contextScope = getContextScope(req);
 			if (!req.cookies.userId) {
 				res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 			}
@@ -172,21 +197,40 @@ router.post(
 					parsedContext = undefined;
 				}
 			}
-			// Override client-sent permissions with server-verified ones
+			// Override client-sent permissions with server-verified permissions
 			if (parsedContext && typeof parsedContext === 'object') {
 				parsedContext.permissions = serverPermissions;
 			} else {
 				parsedContext = undefined;
 			}
+			// Hardening tenant context on server-side (do not trust client payload)
+			if (parsedContext && typeof parsedContext === 'object') {
+				if (req.isTenantRequest && req.tenantSlug) {
+					(parsedContext as any).isTenant = true;
+					(parsedContext as any).tenantSlug = req.tenantSlug;
+					(parsedContext as any).basePath = `/${req.tenantSlug}`;
+					(parsedContext as any).path = normalizePathForTenant(
+						(parsedContext as any).path,
+						req.tenantSlug
+					);
+				} else {
+					(parsedContext as any).isTenant = false;
+					(parsedContext as any).tenantSlug = undefined;
+					(parsedContext as any).basePath = undefined;
+					(parsedContext as any).path = normalizePathForTenant(
+						(parsedContext as any).path
+					);
+				}
+			}
 
 			let chat;
 			if (chatId) {
-				chat = await Chat.findOne({ _id: chatId, userId });
+				chat = await Chat.findOne({ _id: chatId, userId, contextScope });
 				if (!chat) {
-					chat = await ChatService.getOrCreateChat(userId, true);
+					chat = await ChatService.getOrCreateChat(userId, true, contextScope);
 				}
 			} else {
-				chat = await ChatService.getOrCreateChat(userId);
+				chat = await ChatService.getOrCreateChat(userId, false, contextScope);
 			}
 
 			const updatedChat = await ChatService.addMessage(
@@ -197,7 +241,8 @@ router.post(
 				parsedContext,
 				serverPermissions,
 				authUserId,
-				req.tenantDbName
+				req.tenantDbName,
+				contextScope
 			);
 			// Remove sensitive data before sending response
 			const { apiKeySlot, apiKey, ...safeChat } = updatedChat.toObject() as any;
@@ -213,14 +258,15 @@ router.post(
 router.delete('/', async (req, res) => {
 	try {
 		const userId = req.cookies.userId;
+		const contextScope = getContextScope(req);
 		if (!userId) {
 			return res.status(400).json({ error: 'No user ID found' });
 		}
-		const chats = await Chat.find({ userId });
+		const chats = await Chat.find({ userId, contextScope });
 		for (const chat of chats) {
 			await ChatService.cleanupChatFiles(chat.messages);
 		}
-		await Chat.deleteMany({ userId });
+		await Chat.deleteMany({ userId, contextScope });
 		res.clearCookie('userId');
 		res.json({ message: 'All chats deleted successfully' });
 	} catch (error) {

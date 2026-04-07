@@ -86,6 +86,12 @@ interface EventRequestable {
 	title: string;
 	published?: boolean;
 }
+type EventAttachmentForm = {
+	name: string;
+	url: string;
+	type: string;
+	source: 'local' | 'gdrive' | 'url';
+};
 type EventWithSharing = EventItem & {
 	_sharingPermission?: 'view' | 'edit';
 	_sharingStatus?: 'pending' | 'approved';
@@ -162,7 +168,9 @@ export default function DashboardEvents() {
 	const [formPublished, setFormPublished] = useState(false);
 	const [formThumbnail, setFormThumbnail] = useState<File | null>(null);
 	const [formAttachments, setFormAttachments] = useState<File[]>([]);
-	const [existingAttachments, setExistingAttachments] = useState<any[]>([]);
+	const [existingAttachments, setExistingAttachments] = useState<EventAttachmentForm[]>([]);
+	const [formAttachmentLinkName, setFormAttachmentLinkName] = useState('');
+	const [formAttachmentLinkUrl, setFormAttachmentLinkUrl] = useState('');
 	const [selectedBeritaIds, setSelectedBeritaIds] = useState<string[]>([]);
 	const [selectedGalleryIds, setSelectedGalleryIds] = useState<string[]>([]);
 	const [gallerySearch, setGallerySearch] = useState('');
@@ -462,6 +470,8 @@ export default function DashboardEvents() {
 		setFormThumbnail(null);
 		setFormAttachments([]);
 		setExistingAttachments([]);
+		setFormAttachmentLinkName('');
+		setFormAttachmentLinkUrl('');
 		setSelectedBeritaIds([]);
 		setSelectedGalleryIds([]);
 		setGallerySearch('');
@@ -483,7 +493,14 @@ export default function DashboardEvents() {
 		setFormStartDate(startStr);
 		setFormEndDate(endStr);
 		setFormPublished(event.published);
-		setExistingAttachments(event.attachments || []);
+		setExistingAttachments(
+			(event.attachments || []).map((att: any) => ({
+				name: String(att?.name || 'Lampiran'),
+				url: String(att?.url || ''),
+				type: String(att?.type || 'link'),
+				source: att?.source === 'local' || att?.source === 'gdrive' || att?.source === 'url' ? att.source : 'url',
+			})),
+		);
 		setFormThumbnail(null);
 		setFormAttachments([]);
 		const beritaIds = (event.relatedBerita || [])
@@ -536,6 +553,64 @@ export default function DashboardEvents() {
 
 		saveEventMut.mutate({ formData: fd, isEditing });
 	}, [formTitle, formDesc, formStartDate, formEndDate, formPublished, formThumbnail, formAttachments, existingAttachments, selectedBeritaIds, selectedGalleryIds, selectedYearId, selectedParentEvent, editingEvent, saveEventMut, toast]);
+
+	const detectDriveFileId = useCallback((rawUrl: string): string | null => {
+		try {
+			const parsed = new URL(rawUrl);
+			const host = parsed.hostname.toLowerCase();
+			if (!host.includes('drive.google.com')) return null;
+			if (parsed.pathname.toLowerCase().includes('/drive/folders/')) return null;
+			const parts = parsed.pathname.split('/').filter(Boolean);
+			const dIdx = parts.findIndex((part) => part === 'd');
+			if (dIdx >= 0 && parts[dIdx + 1]) return parts[dIdx + 1];
+			const idParam = parsed.searchParams.get('id');
+			if (idParam) return idParam;
+			return null;
+		} catch {
+			return null;
+		}
+	}, []);
+
+	const handleAddAttachmentLink = useCallback(() => {
+		const name = formAttachmentLinkName.trim();
+		const rawUrl = formAttachmentLinkUrl.trim();
+		if (!name || !rawUrl) {
+			toast({
+				title: 'Nama dan URL lampiran wajib diisi',
+				variant: 'destructive',
+			});
+			return;
+		}
+
+		let parsed: URL;
+		try {
+			parsed = new URL(rawUrl);
+		} catch {
+			toast({ title: 'URL lampiran tidak valid', variant: 'destructive' });
+			return;
+		}
+		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+			toast({
+				title: 'URL lampiran harus http/https',
+				variant: 'destructive',
+			});
+			return;
+		}
+
+		const driveFileId = detectDriveFileId(rawUrl);
+		const source: EventAttachmentForm['source'] = driveFileId ? 'gdrive' : 'url';
+		setExistingAttachments((prev) => [
+			...prev,
+			{
+				name,
+				url: rawUrl,
+				type: 'link',
+				source,
+			},
+		]);
+		setFormAttachmentLinkName('');
+		setFormAttachmentLinkUrl('');
+	}, [detectDriveFileId, formAttachmentLinkName, formAttachmentLinkUrl, toast]);
 
 	const eventsByMonth = useMemo(() => {
 		const map = new Map<number, EventItem[]>();
@@ -866,7 +941,7 @@ export default function DashboardEvents() {
 						title="Panduan: sub-event (di bawah event induk)"
 						variant="blue"
 						storageKey="dashboard-events-subevent-level"
-						description="Sub-agenda dari satu event induk. Form sama: judul, deskripsi rich text (bisa menyematkan URL YouTube atau Google Drive: file foto/video atau folder — seperti di berita), tanggal, lampiran, publish, berita terkait, sharing.">
+						description="Sub-agenda dari satu event induk. Form sama: judul, deskripsi rich text (bisa menyematkan URL YouTube atau Google Drive: file foto/video atau folder — seperti di berita), tanggal, lampiran upload/link online (termasuk Google Drive single-file), publish, berita terkait, sharing.">
 						<ul className="list-disc list-inside space-y-1.5 text-sm">
 							<li>
 								<strong>Langkah</strong>: gunakan breadcrumb <strong>Event {selectedYear?.year}</strong> untuk kembali ke daftar event utama tahun ini → untuk menambah agenda turunan, klik <strong>Tambah Sub-event</strong> → isi judul (mis. &quot;Hari 2: Lomba CP&quot;) → set tanggal mulai/selesai di dalam rentang logis acara induk → lampiran/thumbnail jika perlu → simpan → publish bila siap.
@@ -890,7 +965,7 @@ export default function DashboardEvents() {
 						title="Panduan: event dalam tahun (level utama)"
 						variant="blue"
 						storageKey="dashboard-events-detail"
-						description="Event utama per tahun; bisa dipecah sub-event. Di deskripsi (rich text) Anda bisa menempel URL YouTube atau Google Drive — satu file, banyak file, atau folder — agar tampil di halaman publik (sama seperti modul berita). Domain lain: allowlist di Settings.">
+						description="Event utama per tahun; bisa dipecah sub-event. Di deskripsi (rich text) Anda bisa menempel URL YouTube atau Google Drive — satu file, banyak file, atau folder — agar tampil di halaman publik (sama seperti modul berita). Untuk lampiran, Anda bisa upload file atau tambah link online/Google Drive single-file langsung dari form.">
 						<ul className="list-disc list-inside space-y-1.5 text-sm">
 							<li>
 								<strong>Langkah</strong>: klik <strong>Tambah Event</strong> → isi judul &amp; deskripsi rich text (sertakan URL Drive/YouTube jika perlu) → tanggal mulai/selesai (input tanggal di dialog) → thumbnail, lampiran, berita terkait → simpan → aktifkan publish jika siap → untuk agenda turunan, buka kartu lalu <strong>Sub-event</strong>.
@@ -1134,9 +1209,13 @@ export default function DashboardEvents() {
 									{existingAttachments.map((att, idx) => (
 										<div key={idx} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1 min-w-0">
 											<span className="flex-1 truncate min-w-0">{att.name}</span>
+											<span className="text-[10px] uppercase rounded px-1.5 py-0.5 bg-background border text-muted-foreground">
+												{att.source === 'gdrive' ? 'gdrive' : att.source === 'url' ? 'link' : 'file'}
+											</span>
 											<Button
 												variant="ghost"
 												size="sm"
+												type="button"
 												className="h-6 w-6 p-0 flex-shrink-0"
 												onClick={() => setExistingAttachments((prev) => prev.filter((_, i) => i !== idx))}
 											>
@@ -1157,6 +1236,32 @@ export default function DashboardEvents() {
 							{formAttachments.length > 0 && (
 								<p className="text-xs text-muted-foreground mt-1">{formAttachments.length} file baru akan diupload</p>
 							)}
+							<div className="mt-3 rounded-md border p-3 space-y-2">
+								<p className="text-xs font-medium">Tambah lampiran dari link online</p>
+								<div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+									<Input
+										value={formAttachmentLinkName}
+										onChange={(e) => setFormAttachmentLinkName(e.target.value)}
+										placeholder="Nama lampiran (mis. Rundown PDF)"
+										className="sm:col-span-1"
+									/>
+									<Input
+										value={formAttachmentLinkUrl}
+										onChange={(e) => setFormAttachmentLinkUrl(e.target.value)}
+										placeholder="https://... (URL file online)"
+										className="sm:col-span-2"
+									/>
+								</div>
+								<div className="flex items-center justify-between gap-2">
+									<p className="text-[11px] text-muted-foreground">
+										Support link online umum + Google Drive single-file (bukan folder). URL akan dinormalisasi otomatis saat disimpan.
+									</p>
+									<Button type="button" variant="outline" size="sm" onClick={handleAddAttachmentLink}>
+										<Link2 className="h-3.5 w-3.5 mr-1" />
+										Tambah Link
+									</Button>
+								</div>
+							</div>
 						</div>
 						{hasSpecificPermission('events.edit') && (
 							<div className="rounded-lg border border-border p-4 space-y-4 bg-muted/20">

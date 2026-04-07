@@ -12,6 +12,7 @@ import { getTenantModels } from '../../db/tenant';
 import { mongoStorage } from '../mongo-storage';
 import { createTenantStorage } from '../tenant-storage';
 import { DEFAULT_BERITA_IMAGE_PATH } from '../upload';
+import { normalizeEventAttachmentArray } from '../event-attachments';
 
 type ToolModelsBundle = {
 	Berita: typeof MainBerita;
@@ -438,6 +439,21 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 					description:
 						'Tanggal selesai event (format ISO: YYYY-MM-DD). Sama dengan startDate jika satu hari.',
 				},
+				attachments: {
+					type: 'array',
+					description:
+						'Daftar lampiran link online. Support URL umum dan Google Drive single-file (akan dinormalisasi ke direct link).',
+					items: {
+						type: 'object',
+						properties: {
+							name: { type: 'string' },
+							url: { type: 'string' },
+							type: { type: 'string' },
+							source: { type: 'string', enum: ['gdrive', 'url'] },
+						},
+						required: ['name', 'url'],
+					},
+				},
 			},
 			required: ['year', 'title', 'startDate'],
 		},
@@ -770,6 +786,21 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 				description: { type: 'string', description: 'Deskripsi (opsional).' },
 				startDate: { type: 'string', description: 'Tanggal mulai ISO YYYY-MM-DD.' },
 				endDate: { type: 'string', description: 'Tanggal selesai ISO (opsional, default sama startDate).' },
+				attachments: {
+					type: 'array',
+					description:
+						'Daftar lampiran link online. Support URL umum dan Google Drive single-file (akan dinormalisasi ke direct link).',
+					items: {
+						type: 'object',
+						properties: {
+							name: { type: 'string' },
+							url: { type: 'string' },
+							type: { type: 'string' },
+							source: { type: 'string', enum: ['gdrive', 'url'] },
+						},
+						required: ['name', 'url'],
+					},
+				},
 			},
 			required: ['parentEventId', 'title', 'startDate'],
 		},
@@ -1012,11 +1043,18 @@ export async function executeToolCall(
 	permissions: string[] = [],
 	authUserId?: string,
 	pagePath?: string | null,
-	tenantDbName?: string | null
+	tenantDbName?: string | null,
+	isTenantContext = false
 ): Promise<Record<string, unknown>> {
 	try {
 		const permError = checkRuntimePermission(name, permissions, pagePath);
 		if (permError) return { error: permError };
+		if (isTenantContext && !tenantDbName) {
+			return {
+				error:
+					'Konteks komunitas tidak valid (tenant DB tidak ditemukan). Buka ulang halaman komunitas lalu coba lagi.',
+			};
+		}
 
 		const storage = getToolStorage(tenantDbName);
 		const {
@@ -1824,6 +1862,12 @@ export async function executeToolCall(
 						(args.startDate as string)
 				);
 				const month = startDate.getMonth() + 1;
+				let aiAttachments: any[] = [];
+				if (args.attachments !== undefined) {
+					const normalized = normalizeEventAttachmentArray(args.attachments);
+					if (!normalized.ok) return { error: normalized.message };
+					aiAttachments = normalized.attachments;
+				}
 
 				const event = await Event.create({
 					yearId: eventYear._id,
@@ -1833,6 +1877,7 @@ export async function executeToolCall(
 					startDate,
 					endDate,
 					month,
+					attachments: aiAttachments,
 					published: false,
 					createdBy: (user as any)._id,
 				});
@@ -1846,7 +1891,7 @@ export async function executeToolCall(
 						published: false,
 					},
 					message:
-						'Event berhasil dibuat sebagai draft. Silakan buka Dashboard > Events untuk menambahkan thumbnail, lampiran, dan mempublikasikan.',
+						'Event berhasil dibuat sebagai draft. Thumbnail bisa ditambahkan dari Dashboard, dan lampiran link online sudah bisa ikut tersimpan jika dikirim.',
 				};
 			}
 
@@ -2386,6 +2431,12 @@ export async function executeToolCall(
 					(args.endDate as string) || startStr
 				);
 				const month = startDate.getMonth() + 1;
+				let aiAttachments: any[] = [];
+				if (args.attachments !== undefined) {
+					const normalized = normalizeEventAttachmentArray(args.attachments);
+					if (!normalized.ok) return { error: normalized.message };
+					aiAttachments = normalized.attachments;
+				}
 				const sub = await Event.create({
 					yearId: parent.yearId,
 					parentId: parent._id,
@@ -2394,6 +2445,7 @@ export async function executeToolCall(
 					startDate,
 					endDate,
 					month,
+					attachments: aiAttachments,
 					published: false,
 					createdBy: (user as any)._id,
 				});

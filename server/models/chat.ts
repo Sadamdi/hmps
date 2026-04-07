@@ -8,6 +8,12 @@ const chatSchema = new mongoose.Schema({
 		required: true,
 		index: true,
 	},
+	contextScope: {
+		type: String,
+		required: true,
+		default: 'main',
+		index: true,
+	},
 	messages: [
 		{
 			role: {
@@ -50,6 +56,7 @@ const chatSchema = new mongoose.Schema({
 });
 
 chatSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
+chatSchema.index({ userId: 1, contextScope: 1, createdAt: -1 });
 
 const apiKeyUsageSchema = new mongoose.Schema({
 	slot: {
