@@ -7,6 +7,8 @@ import {
 
 installGlobalFetchRewrite();
 
+let _redirecting401 = false;
+
 async function throwIfResNotOk(res: Response) {
 	if (!res.ok) {
 		let text = res.statusText;
@@ -16,27 +18,28 @@ async function throwIfResNotOk(res: Response) {
 		} catch {
 			text = (await res.text()) || res.statusText;
 		}
-		// Global 401 handler: show toast and redirect to login
-		if (res.status === 401) {
-			try {
-				// Simpan pesan agar bisa ditampilkan setelah redirect
-				sessionStorage.setItem(
-					'postLogoutToast',
-					JSON.stringify({
-						title: 'Anda telah logout',
-						description: 'Sesi Anda berakhir atau dicabut dari perangkat lain.',
-						variant: 'destructive',
-					})
-				);
-			} catch (e) {
-				// ignore toast errors in non-React context
-			}
-			// Best-effort redirect
-			if (typeof window !== 'undefined') {
-				setTimeout(() => {
-					const tenantLogin = tenantLoginPathFromPathname(window.location.pathname);
-					window.location.href = tenantLogin || '/login';
-				}, 50);
+		if (res.status === 401 && !_redirecting401) {
+			const url = res.url || '';
+			const isAuthCheck = url.includes('/auth/me') || url.includes('/auth/permissions');
+			if (!isAuthCheck) {
+				_redirecting401 = true;
+				try {
+					sessionStorage.setItem(
+						'postLogoutToast',
+						JSON.stringify({
+							title: 'Anda telah logout',
+							description: 'Sesi Anda berakhir atau dicabut dari perangkat lain.',
+							variant: 'destructive',
+						})
+					);
+				} catch { /* ignore */ }
+				if (typeof window !== 'undefined') {
+					setTimeout(() => {
+						const tenantLogin = tenantLoginPathFromPathname(window.location.pathname);
+						window.location.href = tenantLogin || '/login';
+						setTimeout(() => { _redirecting401 = false; }, 2000);
+					}, 50);
+				}
 			}
 		}
 		throw new Error(`${res.status}: ${text}`);

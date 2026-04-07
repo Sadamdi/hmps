@@ -43,25 +43,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	useEffect(() => {
-		// Check if user is already logged in
 		const fetchCurrentUser = async () => {
 			try {
-				console.log('Checking for current user session...');
 				const response = await fetch('/api/auth/me', {
-					credentials: 'include', // Important for cookies
-					headers: {
-						'Cache-Control': 'no-cache',
-					},
+					credentials: 'include',
+					headers: { 'Cache-Control': 'no-cache' },
 				});
 
 				if (response.ok) {
 					const userData = await response.json();
-					console.log('User session found:', userData);
 					setUser(userData);
-					// Fetch user permissions
 					await fetchUserPermissions();
 				} else {
-					console.log('No active user session found');
 					setUser(null);
 					setPermissions([]);
 				}
@@ -109,9 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	const login = async (username: string, password: string) => {
 		setIsLoading(true);
 		try {
-			console.log('Attempting to login with:', username);
-
-			// Use fetch directly with credentials to ensure cookies are handled properly
 			const response = await fetch('/api/auth/login', {
 				method: 'POST',
 				headers: {
@@ -144,7 +134,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			}
 
 			const userData = await response.json();
-			console.log('Login successful, user data:', userData);
 			setUser(userData);
 
 			// Fetch user permissions after successful login
@@ -157,7 +146,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				}!`,
 			});
 		} catch (error: any) {
-			console.error('Login error:', error);
 
 			// Check if it's a rate limit error - PERBAIKAN: Handle dengan retryAfter
 			if (error?.status === 429 || error?.message?.includes('rate limit')) {
@@ -183,25 +171,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 	const logout = async () => {
 		try {
-			console.log('Attempting to logout...');
-
-			// Use fetch directly with credentials to ensure cookies are handled properly
-			const response = await fetch('/api/auth/logout', {
+			await fetch('/api/auth/logout', {
 				method: 'POST',
-				credentials: 'include', // Important for cookies
-				headers: {
-					'Content-Type': 'application/json',
-				},
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({}),
 			});
 
-			if (!response.ok) {
-				console.error('Logout response not OK:', response.status);
-			} else {
-				console.log('Logout successful');
-			}
-
-			// Clear user data regardless of response
 			setUser(null);
 			setPermissions([]);
 
@@ -212,9 +188,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 			setLocation('/');
 		} catch (error) {
-			console.error('Logout error:', error);
-
-			// Still clear user data on error
 			setUser(null);
 			setPermissions([]);
 

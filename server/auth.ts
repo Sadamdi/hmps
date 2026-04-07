@@ -25,6 +25,21 @@ const JWT_SECRET_STRING =
 const JWT_SECRET_KEY = JWT_SECRET_STRING; // Use string format instead of Buffer
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 
+export function buildAuthCookieOptions() {
+	return {
+		httpOnly: true,
+		secure: process.env.NODE_ENV === 'production',
+		sameSite: 'lax' as const,
+		path: '/',
+		maxAge: 24 * 60 * 60 * 1000,
+	};
+}
+
+export function buildClearCookieOptions() {
+	const { maxAge: _, ...opts } = buildAuthCookieOptions();
+	return opts;
+}
+
 // Generate JWT token (optionally tenant-scoped)
 export function generateToken(user: UserWithRole, tenantDbName?: string): string {
 	const payload: any = {
@@ -75,16 +90,25 @@ export async function authenticate(
 			tenant?: string;
 		};
 
-		// Use tenant storage if this is a tenant request, otherwise use main storage
 		let user: any;
 		let SessionModel: any;
 		if (req.isTenantRequest && req.tenantModels) {
 			user = await req.tenantModels.User.findById(decoded.id).lean();
 			SessionModel = req.tenantModels.Session;
+			if (!user && !(decoded as any).tenant) {
+				user = await mongoStorage.getUserById(decoded.id);
+				const { Session: MainSession } = await import('../db/mongodb');
+				SessionModel = MainSession;
+			}
 		} else if ((decoded as any).tenant) {
-			return res.status(401).json({
-				message: 'Tenant token harus digunakan lewat route komunitas (/api/c/:slug/...)',
-			});
+			try {
+				const { getTenantModels } = await import('../db/tenant');
+				const models = getTenantModels((decoded as any).tenant);
+				user = await models.User.findById(decoded.id).lean();
+				SessionModel = models.Session;
+			} catch {
+				return res.status(401).json({ message: 'Authentication required' });
+			}
 		} else {
 			user = await mongoStorage.getUserById(decoded.id);
 			const { Session: MainSession } = await import('../db/mongodb');

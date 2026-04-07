@@ -988,12 +988,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const sessionId = await createSessionRecord(req, String(user._id), SessionModel);
 
-				const token = generateToken({ ...(user as any), sessionId } as any, tenantDbName);
-				res.cookie('authToken', token, {
-					httpOnly: true,
-					secure: process.env.NODE_ENV === 'production',
-					maxAge: 24 * 60 * 60 * 1000,
-				});
+			const token = generateToken({ ...(user as any), sessionId } as any, tenantDbName);
+			const { buildAuthCookieOptions } = await import('./auth');
+			res.cookie('authToken', token, buildAuthCookieOptions());
 
 				const { password: _, ...userWithoutPassword } = user;
 				let loginTenantSlug: string | undefined;
@@ -1029,8 +1026,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	app.post('/api/auth/logout', (req, res) => {
-		res.clearCookie('authToken');
+	app.post('/api/auth/logout', async (req, res) => {
+		const { buildClearCookieOptions } = await import('./auth');
+		res.clearCookie('authToken', buildClearCookieOptions());
 		res.json({ message: 'Logged out successfully' });
 	});
 
@@ -1073,7 +1071,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			// Clear current session cookie
-			res.clearCookie('authToken');
+			const { buildClearCookieOptions } = await import('./auth');
+			res.clearCookie('authToken', buildClearCookieOptions());
 
 			// Log activity
 			try {

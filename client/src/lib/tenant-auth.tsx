@@ -42,11 +42,15 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 				});
 				if (response.ok) {
 					const userData = await response.json();
-					setUser({ ...userData, authScope: 'tenant', tenantSlug: slug });
-					await fetchUserPermissions();
+					if (userData.tenantSlug === slug) {
+						setUser({ ...userData, authScope: 'tenant', tenantSlug: slug });
+						await fetchUserPermissions();
+					} else {
+						setUser({ ...userData, authScope: userData.authScope || 'tenant', tenantSlug: userData.tenantSlug, _crossTenant: true } as any);
+					}
 					return;
 				}
-			} catch { /* fall through to cross-tenant check */ }
+			} catch { /* fall through to fallback */ }
 
 			try {
 				const absUrl = `${window.location.origin}/api/auth/me`;
@@ -56,16 +60,13 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 				});
 				if (fallback.ok) {
 					const fbData = await fallback.json();
-					if (fbData.tenantSlug) {
-						setUser({ ...fbData, authScope: 'tenant', tenantSlug: fbData.tenantSlug, _crossTenant: true } as any);
-						return;
-					}
+					setUser({ ...fbData, authScope: fbData.authScope || 'main', tenantSlug: fbData.tenantSlug, _crossTenant: true } as any);
+					return;
 				}
 			} catch { /* ignore */ }
 
 			setUser(null);
 			setPermissions([]);
-			setIsLoading(false);
 		};
 
 		fetchCurrentUser().finally(() => setIsLoading(false));
