@@ -82,10 +82,9 @@ export async function authenticate(
 			user = await req.tenantModels.User.findById(decoded.id).lean();
 			SessionModel = req.tenantModels.Session;
 		} else if ((decoded as any).tenant) {
-			const { getTenantModels } = await import('../db/tenant');
-			const models = getTenantModels((decoded as any).tenant);
-			user = await models.User.findById(decoded.id).lean();
-			SessionModel = models.Session;
+			return res.status(401).json({
+				message: 'Tenant token harus digunakan lewat route komunitas (/api/c/:slug/...)',
+			});
 		} else {
 			user = await mongoStorage.getUserById(decoded.id);
 			const { Session: MainSession } = await import('../db/mongodb');

@@ -1,24 +1,33 @@
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import AIChat from '@/components/public/ai-chat';
 import CommentThread from '@/components/public/comment-thread';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
+import { useTenant } from '@/lib/tenant-context';
 import {
 	formatContentDisplay as formatContentDisplayFn,
 	formatContentForDisplay as formatContentForDisplayFn,
 } from '@/utils/formatContent';
+import { toSlug } from '@/utils/slug';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, BookOpen, Calendar, CalendarDays, Images, Share2, Tag, User } from 'lucide-react';
+import {
+	ArrowLeft,
+	BookOpen,
+	Calendar,
+	CalendarDays,
+	Images,
+	Share2,
+	Tag,
+	User,
+} from 'lucide-react';
 import { Suspense, lazy, useEffect } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
-import { useTenant } from '@/lib/tenant-context';
-import { toSlug } from '@/utils/slug';
 
 const TableOfContents = lazy(
-	() => import('@/components/berita/table-of-contents')
+	() => import('@/components/berita/table-of-contents'),
 );
 
 interface BeritaItem {
@@ -56,8 +65,16 @@ export default function BeritaDetail() {
 	const bp = basePath || '';
 	const isObjectId = (v?: string) => !!v && /^[a-f\d]{24}$/i.test(v);
 	const isLegacyHybridRoute = !!id && !!slug;
-	const normalizedSlug = isLegacyHybridRoute ? slug : slug && !isObjectId(slug) ? slug : undefined;
-	const fallbackId = isLegacyHybridRoute ? id : slug && isObjectId(slug) ? slug : undefined;
+	const normalizedSlug = isLegacyHybridRoute
+		? slug
+		: slug && !isObjectId(slug)
+			? slug
+			: undefined;
+	const fallbackId = isLegacyHybridRoute
+		? id
+		: slug && isObjectId(slug)
+			? slug
+			: undefined;
 	const scrollToSection = (sectionId: string) => {
 		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
 	};
@@ -103,7 +120,15 @@ export default function BeritaDetail() {
 			? `/api/berita/${fallbackId}/events`
 			: '';
 
-	const { data: linkedEvents = [] } = useQuery<{ _id: string; title: string; yearId: { year: number }; startDate: string; endDate: string }[]>({
+	const { data: linkedEvents = [] } = useQuery<
+		{
+			_id: string;
+			title: string;
+			yearId: { year: number };
+			startDate: string;
+			endDate: string;
+		}[]
+	>({
 		queryKey: [eventsEndpoint],
 		queryFn: async () => {
 			const response = await fetch(eventsEndpoint);
@@ -125,7 +150,9 @@ export default function BeritaDetail() {
 		if (berita) {
 			document.title = `${berita.title} | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang`;
 
-			const metaDescription = document.querySelector('meta[name="description"]');
+			const metaDescription = document.querySelector(
+				'meta[name="description"]',
+			);
 			const descContent =
 				berita.excerpt ||
 				`${berita.title} - Berita dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang.`;
@@ -171,7 +198,9 @@ export default function BeritaDetail() {
 				}
 			});
 
-			const existingScript = document.querySelector('script[type="application/ld+json"]');
+			const existingScript = document.querySelector(
+				'script[type="application/ld+json"]',
+			);
 			if (existingScript) existingScript.remove();
 
 			const script = document.createElement('script');
@@ -231,8 +260,10 @@ export default function BeritaDetail() {
 
 	const formatForDisplay = (html: string) => {
 		try {
-			if (typeof formatContentForDisplayFn === 'function') return formatContentForDisplayFn(html);
-			if (typeof formatContentDisplayFn === 'function') return formatContentDisplayFn(html as any);
+			if (typeof formatContentForDisplayFn === 'function')
+				return formatContentForDisplayFn(html);
+			if (typeof formatContentDisplayFn === 'function')
+				return formatContentDisplayFn(html as any);
 			return html || '';
 		} catch (_e) {
 			return html || '';
@@ -242,7 +273,10 @@ export default function BeritaDetail() {
 	if (isLoading) {
 		return (
 			<div className="min-h-screen bg-background">
-				<Navbar activeSection="berita" scrollToSection={scrollToSection} />
+				<Navbar
+					activeSection="berita"
+					scrollToSection={scrollToSection}
+				/>
 				<div className="max-w-7xl mx-auto px-4 py-8">
 					<div className="flex gap-8">
 						<div className="hidden lg:block w-80 flex-shrink-0">
@@ -250,7 +284,10 @@ export default function BeritaDetail() {
 								<div className="h-5 bg-muted rounded w-3/4 mb-6" />
 								<div className="space-y-3">
 									{[...Array(5)].map((_, i) => (
-										<div key={i} className="h-4 bg-muted rounded w-full" />
+										<div
+											key={i}
+											className="h-4 bg-muted rounded w-full"
+										/>
 									))}
 								</div>
 							</div>
@@ -274,13 +311,18 @@ export default function BeritaDetail() {
 	if (error || !berita) {
 		return (
 			<div className="min-h-screen bg-background flex flex-col">
-				<Navbar activeSection="berita" scrollToSection={scrollToSection} />
+				<Navbar
+					activeSection="berita"
+					scrollToSection={scrollToSection}
+				/>
 				<div className="flex-1 flex items-center justify-center">
 					<div className="text-center">
 						<h1 className="text-2xl font-bold text-foreground mb-4">
 							Berita tidak ditemukan
 						</h1>
-						<Button onClick={() => setLocation('/')} variant="outline">
+						<Button
+							onClick={() => setLocation('/')}
+							variant="outline">
 							<ArrowLeft className="w-4 h-4 mr-2" />
 							Kembali ke Beranda
 						</Button>
@@ -292,7 +334,10 @@ export default function BeritaDetail() {
 
 	return (
 		<div className="min-h-screen bg-background relative">
-			<Navbar activeSection="berita" scrollToSection={scrollToSection} />
+			<Navbar
+				activeSection="berita"
+				scrollToSection={scrollToSection}
+			/>
 
 			{/* Breadcrumb bar */}
 			<div className="bg-card border-b border-border">
@@ -333,7 +378,9 @@ export default function BeritaDetail() {
 			<div className="max-w-7xl mx-auto px-4 py-8">
 				<div className="flex gap-8">
 					{/* Table of Contents - Desktop Sidebar */}
-					<div className="hidden lg:block w-80 flex-shrink-0" data-aos="fade-right">
+					<div
+						className="hidden lg:block w-80 flex-shrink-0"
+						data-aos="fade-right">
 						<Suspense
 							fallback={
 								<div className="bg-card border border-border rounded-xl p-6 text-muted-foreground text-sm">
@@ -347,7 +394,9 @@ export default function BeritaDetail() {
 					{/* Main Content */}
 					<div className="flex-1 max-w-4xl">
 						{/* Header Berita */}
-						<div className="mb-8" data-aos="fade-up">
+						<div
+							className="mb-8"
+							data-aos="fade-up">
 							<h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight mb-5">
 								{berita.title}
 							</h1>
@@ -358,11 +407,15 @@ export default function BeritaDetail() {
 								data-aos-delay="100">
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<User className="w-3.5 h-3.5 text-primary" />
-									<span className="font-medium text-foreground">{(berita as any).authorsDisplay || berita.author}</span>
+									<span className="font-medium text-foreground">
+										{(berita as any).authorsDisplay || berita.author}
+									</span>
 								</div>
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<Calendar className="w-3.5 h-3.5 text-primary" />
-									<span className="text-foreground">{formatDate(berita.createdAt)}</span>
+									<span className="text-foreground">
+										{formatDate(berita.createdAt)}
+									</span>
 								</div>
 								<div className="flex items-center bg-muted px-3 py-1.5 rounded-full gap-1.5">
 									<BookOpen className="w-3.5 h-3.5 text-primary" />
@@ -379,7 +432,10 @@ export default function BeritaDetail() {
 						</div>
 
 						{/* Featured Image */}
-						<div className="mb-10" data-aos="zoom-in" data-aos-delay="150">
+						<div
+							className="mb-10"
+							data-aos="zoom-in"
+							data-aos-delay="150">
 							<div className="relative overflow-hidden rounded-xl shadow-lg">
 								<img
 									src={berita.image}
@@ -399,10 +455,10 @@ export default function BeritaDetail() {
 							data-aos="fade-up"
 							data-aos-delay="200">
 							<div className="p-6 md:p-10">
-							<RichHtmlWithEmbeds
-								content={berita.content}
-								className="prose prose-lg max-w-none berita-content prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-blockquote:text-muted-foreground dark:prose-invert text-foreground leading-relaxed"
-							/>
+								<RichHtmlWithEmbeds
+									content={berita.content}
+									className="prose prose-lg max-w-none berita-content prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-blockquote:text-muted-foreground dark:prose-invert text-foreground leading-relaxed"
+								/>
 							</div>
 						</div>
 
@@ -414,7 +470,9 @@ export default function BeritaDetail() {
 								data-aos-delay="250">
 								<div className="flex items-center gap-2 mb-3">
 									<Tag className="w-4 h-4 text-primary" />
-									<h3 className="text-base font-semibold text-foreground">Tags:</h3>
+									<h3 className="text-base font-semibold text-foreground">
+										Tags:
+									</h3>
 								</div>
 								<div className="flex flex-wrap gap-2">
 									{berita.tags.map((tag, index) => (
@@ -430,76 +488,92 @@ export default function BeritaDetail() {
 							</div>
 						)}
 
-					{/* Galeri terkait */}
-					{berita.relatedGalleryPreview && berita.relatedGalleryPreview.length > 0 && (
-						<div
-							className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
-							data-aos="fade-up"
-							data-aos-delay="255">
-							<div className="flex items-center gap-2 mb-3">
-								<Images className="w-4 h-4 text-primary" />
-								<h3 className="text-base font-semibold text-foreground">Galeri Terkait</h3>
-							</div>
-							<div className="flex flex-wrap gap-2">
-								{berita.relatedGalleryPreview.map((g) => (
-									<Link key={g._id} href={`/library/${toSlug(g.title) || g._id}`}>
-										<Badge
-											variant="outline"
-											className="cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors gap-1.5 text-sm py-1 px-3"
-										>
-											<Images className="w-3 h-3" />
-											{g.title}
-										</Badge>
-									</Link>
-								))}
-							</div>
-						</div>
-					)}
+						{/* Galeri terkait */}
+						{berita.relatedGalleryPreview &&
+							berita.relatedGalleryPreview.length > 0 && (
+								<div
+									className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
+									data-aos="fade-up"
+									data-aos-delay="255">
+									<div className="flex items-center gap-2 mb-3">
+										<Images className="w-4 h-4 text-primary" />
+										<h3 className="text-base font-semibold text-foreground">
+											Galeri Terkait
+										</h3>
+									</div>
+									<div className="flex flex-wrap gap-2">
+										{berita.relatedGalleryPreview.map((g) => (
+											<Link
+												key={g._id}
+												href={`/library/${toSlug(g.title) || g._id}`}>
+												<Badge
+													variant="outline"
+													className="cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors gap-1.5 text-sm py-1 px-3">
+													<Images className="w-3 h-3" />
+													{g.title}
+												</Badge>
+											</Link>
+										))}
+									</div>
+								</div>
+							)}
 
-					{/* Event Badge */}
-					{linkedEvents && linkedEvents.length > 0 && (
-						<div
-							className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
-							data-aos="fade-up"
-							data-aos-delay="260">
-							<div className="flex items-center gap-2 mb-3">
-								<CalendarDays className="w-4 h-4 text-primary" />
-								<h3 className="text-base font-semibold text-foreground">Bagian dari Event</h3>
+						{/* Event Badge */}
+						{linkedEvents && linkedEvents.length > 0 && (
+							<div
+								className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
+								data-aos="fade-up"
+								data-aos-delay="260">
+								<div className="flex items-center gap-2 mb-3">
+									<CalendarDays className="w-4 h-4 text-primary" />
+									<h3 className="text-base font-semibold text-foreground">
+										Bagian dari Event
+									</h3>
+								</div>
+								<div className="flex flex-wrap gap-2">
+									{linkedEvents.map((ev) => {
+										const year = ev.yearId?.year;
+										return (
+											<Link
+												key={ev._id}
+												href={
+													year
+														? `/events/${year}/${toSlug(ev.title) || ev._id}`
+														: '/events'
+												}>
+												<Badge
+													variant="outline"
+													className="cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors gap-1.5 text-sm py-1 px-3">
+													<CalendarDays className="w-3 h-3" />
+													{ev.title}
+													{year && (
+														<span className="text-muted-foreground">
+															({year})
+														</span>
+													)}
+												</Badge>
+											</Link>
+										);
+									})}
+								</div>
 							</div>
-							<div className="flex flex-wrap gap-2">
-								{linkedEvents.map((ev) => {
-									const year = ev.yearId?.year;
-									return (
-										<Link
-											key={ev._id}
-											href={year ? `/events/${year}/${toSlug(ev.title) || ev._id}` : '/events'}
-										>
-											<Badge
-												variant="outline"
-												className="cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors gap-1.5 text-sm py-1 px-3"
-											>
-												<CalendarDays className="w-3 h-3" />
-												{ev.title}
-												{year && <span className="text-muted-foreground">({year})</span>}
-											</Badge>
-										</Link>
-									);
-								})}
-							</div>
-						</div>
-					)}
+						)}
 
-					{/* Footer */}
-					<div
-						className="mt-12 pt-6 border-t border-border"
-						data-aos="fade-up"
-						data-aos-delay="300">
+						{/* Footer */}
+						<div
+							className="mt-12 pt-6 border-t border-border"
+							data-aos="fade-up"
+							data-aos-delay="300">
 							<div className="flex flex-col sm:flex-row items-center justify-between gap-4">
 								<div className="text-sm text-muted-foreground">
 									Dipublikasikan pada {formatDate(berita.createdAt)}
-									{berita.updatedAt && berita.updatedAt !== berita.createdAt && (
-										<span> • Diperbarui pada {formatDate(berita.updatedAt)}</span>
-									)}
+									{berita.updatedAt &&
+										berita.updatedAt !== berita.createdAt && (
+											<span>
+												{' '}
+												• Diperbarui pada {formatDate(berita.updatedAt)}
+											</span>
+										)}
 								</div>
 								<Button
 									onClick={shareBerita}
@@ -517,13 +591,15 @@ export default function BeritaDetail() {
 							className="mt-10 bg-card rounded-xl shadow-sm border border-border p-6"
 							data-aos="fade-up"
 							data-aos-delay="350">
-							<h3 className="text-xl font-bold text-foreground mb-5">Berita Terkait</h3>
+							<h3 className="text-xl font-bold text-foreground mb-5">
+								Berita Terkait
+							</h3>
 							{related && related.length > 0 ? (
 								<div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 									{related.slice(0, 2).map((r, idx) => {
-									const href = r.slug
-										? `/berita/${r.slug}`
-										: `/berita/${r._id || r.id}`;
+										const href = r.slug
+											? `/berita/${r.slug}`
+											: `/berita/${r._id || r.id}`;
 										return (
 											<div
 												key={String(r._id || r.id || idx) + '-' + idx}
@@ -550,7 +626,10 @@ export default function BeritaDetail() {
 													{r.tags && r.tags.length > 0 && (
 														<div className="flex flex-wrap gap-1">
 															{r.tags.slice(0, 3).map((t, i) => (
-																<Badge key={i} variant="secondary" className="text-xs">
+																<Badge
+																	key={i}
+																	variant="secondary"
+																	className="text-xs">
 																	{t}
 																</Badge>
 															))}
@@ -562,7 +641,9 @@ export default function BeritaDetail() {
 									})}
 								</div>
 							) : (
-								<div className="text-muted-foreground text-sm">Belum ada Berita Terkait.</div>
+								<div className="text-muted-foreground text-sm">
+									Belum ada Berita Terkait.
+								</div>
 							)}
 						</div>
 
@@ -575,7 +656,10 @@ export default function BeritaDetail() {
 						)}
 
 						{/* Back button */}
-						<div className="mt-8 text-center" data-aos="fade-up" data-aos-delay="400">
+						<div
+							className="mt-8 text-center"
+							data-aos="fade-up"
+							data-aos-delay="400">
 							<Button
 								onClick={() => setLocation('/')}
 								variant="outline"
@@ -602,19 +686,19 @@ export default function BeritaDetail() {
 				</div>
 			</div>
 
-		<Footer />
+			<Footer />
 
-		{/* AI Chat dengan context berita yang sedang dibaca */}
-		<AIChat
-			pageContext={{
-				path: `/berita/${berita.slug || normalizedSlug || fallbackId || ''}`,
-				permissions: [],
-				pageData: {
-					title: berita.title,
-					excerpt: berita.excerpt,
-				},
-			}}
-		/>
-	</div>
-);
+			{/* AI Chat dengan context berita yang sedang dibaca */}
+			<AIChat
+				pageContext={{
+					path: `/berita/${berita.slug || normalizedSlug || fallbackId || ''}`,
+					permissions: [],
+					pageData: {
+						title: berita.title,
+						excerpt: berita.excerpt,
+					},
+				}}
+			/>
+		</div>
+	);
 }

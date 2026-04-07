@@ -290,9 +290,30 @@ export default function Structure() {
 		enabled: !!currentPeriod,
 		placeholderData: [],
 	});
+	const { data: divisionsData = [] } = useQuery({
+		queryKey: [scope, '/api/divisions', currentPeriod],
+		queryFn: async () => {
+			if (!currentPeriod) return [];
+			const response = await apiRequest(
+				'GET',
+				`/api/divisions?period=${encodeURIComponent(currentPeriod)}`,
+			);
+			return response.json();
+		},
+		enabled: !!currentPeriod,
+		placeholderData: [],
+	});
 
 	// Ensure positions is always an array
 	const positions = Array.isArray(positionsData) ? positionsData : [];
+	const orderedDivisionLabels = Array.isArray(divisionsData)
+		? [...divisionsData]
+				.sort(
+					(a: any, b: any) =>
+						(a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
+				)
+				.map((division: any) => division.displayName)
+		: [];
 
 	// Set default period to the newest one
 	useEffect(() => {
@@ -495,9 +516,13 @@ export default function Structure() {
 				else if (/^anggota\s+divisi/i.test(pos)) b.members.push(member);
 			}
 
-			const divisiList = Array.from(divisionBuckets.keys()).sort((a, b) =>
-				a.localeCompare(b, 'id'),
+			const orderedByConfig = orderedDivisionLabels.filter((label) =>
+				divisionBuckets.has(label),
 			);
+			const missingFromConfig = Array.from(divisionBuckets.keys())
+				.filter((label) => !orderedByConfig.includes(label))
+				.sort((a, b) => a.localeCompare(b, 'id'));
+			const divisiList = [...orderedByConfig, ...missingFromConfig];
 			const ketuaDivisiSpacing = 600;
 			const ketuaDivisiOffset =
 				divisiList.length > 0
@@ -573,7 +598,7 @@ export default function Structure() {
 			setNodes(nodes);
 			setEdges(edges);
 		},
-		[setNodes, setEdges],
+		[orderedDivisionLabels, setNodes, setEdges],
 	);
 
 	// Update chart hanya ketika data anggota/posisi benar-benar berubah (reference stabil pakai useMemo).

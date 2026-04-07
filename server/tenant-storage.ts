@@ -728,7 +728,9 @@ export function createTenantStorage(models: TenantModels) {
 		if (existing && !overwrite) throw new Error(`Target year ${targetYear} already exists`);
 		const copyData = {
 			year: targetYear, isActive: false, desktopMode: source.desktopMode,
+			desktopBannerSource: source.desktopBannerSource || 'classic',
 			bennerfull: source.bennerfull, orang: source.orang,
+			desktopBackground: source.desktopBackground || '',
 			banners: source.banners ? JSON.parse(JSON.stringify(source.banners)) : {},
 			people: source.people ? JSON.parse(JSON.stringify(source.people)) : {},
 		};
@@ -738,7 +740,7 @@ export function createTenantStorage(models: TenantModels) {
 		return createHomeImages(copyData);
 	}
 	async function updateHomeImageSlot(year: number, slot: string, url: string) {
-		const topLevelSlots = ['bennerfull', 'orang'];
+		const topLevelSlots = ['bennerfull', 'orang', 'desktopBackground'];
 		const updateField = topLevelSlots.includes(slot)
 			? { [slot]: url }
 			: { [`banners.${slot}`]: url };
@@ -782,14 +784,36 @@ export function createTenantStorage(models: TenantModels) {
 			console.warn('migrateLegacyTenantDivisionsOnce:', e);
 		}
 	}
+	let _tenantDivisionIndexesEnsured = false;
+	async function ensureTenantDivisionIndexesOnce() {
+		if (_tenantDivisionIndexesEnsured) return;
+		try {
+			const indexes = await Division.collection.indexes();
+			const legacyNameUnique = indexes.find(
+				(idx: any) => idx?.name === 'name_1' && idx?.unique && idx?.key?.name === 1,
+			);
+			if (legacyNameUnique) {
+				await Division.collection.dropIndex('name_1');
+			}
+			await Division.collection.createIndex(
+				{ period: 1, name: 1 },
+				{ unique: true, name: 'period_1_name_1' },
+			);
+			_tenantDivisionIndexesEnsured = true;
+		} catch (e) {
+			console.warn('ensureTenantDivisionIndexesOnce:', e);
+		}
+	}
 	async function getAllDivisions(period?: string) {
 		await migrateLegacyTenantDivisionsOnce();
+		await ensureTenantDivisionIndexesOnce();
 		const q: Record<string, unknown> = {};
 		if (period) q.period = period;
-		return Division.find(q).sort({ name: 1 }).lean();
+		return Division.find(q).sort({ sortOrder: 1, name: 1 }).lean();
 	}
 	async function copyDivisionsFromPeriod(sourcePeriod: string, targetPeriod: string) {
 		await migrateLegacyTenantDivisionsOnce();
+		await ensureTenantDivisionIndexesOnce();
 		const sources = await Division.find({ period: sourcePeriod }).lean();
 		const existing = await Division.find({ period: targetPeriod }).lean();
 		const taken = new Set((existing as any[]).map((d) => d.name));
@@ -812,10 +836,26 @@ export function createTenantStorage(models: TenantModels) {
 		const oid = toObjectId(id); if (!oid) return null;
 		return Division.findById(oid).lean();
 	}
-	async function createDivision(data: any) { data.createdAt = new Date(); return new Division(data).save(); }
+	async function createDivision(data: any) {
+		await ensureTenantDivisionIndexesOnce();
+		data.createdAt = new Date();
+		if (typeof data.sortOrder !== 'number') data.sortOrder = Date.now();
+		return new Division(data).save();
+	}
 	async function updateDivision(id: string, data: any) {
 		const oid = toObjectId(id); if (!oid) return null;
 		return Division.findByIdAndUpdate(oid, { $set: data }, { new: true }).lean();
+	}
+	async function updateDivisionOrders(
+		period: string,
+		orders: Array<{ id: string; sortOrder: number }>,
+	) {
+		for (const item of orders) {
+			const oid = toObjectId(item.id);
+			if (!oid) continue;
+			await Division.updateOne({ _id: oid, period }, { $set: { sortOrder: item.sortOrder, updatedAt: new Date() } });
+		}
+		return getAllDivisions(period);
 	}
 	async function deleteDivision(id: string) {
 		const oid = toObjectId(id); if (!oid) return null;
@@ -1192,7 +1232,7 @@ export function createTenantStorage(models: TenantModels) {
 		getAllPositions, createPosition, updatePosition, deletePosition,
 		createPositionsForPeriod, copyPositionsFromPeriod, deletePositionsForPeriod,
 		// Divisions
-		getAllDivisions, copyDivisionsFromPeriod, deleteDivisionsForPeriod, getDivisionById, createDivision, updateDivision, deleteDivision,
+		getAllDivisions, copyDivisionsFromPeriod, deleteDivisionsForPeriod, getDivisionById, createDivision, updateDivision, updateDivisionOrders, deleteDivision,
 		// Feedback
 		getAllFeedback, getFeedbackById, createFeedback, updateFeedback, deleteFeedback, getFeedbackCount,
 		getVisibleFeedbackCardsFiltered, toggleFeedbackVisibility, replyToFeedback, decideSuggestion, getFeedbackRatingAverages,

@@ -44,8 +44,10 @@ interface HomeImagesData {
 	year: number;
 	isActive: boolean;
 	desktopMode: 'bennerfull' | 'combined';
+	desktopBannerSource?: 'classic' | 'fullBackground';
 	bennerfull: string;
 	orang: string;
+	desktopBackground?: string;
 	banners: Record<string, string>;
 	people?: Record<string, string>;
 	updatedAt?: string;
@@ -158,6 +160,7 @@ export default function Hero({
 	}, [settings?.homeImageBannerSlots]);
 
 	const desktopMode = homeImages?.desktopMode || 'bennerfull';
+	const desktopBannerSource = homeImages?.desktopBannerSource || 'classic';
 	const enableCommunityCombinedFx = isTenant && desktopMode === 'combined';
 
 	const versionSuffix = homeImageVersionSuffix(homeImages?.updatedAt);
@@ -165,6 +168,9 @@ export default function Hero({
 		(homeImages?.bennerfull || '/attached_assets/general/bennerfull.webp') + versionSuffix;
 	const orangSrc =
 		(homeImages?.orang || '/attached_assets/general/orang.webp') + versionSuffix;
+	const desktopBackgroundSrc = homeImages?.desktopBackground
+		? homeImages.desktopBackground + versionSuffix
+		: '';
 
 	const versionedBanners = useMemo(
 		() => versionHomeImageUrls(homeImages?.banners || {}, versionSuffix),
@@ -319,7 +325,7 @@ export default function Hero({
 				{/* Fixed Banner inside Hero */}
 				<div
 					ref={bannerRef}
-					className="fixed top-0 left-0 w-full h-[400px] z-0 pointer-events-none"
+					className={`fixed top-0 left-0 w-full z-0 pointer-events-none ${desktopBannerSource === 'fullBackground' && desktopMode === 'bennerfull' ? 'h-screen' : 'h-[400px]'}`}
 					style={{
 						opacity: showBanner ? 1 : 0,
 						transition: 'opacity 0.7s ease-out',
@@ -329,9 +335,11 @@ export default function Hero({
 					}}>
 					<HeroBannerContent
 						desktopMode={desktopMode}
+						desktopBannerSource={desktopBannerSource}
 						slotOrder={slotOrder}
 						banners={versionedBanners}
 						bennerfullSrc={bennerfullSrc}
+						desktopBackgroundSrc={desktopBackgroundSrc}
 						enableCommunityCombinedFx={enableCommunityCombinedFx}
 					/>
 					{/* Fog belakang — full height, tipis */}
@@ -384,6 +392,7 @@ export default function Hero({
 					<div style={{ transform: 'translateZ(0)', width: '100%', height: '100%' }}>
 						<HeroPersonContent
 							desktopMode={desktopMode}
+							desktopBannerSource={desktopBannerSource}
 							slotOrder={slotOrder}
 							people={versionedPeople}
 							orangSrc={orangSrc}

@@ -13,11 +13,13 @@ const DEFAULT_BANNERS: Record<string, string> = {
 
 export interface HeroRenderData {
 	desktopMode: 'bennerfull' | 'combined';
+	desktopBannerSource?: 'classic' | 'fullBackground';
 	slotOrder: string[];
 	banners: Record<string, string>;
 	people: Record<string, string>;
 	bennerfullSrc: string;
 	orangSrc: string;
+	desktopBackgroundSrc?: string;
 	siteName: string;
 	siteTagline: string;
 	siteDescription: string;
@@ -50,13 +52,15 @@ function computeBannerStyle(i: number, n: number) {
 
 export function HeroBannerContent({
 	desktopMode,
+	desktopBannerSource = 'classic',
 	slotOrder,
 	banners,
 	bennerfullSrc,
+	desktopBackgroundSrc,
 	enableCommunityCombinedFx = false,
 }: Pick<
 	HeroRenderData,
-	'desktopMode' | 'slotOrder' | 'banners' | 'bennerfullSrc'
+	'desktopMode' | 'desktopBannerSource' | 'slotOrder' | 'banners' | 'bennerfullSrc' | 'desktopBackgroundSrc'
 > & {
 	enableCommunityCombinedFx?: boolean;
 }) {
@@ -84,6 +88,19 @@ export function HeroBannerContent({
 			</div>
 		);
 	}
+
+	if (desktopBannerSource === 'fullBackground' && desktopBackgroundSrc) {
+		return (
+			<img
+				src={desktopBackgroundSrc}
+				alt="Background"
+				className="w-full h-full object-cover"
+				loading="eager"
+				decoding="async"
+			/>
+		);
+	}
+
 	return (
 		<img
 			src={bennerfullSrc || '/attached_assets/general/bennerfull.webp'}
@@ -282,10 +299,11 @@ function computeOverlapStyle(i: number, n: number) {
 
 export function HeroPersonContent({
 	desktopMode,
+	desktopBannerSource = 'classic',
 	slotOrder,
 	people,
 	orangSrc,
-}: Pick<HeroRenderData, 'desktopMode' | 'slotOrder' | 'people' | 'orangSrc'>) {
+}: Pick<HeroRenderData, 'desktopMode' | 'desktopBannerSource' | 'slotOrder' | 'people' | 'orangSrc'>) {
 	const slotEntries = useMemo(() => {
 		if (desktopMode !== 'combined') return [];
 		return slotOrder
@@ -311,6 +329,11 @@ export function HeroPersonContent({
 			</div>
 		);
 	}
+
+	if (desktopMode === 'bennerfull' && desktopBannerSource === 'fullBackground') {
+		return <div className="w-full h-full" />;
+	}
+
 	return (
 		<img
 			src={orangSrc || '/attached_assets/general/orang.webp'}
@@ -568,8 +591,10 @@ export interface HeroPreviewOverrides {
 	};
 	homeImages?: {
 		desktopMode?: 'bennerfull' | 'combined';
+		desktopBannerSource?: 'classic' | 'fullBackground';
 		bennerfull?: string;
 		orang?: string;
+		desktopBackground?: string;
 		banners?: Record<string, string>;
 		people?: Record<string, string>;
 	};

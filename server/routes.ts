@@ -57,6 +57,12 @@ function resolveModels(req: Request): any {
 	return require('../db/mongodb');
 }
 
+function isValidPeriodRange(period: string): boolean {
+	if (!/^\d{4}-\d{4}$/.test(period)) return false;
+	const [start, end] = period.split('-').map((part) => parseInt(part, 10));
+	return end === start + 1;
+}
+
 /** Pastikan role ada di koleksi Role dan aktif (untuk create/update user). */
 async function assertActiveRoleForStorage(storage: any, roleName: unknown): Promise<void> {
 	if (typeof roleName !== 'string' || !roleName.trim()) {
@@ -3727,10 +3733,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const storage = resolveStorage(req);
 				const { period } = req.body;
 
-				if (!period || !/^\d{4}-\d{4}$/.test(period)) {
+				if (!period || !isValidPeriodRange(period)) {
 					return res.status(400).json({
 						message:
-							'Invalid period format. Please use YYYY-YYYY format (e.g., 2025-2026)',
+							'Invalid period format. Please use sequential YYYY-YYYY format (e.g., 2025-2026)',
 					});
 				}
 
@@ -3822,6 +3828,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const storage = resolveStorage(req);
 				const { period, positions } = req.body;
+				if (!period || !isValidPeriodRange(String(period))) {
+					return res.status(400).json({
+						message: 'Periode tidak valid. Gunakan format YYYY-YYYY berurutan.',
+					});
+				}
+				const periods = await storage.getOrganizationPeriods();
+				if (!periods.includes(period)) {
+					return res.status(400).json({
+						message: 'Periode belum tersedia. Buat periode terlebih dahulu.',
+					});
+				}
+				const divisions = await storage.getAllDivisions(period);
+				if (!divisions.length) {
+					return res.status(400).json({
+						message: 'Divisi belum tersedia di periode ini. Buat divisi terlebih dahulu.',
+					});
+				}
 				const result = await storage.createPositionsForPeriod(
 					period,
 					positions,
@@ -3850,6 +3873,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			} catch (error) {
 				console.error('Copy positions error:', error);
 				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.post(
+		'/api/organization/structure/copy',
+		authenticate,
+		requirePermission('organization.manage_positions'),
+		async (req, res) => {
+			try {
+				const storage = resolveStorage(req);
+				const { sourcePeriod, targetPeriod, overwrite } = req.body || {};
+				if (
+					typeof sourcePeriod !== 'string' ||
+					typeof targetPeriod !== 'string' ||
+					!isValidPeriodRange(sourcePeriod) ||
+					!isValidPeriodRange(targetPeriod)
+				) {
+					return res.status(400).json({
+						message: 'sourcePeriod dan targetPeriod wajib format YYYY-YYYY berurutan.',
+					});
+				}
+				const periods = await storage.getOrganizationPeriods();
+				if (!periods.includes(sourcePeriod) || !periods.includes(targetPeriod)) {
+					return res.status(400).json({
+						message: 'Periode sumber/tujuan harus sudah tersedia.',
+					});
+				}
+
+				const existingPositions = await storage.getPositionsByPeriod(targetPeriod);
+				const existingDivisions = await storage.getAllDivisions(targetPeriod);
+				const hasExistingStructure =
+					(Array.isArray(existingPositions) && existingPositions.length > 0) ||
+					(Array.isArray(existingDivisions) && existingDivisions.length > 0);
+
+				if (hasExistingStructure && !overwrite) {
+					return res.status(409).json({
+						message:
+							'STRUCTURE_EXISTS: Periode tujuan sudah punya divisi/jabatan. Konfirmasi overwrite untuk menggantinya.',
+					});
+				}
+
+				if (hasExistingStructure && overwrite) {
+					await storage.deletePositionsForPeriod(targetPeriod);
+					await storage.deleteDivisionsForPeriod(targetPeriod);
+				}
+
+				await storage.copyPositionsFromPeriod(sourcePeriod, targetPeriod);
+				await storage.copyDivisionsFromPeriod(sourcePeriod, targetPeriod);
+				res.status(201).json({
+					message: 'Divisi dan jabatan berhasil disalin ke periode tujuan.',
+				});
+			} catch (error: any) {
+				console.error('Copy structure error:', error);
+				const msg = String(error?.message || 'Internal server error');
+				if (msg.includes('E11000') && msg.includes('name')) {
+					return res.status(500).json({
+						message:
+							'Database masih memakai index unik lama untuk nama divisi sehingga nama yang sama tidak bisa dipakai lintas periode. Mohon hubungi admin untuk migrasi index MongoDB (drop index name_1).',
+					});
+				}
+				res.status(500).json({ message: msg });
 			}
 		},
 	);
@@ -4073,6 +4158,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const storage = resolveStorage(req);
 				const { name, position, period } = req.body;
 				const gdriveUrl = (req.body.gdriveUrl || '').toString();
+				if (!name || !position || !period) {
+					return res.status(400).json({
+						message: 'name, position, dan period wajib diisi.',
+					});
+				}
+				if (!isValidPeriodRange(String(period))) {
+					return res.status(400).json({
+						message: 'Periode tidak valid. Gunakan format YYYY-YYYY berurutan.',
+					});
+				}
+				const periods = await storage.getOrganizationPeriods();
+				if (!periods.includes(period)) {
+					return res.status(400).json({
+						message: 'Periode belum ada. Buat periode terlebih dahulu.',
+					});
+				}
+				const divisions = await storage.getAllDivisions(period);
+				if (!divisions.length) {
+					return res.status(400).json({
+						message: 'Divisi belum tersedia pada periode ini. Buat divisi terlebih dahulu.',
+					});
+				}
+				const positions = await storage.getPositionsByPeriod(period);
+				const allowed = Array.isArray(positions)
+					? positions.map((p: any) => p.name)
+					: [];
+				if (!allowed.includes(position)) {
+					return res.status(400).json({
+						message: 'Jabatan tidak valid untuk periode ini. Buat/pilih jabatan yang tersedia.',
+					});
+				}
 
 				// Determine image source: prefer valid gdriveUrl, else uploaded file, else default
 				let imageUrl = '/uploads/default-member-image.jpg';
@@ -4135,6 +4251,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const memberId = req.params.id;
 				const { name, position, period } = req.body;
 				const gdriveUrl = (req.body.gdriveUrl || '').toString();
+				if (!name || !position || !period) {
+					return res.status(400).json({
+						message: 'name, position, dan period wajib diisi.',
+					});
+				}
+				if (!isValidPeriodRange(String(period))) {
+					return res.status(400).json({
+						message: 'Periode tidak valid. Gunakan format YYYY-YYYY berurutan.',
+					});
+				}
+				const periods = await storage.getOrganizationPeriods();
+				if (!periods.includes(period)) {
+					return res.status(400).json({
+						message: 'Periode belum ada. Buat periode terlebih dahulu.',
+					});
+				}
+				const divisions = await storage.getAllDivisions(period);
+				if (!divisions.length) {
+					return res.status(400).json({
+						message: 'Divisi belum tersedia pada periode ini. Buat divisi terlebih dahulu.',
+					});
+				}
+				const positions = await storage.getPositionsByPeriod(period);
+				const allowed = Array.isArray(positions)
+					? positions.map((p: any) => p.name)
+					: [];
+				if (!allowed.includes(position)) {
+					return res.status(400).json({
+						message: 'Jabatan tidak valid untuk periode ini. Buat/pilih jabatan yang tersedia.',
+					});
+				}
 
 				// Get existing member
 				const existingMember =
@@ -5131,7 +5278,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const year = parseInt(req.params.year, 10);
 				const slot = req.params.slot;
 
-				const fixedSlots = ['bennerfull', 'orang'];
+				const fixedSlots = ['bennerfull', 'orang', 'desktopBackground'];
 				const defaultBannerSlots = [
 					'public_relation', 'technopreneurship', 'intelektual',
 					'wakil_ketua', 'ketua', 'medinfo', 'religius', 'senor',
@@ -5166,7 +5313,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Process image → webp (banner slot quality tuned for small-but-sharp output)
-				const isFull = slot === 'bennerfull' || slot === 'orang';
+				const isFull = slot === 'bennerfull' || slot === 'orang' || slot === 'desktopBackground';
 				const processedBuffer = await processImage(req.file.buffer, {
 					quality: isFull ? 82 : 85,
 					maxWidth: isFull ? 3840 : 1920,
@@ -5206,7 +5353,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const year = parseInt(req.params.year, 10);
 				const slot = req.params.slot;
 
-				const fixedSlots = ['bennerfull', 'orang'];
+				const fixedSlots = ['bennerfull', 'orang', 'desktopBackground'];
 				const defaultBannerSlots = [
 					'public_relation', 'technopreneurship', 'intelektual',
 					'wakil_ketua', 'ketua', 'medinfo', 'religius', 'senor',
@@ -5263,7 +5410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const year = parseInt(req.params.year, 10);
 				const slot = req.params.slot;
 
-				const fixedSlots = ['bennerfull', 'orang'];
+				const fixedSlots = ['bennerfull', 'orang', 'desktopBackground'];
 				const defaultBannerSlots = [
 					'public_relation', 'technopreneurship', 'intelektual',
 					'wakil_ketua', 'ketua', 'medinfo', 'religius', 'senor',
@@ -5336,7 +5483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const year = parseInt(req.params.year, 10);
 				const slot = req.params.slot;
 
-				const fixedSlots = ['bennerfull', 'orang'];
+				const fixedSlots = ['bennerfull', 'orang', 'desktopBackground'];
 				const defaultBannerSlots = [
 					'public_relation', 'technopreneurship', 'intelektual',
 					'wakil_ketua', 'ketua', 'medinfo', 'religius', 'senor',
@@ -5449,7 +5596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						const homeImagesDocs = await models.HomeImages.find({}).lean() as any[];
 						for (const doc of homeImagesDocs) {
 							const updates: Record<string, string> = {};
-							for (const field of ['bennerfull', 'orang'] as const) {
+							for (const field of ['bennerfull', 'orang', 'desktopBackground'] as const) {
 								const val = doc[field];
 								if (needsMigration(val)) {
 									const newVal = migrateUrl(val, slug);
@@ -6240,6 +6387,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const storage = resolveStorage(req);
 				const period =
 					typeof req.query.period === 'string' ? req.query.period.trim() : '';
+				if (!period) {
+					return res.status(400).json({
+						message: 'Query period wajib diisi untuk mengambil jabatan tersedia.',
+					});
+				}
 				const divisions = await storage.getAllDivisions(period || undefined);
 				const allAssignedPositions = new Set();
 
@@ -6252,24 +6404,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 
 				const availablePositions: string[] = [];
-				if (period) {
-					const posList = await storage.getPositionsByPeriod(period);
-					for (const position of posList || []) {
-						const nm = (position as any).name;
-						if (nm && !allAssignedPositions.has(nm)) {
-							availablePositions.push(nm);
-						}
-					}
-				} else {
-					const allPositions = await storage.getAllPositions();
-					for (const periodData of allPositions as any[]) {
-						if (periodData.positions) {
-							for (const position of periodData.positions) {
-								if (!allAssignedPositions.has(position.name)) {
-									availablePositions.push(position.name);
-								}
-							}
-						}
+				const posList = await storage.getPositionsByPeriod(period);
+				for (const position of posList || []) {
+					const nm = (position as any).name;
+					if (nm && !allAssignedPositions.has(nm)) {
+						availablePositions.push(nm);
 					}
 				}
 
@@ -6335,11 +6474,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const period =
 					(typeof bodyPeriod === 'string' && bodyPeriod.trim()) ||
 					(periods[0] ?? '');
+				if (!period || !isValidPeriodRange(period) || !periods.includes(period)) {
+					return res.status(400).json({
+						message: 'Periode divisi tidak valid. Buat periode dulu sebelum menambah divisi.',
+					});
+				}
 
 				const existingDivisions = await divStorage.getAllDivisions(period);
 				if (existingDivisions.some((d: any) => d.name === name)) {
 					return res.status(400).json({
 						message: 'Divisi dengan nama ini sudah ada untuk periode tersebut',
+					});
+				}
+				const periodPositions = await divStorage.getPositionsByPeriod(period);
+				const allowedPositions = Array.isArray(periodPositions)
+					? periodPositions.map((item: any) => item.name)
+					: [];
+				const invalidPositions = (positions || []).filter(
+					(item: string) => !allowedPositions.includes(item),
+				);
+				if (invalidPositions.length > 0) {
+					return res.status(400).json({
+						message: `Ada jabatan yang belum terdaftar di periode ${period}: ${invalidPositions.join(', ')}`,
 					});
 				}
 
@@ -6349,6 +6505,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					displayName,
 					description: description || '',
 					positions: positions || [],
+					sortOrder: Date.now(),
 					color: color || '#3B82F6',
 					logo: logo || '',
 				});
@@ -6369,6 +6526,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const { id } = req.params;
 				const { displayName, description, positions, color, logo } = req.body;
+				const storage = resolveStorage(req);
+				const existingDivision = await storage.getDivisionById(id);
+				if (!existingDivision) {
+					return res.status(404).json({ message: 'Division not found' });
+				}
+				const period = (existingDivision as any).period;
+				const periodPositions = await storage.getPositionsByPeriod(period);
+				const allowedPositions = Array.isArray(periodPositions)
+					? periodPositions.map((item: any) => item.name)
+					: [];
+				const invalidPositions = (positions || []).filter(
+					(item: string) => !allowedPositions.includes(item),
+				);
+				if (invalidPositions.length > 0) {
+					return res.status(400).json({
+						message: `Ada jabatan yang belum terdaftar di periode ${period}: ${invalidPositions.join(', ')}`,
+					});
+				}
 
 				const updateData: any = {
 					displayName,
@@ -6376,17 +6551,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					positions,
 					color,
 					logo,
+					sortOrder: (existingDivision as any).sortOrder ?? Date.now(),
 					updatedAt: new Date(),
 				};
 
-				const division = await resolveStorage(req).updateDivision(id, updateData);
-				if (!division) {
-					return res.status(404).json({ message: 'Division not found' });
-				}
+				const division = await storage.updateDivision(id, updateData);
 
 				res.json(division);
 			} catch (error) {
 				console.error('Error updating division:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
+	app.put(
+		'/api/divisions/order',
+		authenticate,
+		requirePermission('divisions.edit'),
+		async (req, res) => {
+			try {
+				const storage = resolveStorage(req);
+				const period =
+					typeof req.body?.period === 'string' ? req.body.period.trim() : '';
+				const orders = Array.isArray(req.body?.orders) ? req.body.orders : [];
+				if (!period || !isValidPeriodRange(period)) {
+					return res.status(400).json({ message: 'Periode tidak valid.' });
+				}
+				if (!orders.length) {
+					return res.status(400).json({ message: 'orders wajib berupa array.' });
+				}
+				const normalized = orders
+					.filter((item: any) => item?.id && Number.isFinite(Number(item.sortOrder)))
+					.map((item: any) => ({
+						id: String(item.id),
+						sortOrder: Number(item.sortOrder),
+					}));
+				const updated = await storage.updateDivisionOrders(period, normalized);
+				res.json(updated);
+			} catch (error) {
+				console.error('Error updating division orders:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		},
@@ -8005,6 +8209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/registration/communities/:id/request-delete-otp',
 		authenticate,
+		mainOnly,
 		requirePermission('registration.manage'),
 		async (req, res) => {
 			try {
@@ -8033,6 +8238,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/registration/communities/:id/verify-delete-otp',
 		authenticate,
+		mainOnly,
 		requirePermission('registration.manage'),
 		async (req, res) => {
 			try {
@@ -8382,6 +8588,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/registration/communities/:id/repair',
 		authenticate,
+		mainOnly,
 		requirePermission('registration.manage'),
 		async (req, res) => {
 			try {
@@ -8442,6 +8649,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get(
 		'/api/registration/communities/health',
 		authenticate,
+		mainOnly,
 		requirePermission('registration.manage'),
 		async (_req, res) => {
 			try {

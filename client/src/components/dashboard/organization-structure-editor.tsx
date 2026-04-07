@@ -121,6 +121,12 @@ type OrgAutoFillPreviewPayload = {
 	}>;
 };
 
+function isValidPeriodRange(value: string): boolean {
+	if (!/^\d{4}-\d{4}$/.test(value)) return false;
+	const [start, end] = value.split('-').map((part) => parseInt(part, 10));
+	return end === start + 1;
+}
+
 // Sortable Position Item Component
 function SortablePositionItem({
 	position,
@@ -224,6 +230,58 @@ function SortableDivisionPositionItem({
 				onClick={onRemove}>
 				<X className="h-4 w-4" />
 			</Button>
+		</div>
+	);
+}
+
+function SortableDivisionCard({
+	division,
+	canEdit,
+	onEdit,
+	onDelete,
+}: {
+	division: any;
+	canEdit: boolean;
+	onEdit: () => void;
+	onDelete: () => void;
+}) {
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+		useSortable({ id: division._id });
+	const style = { transform: CSS.Transform.toString(transform), transition };
+	return (
+		<div
+			ref={setNodeRef}
+			style={style}
+			className={`flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between border rounded-lg bg-muted ${isDragging ? 'shadow-lg opacity-50' : ''}`}>
+			<div className="min-w-0 flex items-center gap-3">
+				<div
+					{...(canEdit ? { ...attributes, ...listeners } : {})}
+					className={`p-1 rounded ${canEdit ? 'cursor-grab active:cursor-grabbing hover:bg-accent' : ''}`}>
+					<GripVertical className="h-4 w-4 text-muted-foreground" />
+				</div>
+				<div className="w-4 h-4 rounded-full" style={{ backgroundColor: division.color }} />
+				<div>
+					<h4 className="font-semibold">{division.displayName}</h4>
+					<p className="text-sm text-muted-foreground">{division.description || 'No description'}</p>
+					<div className="text-xs text-muted-foreground mt-1">Jabatan: {division.positions?.length || 0}</div>
+				</div>
+			</div>
+			<div className="flex flex-shrink-0 items-center gap-2">
+				{canEdit && (
+					<>
+						<Button variant="outline" size="sm" onClick={onEdit}>
+							<Edit className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={onDelete}
+							className="text-red-600 hover:text-red-700">
+							<Trash2 className="h-4 w-4" />
+						</Button>
+					</>
+				)}
+			</div>
 		</div>
 	);
 }
@@ -436,9 +494,13 @@ export default function OrganizationStructureEditor() {
 	const [jabatanPeriodAdding, setJabatanPeriodAdding] = useState(false);
 	const [periodDeleteOpen, setPeriodDeleteOpen] = useState(false);
 	const [periodPendingDelete, setPeriodPendingDelete] = useState<string | null>(null);
+	const [structureOverwriteDialogOpen, setStructureOverwriteDialogOpen] = useState(false);
+	const [structureOverwriteTargetPeriod, setStructureOverwriteTargetPeriod] = useState<string | null>(null);
 	const [positions, setPositions] = useState<{ name: string; order: number }[]>([]);
 	const { hasSpecificPermission } = useAuth();
 	const [newDivision, setNewDivision] = useState('');
+	const [positionDivisionId, setPositionDivisionId] = useState<string>('');
+	const [newDivisionFromJabatan, setNewDivisionFromJabatan] = useState('');
 	const [editingDivision, setEditingDivision] = useState<any>(null);
 	const [isDivisionEditorOpen, setIsDivisionEditorOpen] = useState(false);
 	const [structureDocFile, setStructureDocFile] = useState<File | null>(null);
@@ -563,12 +625,25 @@ export default function OrganizationStructureEditor() {
 		enabled: !!selectedPeriod,
 		placeholderData: [],
 	});
+	const hasPeriods = sortedPeriods.length > 0;
+	const hasDivisionsInPeriod = Array.isArray(divisions) && divisions.length > 0;
+	const hasPositionsInPeriod = Array.isArray(positions) && positions.length > 0;
 
 	useEffect(() => {
 		if (Array.isArray(positionData)) {
 			setPositions([...positionData].sort((a: any, b: any) => a.order - b.order));
 		}
 	}, [positionData]);
+
+	useEffect(() => {
+		if (!Array.isArray(divisions) || divisions.length === 0) {
+			setPositionDivisionId('');
+			return;
+		}
+		if (!positionDivisionId || !divisions.some((division: any) => division._id === positionDivisionId)) {
+			setPositionDivisionId(divisions[0]._id);
+		}
+	}, [divisions, positionDivisionId]);
 
 	const invalidateAfterAutoFill = () => {
 		queryClient.invalidateQueries({
@@ -797,26 +872,52 @@ export default function OrganizationStructureEditor() {
 		onError: () => toast({ title: 'Gagal', description: 'Tidak dapat memperbarui daftar jabatan.', variant: 'destructive' }),
 	});
 
-	const copyPositionsMutation = useMutation({
-		mutationFn: async ({ sourcePeriod, targetPeriod }: { sourcePeriod: string; targetPeriod: string }) =>
-			apiRequest('POST', '/api/organization/positions/copy', { sourcePeriod, targetPeriod }),
+	const copyStructureMutation = useMutation({
+		mutationFn: async ({
+			sourcePeriod,
+			targetPeriod,
+			overwrite,
+		}: {
+			sourcePeriod: string;
+			targetPeriod: string;
+			overwrite?: boolean;
+		}) => {
+			const response = await apiRequest('POST', '/api/organization/structure/copy', {
+				sourcePeriod,
+				targetPeriod,
+				overwrite: Boolean(overwrite),
+			});
+			return response.json();
+		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: [scope, '/api/organization/positions'] });
-			toast({ title: 'Berhasil', description: 'Jabatan disalin ke periode tujuan.' });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
+			toast({
+				title: 'Berhasil',
+				description: 'Divisi dan jabatan berhasil disalin ke periode tujuan.',
+			});
 		},
-		onError: () => toast({ title: 'Gagal', description: 'Salin jabatan gagal.', variant: 'destructive' }),
+		onError: async (error: Error, variables) => {
+			const message = error.message || '';
+			if (message.includes('STRUCTURE_EXISTS') && variables) {
+				setStructureOverwriteTargetPeriod(variables.targetPeriod);
+				setStructureOverwriteDialogOpen(true);
+				return;
+			}
+			toast({
+				title: 'Gagal',
+				description: message || 'Salin struktur gagal.',
+				variant: 'destructive',
+			});
+		},
 	});
 
-	const copyDivisionsMutation = useMutation({
-		mutationFn: async ({ sourcePeriod, targetPeriod }: { sourcePeriod: string; targetPeriod: string }) =>
-			apiRequest('POST', '/api/divisions/copy', { sourcePeriod, targetPeriod }),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
-			toast({ title: 'Berhasil', description: 'Divisi disalin ke periode tujuan.' });
-		},
-		onError: () =>
-			toast({ title: 'Gagal', description: 'Salin divisi gagal.', variant: 'destructive' }),
-	});
+	const handleCopyStructure = (targetPeriod: string, overwrite = false) =>
+		copyStructureMutation.mutateAsync({
+			sourcePeriod: selectedPeriod,
+			targetPeriod,
+			overwrite,
+		});
 
 	const createDivisionMutation = useMutation({
 		mutationFn: async (data: any) => {
@@ -886,6 +987,27 @@ export default function OrganizationStructureEditor() {
 		},
 	});
 
+	const updateDivisionOrderMutation = useMutation({
+		mutationFn: async (payload: { period: string; orders: Array<{ id: string; sortOrder: number }> }) => {
+			const response = await apiRequest('PUT', '/api/divisions/order', payload);
+			return response.json();
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions', selectedPeriod] });
+			queryClient.invalidateQueries({ queryKey: [scope, '/api/divisions'] });
+			toast({
+				title: 'Urutan divisi disimpan',
+				description: 'Urutan ini dipakai untuk tampilan struktur organisasi publik.',
+			});
+		},
+		onError: () =>
+			toast({
+				title: 'Gagal menyimpan urutan divisi',
+				description: 'Coba ulangi drag-and-drop divisi.',
+				variant: 'destructive',
+			}),
+	});
+
 	// Handlers
 	const closeEditor = () => { setIsEditorOpen(false); setEditingMember(null); };
 
@@ -921,10 +1043,10 @@ export default function OrganizationStructureEditor() {
 
 	const handleSubmitJabatanNewPeriod = () => {
 		const p = jabatanPeriodDraft.trim();
-		if (!/^\d{4}-\d{4}$/.test(p)) {
+		if (!isValidPeriodRange(p)) {
 			toast({
 				title: 'Format tidak valid',
-				description: 'Gunakan format YYYY-YYYY (contoh 2025-2026).',
+				description: 'Gunakan format YYYY-YYYY berurutan (contoh 2025-2026).',
 				variant: 'destructive',
 			});
 			return;
@@ -933,12 +1055,67 @@ export default function OrganizationStructureEditor() {
 	};
 
 	const handleAddPosition = () => {
-		if (newPosition.trim() && !positions.some((pos) => pos.name === newPosition.trim())) {
-			const maxOrder = positions.length > 0 ? Math.max(...positions.map((p) => p.order)) : 0;
-			const updatedPositions = [...positions, { name: newPosition.trim(), order: maxOrder + 1 }];
-			updatePositionsMutation.mutate({ period: selectedPeriod, positions: updatedPositions });
-			setNewPosition('');
+		const positionName = newPosition.trim();
+		if (!selectedPeriod) {
+			toast({
+				title: 'Periode belum dipilih',
+				description: 'Tambahkan atau pilih periode dulu sebelum menambah jabatan.',
+				variant: 'destructive',
+			});
+			return;
 		}
+		if (!hasDivisionsInPeriod) {
+			toast({
+				title: 'Divisi belum tersedia',
+				description: 'Buat divisi dulu sebelum menambahkan jabatan.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (!positionName) {
+			toast({
+				title: 'Nama jabatan kosong',
+				description: 'Isi nama jabatan terlebih dahulu.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (!positionDivisionId) {
+			toast({
+				title: 'Divisi belum dipilih',
+				description: 'Pilih divisi tujuan untuk mengaitkan jabatan.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (positions.some((pos) => pos.name === positionName)) {
+			toast({
+				title: 'Jabatan sudah ada',
+				description: 'Gunakan nama jabatan lain untuk periode ini.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		const maxOrder = positions.length > 0 ? Math.max(...positions.map((p) => p.order)) : 0;
+		const updatedPositions = [...positions, { name: positionName, order: maxOrder + 1 }];
+		updatePositionsMutation.mutate({ period: selectedPeriod, positions: updatedPositions });
+		const targetDivision = divisions.find((div: any) => div._id === positionDivisionId);
+		if (targetDivision) {
+			const mergedDivisionPositions = Array.from(
+				new Set([...(targetDivision.positions ?? []), positionName]),
+			);
+			updateDivisionMutation.mutate({
+				id: targetDivision._id,
+				data: {
+					displayName: targetDivision.displayName,
+					description: targetDivision.description ?? '',
+					positions: mergedDivisionPositions,
+					color: targetDivision.color ?? '#3B82F6',
+					logo: targetDivision.logo ?? '',
+				},
+			});
+		}
+		setNewPosition('');
 	};
 
 	const handleRemovePosition = (positionToRemove: string) => {
@@ -978,17 +1155,87 @@ export default function OrganizationStructureEditor() {
 		}
 	};
 
+	const handleDivisionDragEnd = (event: DragEndEvent) => {
+		const { active, over } = event;
+		if (!over || active.id === over.id || !selectedPeriod) return;
+		const current = Array.isArray(divisions) ? [...divisions] : [];
+		const oldIndex = current.findIndex((division: any) => division._id === active.id);
+		const newIndex = current.findIndex((division: any) => division._id === over.id);
+		if (oldIndex === -1 || newIndex === -1) return;
+		const reordered = arrayMove(current, oldIndex, newIndex);
+		queryClient.setQueryData([scope, '/api/divisions', selectedPeriod], reordered);
+		updateDivisionOrderMutation.mutate({
+			period: selectedPeriod,
+			orders: reordered.map((division: any, index: number) => ({
+				id: division._id,
+				sortOrder: index + 1,
+			})),
+		});
+	};
+
 	const handleAddDivision = () => {
-		if (newDivision.trim() && selectedPeriod) {
-			createDivisionMutation.mutate({
-				name: newDivision.toLowerCase().replace(/\s+/g, '_'),
+		if (!selectedPeriod) {
+			toast({
+				title: 'Periode belum dipilih',
+				description: 'Tambahkan atau pilih periode dulu sebelum menambah divisi.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (!newDivision.trim()) {
+			toast({
+				title: 'Nama divisi kosong',
+				description: 'Isi nama divisi terlebih dahulu.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		createDivisionMutation.mutate({
+			name: newDivision.toLowerCase().replace(/\s+/g, '_'),
+			period: selectedPeriod,
+			displayName: newDivision,
+			description: '',
+			positions: [],
+			color: '#3B82F6',
+		});
+		setNewDivision('');
+	};
+
+	const handleAddDivisionFromJabatan = async () => {
+		const divisionName = newDivisionFromJabatan.trim();
+		if (!selectedPeriod) {
+			toast({
+				title: 'Periode belum dipilih',
+				description: 'Tambahkan periode dulu sebelum membuat divisi.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (!divisionName) {
+			toast({
+				title: 'Nama divisi kosong',
+				description: 'Isi nama divisi terlebih dahulu.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		try {
+			const newDivision = await createDivisionMutation.mutateAsync({
+				name: divisionName.toLowerCase().replace(/\s+/g, '_'),
 				period: selectedPeriod,
-				displayName: newDivision,
+				displayName: divisionName,
 				description: '',
 				positions: [],
 				color: '#3B82F6',
 			});
-			setNewDivision('');
+			setPositionDivisionId((newDivision as any)?._id ?? '');
+			setNewDivisionFromJabatan('');
+			toast({
+				title: 'Divisi ditambahkan',
+				description: 'Lanjutkan menambahkan jabatan untuk divisi ini.',
+			});
+		} catch {
+			/* toast dari mutation */
 		}
 	};
 
@@ -1080,6 +1327,12 @@ export default function OrganizationStructureEditor() {
 		setStructureDocFile(null);
 		setAutoFillDialogOpen(true);
 	};
+	const orderedDivisions = Array.isArray(divisions)
+		? [...divisions].sort(
+				(a: any, b: any) =>
+					(a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
+		  )
+		: [];
 
 	return (
 		<div className="space-y-4">
@@ -1089,7 +1342,9 @@ export default function OrganizationStructureEditor() {
 					<p className="text-sm text-muted-foreground">Kelola anggota, jabatan, dan divisi organisasi.</p>
 				</div>
 				{activeTab === 'members' && hasSpecificPermission('kelembagaan.edit') && (
-					<Button onClick={() => { setEditingMember(null); setIsEditorOpen(true); }}>
+					<Button
+						disabled={!hasPeriods || !hasDivisionsInPeriod || !hasPositionsInPeriod}
+						onClick={() => { setEditingMember(null); setIsEditorOpen(true); }}>
 						<Users className="h-4 w-4 mr-2" />
 						Tambah Anggota
 					</Button>
@@ -1209,6 +1464,9 @@ export default function OrganizationStructureEditor() {
 												{selectedDivision === 'all'
 													? `Tidak ada anggota untuk periode ${selectedPeriod}`
 													: `Tidak ada anggota divisi ${selectedDivision} untuk periode ${selectedPeriod}`}
+											</p>
+											<p className="text-xs text-amber-600 mt-3">
+												Urutan wajib: buat periode, lalu divisi, lalu jabatan, baru anggota.
 											</p>
 										</CardContent>
 									</Card>
@@ -1392,16 +1650,52 @@ export default function OrganizationStructureEditor() {
 							<Card>
 								<CardContent className="p-6">
 									<h3 className="text-lg font-semibold mb-4">Tambah jabatan baru</h3>
-									<div className="flex gap-2">
+									<div className="grid gap-3">
+										<Select value={positionDivisionId} onValueChange={setPositionDivisionId}>
+											<SelectTrigger>
+												<SelectValue placeholder="Pilih divisi untuk jabatan ini" />
+											</SelectTrigger>
+											<SelectContent>
+												{divisions.map((division: any) => (
+													<SelectItem key={division._id} value={division._id}>
+														{division.displayName}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+										{!hasDivisionsInPeriod && (
+											<div className="flex gap-2">
+												<Input
+													placeholder="Contoh: Medinfo"
+													value={newDivisionFromJabatan}
+													onChange={(e) => setNewDivisionFromJabatan(e.target.value)}
+												/>
+												<Button
+													variant="secondary"
+													onClick={handleAddDivisionFromJabatan}
+													disabled={createDivisionMutation.isPending || !newDivisionFromJabatan.trim()}>
+													{createDivisionMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+												</Button>
+											</div>
+										)}
+										<div className="flex gap-2">
 										<Input
-											placeholder="Nama jabatan…"
+											placeholder="Contoh: Ketua Divisi Medinfo / Anggota Divisi Medinfo"
 											value={newPosition}
 											onChange={(e) => setNewPosition(e.target.value)}
 											onKeyPress={(e) => e.key === 'Enter' && handleAddPosition()}
 										/>
-										<Button onClick={handleAddPosition} disabled={!newPosition.trim() || updatePositionsMutation.isPending}>
+										<Button
+											onClick={handleAddPosition}
+											disabled={!newPosition.trim() || updatePositionsMutation.isPending || !hasDivisionsInPeriod}>
 											{updatePositionsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
 										</Button>
+									</div>
+										{!hasDivisionsInPeriod && (
+											<p className="text-xs text-amber-600">
+												Divisi belum ada pada periode ini. Buat divisi dulu, lalu tambah jabatan.
+											</p>
+										)}
 									</div>
 								</CardContent>
 							</Card>
@@ -1433,27 +1727,7 @@ export default function OrganizationStructureEditor() {
 								</CardContent>
 							</Card>
 
-							<Card>
-								<CardContent className="p-6">
-									<h3 className="text-lg font-semibold mb-4">Salin daftar jabatan ke periode lain</h3>
-									<div className="grid gap-2">
-										{sortedPeriods.filter((period) => period !== selectedPeriod).map((period) => (
-											<div key={period} className="flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between border rounded">
-												<span className="min-w-0">{period}</span>
-												<Button
-													className="flex-shrink-0"
-													variant="outline"
-													size="sm"
-													onClick={() => copyPositionsMutation.mutateAsync({ sourcePeriod: selectedPeriod, targetPeriod: period })}
-													disabled={copyPositionsMutation.isPending}>
-													{copyPositionsMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Copy className="h-4 w-4" />}
-													Salin
-												</Button>
-											</div>
-										))}
-									</div>
-								</CardContent>
-							</Card>
+							
 						</div>
 					)}
 				</TabsContent>
@@ -1467,7 +1741,7 @@ export default function OrganizationStructureEditor() {
 						description="Divisi mengikuti periode kepengurusan (seperti jabatan): tiap periode bisa punya daftar divisi sendiri. Warna &amp; deskripsi memengaruhi tampilan publik; daftar nama jabatan di divisi harus cocok dengan tab Jabatan untuk periode yang sama.">
 						<ul className="list-disc list-inside space-y-1.5 text-sm">
 							<li>
-								<strong>Langkah</strong>: pilih <strong>periode</strong> → <strong>Tambah Divisi Baru</strong> → edit lewat ikon pensil untuk warna, deskripsi, dan daftar nama jabatan yang termasuk divisi ini → gunakan <strong>Salin divisi ke periode lain</strong> untuk menyalin struktur divisi ke periode baru (nama yang sudah ada di periode tujuan dilewati).
+								<strong>Langkah</strong>: pilih <strong>periode</strong> → <strong>Tambah Divisi Baru</strong> → edit lewat ikon pensil untuk warna, deskripsi, dan daftar nama jabatan yang termasuk divisi ini → gunakan <strong>Salin Struktur (Divisi + Jabatan)</strong> untuk menyalin sekaligus ke periode lain.
 							</li>
 							<li>
 								<strong>Korelasi dengan jabatan</strong>: contoh divisi <code className="text-xs bg-muted px-1 rounded">Public Relation</code> — di tab Jabatan untuk periode yang sama harus ada jabatan seperti{' '}
@@ -1500,7 +1774,74 @@ export default function OrganizationStructureEditor() {
 									))}
 								</SelectContent>
 							</Select>
+							{hasSpecificPermission('kelembagaan.edit') && (
+								<div className="flex gap-2">
+									{!jabatanPeriodAdding ? (
+										<Button
+											type="button"
+											variant="outline"
+											size="icon"
+											title="Tambah periode kepengurusan"
+											onClick={() => {
+												setJabatanPeriodAdding(true);
+												setJabatanPeriodDraft('');
+											}}>
+											<Plus className="h-4 w-4" />
+										</Button>
+									) : null}
+									{sortedPeriods.length > 1 && selectedPeriod && (
+										<Button
+											type="button"
+											variant="outline"
+											size="icon"
+											title="Hapus periode terpilih"
+											onClick={() => openDeletePeriodDialog(selectedPeriod)}
+											className="text-red-600 hover:text-red-700 hover:bg-red-50">
+											<Trash2 className="h-4 w-4" />
+										</Button>
+									)}
+								</div>
+							)}
 						</div>
+						{hasSpecificPermission('kelembagaan.edit') && jabatanPeriodAdding && (
+							<Card className="border-dashed">
+								<CardContent className="p-4 flex flex-col sm:flex-row flex-wrap gap-2 sm:items-center">
+									<Label className="text-sm font-medium shrink-0">Periode baru</Label>
+									<Input
+										className="max-w-[11rem]"
+										placeholder="YYYY-YYYY"
+										value={jabatanPeriodDraft}
+										onChange={(e) => setJabatanPeriodDraft(e.target.value)}
+										onKeyDown={(e) => {
+											if (e.key === 'Enter') {
+												e.preventDefault();
+												handleSubmitJabatanNewPeriod();
+											}
+										}}
+									/>
+									<div className="flex gap-2">
+										<Button
+											type="button"
+											size="sm"
+											disabled={createPeriodMutation.isPending}
+											onClick={() => handleSubmitJabatanNewPeriod()}>
+											{createPeriodMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+											Tambah periode
+										</Button>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={() => {
+												setJabatanPeriodAdding(false);
+												setJabatanPeriodDraft('');
+											}}>
+											Batal
+										</Button>
+									</div>
+								</CardContent>
+							</Card>
+						)}
 					</div>
 					<div className="mb-6 flex flex-col gap-4">
 						{hasSpecificPermission('kelembagaan.edit') && selectedPeriod && (
@@ -1527,9 +1868,9 @@ export default function OrganizationStructureEditor() {
 							sortedPeriods.filter((p) => p !== selectedPeriod).length > 0 && (
 								<Card>
 									<CardContent className="p-6">
-										<h3 className="text-lg font-semibold mb-4">Salin divisi ke periode lain</h3>
+										<h3 className="text-lg font-semibold mb-4">Salin Struktur (Divisi + Jabatan)</h3>
 										<p className="text-sm text-muted-foreground mb-3">
-											Sumber: <strong>{selectedPeriod}</strong>. Nama divisi yang sudah ada di periode tujuan tidak ditimpa.
+											Sumber: <strong>{selectedPeriod}</strong>. Sekali klik akan menyalin jabatan dulu, lalu divisi beserta keterkaitan jabatannya.
 										</p>
 										<div className="grid gap-2">
 											{sortedPeriods
@@ -1543,19 +1884,14 @@ export default function OrganizationStructureEditor() {
 															className="flex-shrink-0"
 															variant="outline"
 															size="sm"
-															onClick={() =>
-																copyDivisionsMutation.mutateAsync({
-																	sourcePeriod: selectedPeriod,
-																	targetPeriod: period,
-																})
-															}
-															disabled={copyDivisionsMutation.isPending}>
-															{copyDivisionsMutation.isPending ? (
+															onClick={() => handleCopyStructure(period)}
+															disabled={copyStructureMutation.isPending}>
+															{copyStructureMutation.isPending ? (
 																<Loader2 className="h-4 w-4 animate-spin" />
 															) : (
 																<Copy className="h-4 w-4" />
 															)}
-															Salin
+															Salin Semua
 														</Button>
 													</div>
 												))}
@@ -1569,6 +1905,9 @@ export default function OrganizationStructureEditor() {
 								<h3 className="text-lg font-semibold mb-4">
 									{selectedPeriod ? `Divisi — ${selectedPeriod}` : 'Divisi per periode'}
 								</h3>
+								<p className="text-xs text-muted-foreground mb-3">
+									Seret kartu divisi untuk mengatur urutan. Urutan ini dipakai di struktur organisasi publik (setelah BPH).
+								</p>
 								{!selectedPeriod ? (
 									<p className="text-muted-foreground">Pilih periode terlebih dahulu.</p>
 								) : isDivisionsLoading ? (
@@ -1576,37 +1915,31 @@ export default function OrganizationStructureEditor() {
 										<Loader2 className="h-8 w-8 animate-spin" />
 									</div>
 								) : divisions.length === 0 ? (
-									<p className="text-muted-foreground">Belum ada divisi untuk periode ini.</p>
+									<p className="text-muted-foreground">Belum ada divisi untuk periode ini. Tambahkan divisi dulu agar jabatan dan anggota bisa dibuat.</p>
 								) : (
 									<div className="space-y-4">
-										{divisions.map((division: any) => (
-											<div key={division._id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between border rounded-lg bg-muted">
-												<div className="min-w-0 flex items-center gap-4">
-													<div className="w-4 h-4 rounded-full" style={{ backgroundColor: division.color }} />
-													<div>
-														<h4 className="font-semibold">{division.displayName}</h4>
-														<p className="text-sm text-muted-foreground">{division.description || 'No description'}</p>
-														<div className="text-xs text-muted-foreground mt-1">Jabatan: {division.positions?.length || 0}</div>
-													</div>
+										<DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDivisionDragEnd}>
+											<SortableContext items={orderedDivisions.map((division: any) => division._id)} strategy={verticalListSortingStrategy}>
+												<div className="space-y-2">
+													{orderedDivisions.map((division: any) => (
+														<SortableDivisionCard
+															key={division._id}
+															division={division}
+															canEdit={hasSpecificPermission('kelembagaan.edit')}
+															onEdit={() => {
+																setEditingDivision(division);
+																setIsDivisionEditorOpen(true);
+															}}
+															onDelete={() => handleDeleteDivision(division._id)}
+														/>
+													))}
 												</div>
-												<div className="flex flex-shrink-0 items-center gap-2">
-													{hasSpecificPermission('kelembagaan.edit') && (
-														<>
-															<Button variant="outline" size="sm" onClick={() => { setEditingDivision(division); setIsDivisionEditorOpen(true); }}>
-																<Edit className="h-4 w-4" />
-															</Button>
-															<Button
-																variant="outline"
-																size="sm"
-																onClick={() => handleDeleteDivision(division._id)}
-																className="text-red-600 hover:text-red-700">
-																<Trash2 className="h-4 w-4" />
-															</Button>
-														</>
-													)}
-												</div>
-											</div>
-										))}
+											</SortableContext>
+										</DndContext>
+										<div className="rounded border border-dashed p-3 text-xs text-muted-foreground">
+											Pratinjau urutan publik:{' '}
+											{orderedDivisions.map((division: any) => division.displayName).join(' -> ')}
+										</div>
 									</div>
 								)}
 							</CardContent>
@@ -1937,6 +2270,7 @@ export default function OrganizationStructureEditor() {
 				onClose={closeEditor}
 				member={editingMember}
 				onSaved={handleMemberSaved}
+				onNeedSetup={(target) => setActiveTab(target)}
 			/>
 
 			<DivisionEditor
@@ -1984,6 +2318,51 @@ export default function OrganizationStructureEditor() {
 								<Loader2 className="h-4 w-4 animate-spin mr-2 inline" />
 							) : null}
 							Hapus permanen
+						</Button>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			<AlertDialog
+				open={structureOverwriteDialogOpen}
+				onOpenChange={(open) => {
+					setStructureOverwriteDialogOpen(open);
+					if (!open) setStructureOverwriteTargetPeriod(null);
+				}}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Overwrite struktur periode tujuan?</AlertDialogTitle>
+						<AlertDialogDescription className="text-left space-y-2">
+							<span className="block">
+								Periode{' '}
+								<strong className="text-foreground">{structureOverwriteTargetPeriod ?? '—'}</strong>{' '}
+								sudah memiliki divisi/jabatan.
+							</span>
+							<span className="block">
+								Jika dilanjutkan, semua divisi dan jabatan pada periode tujuan akan diganti dengan
+								salinan dari periode <strong className="text-foreground">{selectedPeriod}</strong>.
+							</span>
+							<span className="block text-destructive font-medium text-sm">
+								Tindakan ini tidak dapat dibatalkan.
+							</span>
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={copyStructureMutation.isPending}>Batal</AlertDialogCancel>
+						<Button
+							type="button"
+							variant="destructive"
+							disabled={copyStructureMutation.isPending || !structureOverwriteTargetPeriod}
+							onClick={() => {
+								if (!structureOverwriteTargetPeriod) return;
+								void handleCopyStructure(structureOverwriteTargetPeriod, true);
+								setStructureOverwriteDialogOpen(false);
+								setStructureOverwriteTargetPeriod(null);
+							}}>
+							{copyStructureMutation.isPending ? (
+								<Loader2 className="h-4 w-4 animate-spin mr-2 inline" />
+							) : null}
+							Ya, overwrite
 						</Button>
 					</AlertDialogFooter>
 				</AlertDialogContent>

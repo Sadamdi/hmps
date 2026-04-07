@@ -40,6 +40,13 @@ interface OrganizationEditorProps {
 	onClose: () => void;
 	member: OrgMember | null;
 	onSaved: () => void;
+	onNeedSetup?: (target: 'divisions' | 'jabatan') => void;
+}
+
+function isValidPeriodRange(value: string): boolean {
+	if (!/^\d{4}-\d{4}$/.test(value)) return false;
+	const [start, end] = value.split('-').map((part) => parseInt(part, 10));
+	return end === start + 1;
 }
 
 export default function OrganizationEditor({
@@ -47,6 +54,7 @@ export default function OrganizationEditor({
 	onClose,
 	member,
 	onSaved,
+	onNeedSetup,
 }: OrganizationEditorProps) {
 	const { slug, isTenant } = useTenant();
 	const scope = isTenant && slug ? slug : 'main';
@@ -116,39 +124,9 @@ export default function OrganizationEditor({
 		enabled: !!period,
 		placeholderData: [],
 	});
-
-	// Fallback positions if none found in database
-	const fallbackPositions = [
-		{ name: 'Ketua Himpunan', order: 1 },
-		{ name: 'Wakil Ketua Himpunan', order: 2 },
-		{ name: 'Sekretaris Himpunan', order: 3 },
-		{ name: 'Sekretaris Himpunan 1', order: 4 },
-		{ name: 'Sekretaris Himpunan 2', order: 5 },
-		{ name: 'Bendahara Himpunan 1', order: 6 },
-		{ name: 'Bendahara Himpunan 2', order: 7 },
-		{ name: 'Ketua Divisi Senor', order: 8 },
-		{ name: 'Anggota Divisi Senor', order: 9 },
-		{ name: 'Ketua Divisi Public Relation', order: 10 },
-		{ name: 'Anggota Divisi Public Relation', order: 11 },
-		{ name: 'Ketua Divisi Religius', order: 12 },
-		{ name: 'Anggota Divisi Religius', order: 13 },
-		{ name: 'Ketua Divisi Technopreneurship', order: 14 },
-		{ name: 'Anggota Divisi Technopreneurship', order: 15 },
-		{ name: 'Ketua Divisi Medinfo', order: 16 },
-		{ name: 'Anggota Divisi Medinfo', order: 17 },
-		{ name: 'Ketua Divisi Intelektual', order: 18 },
-		{ name: 'Anggota Divisi Intelektual', order: 19 },
-	];
-
-	// Use positions from database or fallback, sort by order
-	const availablePositions =
-		positions.length > 0
-			? positions
-					.sort((a: any, b: any) => a.order - b.order)
-					.map((p: any) => p.name)
-			: fallbackPositions
-					.sort((a: any, b: any) => a.order - b.order)
-					.map((p: any) => p.name);
+	const availablePositions = [...positions]
+		.sort((a: any, b: any) => a.order - b.order)
+		.map((p: any) => p.name);
 
 	// Fetch available periods from API
 	const { data: periods = [], isLoading: isPeriodsLoading } = useQuery({
@@ -160,12 +138,29 @@ export default function OrganizationEditor({
 		placeholderData: [period],
 	});
 
+	const { data: divisions = [], isLoading: isDivisionsLoading } = useQuery({
+		queryKey: [scope, '/api/divisions', period],
+		queryFn: async () => {
+			if (!period) return [];
+			const response = await apiRequest(
+				'GET',
+				`/api/divisions?period=${encodeURIComponent(period)}`,
+			);
+			return response.json();
+		},
+		enabled: !!period,
+		placeholderData: [],
+	});
+
 	// Sort periods chronologically (newest first)
 	const sortedPeriods = periods.sort((a: string, b: string) => {
 		const yearA = parseInt(a.split('-')[0]);
 		const yearB = parseInt(b.split('-')[0]);
 		return yearB - yearA;
 	});
+	const hasPeriods = sortedPeriods.length > 0;
+	const hasDivisions = Array.isArray(divisions) && divisions.length > 0;
+	const hasPositions = availablePositions.length > 0;
 
 	// Create period mutation
 	const createPeriodMutation = useMutation({
@@ -269,6 +264,22 @@ export default function OrganizationEditor({
 			toast({
 				title: 'Error',
 				description: 'Pilih periode kepengurusan',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (!hasDivisions) {
+			toast({
+				title: 'Divisi belum tersedia',
+				description: 'Buat divisi dulu di tab Divisi sebelum menambahkan anggota.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (!hasPositions) {
+			toast({
+				title: 'Jabatan belum tersedia',
+				description: 'Buat jabatan dulu di tab Jabatan sebelum menambahkan anggota.',
 				variant: 'destructive',
 			});
 			return;
@@ -455,7 +466,7 @@ export default function OrganizationEditor({
 										type="button"
 										variant="secondary"
 										onClick={async () => {
-											if (newPeriod && /^\d{4}-\d{4}$/.test(newPeriod)) {
+											if (newPeriod && isValidPeriodRange(newPeriod)) {
 												try {
 													await createPeriodMutation.mutateAsync(newPeriod);
 													setPeriod(newPeriod);
@@ -478,7 +489,7 @@ export default function OrganizationEditor({
 												toast({
 													title: 'Format tidak valid',
 													description:
-														'Gunakan format YYYY-YYYY (contoh 2023-2024)',
+														'Gunakan format YYYY-YYYY berurutan (contoh 2025-2026).',
 													variant: 'destructive',
 												});
 											}
@@ -510,9 +521,18 @@ export default function OrganizationEditor({
 							<Label htmlFor="position">Nama jabatan</Label>
 							<Select
 								value={position}
-								onValueChange={setPosition}>
+								onValueChange={setPosition}
+								disabled={!period || !hasPositions}>
 								<SelectTrigger id="position">
-									<SelectValue placeholder="Pilih nama jabatan" />
+									<SelectValue
+										placeholder={
+											!period
+												? 'Pilih periode dulu'
+												: hasPositions
+													? 'Pilih nama jabatan'
+													: 'Belum ada jabatan untuk periode ini'
+										}
+									/>
 								</SelectTrigger>
 								<SelectContent>
 									{availablePositions.map((pos: string) => (
@@ -524,6 +544,45 @@ export default function OrganizationEditor({
 									))}
 								</SelectContent>
 							</Select>
+							{!hasPeriods && !isPeriodsLoading && (
+								<p className="text-xs text-amber-600">
+									Belum ada periode. Buat periode dulu sebelum menambah anggota.
+								</p>
+							)}
+							{period && !isDivisionsLoading && !hasDivisions && (
+								<div className="flex items-center justify-between gap-2 rounded border border-amber-300 bg-amber-50 px-2 py-1.5">
+									<p className="text-xs text-amber-700">
+										Divisi periode ini belum ada. Buat divisi dulu dari sini.
+									</p>
+									<Button
+										type="button"
+										size="sm"
+										variant="secondary"
+										onClick={() => {
+											onClose();
+											onNeedSetup?.('divisions');
+										}}>
+										Buat Divisi
+									</Button>
+								</div>
+							)}
+							{period && hasDivisions && !isPositionsLoading && !hasPositions && (
+								<div className="flex items-center justify-between gap-2 rounded border border-amber-300 bg-amber-50 px-2 py-1.5">
+									<p className="text-xs text-amber-700">
+										Jabatan periode ini belum ada. Buat jabatan dulu dari sini.
+									</p>
+									<Button
+										type="button"
+										size="sm"
+										variant="secondary"
+										onClick={() => {
+											onClose();
+											onNeedSetup?.('jabatan');
+										}}>
+										Buat Jabatan
+									</Button>
+								</div>
+							)}
 						</div>
 
 						<div className="space-y-2">
@@ -610,7 +669,13 @@ export default function OrganizationEditor({
 						</Button>
 						<Button
 							onClick={handleSave}
-							disabled={saveMemberMutation.isPending}>
+							disabled={
+								saveMemberMutation.isPending ||
+								!hasPeriods ||
+								!period ||
+								!hasDivisions ||
+								!hasPositions
+							}>
 							{saveMemberMutation.isPending ? (
 								<>
 									<Loader2 className="mr-2 h-4 w-4 animate-spin" />

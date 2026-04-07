@@ -49,9 +49,10 @@ function canonicalDivisionLabel(raw: string): string {
 /** Grup filter / badge: BPH, nama divisi, atau Lainnya */
 export function getDivisionFromPosition(position: string): string {
 	const p = position.trim();
+	const pNorm = norm(p);
 	if (
-		p.includes('Ketua Himpunan') ||
-		p.includes('Wakil Ketua Himpunan') ||
+		pNorm.includes(norm('Ketua Himpunan')) ||
+		pNorm.includes(norm('Wakil Ketua Himpunan')) ||
 		/Sekretaris\s+Himpunan/i.test(p) ||
 		/Bendahara\s+Himpunan/i.test(p)
 	) {

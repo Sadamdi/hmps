@@ -2711,8 +2711,10 @@ interface HomeImagesData {
 	year: number;
 	isActive: boolean;
 	desktopMode: 'bennerfull' | 'combined';
+	desktopBannerSource?: 'classic' | 'fullBackground';
 	bennerfull: string;
 	orang: string;
+	desktopBackground?: string;
 	banners: Record<string, string>;
 	people?: Record<string, string>;
 	updatedAt?: string;
@@ -2721,6 +2723,7 @@ interface HomeImagesData {
 const SLOT_LABELS: Record<string, string> = {
 	bennerfull: 'Banner Utama (Desktop)',
 	orang: 'Foto Orang (Desktop)',
+	desktopBackground: 'Background Full (Desktop)',
 	public_relation: 'Public Relation',
 	technopreneurship: 'Technopreneurship',
 	intelektual: 'Intelektual',
@@ -2926,16 +2929,13 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 	});
 
 	const updateModeMutation = useMutation({
-		mutationFn: async ({
-			year,
-			desktopMode,
-		}: {
+		mutationFn: async (payload: {
 			year: number;
-			desktopMode: string;
+			desktopMode?: string;
+			desktopBannerSource?: string;
 		}) => {
-			const res = await apiRequest('PUT', `/api/home-images/${year}`, {
-				desktopMode,
-			});
+			const { year, ...body } = payload;
+			const res = await apiRequest('PUT', `/api/home-images/${year}`, body);
 			return res.json();
 		},
 		onSuccess: () => {
@@ -3168,61 +3168,121 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 				</Card>
 			)}
 
-			{/* Desktop uploads: bennerfull + orang */}
+			{/* Desktop uploads: bennerfull + orang OR desktopBackground */}
 			{currentData && currentData.desktopMode === 'bennerfull' && (
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-base">
-							Gambar Desktop ({currentData.year})
+							Media Hero Desktop ({currentData.year})
 						</CardTitle>
 						<CardDescription>
-							Upload banner utama dan foto orang untuk tampilan desktop
+							Upload gambar untuk tampilan hero desktop dalam mode Banner Utama
 						</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
-						<DashboardHintCard
-							title="Panduan Upload Gambar Desktop"
-							variant="blue"
-							storageKey="settings-home-images-desktop"
-							description="Slot bennerfull dan orang desktop memakai batas piksel dan format berikut. Server menolak file terlalu besar atau tipe selain gambar; unggahan dikonversi ke WebP.">
-							<ul className="list-disc list-inside text-blue-700 dark:text-blue-400 space-y-1 text-sm">
-								<li><strong>Langkah</strong>: siapkan file di komputer → klik unggah pada slot → tunggu selesai → refresh pratinjau hero jika ada.</li>
-								<li><strong>Banner Utama</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9). Satu lebar penuh untuk latar.</li>
-								<li><strong>Orang Desktop</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code>. PNG cutout transparan di depan banner.</li>
-								<li><strong>Contoh valid</strong>: JPG/PNG/WebP &lt; 100 MB, dimensi tidak melebihi maks; orang tanpa background putih besar di belakang.</li>
-								<li><strong>Contoh tidak valid</strong>: PDF/SVG sebagai foto; file &gt; 100 MB; resolusi jauh di atas maks sehingga ditolak kompresi.</li>
-								<li><strong>Jika gagal</strong>: kompres di editor gambar; ubah ke PNG/JPEG; coba jaringan lain; baca pesan error di toast.</li>
-								<li><strong>Izin</strong>: butuh akses edit pengaturan beranda/hero (field upload nonaktif jika hanya baca).</li>
-							</ul>
-							<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
-								<div className="space-y-2">
-									<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Banner Utama</p>
-									<img src="/attached_assets/general/bennerfull.webp" alt="Contoh banner full" className="w-full h-28 object-cover rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-								</div>
-								<div className="space-y-2">
-									<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Orang Desktop</p>
-									<img src="/attached_assets/general/orang.webp" alt="Contoh orang desktop" className="w-full h-28 object-contain rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-								</div>
-							</div>
-						</DashboardHintCard>
-						<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-							<SlotUploader
-								year={currentData.year}
-								slot="bennerfull"
-								currentUrl={currentData.bennerfull}
-								canEdit={canEdit}
-								onUploaded={refresh}
-								parentImageNonce={slotImageParentNonce}
-							/>
-							<SlotUploader
-								year={currentData.year}
-								slot="orang"
-								currentUrl={currentData.orang}
-								canEdit={canEdit}
-								onUploaded={refresh}
-								parentImageNonce={slotImageParentNonce}
-							/>
+						<div className="flex items-center gap-3 mb-2">
+							<Button
+								variant={(currentData.desktopBannerSource || 'classic') === 'classic' ? 'default' : 'outline'}
+								size="sm"
+								disabled={!canEdit}
+								onClick={() =>
+									updateModeMutation.mutate({
+										year: currentData.year,
+										desktopBannerSource: 'classic',
+									})
+								}>
+								Klasik (Banner + Orang)
+							</Button>
+							<Button
+								variant={(currentData.desktopBannerSource || 'classic') === 'fullBackground' ? 'default' : 'outline'}
+								size="sm"
+								disabled={!canEdit}
+								onClick={() =>
+									updateModeMutation.mutate({
+										year: currentData.year,
+										desktopBannerSource: 'fullBackground',
+									})
+								}>
+								Background Full (1 Foto Landscape)
+							</Button>
+							{updateModeMutation.isPending && (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							)}
 						</div>
+
+						{(currentData.desktopBannerSource || 'classic') === 'classic' ? (
+							<>
+								<DashboardHintCard
+									title="Panduan Upload Gambar Desktop (Klasik)"
+									variant="blue"
+									storageKey="settings-home-images-desktop"
+									description="Slot bennerfull dan orang desktop memakai batas piksel dan format berikut. Server menolak file terlalu besar atau tipe selain gambar; unggahan dikonversi ke WebP.">
+									<ul className="list-disc list-inside text-blue-700 dark:text-blue-400 space-y-1 text-sm">
+										<li><strong>Langkah</strong>: siapkan file di komputer → klik unggah pada slot → tunggu selesai → refresh pratinjau hero jika ada.</li>
+										<li><strong>Banner Utama</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9). Satu lebar penuh untuk latar.</li>
+										<li><strong>Orang Desktop</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code>. PNG cutout transparan di depan banner.</li>
+										<li><strong>Contoh valid</strong>: JPG/PNG/WebP &lt; 100 MB, dimensi tidak melebihi maks; orang tanpa background putih besar di belakang.</li>
+										<li><strong>Contoh tidak valid</strong>: PDF/SVG sebagai foto; file &gt; 100 MB; resolusi jauh di atas maks sehingga ditolak kompresi.</li>
+										<li><strong>Jika gagal</strong>: kompres di editor gambar; ubah ke PNG/JPEG; coba jaringan lain; baca pesan error di toast.</li>
+										<li><strong>Izin</strong>: butuh akses edit pengaturan beranda/hero (field upload nonaktif jika hanya baca).</li>
+									</ul>
+									<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+										<div className="space-y-2">
+											<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Banner Utama</p>
+											<img src="/attached_assets/general/bennerfull.webp" alt="Contoh banner full" className="w-full h-28 object-cover rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+										</div>
+										<div className="space-y-2">
+											<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Orang Desktop</p>
+											<img src="/attached_assets/general/orang.webp" alt="Contoh orang desktop" className="w-full h-28 object-contain rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+										</div>
+									</div>
+								</DashboardHintCard>
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+									<SlotUploader
+										year={currentData.year}
+										slot="bennerfull"
+										currentUrl={currentData.bennerfull}
+										canEdit={canEdit}
+										onUploaded={refresh}
+										parentImageNonce={slotImageParentNonce}
+									/>
+									<SlotUploader
+										year={currentData.year}
+										slot="orang"
+										currentUrl={currentData.orang}
+										canEdit={canEdit}
+										onUploaded={refresh}
+										parentImageNonce={slotImageParentNonce}
+									/>
+								</div>
+							</>
+						) : (
+							<>
+								<DashboardHintCard
+									title="Panduan Upload Background Full"
+									variant="blue"
+									storageKey="settings-home-images-desktop-fullbg"
+									description="Upload 1 foto landscape lebar yang akan menjadi background seluruh area hero desktop. Fog gradient dan card teks tetap tampil di atasnya.">
+									<ul className="list-disc list-inside text-blue-700 dark:text-blue-400 space-y-1 text-sm">
+										<li><strong>Langkah</strong>: siapkan foto landscape (misal seluruh anggota atau foto divisi) → unggah → cek Preview Hero.</li>
+										<li><strong>Resolusi</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9 direkomendasikan). Semakin lebar semakin baik.</li>
+										<li><strong>Tips</strong>: gunakan foto grup/landscape dengan komposisi tengah agar teks card tidak menabrak subjek utama.</li>
+										<li><strong>Format</strong>: JPG/PNG/WebP &lt; 100 MB. Dikonversi ke WebP otomatis.</li>
+										<li><strong>Fog & Card</strong>: gradient fog dan card &quot;Tentang Kami&quot; tetap tampil di atas background ini.</li>
+									</ul>
+								</DashboardHintCard>
+								<div className="max-w-md">
+									<SlotUploader
+										year={currentData.year}
+										slot="desktopBackground"
+										currentUrl={currentData.desktopBackground || ''}
+										canEdit={canEdit}
+										onUploaded={refresh}
+										parentImageNonce={slotImageParentNonce}
+									/>
+								</div>
+							</>
+						)}
 					</CardContent>
 				</Card>
 			)}
@@ -3415,8 +3475,10 @@ function HomeImagesTab({ canEdit }: { canEdit: boolean }) {
 							<HeroPreview
 								mode={previewMode}
 								desktopMode={currentData.desktopMode}
+								desktopBannerSource={currentData.desktopBannerSource || 'classic'}
 								bennerfullSrc={currentData.bennerfull}
 								orangSrc={currentData.orang}
+								desktopBackgroundSrc={currentData.desktopBackground || ''}
 								banners={currentData.banners || {}}
 								people={currentData.people || {}}
 								slotIds={bannerSlotIds}
@@ -3713,8 +3775,10 @@ function MobileFloatingNavPreview() {
 function HeroPreview({
 	mode,
 	desktopMode,
+	desktopBannerSource = 'classic',
 	bennerfullSrc,
 	orangSrc,
+	desktopBackgroundSrc = '',
 	banners,
 	people,
 	slotIds,
@@ -3727,8 +3791,10 @@ function HeroPreview({
 }: {
 	mode: 'desktop' | 'mobile';
 	desktopMode: 'bennerfull' | 'combined';
+	desktopBannerSource?: 'classic' | 'fullBackground';
 	bennerfullSrc: string;
 	orangSrc: string;
+	desktopBackgroundSrc?: string;
 	banners: Record<string, string>;
 	people: Record<string, string>;
 	slotIds: string[];
@@ -3743,6 +3809,7 @@ function HeroPreview({
 	const vs = homeImageVersionSuffix(updatedAt);
 	const vBennerfull = bennerfullSrc ? bennerfullSrc + vs : bennerfullSrc;
 	const vOrang = orangSrc ? orangSrc + vs : orangSrc;
+	const vDesktopBg = desktopBackgroundSrc ? desktopBackgroundSrc + vs : desktopBackgroundSrc;
 	const vBanners = useMemo(() => versionHomeImageUrls(banners, vs), [banners, vs]);
 	const vPeople = useMemo(() => versionHomeImageUrls(people, vs), [people, vs]);
 
@@ -3762,8 +3829,10 @@ function HeroPreview({
 			},
 			homeImages: {
 				desktopMode,
+				desktopBannerSource,
 				bennerfull: vBennerfull,
 				orang: vOrang,
+				desktopBackground: vDesktopBg,
 				banners: vBanners,
 				people: vPeople,
 			},
@@ -3776,8 +3845,10 @@ function HeroPreview({
 			brand,
 			slotIds,
 			desktopMode,
+			desktopBannerSource,
 			vBennerfull,
 			vOrang,
+			vDesktopBg,
 			vBanners,
 			vPeople,
 		],
@@ -3812,9 +3883,11 @@ function HeroPreview({
 							<div className="absolute inset-0 z-0">
 								<HeroBannerContent
 									desktopMode={desktopMode}
+									desktopBannerSource={desktopBannerSource}
 									slotOrder={slotIds}
 									banners={vBanners}
 									bennerfullSrc={vBennerfull}
+									desktopBackgroundSrc={vDesktopBg}
 								/>
 							</div>
 							<div
@@ -3850,6 +3923,7 @@ function HeroPreview({
 									}}>
 									<HeroPersonContent
 										desktopMode={desktopMode}
+										desktopBannerSource={desktopBannerSource}
 										slotOrder={slotIds}
 										people={vPeople}
 										orangSrc={vOrang}

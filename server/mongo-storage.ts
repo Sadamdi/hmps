@@ -666,8 +666,10 @@ async function copyHomeImages(
 		year: targetYear,
 		isActive: false,
 		desktopMode: source.desktopMode,
+		desktopBannerSource: source.desktopBannerSource || 'classic',
 		bennerfull: source.bennerfull,
 		orang: source.orang,
+		desktopBackground: source.desktopBackground || '',
 		banners: source.banners ? JSON.parse(JSON.stringify(source.banners)) : {},
 		people: (source as any).people ? JSON.parse(JSON.stringify((source as any).people)) : {},
 	};
@@ -683,7 +685,7 @@ async function copyHomeImages(
 }
 
 async function updateHomeImageSlot(year: number, slot: string, url: string) {
-	const topLevelSlots = ['bennerfull', 'orang'];
+	const topLevelSlots = ['bennerfull', 'orang', 'desktopBackground'];
 	const updateField = topLevelSlots.includes(slot)
 		? { [slot]: url }
 		: { [`banners.${slot}`]: url };
@@ -1609,6 +1611,7 @@ const mongoDBStorage = {
 	getDivisionById,
 	createDivision,
 	updateDivision,
+	updateDivisionOrders,
 	deleteDivision,
 	initializeDefaultDivisions,
 
@@ -1831,12 +1834,34 @@ async function migrateLegacyDivisionPeriodsOnce() {
 	}
 }
 
+let _divisionIndexesEnsured = false;
+async function ensureDivisionIndexesOnce() {
+	if (_divisionIndexesEnsured) return;
+	try {
+		const indexes = await Division.collection.indexes();
+		const legacyNameUnique = indexes.find(
+			(idx: any) => idx?.name === 'name_1' && idx?.unique && idx?.key?.name === 1,
+		);
+		if (legacyNameUnique) {
+			await Division.collection.dropIndex('name_1');
+		}
+		await Division.collection.createIndex(
+			{ period: 1, name: 1 },
+			{ unique: true, name: 'period_1_name_1' },
+		);
+		_divisionIndexesEnsured = true;
+	} catch (e) {
+		console.warn('ensureDivisionIndexesOnce:', e);
+	}
+}
+
 async function getAllDivisions(period?: string) {
 	try {
 		await migrateLegacyDivisionPeriodsOnce();
+		await ensureDivisionIndexesOnce();
 		const q: Record<string, unknown> = { isActive: true };
 		if (period) q.period = period;
-		return await Division.find(q).sort({ name: 1 });
+		return await Division.find(q).sort({ sortOrder: 1, name: 1 });
 	} catch (error) {
 		console.error('Error getting all divisions:', error);
 		throw error;
@@ -1845,6 +1870,7 @@ async function getAllDivisions(period?: string) {
 
 async function copyDivisionsFromPeriod(sourcePeriod: string, targetPeriod: string) {
 	await migrateLegacyDivisionPeriodsOnce();
+	await ensureDivisionIndexesOnce();
 	const sources = await Division.find({ isActive: true, period: sourcePeriod }).lean();
 	const existing = await Division.find({ isActive: true, period: targetPeriod }).lean();
 	const taken = new Set((existing as any[]).map((d) => d.name));
@@ -1885,6 +1911,10 @@ async function getDivisionById(id: string) {
 
 async function createDivision(divisionData: any) {
 	try {
+		await ensureDivisionIndexesOnce();
+		if (typeof divisionData.sortOrder !== 'number') {
+			divisionData.sortOrder = Date.now();
+		}
 		const division = new Division(divisionData);
 		return await division.save();
 	} catch (error) {
@@ -1901,6 +1931,19 @@ async function updateDivision(id: string, updateData: any) {
 		console.error('Error updating division:', error);
 		throw error;
 	}
+}
+
+async function updateDivisionOrders(
+	period: string,
+	orders: Array<{ id: string; sortOrder: number }>,
+) {
+	for (const item of orders) {
+		await Division.updateOne(
+			{ _id: item.id, period, isActive: true },
+			{ $set: { sortOrder: item.sortOrder, updatedAt: new Date() } },
+		);
+	}
+	return getAllDivisions(period);
 }
 
 async function deleteDivision(id: string) {

@@ -623,6 +623,7 @@ const divisionSchema = new mongoose.Schema({
 	displayName: { type: String, required: true },
 	description: { type: String, default: '' },
 	positions: [{ type: String }], // Array of position names in this division
+	sortOrder: { type: Number, default: 0 },
 	color: { type: String, default: '#3B82F6' },
 	logo: { type: String, default: '' },
 	isActive: { type: Boolean, default: true },
@@ -707,8 +708,14 @@ const homeImagesSchema = new mongoose.Schema(
 			enum: ['bennerfull', 'combined'],
 			default: 'combined',
 		},
+		desktopBannerSource: {
+			type: String,
+			enum: ['classic', 'fullBackground'],
+			default: 'classic',
+		},
 		bennerfull: { type: String, default: '' },
 		orang: { type: String, default: '' },
+		desktopBackground: { type: String, default: '' },
 		banners: { type: mongoose.Schema.Types.Mixed, default: {} },
 		people: { type: mongoose.Schema.Types.Mixed, default: {} },
 	},

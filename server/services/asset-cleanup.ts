@@ -82,7 +82,7 @@ const TENANT_SPECS: ModelFieldSpec[] = [
 		'logoUrl', 'chairpersonPhoto', 'viceChairpersonPhoto',
 		'divisionLogos', 'divisionHeads', 'aboutPageLambang',
 	]},
-	{ modelName: 'HomeImages', fields: ['bennerfull', 'orang', 'banners', 'people'] },
+	{ modelName: 'HomeImages', fields: ['bennerfull', 'orang', 'desktopBackground', 'banners', 'people'] },
 	{ modelName: 'Berita', fields: ['image', 'content'] },
 	{ modelName: 'Library', fields: ['images'] },
 	{ modelName: 'Organization', fields: ['imageUrl'] },
