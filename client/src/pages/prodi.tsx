@@ -725,9 +725,10 @@ function AccreditationSection({ data }: { data: any }) {
 	return (
 		<div className="space-y-10">
 			<SectionCard title="Akreditasi">
-				<div className="flex items-center gap-3 mb-4">
+				<div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-4">
+					<p className="text-sm text-muted-foreground">Pilih Jenjang Akreditasi:</p>
 					<Select value={active.key} onValueChange={(v) => setSelectedLevel(v as 's1' | 's2' | 's3')}>
-						<SelectTrigger className="w-60">
+						<SelectTrigger className="w-full sm:w-60">
 							<SelectValue placeholder="Pilih jenjang" />
 						</SelectTrigger>
 						<SelectContent>
