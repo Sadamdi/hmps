@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { ChangeEvent } from 'react';
 import { getOrCreateGuestSecret } from '@/lib/guest-identity';
 import { queryClient } from '@/lib/queryClient';
 import type { FeedbackMedia } from '@shared/schema';
@@ -325,7 +326,27 @@ export default function Footer() {
 	const [senderEmail, setSenderEmail] = useState('');
 	const [ratings, setRatings] = useState({ fasilitasTI: 0, website: 0, teknikInformatika: 0, himatifEncoder: 0 });
 	const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+	const replaceInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
 	const [submitSuccess, setSubmitSuccess] = useState(false);
+
+	const handleMediaAppend = useCallback((e: ChangeEvent<HTMLInputElement>) => {
+		const picked = Array.from(e.target.files || []);
+		if (picked.length === 0) return;
+		setMediaFiles((prev) => [...prev, ...picked].slice(0, 10));
+		e.target.value = '';
+	}, []);
+
+	const handleRemoveMediaAt = useCallback((idx: number) => {
+		setMediaFiles((prev) => prev.filter((_, i) => i !== idx));
+	}, []);
+
+	const handleReplaceMediaAt = useCallback((idx: number, file: File) => {
+		setMediaFiles((prev) => {
+			const next = [...prev];
+			next[idx] = file;
+			return next;
+		});
+	}, []);
 
 	const submitMut = useMutation({
 		mutationFn: async () => {
@@ -614,12 +635,55 @@ export default function Footer() {
 								{/* Media upload */}
 								<div>
 									<label className="text-sm font-medium block mb-1.5">Media <span className="text-muted-foreground font-normal">(opsional, maks 10 gambar)</span></label>
-									<input type="file" accept="image/*" multiple onChange={(e) => {
-										const files = Array.from(e.target.files || []).slice(0, 10);
-										setMediaFiles(files);
-									}} className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-border file:bg-muted/50 file:text-sm file:font-medium hover:file:bg-muted" />
+									<input
+										type="file"
+										accept="image/*"
+										multiple
+										onChange={handleMediaAppend}
+										disabled={mediaFiles.length >= 10}
+										className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-border file:bg-muted/50 file:text-sm file:font-medium hover:file:bg-muted disabled:opacity-60"
+									/>
 									{mediaFiles.length > 0 && (
-										<p className="text-xs text-muted-foreground mt-1">{mediaFiles.length} file dipilih</p>
+										<div className="mt-2 space-y-2">
+											<p className="text-xs text-muted-foreground">{mediaFiles.length} file dipilih</p>
+											<div className="space-y-1.5">
+												{mediaFiles.map((file, idx) => (
+													<div key={`${file.name}-${file.lastModified}-${idx}`} className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1.5">
+														<div className="min-w-0">
+															<p className="text-xs font-medium truncate">{file.name}</p>
+															<p className="text-[11px] text-muted-foreground">{Math.max(1, Math.round(file.size / 1024))} KB</p>
+														</div>
+														<div className="flex items-center gap-1.5 shrink-0">
+															<input
+																ref={(el) => { replaceInputRefs.current[idx] = el; }}
+																type="file"
+																accept="image/*"
+																className="hidden"
+																onChange={(event) => {
+																	const next = event.target.files?.[0];
+																	if (next) handleReplaceMediaAt(idx, next);
+																	event.target.value = '';
+																}}
+															/>
+															<button
+																type="button"
+																onClick={() => replaceInputRefs.current[idx]?.click()}
+																className="rounded border border-border px-2 py-0.5 text-[11px] hover:bg-muted/60"
+															>
+																Replace
+															</button>
+															<button
+																type="button"
+																onClick={() => handleRemoveMediaAt(idx)}
+																className="rounded border border-red-500/40 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-500/10"
+															>
+																Hapus
+															</button>
+														</div>
+													</div>
+												))}
+											</div>
+										</div>
 									)}
 								</div>
 
