@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 const DEFAULT_BANNERS: Record<string, string> = {
 	ketua: DEFAULT_IMAGE_URL,
@@ -28,6 +28,33 @@ export interface HeroRenderData {
 }
 
 const BASE_SLOTS = 8;
+
+const COMBINED_INTRO = {
+	durationMs: 1200,
+	waveGapMs: 0,
+	bannerOffsetPx: 44,
+	personOffsetPx: 44,
+	easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
+};
+
+/**
+ * Symmetric wave index: outermost pair = wave 0, next pair inward = wave 1, etc.
+ */
+function computeWaveIndex(i: number, n: number): number {
+	if (n <= 1) return 0;
+	return Math.min(i, n - 1 - i);
+}
+
+export function combinedIntroDurationMs(n: number): number {
+	if (n <= 1) return COMBINED_INTRO.durationMs;
+	const maxWave = Math.floor((n - 1) / 2);
+	const waveStepMs = COMBINED_INTRO.durationMs + COMBINED_INTRO.waveGapMs;
+	return maxWave * waveStepMs + COMBINED_INTRO.durationMs;
+}
+
+export function combinedIntroWaveDelayMs(): number {
+	return COMBINED_INTRO.durationMs + COMBINED_INTRO.waveGapMs;
+}
 
 /**
  * Banner slot geometry — mirrors orang slot baseline logic:
@@ -59,11 +86,20 @@ export function HeroBannerContent({
 	bennerfullSrc,
 	desktopBackgroundSrc,
 	enableCommunityCombinedFx = false,
+	combinedIntroActive = false,
+	combinedIntroWaveIndex = -1,
 }: Pick<
 	HeroRenderData,
-	'desktopMode' | 'desktopBannerSource' | 'slotOrder' | 'banners' | 'bennerfullSrc' | 'desktopBackgroundSrc'
+	| 'desktopMode'
+	| 'desktopBannerSource'
+	| 'slotOrder'
+	| 'banners'
+	| 'bennerfullSrc'
+	| 'desktopBackgroundSrc'
 > & {
 	enableCommunityCombinedFx?: boolean;
+	combinedIntroActive?: boolean;
+	combinedIntroWaveIndex?: number;
 }) {
 	if (desktopMode === 'combined') {
 		const n = slotOrder.length;
@@ -72,20 +108,31 @@ export function HeroBannerContent({
 				{slotOrder.map((key, idx) => {
 					const src = banners[key] || DEFAULT_BANNERS[key] || '';
 					if (!src) return null;
+					const base = computeBannerStyle(idx, n);
+					const wave = computeWaveIndex(idx, n);
+					const isVisible =
+						combinedIntroActive && wave <= combinedIntroWaveIndex;
 					return (
 						<img
 							key={key}
 							src={src}
 							alt={key}
-							style={computeBannerStyle(idx, n)}
+							style={{
+								...base,
+								opacity: isVisible ? 1 : 0,
+								transform: isVisible
+									? `${base.transform} translateY(0)`
+									: `${base.transform} translateY(-${COMBINED_INTRO.bannerOffsetPx}px)`,
+								transition: `opacity ${COMBINED_INTRO.durationMs}ms ${COMBINED_INTRO.easing}, transform ${COMBINED_INTRO.durationMs}ms ${COMBINED_INTRO.easing}`,
+								transitionDelay: '0ms',
+								willChange: 'opacity, transform',
+							}}
 							loading="eager"
 							decoding="async"
 						/>
 					);
 				})}
-				{enableCommunityCombinedFx && (
-					<HeroCombinedGapEffects slotCount={n} />
-				)}
+				{enableCommunityCombinedFx && <HeroCombinedGapEffects slotCount={n} />}
 			</div>
 		);
 	}
@@ -126,13 +173,25 @@ function HeroCombinedGapEffects({ slotCount }: { slotCount: number }) {
 	const meshOpacity = Math.max(0.18, Math.min(0.36, 0.3 * strength));
 	const beamOpacity = Math.max(0.12, Math.min(0.28, 0.22 * strength));
 
-	const beamCount = Math.max(2, Math.min(6, gapCount + (slotCount <= 8 ? 1 : 0)));
-	const particleCols = Math.max(6, Math.min(14, gapCount * 2 + (slotCount <= 8 ? 2 : 0)));
+	const beamCount = Math.max(
+		2,
+		Math.min(6, gapCount + (slotCount <= 8 ? 1 : 0)),
+	);
+	const particleCols = Math.max(
+		6,
+		Math.min(14, gapCount * 2 + (slotCount <= 8 ? 2 : 0)),
+	);
 	const particleRows = slotCount <= 8 ? 3 : 2;
 
-	const gapCenters = Array.from({ length: gapCount }, (_, i) => (i + 1) * actualSlotW);
+	const gapCenters = Array.from(
+		{ length: gapCount },
+		(_, i) => (i + 1) * actualSlotW,
+	);
 	const beamSeeds = Array.from({ length: beamCount }, (_, i) => i);
-	const particleSeeds = Array.from({ length: particleCols * particleRows }, (_, i) => i);
+	const particleSeeds = Array.from(
+		{ length: particleCols * particleRows },
+		(_, i) => i,
+	);
 
 	return (
 		<div className="absolute inset-0 pointer-events-none z-[2] overflow-hidden">
@@ -304,7 +363,15 @@ export function HeroPersonContent({
 	slotOrder,
 	people,
 	orangSrc,
-}: Pick<HeroRenderData, 'desktopMode' | 'desktopBannerSource' | 'slotOrder' | 'people' | 'orangSrc'>) {
+	combinedIntroActive = false,
+	combinedIntroWaveIndex = -1,
+}: Pick<
+	HeroRenderData,
+	'desktopMode' | 'desktopBannerSource' | 'slotOrder' | 'people' | 'orangSrc'
+> & {
+	combinedIntroActive?: boolean;
+	combinedIntroWaveIndex?: number;
+}) {
 	const slotEntries = useMemo(() => {
 		if (desktopMode !== 'combined') return [];
 		return slotOrder
@@ -316,22 +383,40 @@ export function HeroPersonContent({
 		const totalSlots = slotOrder.length;
 		return (
 			<div className="relative w-full h-full pointer-events-none">
-				{slotEntries.map(({ key, src, idx }) => (
-					<img
-						key={key}
-						src={src}
-						alt={key}
-						className="object-contain object-bottom"
-						style={computeOverlapStyle(idx, totalSlots)}
-						loading="eager"
-						decoding="async"
-					/>
-				))}
+				{slotEntries.map(({ key, src, idx }) => {
+					const base = computeOverlapStyle(idx, totalSlots);
+					const wave = computeWaveIndex(idx, totalSlots);
+					const isVisible =
+						combinedIntroActive && wave <= combinedIntroWaveIndex;
+					return (
+						<img
+							key={key}
+							src={src}
+							alt={key}
+							className="object-contain object-bottom"
+							style={{
+								...base,
+								opacity: isVisible ? 1 : 0,
+								transform: isVisible
+									? `${base.transform} translateY(0)`
+									: `${base.transform} translateY(${COMBINED_INTRO.personOffsetPx}px)`,
+								transition: `opacity ${COMBINED_INTRO.durationMs}ms ${COMBINED_INTRO.easing}, transform ${COMBINED_INTRO.durationMs}ms ${COMBINED_INTRO.easing}`,
+								transitionDelay: '0ms',
+								willChange: 'opacity, transform',
+							}}
+							loading="eager"
+							decoding="async"
+						/>
+					);
+				})}
 			</div>
 		);
 	}
 
-	if (desktopMode === 'bennerfull' && desktopBannerSource === 'fullBackground') {
+	if (
+		desktopMode === 'bennerfull' &&
+		desktopBannerSource === 'fullBackground'
+	) {
 		return <div className="w-full h-full" />;
 	}
 
@@ -384,10 +469,16 @@ export function HeroDesktopText({
 	);
 }
 
-export function HeroScrollIndicator({ onScrollTo }: { onScrollTo?: (id: string) => void }) {
+export function HeroScrollIndicator({
+	onScrollTo,
+}: {
+	onScrollTo?: (id: string) => void;
+}) {
 	return (
 		<div className="flex flex-col items-center gap-1.5 pointer-events-auto">
-			<span className="text-xs text-muted-foreground tracking-widest uppercase">Scroll</span>
+			<span className="text-xs text-muted-foreground tracking-widest uppercase">
+				Scroll
+			</span>
 			<div className="w-px h-10 bg-gradient-to-b from-primary/60 to-transparent relative overflow-hidden">
 				<div
 					className="absolute top-0 w-full h-4 bg-primary rounded-full"
@@ -417,7 +508,11 @@ export function HeroMobileSlideshow({
 	| 'logoUrl'
 > & {
 	onScrollTo?: (id: string) => void;
-	stats?: { organizationMembers?: number; berita?: number; libraryItems?: number };
+	stats?: {
+		organizationMembers?: number;
+		berita?: number;
+		libraryItems?: number;
+	};
 }) {
 	const [currentIdx, setCurrentIdx] = useState(0);
 
@@ -512,15 +607,21 @@ export function HeroMobileSlideshow({
 					{stats && (
 						<div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
 							<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
-								<div className="text-xl font-bold text-blue-200 mb-1">{stats.organizationMembers || 500}+</div>
+								<div className="text-xl font-bold text-blue-200 mb-1">
+									{stats.organizationMembers || 500}+
+								</div>
 								<div className="text-xs text-white/80">Anggota</div>
 							</div>
 							<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
-								<div className="text-xl font-bold text-cyan-200 mb-1">{stats.berita || 50}+</div>
+								<div className="text-xl font-bold text-cyan-200 mb-1">
+									{stats.berita || 50}+
+								</div>
 								<div className="text-xs text-white/80">Berita</div>
 							</div>
 							<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
-								<div className="text-xl font-bold text-indigo-200 mb-1">{stats.libraryItems || 100}+</div>
+								<div className="text-xl font-bold text-indigo-200 mb-1">
+									{stats.libraryItems || 100}+
+								</div>
 								<div className="text-xs text-white/80">Media</div>
 							</div>
 						</div>

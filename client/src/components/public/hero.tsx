@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { HeroBannerContent, HeroDesktopText, HeroMobileSlideshow, HeroPersonContent, HeroScrollIndicator, homeImageVersionSuffix, versionHomeImageUrls, useHeroPreviewOverrides } from './hero-renderer';
+import { HeroBannerContent, HeroDesktopText, HeroMobileSlideshow, HeroPersonContent, HeroScrollIndicator, homeImageVersionSuffix, versionHomeImageUrls, useHeroPreviewOverrides, combinedIntroDurationMs, combinedIntroWaveDelayMs } from './hero-renderer';
 import { useTenant } from '@/lib/tenant-context';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
@@ -93,6 +93,11 @@ export default function Hero({
 	const [showBanner, setShowBanner] = useState(false);
 	const [showPerson, setShowPerson] = useState(false);
 	const [isHeroVisible, setIsHeroVisible] = useState(true);
+	const [combinedAssetsReady, setCombinedAssetsReady] = useState(false);
+	const [combinedIntroStarted, setCombinedIntroStarted] = useState(false);
+	const [combinedIntroWaveIndex, setCombinedIntroWaveIndex] = useState(-1);
+	const combinedRafRef = useRef(0);
+	const preloadCacheRef = useRef(new Set<string>());
 	// Hanya jalankan animasi hero (banner/orang) saat scroll benar-benar di paling atas
 	const [isAtTop, setIsAtTop] = useState(false);
 	const hasAnimatedRef = useRef(false);
@@ -183,6 +188,20 @@ export default function Hero({
 		[homeImages?.people, versionSuffix],
 	);
 
+	const dataReady = !!homeImages;
+
+	const combinedAssetUrls = useMemo(() => {
+		if (desktopMode !== 'combined') return [];
+		const urls: string[] = [];
+		for (const key of slotOrder) {
+			const b = versionedBanners[key] || DEFAULT_BANNERS[key] || '';
+			const p = versionedPeople[key] || '';
+			if (b) urls.push(b);
+			if (p) urls.push(p);
+		}
+		return Array.from(new Set(urls));
+	}, [desktopMode, slotOrder, versionedBanners, versionedPeople]);
+
 	const TOP_THRESHOLD = 80;
 
 	// Set isAtTop setelah layout (termasuk scroll ke hash di parent) agar hero tidak animate saat masuk ke section
@@ -213,6 +232,74 @@ export default function Hero({
 		observer.observe(node);
 		return () => observer.disconnect();
 	}, []);
+
+	// Preload semua asset combined; cached agar URL yang sudah dimuat
+	// tidak di-fetch ulang saat dependency berubah reference.
+	useEffect(() => {
+		let cancelled = false;
+		if (desktopMode !== 'combined') {
+			setCombinedAssetsReady(true);
+			return;
+		}
+		if (combinedAssetUrls.length === 0) {
+			setCombinedAssetsReady(true);
+			return;
+		}
+
+		const uncached = combinedAssetUrls.filter(u => !preloadCacheRef.current.has(u));
+		if (uncached.length === 0) {
+			setCombinedAssetsReady(true);
+			return;
+		}
+
+		setCombinedAssetsReady(false);
+		const preloadOne = (src: string) =>
+			new Promise<void>((resolve) => {
+				const img = new Image();
+				img.onload = async () => {
+					// Ensure browser has decoded the bitmap, not just fetched bytes.
+					try {
+						await img.decode();
+					} catch {
+						// ignore decode errors; onload already means image is usable
+					}
+					preloadCacheRef.current.add(src);
+					resolve();
+				};
+				img.onerror = () => { preloadCacheRef.current.add(src); resolve(); };
+				img.src = src;
+			});
+
+		Promise.all(uncached.map(preloadOne)).then(() => {
+			if (!cancelled) setCombinedAssetsReady(true);
+		});
+
+		return () => {
+			cancelled = true;
+		};
+	}, [desktopMode, combinedAssetUrls]);
+
+	// After containers become visible, wait for browser to paint items in hidden+offset
+	// state, then flip combinedIntroStarted to kick off per-item CSS transitions.
+	useEffect(() => {
+		if (desktopMode !== 'combined' || !showBanner || !showPerson) {
+			setCombinedIntroStarted(false);
+			setCombinedIntroWaveIndex(-1);
+			return;
+		}
+		const maxWave = Math.floor((slotOrder.length - 1) / 2);
+		const raf1 = requestAnimationFrame(() => {
+			combinedRafRef.current = requestAnimationFrame(() => {
+				setCombinedIntroStarted(true);
+				// Experiment mode: all pairs animate together in one wave.
+				setCombinedIntroWaveIndex(maxWave);
+			});
+		});
+		return () => {
+			cancelAnimationFrame(raf1);
+			cancelAnimationFrame(combinedRafRef.current);
+		};
+	}, [desktopMode, showBanner, showPerson, slotOrder.length]);
 
 	// Optimized parallax — semua DOM manipulation langsung via refs, tanpa React state
 	useEffect(() => {
@@ -270,9 +357,10 @@ export default function Hero({
 		hasAnimatedRef.current = false;
 	}, [introKey]);
 
-	// Trigger animasi intro hanya saat scroll benar-benar di paling atas (banner/orang tidak jalan di section lain)
+	// Trigger animasi intro hanya saat data sudah ready dan scroll di paling atas
 	useEffect(() => {
-		if (!assetsLoaded || !introKey || !isAtTop) return;
+		if (!assetsLoaded || !introKey || !isAtTop || !dataReady) return;
+		if (desktopMode === 'combined' && !combinedAssetsReady) return;
 		if (hasAnimatedRef.current) return;
 
 		hasAnimatedRef.current = true;
@@ -282,6 +370,8 @@ export default function Hero({
 		setShowPerson(false);
 		setShowText(false);
 		setTextMoveUp(false);
+		setCombinedIntroStarted(false);
+		setCombinedIntroWaveIndex(-1);
 
 		// Reset style langsung untuk menghindari sisa opacity/transform
 		if (bannerRef.current) {
@@ -293,6 +383,24 @@ export default function Hero({
 		}
 		if (personRef.current) {
 			personRef.current.style.opacity = '0';
+		}
+
+		const isCombinedMode = desktopMode === 'combined';
+
+		if (isCombinedMode) {
+			const t0 = setTimeout(() => {
+				setShowBanner(true);
+				setShowPerson(true);
+			}, 0);
+			const textDelay = 80 + combinedIntroDurationMs(slotOrder.length) + 100;
+			const t1 = setTimeout(() => {
+				setShowText(true);
+				setTextMoveUp(true);
+			}, textDelay);
+			return () => {
+				clearTimeout(t0);
+				clearTimeout(t1);
+			};
 		}
 
 		// Banner muncul duluan sebagai latar
@@ -314,7 +422,7 @@ export default function Hero({
 			clearTimeout(personTimer);
 			clearTimeout(textTimer);
 		};
-	}, [assetsLoaded, introKey, isAtTop]);
+	}, [assetsLoaded, introKey, isAtTop, dataReady, desktopMode, combinedAssetsReady, slotOrder.length]);
 
 	return (
 		<div
@@ -329,7 +437,7 @@ export default function Hero({
 					className={`fixed top-0 left-0 w-full z-0 pointer-events-none ${desktopBannerSource === 'fullBackground' && desktopMode === 'bennerfull' ? 'h-screen' : 'h-[400px]'}`}
 					style={{
 						opacity: showBanner ? 1 : 0,
-						transition: 'opacity 0.7s ease-out',
+						transition: desktopMode === 'combined' ? 'none' : 'opacity 0.7s ease-out',
 						transform: 'translate3d(0, 0, 0)',
 						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
@@ -342,6 +450,8 @@ export default function Hero({
 						bennerfullSrc={bennerfullSrc}
 						desktopBackgroundSrc={desktopBackgroundSrc}
 						enableCommunityCombinedFx={enableCommunityCombinedFx}
+						combinedIntroActive={combinedIntroStarted}
+						combinedIntroWaveIndex={combinedIntroWaveIndex}
 					/>
 					{/* Fog belakang — full height, tipis */}
 					<div
@@ -386,7 +496,7 @@ export default function Hero({
 					style={{
 						transform: 'translate3d(0, 0, 0)',
 						opacity: showPerson ? 1 : 0,
-						transition: 'opacity 0.7s ease-out',
+						transition: desktopMode === 'combined' ? 'none' : 'opacity 0.7s ease-out',
 						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
 					}}>
@@ -397,6 +507,8 @@ export default function Hero({
 							slotOrder={slotOrder}
 							people={versionedPeople}
 							orangSrc={orangSrc}
+							combinedIntroActive={combinedIntroStarted}
+							combinedIntroWaveIndex={combinedIntroWaveIndex}
 						/>
 					</div>
 					{/* Fog depan — setengah, tebal */}

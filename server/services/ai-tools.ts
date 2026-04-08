@@ -193,7 +193,7 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 	{
 		name: 'get_prodi_info',
 		description:
-			'Ambil informasi Program Studi S1 Teknik Informatika UIN Malang dari database: profil, dosen, kurikulum, atau laboratorium. Gunakan saat user bertanya tentang prodi, dosen, mata kuliah, atau lab.',
+			'Ambil informasi Program Studi S1 Teknik Informatika UIN Malang dari database: profil, dosen, kurikulum, laboratorium, dan akreditasi. Gunakan saat user bertanya tentang prodi, dosen, mata kuliah, lab, atau akreditasi.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -205,6 +205,7 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 						'lecturers',
 						'curriculum',
 						'laboratories',
+						'accreditation',
 					],
 					description:
 						'Bagian yang ingin diambil. "summary" untuk ringkasan keseluruhan, atau pilih bagian spesifik. Default "summary".',
@@ -1278,8 +1279,29 @@ export async function executeToolCall(
 						error: 'Data prodi belum tersedia. Lakukan sinkronisasi melalui dashboard.',
 					};
 
-				const section =
-					(args.section as string) || 'summary';
+				const section = (args.section as string) || 'summary';
+				const rawEntries: any[] = Array.isArray((doc as any)?.curriculumByYear)
+					? [...((doc as any).curriculumByYear as any[])]
+					: [];
+				rawEntries.sort((a: any, b: any) => (b?.academicYear ?? 0) - (a?.academicYear ?? 0));
+				const curriculumEntries = rawEntries.map((entry: any) => ({
+					academicYear: entry.academicYear,
+					periodLabel: entry.periodLabel || `${entry.academicYear}-${(entry.academicYear ?? 0) + 4}`,
+					guidebookUrl: entry.guidebookUrl || '',
+					curriculumUrl: entry.curriculumUrl || '',
+					officialUrl: entry.officialUrl || '',
+					knowledgeGroups: entry.knowledgeGroups ?? [],
+					structureSummary: entry.structureSummary ?? '',
+					graduateProfileCount: entry.graduateProfile?.length ?? 0,
+					semesterCount: entry.semesters?.length ?? 0,
+					totalSubjects: (entry.semesters ?? []).reduce(
+						(sum: number, s: any) => sum + (s.subjects?.length ?? 0),
+						0
+					),
+					optionalSubjectsCount: entry.optionalSubjects?.length ?? 0,
+				}));
+				const latestEntry = curriculumEntries[0];
+				const legacyCurriculum = c.curriculum ?? {};
 
 				if (section === 'profile') {
 					return {
@@ -1339,28 +1361,36 @@ export async function executeToolCall(
 				if (section === 'curriculum') {
 					return {
 						curriculum: {
-							knowledgeGroups:
-								c.curriculum?.knowledgeGroups ?? [],
-							structureSummary:
-								c.curriculum?.structureSummary ?? '',
-							semesters: (
-								c.curriculum?.semesters ?? []
-							).map((s: any) => ({
-								semester: s.semester,
-								totalSks: s.totalSks,
-								subjects: (s.subjects ?? []).map(
-									(sub: any) => ({
-										code: sub.code,
-										name: sub.name,
-										sks: sub.sks,
-										prerequisite:
-											sub.prerequisite,
-									})
-								),
+							availablePeriods: curriculumEntries.map((entry: any) => ({
+								academicYear: entry.academicYear,
+								periodLabel: entry.periodLabel,
+								guidebookUrl: entry.guidebookUrl,
+								curriculumUrl: entry.curriculumUrl,
+								officialUrl: entry.officialUrl,
 							})),
-							optionalSubjectsCount:
-								c.curriculum?.optionalSubjects
-									?.length ?? 0,
+							active: latestEntry
+								? {
+									academicYear: latestEntry.academicYear,
+									periodLabel: latestEntry.periodLabel,
+									knowledgeGroups: latestEntry.knowledgeGroups,
+									structureSummary: latestEntry.structureSummary,
+									graduateProfileCount: latestEntry.graduateProfileCount,
+									semesterCount: latestEntry.semesterCount,
+									totalSubjects: latestEntry.totalSubjects,
+									optionalSubjectsCount: latestEntry.optionalSubjectsCount,
+								}
+								: {
+									periodLabel: legacyCurriculum.periodLabel ?? '',
+									knowledgeGroups: legacyCurriculum.knowledgeGroups ?? [],
+									structureSummary: legacyCurriculum.structureSummary ?? '',
+									graduateProfileCount: legacyCurriculum.graduateProfile?.length ?? 0,
+									semesterCount: legacyCurriculum.semesters?.length ?? 0,
+									totalSubjects: (legacyCurriculum.semesters ?? []).reduce(
+										(sum: number, s: any) => sum + (s.subjects?.length ?? 0),
+										0
+									),
+									optionalSubjectsCount: legacyCurriculum.optionalSubjects?.length ?? 0,
+								},
 						},
 					};
 				}
@@ -1380,6 +1410,34 @@ export async function executeToolCall(
 								name: l.name,
 								description: l.description,
 							})),
+						},
+					};
+				}
+
+				if (section === 'accreditation') {
+					const mapLevel = (level: any) => ({
+						title: level?.title || '',
+						sourceUrl: level?.sourceUrl || '',
+						groupCount: level?.groups?.length ?? 0,
+						itemCount: level?.items?.length ?? 0,
+						groups: level?.groups ?? [],
+						items: (level?.items ?? []).map((item: any) => ({
+							group: item.group ?? '',
+							title: item.title ?? '',
+							downloadUrl: item.downloadUrl ?? '',
+							yearLabel: item.yearLabel ?? '',
+							isPrimary: !!item.isPrimary,
+						})),
+						lastSyncedAt: level?.lastSyncedAt ?? null,
+						lastError: level?.lastError ?? '',
+					});
+					return {
+						accreditation: {
+							s1: mapLevel(c.accreditation?.s1),
+							s2: mapLevel(c.accreditation?.s2),
+							s3: mapLevel(c.accreditation?.s3),
+							s3ManualUrl: c.accreditation?.s3ManualUrl ?? '',
+							lastSyncAt: c.accreditation?.lastSyncAt ?? null,
 						},
 					};
 				}
@@ -1408,21 +1466,18 @@ export async function executeToolCall(
 							c.lecturers?.staff?.length ?? 0,
 					},
 					curriculum: {
-						knowledgeGroups:
-							c.curriculum?.knowledgeGroups ?? [],
-						semesterCount:
-							c.curriculum?.semesters?.length ?? 0,
-						totalSubjects: (
-							c.curriculum?.semesters ?? []
-						).reduce(
-							(sum: number, s: any) =>
-								sum +
-								(s.subjects?.length ?? 0),
+						availablePeriods: curriculumEntries.map((entry: any) => ({
+							academicYear: entry.academicYear,
+							periodLabel: entry.periodLabel,
+						})),
+						activePeriodLabel: latestEntry?.periodLabel ?? legacyCurriculum.periodLabel ?? '',
+						knowledgeGroups: latestEntry?.knowledgeGroups ?? legacyCurriculum.knowledgeGroups ?? [],
+						semesterCount: latestEntry?.semesterCount ?? (legacyCurriculum.semesters?.length ?? 0),
+						totalSubjects: latestEntry?.totalSubjects ?? (legacyCurriculum.semesters ?? []).reduce(
+							(sum: number, s: any) => sum + (s.subjects?.length ?? 0),
 							0
 						),
-						optionalSubjectsCount:
-							c.curriculum?.optionalSubjects
-								?.length ?? 0,
+						optionalSubjectsCount: latestEntry?.optionalSubjectsCount ?? (legacyCurriculum.optionalSubjects?.length ?? 0),
 					},
 					laboratories: {
 						teaching: (
@@ -1431,6 +1486,13 @@ export async function executeToolCall(
 						research: (
 							c.laboratories?.research ?? []
 						).map((l: any) => l.name),
+					},
+					accreditation: {
+						s1Count: c.accreditation?.s1?.items?.length ?? 0,
+						s2Count: c.accreditation?.s2?.items?.length ?? 0,
+						s3Count: c.accreditation?.s3?.items?.length ?? 0,
+						hasS3ManualUrl: !!c.accreditation?.s3ManualUrl,
+						lastSyncAt: c.accreditation?.lastSyncAt ?? null,
 					},
 				};
 			}

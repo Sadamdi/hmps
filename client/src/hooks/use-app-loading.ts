@@ -13,39 +13,27 @@ export function useAppLoading() {
 	useEffect(() => {
 		const preloadCriticalAssets = async () => {
 			try {
-				const imagePromises = [];
+				const imagePromises: Promise<unknown>[] = [];
+				const decodeImage = (src: string) =>
+					new Promise<void>((resolve) => {
+						const img = new Image();
+						img.onload = async () => {
+							try {
+								await img.decode();
+							} catch {
+								// ignore decode errors; onload already indicates it's usable
+							}
+							resolve();
+						};
+						img.onerror = () => resolve();
+						img.src = src;
+					});
 
 				// Preload banner dari local path
-				const bannerImg = new Image();
-				bannerImg.src = DEFAULT_IMAGE_URL;
-				imagePromises.push(
-					new Promise((resolve) => {
-						bannerImg.onload = () => {
-							console.log('Banner loaded successfully from local path');
-							resolve(true);
-						};
-						bannerImg.onerror = () => {
-							console.log('Banner failed to load from local path');
-							resolve(true); // Continue anyway
-						};
-					})
-				);
+				imagePromises.push(decodeImage(DEFAULT_IMAGE_URL));
 
 				// Preload orang dari local path
-				const orangImg = new Image();
-				orangImg.src = DEFAULT_IMAGE_URL;
-				imagePromises.push(
-					new Promise((resolve) => {
-						orangImg.onload = () => {
-							console.log('Orang loaded successfully from local path');
-							resolve(true);
-						};
-						orangImg.onerror = () => {
-							console.log('Orang failed to load from local path');
-							resolve(true); // Continue anyway
-						};
-					})
-				);
+				imagePromises.push(decodeImage(DEFAULT_IMAGE_URL));
 
 				// Preload mobile banner images (yang paling penting untuk mobile)
 				const mobileBanners = [
@@ -62,49 +50,45 @@ export function useAppLoading() {
 				// Preload 3 banner pertama untuk mobile (yang paling penting)
 				const criticalMobileBanners = mobileBanners.slice(0, 3);
 				criticalMobileBanners.forEach((bannerPath) => {
-					const img = new Image();
-					img.src = bannerPath;
-					imagePromises.push(
-						new Promise<void>((resolve) => {
-							img.onload = () => resolve();
-							img.onerror = () => resolve(); // Continue even if error
-						})
-					);
+					imagePromises.push(decodeImage(bannerPath));
 				});
 
 				// Preload logo HMPS
-				const logoImg = new Image();
-				logoImg.src =
-					'/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
 				imagePromises.push(
-					new Promise<void>((resolve) => {
-						logoImg.onload = () => resolve();
-						logoImg.onerror = () => resolve(); // Continue even if error
-					})
+					decodeImage(
+						'/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp',
+					),
 				);
 
-				console.log('Waiting for assets to load...');
+				// Preload active combined assets (banner + people) agar sinkron dengan hero intro.
+				try {
+					const response = await fetch('/api/home-images/active');
+					if (response.ok) {
+						const active = await response.json() as {
+							desktopMode?: 'bennerfull' | 'combined';
+							banners?: Record<string, string>;
+							people?: Record<string, string>;
+						};
+						if (active?.desktopMode === 'combined') {
+							const urls = new Set<string>();
+							Object.values(active?.banners || {}).forEach((u) => u && urls.add(u));
+							Object.values(active?.people || {}).forEach((u) => {
+								if (typeof u === 'string' && u) urls.add(u);
+							});
+							urls.forEach((url) => imagePromises.push(decodeImage(url)));
+						}
+					}
+				} catch {
+					// ignore fetch errors here; loader will still wait for local critical assets
+				}
 
-				// Tunggu semua asset penting dimuat dengan timeout yang lebih agresif
-				const timeoutPromise = new Promise<void>((resolve) => {
-					setTimeout(() => {
-						console.log('Asset loading timeout, proceeding anyway');
-						resolve();
-					}, 2000); // Max 2 detik - lebih agresif
-				});
-
-				await Promise.race([Promise.all(imagePromises), timeoutPromise]);
-
-				console.log('All critical assets loaded');
+				await Promise.all(imagePromises);
 
 				// Langsung set assets loaded tanpa delay tambahan
 				setAssetsLoaded(true);
 			} catch (error) {
 				console.log('Error preloading assets:', error);
-				// Fallback jika ada error
-				setTimeout(() => {
-					setAssetsLoaded(true);
-				}, 1000);
+				setAssetsLoaded(true);
 			}
 		};
 

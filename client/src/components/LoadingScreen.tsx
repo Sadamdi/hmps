@@ -17,6 +17,7 @@ export function LoadingScreen({
 	const [currentStep, setCurrentStep] = useState(0);
 	const [isComplete, setIsComplete] = useState(false);
 	const [isExiting, setIsExiting] = useState(false);
+	const EXIT_MS = 780;
 
 	// Track waktu mulai loading
 	useEffect(() => {
@@ -32,97 +33,52 @@ export function LoadingScreen({
 				forceComplete();
 			}
 			onLoadingComplete();
-		}, 500);
+		}, EXIT_MS);
 	};
 
-	const loadingSteps = ['Memuat Asset...', 'Memuat Konten...', 'Siap!'];
+	const loadingSteps = ['Memuat Asset...', 'Sinkronisasi Tampilan...', 'Siap!'];
 
 	useEffect(() => {
-		// Progress yang lebih lambat untuk UX yang smooth (minimal 3 detik)
-		const progressSteps = [20, 40, 60, 80, 95, 100];
-		let currentProgressIndex = 0;
-
+		// Keep animating progress while waiting real assets; never auto-complete early.
 		const timer = setInterval(() => {
-			if (currentProgressIndex < progressSteps.length) {
-				setProgress(progressSteps[currentProgressIndex]);
-				currentProgressIndex++;
-			} else {
-				clearInterval(timer);
-				// Tunggu asset siap sebelum hilang
-				if (assetsLoaded) {
-					setIsExiting(true);
-					onExitStart?.();
-					setTimeout(() => {
-						setIsComplete(true);
-						onLoadingComplete();
-					}, 500);
-				}
-			}
-		}, 600); // Lebih lambat dari 500ms
+			setProgress((prev) => {
+				if (assetsLoaded) return 100;
+				const next = prev + 2.5;
+				return next >= 95 ? 95 : next;
+			});
+		}, 90);
 
 		const stepTimer = setInterval(() => {
 			setCurrentStep((prev) => {
-				if (prev < loadingSteps.length - 1) {
-					return prev + 1;
-				}
-				return prev;
+				if (assetsLoaded) return loadingSteps.length - 1;
+				return prev < loadingSteps.length - 2 ? prev + 1 : prev;
 			});
-		}, 600); // Lebih lambat dari 500ms
+		}, 700);
 
 		return () => {
 			clearInterval(timer);
 			clearInterval(stepTimer);
 		};
-	}, [onLoadingComplete, loadingSteps.length, assetsLoaded]);
+	}, [assetsLoaded, loadingSteps.length]);
 
-	// Effect untuk menunggu asset siap (minimal 3 detik total)
 	useEffect(() => {
-		if (assetsLoaded && progress === 100) {
-			// Pastikan minimal 3 detik total loading time
-			const minLoadingTime = 3000; // 3 detik
-			const elapsedTime = Date.now() - (window as any).loadingStartTime || 0;
-			const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-
-		setTimeout(() => {
-			setIsExiting(true);
-			onExitStart?.();
-			setTimeout(() => {
-				setIsComplete(true);
-				onLoadingComplete();
-			}, 500);
-		}, remainingTime);
-		}
-	}, [assetsLoaded, progress, onLoadingComplete, onExitStart]);
-
-	// Fallback jika loading terlalu lama (minimal 2 detik)
-	useEffect(() => {
-		const fallbackTimer = setTimeout(() => {
-			if (!isComplete) {
-				console.log('Loading timeout, forcing complete');
-				// Pastikan minimal 2 detik
-				const minLoadingTime = 2000;
-				const elapsedTime = Date.now() - (window as any).loadingStartTime || 0;
-				const remainingTime = Math.max(0, minLoadingTime - elapsedTime);
-
-			setTimeout(() => {
-				setIsExiting(true);
-				onExitStart?.();
-				setTimeout(() => {
-					setIsComplete(true);
-					onLoadingComplete();
-				}, 500);
-			}, remainingTime);
-			}
-		}, 3000); // Max 3 detik (tapi minimal 2 detik)
-
-		return () => clearTimeout(fallbackTimer);
-	}, [isComplete, onLoadingComplete]);
+		if (!assetsLoaded || isExiting || isComplete) return;
+		setProgress(100);
+		setCurrentStep(loadingSteps.length - 1);
+		setIsExiting(true);
+		onExitStart?.(); // Hero intro starts exactly when loader exit starts.
+		const done = setTimeout(() => {
+			setIsComplete(true);
+			onLoadingComplete();
+		}, EXIT_MS);
+		return () => clearTimeout(done);
+	}, [assetsLoaded, isExiting, isComplete, loadingSteps.length, onExitStart, onLoadingComplete]);
 
 	return (
 		<div
-			className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-700 ease-out ${
+			className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-800 ease-out ${
 				isComplete ? 'opacity-0 pointer-events-none' : 'opacity-100'
-			} ${isExiting ? 'scale-110' : 'scale-100'}`}
+			} ${isExiting ? 'scale-[1.015]' : 'scale-100'}`}
 			style={{ background: 'var(--gradient-loading)' }}>
 			{/* Subtle static orbs */}
 			<div
@@ -135,9 +91,9 @@ export function LoadingScreen({
 			/>
 
 		<div
-			className={`relative text-center transition-all duration-700 ease-out ${
+			className={`relative text-center transition-all duration-800 ease-out ${
 				isExiting
-					? 'scale-95 opacity-0 -translate-y-4'
+					? 'scale-[0.99] opacity-0 -translate-y-1'
 					: 'scale-100 opacity-100 translate-y-0'
 			}`}>
 			{/* Logo HMPS – glow ring */}

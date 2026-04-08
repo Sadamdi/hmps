@@ -500,6 +500,17 @@ export function buildPageContextPrompt(context?: PageContext): string {
 		'- INGAT: Gunakan blok [[NAV:{"path":"...","label":"..."}]] di akhir jawaban Anda setiap kali relevan untuk mengarahkan pengguna ke halaman lain (lihat aturan Navigasi Interaktif di system prompt).'
 	);
 
+	if (pathPub === '/prodi') {
+		lines.push(
+			'- Konteks khusus halaman Prodi: jika user menanyakan data spesifik seperti siapa dosen, sejarah prodi, detail kurikulum per periode, laboratorium, atau akreditasi, PRIORITASKAN memanggil tool get_prodi_info agar jawaban real-time dari database.'
+		);
+		if (typeof pageData?.tab === 'string' && pageData.tab) {
+			lines.push(
+				`- Tab Prodi aktif: "${pageData.tab}". Gunakan ini untuk memfokuskan jawaban ke bagian terkait sebelum memperluas ke bagian lain jika user minta.`
+			);
+		}
+	}
+
 	appendDashboardSurfaceFromPageData(pageData, lines);
 
 	// Info akses fitur berbasis permission

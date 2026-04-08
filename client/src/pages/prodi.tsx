@@ -120,6 +120,21 @@ export default function ProdiPage() {
 	const curriculumByYear = data?.curriculumByYear;
 
 	const hasContent = profile || lecturers || curriculum || laboratories || accreditation;
+	const lecturerCount =
+		(lecturers?.headAndSecretary?.length ?? 0) +
+		(lecturers?.staff?.length ?? 0) +
+		(lecturers?.groups ?? []).reduce((sum: number, g: any) => sum + (g?.lecturers?.length ?? 0), 0);
+	const curriculumPeriods = Array.isArray(curriculumMeta?.availableYears)
+		? curriculumMeta.availableYears.map((y: number) => `${y}-${y + 4}`)
+		: [];
+	const labCount =
+		(laboratories?.teaching?.length ?? 0) +
+		(laboratories?.research?.length ?? 0);
+	const accreditationCounts = {
+		s1: accreditation?.s1?.items?.length ?? 0,
+		s2: accreditation?.s2?.items?.length ?? 0,
+		s3: accreditation?.s3?.items?.length ?? 0,
+	};
 
 	return (
 		<div className="min-h-screen bg-background relative">
@@ -234,6 +249,13 @@ export default function ProdiPage() {
 					pageData: {
 						title: 'Prodi S1 Teknik Informatika',
 						excerpt: 'Profil, Dosen, Kurikulum, dan Laboratorium',
+						tab: activeTab,
+						prodiSummary: {
+							lecturerCount,
+							curriculumPeriods,
+							labCount,
+							accreditationCounts,
+						},
 					},
 				}}
 			/>
