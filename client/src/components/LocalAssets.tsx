@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
 interface LocalAssetProps {
 	className?: string;
@@ -35,7 +36,7 @@ export function LocalBannerFull({
 
 	return (
 		<img
-			src={src || '/attached_assets/general/bennerfull.webp'}
+			src={src || DEFAULT_IMAGE_URL}
 			alt={alt}
 			className={className}
 			onError={handleImageError}
@@ -80,7 +81,7 @@ export function LocalOrang({
 
 	return (
 		<img
-			src="/attached_assets/general/orang.webp"
+			src={DEFAULT_IMAGE_URL}
 			alt={alt}
 			className={`transition-opacity duration-800 ease-out ${
 				imageLoaded ? 'opacity-100' : 'opacity-0'

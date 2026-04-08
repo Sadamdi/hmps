@@ -14,6 +14,7 @@ import { ArrowLeft, Calendar, ChevronDown, Filter, Search, Tag, User } from 'luc
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
 interface BeritaItem {
 	_id: string;
@@ -340,7 +341,7 @@ export default function AllBerita() {
 												className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
 												onError={(e) => {
 													const target = e.target as HTMLImageElement;
-													target.src = '/placeholder-berita.jpg';
+													target.src = DEFAULT_IMAGE_URL;
 												}}
 											/>
 											<div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

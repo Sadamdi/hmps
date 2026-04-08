@@ -15,6 +15,7 @@ import { Calendar, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { toSlug } from '@/utils/slug';
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
 interface BeritaItem {
 	id?: number;
@@ -178,7 +179,7 @@ export default function BeritaList() {
 												sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
 												onError={(e) => {
 													const target = e.target as HTMLImageElement;
-													target.src = '/placeholder-berita.jpg';
+													target.src = DEFAULT_IMAGE_URL;
 												}}
 											/>
 											<div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />

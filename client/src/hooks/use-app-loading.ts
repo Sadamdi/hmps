@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
 export function useAppLoading() {
 	const [isLoading, setIsLoading] = useState(() => {
@@ -16,7 +17,7 @@ export function useAppLoading() {
 
 				// Preload banner dari local path
 				const bannerImg = new Image();
-				bannerImg.src = '/attached_assets/general/bennerfull.webp';
+				bannerImg.src = DEFAULT_IMAGE_URL;
 				imagePromises.push(
 					new Promise((resolve) => {
 						bannerImg.onload = () => {
@@ -32,7 +33,7 @@ export function useAppLoading() {
 
 				// Preload orang dari local path
 				const orangImg = new Image();
-				orangImg.src = '/attached_assets/general/orang.webp';
+				orangImg.src = DEFAULT_IMAGE_URL;
 				imagePromises.push(
 					new Promise((resolve) => {
 						orangImg.onload = () => {

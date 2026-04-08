@@ -865,9 +865,7 @@ export function createTenantStorage(models: TenantModels) {
 		const slotName = doc.name as string | undefined;
 		if (slotName) {
 			try {
-				const fs = await import('fs');
-				const path = await import('path');
-				const { PROJECT_ROOT } = await import('./upload');
+				const { deleteFile } = await import('./upload');
 				const allYears: any[] = await HomeImages.find().lean();
 				for (const hi of allYears) {
 					const unsetFields: Record<string, 1> = {};
@@ -886,8 +884,7 @@ export function createTenantStorage(models: TenantModels) {
 						await HomeImages.updateOne({ _id: hi._id }, { $unset: unsetFields });
 						for (const url of urlsToDelete) {
 							try {
-								const abs = path.resolve(PROJECT_ROOT, url.replace(/^\//, ''));
-								if (fs.existsSync(abs)) fs.unlinkSync(abs);
+								await deleteFile(url);
 							} catch {}
 						}
 					}

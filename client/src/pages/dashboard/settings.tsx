@@ -47,6 +47,7 @@ import {
 	versionHomeImageUrls,
 	type HeroPreviewOverrides,
 } from '@/components/public/hero-renderer';
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
@@ -3236,11 +3237,11 @@ function HomeImagesTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 									<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
 										<div className="space-y-2">
 											<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Banner Utama</p>
-											<img src="/attached_assets/general/bennerfull.webp" alt="Contoh banner full" className="w-full h-28 object-cover rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+											<img src={DEFAULT_IMAGE_URL} alt="Contoh banner full" className="w-full h-28 object-cover rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 										</div>
 										<div className="space-y-2">
 											<p className="text-xs text-muted-foreground flex items-center gap-1"><Eye className="h-3 w-3" /> Contoh Orang Desktop</p>
-											<img src="/attached_assets/general/orang.webp" alt="Contoh orang desktop" className="w-full h-28 object-contain rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+											<img src={DEFAULT_IMAGE_URL} alt="Contoh orang desktop" className="w-full h-28 object-contain rounded-md border bg-muted" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
 										</div>
 									</div>
 								</DashboardHintCard>

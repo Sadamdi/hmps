@@ -1,14 +1,15 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
 const DEFAULT_BANNERS: Record<string, string> = {
-	ketua: '/attached_assets/benner/ketua.webp',
-	wakil_ketua: '/attached_assets/benner/wakil.webp',
-	intelektual: '/attached_assets/benner/intelek.webp',
-	public_relation: '/attached_assets/benner/pr.webp',
-	technopreneurship: '/attached_assets/benner/techno.webp',
-	senor: '/attached_assets/benner/senor.webp',
-	medinfo: '/attached_assets/benner/medinfo.webp',
-	religius: '/attached_assets/benner/religius.webp',
+	ketua: DEFAULT_IMAGE_URL,
+	wakil_ketua: DEFAULT_IMAGE_URL,
+	intelektual: DEFAULT_IMAGE_URL,
+	public_relation: DEFAULT_IMAGE_URL,
+	technopreneurship: DEFAULT_IMAGE_URL,
+	senor: DEFAULT_IMAGE_URL,
+	medinfo: DEFAULT_IMAGE_URL,
+	religius: DEFAULT_IMAGE_URL,
 };
 
 export interface HeroRenderData {
@@ -103,7 +104,7 @@ export function HeroBannerContent({
 
 	return (
 		<img
-			src={bennerfullSrc || '/attached_assets/general/bennerfull.webp'}
+			src={bennerfullSrc || DEFAULT_IMAGE_URL}
 			alt="Banner"
 			className="w-full h-full object-cover"
 			loading="eager"
@@ -336,7 +337,7 @@ export function HeroPersonContent({
 
 	return (
 		<img
-			src={orangSrc || '/attached_assets/general/orang.webp'}
+			src={orangSrc || DEFAULT_IMAGE_URL}
 			alt="Orang"
 			className="w-full h-full object-contain"
 			loading="eager"

@@ -2,6 +2,7 @@ import type { Express } from 'express';
 import sharp from 'sharp';
 import { GEMINI_MODELS, initGeminiClient } from '../config/gemini-config';
 import { getConfiguredSlots } from '../config/gemini-keys';
+import { DEFAULT_MEMBER_IMAGE_PATH } from '../constants/default-image';
 import type { TenantStorageType } from '../tenant-storage';
 
 export type MemberRef = { id: string; name: string };
@@ -126,7 +127,7 @@ export type OrgAutoFillPreviewResult = {
 	}>;
 };
 
-const DEFAULT_MEMBER_IMAGE = '/uploads/default-member-image.jpg';
+const DEFAULT_MEMBER_IMAGE = DEFAULT_MEMBER_IMAGE_PATH;
 
 const MAX_PDF_PAGES_SHARP =
 	Number.parseInt(process.env.ORG_AUTO_FILL_MAX_PDF_PAGES || '10', 10) || 10;

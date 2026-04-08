@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
-import { deleteFile, PROJECT_ROOT } from './upload';
+import { deleteFile } from './upload';
+import { DEFAULT_IMAGE_URL } from './constants/default-image';
 import {
 	Berita,
 	Community,
@@ -106,6 +107,11 @@ async function getUserByUsernameOrEmail(identifier: string): Promise<any | null>
 	const byUsername = await User.findOne({ username: identifier }).lean();
 	if (byUsername) return byUsername;
 	return await User.findOne({ email: identifier.trim().toLowerCase() }).lean();
+}
+
+async function getUserByEmail(email: string): Promise<any | null> {
+	if (!email) return null;
+	return await User.findOne({ email: email.trim().toLowerCase() }).lean();
 }
 
 async function createUser(userData: any): Promise<any> {
@@ -713,8 +719,8 @@ async function seedDefaultHomeImages() {
 		year: 2025,
 		isActive: true,
 		desktopMode: 'bennerfull',
-		bennerfull: '/attached_assets/general/bennerfull.webp',
-		orang: '/attached_assets/general/orang.webp',
+		bennerfull: DEFAULT_IMAGE_URL,
+		orang: DEFAULT_IMAGE_URL,
 		banners: {
 			ketua: '/attached_assets/benner/ketua.webp',
 			wakil_ketua: '/attached_assets/benner/wakil.webp',
@@ -1485,6 +1491,7 @@ const mongoDBStorage = {
 	getUserById,
 	getUserByUsername,
 	getUserByUsernameOrEmail,
+	getUserByEmail,
 	createUser,
 	updateUser,
 	deleteUser,
@@ -1958,8 +1965,6 @@ async function deleteDivision(id: string) {
 		const slotName = doc.name as string | undefined;
 		if (slotName) {
 			try {
-				const fs = await import('fs');
-				const path = await import('path');
 				const allYears: any[] = await HomeImages.find().lean();
 				for (const hi of allYears) {
 					const unsetFields: Record<string, 1> = {};
@@ -1978,8 +1983,7 @@ async function deleteDivision(id: string) {
 						await HomeImages.updateOne({ _id: hi._id }, { $unset: unsetFields });
 						for (const url of urlsToDelete) {
 							try {
-								const abs = path.resolve(PROJECT_ROOT, url.replace(/^\//, ''));
-								if (fs.existsSync(abs)) fs.unlinkSync(abs);
+								await deleteFile(url);
 							} catch {}
 						}
 					}

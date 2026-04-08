@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { isProcessableImage, processImage } from './image-processor';
+import { DEFAULT_IMAGE_URL, DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
 
 // Promisify fs functions
 const mkdir = promisify(fs.mkdir);
@@ -35,6 +36,18 @@ export function isDefaultBeritaImageUrl(
 	const t = fileUrl.trim();
 	return (
 		t === DEFAULT_BERITA_IMAGE_PATH || t === LEGACY_DEFAULT_BERITA_IMAGE_JPG
+	);
+}
+
+export function isProtectedDefaultImageUrl(
+	fileUrl: string | undefined | null,
+): boolean {
+	if (!fileUrl || typeof fileUrl !== 'string') return false;
+	const t = fileUrl.trim();
+	return (
+		isDefaultBeritaImageUrl(t) ||
+		t === DEFAULT_MEMBER_IMAGE_PATH ||
+		t === DEFAULT_IMAGE_URL
 	);
 }
 
@@ -756,7 +769,7 @@ export async function uploadFeedbackImage(
 export async function deleteFile(fileUrl: string): Promise<void> {
 	try {
 		if (!fileUrl || fileUrl === '') return;
-		if (isDefaultBeritaImageUrl(fileUrl)) return;
+		if (isProtectedDefaultImageUrl(fileUrl)) return;
 
 		// Extract filename and category from URL
 		const urlParts = fileUrl.split('/');

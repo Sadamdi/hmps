@@ -97,6 +97,7 @@ import {
 	DEFAULT_BERITA_IMAGE_PATH,
 	deleteFile,
 	extractImageUrlsFromContent,
+	isProtectedDefaultImageUrl,
 	promoteTempFile,
 	removeCommunityUploadDirectories,
 	TEMP_UPLOAD_TTL_MS,
@@ -113,6 +114,7 @@ import {
 	tenantCtxFromReq,
 	PROJECT_ROOT,
 } from './upload';
+import { DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
 
 // Import security middleware
 import {
@@ -4191,7 +4193,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Determine image source: prefer valid gdriveUrl, else uploaded file, else default
-				let imageUrl = '/uploads/default-member-image.jpg';
+				let imageUrl = DEFAULT_MEMBER_IMAGE_PATH;
 
 				if (gdriveUrl && gdriveUrl.trim() !== '') {
 					const { extractFileId, checkAccessibility, isValidGoogleDriveUrl } =
@@ -4308,7 +4310,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (
 					currentImageUrl &&
 					!currentImageUrl.includes('drive.google.com') &&
-					!currentImageUrl.includes('default-member-image.jpg') &&
+					!isProtectedDefaultImageUrl(currentImageUrl) &&
 					(currentImageUrl.startsWith('/uploads/') ||
 						currentImageUrl.startsWith('/attached_assets/'))
 				) {
@@ -4408,7 +4410,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (
 					existingMember.imageUrl &&
 					!existingMember.imageUrl.includes('drive.google.com') &&
-					!existingMember.imageUrl.includes('default-member-image.jpg') &&
+					!isProtectedDefaultImageUrl(existingMember.imageUrl) &&
 					(existingMember.imageUrl.startsWith('/uploads/') ||
 						existingMember.imageUrl.startsWith('/attached_assets/'))
 				) {

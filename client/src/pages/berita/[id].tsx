@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
 import { useTenant } from '@/lib/tenant-context';
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 import {
 	formatContentDisplay as formatContentDisplayFn,
 	formatContentForDisplay as formatContentForDisplayFn,
@@ -443,7 +444,7 @@ export default function BeritaDetail() {
 									className="w-full h-80 md:h-[400px] object-cover"
 									onError={(e) => {
 										const target = e.target as HTMLImageElement;
-										target.src = '/placeholder-berita.jpg';
+										target.src = DEFAULT_IMAGE_URL;
 									}}
 								/>
 							</div>
@@ -607,12 +608,12 @@ export default function BeritaDetail() {
 												onClick={() => setLocation(href)}>
 												<div className="aspect-video overflow-hidden">
 													<img
-														src={r.image || '/placeholder-berita.jpg'}
+														src={r.image || DEFAULT_IMAGE_URL}
 														alt={r.title}
 														className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
 														onError={(e) => {
 															(e.target as HTMLImageElement).src =
-																'/placeholder-berita.jpg';
+																DEFAULT_IMAGE_URL;
 														}}
 													/>
 												</div>

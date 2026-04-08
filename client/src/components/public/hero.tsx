@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { HeroBannerContent, HeroDesktopText, HeroMobileSlideshow, HeroPersonContent, HeroScrollIndicator, homeImageVersionSuffix, versionHomeImageUrls, useHeroPreviewOverrides } from './hero-renderer';
 import { useTenant } from '@/lib/tenant-context';
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
 interface HeroProps {
 	scrollToSection: (id: string) => void;
@@ -60,14 +61,14 @@ interface BannerSlotDef {
 }
 
 const DEFAULT_BANNERS: Record<string, string> = {
-	ketua: '/attached_assets/benner/ketua.webp',
-	wakil_ketua: '/attached_assets/benner/wakil.webp',
-	intelektual: '/attached_assets/benner/intelek.webp',
-	public_relation: '/attached_assets/benner/pr.webp',
-	technopreneurship: '/attached_assets/benner/techno.webp',
-	senor: '/attached_assets/benner/senor.webp',
-	medinfo: '/attached_assets/benner/medinfo.webp',
-	religius: '/attached_assets/benner/religius.webp',
+	ketua: DEFAULT_IMAGE_URL,
+	wakil_ketua: DEFAULT_IMAGE_URL,
+	intelektual: DEFAULT_IMAGE_URL,
+	public_relation: DEFAULT_IMAGE_URL,
+	technopreneurship: DEFAULT_IMAGE_URL,
+	senor: DEFAULT_IMAGE_URL,
+	medinfo: DEFAULT_IMAGE_URL,
+	religius: DEFAULT_IMAGE_URL,
 };
 
 const DEFAULT_SLOT_ORDER = [
@@ -165,9 +166,9 @@ export default function Hero({
 
 	const versionSuffix = homeImageVersionSuffix(homeImages?.updatedAt);
 	const bennerfullSrc =
-		(homeImages?.bennerfull || '/attached_assets/general/bennerfull.webp') + versionSuffix;
+		(homeImages?.bennerfull || DEFAULT_IMAGE_URL) + versionSuffix;
 	const orangSrc =
-		(homeImages?.orang || '/attached_assets/general/orang.webp') + versionSuffix;
+		(homeImages?.orang || DEFAULT_IMAGE_URL) + versionSuffix;
 	const desktopBackgroundSrc = homeImages?.desktopBackground
 		? homeImages.desktopBackground + versionSuffix
 		: '';
