@@ -2,6 +2,7 @@ import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
 	Select,
 	SelectContent,
@@ -19,6 +20,7 @@ import {
 	FlaskConical,
 	GraduationCap,
 	Loader2,
+	ShieldCheck,
 	Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -30,11 +32,11 @@ function slugFromProfileUrl(profileUrl: string): string {
 	return (parts[parts.length - 1] || '').toLowerCase().trim();
 }
 
-type ProdiTabValue = 'profil' | 'dosen' | 'kurikulum' | 'laboratorium';
+type ProdiTabValue = 'profil' | 'dosen' | 'kurikulum' | 'laboratorium' | 'akreditasi';
 
 function readTabFromUrl(): ProdiTabValue {
 	const raw = new URLSearchParams(window.location.search).get('tab')?.toLowerCase()?.trim();
-	if (raw === 'kurikulum' || raw === 'laboratorium' || raw === 'dosen') return raw;
+	if (raw === 'kurikulum' || raw === 'laboratorium' || raw === 'dosen' || raw === 'akreditasi') return raw;
 	return 'profil';
 }
 
@@ -113,10 +115,11 @@ export default function ProdiPage() {
 	const lecturers = data?.lecturers;
 	const curriculum = data?.curriculum;
 	const laboratories = data?.laboratories;
+	const accreditation = data?.accreditation;
 	const curriculumMeta = data?.curriculumMeta;
 	const curriculumByYear = data?.curriculumByYear;
 
-	const hasContent = profile || lecturers || curriculum || laboratories;
+	const hasContent = profile || lecturers || curriculum || laboratories || accreditation;
 
 	return (
 		<div className="min-h-screen bg-background relative">
@@ -182,6 +185,9 @@ export default function ProdiPage() {
 							<TabsTrigger value="laboratorium" className="gap-2 px-4 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<FlaskConical className="h-4 w-4 shrink-0" /> Laboratorium
 							</TabsTrigger>
+							<TabsTrigger value="akreditasi" className="gap-2 px-4 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+								<ShieldCheck className="h-4 w-4 shrink-0" /> Akreditasi
+							</TabsTrigger>
 						</TabsList>
 
 						<TabsContent value="profil" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
@@ -201,6 +207,9 @@ export default function ProdiPage() {
 						</TabsContent>
 						<TabsContent value="laboratorium" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
 							{laboratories && <LaboratoriesSection data={laboratories} />}
+						</TabsContent>
+						<TabsContent value="akreditasi" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
+							{accreditation && <AccreditationSection data={accreditation} />}
 						</TabsContent>
 					</Tabs>
 				</div>
@@ -486,35 +495,77 @@ function CurriculumSection({
 
 	const [selectedYear, setSelectedYear] = useState<number | null>(null);
 	const effectiveYear = selectedYear ?? defaultYear;
+	const formatRange = (year: number) => `${year}-${year + 4}`;
 
 	const displayData = (effectiveYear != null && curriculumByYear?.[effectiveYear])
 		? curriculumByYear[effectiveYear]
 		: data;
+	const periodText = displayData?.periodLabel || (effectiveYear ? formatRange(effectiveYear) : '');
 
 	return (
 		<div className="space-y-10">
 			{availableYears.length > 1 && (
-				<SectionCard title="Pilih Tahun Kurikulum / Angkatan">
+				<SectionCard title="Pilih Kurikulum">
 					<div className="flex items-center gap-3 flex-wrap">
 						<Select
 							value={String(effectiveYear ?? '')}
 							onValueChange={(v) => setSelectedYear(parseInt(v, 10))}
 						>
 							<SelectTrigger className="w-52">
-								<SelectValue placeholder="Pilih tahun angkatan" />
+								<SelectValue placeholder="Pilih tahun kurikulum" />
 							</SelectTrigger>
 							<SelectContent>
 								{availableYears.map((y) => (
 									<SelectItem key={y} value={String(y)}>
-										Angkatan {y} {y === activeYear ? '(Aktif)' : ''}
+										Kurikulum {formatRange(y)} {y === activeYear ? '(Aktif)' : ''}
 									</SelectItem>
 								))}
 							</SelectContent>
 						</Select>
 						{effectiveYear != null && (
 							<span className="text-sm text-muted-foreground">
-								Menampilkan kurikulum tahun {effectiveYear}
+								Menampilkan kurikulum periode {formatRange(effectiveYear)}
 							</span>
+						)}
+					</div>
+				</SectionCard>
+			)}
+
+			{(displayData?.curriculumUrl || displayData?.officialUrl || displayData?.guidebookUrl) && (
+				<SectionCard title="Referensi Resmi">
+					<div className="flex flex-wrap gap-3">
+						{displayData?.curriculumUrl && (
+							<a
+								href={displayData.curriculumUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+							>
+								Halaman Kurikulum {periodText || ''}
+								<ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+							</a>
+						)}
+						{displayData?.guidebookUrl && (
+							<a
+								href={displayData.guidebookUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+							>
+								Guidebook {periodText || ''}
+								<ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+							</a>
+						)}
+						{displayData?.officialUrl && (
+							<a
+								href={displayData.officialUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-2 rounded-lg border border-border px-4 py-2.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors"
+							>
+								Daftar Kurikulum Resmi
+								<ExternalLink className="w-3.5 h-3.5 text-muted-foreground" />
+							</a>
 						)}
 					</div>
 				</SectionCard>
@@ -522,13 +573,25 @@ function CurriculumSection({
 
 			{displayData.graduateProfile?.length > 0 && (
 				<SectionCard title="Profil Lulusan">
-					<div className="space-y-3">
-						{displayData.graduateProfile.map((gp: any, i: number) => (
-							<div key={i} className="flex gap-3 text-sm">
-								{gp.no && <span className="font-mono text-muted-foreground min-w-[2rem]">{gp.no}</span>}
-								<span className="text-foreground">{gp.description}</span>
-							</div>
-						))}
+					<div className="overflow-x-auto">
+						<table className="w-full text-sm border-collapse">
+							<thead>
+								<tr className="border-b bg-muted/50">
+									<th className="text-left p-2 font-medium text-muted-foreground w-14">No</th>
+									<th className="text-left p-2 font-medium text-muted-foreground">Description</th>
+									<th className="text-left p-2 font-medium text-muted-foreground w-[32%]">Profession</th>
+								</tr>
+							</thead>
+							<tbody>
+								{displayData.graduateProfile.map((gp: any, i: number) => (
+									<tr key={i} className="border-b hover:bg-muted/30 transition-colors align-top">
+										<td className="p-2 text-muted-foreground">{gp.no || i + 1}</td>
+										<td className="p-2 text-foreground">{gp.description || '-'}</td>
+										<td className="p-2 text-foreground whitespace-pre-line">{gp.profession || '-'}</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
 					</div>
 				</SectionCard>
 			)}
@@ -552,7 +615,7 @@ function CurriculumSection({
 			)}
 
 			{displayData.semesters?.length > 0 && (
-				<SectionCard title={`Distribusi Mata Kuliah Per Semester${effectiveYear ? ` — Kurikulum ${effectiveYear}` : ''}`}>
+				<SectionCard title={`Distribusi Mata Kuliah Per Semester${periodText ? ` — Kurikulum ${periodText}` : ''}`}>
 					<SemesterTabs semesters={displayData.semesters} />
 				</SectionCard>
 			)}
@@ -635,6 +698,146 @@ function SubjectTable({ subjects, totalSks }: { subjects: any[]; totalSks?: stri
 					</tfoot>
 				)}
 			</table>
+		</div>
+	);
+}
+
+function AccreditationSection({ data }: { data: any }) {
+	const [preview, setPreview] = useState<{ title: string; url: string } | null>(null);
+	const [selectedLevel, setSelectedLevel] = useState<'s1' | 's2' | 's3'>('s1');
+	const levels = [
+		{ key: 's1', label: 'Undergraduate (S1)' },
+		{ key: 's2', label: 'Master (S2)' },
+		{ key: 's3', label: 'Doctoral (S3)' },
+	] as const;
+	const resolvePreviewUrl = (url: string): string => {
+		const m = url.match(/drive\.google\.com\/file\/d\/([^/]+)\//i);
+		if (m) return `https://drive.google.com/file/d/${m[1]}/preview`;
+		return url;
+	};
+	const isImageUrl = (url: string): boolean => /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url);
+	const toProxyPreviewUrl = (url: string): string => `/api/prodi/preview?url=${encodeURIComponent(resolvePreviewUrl(url))}`;
+	const active = levels.find((x) => x.key === selectedLevel) || levels[0];
+	const levelData = data?.[active.key];
+	const items = levelData?.items ?? [];
+	let lastGroup = '';
+
+	return (
+		<div className="space-y-10">
+			<SectionCard title="Akreditasi">
+				<div className="flex items-center gap-3 mb-4">
+					<Select value={active.key} onValueChange={(v) => setSelectedLevel(v as 's1' | 's2' | 's3')}>
+						<SelectTrigger className="w-60">
+							<SelectValue placeholder="Pilih jenjang" />
+						</SelectTrigger>
+						<SelectContent>
+							{levels.map((lvl) => (
+								<SelectItem key={lvl.key} value={lvl.key}>
+									{lvl.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
+
+				{levelData?.sourceUrl && (
+					<a
+						href={levelData.sourceUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="inline-flex items-center gap-1.5 mb-4 text-sm text-primary hover:underline"
+					>
+						Sumber resmi {active.label}
+						<ExternalLink className="w-3.5 h-3.5" />
+					</a>
+				)}
+
+				{items.length > 0 ? (
+					<div className="overflow-x-auto">
+						<table className="w-full text-sm border-collapse">
+							<thead>
+								<tr className="border-b bg-muted/50">
+									<th className="text-left p-2 font-medium text-muted-foreground w-56">Kategori/Periode</th>
+									<th className="text-left p-2 font-medium text-muted-foreground">Judul Dokumen</th>
+									<th className="text-left p-2 font-medium text-muted-foreground w-36">Download</th>
+								</tr>
+							</thead>
+							<tbody>
+								{items.map((item: any, i: number) => {
+									const currentGroup = item.group || item.yearLabel || '-';
+									const showGroup = currentGroup !== lastGroup;
+									lastGroup = currentGroup;
+									return (
+										<tr key={i} className="border-b hover:bg-muted/30 transition-colors">
+											<td className="p-2 text-foreground">
+												{showGroup ? currentGroup : ''}
+											</td>
+											<td className="p-2 text-foreground">
+												{item.title}
+											</td>
+											<td className="p-2">
+												{item.downloadUrl ? (
+													<div className="flex flex-wrap gap-3 items-center">
+														<button
+															type="button"
+															onClick={() => setPreview({ title: item.title, url: item.downloadUrl })}
+															className="inline-flex items-center gap-1 text-primary hover:underline"
+														>
+															Buka
+															<ExternalLink className="w-3.5 h-3.5" />
+														</button>
+													</div>
+												) : (
+													<span className="text-muted-foreground">-</span>
+												)}
+											</td>
+										</tr>
+									);
+								})}
+							</tbody>
+						</table>
+					</div>
+				) : (
+					<p className="text-sm text-muted-foreground">
+						Belum tersedia.
+					</p>
+				)}
+			</SectionCard>
+			<Dialog open={!!preview} onOpenChange={(open) => { if (!open) setPreview(null); }}>
+				<DialogContent className="max-w-5xl w-[95vw]">
+					<DialogHeader>
+						<DialogTitle className="truncate">{preview?.title || 'Preview Dokumen'}</DialogTitle>
+					</DialogHeader>
+					<div className="border rounded-md overflow-hidden bg-muted/20">
+						{preview?.url ? (
+							isImageUrl(preview.url) ? (
+								<img
+									src={toProxyPreviewUrl(preview.url)}
+									alt={preview.title}
+									className="w-full max-h-[70vh] object-contain bg-background"
+								/>
+							) : (
+								<iframe
+									src={toProxyPreviewUrl(preview.url)}
+									title={preview.title}
+									className="w-full h-[70vh] bg-background"
+								/>
+							)
+						) : null}
+					</div>
+					{preview?.url && (
+						<a
+							href={preview.url}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
+						>
+							Buka di tab baru
+							<ExternalLink className="w-3.5 h-3.5" />
+						</a>
+					)}
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 }

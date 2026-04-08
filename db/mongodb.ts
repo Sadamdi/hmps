@@ -934,14 +934,35 @@ const subjectRpsResourceSchema = new mongoose.Schema({
 	parsedAt: { type: Date },
 }, { _id: false });
 
+const accreditationItemSchema = new mongoose.Schema({
+	group: { type: String, default: '' },
+	title: { type: String, default: '' },
+	downloadUrl: { type: String, default: '' },
+	yearLabel: { type: String, default: '' },
+	isPrimary: { type: Boolean, default: false },
+}, { _id: false });
+
+const accreditationLevelSchema = new mongoose.Schema({
+	title: { type: String, default: '' },
+	sourceUrl: { type: String, default: '' },
+	groups: [{ type: String }],
+	items: [accreditationItemSchema],
+	lastSyncedAt: { type: Date, default: null },
+	lastError: { type: String, default: '' },
+}, { _id: false });
+
 const curriculumYearEntrySchema = new mongoose.Schema({
 	academicYear: { type: Number, required: true },
+	periodLabel: { type: String, default: '' },
 	graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
 	knowledgeGroups: [{ type: String }],
 	structureSummary: { type: String, default: '' },
 	semesters: [semesterSchema],
 	optionalSubjects: [curriculumSubjectSchema],
 	subjectRpsResources: [subjectRpsResourceSchema],
+	guidebookUrl: { type: String, default: '' },
+	curriculumUrl: { type: String, default: '' },
+	officialUrl: { type: String, default: '' },
 	source: { type: String, enum: ['sync', 'manual'], default: 'sync' },
 	updatedAt: { type: Date, default: Date.now },
 }, { _id: false });
@@ -980,16 +1001,27 @@ const prodiContentSchema = new mongoose.Schema({
 			staff: [lecturerDetailSchema],
 		},
 		curriculum: {
+			periodLabel: { type: String, default: '' },
 			graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
 			knowledgeGroups: [{ type: String }],
 			structureSummary: { type: String, default: '' },
 			semesters: [semesterSchema],
 			optionalSubjects: [curriculumSubjectSchema],
 			subjectRpsResources: [subjectRpsResourceSchema],
+			guidebookUrl: { type: String, default: '' },
+			curriculumUrl: { type: String, default: '' },
+			officialUrl: { type: String, default: '' },
 		},
 		laboratories: {
 			teaching: [laboratorySchema],
 			research: [laboratorySchema],
+		},
+		accreditation: {
+			s1: { type: accreditationLevelSchema, default: () => ({}) },
+			s2: { type: accreditationLevelSchema, default: () => ({}) },
+			s3: { type: accreditationLevelSchema, default: () => ({}) },
+			s3ManualUrl: { type: String, default: '' },
+			lastSyncAt: { type: Date, default: null },
 		},
 	},
 

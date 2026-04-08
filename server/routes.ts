@@ -4659,6 +4659,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
+	app.get('/api/prodi/preview', async (req, res) => {
+		try {
+			const rawUrl = String(req.query?.url || '').trim();
+			if (!rawUrl) {
+				return res.status(400).json({ message: 'Parameter url wajib diisi' });
+			}
+			let parsed: URL;
+			try {
+				parsed = new URL(rawUrl);
+			} catch {
+				return res.status(400).json({ message: 'URL tidak valid' });
+			}
+			if (!['http:', 'https:'].includes(parsed.protocol)) {
+				return res.status(400).json({ message: 'Hanya URL http/https yang didukung' });
+			}
+
+			const controller = new AbortController();
+			const timeout = setTimeout(() => controller.abort(), 15000);
+
+			try {
+				const upstream = await fetch(parsed.toString(), {
+					redirect: 'follow',
+					signal: controller.signal,
+					headers: {
+						'User-Agent': 'HMPS-Prodi-Preview/1.0',
+						Accept: '*/*',
+					},
+				});
+
+				if (!upstream.ok) {
+					return res.status(upstream.status).json({
+						message: `Gagal memuat dokumen sumber (${upstream.status})`,
+					});
+				}
+
+				const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+				const contentDisposition = upstream.headers.get('content-disposition') || 'inline';
+				const cacheControl = upstream.headers.get('cache-control') || 'public, max-age=300';
+				const buffer = Buffer.from(await upstream.arrayBuffer());
+
+				res.setHeader('Content-Type', contentType);
+				res.setHeader('Content-Disposition', contentDisposition.includes('attachment') ? contentDisposition.replace('attachment', 'inline') : contentDisposition);
+				res.setHeader('Cache-Control', cacheControl);
+				res.setHeader('X-Content-Type-Options', 'nosniff');
+				return res.send(buffer);
+			} finally {
+				clearTimeout(timeout);
+			}
+		} catch (error: any) {
+			const aborted = error?.name === 'AbortError';
+			if (aborted) {
+				return res.status(504).json({ message: 'Timeout saat mengambil dokumen preview' });
+			}
+			console.error('Prodi preview proxy error:', error);
+			return res.status(500).json({ message: 'Gagal memuat preview dokumen' });
+		}
+	});
+
 	app.get(
 		'/api/prodi/manage',
 		authenticate,
@@ -4865,7 +4923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(409).json({ message: 'Sync sedang berjalan' });
 				}
 				const scope = (req.body?.scope || 'all') as string;
-				const validScopes = ['all', 'profile', 'lecturers', 'curriculum', 'labs'];
+				const validScopes = ['all', 'profile', 'lecturers', 'curriculum', 'labs', 'accreditation'];
 				if (!validScopes.includes(scope)) {
 					return res.status(400).json({ message: `Scope tidak valid. Pilih: ${validScopes.join(', ')}` });
 				}
@@ -4874,10 +4932,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const result = await runProdiSyncScoped(scope as any, { overwrite });
 
 				if (result.curriculumYearAction === 'needs_confirm') {
+					const years = result.curriculumNeedsConfirmYears ?? (result.curriculumTargetYear ? [result.curriculumTargetYear] : []);
 					return res.status(200).json({
-						message: `Data kurikulum tahun ${result.curriculumTargetYear} sudah ada. Konfirmasi overwrite?`,
+						message: years.length > 1
+							? `Data kurikulum tahun ${years.join(', ')} sudah ada. Konfirmasi overwrite?`
+							: `Data kurikulum tahun ${years[0] ?? result.curriculumTargetYear} sudah ada. Konfirmasi overwrite?`,
 						needsConfirm: true,
 						curriculumTargetYear: result.curriculumTargetYear,
+						curriculumNeedsConfirmYears: years,
 						summary: result,
 					});
 				}

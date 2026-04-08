@@ -1201,7 +1201,7 @@ async function getProdiContentPublic(): Promise<any> {
 	const content = doc.content ? JSON.parse(JSON.stringify(doc.content)) : {};
 	const entries: any[] = doc.curriculumByYear ?? [];
 	const availableYears = entries.map((e: any) => e.academicYear as number).sort((a: number, b: number) => b - a);
-	const activeYear = resolveAcademicYearByDate(new Date());
+	const activeYear = resolveActiveCurriculumYear(entries);
 	content.curriculumMeta = { availableYears, activeYear };
 	// Build a map of all curriculum year data so frontend can switch
 	content.curriculumByYear = {};
@@ -1266,6 +1266,18 @@ async function setProdiSyncStatus(status: 'idle' | 'syncing' | 'error', error?: 
 
 // ─── Curriculum By Year helpers ───
 
+function resolveActiveCurriculumYear(entries: any[]): number {
+	const nowYear = new Date().getFullYear();
+	const years = (entries ?? [])
+		.map((e: any) => e.academicYear as number)
+		.filter((y: number) => Number.isFinite(y))
+		.sort((a: number, b: number) => a - b);
+	if (!years.length) return nowYear;
+	const candidates = years.filter((y: number) => y <= nowYear);
+	if (candidates.length > 0) return candidates[candidates.length - 1];
+	return years[years.length - 1];
+}
+
 function resolveAcademicYearByDate(date: Date): number {
 	const month = date.getMonth() + 1; // 1-12
 	const year = date.getFullYear();
@@ -1285,12 +1297,16 @@ async function ensureCurriculumByYearMigrated(): Promise<void> {
 
 	const entry = {
 		academicYear: 2025,
+		periodLabel: '2025-2029',
 		graduateProfile: legacy.graduateProfile ?? [],
 		knowledgeGroups: legacy.knowledgeGroups ?? [],
 		structureSummary: legacy.structureSummary ?? '',
 		semesters: legacy.semesters ?? [],
 		optionalSubjects: legacy.optionalSubjects ?? [],
 		subjectRpsResources: legacy.subjectRpsResources ?? [],
+		guidebookUrl: legacy.guidebookUrl ?? '',
+		curriculumUrl: legacy.curriculumUrl ?? '',
+		officialUrl: legacy.officialUrl ?? '',
 		source: 'sync' as const,
 		updatedAt: new Date(),
 	};
@@ -1316,7 +1332,7 @@ async function getProdiCurriculumByYear(year?: number): Promise<any> {
 		const found = entries.find((e: any) => e.academicYear === year);
 		return found ? found.toObject?.() ?? found : null;
 	}
-	const activeYear = resolveAcademicYearByDate(new Date());
+	const activeYear = resolveActiveCurriculumYear(entries);
 	const found = entries.find((e: any) => e.academicYear === activeYear);
 	if (found) return found.toObject?.() ?? found;
 	const sorted = [...entries].sort((a: any, b: any) => b.academicYear - a.academicYear);
@@ -1340,12 +1356,16 @@ async function upsertProdiCurriculumByYear(
 
 	const entry = {
 		academicYear: year,
+		periodLabel: payload.periodLabel ?? `${year}-${year + 4}`,
 		graduateProfile: payload.graduateProfile ?? [],
 		knowledgeGroups: payload.knowledgeGroups ?? [],
 		structureSummary: payload.structureSummary ?? '',
 		semesters: payload.semesters ?? [],
 		optionalSubjects: payload.optionalSubjects ?? [],
 		subjectRpsResources: payload.subjectRpsResources ?? [],
+		guidebookUrl: payload.guidebookUrl ?? '',
+		curriculumUrl: payload.curriculumUrl ?? '',
+		officialUrl: payload.officialUrl ?? '',
 		source: payload.source ?? 'sync',
 		updatedAt: new Date(),
 	};
@@ -1367,6 +1387,10 @@ async function upsertProdiCurriculumByYear(
 	(doc as any).content.curriculum.graduateProfile = entry.graduateProfile;
 	(doc as any).content.curriculum.knowledgeGroups = entry.knowledgeGroups;
 	(doc as any).content.curriculum.structureSummary = entry.structureSummary;
+	(doc as any).content.curriculum.periodLabel = entry.periodLabel;
+	(doc as any).content.curriculum.guidebookUrl = entry.guidebookUrl;
+	(doc as any).content.curriculum.curriculumUrl = entry.curriculumUrl;
+	(doc as any).content.curriculum.officialUrl = entry.officialUrl;
 	doc.markModified('content');
 
 	await doc.save();

@@ -8,9 +8,12 @@ import { deleteFile } from '../upload';
 const SOURCES = {
 	profile: 'https://informatika.uin-malang.ac.id/undergraduate-s1/',
 	lecturers: 'https://informatika.uin-malang.ac.id/lecturer-and-staff/',
-	curriculum: 'https://informatika.uin-malang.ac.id/curriculum/',
+	curriculumIndex: 'https://informatika.uin-malang.ac.id/curriculum-for-undergraduate/',
+	curriculumLegacy: 'https://informatika.uin-malang.ac.id/curriculum/',
 	teachingLab: 'https://informatika.uin-malang.ac.id/teaching-laboratory/',
 	researchLab: 'https://informatika.uin-malang.ac.id/research-laboratory/',
+	accreditationS1: 'https://informatika.uin-malang.ac.id/accreditation-certificate-for-undergraduate-s1/',
+	accreditationS2: 'https://informatika.uin-malang.ac.id/accreditation-certificate-for-master-s2/',
 };
 
 const BASE_URL = 'https://informatika.uin-malang.ac.id';
@@ -869,8 +872,135 @@ function parseCurriculumAccordionPanels(
 	}
 }
 
-async function parseCurriculum(): Promise<any> {
-	const $ = await fetchPage(SOURCES.curriculum);
+function parseCurriculumAccordionMeta(
+	$: cheerio.CheerioAPI,
+	root: cheerio.Cheerio<any>,
+): { graduateProfile: any[]; knowledgeGroups: string[]; structureSummary: string; guidebookUrl: string } {
+	const graduateProfile: any[] = [];
+	const knowledgeGroups: string[] = [];
+	let structureSummary = '';
+	let guidebookUrl = '';
+
+	let panels = root.find('details').toArray();
+	if (!panels.length) panels = root.find('.e-n-accordion-item').toArray();
+
+	for (const detEl of panels) {
+		const $det = $(detEl);
+		const summaryText = getDetailsSummaryText($, $det);
+		if (!summaryText) continue;
+		const lower = summaryText.toLowerCase();
+
+		if (lower.includes('guidebook')) {
+			const href = normalizeHref($det.find('a[href]').first().attr('href') || '');
+			if (href) guidebookUrl = href;
+			continue;
+		}
+
+		if (lower.includes('graduate profile')) {
+			$det.find('table').each((_j, tbl) => {
+				graduateProfile.push(...parseGraduateProfileTable($, $(tbl)));
+			});
+			if (!graduateProfile.length) {
+				$det.find('ul > li, ol > li').each((_j, li) => {
+					const t = cleanText($(li));
+					if (t) graduateProfile.push({ description: t });
+				});
+			}
+			continue;
+		}
+
+		if (lower.includes('knowledge group')) {
+			$det.find('ol > li, ul > li').each((_j, li) => {
+				const t = cleanText($(li));
+				if (t) knowledgeGroups.push(t);
+			});
+			continue;
+		}
+
+		if (lower.includes('structure of curriculum')) {
+			$det.find('p').each((_j, p) => {
+				const t = cleanText($(p));
+				if (t) structureSummary += (structureSummary ? '\n' : '') + t;
+			});
+			$det.find('ul > li, ol > li').each((_j, li) => {
+				const t = cleanText($(li));
+				if (t) structureSummary += '\n• ' + t;
+			});
+			continue;
+		}
+	}
+
+	return { graduateProfile, knowledgeGroups, structureSummary, guidebookUrl };
+}
+
+function parseGraduateProfileTable($: cheerio.CheerioAPI, $table: cheerio.Cheerio<any>): any[] {
+	const rows: any[] = [];
+	let carryProfession = '';
+	const readCell = ($cell: cheerio.Cheerio<any>): string => {
+		if (!$cell.length) return '';
+		const items = $cell.find('li').toArray().map((li) => cleanText($(li))).filter(Boolean);
+		if (items.length > 0) return items.map((x) => `• ${x}`).join('\n');
+		return cleanText($cell);
+	};
+
+	$table.find('tr').each((_i, tr) => {
+		const $tr = $(tr);
+		const cells = $tr.find('th,td');
+		if (cells.length < 2) return;
+
+		const no = cleanText(cells.eq(0));
+		if (!no || /^no\.?$/i.test(no) || !/^\d+$/i.test(no)) return;
+
+		const description = cleanText(cells.eq(1));
+		if (!description) return;
+
+		let profession = '';
+		// Pada tabel 2020 kolom profession memakai rowspan.
+		if (cells.length >= 4) profession = readCell(cells.eq(3)) || readCell(cells.eq(2));
+		else if (cells.length === 3) profession = readCell(cells.eq(2));
+		if (!profession && carryProfession) profession = carryProfession;
+		if (profession) carryProfession = profession;
+
+		rows.push({ no, description, profession });
+	});
+
+	return rows;
+}
+
+type CurriculumIndexEntry = { year: number; url: string };
+
+async function parseCurriculumIndexEntries(): Promise<CurriculumIndexEntry[]> {
+	const $ = await fetchPage(SOURCES.curriculumIndex);
+	const root = getContentRoot($);
+	if (!root.length) return [];
+
+	const byYear = new Map<number, string>();
+	root.find('a[href]').each((_i, a) => {
+		const $a = $(a);
+		const href = normalizeHref($a.attr('href') || '');
+		if (!href || !href.startsWith(BASE_URL)) return;
+		const txt = cleanText($a);
+		const parentTxt = cleanText($a.closest('h1,h2,h3,h4,h5,h6,p,div').first());
+		const merged = `${txt} ${parentTxt}`.trim();
+		const m = merged.match(/curriculum\s*(\d{4})/i);
+		if (!m) return;
+		const year = parseInt(m[1], 10);
+		if (!Number.isFinite(year) || year < 2000 || year > 2100) return;
+		if (!byYear.has(year)) byYear.set(year, href);
+	});
+
+	// Fallback jika index belum lengkap, tetap dukung sumber lama.
+	if (byYear.size === 0) {
+		byYear.set(2020, SOURCES.curriculumLegacy);
+	}
+
+	return Array.from(byYear.entries())
+		.map(([year, url]) => ({ year, url }))
+		.sort((a, b) => a.year - b.year);
+}
+
+async function parseCurriculumFromUrl(curriculumUrl: string): Promise<any> {
+	const $ = await fetchPage(curriculumUrl);
 	const root = getContentRoot($);
 	if (!root.length) return {};
 
@@ -879,6 +1009,7 @@ async function parseCurriculum(): Promise<any> {
 	let structureSummary = '';
 	const semesters: any[] = [];
 	const optionalSubjects: any[] = [];
+	let guidebookUrl = '';
 
 	let currentSection = '';
 
@@ -890,6 +1021,11 @@ async function parseCurriculum(): Promise<any> {
 	}
 
 	parseCurriculumAccordionPanels($, root, semesters, optionalSubjects, ensureSemester);
+	const accordionMeta = parseCurriculumAccordionMeta($, root);
+	if (accordionMeta.graduateProfile.length > 0) graduateProfile.push(...accordionMeta.graduateProfile);
+	if (accordionMeta.knowledgeGroups.length > 0) knowledgeGroups.push(...accordionMeta.knowledgeGroups);
+	if (accordionMeta.structureSummary.trim()) structureSummary = accordionMeta.structureSummary.trim();
+	if (accordionMeta.guidebookUrl) guidebookUrl = accordionMeta.guidebookUrl;
 
 	console.log(
 		`Curriculum accordion parse result: ${semesters.length} semesters (${semesters.map((s: any) => `sem${s.semester}:${s.subjects?.length ?? 0}`).join(', ')}), optionalSubjects=${optionalSubjects.length}`,
@@ -917,18 +1053,7 @@ async function parseCurriculum(): Promise<any> {
 		switch (currentSection) {
 			case 'graduateProfile':
 				if (tag === 'table') {
-					$el.find('tr').each((_j, tr) => {
-						const cells = $(tr).find('td');
-						if (cells.length >= 2) {
-							const no = cleanText(cells.eq(0));
-							if (/^no\.?$/i.test(no)) return;
-							graduateProfile.push({
-								no,
-								description: cleanText(cells.eq(1)),
-								profession: cells.length >= 3 ? cleanText(cells.eq(2)) : '',
-							});
-						}
-					});
+					graduateProfile.push(...parseGraduateProfileTable($, $el));
 				} else if (tag === 'ul' || tag === 'ol') {
 					$el.find('> li').each((_j, li) => {
 						const t = cleanText($(li));
@@ -959,7 +1084,15 @@ async function parseCurriculum(): Promise<any> {
 	});
 
 	semesters.sort((a: any, b: any) => a.semester - b.semester);
-	return { graduateProfile, knowledgeGroups, structureSummary, semesters, optionalSubjects };
+	return {
+		graduateProfile,
+		knowledgeGroups,
+		structureSummary,
+		semesters,
+		optionalSubjects,
+		guidebookUrl,
+		curriculumUrl,
+	};
 }
 
 // ─── Subject RPS resources parser ───
@@ -1369,6 +1502,148 @@ function countLecturerLinks(data: { headAndSecretary: any[]; groups: LecturerGro
 	return n;
 }
 
+type AccreditationItem = {
+	group: string;
+	title: string;
+	downloadUrl: string;
+	yearLabel: string;
+	isPrimary: boolean;
+};
+
+type AccreditationLevel = {
+	title: string;
+	sourceUrl: string;
+	groups: string[];
+	items: AccreditationItem[];
+	lastSyncedAt: Date | null;
+	lastError: string;
+};
+
+function looksLikeDocumentUrl(url: string): boolean {
+	const u = (url || '').toLowerCase();
+	return (
+		u.includes('drive.google.com') ||
+		u.endsWith('.pdf') ||
+		u.endsWith('.jpg') ||
+		u.endsWith('.jpeg') ||
+		u.endsWith('.png') ||
+		u.endsWith('.webp')
+	);
+}
+
+function parseYearLabel(text: string): string {
+	const m = (text || '').match(/(19|20)\d{2}(?:\s*[-–]\s*(19|20)\d{2})?/);
+	return m ? m[0].replace(/\s+/g, '') : '';
+}
+
+async function parseAccreditationLevel(sourceUrl: string, fallbackTitle: string): Promise<AccreditationLevel> {
+	const $ = await fetchPage(sourceUrl);
+	const root = getContentRoot($);
+	const groups: string[] = [];
+	const items: AccreditationItem[] = [];
+
+	const heading =
+		cleanText(root.find('h1,h2').first()) ||
+		fallbackTitle;
+
+	root.find('table').each((_ti, tbl) => {
+		const $tbl = $(tbl);
+		const rows = $tbl.find('tr').toArray();
+		if (!rows.length) return;
+
+		let titleIdx = 0;
+		let downloadIdx = 1;
+		for (const tr of rows.slice(0, 2)) {
+			const cells = $(tr).find('th,td');
+			const labels = cells.toArray().map((c) => cleanText($(c)).toLowerCase());
+			const ti = labels.findIndex((x) => x.includes('title'));
+			const di = labels.findIndex((x) => x.includes('download'));
+			if (ti >= 0) titleIdx = ti;
+			if (di >= 0) downloadIdx = di;
+		}
+
+		let currentGroup = '';
+		for (const tr of rows) {
+			const cells = $(tr).find('td,th');
+			if (cells.length < 1) continue;
+
+			const titleCell = cells.eq(titleIdx);
+			const title = cleanText(titleCell);
+			const linkInDownload = cells.eq(downloadIdx).find('a[href]').attr('href') || '';
+			const linkInTitle = titleCell.find('a[href]').attr('href') || '';
+			const rawUrl = normalizeHref(linkInDownload || linkInTitle);
+
+			if (!title) continue;
+			if (title.toLowerCase() === 'title') continue;
+			if (title.toLowerCase() === 'download') continue;
+
+			const isGroupRow = !rawUrl && (titleCell.find('strong').length > 0 || /^[A-Z0-9\s:().-]+$/.test(title));
+			if (isGroupRow) {
+				currentGroup = title;
+				if (!groups.includes(currentGroup)) groups.push(currentGroup);
+				continue;
+			}
+
+			if (!looksLikeDocumentUrl(rawUrl) && !rawUrl) continue;
+			items.push({
+				group: currentGroup,
+				title,
+				downloadUrl: rawUrl,
+				yearLabel: parseYearLabel(title || currentGroup),
+				isPrimary: /sertifikat akreditasi|sk sertifikat/i.test(title),
+			});
+		}
+	});
+
+	// fallback jika struktur table berubah.
+	if (items.length === 0) {
+		root.find('a[href]').each((_i, a) => {
+			const $a = $(a);
+			const url = normalizeHref($a.attr('href') || '');
+			if (!url || !looksLikeDocumentUrl(url)) return;
+			const title = cleanText($a.closest('tr,li,p,div').first()) || cleanText($a);
+			if (!title) return;
+			items.push({
+				group: '',
+				title,
+				downloadUrl: url,
+				yearLabel: parseYearLabel(title),
+				isPrimary: /sertifikat akreditasi|sk sertifikat/i.test(title),
+			});
+		});
+	}
+
+	return {
+		title: heading,
+		sourceUrl,
+		groups,
+		items,
+		lastSyncedAt: new Date(),
+		lastError: '',
+	};
+}
+
+async function discoverAccreditationS3Url(): Promise<string> {
+	const seeds = [SOURCES.accreditationS1, SOURCES.accreditationS2, BASE_URL];
+	const candidates = new Set<string>();
+	for (const seed of seeds) {
+		try {
+			const $ = await fetchPage(seed);
+			$('a[href]').each((_i, a) => {
+				const href = normalizeHref($(a).attr('href') || '');
+				if (!href.startsWith(BASE_URL)) return;
+				const low = href.toLowerCase();
+				if (!low.includes('accreditation')) return;
+				if (low.includes('undergraduate-s1') || low.includes('master-s2')) return;
+				if (/(s3|doctor|doctoral|phd)/i.test(low)) candidates.add(href);
+			});
+		} catch {
+			// ignore single-source failure
+		}
+	}
+	return Array.from(candidates)[0] || '';
+}
+
 function validateCrawledContent(
 	profile: any,
 	lecturerData: { headAndSecretary: any[]; groups: LecturerGroup[]; staff: any[] } | null,
@@ -1460,11 +1735,15 @@ function findOldLecturerPhotoUrl(existingContent: any, slug: string): string | u
 
 // ─── Scoped sync types ───
 
-export type ProdiSyncScope = 'all' | 'profile' | 'lecturers' | 'curriculum' | 'labs';
+export type ProdiSyncScope = 'all' | 'profile' | 'lecturers' | 'curriculum' | 'labs' | 'accreditation';
 
 export type ProdiSyncScopedResult = ProdiSyncSummary & {
 	curriculumYearAction?: 'created' | 'overwritten' | 'needs_confirm';
 	curriculumTargetYear?: number;
+	curriculumProcessedYears?: number[];
+	curriculumCreatedYears?: number[];
+	curriculumOverwrittenYears?: number[];
+	curriculumNeedsConfirmYears?: number[];
 };
 
 // ─── Scoped sync orchestrator ───
@@ -1487,15 +1766,22 @@ export async function runProdiSyncScoped(
 	let profile: any = null;
 	let lecturerData: { headAndSecretary: any[]; groups: LecturerGroup[]; staff: any[] } | null = null;
 	let curriculum: any = null;
+	let curriculumByYearParsed: { year: number; url: string; payload: any }[] = [];
 	let teachingLabs: any[] | null = null;
 	let researchLabs: any[] | null = null;
+	let accreditation: any = null;
 	let curriculumYearAction: 'created' | 'overwritten' | 'needs_confirm' | undefined;
 	let curriculumTargetYear: number | undefined;
+	let curriculumProcessedYears: number[] = [];
+	let curriculumCreatedYears: number[] = [];
+	let curriculumOverwrittenYears: number[] = [];
+	let curriculumNeedsConfirmYears: number[] = [];
 
 	const doProfile = scope === 'all' || scope === 'profile';
 	const doLecturers = scope === 'all' || scope === 'lecturers';
 	const doCurriculum = scope === 'all' || scope === 'curriculum';
 	const doLabs = scope === 'all' || scope === 'labs';
+	const doAccreditation = scope === 'all' || scope === 'accreditation';
 
 	try {
 		await mongoStorage.setProdiSyncStatus('syncing');
@@ -1506,7 +1792,24 @@ export async function runProdiSyncScoped(
 
 		if (doProfile) { tasks.push(parseProfile().catch(e => { console.error('Profile parse error:', e); return null; })); taskNames.push('profile'); }
 		if (doLecturers) { tasks.push(parseLecturerList().catch(e => { console.error('Lecturer list parse error:', e); return null; })); taskNames.push('lecturers'); }
-		if (doCurriculum) { tasks.push(parseCurriculum().catch(e => { console.error('Curriculum parse error:', e); return null; })); taskNames.push('curriculum'); }
+		if (doCurriculum) {
+			tasks.push(
+				(async () => {
+					const entries = await parseCurriculumIndexEntries();
+					const parsed: { year: number; url: string; payload: any }[] = [];
+					for (const entry of entries) {
+						try {
+							const payload = await parseCurriculumFromUrl(entry.url);
+							parsed.push({ year: entry.year, url: entry.url, payload });
+						} catch (err) {
+							console.error(`Curriculum parse error for year ${entry.year}:`, err);
+						}
+					}
+					return parsed;
+				})().catch(e => { console.error('Curriculum parse error:', e); return []; }),
+			);
+			taskNames.push('curriculum');
+		}
 		if (doLabs) {
 			tasks.push(parseLaboratories('teaching').catch(e => { console.error('Teaching lab parse error:', e); return null; }));
 			tasks.push(parseLaboratories('research').catch(e => { console.error('Research lab parse error:', e); return null; }));
@@ -1518,9 +1821,14 @@ export async function runProdiSyncScoped(
 		for (const name of taskNames) {
 			if (name === 'profile') profile = results[ri++];
 			else if (name === 'lecturers') lecturerData = results[ri++];
-			else if (name === 'curriculum') curriculum = results[ri++];
+			else if (name === 'curriculum') curriculumByYearParsed = results[ri++] || [];
 			else if (name === 'teachingLab') teachingLabs = results[ri++];
 			else if (name === 'researchLab') researchLabs = results[ri++];
+		}
+
+		if (doCurriculum && curriculumByYearParsed.length > 0) {
+			const sorted = [...curriculumByYearParsed].sort((a, b) => b.year - a.year);
+			curriculum = sorted[0].payload;
 		}
 
 		// Enrich lecturer details
@@ -1534,8 +1842,10 @@ export async function runProdiSyncScoped(
 		}
 
 		// Crawl RPS resources
-		if (doCurriculum && curriculum) {
-			await crawlRpsResources(curriculum);
+		if (doCurriculum && curriculumByYearParsed.length) {
+			for (const row of curriculumByYearParsed) {
+				await crawlRpsResources(row.payload);
+			}
 		}
 
 		// Cache images
@@ -1543,6 +1853,38 @@ export async function runProdiSyncScoped(
 		const existingContent = existingDoc?.content ?? {};
 		const overridesDoc = existingDoc?.overrides ?? {};
 		const cachedDestUrls = new Set<string>();
+
+		if (doAccreditation) {
+			const s3ManualUrl = (existingContent?.accreditation?.s3ManualUrl || '').trim();
+			const discoveredS3Url = s3ManualUrl || await discoverAccreditationS3Url();
+			const [s1, s2] = await Promise.all([
+				parseAccreditationLevel(SOURCES.accreditationS1, 'Accreditation Certificate For Undergraduate (S1)'),
+				parseAccreditationLevel(SOURCES.accreditationS2, 'Accreditation Certificate For Master (S2)'),
+			]);
+			let s3: AccreditationLevel = {
+				title: 'Accreditation Certificate For Doctoral (S3)',
+				sourceUrl: discoveredS3Url,
+				groups: [],
+				items: [],
+				lastSyncedAt: null,
+				lastError: '',
+			};
+			if (discoveredS3Url) {
+				try {
+					s3 = await parseAccreditationLevel(discoveredS3Url, 'Accreditation Certificate For Doctoral (S3)');
+				} catch (err: any) {
+					s3.lastError = err?.message || 'Failed to sync S3';
+					s3.lastSyncedAt = new Date();
+				}
+			}
+			accreditation = {
+				s1,
+				s2,
+				s3,
+				s3ManualUrl,
+				lastSyncAt: new Date(),
+			};
+		}
 
 		if (doProfile) {
 			await cacheProfileImages(profile, existingContent, overridesDoc, cachedDestUrls);
@@ -1567,37 +1909,80 @@ export async function runProdiSyncScoped(
 			};
 			forceFields.push('laboratories.teaching', 'laboratories.research');
 		}
+		if (doAccreditation && accreditation) {
+			crawledContent.accreditation = accreditation;
+		}
 
 		// Curriculum goes through year-based storage
-		if (doCurriculum && curriculum) {
-			const targetYear = mongoStorage.resolveAcademicYearByDate(new Date());
-			curriculumTargetYear = targetYear;
-
-			const result = await mongoStorage.upsertProdiCurriculumByYear(
-				targetYear,
-				{ ...curriculum, source: 'sync' },
-				{ overwrite: options?.overwrite },
-			);
-			curriculumYearAction = result.action;
-
-			if (result.action === 'needs_confirm') {
-				// Don't apply curriculum; return early with needs_confirm
-				// Still apply other sections if they were requested
-				if (Object.keys(crawledContent).length > 0) {
-					await mongoStorage.applyAutoSyncData(crawledContent, { forceFields });
-				}
-				await mongoStorage.setProdiSyncStatus('idle');
-				const summary = buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, true);
-				return {
-					...summary,
-					curriculumYearAction: 'needs_confirm',
-					curriculumTargetYear: targetYear,
+		if (doCurriculum && curriculumByYearParsed.length) {
+			const sortedByYear = [...curriculumByYearParsed].sort((a, b) => a.year - b.year);
+			curriculumProcessedYears = sortedByYear.map((x) => x.year);
+			let latestSuccessPayload: any = null;
+			for (const row of sortedByYear) {
+				const year = row.year;
+				curriculumTargetYear = year;
+				const periodLabel = `${year}-${year + 4}`;
+				const syncPayload = {
+					...row.payload,
+					periodLabel,
+					officialUrl: SOURCES.curriculumIndex,
+					curriculumUrl: row.url || row.payload?.curriculumUrl || '',
+					source: 'sync' as const,
 				};
+				const result = await mongoStorage.upsertProdiCurriculumByYear(
+					year,
+					syncPayload,
+					{ overwrite: options?.overwrite },
+				);
+				if (result.action === 'needs_confirm') {
+					curriculumNeedsConfirmYears.push(year);
+					continue;
+				}
+				if (result.action === 'created') curriculumCreatedYears.push(year);
+				if (result.action === 'overwritten') curriculumOverwrittenYears.push(year);
+				latestSuccessPayload = syncPayload;
 			}
 
-			// Also update legacy content.curriculum for backwards compat
-			crawledContent.curriculum = curriculum;
-			forceFields.push('curriculum.semesters', 'curriculum.optionalSubjects', 'curriculum.subjectRpsResources');
+			if (curriculumNeedsConfirmYears.length > 0) {
+				curriculumYearAction = 'needs_confirm';
+			} else if (curriculumOverwrittenYears.length > 0) {
+				curriculumYearAction = 'overwritten';
+			} else if (curriculumCreatedYears.length > 0) {
+				curriculumYearAction = 'created';
+			}
+
+			// Update legacy content.curriculum dengan payload terbaru yang sukses di-upsert.
+			if (latestSuccessPayload) {
+				crawledContent.curriculum = latestSuccessPayload;
+				forceFields.push(
+					'curriculum.semesters',
+					'curriculum.optionalSubjects',
+					'curriculum.subjectRpsResources',
+					'curriculum.graduateProfile',
+					'curriculum.knowledgeGroups',
+					'curriculum.structureSummary',
+					'curriculum.guidebookUrl',
+					'curriculum.curriculumUrl',
+					'curriculum.periodLabel',
+				);
+			}
+		}
+
+		if (curriculumNeedsConfirmYears.length > 0 && options?.overwrite !== true) {
+			if (Object.keys(crawledContent).length > 0) {
+				await mongoStorage.applyAutoSyncData(crawledContent, { forceFields });
+			}
+			await mongoStorage.setProdiSyncStatus('idle');
+			const summary = buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, true);
+			return {
+				...summary,
+				curriculumYearAction: 'needs_confirm',
+				curriculumTargetYear: curriculumNeedsConfirmYears[0],
+				curriculumProcessedYears,
+				curriculumCreatedYears,
+				curriculumOverwrittenYears,
+				curriculumNeedsConfirmYears,
+			};
 		}
 
 		if (Object.keys(crawledContent).length > 0) {
@@ -1610,18 +1995,42 @@ export async function runProdiSyncScoped(
 			const reason = `Crawler menghasilkan data kosong untuk bagian krusial: ${validation.criticalMissing.join(', ')}. Periksa struktur HTML situs sumber atau koneksi jaringan.`;
 			await mongoStorage.setProdiSyncStatus('error', reason);
 			const summary = buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, false, reason);
-			return { ...summary, curriculumYearAction, curriculumTargetYear };
+			return {
+				...summary,
+				curriculumYearAction,
+				curriculumTargetYear,
+				curriculumProcessedYears,
+				curriculumCreatedYears,
+				curriculumOverwrittenYears,
+				curriculumNeedsConfirmYears,
+			};
 		}
 
 		await mongoStorage.setProdiSyncStatus('idle');
 		const summary = buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, true);
 		console.log(`✅ Prodi sync (scope=${scope}) completed`, summary);
-		return { ...summary, curriculumYearAction, curriculumTargetYear };
+		return {
+			...summary,
+			curriculumYearAction,
+			curriculumTargetYear,
+			curriculumProcessedYears,
+			curriculumCreatedYears,
+			curriculumOverwrittenYears,
+			curriculumNeedsConfirmYears,
+		};
 	} catch (error: any) {
 		console.error('Prodi sync failed:', error);
 		const msg = error?.message || 'Unknown error';
 		await mongoStorage.setProdiSyncStatus('error', msg);
-		return { ...buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, false, msg), curriculumYearAction, curriculumTargetYear };
+		return {
+			...buildSummary(profile, lecturerData, curriculum, teachingLabs, researchLabs, false, msg),
+			curriculumYearAction,
+			curriculumTargetYear,
+			curriculumProcessedYears,
+			curriculumCreatedYears,
+			curriculumOverwrittenYears,
+			curriculumNeedsConfirmYears,
+		};
 	} finally {
 		syncing = false;
 	}

@@ -48,6 +48,7 @@ import {
 	Plus,
 	RefreshCw,
 	Save,
+	ShieldCheck,
 	Trash2,
 	Users,
 } from 'lucide-react';
@@ -97,7 +98,7 @@ export default function DashboardProdi() {
 	});
 
 	const [pendingSyncScope, setPendingSyncScope] = useState<string | null>(null);
-	const [confirmOverwrite, setConfirmOverwrite] = useState<{ year: number; scope: string } | null>(null);
+	const [confirmOverwrite, setConfirmOverwrite] = useState<{ years: number[]; scope: string } | null>(null);
 
 	const syncMutation = useMutation({
 		mutationFn: async (params: { scope: string; overwrite?: boolean }) => {
@@ -112,8 +113,10 @@ export default function DashboardProdi() {
 			return body;
 		},
 		onSuccess: (data: any) => {
-			if (data.needsConfirm && data.curriculumTargetYear) {
-				setConfirmOverwrite({ year: data.curriculumTargetYear, scope: 'curriculum' });
+			if (data.needsConfirm) {
+				const years: number[] = data.curriculumNeedsConfirmYears
+					?? (data.curriculumTargetYear ? [data.curriculumTargetYear] : []);
+				setConfirmOverwrite({ years, scope: 'curriculum' });
 				toast({ title: 'Konfirmasi', description: data.message });
 				return;
 			}
@@ -136,7 +139,7 @@ export default function DashboardProdi() {
 		const touchesCurriculum = scope === 'all' || scope === 'curriculum';
 		const yearExists = touchesCurriculum && targetYear && (doc?.curriculumYears ?? []).includes(targetYear);
 		if (yearExists) {
-			setConfirmOverwrite({ year: targetYear, scope });
+			setConfirmOverwrite({ years: [targetYear], scope });
 		} else {
 			syncMutation.mutate({ scope });
 		}
@@ -237,6 +240,9 @@ export default function DashboardProdi() {
 								<DropdownMenuItem onClick={() => setPendingSyncScope('labs')}>
 									Sync Laboratorium
 								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setPendingSyncScope('accreditation')}>
+									Sync Akreditasi
+								</DropdownMenuItem>
 							</DropdownMenuContent>
 							</DropdownMenu>
 						)}
@@ -323,7 +329,7 @@ export default function DashboardProdi() {
 
 				{/* Content editor tabs */}
 				<Tabs defaultValue="profil" className="w-full">
-					<TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
+					<TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
 						<TabsTrigger value="profil" className="gap-2">
 							<GraduationCap className="h-4 w-4" /> Profil
 						</TabsTrigger>
@@ -335,6 +341,9 @@ export default function DashboardProdi() {
 						</TabsTrigger>
 						<TabsTrigger value="laboratorium" className="gap-2">
 							<FlaskConical className="h-4 w-4" /> Laboratorium
+						</TabsTrigger>
+						<TabsTrigger value="akreditasi" className="gap-2">
+							<ShieldCheck className="h-4 w-4" /> Akreditasi
 						</TabsTrigger>
 					</TabsList>
 
@@ -399,16 +408,16 @@ export default function DashboardProdi() {
 							title="Panduan tab: Kurikulum"
 							variant="green"
 							storageKey="dashboard-prodi-tab-kurikulum"
-							description="Struktur kurikulum S1 Teknik Informatika UIN Malang per semester, termasuk mata kuliah wajib/pilihan. Sinkronisasi mengisi dari sumber resmi; sunting manual untuk koreksi tampilan. Kurikulum disimpan per tahun angkatan.">
+							description="Struktur kurikulum S1 Teknik Informatika UIN Malang per semester, termasuk mata kuliah wajib/pilihan. Sinkronisasi mengisi dari sumber resmi; sunting manual untuk koreksi tampilan. Kurikulum disimpan per periode (2020, 2024, dst).">
 							<ul className="list-disc list-inside space-y-1.5 text-sm">
 								<li>
-									<strong>Tahun Kurikulum</strong>: pilih tahun angkatan di selector atas. Sync otomatis menghitung tahun target berdasarkan aturan April–Maret (April 2026 = kurikulum 2026, Maret 2026 = masih 2025).
+									<strong>Tahun Kurikulum</strong>: pilih periode kurikulum di selector atas. Data sumber mengikuti daftar kurikulum resmi dari website TI UIN (mis. 2020, 2024, nanti 2028 jika muncul).
 								</li>
 								<li>
 									<strong>Langkah</strong>: pilih tahun → buka sub-tab semester atau MK pilihan → pastikan kode/nama/SKS konsisten → <strong>Simpan</strong>.
 								</li>
 								<li>
-									<strong>Setelah sync kurikulum</strong>: jika data tahun target sudah ada, akan muncul konfirmasi overwrite.
+									<strong>Setelah sync kurikulum</strong>: jika ada tahun yang sudah ada, akan muncul konfirmasi overwrite untuk tahun-tahun tersebut.
 								</li>
 							</ul>
 						</DashboardHintCard>
@@ -450,6 +459,27 @@ export default function DashboardProdi() {
 							readOnly={!canEdit}
 						/>
 					</TabsContent>
+					<TabsContent value="akreditasi" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Akreditasi"
+							variant="green"
+							storageKey="dashboard-prodi-tab-akreditasi"
+							description="Sinkronisasi akreditasi akan crawl S1, S2, dan mencoba S3. Jika S3 gagal, S1/S2 tetap disimpan. URL S3 manual dipakai sebagai prioritas saat sync.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>
+									<strong>Langkah</strong>: isi URL S3 manual jika ada → klik <strong>Sync Akreditasi</strong> pada tombol Sync di atas.
+								</li>
+								<li>
+									<strong>Fallback</strong>: jika URL S3 kosong, sistem auto-discover dari website TI UIN.
+								</li>
+							</ul>
+						</DashboardHintCard>
+						<AccreditationEditor
+							data={localContent.accreditation ?? {}}
+							onChange={(field, val) => updateField('accreditation', field, val)}
+							readOnly={!canEdit}
+						/>
+					</TabsContent>
 				</Tabs>
 			</div>
 
@@ -479,7 +509,7 @@ export default function DashboardProdi() {
 					<DialogHeader>
 						<DialogTitle>Konfirmasi Overwrite Kurikulum</DialogTitle>
 						<DialogDescription>
-							Data kurikulum untuk tahun <strong>{confirmOverwrite?.year}</strong> sudah ada di database. Apakah Anda ingin menimpa data tersebut dengan data terbaru dari sumber?
+							Data kurikulum untuk tahun <strong>{confirmOverwrite?.years?.join(', ')}</strong> sudah ada di database. Apakah Anda ingin menimpa data tersebut dengan data terbaru dari sumber?
 						</DialogDescription>
 					</DialogHeader>
 					<DialogFooter className="gap-2">
@@ -495,7 +525,7 @@ export default function DashboardProdi() {
 								syncMutation.mutate({ scope, overwrite: true });
 							}}>
 							{syncMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-							Ya, Timpa Data {confirmOverwrite?.year}
+							Ya, Timpa Data {confirmOverwrite?.years?.join(', ')}
 						</Button>
 					</DialogFooter>
 				</DialogContent>
@@ -1567,6 +1597,7 @@ function CurriculumEditor({
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const years = curriculumYears ?? [];
+	const formatRange = (year: number) => `${year}-${year + 4}`;
 	const [selectedYear, setSelectedYear] = useState<number | null>(null);
 	const [newYearInput, setNewYearInput] = useState('');
 
@@ -1577,8 +1608,14 @@ function CurriculumEditor({
 	const yearData = effectiveYear != null
 		? yearEntries.find((e: any) => e.academicYear === effectiveYear)
 		: null;
+	const [editingData, setEditingData] = useState<any>({});
 
-	const displayData = yearData ?? data;
+	useEffect(() => {
+		const source = yearData ?? data ?? {};
+		setEditingData(JSON.parse(JSON.stringify(source)));
+	}, [effectiveYear, yearData, data]);
+
+	const displayData = editingData ?? {};
 	const semesters: any[] = displayData?.semesters ?? [];
 	const optionalSubjects: any[] = displayData?.optionalSubjects ?? [];
 	const defaultTab = semesters.length ? `sem-${semesters[0]?.semester ?? 1}` : 'optional';
@@ -1626,14 +1663,19 @@ function CurriculumEditor({
 		addYearMutation.mutate(yr);
 	};
 
+	const setField = (field: string, value: any) => {
+		setEditingData((prev: any) => ({ ...prev, [field]: value }));
+		onChange(field, value);
+	};
+
 	return (
 		<div className="space-y-6">
 			<Card>
 				<CardHeader>
 					<CardTitle className="flex items-center justify-between">
-						<span>Tahun Kurikulum / Angkatan</span>
+						<span>Tahun Kurikulum</span>
 						<span className="text-xs text-muted-foreground font-normal">
-							Tahun aktif saat ini: {activeYear}
+							Periode aktif saat ini: {formatRange(activeYear)}
 						</span>
 					</CardTitle>
 				</CardHeader>
@@ -1649,7 +1691,7 @@ function CurriculumEditor({
 							<SelectContent>
 								{years.map((y) => (
 									<SelectItem key={y} value={String(y)}>
-										{y} {y === activeYear ? '(Aktif)' : ''}
+										Kurikulum {formatRange(y)} {y === activeYear ? '(Aktif)' : ''}
 									</SelectItem>
 								))}
 							</SelectContent>
@@ -1687,7 +1729,7 @@ function CurriculumEditor({
 				<CardContent>
 					<Textarea
 						value={displayData?.structureSummary || ''}
-						onChange={(e) => onChange('structureSummary', e.target.value)}
+						onChange={(e) => setField('structureSummary', e.target.value)}
 						disabled={readOnly}
 						rows={5}
 					/>
@@ -1701,9 +1743,74 @@ function CurriculumEditor({
 				<CardContent>
 					<ListEditor
 						items={displayData?.knowledgeGroups ?? []}
-						onChange={(v) => onChange('knowledgeGroups', v)}
+						onChange={(v) => setField('knowledgeGroups', v)}
 						readOnly={readOnly}
 						placeholder="Tambah kelompok keilmuan..."
+					/>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Metadata Kurikulum</CardTitle>
+				</CardHeader>
+				<CardContent className="space-y-3">
+					<div className="grid gap-3 md:grid-cols-2">
+						<div className="space-y-1">
+							<Label>Periode Label</Label>
+							<Input
+								value={displayData?.periodLabel || ''}
+								onChange={(e) => setField('periodLabel', e.target.value)}
+								disabled={readOnly}
+								placeholder="contoh: 2024-2028"
+							/>
+						</div>
+						<div className="space-y-1">
+							<Label>Guidebook URL</Label>
+							<Input
+								value={displayData?.guidebookUrl || ''}
+								onChange={(e) => setField('guidebookUrl', e.target.value)}
+								disabled={readOnly}
+								placeholder="https://..."
+							/>
+						</div>
+					</div>
+					<div className="grid gap-3 md:grid-cols-2">
+						<div className="space-y-1">
+							<Label>Halaman Kurikulum URL</Label>
+							<Input
+								value={displayData?.curriculumUrl || ''}
+								onChange={(e) => setField('curriculumUrl', e.target.value)}
+								disabled={readOnly}
+								placeholder="https://..."
+							/>
+						</div>
+						<div className="space-y-1">
+							<Label>Official Index URL</Label>
+							<Input
+								value={displayData?.officialUrl || ''}
+								onChange={(e) => setField('officialUrl', e.target.value)}
+								disabled={readOnly}
+								placeholder="https://..."
+							/>
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Graduate Profile</CardTitle>
+					<CardDescription>
+						Semua field graduate profile bisa diedit manual (format JSON array).
+					</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<JsonEditor
+						label="Graduate Profile"
+						value={displayData?.graduateProfile ?? []}
+						onChange={(v) => setField('graduateProfile', v)}
+						readOnly={readOnly}
 					/>
 				</CardContent>
 			</Card>
@@ -1744,7 +1851,7 @@ function CurriculumEditor({
 										semIdx={si}
 										isOptional={false}
 										allData={displayData}
-										onChange={onChange}
+										onChange={setField}
 										readOnly={readOnly}
 									/>
 								</TabsContent>
@@ -1757,7 +1864,7 @@ function CurriculumEditor({
 										semIdx={-1}
 										isOptional
 										allData={displayData}
-										onChange={onChange}
+										onChange={setField}
 										readOnly={readOnly}
 									/>
 								</TabsContent>
@@ -1766,6 +1873,136 @@ function CurriculumEditor({
 					) : (
 						<p className="text-sm text-muted-foreground">Belum ada data kurikulum untuk tahun ini. Jalankan Sync Kurikulum untuk mengambil data.</p>
 					)}
+				</CardContent>
+			</Card>
+		</div>
+	);
+}
+
+// ─── Accreditation Editor ───
+
+function AccreditationEditor({
+	data,
+	onChange,
+	readOnly,
+}: {
+	data: any;
+	onChange: (f: string, v: any) => void;
+	readOnly: boolean;
+}) {
+	const s3ManualUrl = data?.s3ManualUrl ?? '';
+	const levels = [
+		{ key: 's1', label: 'S1' },
+		{ key: 's2', label: 'S2' },
+		{ key: 's3', label: 'S3' },
+	] as const;
+	const [activeLevel, setActiveLevel] = useState<'s1' | 's2' | 's3'>('s1');
+	const levelData = data?.[activeLevel] ?? {};
+	const setLevelField = (field: string, value: any) => {
+		const next = {
+			...(data || {}),
+			[activeLevel]: {
+				...(data?.[activeLevel] || {}),
+				[field]: value,
+			},
+		};
+		onChange(activeLevel, next[activeLevel]);
+	};
+
+	return (
+		<div className="space-y-6">
+			<Card>
+				<CardHeader>
+					<CardTitle>Konfigurasi S3</CardTitle>
+					<CardDescription>
+						URL ini opsional. Jika diisi, sync akreditasi akan pakai URL ini untuk data S3.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-2">
+					<Label htmlFor="accreditation-s3-manual-url">URL Akreditasi S3 (manual)</Label>
+					<Input
+						id="accreditation-s3-manual-url"
+						value={s3ManualUrl}
+						onChange={(e) => onChange('s3ManualUrl', e.target.value)}
+						placeholder="https://informatika.uin-malang.ac.id/accreditation-certificate-for-doctoral-s3/"
+						disabled={readOnly}
+					/>
+				</CardContent>
+			</Card>
+
+			<div className="grid gap-4 md:grid-cols-3">
+				{levels.map((lvl) => {
+					const levelData = data?.[lvl.key];
+					return (
+						<Card key={lvl.key}>
+							<CardHeader className="pb-3">
+								<CardTitle className="text-sm">Akreditasi {lvl.label}</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-1 text-xs text-muted-foreground">
+								<p>Dokumen: {(levelData?.items ?? []).length}</p>
+								<p className="truncate">Sumber: {levelData?.sourceUrl || '—'}</p>
+								{levelData?.lastError ? (
+									<p className="text-destructive">Error: {levelData.lastError}</p>
+								) : (
+									<p>Status: OK</p>
+								)}
+							</CardContent>
+						</Card>
+					);
+				})}
+			</div>
+
+			<Card>
+				<CardHeader>
+					<CardTitle>Edit Manual Data Akreditasi</CardTitle>
+					<CardDescription>
+						Pilih jenjang, lalu edit source/title/groups/items secara manual.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<Select value={activeLevel} onValueChange={(v) => setActiveLevel(v as 's1' | 's2' | 's3')}>
+						<SelectTrigger className="w-44">
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{levels.map((lvl) => (
+								<SelectItem key={lvl.key} value={lvl.key}>{lvl.label}</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+
+					<div className="grid gap-3 md:grid-cols-2">
+						<div className="space-y-1">
+							<Label>Judul</Label>
+							<Input
+								value={levelData?.title || ''}
+								onChange={(e) => setLevelField('title', e.target.value)}
+								disabled={readOnly}
+							/>
+						</div>
+						<div className="space-y-1">
+							<Label>Source URL</Label>
+							<Input
+								value={levelData?.sourceUrl || ''}
+								onChange={(e) => setLevelField('sourceUrl', e.target.value)}
+								disabled={readOnly}
+								placeholder="https://..."
+							/>
+						</div>
+					</div>
+
+					<JsonEditor
+						label={`Groups ${activeLevel.toUpperCase()}`}
+						value={levelData?.groups ?? []}
+						onChange={(v) => setLevelField('groups', v)}
+						readOnly={readOnly}
+					/>
+					<JsonEditor
+						label={`Items ${activeLevel.toUpperCase()}`}
+						value={levelData?.items ?? []}
+						onChange={(v) => setLevelField('items', v)}
+						readOnly={readOnly}
+					/>
 				</CardContent>
 			</Card>
 		</div>
