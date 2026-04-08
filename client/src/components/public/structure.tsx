@@ -1,6 +1,9 @@
 import MediaDisplay from '@/components/MediaDisplay';
 import { SimpleSelect } from '@/components/public/SimpleSelect';
-import { getDivisionFromPosition } from '@/lib/org-structure-division';
+import {
+	collectDivisionLabelsFromMembers,
+	getDivisionFromPosition,
+} from '@/lib/org-structure-division';
 import { apiRequest } from '@/lib/queryClient';
 import { useTenant } from '@/lib/tenant-context';
 import { Pagination } from '@/components/ui/pagination';
@@ -163,11 +166,20 @@ const getAvailableDivisions = (members: OrgMember[]): string[] => {
 	const divisions = new Set<string>();
 	if (Array.isArray(members)) {
 		members.forEach((member: OrgMember) => {
-			divisions.add(getDivisionFromPosition(member.position));
+			const division = getDivisionFromPosition(member.position);
+			if (division !== 'BPH' && division !== 'Lainnya') {
+				divisions.add(division);
+			}
 		});
 	}
 	return Array.from(divisions).sort();
 };
+
+const normalizePosition = (value: string) =>
+	value
+		.toLowerCase()
+		.replace(/\s+/g, ' ')
+		.trim();
 
 // Helper function to sort members by position order
 const sortMembersByPosition = (
@@ -223,6 +235,25 @@ export default function Structure() {
 	const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 	const [flowRefitCounter, setFlowRefitCounter] = useState<number>(0);
 	const membersContainerRef = useRef<HTMLDivElement>(null);
+	const structureProfile = useMemo(
+		() => ({
+			leaderRoles:
+				scope === 'main'
+					? {
+							chair: ['ketua himpunan'],
+							deputy: ['wakil ketua himpunan'],
+						}
+					: {
+							chair: ['ketua himpunan', 'ketua'],
+							deputy: ['wakil ketua himpunan', 'wakil ketua'],
+						},
+			bphRolePatterns:
+				scope === 'main'
+					? [/^sekretaris\s+himpunan/i, /^bendahara\s+himpunan/i]
+					: [/^sekretaris(\s+himpunan)?/i, /^bendahara(\s+himpunan)?/i],
+		}),
+		[scope],
+	);
 
 	// Cegah React Flow mengosongkan node/edge (mis. saat tab disembunyikan atau resize)
 	const onNodesChangeSafe = useCallback(
@@ -248,17 +279,17 @@ export default function Structure() {
 	const {
 		data: membersData = [],
 		isLoading: membersLoading,
-		error: membersError,
+		isFetching: membersFetching,
 	} = useQuery({
-		queryKey: [scope, '/api/organization/members', currentPeriod || '2025-2026'],
+		queryKey: [scope, '/api/organization/members', currentPeriod],
 		queryFn: async () => {
-			const period = currentPeriod || '2025-2026'; // Use currentPeriod or fallback
 			const response = await apiRequest(
 				'GET',
-				`/api/organization/members?period=${encodeURIComponent(period)}`,
+				`/api/organization/members?period=${encodeURIComponent(currentPeriod)}`,
 			);
 			return response.json();
 		},
+		enabled: !!currentPeriod,
 		placeholderData: (previousData) => previousData ?? [],
 		// Keep previous data when period changes so diagram never flashes empty
 	});
@@ -290,43 +321,18 @@ export default function Structure() {
 		enabled: !!currentPeriod,
 		placeholderData: [],
 	});
-	const { data: divisionsData = [] } = useQuery({
-		queryKey: [scope, '/api/divisions', currentPeriod],
-		queryFn: async () => {
-			if (!currentPeriod) return [];
-			try {
-				const response = await apiRequest(
-					'GET',
-					`/api/divisions?period=${encodeURIComponent(currentPeriod)}`,
-				);
-				return response.json();
-			} catch (error: any) {
-				// Endpoint divisions bersifat protected; untuk halaman publik cukup fallback kosong.
-				const message = String(error?.message || '');
-				if (message.startsWith('401:')) return [];
-				throw error;
-			}
-		},
-		enabled: !!currentPeriod,
-		placeholderData: [],
-	});
-
 	// Ensure positions is always an array
 	const positions = Array.isArray(positionsData) ? positionsData : [];
-	const orderedDivisionLabels = Array.isArray(divisionsData)
-		? [...divisionsData]
-				.sort(
-					(a: any, b: any) =>
-						(a.sortOrder ?? Number.MAX_SAFE_INTEGER) - (b.sortOrder ?? Number.MAX_SAFE_INTEGER),
-				)
-				.map((division: any) => division.displayName)
-		: [];
+	const orderedDivisionLabels = useMemo(
+		() => collectDivisionLabelsFromMembers(members.map((item) => item.position)),
+		[members],
+	);
 
 	// Set default period to the newest one
 	useEffect(() => {
 		if (periods.length > 0 && !currentPeriod) {
 			// Sort periods by year (newest first) and set the first one as default
-			const sortedPeriods = periods.sort((a: string, b: string) => {
+			const sortedPeriods = [...periods].sort((a: string, b: string) => {
 				const yearA = parseInt(a.split('-')[0]);
 				const yearB = parseInt(b.split('-')[0]);
 				return yearB - yearA;
@@ -340,6 +346,12 @@ export default function Structure() {
 		() => getAvailableDivisions(members),
 		[members],
 	);
+	useEffect(() => {
+		if (selectedDivision === 'all') return;
+		if (!availableDivisions.includes(selectedDivision)) {
+			setSelectedDivision('all');
+		}
+	}, [availableDivisions, selectedDivision]);
 
 	// Filter members based on selected division (memoized agar effect chart tidak jalan tiap render)
 	const filteredMembers = useMemo(
@@ -418,8 +430,14 @@ export default function Structure() {
 			const edges: Edge[] = [];
 
 			// Level 1: Ketua dan Wakil (sejajar)
-			const ketua = positionMembers['Ketua Himpunan'] || [];
-			const wakil = positionMembers['Wakil Ketua Himpunan'] || [];
+			const membersByRole = (roleAliases: string[]) => {
+				const normalizedAliases = roleAliases.map((item) => normalizePosition(item));
+				return Object.entries(positionMembers).flatMap(([name, mems]) =>
+					normalizedAliases.includes(normalizePosition(name)) ? mems : [],
+				);
+			};
+			const ketua = membersByRole(structureProfile.leaderRoles.chair);
+			const wakil = membersByRole(structureProfile.leaderRoles.deputy);
 			const level1Spacing = 400;
 
 			// Ketua di kiri, Wakil di kanan - dikeatasin
@@ -460,17 +478,15 @@ export default function Structure() {
 			});
 
 			// Level 2: Sekretaris & Bendahara (semua varian nama posisi BPH non-divisi)
-			const sekretarisAll = Object.entries(positionMembers).flatMap(
-				([name, mems]) =>
-					/sekretaris\s+himpunan/i.test(name) && !/divisi/i.test(name)
-						? mems
-						: [],
+			const sekretarisAll = Object.entries(positionMembers).flatMap(([name, mems]) =>
+				structureProfile.bphRolePatterns[0].test(name) && !/divisi/i.test(name)
+					? mems
+					: [],
 			);
-			const bendaharaAll = Object.entries(positionMembers).flatMap(
-				([name, mems]) =>
-					/bendahara\s+himpunan/i.test(name) && !/divisi/i.test(name)
-						? mems
-						: [],
+			const bendaharaAll = Object.entries(positionMembers).flatMap(([name, mems]) =>
+				structureProfile.bphRolePatterns[1].test(name) && !/divisi/i.test(name)
+					? mems
+					: [],
 			);
 			const sekretaris1 = sekretarisAll.slice(0, 1);
 			const sekretaris2 = sekretarisAll.slice(1, 2);
@@ -519,8 +535,8 @@ export default function Structure() {
 				if (!divisionBuckets.has(div))
 					divisionBuckets.set(div, { heads: [], members: [] });
 				const b = divisionBuckets.get(div)!;
-				if (/^ketua\s+divisi/i.test(pos)) b.heads.push(member);
-				else if (/^anggota\s+divisi/i.test(pos)) b.members.push(member);
+				if (/^ketua(\s+divisi)?\b/i.test(pos)) b.heads.push(member);
+				else if (/^anggota(\s+divisi)?\b/i.test(pos)) b.members.push(member);
 			}
 
 			const orderedByConfig = orderedDivisionLabels.filter((label) =>
@@ -605,13 +621,13 @@ export default function Structure() {
 			setNodes(nodes);
 			setEdges(edges);
 		},
-		[orderedDivisionLabels, setNodes, setEdges],
+		[orderedDivisionLabels, setNodes, setEdges, structureProfile],
 	);
 
 	// Update chart hanya ketika data anggota/posisi benar-benar berubah (reference stabil pakai useMemo).
 	// Jangan pernah clear nodes saat masih loading atau saat data sementara kosong (refetch/transisi).
 	useEffect(() => {
-		if (membersLoading || positionsLoading) return;
+		if (membersLoading || membersFetching || positionsLoading) return;
 
 		if (normalizedMembers.length > 0) {
 			createOrgChart(normalizedMembers);
@@ -619,15 +635,19 @@ export default function Structure() {
 			return;
 		}
 
-		// Clear hanya bila memang tidak ada data untuk periode+divisi ini (bukan karena transisi/refetch).
-		if (sortedFilteredMembers.length === 0) {
+		// Clear hanya untuk kondisi benar-benar kosong pada periode ini.
+		// Saat filter divisi berubah, biarkan node terakhir tetap ada agar tidak flicker/menghilang mendadak.
+		if (selectedDivision === 'all' && members.length === 0) {
 			setNodes([]);
 			setEdges([]);
 		}
 	}, [
 		normalizedMembers,
 		sortedFilteredMembers.length,
+		selectedDivision,
+		members.length,
 		membersLoading,
+		membersFetching,
 		positionsLoading,
 		createOrgChart,
 		setNodes,
@@ -672,8 +692,7 @@ export default function Structure() {
 							options={
 								periodsLoading
 									? [{ value: 'loading', label: 'Loading periods...' }]
-									: [...periods]
-											.sort((a: string, b: string) => {
+									: [...periods].sort((a: string, b: string) => {
 												const yearA = parseInt(a.split('-')[0]);
 												const yearB = parseInt(b.split('-')[0]);
 												return yearB - yearA;
@@ -695,7 +714,13 @@ export default function Structure() {
 							placeholder="Filter Divisi"
 							options={[
 								{ value: 'all', label: 'Semua Divisi' },
-								...availableDivisions.map((division) => ({
+								...(
+									orderedDivisionLabels.length > 0
+										? orderedDivisionLabels.filter((label) =>
+												availableDivisions.includes(label),
+											)
+										: availableDivisions
+								).map((division) => ({
 									value: division,
 									label: division,
 								})),

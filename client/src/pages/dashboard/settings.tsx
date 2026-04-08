@@ -1,6 +1,6 @@
 import { BannerEditor } from '@/components/dashboard/banner-editor';
-import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
+import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { TenantOwnerDeleteAccountSection } from '@/components/dashboard/tenant-owner-delete-account-section';
 import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,7 @@ import {
 	Database,
 	Eye,
 	EyeOff,
+	Globe,
 	GripVertical,
 	Image,
 	Laptop,
@@ -88,7 +89,6 @@ import {
 	RotateCcw,
 	Save,
 	Settings,
-	Globe,
 	Shield,
 	Smartphone,
 	Trash2,
@@ -97,6 +97,7 @@ import {
 	X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DEFAULT_EMBED_HOSTNAMES } from '../../../../shared/embed-default-hosts';
 import {
 	ALL_NAVBAR_ITEMS,
 	ALL_SECTION_BLOCKS,
@@ -108,7 +109,6 @@ import {
 	type HomeConfig,
 	type HomeNavbarItem,
 } from '../../../../shared/schema';
-import { DEFAULT_EMBED_HOSTNAMES } from '../../../../shared/embed-default-hosts';
 
 interface SiteSettings {
 	siteName: string;
@@ -3272,7 +3272,6 @@ function HomeImagesTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 									description="Upload 1 foto landscape lebar yang akan menjadi background seluruh area hero desktop. Fog gradient dan card teks tetap tampil di atasnya.">
 									<ul className="list-disc list-inside text-blue-700 dark:text-blue-400 space-y-1 text-sm">
 										<li><strong>Langkah</strong>: siapkan foto landscape (misal seluruh anggota atau foto divisi) → unggah → cek Preview Hero.</li>
-										<li><strong>Contoh file</strong>: gunakan <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">BackgroundFull.jpg</code> sebagai acuan gambar landscape.</li>
 										<li><strong>Resolusi</strong>: maks <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">3840 × 2160 px</code> (16:9 direkomendasikan). Semakin lebar semakin baik.</li>
 										<li><strong>Tips</strong>: gunakan foto grup/landscape dengan komposisi tengah agar teks card tidak menabrak subjek utama.</li>
 										<li><strong>Format</strong>: JPG/PNG/WebP &lt; 100 MB. Dikonversi ke WebP otomatis.</li>
