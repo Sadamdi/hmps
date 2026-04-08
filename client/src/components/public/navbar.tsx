@@ -34,7 +34,11 @@ interface NavbarProps {
 	scrollToSection: (id: string) => void;
 }
 
-import type { HomeNavbarItem, HomeConfig, HomeBlockItem } from '../../../../shared/schema';
+import type {
+	HomeBlockItem,
+	HomeConfig,
+	HomeNavbarItem,
+} from '../../../../shared/schema';
 
 interface NavbarSettings {
 	navbarBrand?: string;
@@ -61,8 +65,18 @@ type NavItem =
 
 // Peta item navbar → section beranda untuk scroll otomatis
 const MONTH_NAMES = [
-	'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-	'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
+	'Januari',
+	'Februari',
+	'Maret',
+	'April',
+	'Mei',
+	'Juni',
+	'Juli',
+	'Agustus',
+	'September',
+	'Oktober',
+	'November',
+	'Desember',
 ];
 
 const sectionMap: Record<string, string> = {
@@ -114,6 +128,7 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 			{ label: 'Dosen & Staff', href: '/prodi?tab=dosen' },
 			{ label: 'Kurikulum', href: '/prodi?tab=kurikulum' },
 			{ label: 'Laboratorium', href: '/prodi?tab=laboratorium' },
+			{ label: 'Akreditasi', href: '/prodi?tab=akreditasi' },
 		],
 	},
 	{
@@ -153,9 +168,11 @@ export default function Navbar({
 	const bp = isTenant ? basePath : '';
 	const userTenantSlug = (user as any)?.tenantSlug as string | undefined;
 	const needsAbsoluteDash = userTenantSlug
-		? (!isTenant || basePath !== `/${userTenantSlug}`)
+		? !isTenant || basePath !== `/${userTenantSlug}`
 		: isTenant;
-	const absDashHref = userTenantSlug ? `/${userTenantSlug}/dashboard` : '/dashboard';
+	const absDashHref = userTenantSlug
+		? `/${userTenantSlug}/dashboard`
+		: '/dashboard';
 	const loginHref = '/login';
 
 	const { data: communities = [] } = useQuery<any[]>({
@@ -288,7 +305,10 @@ export default function Navbar({
 
 	const { data: eventsData } = useQuery<{
 		year?: { year: number } | null;
-		years?: { year: { year: number }; events: { month?: number; startDate?: string }[] }[];
+		years?: {
+			year: { year: number };
+			events: { month?: number; startDate?: string }[];
+		}[];
 		events?: { month?: number; startDate?: string }[];
 	}>({
 		queryKey: ['/api/events/active-home'],
@@ -303,14 +323,14 @@ export default function Navbar({
 				.map((y) => {
 					const yr = y.year;
 					if (!yr) return 0;
-					return typeof yr === 'number' ? yr : (yr as any).year ?? 0;
+					return typeof yr === 'number' ? yr : ((yr as any).year ?? 0);
 				})
 				.filter((n) => n > 0)
 				.sort((a, b) => a - b);
 		}
 		if (eventsData.year) {
 			const yr = eventsData.year;
-			const num = typeof yr === 'number' ? yr : (yr as any).year ?? 0;
+			const num = typeof yr === 'number' ? yr : ((yr as any).year ?? 0);
 			return num > 0 ? [num] : [];
 		}
 		return [];
@@ -322,8 +342,10 @@ export default function Navbar({
 		let evs: { month?: number; startDate?: string }[] = [];
 		if (eventsData.years && eventsData.years.length > 0) {
 			const sorted = [...eventsData.years].sort((a, b) => {
-				const aYear = typeof a.year === 'number' ? a.year : (a.year as any)?.year ?? 0;
-				const bYear = typeof b.year === 'number' ? b.year : (b.year as any)?.year ?? 0;
+				const aYear =
+					typeof a.year === 'number' ? a.year : ((a.year as any)?.year ?? 0);
+				const bYear =
+					typeof b.year === 'number' ? b.year : ((b.year as any)?.year ?? 0);
 				return bYear - aYear;
 			});
 			evs = sorted[0]?.events ?? [];
@@ -332,7 +354,8 @@ export default function Navbar({
 		}
 		const months = new Set<number>();
 		for (const ev of evs) {
-			const m = ev.month ?? (ev.startDate ? new Date(ev.startDate).getMonth() + 1 : 0);
+			const m =
+				ev.month ?? (ev.startDate ? new Date(ev.startDate).getMonth() + 1 : 0);
 			if (m) months.add(m);
 		}
 		return Array.from(months).sort((a, b) => a - b);
@@ -368,15 +391,19 @@ export default function Navbar({
 					return true;
 				});
 			}
-			const prefixed: NavItem = children
-				? {
-						...raw,
-						children: children.map((c) => ({
-							...c,
-							href: c.href ? px(c.href) : c.href,
-						})),
-					}
-				: raw;
+			let prefixed: NavItem;
+			if (children && 'homeSection' in raw) {
+				prefixed = {
+					...raw,
+					homeSection: raw.homeSection as string,
+					children: children.map((c) => ({
+						...c,
+						href: c.href ? px(c.href) : c.href,
+					})),
+				};
+			} else {
+				prefixed = raw;
+			}
 			navItemMap.set(prefixed.id, prefixed);
 		}
 
@@ -385,8 +412,14 @@ export default function Navbar({
 			let children: { label: string; href?: string; month?: number }[];
 			if (yearCount === 1) {
 				children = [
-					{ label: `Lihat semua event ${activeYears[0]}`, href: px(`/events/${activeYears[0]}`) },
-					...eventMonths.map((m: number) => ({ label: MONTH_NAMES[m - 1], month: m })),
+					{
+						label: `Lihat semua event ${activeYears[0]}`,
+						href: px(`/events/${activeYears[0]}`),
+					},
+					...eventMonths.map((m: number) => ({
+						label: MONTH_NAMES[m - 1],
+						month: m,
+					})),
 				];
 			} else if (yearCount <= 5) {
 				children = activeYears.map((yr) => ({
@@ -406,9 +439,10 @@ export default function Navbar({
 			navItemMap.set('events', eventsNavItem);
 		}
 
-		let orderedIds: string[] = navCfgArr && navCfgArr.length > 0
-			? navCfgArr.map((n) => n.id)
-			: ['home', 'profil', 'kelembagaan', 'events', 'berita', 'library'];
+		let orderedIds: string[] =
+			navCfgArr && navCfgArr.length > 0
+				? navCfgArr.map((n) => n.id)
+				: ['home', 'profil', 'kelembagaan', 'events', 'berita', 'library'];
 		if (isTenant) {
 			orderedIds = orderedIds.filter((id) => id !== 'prodi');
 		}
@@ -421,7 +455,9 @@ export default function Navbar({
 		}
 
 		// Komunitas: situs utama = daftar komunitas; situs tenant = beranda Himatif dulu, lalu komunitas lain (+ aktif)
-		const communityList = Array.isArray(communities) ? (communities as any[]) : [];
+		const communityList = Array.isArray(communities)
+			? (communities as any[])
+			: [];
 		const MAX_DROPDOWN = 10;
 		if (isTenant) {
 			const slotsForCommunities = Math.max(0, MAX_DROPDOWN - 1);
@@ -429,8 +465,7 @@ export default function Navbar({
 			const children: { label: string; href?: string }[] = [
 				{ label: MAIN_PORTAL_COMMUNITY_LABEL, href: '/' },
 				...rest.map((c: any) => ({
-					label:
-						c.slug === tenantSlug ? `${c.name} (aktif)` : c.name,
+					label: c.slug === tenantSlug ? `${c.name} (aktif)` : c.name,
 					href: `/${c.slug}`,
 				})),
 			];
@@ -464,7 +499,17 @@ export default function Navbar({
 		}
 
 		return result;
-	}, [activeYears, eventMonths, navCfgArr, communities, isTenant, bp, tenantSlug, hasTrackRecord, hasLambang]);
+	}, [
+		activeYears,
+		eventMonths,
+		navCfgArr,
+		communities,
+		isTenant,
+		bp,
+		tenantSlug,
+		hasTrackRecord,
+		hasLambang,
+	]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.
@@ -497,15 +542,23 @@ export default function Navbar({
 			const visibleBlocks: HomeBlockItem[] =
 				settings?.homeConfig?.blocks?.filter((b) => b.visible) ?? [];
 			const isVisible = (id: string, kind?: 'section' | 'subItem') => {
-				const b = visibleBlocks.find((x) => x.id === id && (!kind || x.kind === kind));
+				const b = visibleBlocks.find(
+					(x) => x.id === id && (!kind || x.kind === kind),
+				);
 				return b ? b.visible : false;
 			};
 
 			if (itemId === 'profil') {
 				if (isVisible('about', 'section')) return 'about';
-				const subOrder = ['profil.tentangKami', 'profil.sejarah', 'profil.filosofi'];
+				const subOrder = [
+					'profil.tentangKami',
+					'profil.sejarah',
+					'profil.filosofi',
+				];
 				for (const sid of subOrder) {
-					const b = visibleBlocks.find((x) => x.id === sid && x.kind === 'subItem');
+					const b = visibleBlocks.find(
+						(x) => x.id === sid && x.kind === 'subItem',
+					);
 					if (b?.visible) return sid.replace('.', '-');
 				}
 				return null;
@@ -515,15 +568,23 @@ export default function Navbar({
 				// 1. section visionMission
 				if (isVisible('visionMission', 'section')) return 'vision-mission';
 				// 2. subItem kelembagaan.visionMission
-				const subVm = visibleBlocks.find((x) => x.id === 'kelembagaan.visionMission' && x.kind === 'subItem');
+				const subVm = visibleBlocks.find(
+					(x) => x.id === 'kelembagaan.visionMission' && x.kind === 'subItem',
+				);
 				if (subVm?.visible)
-					return subVm.renderMode === 'full' ? 'vision-mission' : 'kelembagaan-visionMission';
+					return subVm.renderMode === 'full'
+						? 'vision-mission'
+						: 'kelembagaan-visionMission';
 				// 3. section structure
 				if (isVisible('structure', 'section')) return 'structure';
 				// 4. subItem kelembagaan.structure
-				const subSt = visibleBlocks.find((x) => x.id === 'kelembagaan.structure' && x.kind === 'subItem');
+				const subSt = visibleBlocks.find(
+					(x) => x.id === 'kelembagaan.structure' && x.kind === 'subItem',
+				);
 				if (subSt?.visible)
-					return subSt.renderMode === 'full' ? 'structure' : 'kelembagaan-structure';
+					return subSt.renderMode === 'full'
+						? 'structure'
+						: 'kelembagaan-structure';
 				return null;
 			}
 
@@ -534,7 +595,8 @@ export default function Navbar({
 
 			if (itemId === 'berita' || itemId === 'events' || itemId === 'library') {
 				const sectionId = itemId;
-				if (isVisible(sectionId, 'section')) return item.homeSection ?? sectionId;
+				if (isVisible(sectionId, 'section'))
+					return item.homeSection ?? sectionId;
 				return null;
 			}
 
@@ -619,7 +681,12 @@ export default function Navbar({
 		const targetHash = url.hash; // mis. "#sejarah"
 		if (bp && targetPath.startsWith(bp)) {
 			const rest = targetPath.slice(bp.length);
-			targetPath = rest === '' || rest === '/' ? '/' : rest.startsWith('/') ? rest : `/${rest}`;
+			targetPath =
+				rest === '' || rest === '/'
+					? '/'
+					: rest.startsWith('/')
+						? rest
+						: `/${rest}`;
 		}
 
 		// Skenario 1: Sudah di halaman yang sama dan ada hash
@@ -710,36 +777,55 @@ export default function Navbar({
 											<DropdownMenuContent
 												align="center"
 												className="w-48 border-border bg-card text-foreground z-50">
-												{item.children.map((child: { label: string; href?: string; month?: number }) => (
-													<DropdownMenuItem
-														key={child.href ?? `month-${child.month}`}
-														onClick={() => {
-															if (child.month != null) {
-																if (location !== '/') {
-																	sessionStorage.setItem('eventsScrollToMonth', String(child.month));
-																	window.location.href = bp ? `${bp}/#events` : '/#events';
-																} else {
-																	programmaticScrollRef.current = true;
-																	if (programmaticScrollTimerRef.current)
-																		clearTimeout(programmaticScrollTimerRef.current);
-																	programmaticScrollTimerRef.current = setTimeout(() => {
-																		programmaticScrollRef.current = false;
-																	}, 2000);
-																	scrollToSection('events');
-																	setTimeout(() => {
-																		window.dispatchEvent(new CustomEvent('events-scroll-to-month', { detail: { month: child.month } }));
-																	}, 500);
+												{item.children.map(
+													(child: {
+														label: string;
+														href?: string;
+														month?: number;
+													}) => (
+														<DropdownMenuItem
+															key={child.href ?? `month-${child.month}`}
+															onClick={() => {
+																if (child.month != null) {
+																	if (location !== '/') {
+																		sessionStorage.setItem(
+																			'eventsScrollToMonth',
+																			String(child.month),
+																		);
+																		window.location.href = bp
+																			? `${bp}/#events`
+																			: '/#events';
+																	} else {
+																		programmaticScrollRef.current = true;
+																		if (programmaticScrollTimerRef.current)
+																			clearTimeout(
+																				programmaticScrollTimerRef.current,
+																			);
+																		programmaticScrollTimerRef.current =
+																			setTimeout(() => {
+																				programmaticScrollRef.current = false;
+																			}, 2000);
+																		scrollToSection('events');
+																		setTimeout(() => {
+																			window.dispatchEvent(
+																				new CustomEvent(
+																					'events-scroll-to-month',
+																					{ detail: { month: child.month } },
+																				),
+																			);
+																		}, 500);
+																	}
+																	openDropdownIdRef.current = null;
+																	setOpenDropdownId(null);
+																} else if (child.href) {
+																	handleChildNav(child.href);
 																}
-																openDropdownIdRef.current = null;
-																setOpenDropdownId(null);
-															} else if (child.href) {
-																handleChildNav(child.href);
-															}
-														}}
-														className="cursor-pointer">
-														{child.label}
-													</DropdownMenuItem>
-												))}
+															}}
+															className="cursor-pointer">
+															{child.label}
+														</DropdownMenuItem>
+													),
+												)}
 											</DropdownMenuContent>
 										</DropdownMenu>
 									);
@@ -830,12 +916,16 @@ export default function Navbar({
 										{showDashLink !== false && (
 											<DropdownMenuItem asChild>
 												{needsAbsoluteDash ? (
-													<a href={absDashHref} className="cursor-pointer">
+													<a
+														href={absDashHref}
+														className="cursor-pointer">
 														<Settings className="mr-2 h-4 w-4" />
 														Dashboard
 													</a>
 												) : (
-													<Link href="/dashboard" className="cursor-pointer">
+													<Link
+														href="/dashboard"
+														className="cursor-pointer">
 														<Settings className="mr-2 h-4 w-4" />
 														Dashboard
 													</Link>
@@ -973,30 +1063,48 @@ export default function Navbar({
 														side="left"
 														align="center"
 														className="w-48 border-border bg-card text-foreground z-50">
-														{item.children.map((child: { label: string; href?: string; month?: number }) => (
-															<DropdownMenuItem
-																key={child.href ?? `month-${child.month}`}
-																onClick={() => {
-																	if (child.month != null) {
-																		if (location !== '/') {
-																			sessionStorage.setItem('eventsScrollToMonth', String(child.month));
-																			window.location.href = bp ? `${bp}/#events` : '/#events';
-																		} else {
-																			scrollToSection('events');
-																			setTimeout(() => {
-																				window.dispatchEvent(new CustomEvent('events-scroll-to-month', { detail: { month: child.month } }));
-																			}, 500);
+														{item.children.map(
+															(child: {
+																label: string;
+																href?: string;
+																month?: number;
+															}) => (
+																<DropdownMenuItem
+																	key={child.href ?? `month-${child.month}`}
+																	onClick={() => {
+																		if (child.month != null) {
+																			if (location !== '/') {
+																				sessionStorage.setItem(
+																					'eventsScrollToMonth',
+																					String(child.month),
+																				);
+																				window.location.href = bp
+																					? `${bp}/#events`
+																					: '/#events';
+																			} else {
+																				scrollToSection('events');
+																				setTimeout(() => {
+																					window.dispatchEvent(
+																						new CustomEvent(
+																							'events-scroll-to-month',
+																							{
+																								detail: { month: child.month },
+																							},
+																						),
+																					);
+																				}, 500);
+																			}
+																			openDropdownIdRef.current = null;
+																			setOpenDropdownId(null);
+																		} else if (child.href) {
+																			handleChildNav(child.href);
 																		}
-																		openDropdownIdRef.current = null;
-																		setOpenDropdownId(null);
-																	} else if (child.href) {
-																		handleChildNav(child.href);
-																	}
-																}}
-																className="cursor-pointer">
-																{child.label}
-															</DropdownMenuItem>
-														))}
+																	}}
+																	className="cursor-pointer">
+																	{child.label}
+																</DropdownMenuItem>
+															),
+														)}
 													</DropdownMenuContent>
 												</DropdownMenu>
 											);
@@ -1115,12 +1223,16 @@ export default function Navbar({
 													{showDashLink !== false && (
 														<DropdownMenuItem asChild>
 															{needsAbsoluteDash ? (
-																<a href={absDashHref} className="cursor-pointer">
+																<a
+																	href={absDashHref}
+																	className="cursor-pointer">
 																	<Settings className="mr-2 h-4 w-4" />
 																	Dashboard
 																</a>
 															) : (
-																<Link href="/dashboard" className="cursor-pointer">
+																<Link
+																	href="/dashboard"
+																	className="cursor-pointer">
 																	<Settings className="mr-2 h-4 w-4" />
 																	Dashboard
 																</Link>
