@@ -36,6 +36,7 @@ import {
 	CheckCircle2,
 	Eye,
 	EyeOff,
+	Image as ImageIcon,
 	Loader2,
 	MessageSquareReply,
 	Star,
@@ -405,6 +406,37 @@ export default function FeedbackPage() {
 										)}
 
 										<p className="text-sm whitespace-pre-wrap">{fb.body}</p>
+
+										{Array.isArray(fb.media) && fb.media.length > 0 && (
+											<div className="space-y-2">
+												<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+													<ImageIcon className="h-3.5 w-3.5" />
+													<span>Lampiran ({fb.media.length})</span>
+												</div>
+												<div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+													{fb.media.map((m, idx) => (
+														<a
+															key={`${fb._id}-media-${idx}`}
+															href={m.url}
+															target="_blank"
+															rel="noopener noreferrer"
+															className="group relative block rounded-md border overflow-hidden bg-muted/20"
+															title={m.originalName || `attachment-${idx + 1}`}
+														>
+															<img
+																src={m.url}
+																alt={m.originalName || `Attachment ${idx + 1}`}
+																loading="lazy"
+																className="h-24 w-full object-cover transition-transform group-hover:scale-[1.03]"
+															/>
+															<div className="absolute inset-x-0 bottom-0 bg-black/60 px-1.5 py-1 text-[10px] text-white truncate">
+																{m.originalName || `attachment-${idx + 1}`}
+															</div>
+														</a>
+													))}
+												</div>
+											</div>
+										)}
 
 										{/* Individual ratings */}
 										{(fb.ratings.fasilitasTI > 0 || fb.ratings.website > 0 || fb.ratings.teknikInformatika > 0 || fb.ratings.himatifEncoder > 0) && (
