@@ -4,6 +4,7 @@ import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import {
 	ArrowRight,
 	Clock,
+	ExternalLink,
 	MessageSquare,
 	PaperclipIcon,
 	Plus,
@@ -21,7 +22,13 @@ interface NavAction {
 	label: string;
 }
 
+interface ExternalLinkAction {
+	url: string;
+	label: string;
+}
+
 const NAV_REGEX = /\[\[NAV:\s*(\{[^}]+\})\s*\]\]/g;
+const LINK_REGEX = /\[\[LINK:\s*(\{[^}]+\})\s*\]\]/g;
 
 const ALLOWED_NAV_PATHS = new Set([
 	'/dashboard',
@@ -104,18 +111,29 @@ function isAllowedNavPath(path: string): boolean {
 	return false;
 }
 
-function parseNavActions(text: string): {
+function isSafeExternalUrl(url: string): boolean {
+	try {
+		const parsed = new URL(url.trim());
+		return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+	} catch {
+		return false;
+	}
+}
+
+function parseMessageActions(text: string): {
 	cleanText: string;
-	actions: NavAction[];
+	navActions: NavAction[];
+	linkActions: ExternalLinkAction[];
 } {
-	const actions: NavAction[] = [];
-	const cleanText = text.replace(NAV_REGEX, (_, jsonStr) => {
+	const navActions: NavAction[] = [];
+	const linkActions: ExternalLinkAction[] = [];
+	const withoutNav = text.replace(NAV_REGEX, (_, jsonStr) => {
 		try {
 			const parsed = JSON.parse(jsonStr);
 			if (typeof parsed.path === 'string' && typeof parsed.label === 'string') {
 				const norm = normalizeNavPath(parsed.path);
 				if (isAllowedNavPath(norm)) {
-					actions.push({
+					navActions.push({
 						path: norm,
 						label: parsed.label,
 					});
@@ -125,8 +143,28 @@ function parseNavActions(text: string): {
 			/* malformed JSON — ignore */
 		}
 		return '';
-	}).trimEnd();
-	return { cleanText, actions };
+	});
+	const cleanText = withoutNav
+		.replace(LINK_REGEX, (_, jsonStr) => {
+			try {
+				const parsed = JSON.parse(jsonStr);
+				if (
+					typeof parsed.url === 'string' &&
+					typeof parsed.label === 'string' &&
+					isSafeExternalUrl(parsed.url)
+				) {
+					linkActions.push({
+						url: parsed.url.trim(),
+						label: parsed.label,
+					});
+				}
+			} catch {
+				/* malformed JSON — ignore */
+			}
+			return '';
+		})
+		.trimEnd();
+	return { cleanText, navActions, linkActions };
 }
 
 /** Konfirmasi teks untuk redirect tanpa klik tombol (hanya jika ada tawaran NAV aktif). */
@@ -194,6 +232,7 @@ interface Message {
 	timestamp: Date;
 	imageUrl?: string;
 	navActions?: NavAction[];
+	linkActions?: ExternalLinkAction[];
 }
 
 interface ChatSummary {
@@ -289,8 +328,8 @@ export default function AIChat({ pageContext }: AIChatProps) {
 					data.messages.map((msg: any) => {
 						const isBot = msg.role === 'assistant';
 						if (isBot && msg.content) {
-							const { cleanText, actions } =
-								parseNavActions(msg.content);
+							const { cleanText, navActions, linkActions } =
+								parseMessageActions(msg.content);
 							return {
 								id: msg._id || crypto.randomUUID(),
 								isBot: true,
@@ -298,8 +337,12 @@ export default function AIChat({ pageContext }: AIChatProps) {
 								timestamp: new Date(msg.timestamp),
 								imageUrl: msg.imageUrl,
 								navActions:
-									actions.length > 0
-										? actions
+									navActions.length > 0
+										? navActions
+										: undefined,
+								linkActions:
+									linkActions.length > 0
+										? linkActions
 										: undefined,
 							};
 						}
@@ -561,19 +604,22 @@ export default function AIChat({ pageContext }: AIChatProps) {
 				loadChatList();
 			}
 
-			const { cleanText, actions } = parseNavActions(botText);
+			const { cleanText, navActions, linkActions } =
+				parseMessageActions(botText);
 			const botResponse: Message = {
 				id: (Date.now() + 1).toString(),
 				isBot: true,
 				text: cleanText,
 				timestamp: new Date(),
 				imageUrl: lastMsg?.imageUrl,
-				navActions: actions.length > 0 ? actions : undefined,
+				navActions: navActions.length > 0 ? navActions : undefined,
+				linkActions:
+					linkActions.length > 0 ? linkActions : undefined,
 			};
 			setMessages((prev) => [...prev, botResponse]);
-			if (actions.length > 0) {
-				lastNavOfferFromBotRef.current = actions;
-				setNavOfferWaitingConfirm(actions);
+			if (navActions.length > 0) {
+				lastNavOfferFromBotRef.current = navActions;
+				setNavOfferWaitingConfirm(navActions);
 			} else {
 				lastNavOfferFromBotRef.current = null;
 				setNavOfferWaitingConfirm(null);
@@ -834,6 +880,29 @@ export default function AIChat({ pageContext }: AIChatProps) {
 														className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-primary/15 text-primary border border-primary/25 hover:bg-primary/25 hover:border-primary/40 transition-all duration-200">
 														<ArrowRight className="h-3 w-3" />
 														{nav.label}
+													</button>
+												)
+											)}
+										</div>
+									)}
+								{msg.isBot &&
+									msg.linkActions &&
+									msg.linkActions.length > 0 && (
+										<div className="mt-2 flex flex-wrap gap-1.5">
+											{msg.linkActions.map(
+												(link, idx) => (
+													<button
+														key={`${link.url}-${idx}`}
+														onClick={() =>
+															window.open(
+																link.url,
+																'_blank',
+																'noopener,noreferrer',
+															)
+														}
+														className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-400/35 hover:bg-emerald-500/25 hover:border-emerald-300/50 transition-all duration-200">
+														<ExternalLink className="h-3 w-3" />
+														{link.label}
 													</button>
 												)
 											)}
