@@ -369,6 +369,13 @@ export default function RegisterPage() {
 		<div className="relative min-h-screen flex items-start sm:items-center justify-center overflow-y-auto overflow-x-hidden p-4 py-8 sm:py-4" style={{ background: 'var(--gradient-login)' }}>
 			<div className="pointer-events-none absolute -top-24 -left-24 w-96 h-96 rounded-full" style={{ background: 'var(--orb-color-1)', filter: 'blur(80px)' }} />
 			<div className="pointer-events-none absolute -bottom-24 -right-24 w-72 h-72 rounded-full" style={{ background: 'var(--orb-color-2)', filter: 'blur(70px)' }} />
+			<div
+				className="pointer-events-none absolute inset-0 opacity-[0.04]"
+				style={{
+					backgroundImage: 'linear-gradient(rgba(148,163,184,1) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,1) 1px, transparent 1px)',
+					backgroundSize: '40px 40px',
+				}}
+			/>
 
 			<button onClick={() => navigate('/login')} className="absolute top-5 left-5 flex items-center gap-1.5 text-slate-600 dark:text-muted-foreground hover:text-primary text-sm font-medium transition-colors duration-200 z-20">
 				<ArrowLeft className="h-4 w-4" />

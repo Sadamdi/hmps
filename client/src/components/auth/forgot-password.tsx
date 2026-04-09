@@ -160,6 +160,13 @@ export default function ForgotPassword() {
 				className="pointer-events-none absolute -bottom-24 -right-24 w-72 h-72 rounded-full"
 				style={{ background: 'var(--orb-color-2)', filter: 'blur(70px)' }}
 			/>
+			<div
+				className="pointer-events-none absolute inset-0 opacity-[0.04]"
+				style={{
+					backgroundImage: 'linear-gradient(rgba(148,163,184,1) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,1) 1px, transparent 1px)',
+					backgroundSize: '40px 40px',
+				}}
+			/>
 
 			<button
 				onClick={() => navigate('/login')}
