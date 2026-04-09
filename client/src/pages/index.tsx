@@ -11,12 +11,14 @@ import VisionMission from '@/components/public/vision-mission';
 import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
+import AOS from 'aos';
 import {
 	lazy,
 	Suspense,
 	useCallback,
 	useEffect,
 	useLayoutEffect,
+	useRef,
 	useState,
 } from 'react';
 import { useLocation } from 'wouter';
@@ -113,8 +115,8 @@ export default function Home() {
 		if (!isDesktopViewport) handleHeroIntroSettled();
 	}, [isDesktopViewport, handleHeroIntroSettled]);
 
-	const scrollLocked =
-		isDesktopViewport && (isLoading || !homeScrollUnlocked);
+	// Samakan dengan perilaku reload: kunci hanya selama loading screen aktif.
+	const scrollLocked = isDesktopViewport && isLoading;
 
 	useLayoutEffect(() => {
 		if (!scrollLocked) return;
@@ -151,6 +153,27 @@ export default function Home() {
 			body.style.right = prevBodyRight;
 			body.style.width = prevBodyWidth;
 			window.scrollTo(0, scrollY);
+		};
+	}, [scrollLocked]);
+
+	const prevScrollLockedRef = useRef<boolean | null>(null);
+
+	// Hanya setelah kunci scroll dilepas: AOS sempat mengukur saat body `position: fixed` — hitung ulang (jangan saat mount tanpa kunci).
+	useLayoutEffect(() => {
+		const wasLocked = prevScrollLockedRef.current === true;
+		prevScrollLockedRef.current = scrollLocked;
+
+		if (scrollLocked || !wasLocked) return;
+
+		let raf2 = 0;
+		const raf1 = requestAnimationFrame(() => {
+			raf2 = requestAnimationFrame(() => {
+				AOS.refreshHard();
+			});
+		});
+		return () => {
+			cancelAnimationFrame(raf1);
+			cancelAnimationFrame(raf2);
 		};
 	}, [scrollLocked]);
 
@@ -195,6 +218,25 @@ export default function Home() {
 		settings?.homeConfig,
 		handleHeroIntroSettled,
 	]);
+
+	// Pada SPA navigation/reload, section ber-data-aos bisa render ulang setelah init.
+	// Paksa re-scan AOS saat masuk beranda dan scroll tidak sedang dikunci.
+	useEffect(() => {
+		if (location !== '/' || scrollLocked) return;
+
+		let raf2 = 0;
+		const refresh = () => AOS.refreshHard();
+		const raf1 = requestAnimationFrame(() => {
+			raf2 = requestAnimationFrame(refresh);
+		});
+		const timer = window.setTimeout(refresh, 220);
+
+		return () => {
+			cancelAnimationFrame(raf1);
+			cancelAnimationFrame(raf2);
+			window.clearTimeout(timer);
+		};
+	}, [location, scrollLocked, settings?.homeConfig]);
 
 	const [activeSection, setActiveSection] = useState('home');
 

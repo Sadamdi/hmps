@@ -325,13 +325,14 @@ export default function Hero({
 		};
 	}, [desktopMode, showBanner, showPerson, slotOrder.length]);
 
-	// Setelah intro combined paralel selesai (bukan combinedIntroDurationMs berjenjang — itu bikin timer ~12s vs CSS 3s).
+	// Setelah intro combined paralel selesai.
 	useEffect(() => {
 		if (!onIntroSettled) return;
 		if (desktopMode !== 'combined') return;
 		if (!combinedIntroStarted) return;
-		const textDelay = 80 + COMBINED_SLOT_TRANSITION_MS + 100;
-		const ms = Math.max(0, textDelay - 40) + 600 + 60;
+		// Card teks sekarang muncul barengan dengan banner/orang,
+		// jadi settle cukup menunggu transisi slot combined + buffer kecil.
+		const ms = COMBINED_SLOT_TRANSITION_MS + 120;
 		const t = setTimeout(() => onIntroSettled(), ms);
 		return () => clearTimeout(t);
 	}, [desktopMode, combinedIntroStarted, onIntroSettled]);
@@ -426,15 +427,12 @@ export default function Hero({
 			const t0 = setTimeout(() => {
 				setShowBanner(true);
 				setShowPerson(true);
-			}, 0);
-			const textDelay = 80 + COMBINED_SLOT_TRANSITION_MS + 100;
-			const t1 = setTimeout(() => {
+				// Muncul barengan dengan animasi masuk visual utama.
 				setShowText(true);
 				setTextMoveUp(true);
-			}, textDelay);
+			}, 0);
 			return () => {
 				clearTimeout(t0);
-				clearTimeout(t1);
 			};
 		}
 
