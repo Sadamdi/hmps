@@ -11,7 +11,14 @@ import VisionMission from '@/components/public/vision-mission';
 import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { lazy, Suspense, useEffect, useLayoutEffect, useState } from 'react';
+import {
+	lazy,
+	Suspense,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useState,
+} from 'react';
 import { useLocation } from 'wouter';
 import { ALL_SUBITEM_BLOCKS, DEFAULT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
 import { ArrowRight } from 'lucide-react';
@@ -54,6 +61,12 @@ const KelembagaanVisionMissionSection = lazy(() => import('@/components/public/h
 const KelembagaanStructureSection = lazy(() => import('@/components/public/home-sections/kelembagaan-structure'));
 const ProdiSummarySection = lazy(() => import('@/components/public/home-sections/prodi-summary'));
 
+/** Satu kali per tab: setelah intro hero desktop pertama selesai, jangan kunci lagi saat navigasi balik ke beranda. */
+const HOME_SCROLL_UNLOCK_KEY = 'hmps-home-scroll-unlocked';
+
+/** Sama dengan breakpoint `lg` Tailwind — kunci scroll hanya di viewport desktop. */
+const DESKTOP_SCROLL_LOCK_MQ = '(min-width: 1024px)';
+
 export default function Home() {
 	const { isLoading, completeLoading, forceComplete, assetsLoaded } =
 		useAppLoading();
@@ -63,6 +76,83 @@ export default function Home() {
 	const [heroReady, setHeroReady] = useState(false);
 	const [heroTrigger, setHeroTrigger] = useState(() => Date.now());
 	const [location] = useLocation();
+
+	const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
+		typeof window !== 'undefined' &&
+		window.matchMedia(DESKTOP_SCROLL_LOCK_MQ).matches,
+	);
+
+	useEffect(() => {
+		const mq = window.matchMedia(DESKTOP_SCROLL_LOCK_MQ);
+		const sync = () => setIsDesktopViewport(mq.matches);
+		sync();
+		mq.addEventListener('change', sync);
+		return () => mq.removeEventListener('change', sync);
+	}, []);
+
+	const [homeScrollUnlocked, setHomeScrollUnlocked] = useState(() => {
+		if (typeof window === 'undefined') return true;
+		try {
+			return sessionStorage.getItem(HOME_SCROLL_UNLOCK_KEY) === '1';
+		} catch {
+			return false;
+		}
+	});
+
+	const handleHeroIntroSettled = useCallback(() => {
+		try {
+			sessionStorage.setItem(HOME_SCROLL_UNLOCK_KEY, '1');
+		} catch {
+			/* ignore */
+		}
+		setHomeScrollUnlocked(true);
+	}, []);
+
+	// Mobile: tidak pakai gate intro desktop; hindari stuck jika resize mobile ↔ desktop.
+	useEffect(() => {
+		if (!isDesktopViewport) handleHeroIntroSettled();
+	}, [isDesktopViewport, handleHeroIntroSettled]);
+
+	const scrollLocked =
+		isDesktopViewport && (isLoading || !homeScrollUnlocked);
+
+	useLayoutEffect(() => {
+		if (!scrollLocked) return;
+
+		const html = document.documentElement;
+		const body = document.body;
+		const scrollY = window.scrollY;
+
+		const prevHtmlOverflow = html.style.overflow;
+		const prevBodyOverflow = body.style.overflow;
+		const prevBodyPosition = body.style.position;
+		const prevBodyTop = body.style.top;
+		const prevBodyLeft = body.style.left;
+		const prevBodyRight = body.style.right;
+		const prevBodyWidth = body.style.width;
+		const prevTouchAction = body.style.touchAction;
+
+		html.style.overflow = 'hidden';
+		body.style.overflow = 'hidden';
+		body.style.touchAction = 'none';
+		body.style.position = 'fixed';
+		body.style.top = `-${scrollY}px`;
+		body.style.left = '0';
+		body.style.right = '0';
+		body.style.width = '100%';
+
+		return () => {
+			html.style.overflow = prevHtmlOverflow;
+			body.style.overflow = prevBodyOverflow;
+			body.style.touchAction = prevTouchAction;
+			body.style.position = prevBodyPosition;
+			body.style.top = prevBodyTop;
+			body.style.left = prevBodyLeft;
+			body.style.right = prevBodyRight;
+			body.style.width = prevBodyWidth;
+			window.scrollTo(0, scrollY);
+		};
+	}, [scrollLocked]);
 
 	// Restore judul tab dan canonical saat kembali ke beranda dari halaman lain
 	useEffect(() => {
@@ -89,6 +179,22 @@ export default function Home() {
 		refetchOnWindowFocus: false,
 		refetchOnMount: false,
 	});
+
+	// Tanpa blok hero, tidak ada yang memanggil onIntroSettled — buka gate desktop.
+	useEffect(() => {
+		if (!isDesktopViewport || isLoading || homeScrollUnlocked) return;
+		const blocks: HomeBlockItem[] = settings?.homeConfig?.blocks?.length
+			? settings.homeConfig.blocks
+			: DEFAULT_HOME_CONFIG.blocks;
+		const hasHero = blocks.filter((b) => b.visible).some((b) => b.id === 'hero');
+		if (!hasHero) handleHeroIntroSettled();
+	}, [
+		isDesktopViewport,
+		isLoading,
+		homeScrollUnlocked,
+		settings?.homeConfig,
+		handleHeroIntroSettled,
+	]);
 
 	const [activeSection, setActiveSection] = useState('home');
 
@@ -205,6 +311,9 @@ export default function Home() {
 							scrollToSection={scrollToSection}
 							assetsLoaded={heroReady || !isLoading}
 							introKey={heroTrigger}
+							onIntroSettled={
+								isDesktopViewport ? handleHeroIntroSettled : undefined
+							}
 						/>
 					);
 				case 'about':

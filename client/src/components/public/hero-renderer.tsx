@@ -30,12 +30,15 @@ export interface HeroRenderData {
 const BASE_SLOTS = 8;
 
 const COMBINED_INTRO = {
-	durationMs: 1200,
+	durationMs: 3000,
 	waveGapMs: 0,
 	bannerOffsetPx: 44,
 	personOffsetPx: 44,
 	easing: 'cubic-bezier(0.16, 1, 0.3, 1)',
 };
+
+/** Durasi transisi CSS per slot; saat semua slot animasi paralel, total visual = nilai ini. */
+export const COMBINED_SLOT_TRANSITION_MS = COMBINED_INTRO.durationMs;
 
 /**
  * Symmetric wave index: outermost pair = wave 0, next pair inward = wave 1, etc.

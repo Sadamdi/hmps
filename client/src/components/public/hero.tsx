@@ -1,13 +1,25 @@
+import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
+import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { HeroBannerContent, HeroDesktopText, HeroMobileSlideshow, HeroPersonContent, HeroScrollIndicator, homeImageVersionSuffix, versionHomeImageUrls, useHeroPreviewOverrides, combinedIntroDurationMs, combinedIntroWaveDelayMs } from './hero-renderer';
-import { useTenant } from '@/lib/tenant-context';
-import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
+import {
+	COMBINED_SLOT_TRANSITION_MS,
+	HeroBannerContent,
+	HeroDesktopText,
+	HeroMobileSlideshow,
+	HeroPersonContent,
+	HeroScrollIndicator,
+	homeImageVersionSuffix,
+	useHeroPreviewOverrides,
+	versionHomeImageUrls,
+} from './hero-renderer';
 
 interface HeroProps {
 	scrollToSection: (id: string) => void;
 	assetsLoaded?: boolean;
 	introKey?: number;
+	/** Dipanggil setelah animasi intro desktop selesai (sinkron dengan durasi combined / classic). */
+	onIntroSettled?: () => void;
 }
 
 interface Settings {
@@ -86,6 +98,7 @@ export default function Hero({
 	scrollToSection,
 	assetsLoaded = false,
 	introKey,
+	onIntroSettled,
 }: HeroProps) {
 	const { isTenant } = useTenant();
 	const [showText, setShowText] = useState(false);
@@ -110,7 +123,9 @@ export default function Hero({
 	const previewOverrides = useHeroPreviewOverrides();
 	const isPreview = !!previewOverrides;
 
-	const { data: _settings } = useQuery<Settings & { homeImageBannerSlots?: BannerSlotDef[] }>({
+	const { data: _settings } = useQuery<
+		Settings & { homeImageBannerSlots?: BannerSlotDef[] }
+	>({
 		queryKey: ['/api/settings'],
 		staleTime: 30 * 1000,
 		refetchOnWindowFocus: false,
@@ -133,7 +148,10 @@ export default function Hero({
 
 	const homeImages = useMemo(() => {
 		if (!previewOverrides?.homeImages) return _homeImages;
-		return { ..._homeImages, ...previewOverrides.homeImages } as typeof _homeImages;
+		return {
+			..._homeImages,
+			...previewOverrides.homeImages,
+		} as typeof _homeImages;
 	}, [_homeImages, previewOverrides?.homeImages]);
 
 	const { data: stats } = useQuery({
@@ -172,8 +190,7 @@ export default function Hero({
 	const versionSuffix = homeImageVersionSuffix(homeImages?.updatedAt);
 	const bennerfullSrc =
 		(homeImages?.bennerfull || DEFAULT_IMAGE_URL) + versionSuffix;
-	const orangSrc =
-		(homeImages?.orang || DEFAULT_IMAGE_URL) + versionSuffix;
+	const orangSrc = (homeImages?.orang || DEFAULT_IMAGE_URL) + versionSuffix;
 	const desktopBackgroundSrc = homeImages?.desktopBackground
 		? homeImages.desktopBackground + versionSuffix
 		: '';
@@ -206,7 +223,9 @@ export default function Hero({
 
 	// Set isAtTop setelah layout (termasuk scroll ke hash di parent) agar hero tidak animate saat masuk ke section
 	useLayoutEffect(() => {
-		setIsAtTop(typeof window !== 'undefined' && window.scrollY <= TOP_THRESHOLD);
+		setIsAtTop(
+			typeof window !== 'undefined' && window.scrollY <= TOP_THRESHOLD,
+		);
 	}, []);
 
 	// Update isAtTop on scroll agar animasi bisa jalan saat user scroll ke atas
@@ -227,7 +246,7 @@ export default function Hero({
 				const entry = entries[0];
 				setIsHeroVisible(entry?.isIntersecting ?? true);
 			},
-			{ root: null, threshold: 0, rootMargin: '200px' }
+			{ root: null, threshold: 0, rootMargin: '200px' },
 		);
 		observer.observe(node);
 		return () => observer.disconnect();
@@ -246,7 +265,9 @@ export default function Hero({
 			return;
 		}
 
-		const uncached = combinedAssetUrls.filter(u => !preloadCacheRef.current.has(u));
+		const uncached = combinedAssetUrls.filter(
+			(u) => !preloadCacheRef.current.has(u),
+		);
 		if (uncached.length === 0) {
 			setCombinedAssetsReady(true);
 			return;
@@ -266,7 +287,10 @@ export default function Hero({
 					preloadCacheRef.current.add(src);
 					resolve();
 				};
-				img.onerror = () => { preloadCacheRef.current.add(src); resolve(); };
+				img.onerror = () => {
+					preloadCacheRef.current.add(src);
+					resolve();
+				};
 				img.src = src;
 			});
 
@@ -301,6 +325,17 @@ export default function Hero({
 		};
 	}, [desktopMode, showBanner, showPerson, slotOrder.length]);
 
+	// Setelah intro combined paralel selesai (bukan combinedIntroDurationMs berjenjang — itu bikin timer ~12s vs CSS 3s).
+	useEffect(() => {
+		if (!onIntroSettled) return;
+		if (desktopMode !== 'combined') return;
+		if (!combinedIntroStarted) return;
+		const textDelay = 80 + COMBINED_SLOT_TRANSITION_MS + 100;
+		const ms = Math.max(0, textDelay - 40) + 600 + 60;
+		const t = setTimeout(() => onIntroSettled(), ms);
+		return () => clearTimeout(t);
+	}, [desktopMode, combinedIntroStarted, onIntroSettled]);
+
 	// Optimized parallax — semua DOM manipulation langsung via refs, tanpa React state
 	useEffect(() => {
 		let ticking = false;
@@ -315,7 +350,7 @@ export default function Hero({
 					if (bannerRef.current && showBanner) {
 						bannerRef.current.style.opacity = Math.max(
 							0,
-							1 - scrollY / 1000
+							1 - scrollY / 1000,
 						).toString();
 					}
 
@@ -326,7 +361,7 @@ export default function Hero({
 						}%, 0)`;
 						textRef.current.style.opacity = Math.max(
 							0,
-							1 - scrollY / 1200
+							1 - scrollY / 1200,
 						).toString();
 					}
 
@@ -334,7 +369,7 @@ export default function Hero({
 					if (personRef.current && showPerson) {
 						personRef.current.style.opacity = Math.max(
 							0,
-							1 - scrollY / 1000
+							1 - scrollY / 1000,
 						).toString();
 					}
 
@@ -392,7 +427,7 @@ export default function Hero({
 				setShowBanner(true);
 				setShowPerson(true);
 			}, 0);
-			const textDelay = 80 + combinedIntroDurationMs(slotOrder.length) + 100;
+			const textDelay = 80 + COMBINED_SLOT_TRANSITION_MS + 100;
 			const t1 = setTimeout(() => {
 				setShowText(true);
 				setTextMoveUp(true);
@@ -417,12 +452,28 @@ export default function Hero({
 			setTextMoveUp(true);
 		}, 600);
 
+		let settledTimer: ReturnType<typeof setTimeout> | undefined;
+		if (onIntroSettled) {
+			// Cukup untuk opacity 0.7s + jeda teks 600ms + transisi teks 0.6s
+			settledTimer = setTimeout(() => onIntroSettled(), 1500);
+		}
+
 		return () => {
 			clearTimeout(bannerTimer);
 			clearTimeout(personTimer);
 			clearTimeout(textTimer);
+			if (settledTimer) clearTimeout(settledTimer);
 		};
-	}, [assetsLoaded, introKey, isAtTop, dataReady, desktopMode, combinedAssetsReady, slotOrder.length]);
+	}, [
+		assetsLoaded,
+		introKey,
+		isAtTop,
+		dataReady,
+		desktopMode,
+		combinedAssetsReady,
+		slotOrder.length,
+		onIntroSettled,
+	]);
 
 	return (
 		<div
@@ -437,7 +488,8 @@ export default function Hero({
 					className={`fixed top-0 left-0 w-full z-0 pointer-events-none ${desktopBannerSource === 'fullBackground' && desktopMode === 'bennerfull' ? 'h-screen' : 'h-[400px]'}`}
 					style={{
 						opacity: showBanner ? 1 : 0,
-						transition: desktopMode === 'combined' ? 'none' : 'opacity 0.7s ease-out',
+						transition:
+							desktopMode === 'combined' ? 'none' : 'opacity 0.7s ease-out',
 						transform: 'translate3d(0, 0, 0)',
 						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
@@ -460,34 +512,37 @@ export default function Hero({
 					/>
 				</div>
 
-			{/* Teks tengah */}
-		<div
-			ref={textRef}
-			className="absolute z-[5] text-center bg-white/90 dark:bg-card/80 border border-slate-200/80 dark:border-border/70 backdrop-blur-sm px-8 py-8 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)]"
-				style={{
-					left: '50%',
-					top: textMoveUp ? '35%' : '50%',
-					transform: 'translate3d(-50%, -50%, 0)',
-					opacity: showText ? 1 : 0,
-					transition: 'opacity 0.6s ease-out, top 0.5s ease-out',
-					willChange: 'opacity, transform',
-					backfaceVisibility: 'hidden',
-					minWidth: '340px',
-				}}>
-				<HeroDesktopText
-					siteName={settings?.siteName || ''}
-					siteTagline={settings?.siteTagline || ''}
-					siteDescription={settings?.siteDescription || ''}
-					onScrollTo={scrollToSection}
-				/>
-			</div>
+				{/* Teks tengah */}
+				<div
+					ref={textRef}
+					className="absolute z-[5] text-center bg-white/90 dark:bg-card/80 border border-slate-200/80 dark:border-border/70 backdrop-blur-sm px-8 py-8 rounded-xl shadow-[0_16px_48px_rgba(0,0,0,0.18)] dark:shadow-[0_16px_48px_rgba(0,0,0,0.45)]"
+					style={{
+						left: '50%',
+						top: textMoveUp ? '35%' : '50%',
+						transform: 'translate3d(-50%, -50%, 0)',
+						opacity: showText ? 1 : 0,
+						transition: 'opacity 0.6s ease-out, top 0.5s ease-out',
+						willChange: 'opacity, transform',
+						backfaceVisibility: 'hidden',
+						minWidth: '340px',
+					}}>
+					<HeroDesktopText
+						siteName={settings?.siteName || ''}
+						siteTagline={settings?.siteTagline || ''}
+						siteDescription={settings?.siteDescription || ''}
+						onScrollTo={scrollToSection}
+					/>
+				</div>
 
-			{/* Desktop scroll indicator */}
-			<div
-				className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[5]"
-				style={{ opacity: showText ? 1 : 0, transition: 'opacity 0.6s ease-out' }}>
-				<HeroScrollIndicator onScrollTo={scrollToSection} />
-			</div>
+				{/* Desktop scroll indicator */}
+				<div
+					className="absolute bottom-12 left-1/2 -translate-x-1/2 z-[5]"
+					style={{
+						opacity: showText ? 1 : 0,
+						transition: 'opacity 0.6s ease-out',
+					}}>
+					<HeroScrollIndicator onScrollTo={scrollToSection} />
+				</div>
 
 				{/* Gambar orang - single or composed per-slot */}
 				<div
@@ -496,11 +551,17 @@ export default function Hero({
 					style={{
 						transform: 'translate3d(0, 0, 0)',
 						opacity: showPerson ? 1 : 0,
-						transition: desktopMode === 'combined' ? 'none' : 'opacity 0.7s ease-out',
+						transition:
+							desktopMode === 'combined' ? 'none' : 'opacity 0.7s ease-out',
 						willChange: 'opacity',
 						backfaceVisibility: 'hidden',
 					}}>
-					<div style={{ transform: 'translateZ(0)', width: '100%', height: '100%' }}>
+					<div
+						style={{
+							transform: 'translateZ(0)',
+							width: '100%',
+							height: '100%',
+						}}>
 						<HeroPersonContent
 							desktopMode={desktopMode}
 							desktopBannerSource={desktopBannerSource}
@@ -512,8 +573,10 @@ export default function Hero({
 						/>
 					</div>
 					{/* Fog depan — setengah, tebal */}
-				<div className="absolute bottom-0 left-0 w-full h-1/2 pointer-events-none"
-						style={{ background: 'var(--gradient-hero-fog-front)' }} />
+					<div
+						className="absolute bottom-0 left-0 w-full h-1/2 pointer-events-none"
+						style={{ background: 'var(--gradient-hero-fog-front)' }}
+					/>
 				</div>
 			</div>
 
@@ -523,7 +586,9 @@ export default function Hero({
 					slotOrder={slotOrder}
 					banners={versionedBanners}
 					siteName={settings?.siteName || 'HIMATIF ENCODER'}
-					siteTagline={settings?.siteTagline || 'Himpunan Mahasiswa Teknik Informatika'}
+					siteTagline={
+						settings?.siteTagline || 'Himpunan Mahasiswa Teknik Informatika'
+					}
 					siteDescription={settings?.siteDescription || ''}
 					logoUrl={settings?.logoUrl}
 					onScrollTo={scrollToSection}
