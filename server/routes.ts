@@ -7458,6 +7458,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				if (files?.attachmentFiles) {
+					const totalAfterUpload = existingLinkAtts.length + files.attachmentFiles.length;
+					if (totalAfterUpload > 10) {
+						return res.status(400).json({ message: `Maksimal 10 lampiran per event. Saat ini ada ${totalAfterUpload} lampiran.` });
+					}
 					const { uploadEventAttachment } = await import('./upload');
 					const attachments = [...existingLinkAtts];
 					for (const f of files.attachmentFiles) {
@@ -7471,6 +7475,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						});
 					}
 					await storage.updateEvent(createdEventId, { attachments });
+				} else if (existingLinkAtts.length > 10) {
+					return res.status(400).json({ message: `Maksimal 10 lampiran per event. Saat ini ada ${existingLinkAtts.length} lampiran.` });
 				}
 
 				const savedEvent = await storage.getEventById(createdEventId);
@@ -7585,8 +7591,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 				if (body.endDate) updateData.endDate = new Date(body.endDate);
 
-				if (body.attachments) {
-					try {
+			if (body.attachments) {
+				try {
 						const parsed = JSON.parse(body.attachments);
 						const normalized = normalizeEventAttachmentArray(parsed);
 						if (!normalized.ok) {
@@ -7614,7 +7620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							}
 						}
 					} catch {
-						/* ignore */
+						return res.status(400).json({ message: 'Format attachments tidak valid.' });
 					}
 				}
 
@@ -7623,6 +7629,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					if (!updateData.attachments) {
 						const existing = await storage.getEventById(id);
 						updateData.attachments = existing?.attachments || [];
+					}
+					const totalAfterUpload = (updateData.attachments?.length || 0) + files.attachmentFiles.length;
+					if (totalAfterUpload > 10) {
+						return res.status(400).json({ message: `Maksimal 10 lampiran per event. Saat ini ada ${totalAfterUpload} lampiran.` });
 					}
 					const parentId = (existingEvent as any).parentId ? String((existingEvent as any).parentId) : null;
 					for (const f of files.attachmentFiles) {
@@ -7634,6 +7644,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							source: 'local' as const,
 						});
 					}
+				}
+
+				if (updateData.attachments && updateData.attachments.length > 10) {
+					return res.status(400).json({ message: `Maksimal 10 lampiran per event. Saat ini ada ${updateData.attachments.length} lampiran.` });
 				}
 
 				if (body.relatedBeritaIds !== undefined) {

@@ -516,11 +516,58 @@ export default function DashboardEvents() {
 		setIsEventDialogOpen(true);
 	}, []);
 
+	const detectDriveFileId = useCallback((rawUrl: string): string | null => {
+		try {
+			const parsed = new URL(rawUrl);
+			const host = parsed.hostname.toLowerCase();
+			if (!host.includes('drive.google.com')) return null;
+			if (parsed.pathname.toLowerCase().includes('/drive/folders/')) return null;
+			const parts = parsed.pathname.split('/').filter(Boolean);
+			const dIdx = parts.findIndex((part) => part === 'd');
+			if (dIdx >= 0 && parts[dIdx + 1]) return parts[dIdx + 1];
+			const idParam = parsed.searchParams.get('id');
+			if (idParam) return idParam;
+			return null;
+		} catch {
+			return null;
+		}
+	}, []);
+
 	const handleSaveEvent = useCallback(() => {
 		if (!formTitle || !formStartDate || !formEndDate) {
 			toast({ title: 'Judul dan tanggal wajib diisi', variant: 'destructive' });
 			return;
 		}
+
+		let finalAttachments = [...existingAttachments];
+		const pendingLinkName = formAttachmentLinkName.trim();
+		const pendingLinkUrl = formAttachmentLinkUrl.trim();
+		if (pendingLinkName && pendingLinkUrl) {
+			try {
+				const parsed = new URL(pendingLinkUrl);
+				if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+					const driveFileId = detectDriveFileId(pendingLinkUrl);
+					const source: EventAttachmentForm['source'] = driveFileId ? 'gdrive' : 'url';
+					finalAttachments.push({ name: pendingLinkName, url: pendingLinkUrl, type: 'link', source });
+				} else {
+					toast({ title: 'URL lampiran harus http/https', variant: 'destructive' });
+					return;
+				}
+			} catch {
+				toast({ title: 'URL lampiran tidak valid', variant: 'destructive' });
+				return;
+			}
+		} else if (pendingLinkName || pendingLinkUrl) {
+			toast({ title: 'Nama dan URL lampiran wajib diisi lengkap, atau kosongkan keduanya', variant: 'destructive' });
+			return;
+		}
+
+		const totalAttachments = finalAttachments.length + formAttachments.length;
+		if (totalAttachments > 10) {
+			toast({ title: `Maksimal 10 lampiran per event. Saat ini ada ${totalAttachments} lampiran.`, variant: 'destructive' });
+			return;
+		}
+
 		const fd = new FormData();
 		fd.append('title', formTitle);
 		fd.append('description', formDesc);
@@ -543,7 +590,7 @@ export default function DashboardEvents() {
 		for (const f of formAttachments) {
 			fd.append('attachmentFiles', f);
 		}
-		fd.append('attachments', JSON.stringify(existingAttachments));
+		fd.append('attachments', JSON.stringify(finalAttachments));
 		const cleanBeritaIds = selectedBeritaIds.filter((id): id is string => typeof id === 'string' && id.length > 0);
 		fd.append('relatedBeritaIds', JSON.stringify(cleanBeritaIds));
 		const cleanGalleryIds = selectedGalleryIds.filter(
@@ -552,24 +599,7 @@ export default function DashboardEvents() {
 		fd.append('relatedGalleryIds', JSON.stringify(cleanGalleryIds));
 
 		saveEventMut.mutate({ formData: fd, isEditing });
-	}, [formTitle, formDesc, formStartDate, formEndDate, formPublished, formThumbnail, formAttachments, existingAttachments, selectedBeritaIds, selectedGalleryIds, selectedYearId, selectedParentEvent, editingEvent, saveEventMut, toast]);
-
-	const detectDriveFileId = useCallback((rawUrl: string): string | null => {
-		try {
-			const parsed = new URL(rawUrl);
-			const host = parsed.hostname.toLowerCase();
-			if (!host.includes('drive.google.com')) return null;
-			if (parsed.pathname.toLowerCase().includes('/drive/folders/')) return null;
-			const parts = parsed.pathname.split('/').filter(Boolean);
-			const dIdx = parts.findIndex((part) => part === 'd');
-			if (dIdx >= 0 && parts[dIdx + 1]) return parts[dIdx + 1];
-			const idParam = parsed.searchParams.get('id');
-			if (idParam) return idParam;
-			return null;
-		} catch {
-			return null;
-		}
-	}, []);
+	}, [formTitle, formDesc, formStartDate, formEndDate, formPublished, formThumbnail, formAttachments, existingAttachments, formAttachmentLinkName, formAttachmentLinkUrl, detectDriveFileId, selectedBeritaIds, selectedGalleryIds, selectedYearId, selectedParentEvent, editingEvent, saveEventMut, toast]);
 
 	const handleAddAttachmentLink = useCallback(() => {
 		const name = formAttachmentLinkName.trim();
@@ -579,6 +609,10 @@ export default function DashboardEvents() {
 				title: 'Nama dan URL lampiran wajib diisi',
 				variant: 'destructive',
 			});
+			return;
+		}
+		if (existingAttachments.length + formAttachments.length + 1 > 10) {
+			toast({ title: 'Maksimal 10 lampiran per event', variant: 'destructive' });
 			return;
 		}
 
@@ -610,7 +644,7 @@ export default function DashboardEvents() {
 		]);
 		setFormAttachmentLinkName('');
 		setFormAttachmentLinkUrl('');
-	}, [detectDriveFileId, formAttachmentLinkName, formAttachmentLinkUrl, toast]);
+	}, [detectDriveFileId, formAttachmentLinkName, formAttachmentLinkUrl, existingAttachments.length, formAttachments.length, toast]);
 
 	const eventsByMonth = useMemo(() => {
 		const map = new Map<number, EventItem[]>();
@@ -1203,7 +1237,12 @@ export default function DashboardEvents() {
 							</div>
 						</div>
 						<div>
+							<div className="flex items-center justify-between">
 							<Label>Lampiran (file rundown, poster, dokumen, dsb.)</Label>
+							<span className="text-xs text-muted-foreground">
+								{existingAttachments.length + formAttachments.length}/10 slot terpakai
+							</span>
+						</div>
 							{existingAttachments.length > 0 && (
 								<div className="mt-2 space-y-1 max-h-36 overflow-y-auto">
 									{existingAttachments.map((att, idx) => (
@@ -1230,11 +1269,40 @@ export default function DashboardEvents() {
 								multiple
 								className="mt-2"
 								onChange={(e) => {
-									if (e.target.files) setFormAttachments(Array.from(e.target.files));
+									if (e.target.files && e.target.files.length > 0) {
+										const newFiles = Array.from(e.target.files);
+										const currentTotal = existingAttachments.length + formAttachments.length;
+										const remaining = 10 - currentTotal;
+										if (remaining <= 0) {
+											toast({ title: 'Maksimal 10 lampiran per event', variant: 'destructive' });
+										} else if (newFiles.length > remaining) {
+											toast({ title: `Hanya bisa menambah ${remaining} file lagi (maks 10 total)`, variant: 'destructive' });
+											setFormAttachments(prev => [...prev, ...newFiles.slice(0, remaining)]);
+										} else {
+											setFormAttachments(prev => [...prev, ...newFiles]);
+										}
+										e.target.value = '';
+									}
 								}}
 							/>
 							{formAttachments.length > 0 && (
-								<p className="text-xs text-muted-foreground mt-1">{formAttachments.length} file baru akan diupload</p>
+								<div className="mt-2 space-y-1 max-h-36 overflow-y-auto">
+									{formAttachments.map((file, idx) => (
+										<div key={`new-${idx}-${file.name}`} className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 rounded px-3 py-1 min-w-0">
+											<span className="flex-1 truncate min-w-0">{file.name}</span>
+											<span className="text-[10px] uppercase rounded px-1.5 py-0.5 bg-background border text-blue-600 dark:text-blue-400">baru</span>
+											<Button
+												variant="ghost"
+												size="sm"
+												type="button"
+												className="h-6 w-6 p-0 flex-shrink-0"
+												onClick={() => setFormAttachments(prev => prev.filter((_, i) => i !== idx))}
+											>
+												<Trash2 className="h-3 w-3" />
+											</Button>
+										</div>
+									))}
+								</div>
 							)}
 							<div className="mt-3 rounded-md border p-3 space-y-2">
 								<p className="text-xs font-medium">Tambah lampiran dari link online</p>

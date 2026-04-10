@@ -4,6 +4,9 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import EventAttachmentPreviewDialog, {
+	type EventAttachmentPreviewItem,
+} from '@/components/public/event-attachment-preview-dialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { EventItem, EventYear, EventStatus } from '@shared/schema';
@@ -299,6 +302,7 @@ export default function EventsTree({
 
 	const [selectedEvent, setSelectedEvent] = useState<EventWithChildren | null>(null);
 	const [showSubEvents, setShowSubEvents] = useState<EventWithChildren | null>(null);
+	const [attachmentPreview, setAttachmentPreview] = useState<EventAttachmentPreviewItem | null>(null);
 	const [isDragging, setIsDragging] = useState(false);
 
 	const isDraggingRef = useRef(false);
@@ -903,17 +907,16 @@ export default function EventsTree({
 									<h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-2">Lampiran</h4>
 									<div className="space-y-2">
 										{selectedEvent.attachments.map((att, idx) => (
-											<a
+											<button
 												key={idx}
-												href={att.url}
-												target="_blank"
-												rel="noopener noreferrer"
+												type="button"
+												onClick={() => setAttachmentPreview(att)}
 												className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-sm text-gray-300"
 											>
 												<Download className="h-4 w-4 flex-shrink-0 text-primary" />
 												<span className="flex-1 truncate">{att.name}</span>
 												<ExternalLink className="h-3 w-3 flex-shrink-0 text-gray-500" />
-											</a>
+											</button>
 										))}
 									</div>
 								</div>
@@ -946,6 +949,12 @@ export default function EventsTree({
 					)}
 				</DialogContent>
 			</Dialog>
+			<EventAttachmentPreviewDialog
+				preview={attachmentPreview}
+				onOpenChange={(open) => {
+					if (!open) setAttachmentPreview(null);
+				}}
+			/>
 
 			<style>{`
 				.eventsTrackEnter {

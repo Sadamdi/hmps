@@ -7,6 +7,9 @@ import {
 } from '@/components/public/events-tree';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
+import EventAttachmentPreviewDialog, {
+	type EventAttachmentPreviewItem,
+} from '@/components/public/event-attachment-preview-dialog';
 import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,7 +23,7 @@ import {
 	Eye,
 	FileText,
 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import { isObjectId, toSlug } from '@/utils/slug';
 
@@ -68,6 +71,7 @@ export default function EventDetailPage() {
 	});
 
 	const { basePath } = useTenant();
+	const [attachmentPreview, setAttachmentPreview] = useState<EventAttachmentPreviewItem | null>(null);
 	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
 		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
@@ -165,16 +169,15 @@ export default function EventDetailPage() {
 									<h2 className="text-lg font-semibold mb-3">Lampiran</h2>
 									<div className="space-y-2">
 										{event.attachments.map((att, idx) => (
-											<a
+											<button
 												key={idx}
-												href={att.url}
-												target="_blank"
-												rel="noopener noreferrer"
+												type="button"
+												onClick={() => setAttachmentPreview(att)}
 												className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors">
 												<Download className="h-4 w-4 flex-shrink-0 text-primary" />
 												<span className="flex-1 truncate">{att.name}</span>
 												<ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-											</a>
+											</button>
 										))}
 									</div>
 								</div>
@@ -255,6 +258,12 @@ export default function EventDetailPage() {
 				</div>
 			</main>
 			<Footer />
+			<EventAttachmentPreviewDialog
+				preview={attachmentPreview}
+				onOpenChange={(open) => {
+					if (!open) setAttachmentPreview(null);
+				}}
+			/>
 			<AIChat
 				pageContext={{ path: `/events/${year}/${eventSlug || (event ? toSlug(event.title) : eventId)}`, permissions: [] }}
 			/>

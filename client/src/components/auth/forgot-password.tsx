@@ -8,7 +8,15 @@ import {
 } from '@/components/ui/input-otp';
 import { Label } from '@/components/ui/label';
 import { rewriteApiUrlForTenantPath } from '@/lib/tenant-api-rewrite';
-import { ArrowLeft, CheckCircle2, Clock, Eye, EyeOff, Loader2, Mail } from 'lucide-react';
+import {
+	ArrowLeft,
+	CheckCircle2,
+	Clock,
+	Eye,
+	EyeOff,
+	Loader2,
+	Mail,
+} from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 
@@ -163,7 +171,8 @@ export default function ForgotPassword() {
 			<div
 				className="pointer-events-none absolute inset-0 opacity-[0.04]"
 				style={{
-					backgroundImage: 'linear-gradient(rgba(148,163,184,1) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,1) 1px, transparent 1px)',
+					backgroundImage:
+						'linear-gradient(rgba(148,163,184,1) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,1) 1px, transparent 1px)',
 					backgroundSize: '40px 40px',
 				}}
 			/>
@@ -184,7 +193,8 @@ export default function ForgotPassword() {
 						{step === 'done' ? 'Password Berhasil Direset' : 'Lupa Password'}
 					</h1>
 					<p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-						{step === 'email' && 'Masukkan email akun Anda untuk menerima kode OTP'}
+						{step === 'email' &&
+							'Masukkan email akun Anda untuk menerima kode OTP'}
 						{step === 'otp' && 'Masukkan kode OTP yang dikirim ke email Anda'}
 						{step === 'new-password' && 'Buat password baru untuk akun Anda'}
 						{step === 'done' && 'Anda bisa login dengan password baru'}
@@ -194,7 +204,9 @@ export default function ForgotPassword() {
 				<CardContent className="px-8 pb-8 pt-4">
 					{error && (
 						<div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-500/40 rounded-lg">
-							<span className="text-red-700 dark:text-red-300 text-sm">{error}</span>
+							<span className="text-red-700 dark:text-red-300 text-sm">
+								{error}
+							</span>
 							{countdown > 0 && (
 								<div className="mt-1.5 text-xs text-red-600 dark:text-red-400/80 flex items-center gap-1">
 									<Clock className="h-3 w-3" />
@@ -205,9 +217,15 @@ export default function ForgotPassword() {
 					)}
 
 					{step === 'email' && (
-						<form onSubmit={handleRequestOtp} className="space-y-4">
+						<form
+							onSubmit={handleRequestOtp}
+							className="space-y-4">
 							<div className="space-y-1.5">
-								<Label htmlFor="email" className="text-sm font-medium">Email</Label>
+								<Label
+									htmlFor="email"
+									className="text-sm font-medium">
+									Email
+								</Label>
 								<Input
 									id="email"
 									type="email"
@@ -219,11 +237,20 @@ export default function ForgotPassword() {
 									className="bg-white dark:bg-white/5"
 								/>
 							</div>
-							<Button type="submit" className="w-full" disabled={loading || countdown > 0}>
+							<Button
+								type="submit"
+								className="w-full"
+								disabled={loading || countdown > 0}>
 								{loading ? (
-									<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mengirim...</>
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										Mengirim...
+									</>
 								) : countdown > 0 ? (
-									<><Clock className="mr-2 h-4 w-4" />Tunggu {formatTime(countdown)}</>
+									<>
+										<Clock className="mr-2 h-4 w-4" />
+										Tunggu {formatTime(countdown)}
+									</>
 								) : (
 									'Kirim Kode OTP'
 								)}
@@ -256,7 +283,10 @@ export default function ForgotPassword() {
 								disabled={otpCode.length !== 6 || loading}
 								onClick={handleVerifyOtp}>
 								{loading ? (
-									<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Memverifikasi...</>
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										Memverifikasi...
+									</>
 								) : (
 									'Verifikasi OTP'
 								)}
@@ -265,9 +295,15 @@ export default function ForgotPassword() {
 					)}
 
 					{step === 'new-password' && (
-						<form onSubmit={handleResetPassword} className="space-y-4">
+						<form
+							onSubmit={handleResetPassword}
+							className="space-y-4">
 							<div className="space-y-1.5">
-								<Label htmlFor="newPassword" className="text-sm font-medium">Password Baru</Label>
+								<Label
+									htmlFor="newPassword"
+									className="text-sm font-medium">
+									Password Baru
+								</Label>
 								<div className="relative">
 									<Input
 										id="newPassword"
@@ -282,12 +318,20 @@ export default function ForgotPassword() {
 										type="button"
 										className="absolute inset-y-0 right-3 flex items-center text-slate-500"
 										onClick={() => setShowPassword((v) => !v)}>
-										{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+										{showPassword ? (
+											<EyeOff className="h-4 w-4" />
+										) : (
+											<Eye className="h-4 w-4" />
+										)}
 									</button>
 								</div>
 							</div>
 							<div className="space-y-1.5">
-								<Label htmlFor="confirmPassword" className="text-sm font-medium">Konfirmasi Password</Label>
+								<Label
+									htmlFor="confirmPassword"
+									className="text-sm font-medium">
+									Konfirmasi Password
+								</Label>
 								<Input
 									id="confirmPassword"
 									type="password"
@@ -298,9 +342,15 @@ export default function ForgotPassword() {
 									className="bg-white dark:bg-white/5"
 								/>
 							</div>
-							<Button type="submit" className="w-full" disabled={loading}>
+							<Button
+								type="submit"
+								className="w-full"
+								disabled={loading}>
 								{loading ? (
-									<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Mereset...</>
+									<>
+										<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+										Mereset...
+									</>
 								) : (
 									'Reset Password'
 								)}
@@ -311,7 +361,9 @@ export default function ForgotPassword() {
 					{step === 'done' && (
 						<div className="text-center space-y-4">
 							<CheckCircle2 className="mx-auto h-12 w-12 text-green-500" />
-							<Button onClick={() => navigate('/login')} className="w-full">
+							<Button
+								onClick={() => navigate('/login')}
+								className="w-full">
 								Kembali ke Login
 							</Button>
 						</div>
