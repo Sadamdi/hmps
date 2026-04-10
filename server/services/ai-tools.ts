@@ -256,6 +256,50 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 		},
 		isPublic: true,
 	},
+	{
+		name: 'internet_search',
+		description:
+			'Cari informasi terbaru di internet. Gunakan saat user bertanya tentang informasi yang mungkin tidak ada di database internal (berita terkini kampus, info umum UIN Malang, Teknik Informatika, Himatif Encoder, atau topik lain yang memerlukan data web). Prioritaskan sumber resmi terkait UIN Malang dan Prodi TI jika relevan. Setelah mendapat hasil, gunakan fetch_website_content untuk membaca detail halaman tertentu jika diperlukan.',
+		parameters: {
+			type: 'object',
+			properties: {
+				query: {
+					type: 'string',
+					description:
+						'Query pencarian internet. Buat query yang spesifik dan jelas dalam bahasa Indonesia atau Inggris.',
+				},
+				maxResults: {
+					type: 'number',
+					description:
+						'Jumlah maksimal hasil pencarian. Default 5, maksimal 10.',
+				},
+			},
+			required: ['query'],
+		},
+		isPublic: true,
+	},
+	{
+		name: 'fetch_website_content',
+		description:
+			'Ambil dan baca konten dari halaman website tertentu. Gunakan setelah internet_search untuk mendapatkan detail lengkap dari halaman yang ditemukan, atau saat user memberikan URL spesifik yang ingin dibaca isinya. Mengembalikan teks utama halaman (tanpa HTML/script/style).',
+		parameters: {
+			type: 'object',
+			properties: {
+				url: {
+					type: 'string',
+					description:
+						'URL lengkap halaman web yang ingin diambil kontennya (harus diawali http:// atau https://).',
+				},
+				maxChars: {
+					type: 'number',
+					description:
+						'Jumlah maksimal karakter konten yang dikembalikan. Default 8000, maksimal 15000.',
+				},
+			},
+			required: ['url'],
+		},
+		isPublic: true,
+	},
 ];
 
 // ---------------------------------------------------------------------------
@@ -1032,6 +1076,164 @@ function isBeritaEventLinked(
 	if (idStringsEqual(berita.sourceEventId, eid)) return true;
 	if (idStringsEqual(event.sourceBeritaId, bid)) return true;
 	return false;
+}
+
+// ---------------------------------------------------------------------------
+// Internet search & website fetch helpers
+// ---------------------------------------------------------------------------
+
+const FETCH_TIMEOUT_MS = 10_000;
+
+function isPrivateHost(hostname: string): boolean {
+	const h = hostname.toLowerCase();
+	if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '[::1]') return true;
+	if (h.startsWith('10.') || h.startsWith('192.168.')) return true;
+	if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
+	if (h.endsWith('.local') || h.endsWith('.internal')) return true;
+	return false;
+}
+
+function stripHtmlToText(html: string): string {
+	return html
+		.replace(/<script[\s\S]*?<\/script>/gi, ' ')
+		.replace(/<style[\s\S]*?<\/style>/gi, ' ')
+		.replace(/<nav[\s\S]*?<\/nav>/gi, ' ')
+		.replace(/<footer[\s\S]*?<\/footer>/gi, ' ')
+		.replace(/<[^>]*>/g, ' ')
+		.replace(/&nbsp;/gi, ' ')
+		.replace(/&amp;/gi, '&')
+		.replace(/&lt;/gi, '<')
+		.replace(/&gt;/gi, '>')
+		.replace(/&quot;/gi, '"')
+		.replace(/&#0?39;/gi, "'")
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+function extractDdgUrl(raw: string): string {
+	try {
+		if (raw.includes('uddg=')) {
+			const full = raw.startsWith('//') ? `https:${raw}` : raw;
+			const parsed = new URL(full);
+			const uddg = parsed.searchParams.get('uddg');
+			if (uddg) return uddg;
+		}
+	} catch { /* keep raw */ }
+	if (raw.startsWith('//')) return `https:${raw}`;
+	return raw;
+}
+
+async function performInternetSearch(
+	query: string,
+	maxResults: number,
+): Promise<{ results: { title: string; url: string; snippet: string }[]; provider: string }> {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+	try {
+		const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`;
+		const res = await fetch(searchUrl, {
+			headers: {
+				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+				Accept: 'text/html',
+			},
+			signal: controller.signal,
+			redirect: 'follow',
+		});
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		const html = await res.text();
+
+		const items: { title: string; url: string; snippet: string }[] = [];
+
+		const blockRe = /<div[^>]*class="[^"]*result[^"]*web-result[^"]*"[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/gi;
+		const blocks = html.match(blockRe) || [];
+
+		for (const block of blocks) {
+			if (items.length >= maxResults) break;
+
+			const linkMatch = block.match(/<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/i);
+			if (!linkMatch) continue;
+
+			const url = extractDdgUrl(linkMatch[1]);
+			const title = stripHtmlToText(linkMatch[2]);
+
+			const snippetMatch = block.match(/<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/i)
+				|| block.match(/<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/i);
+			const snippet = snippetMatch ? stripHtmlToText(snippetMatch[1]) : '';
+
+			if (title && url) items.push({ title, url, snippet });
+		}
+
+		if (items.length === 0) {
+			const linkFallback = /<a[^>]*class="result__a"[^>]*href="([^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+			const snippetFallback = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+
+			const titles: { url: string; title: string }[] = [];
+			let m: RegExpExecArray | null;
+			while ((m = linkFallback.exec(html)) !== null) {
+				titles.push({ url: extractDdgUrl(m[1]), title: stripHtmlToText(m[2]) });
+			}
+			const snippets: string[] = [];
+			while ((m = snippetFallback.exec(html)) !== null) {
+				snippets.push(stripHtmlToText(m[1]));
+			}
+
+			for (let i = 0; i < Math.min(titles.length, maxResults); i++) {
+				items.push({ title: titles[i].title, url: titles[i].url, snippet: snippets[i] || '' });
+			}
+		}
+
+		return { results: items, provider: 'DuckDuckGo' };
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
+async function fetchAndExtractWebpage(
+	url: string,
+	maxChars: number,
+): Promise<{ url: string; title: string; content: string; contentLength: number }> {
+	const parsed = new URL(url);
+	if (!['http:', 'https:'].includes(parsed.protocol)) {
+		throw new Error('Hanya URL http/https yang diizinkan.');
+	}
+	if (isPrivateHost(parsed.hostname)) {
+		throw new Error('URL localhost / jaringan privat tidak diizinkan.');
+	}
+
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS + 2000);
+
+	try {
+		const res = await fetch(url, {
+			headers: {
+				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+				Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+			},
+			signal: controller.signal,
+			redirect: 'follow',
+		});
+		if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+
+		const ct = res.headers.get('content-type') || '';
+		if (!ct.includes('text/') && !ct.includes('html') && !ct.includes('xml') && !ct.includes('json')) {
+			throw new Error(`Tipe konten tidak didukung: ${ct.split(';')[0]}`);
+		}
+
+		const html = await res.text();
+		const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+		const title = titleMatch ? stripHtmlToText(titleMatch[1]).substring(0, 200) : '';
+
+		let text = stripHtmlToText(html);
+		const fullLength = text.length;
+		if (text.length > maxChars) {
+			text = text.substring(0, maxChars) + '… [konten dipotong]';
+		}
+
+		return { url, title, content: text, contentLength: fullLength };
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -2521,6 +2723,62 @@ export async function executeToolCall(
 						parentEventId: String(parent._id),
 					},
 				};
+			}
+
+			// ==================== INTERNET SEARCH & FETCH ====================
+
+			case 'internet_search': {
+				const query = (args.query as string)?.trim();
+				if (!query) return { error: 'Query pencarian diperlukan.' };
+				const maxResults = Math.min(Math.max((args.maxResults as number) || 5, 1), 10);
+
+				try {
+					const { results, provider } = await performInternetSearch(query, maxResults);
+					if (results.length === 0) {
+						return {
+							query,
+							count: 0,
+							results: [],
+							message: 'Tidak ditemukan hasil pencarian. Coba query yang berbeda atau lebih spesifik.',
+							provider,
+						};
+					}
+					return {
+						query,
+						count: results.length,
+						results,
+						provider,
+						hint: 'Gunakan fetch_website_content dengan URL dari hasil di atas untuk membaca konten halaman secara detail jika diperlukan.',
+					};
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					if (msg.includes('abort')) {
+						return { error: 'Pencarian internet timeout. Coba lagi nanti.' };
+					}
+					return { error: `Gagal melakukan pencarian internet: ${msg}` };
+				}
+			}
+
+			case 'fetch_website_content': {
+				const url = (args.url as string)?.trim();
+				if (!url) return { error: 'URL diperlukan.' };
+				const maxChars = Math.min(Math.max((args.maxChars as number) || 8000, 500), 15000);
+
+				try {
+					const result = await fetchAndExtractWebpage(url, maxChars);
+					return {
+						url: result.url,
+						title: result.title,
+						contentLength: result.contentLength,
+						content: result.content,
+					};
+				} catch (err) {
+					const msg = err instanceof Error ? err.message : String(err);
+					if (msg.includes('abort')) {
+						return { error: `Timeout saat mengambil konten dari ${url}. Halaman mungkin terlalu lambat atau tidak merespon.` };
+					}
+					return { error: `Gagal mengambil konten dari ${url}: ${msg}` };
+				}
 			}
 
 			default:

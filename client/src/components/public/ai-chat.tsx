@@ -120,6 +120,28 @@ function isSafeExternalUrl(url: string): boolean {
 	}
 }
 
+function sanitizeExtractedUrl(raw: string): string {
+	let cleaned = raw.trim();
+	// Hapus wrapping quote/bracket di awal/akhir
+	cleaned = cleaned.replace(/^["'(<\[]+/, '');
+	cleaned = cleaned.replace(/["'>\]]+$/, '');
+
+	// Hapus trailing punctuation yang umum muncul di akhir kalimat
+	cleaned = cleaned.replace(/[),.;!?]+$/g, '');
+
+	// Seimbangkan kurung tutup jika jumlahnya berlebih
+	const openParens = (cleaned.match(/\(/g) || []).length;
+	const closeParens = (cleaned.match(/\)/g) || []).length;
+	if (closeParens > openParens) {
+		let extra = closeParens - openParens;
+		while (extra > 0 && cleaned.endsWith(')')) {
+			cleaned = cleaned.slice(0, -1);
+			extra--;
+		}
+	}
+	return cleaned.trim();
+}
+
 function parseMessageActions(text: string): {
 	cleanText: string;
 	navActions: NavAction[];
@@ -144,7 +166,7 @@ function parseMessageActions(text: string): {
 		}
 		return '';
 	});
-	const cleanText = withoutNav
+	const withStructuredLinksRemoved = withoutNav
 		.replace(LINK_REGEX, (_, jsonStr) => {
 			try {
 				const parsed = JSON.parse(jsonStr);
@@ -164,6 +186,30 @@ function parseMessageActions(text: string): {
 			return '';
 		})
 		.trimEnd();
+
+	// URL mentah dari kalimat biasa (menghindari quote/kurung berlebih)
+	const PLAIN_URL_REGEX = /https?:\/\/[^\s<>"']+/gi;
+	const seenUrls = new Set(linkActions.map((l) => l.url));
+	const cleanText = withStructuredLinksRemoved
+		.replace(PLAIN_URL_REGEX, (rawUrl) => {
+			const normalized = sanitizeExtractedUrl(rawUrl);
+			if (!isSafeExternalUrl(normalized)) return rawUrl;
+			if (!seenUrls.has(normalized)) {
+				seenUrls.add(normalized);
+				let label = normalized;
+				try {
+					const u = new URL(normalized);
+					label = u.hostname + (u.pathname && u.pathname !== '/' ? u.pathname : '');
+				} catch {
+					/* fallback ke url mentah */
+				}
+				linkActions.push({ url: normalized, label: `Buka ${label}` });
+			}
+			return '';
+		})
+		.replace(/[ \t]+\n/g, '\n')
+		.trimEnd();
+
 	return { cleanText, navActions, linkActions };
 }
 
@@ -279,6 +325,8 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [pendingNav, setPendingNav] = useState<NavAction | null>(null);
+	const [pendingExternalLink, setPendingExternalLink] =
+		useState<ExternalLinkAction | null>(null);
 	/** Tawaran redirect terakhir dari AI — bisa dikonfirmasi lewat teks (ya/oke) tanpa klik tombol. */
 	const [navOfferWaitingConfirm, setNavOfferWaitingConfirm] = useState<
 		NavAction[] | null
@@ -840,7 +888,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 									</div>
 								)}
 								<div
-									className={`px-3 py-2.5 rounded-xl max-w-[82%] text-sm leading-relaxed ${
+									className={`px-3 py-2.5 rounded-xl max-w-[82%] min-w-0 text-sm leading-relaxed break-words [overflow-wrap:anywhere] ${
 										msg.isBot
 											? 'bg-secondary text-foreground rounded-tl-none border border-border/50'
 											: 'bg-primary/25 text-foreground rounded-tr-none border border-primary/20'
@@ -894,15 +942,15 @@ export default function AIChat({ pageContext }: AIChatProps) {
 													<button
 														key={`${link.url}-${idx}`}
 														onClick={() =>
-															window.open(
-																link.url,
-																'_blank',
-																'noopener,noreferrer',
+															setPendingExternalLink(
+																link
 															)
 														}
-														className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-400/35 hover:bg-emerald-500/25 hover:border-emerald-300/50 transition-all duration-200">
+														className="inline-flex w-full max-w-full min-w-0 items-center justify-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-400/35 hover:bg-emerald-500/25 hover:border-emerald-300/50 transition-all duration-200 overflow-hidden">
 														<ExternalLink className="h-3 w-3" />
-														{link.label}
+														<span className="min-w-0 break-all text-center">
+															{link.label}
+														</span>
 													</button>
 												)
 											)}
@@ -1017,6 +1065,47 @@ export default function AIChat({ pageContext }: AIChatProps) {
 											setIsChatOpen(false);
 										}}
 										className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
+										Ya, buka
+									</button>
+								</div>
+							</div>
+						</div>
+					)}
+
+					{/* External link confirmation overlay */}
+					{pendingExternalLink && (
+						<div className="absolute inset-0 top-[52px] bg-background/95 backdrop-blur-sm z-20 flex items-center justify-center p-6">
+							<div className="bg-card border border-border rounded-xl shadow-lg p-5 w-full max-w-[300px] text-center space-y-3">
+								<div className="w-10 h-10 rounded-full bg-emerald-500/15 border border-emerald-400/35 flex items-center justify-center mx-auto">
+									<ExternalLink className="h-5 w-5 text-emerald-300" />
+								</div>
+								<p className="text-sm text-foreground font-medium">
+									Buka link eksternal?
+								</p>
+								<p className="text-xs text-muted-foreground leading-relaxed">
+									{pendingExternalLink.label}
+								</p>
+								<code className="block text-[11px] text-muted-foreground/70 bg-secondary rounded px-2 py-1 break-all max-h-20 overflow-y-auto text-left">
+									{pendingExternalLink.url}
+								</code>
+								<div className="flex gap-2 pt-1">
+									<button
+										onClick={() =>
+											setPendingExternalLink(null)
+										}
+										className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted-foreground hover:bg-secondary transition-colors">
+										Batal
+									</button>
+									<button
+										onClick={() => {
+											window.open(
+												pendingExternalLink.url,
+												'_blank',
+												'noopener,noreferrer'
+											);
+											setPendingExternalLink(null);
+										}}
+										className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-500 text-black hover:bg-emerald-400 transition-colors">
 										Ya, buka
 									</button>
 								</div>

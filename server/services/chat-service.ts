@@ -20,7 +20,12 @@ import {
 import { ApiKeyUsage, Chat } from '../models/chat';
 import { executeToolCall, getToolsForPermissions } from './ai-tools';
 
-type GeminiLoopSuccess = { ok: true; responseText: string; modelName: string };
+type GeminiLoopSuccess = {
+	ok: true;
+	responseText: string;
+	modelName: string;
+	usedToolNames: string[];
+};
 type GeminiLoopFailure = {
 	ok: false;
 	sawQuotaLike: boolean;
@@ -28,6 +33,38 @@ type GeminiLoopFailure = {
 };
 
 export class ChatService {
+	private static hasTool(
+		tools: Record<string, unknown>[],
+		toolName: string
+	): boolean {
+		return tools.some((t) => String(t.name || '') === toolName);
+	}
+
+	private static shouldForceWebToolRetry(
+		responseText: string,
+		usedToolNames: string[],
+		allowedTools: Record<string, unknown>[]
+	): boolean {
+		const hasInternetSearch = this.hasTool(allowedTools, 'internet_search');
+		const hasFetchWebsite = this.hasTool(allowedTools, 'fetch_website_content');
+		if (!hasInternetSearch || !hasFetchWebsite) return false;
+
+		const usedWebTools =
+			usedToolNames.includes('internet_search') &&
+			usedToolNames.includes('fetch_website_content');
+		if (usedWebTools) return false;
+
+		const lower = responseText.toLowerCase();
+		const uncertainPatterns = [
+			'tidak dapat menemukan informasi',
+			'tidak menemukan informasi',
+			'tidak memiliki informasi',
+			'saya tidak tahu',
+			'informasi tidak tersedia',
+		];
+		return uncertainPatterns.some((p) => lower.includes(p));
+	}
+
 	private static async getUsageRecordsForPicker(): Promise<
 		ApiKeyUsageSlotRecord[]
 	> {
@@ -123,6 +160,7 @@ export class ChatService {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				let contents: Content[] = history as any;
 				let responseText = '';
+				const usedToolNames = new Set<string>();
 
 				for (let iteration = 0; iteration < 5; iteration++) {
 					const result = await model.generateContent({ contents });
@@ -138,6 +176,7 @@ export class ChatService {
 						`[AI Agent] Iteration ${iteration + 1}: executing tools:`,
 						functionCalls.map((fc) => fc.name).join(', ')
 					);
+					functionCalls.forEach((fc) => usedToolNames.add(fc.name));
 
 					// tenantDbName: DB tenant komunitas; authUserId: pemilik konten untuk tool tulis
 					const toolResults = await Promise.all(
@@ -176,7 +215,12 @@ export class ChatService {
 						'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
 				}
 
-				return { ok: true, responseText, modelName };
+				return {
+					ok: true,
+					responseText,
+					modelName,
+					usedToolNames: Array.from(usedToolNames),
+				};
 			} catch (error) {
 				lastError = error as Error;
 				if (isQuotaLikeError(error)) sawQuotaLike = true;
@@ -336,6 +380,36 @@ export class ChatService {
 			if (loopResult.ok) {
 				responseText = loopResult.responseText;
 				currentModel = loopResult.modelName;
+
+				if (
+					this.shouldForceWebToolRetry(
+						responseText,
+						loopResult.usedToolNames,
+						allowedTools
+					)
+				) {
+					const retryInstruction =
+						'INSTRUKSI TAMBAHAN WAJIB: Jawaban Anda sebelumnya belum memadai karena belum menggunakan tool web. Sekarang WAJIB panggil internet_search lalu WAJIB panggil fetch_website_content pada hasil yang paling relevan, kemudian berikan jawaban final dengan menyebut sumber URL secara eksplisit.';
+					const retryHistory: Content[] = [
+						...history,
+						{ role: 'user', parts: [{ text: retryInstruction }] },
+					];
+					const retryResult = await this.runGeminiAgenticLoop(
+						gemini,
+						retryHistory,
+						permissions,
+						authUserId,
+						pagePath,
+						geminiTools,
+						tenantDbName,
+						isTenantContext
+					);
+					if (retryResult.ok) {
+						responseText = retryResult.responseText;
+						currentModel = retryResult.modelName;
+					}
+				}
+
 				console.log(
 					`Successfully used model: ${currentModel} for user: ${userId}`
 				);
