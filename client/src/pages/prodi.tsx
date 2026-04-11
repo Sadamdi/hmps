@@ -70,16 +70,41 @@ function extractGoogleDriveFileId(rawUrl: string): string | null {
 }
 
 /**
- * Preview akreditasi: untuk Google Drive jangan lewat /api/prodi/preview (proxy HTML Google
- * ke origin kita) — itu sering gagal di mobile. Pakai embed langsung seperti galeri/event.
+ * Gambar (thumbnail) akreditasi: Drive → lh3; lainnya → proxy.
  */
-function toAccreditationPreviewSrc(url: string): string {
+function toAccreditationImageSrc(url: string): string {
+	const driveId = extractGoogleDriveFileId(url);
+	if (driveId && /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url)) {
+		return `https://lh3.googleusercontent.com/d/${driveId}=s1600`;
+	}
+	const resolved = resolveDrivePreviewUrl(url);
+	return `/api/prodi/preview?url=${encodeURIComponent(resolved)}`;
+}
+
+function isAbsoluteHttpUrl(url: string): boolean {
+	try {
+		const u = new URL(url);
+		return u.protocol === 'http:' || u.protocol === 'https:';
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * PDF/ dokumen di iframe: Safari mobile merender PDF dalam iframe sangat buruk/lebih sering diblok.
+ * Untuk URL http(s) publik selain Drive, di HP/tablet kita pakai Google Docs Viewer (iframe ke docs.google.com)
+ * — pola umum yang sama dipakai banyak situs; PDF harus bisa di-fetch publik oleh Google.
+ */
+function toAccreditationIframeSrc(
+	url: string,
+	preferGoogleDocsViewerForPublicHttp: boolean,
+): string {
 	const driveId = extractGoogleDriveFileId(url);
 	if (driveId) {
-		if (/\.(png|jpe?g|webp|gif)(\?|$)/i.test(url)) {
-			return `https://lh3.googleusercontent.com/d/${driveId}=s1600`;
-		}
 		return `https://drive.google.com/file/d/${driveId}/preview`;
+	}
+	if (preferGoogleDocsViewerForPublicHttp && isAbsoluteHttpUrl(url)) {
+		return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
 	}
 	const resolved = resolveDrivePreviewUrl(url);
 	return `/api/prodi/preview?url=${encodeURIComponent(resolved)}`;
@@ -777,7 +802,22 @@ function SubjectTable({ subjects, totalSks }: { subjects: any[]; totalSks?: stri
 
 function AccreditationSection({ data }: { data: any }) {
 	const [preview, setPreview] = useState<{ title: string; url: string } | null>(null);
+	/** Layar sempit / sentuh: PDF publik non-Google pakai Google Docs Viewer, bukan iframe PDF langsung. */
+	const [preferGoogleDocsPdf, setPreferGoogleDocsPdf] = useState(false);
 	const [selectedLevel, setSelectedLevel] = useState<'s1' | 's2' | 's3'>('s1');
+
+	useEffect(() => {
+		const narrow = window.matchMedia('(max-width: 768px)');
+		const coarse = window.matchMedia('(pointer: coarse)');
+		const update = () => setPreferGoogleDocsPdf(narrow.matches || coarse.matches);
+		update();
+		narrow.addEventListener('change', update);
+		coarse.addEventListener('change', update);
+		return () => {
+			narrow.removeEventListener('change', update);
+			coarse.removeEventListener('change', update);
+		};
+	}, []);
 	const levels = [
 		{ key: 's1', label: 'Undergraduate (S1)' },
 		{ key: 's2', label: 'Master (S2)' },
@@ -880,13 +920,13 @@ function AccreditationSection({ data }: { data: any }) {
 						{preview?.url ? (
 							isImageUrl(preview.url) ? (
 								<img
-									src={toAccreditationPreviewSrc(preview.url)}
+									src={toAccreditationImageSrc(preview.url)}
 									alt={preview.title}
 									className="w-full max-h-[70vh] object-contain bg-background"
 								/>
 							) : (
 								<iframe
-									src={toAccreditationPreviewSrc(preview.url)}
+									src={toAccreditationIframeSrc(preview.url, preferGoogleDocsPdf)}
 									title={preview.title}
 									className="w-full h-[70vh] bg-background border-0"
 									allow="fullscreen"

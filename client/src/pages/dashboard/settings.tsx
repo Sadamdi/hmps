@@ -417,6 +417,16 @@ export default function SettingsPage() {
 
 	const [formData, setFormData] = useState<SiteSettings>(defaultSettings);
 
+	/** Gabungan domain bawaan + tambahan (untuk tampilan ringkas & dialog embed). */
+	const effectiveEmbedHostnames = useMemo(() => {
+		const extra = (formData.embedAllowedHosts ?? [])
+			.map((h) => h.trim().toLowerCase())
+			.filter(Boolean);
+		return [...new Set([...DEFAULT_EMBED_HOSTNAMES, ...extra])].sort((a, b) =>
+			a.localeCompare(b),
+		);
+	}, [formData.embedAllowedHosts]);
+
 	// Middleware settings state
 	const [middlewareFormData, setMiddlewareFormData] =
 		useState<MiddlewareSettings>({
@@ -1536,9 +1546,10 @@ export default function SettingsPage() {
 									</CardHeader>
 									<CardContent className="space-y-3">
 										<p className="text-sm text-muted-foreground">
-											{(formData.embedAllowedHosts ?? []).filter(Boolean).length === 0
-												? 'Menggunakan domain bawaan saja (YouTube, Google Drive, Maps, Photopea).'
-												: `${(formData.embedAllowedHosts ?? []).filter(Boolean).length} domain tambahan diizinkan selain domain bawaan.`}
+											<strong>{effectiveEmbedHostnames.length}</strong> hostname diizinkan untuk
+											iframe/CSP (domain bawaan +{' '}
+											{(formData.embedAllowedHosts ?? []).filter(Boolean).length} tambahan). Buka
+											dialog untuk melihat daftar lengkap.
 										</p>
 										<Button
 											variant="outline"
@@ -1555,8 +1566,8 @@ export default function SettingsPage() {
 										<DialogHeader>
 											<DialogTitle>Domain Embed yang Diizinkan</DialogTitle>
 											<DialogDescription className="text-left text-sm">
-												Klik <strong>Tutup</strong> untuk menyimpan domain embed ke server (sama dengan{' '}
-												<strong>Save Changes</strong> di bawah halaman). Anda juga bisa tetap memakai{' '}
+												Klik <strong>Tutup &amp; simpan</strong> untuk menyimpan ke server (sama
+												dengan <strong>Save Changes</strong> di bawah). Anda juga bisa memakai{' '}
 												<strong>Save Changes</strong> tanpa menutup dialog dulu.
 											</DialogDescription>
 										</DialogHeader>
@@ -1624,6 +1635,35 @@ export default function SettingsPage() {
 														<Plus className="h-4 w-4 mr-1" />
 														Tambah domain
 													</Button>
+												</div>
+											</div>
+
+											<div>
+												<h4 className="text-sm font-semibold mb-1.5">
+													Domain efektif (bawaan + tambahan)
+												</h4>
+												<p className="text-xs text-muted-foreground mb-2">
+													Total <strong>{effectiveEmbedHostnames.length}</strong> hostname yang dipakai
+													CSP untuk iframe setelah disimpan. Domain tambahan Anda ditandai dengan
+													teks lebih gelap.
+												</p>
+												<div className="flex flex-wrap gap-1.5 max-h-36 overflow-y-auto rounded-md border border-border/60 bg-muted/30 p-2">
+													{effectiveEmbedHostnames.map((h) => {
+														const isExtra = !(DEFAULT_EMBED_HOSTNAMES as readonly string[]).includes(
+															h,
+														);
+														return (
+															<span
+																key={h}
+																className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ${
+																	isExtra
+																		? 'bg-primary/15 text-foreground border border-primary/30'
+																		: 'bg-muted text-muted-foreground'
+																}`}>
+																{h}
+															</span>
+														);
+													})}
 												</div>
 											</div>
 										</div>
