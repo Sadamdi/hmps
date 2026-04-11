@@ -8,6 +8,14 @@ function envInt(name: string, fallback: number): number {
 	return Number.isFinite(v) && v > 0 ? v : fallback;
 }
 
+/** Ada kredensial login (JWT di cookie / Bearer) — kuota API terpisah & lebih longgar dari anon di IP sama (NAT/kampus). */
+function hasAuthCredentials(req: Request): boolean {
+	if (req.headers.authorization?.startsWith('Bearer ')) return true;
+	const raw = req.headers.cookie || '';
+	const m = raw.match(/(?:^|;\s*)authToken=([^;]*)/);
+	return !!(m && m[1] && String(m[1]).trim().length > 10);
+}
+
 // Cache for middleware settings
 let middlewareSettingsCache: any = null;
 let settingsCacheTimestamp: number = 0;
@@ -223,20 +231,33 @@ export const apiProtectionMiddleware = async (
 };
 
 // ==================== API RATE LIMITING ====================
-/** Per menit per IP (CF-Connecting-IP / XFF). Pakai express-rate-limit (aman untuk request paralel). */
+/**
+ * Per menit: bucket terpisah anon vs login (`IP:anon` / `IP:auth`) supaya satu IP publik
+ * (WiFi kampus, ISP) tidak cepat kena imbas traffic anon, sementara user login tetap nyaman.
+ */
 const apiLimiterCore = rateLimit({
 	windowMs: 60 * 1000,
-	limit: () => envInt('API_RATE_LIMIT_PER_MINUTE', 90),
+	limit: (req) =>
+		hasAuthCredentials(req)
+			? envInt('API_RATE_LIMIT_PER_MINUTE_AUTH', 420)
+			: envInt('API_RATE_LIMIT_PER_MINUTE', 240),
 	standardHeaders: true,
 	legacyHeaders: false,
 	skip: (req) => !req.path.startsWith('/api/'),
-	keyGenerator: (req) => getTrustedClientIp(req),
+	keyGenerator: (req) => {
+		const ip = getTrustedClientIp(req);
+		return hasAuthCredentials(req) ? `${ip}:auth` : `${ip}:anon`;
+	},
 	validate: false,
 	handler: (req, res) => {
 		const clientIP = getTrustedClientIp(req);
 		const retryAfter = envInt('API_RATE_LIMIT_WINDOW_SEC', 60);
+		const auth = hasAuthCredentials(req);
+		const lim = auth
+			? envInt('API_RATE_LIMIT_PER_MINUTE_AUTH', 420)
+			: envInt('API_RATE_LIMIT_PER_MINUTE', 240);
 		console.log(
-			`🚨 API Rate Limit: IP ${clientIP} exceeded limit, retry in ${retryAfter}s`,
+			`🚨 API Rate Limit: IP ${clientIP} (${auth ? 'auth' : 'anon'}) melebihi ${lim}/menit, retry ${retryAfter}s`,
 		);
 		return sendBeautifulApiError(
 			res,
@@ -244,10 +265,11 @@ const apiLimiterCore = rateLimit({
 			'API Rate Limit Exceeded',
 			'Too many API requests. Please slow down and try again later.',
 			{
-				limit: envInt('API_RATE_LIMIT_PER_MINUTE', 90),
+				limit: lim,
 				window: '1 minute',
 				retryAfter,
 				ip: clientIP,
+				bucket: auth ? 'authenticated' : 'anonymous',
 			},
 		);
 	},

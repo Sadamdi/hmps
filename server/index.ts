@@ -32,6 +32,7 @@ import {
 	sqlInjectionProtectionMiddleware,
 } from './middleware/sql-injection-protection';
 import { sanitizeInput, securityLogger, securityMiddleware } from './security';
+import { loadSheddingMiddleware } from './middleware/load-shedding';
 
 // Import models to ensure they are registered
 import './models/activity';
@@ -44,6 +45,9 @@ const app = express();
 
 // Trust proxy untuk membaca X-Forwarded-For dengan benar
 app.set('trust proxy', true);
+
+// Batasi request bersamaan per worker — tolak 503 sebelum middleware/DB (lindungi Mongo)
+app.use(loadSheddingMiddleware);
 
 // ==================== SECURITY MIDDLEWARE SETUP ====================
 // Apply security headers and basic protection

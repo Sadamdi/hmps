@@ -14,10 +14,17 @@ const connectDB = async () => {
 		console.log('Connecting to MongoDB...');
 
 		mongoose.set('bufferTimeoutMS', 60_000);
+
+		const maxPool = parseInt(process.env.MONGO_MAX_POOL_SIZE || '24', 10);
+		const pool = Number.isFinite(maxPool) && maxPool > 0 ? maxPool : 24;
+
 		await mongoose.connect(MONGODB_URI, {
 			serverSelectionTimeoutMS: 5000,
 			connectTimeoutMS: 10000,
 			socketTimeoutMS: 120_000,
+			maxPoolSize: pool,
+			minPoolSize: Math.min(2, pool),
+			maxConnecting: Math.min(5, pool),
 		});
 
 		console.log('Connected to MongoDB');

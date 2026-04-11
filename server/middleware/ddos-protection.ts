@@ -99,9 +99,9 @@ async function getCachedDdosMiddlewareSettings() {
 
 // ==================== DDoS PROTECTION CONFIGURATION ====================
 
-// Tier 1 (dapat di-override env — default lebih ketat untuk VPS kecil)
-const TIER1_DEVICE_LIMIT = envInt('DDOS_TIER1_DEVICE_LIMIT', 40);
-const TIER1_IP_LIMIT = envInt('DDOS_TIER1_IP_LIMIT', 180);
+// Tier 1 — default lebih longgar per IP (banyak pengguna berbagi satu IP publik / NAT)
+const TIER1_DEVICE_LIMIT = envInt('DDOS_TIER1_DEVICE_LIMIT', 100);
+const TIER1_IP_LIMIT = envInt('DDOS_TIER1_IP_LIMIT', 650);
 const TIER1_WINDOW_MS = 60 * 1000; // 1 menit
 
 // Tier 2: Quick Block 10 menit
@@ -119,11 +119,11 @@ const TIER3_BLOCK_DURATION_MS = 60 * 60 * 1000; // 60 menit
 // Concurrent connection limits (semua route yang tidak di-skip)
 const MAX_CONCURRENT_CONNECTIONS_PER_IP = envInt(
 	'DDOS_MAX_CONCURRENT_PER_IP',
-	30,
+	55,
 );
 const MAX_CONCURRENT_CONNECTIONS_PER_DEVICE = envInt(
 	'DDOS_MAX_CONCURRENT_PER_DEVICE',
-	8,
+	18,
 );
 
 // Special rate limits untuk sensitive endpoints
