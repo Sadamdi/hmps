@@ -8,6 +8,48 @@ function envInt(name: string, fallback: number): number {
 	return Number.isFinite(v) && v > 0 ? v : fallback;
 }
 
+/**
+ * Request ke /api/* dari konteks situs resmi (bukan probe mentah).
+ * Mencegah false positive pola substring di query (?…upload…) atau path resmi (/api/…/preview).
+ */
+function isOfficialSiteApiTraffic(req: Request): boolean {
+	const p = req.path || '';
+	if (!p.startsWith('/api/')) return false;
+
+	const referer = req.get('Referer') || '';
+	const origin = req.get('Origin') || '';
+	const host = req.get('Host') || '';
+	const secSite = req.get('Sec-Fetch-Site') || '';
+
+	const fromHimatif =
+		/himatif-encoder\.com/i.test(referer) ||
+		/himatif-encoder\.com/i.test(origin) ||
+		/himatif-encoder\.com/i.test(host);
+
+	const fromDev =
+		referer.includes('localhost:') ||
+		origin.includes('localhost:') ||
+		referer.includes('127.0.0.1') ||
+		origin.includes('127.0.0.1');
+
+	const fromLegacyIp =
+		referer.includes('43.157.211.134') || origin.includes('43.157.211.134');
+
+	const hasAuthCookie = /(?:^|;\s*)authToken=/.test(req.headers.cookie || '');
+
+	const browserSameSiteToProd =
+		/himatif-encoder\.com/i.test(host) &&
+		(secSite === 'same-origin' || secSite === 'same-site');
+
+	return (
+		fromHimatif ||
+		fromDev ||
+		fromLegacyIp ||
+		hasAuthCookie ||
+		browserSameSiteToProd
+	);
+}
+
 // Function to check if bot is legitimate
 function isLegitimateBot(userAgent: string): boolean {
 	if (!userAgent || userAgent.trim().length === 0) {
@@ -174,10 +216,11 @@ const uploadRequestsByIP = new Map<
 	{ count: number; resetTime: number }
 >();
 
-// Suspicious patterns untuk detection
+// Suspicious patterns untuk detection (hanya diuji pada pathname, bukan query string)
 const suspiciousPatterns = [
-	/upload/i,
-	/admin/i,
+	// "upload" sebagai segmen path, bukan substring di /api/prodi/preview atau di ?x=upload
+	/(^|\/)(upload)(\/|$)/i,
+	/(^|\/)(admin)(\/|$)/i,
 	/\.\.\//, // Directory traversal
 	/union\s+select/i, // SQL injection
 	/script/i, // XSS
@@ -711,9 +754,11 @@ export const ddosProtectionMiddleware = async (
 			path === '/robots.txt' ||
 			path.startsWith('/berita');
 
-		if (!isSeoCriticalPath) {
+		// Jangan pakai req.url (ada query) — substring seperti "upload" di query memicu false positive.
+		// Traffic /api/* dari situs resmi tidak pakai pola ini (tetap kena tier rate limit lain).
+		if (!isSeoCriticalPath && !isOfficialSiteApiTraffic(req)) {
 			for (const pattern of suspiciousPatterns) {
-				if (pattern.test(path) || pattern.test(req.url)) {
+				if (pattern.test(path)) {
 					isSuspicious = true;
 					suspiciousReason = `Suspicious URL pattern: ${pattern}`;
 					break;
