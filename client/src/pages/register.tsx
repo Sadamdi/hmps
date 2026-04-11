@@ -392,8 +392,24 @@ export default function RegisterPage() {
 		document.title = 'Register Komunitas';
 	}, []);
 
+	const [codeCooldownUntil, setCodeCooldownUntil] = useState(0);
+	const codeCooldownActive = codeCooldownUntil > Date.now();
+
+	useEffect(() => {
+		if (codeCooldownUntil <= Date.now()) return;
+		const id = setInterval(() => {
+			if (Date.now() >= codeCooldownUntil) {
+				setCodeCooldownUntil(0);
+				clearInterval(id);
+			} else {
+				setCodeCooldownUntil((v) => v); // trigger re-render
+			}
+		}, 1000);
+		return () => clearInterval(id);
+	}, [codeCooldownUntil]);
+
 	const validateCode = async () => {
-		if (!code.trim()) return;
+		if (!code.trim() || codeCooldownActive) return;
 		setIsValidating(true);
 		try {
 			const res = await fetch('/api/register/validate-code', {
@@ -402,6 +418,18 @@ export default function RegisterPage() {
 				body: JSON.stringify({ code: code.trim() }),
 			});
 			const data = await res.json();
+
+			if (res.status === 429) {
+				const retryAfter = data.retryAfter || 3600;
+				setCodeCooldownUntil(Date.now() + retryAfter * 1000);
+				toast({
+					title: 'Terlalu Banyak Percobaan',
+					description: data.message || `Coba lagi dalam ${Math.ceil(retryAfter / 60)} menit.`,
+					variant: 'destructive',
+				});
+				return;
+			}
+
 			if (data.valid) {
 				setCodeValid(true);
 				setStep('basic');
@@ -521,6 +549,16 @@ export default function RegisterPage() {
 				}),
 			});
 			const data = await res.json();
+			if (res.status === 429) {
+				const retryAfter = data.retryAfter || 3600;
+				setCodeCooldownUntil(Date.now() + retryAfter * 1000);
+				toast({
+					title: 'Terlalu Banyak Percobaan',
+					description: data.message || `Coba lagi dalam ${Math.ceil(retryAfter / 60)} menit.`,
+					variant: 'destructive',
+				});
+				return;
+			}
 			if (!res.ok) throw new Error(data.message);
 			setCreatedSlug(data.community.slug);
 			setStep('success');
@@ -669,14 +707,16 @@ export default function RegisterPage() {
 							</div>
 							<Button
 								onClick={validateCode}
-								disabled={isValidating || !code.trim()}
+								disabled={isValidating || !code.trim() || codeCooldownUntil > Date.now()}
 								className="w-full bg-gradient-to-r from-blue-500 via-blue-600 to-cyan-500 text-white">
 								{isValidating ? (
 									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
 								) : (
 									<ArrowRight className="h-4 w-4 mr-2" />
 								)}
-								Validasi Kode
+								{codeCooldownUntil > Date.now()
+									? `Coba lagi dalam ${Math.ceil((codeCooldownUntil - Date.now()) / 60000)} menit`
+									: 'Validasi Kode'}
 							</Button>
 						</div>
 					)}

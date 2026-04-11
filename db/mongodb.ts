@@ -13,10 +13,11 @@ const connectDB = async () => {
 
 		console.log('Connecting to MongoDB...');
 
-		// Tambahkan opsi untuk mencegah timeout koneksi
+		mongoose.set('bufferTimeoutMS', 60_000);
 		await mongoose.connect(MONGODB_URI, {
-			serverSelectionTimeoutMS: 5000, // 5 detik
-			connectTimeoutMS: 10000, // 10 detik
+			serverSelectionTimeoutMS: 5000,
+			connectTimeoutMS: 10000,
+			socketTimeoutMS: 120_000,
 		});
 
 		console.log('Connected to MongoDB');

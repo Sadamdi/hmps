@@ -8252,10 +8252,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'OTP tidak valid atau sudah expired' });
 				}
 
-				// Drop the tenant database
-				const { getTenantConnection } = await import('../db/tenant');
-				const tenantConn = getTenantConnection((community as any).dbName);
-				await tenantConn.dropDatabase();
+				const mongoose = (await import('mongoose')).default;
+				if (mongoose.connection.readyState !== 1) {
+					await mongoose.connection.asPromise();
+				}
+
+				const { getTenantConnection, clearTenantCache } = await import('../db/tenant');
+				const tenantDbName = (community as any).dbName;
+				const tenantConn = getTenantConnection(tenantDbName);
+				try {
+					await tenantConn.dropDatabase();
+				} catch (dropErr: any) {
+					if (dropErr?.message?.includes('buffering timed out') || dropErr?.message?.includes('ECONNREFUSED')) {
+						await new Promise((r) => setTimeout(r, 2000));
+						await tenantConn.dropDatabase();
+					} else {
+						throw dropErr;
+					}
+				}
+				clearTenantCache(tenantDbName);
 
 				removeCommunityUploadDirectories(String((community as any).slug || ''));
 
@@ -8360,9 +8375,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				} catch {
 					return res.status(400).json({ message: 'OTP tidak valid atau sudah expired' });
 				}
-				const { getTenantConnection } = await import('../db/tenant');
-				const tenantConn = getTenantConnection((community as any).dbName);
-				await tenantConn.dropDatabase();
+				const mongoose = (await import('mongoose')).default;
+				if (mongoose.connection.readyState !== 1) {
+					await mongoose.connection.asPromise();
+				}
+
+				const { getTenantConnection, clearTenantCache } = await import('../db/tenant');
+				const tenantDbName = (community as any).dbName;
+				const tenantConn = getTenantConnection(tenantDbName);
+				try {
+					await tenantConn.dropDatabase();
+				} catch (dropErr: any) {
+					if (dropErr?.message?.includes('buffering timed out') || dropErr?.message?.includes('ECONNREFUSED')) {
+						await new Promise((r) => setTimeout(r, 2000));
+						await tenantConn.dropDatabase();
+					} else {
+						throw dropErr;
+					}
+				}
+				clearTenantCache(tenantDbName);
+
 				removeCommunityUploadDirectories(String((community as any).slug || req.tenantSlug || ''));
 				await mongoStorage.deleteCommunity(String((community as any)._id));
 				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
@@ -8451,13 +8483,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Public: validate registration code
 	app.post('/api/register/validate-code', async (req, res) => {
 		try {
+			const { checkRegistrationCodeLock, recordRegistrationCodeFailure } = await import('./middleware/registration-code-attempts');
+			const lock = checkRegistrationCodeLock(req);
+			if (lock.locked) {
+				return res.status(429).json({
+					valid: false,
+					message: `Terlalu banyak percobaan kode salah. Coba lagi dalam ${Math.ceil(lock.retryAfter / 60)} menit.`,
+					retryAfter: lock.retryAfter,
+				});
+			}
+
 			const { code } = req.body;
 			if (!code) return res.status(400).json({ valid: false, message: 'Kode diperlukan' });
 			const regCode = await mongoStorage.getRegistrationCodeByCode(code);
-			if (!regCode) return res.json({ valid: false, message: 'Kode tidak ditemukan' });
-			if ((regCode as any).status !== 'active') return res.json({ valid: false, message: 'Kode sudah tidak aktif' });
-			if ((regCode as any).expiresAt < new Date()) return res.json({ valid: false, message: 'Kode sudah expired' });
-			if ((regCode as any).currentUses >= (regCode as any).maxUses) return res.json({ valid: false, message: 'Kode sudah mencapai batas pemakaian' });
+
+			if (!regCode) { recordRegistrationCodeFailure(req); return res.json({ valid: false, message: 'Kode tidak ditemukan' }); }
+			if ((regCode as any).status !== 'active') { recordRegistrationCodeFailure(req); return res.json({ valid: false, message: 'Kode sudah tidak aktif' }); }
+			if ((regCode as any).expiresAt < new Date()) { recordRegistrationCodeFailure(req); return res.json({ valid: false, message: 'Kode sudah expired' }); }
+			if ((regCode as any).currentUses >= (regCode as any).maxUses) { recordRegistrationCodeFailure(req); return res.json({ valid: false, message: 'Kode sudah mencapai batas pemakaian' }); }
+
 			res.json({ valid: true, type: (regCode as any).type });
 		} catch (error: any) {
 			res.status(500).json({ valid: false, message: error.message || 'Internal server error' });
@@ -8505,6 +8549,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Public: register a new community (onboarding) — atomic with rollback
 	app.post('/api/register/community', async (req, res) => {
 		try {
+			const { checkRegistrationCodeLock, recordRegistrationCodeFailure } = await import('./middleware/registration-code-attempts');
+			const lock = checkRegistrationCodeLock(req);
+			if (lock.locked) {
+				return res.status(429).json({
+					message: `Terlalu banyak percobaan kode salah. Coba lagi dalam ${Math.ceil(lock.retryAfter / 60)} menit.`,
+					retryAfter: lock.retryAfter,
+				});
+			}
+
 			const settings = await mongoStorage.getSettings();
 			if (!(settings as any).enableRegistration) {
 				return res.status(403).json({ message: 'Registrasi saat ini tidak diaktifkan' });
@@ -8549,9 +8602,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const regCode = await mongoStorage.getRegistrationCodeByCode(code);
 			if (!regCode || (regCode as any).status !== 'active') {
+				recordRegistrationCodeFailure(req);
 				return res.status(400).json({ message: 'Kode registrasi tidak valid' });
 			}
 			if ((regCode as any).expiresAt < new Date()) {
+				recordRegistrationCodeFailure(req);
 				return res.status(400).json({ message: 'Kode registrasi sudah expired' });
 			}
 
