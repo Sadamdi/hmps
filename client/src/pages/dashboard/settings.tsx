@@ -14,6 +14,7 @@ import {
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -1507,7 +1508,12 @@ export default function SettingsPage() {
 											Domain Embed
 										</CardTitle>
 										<CardDescription>
-											Kelola domain yang diizinkan untuk embed iframe di berita, event, dan galeri.
+											Kelola domain yang diizinkan untuk embed iframe di berita, event, dan galeri. Tiap
+											subdomain dihitung terpisah oleh keamanan browser (mis.{' '}
+											<code className="text-xs bg-muted px-1 rounded">uin-malang.ac.id</code> berbeda
+											dari{' '}
+											<code className="text-xs bg-muted px-1 rounded">informatika.uin-malang.ac.id</code>
+											)—tambahkan semua yang dipakai link PDF/embed.
 										</CardDescription>
 									</CardHeader>
 									<CardContent className="space-y-3">
@@ -1530,6 +1536,11 @@ export default function SettingsPage() {
 									<DialogContent className="w-[calc(100vw-2rem)] max-w-lg max-h-[85vh] overflow-y-auto">
 										<DialogHeader>
 											<DialogTitle>Domain Embed yang Diizinkan</DialogTitle>
+											<DialogDescription className="text-left text-sm">
+												Tidak ada tombol simpan di dialog ini: setelah mengubah domain, tutup dialog
+												lalu gulir ke bawah tab <strong>Pengaturan Situs</strong> dan klik{' '}
+												<strong>Save Changes</strong> agar perubahan tersimpan ke server.
+											</DialogDescription>
 										</DialogHeader>
 
 										<div className="space-y-5">
