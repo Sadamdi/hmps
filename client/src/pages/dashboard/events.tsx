@@ -40,6 +40,7 @@ import {
 	Search,
 	Share2,
 	Trash2,
+	User,
 	X,
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
@@ -95,6 +96,7 @@ type EventAttachmentForm = {
 type EventWithSharing = EventItem & {
 	_sharingPermission?: 'view' | 'edit';
 	_sharingStatus?: 'pending' | 'approved';
+	authorsDisplay?: string;
 };
 
 export default function DashboardEvents() {
@@ -109,7 +111,13 @@ export default function DashboardEvents() {
 		hasSharedAccess,
 		isLoading: isPermLoading,
 	} = usePermissionGuardWithSharing(
-		['events.view', 'events.view_others', 'events.create', 'events.edit'],
+		[
+			'events.view',
+			'events.view_others',
+			'events.create',
+			'events.edit',
+			'events.edit_others',
+		],
 		'events',
 		{ allowRequestOnly: true },
 	);
@@ -117,7 +125,9 @@ export default function DashboardEvents() {
 	const requestOnly = !hasRolePermission && !hasSharedAccess;
 	const manageEnabled = !requestOnly;
 	const showRequestSharingSearch =
-		hasAccess && !hasSpecificPermission('events.view_others');
+		hasAccess &&
+		!hasSpecificPermission('events.view_others') &&
+		!hasSpecificPermission('events.edit_others');
 
 	const canEditEvent = (ev: EventWithSharing) => {
 		const isOwner = user?._id === ev.createdBy;
@@ -647,7 +657,7 @@ export default function DashboardEvents() {
 	}, [detectDriveFileId, formAttachmentLinkName, formAttachmentLinkUrl, existingAttachments.length, formAttachments.length, toast]);
 
 	const eventsByMonth = useMemo(() => {
-		const map = new Map<number, EventItem[]>();
+		const map = new Map<number, EventWithSharing[]>();
 		for (const ev of events) {
 			const month = ev.month || new Date(ev.startDate).getMonth() + 1;
 			if (!map.has(month)) map.set(month, []);
@@ -1100,6 +1110,12 @@ export default function DashboardEvents() {
 																{statusBadge(status)}
 																{!ev.published && <Badge variant="outline">Draft</Badge>}
 															</div>
+															{ev.authorsDisplay ? (
+																<p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+																	<User className="h-3 w-3 shrink-0" />
+																	{ev.authorsDisplay}
+																</p>
+															) : null}
 															<p className="text-sm text-muted-foreground mt-1">
 																{formatDate(ev.startDate)} - {formatDate(ev.endDate)}
 															</p>

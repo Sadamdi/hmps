@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { authenticate } from '../auth';
 import { Berita, Event, Library, PostSharing, UserNotification, User } from '../../db/mongodb';
 import { mongoStorage } from '../mongo-storage';
+import { getPublisherDisplayName } from '../user-display';
 import type { SharingEntityType } from '../../shared/schema';
 
 const router = Router();
@@ -35,6 +36,7 @@ interface AuthUser {
 	username: string;
 	name: string;
 	role: string;
+	divisionLabel?: string;
 }
 
 async function getEntityOwnerIds(
@@ -120,6 +122,30 @@ async function getEntityTitle(
 	return '';
 }
 
+function editOthersPermissionForEntity(entityType: SharingEntityType): string {
+	if (entityType === 'berita') return 'berita.edit_others';
+	if (entityType === 'events') return 'events.edit_others';
+	return 'library.edit_others';
+}
+
+/** Pemilik konten asli (bukan co-editor lewat share). */
+async function getPrimaryContentOwnerId(
+	storage: any,
+	entityType: SharingEntityType,
+	entityId: string,
+): Promise<string | null> {
+	if (entityType === 'berita') {
+		const item = await storage.getBeritaById(entityId);
+		return item?.authorId ? String(item.authorId) : null;
+	}
+	if (entityType === 'events') {
+		const item = await storage.getEventById(entityId);
+		return item?.createdBy ? String(item.createdBy) : null;
+	}
+	const item = await storage.getLibraryItemById(entityId);
+	return item?.authorId ? String(item.authorId) : null;
+}
+
 async function createNotification(NotifModel: any, data: {
 	userId: string;
 	type: string;
@@ -196,20 +222,35 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 			return res.status(400).json({ message: 'permission must be view or edit' });
 		}
 
-		const ownerIds = await getEntityOwnerIds(
-			storage, m.PostSharing,
-			entityType as SharingEntityType,
+		const etInv = entityType as SharingEntityType;
+		const primaryOwnerIdInv = await getPrimaryContentOwnerId(
+			storage,
+			etInv,
 			entityId,
 		);
-		if (!ownerIds.includes(String(user._id))) {
-			return res.status(403).json({ message: 'Only owners can invite' });
+		if (
+			!primaryOwnerIdInv ||
+			String(user._id) !== primaryOwnerIdInv
+		) {
+			return res.status(403).json({
+				message: 'Hanya pemilik konten asli yang dapat mengundang',
+			});
 		}
+
+		const ownerIds = await getEntityOwnerIds(
+			storage, m.PostSharing,
+			etInv,
+			entityId,
+		);
 
 		if (targetUserId === String(user._id)) {
 			return res.status(400).json({ message: 'Cannot invite yourself' });
 		}
 
-		const targetUser = await m.User.findById(targetUserId, 'name username').lean();
+		const targetUser = await m.User.findById(
+			targetUserId,
+			'name username divisionLabel',
+		).lean();
 		if (!targetUser) {
 			return res.status(404).json({ message: 'Target user not found' });
 		}
@@ -282,13 +323,13 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 				userId: targetUserId,
 				type: 'sharing_approved',
 				title: `Akses diperbarui menjadi ${permission} untuk "${entityTitle}"`,
-				description: `${user.name} mengubah akses Anda menjadi ${permission === 'edit' ? 'edit' : 'lihat'} untuk "${entityTitle}".`,
+				description: `${getPublisherDisplayName(user as any)} mengubah akses Anda menjadi ${permission === 'edit' ? 'edit' : 'lihat'} untuk "${entityTitle}".`,
 				entityType,
 				entityId,
 				entityTitle,
 				sharingId: String(primary._id),
 				fromUserId: String(user._id),
-				fromUserName: user.name,
+				fromUserName: getPublisherDisplayName(user as any),
 			});
 
 			return res.json({
@@ -340,13 +381,13 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 			userId: targetUserId,
 			type: 'sharing_invite',
 			title: `Undangan ${permission} untuk "${entityTitle}"`,
-			description: `${user.name} mengundang Anda untuk ${permission === 'edit' ? 'mengedit' : 'melihat'} ${entityType === 'berita' ? 'berita' : entityType === 'events' ? 'event' : 'galeri'} "${entityTitle}".`,
+			description: `${getPublisherDisplayName(user as any)} mengundang Anda untuk ${permission === 'edit' ? 'mengedit' : 'melihat'} ${entityType === 'berita' ? 'berita' : entityType === 'events' ? 'event' : 'galeri'} "${entityTitle}".`,
 			entityType,
 			entityId,
 			entityTitle,
 			sharingId: String(share._id),
 			fromUserId: String(user._id),
-			fromUserName: user.name,
+			fromUserName: getPublisherDisplayName(user as any),
 			actionUrl: `/dashboard/${entityType === 'events' ? 'events' : entityType === 'berita' ? 'berita' : 'library'}`,
 		});
 
@@ -356,9 +397,9 @@ router.post('/:entityType/:entityId/invite', authenticate, async (req, res) => {
 				type: 'berita',
 				action: 'create',
 				title: `Sharing invite dikirim`,
-				description: `${user.name} mengundang ${(targetUser as any).name} untuk ${permission} "${entityTitle}"`,
+				description: `${getPublisherDisplayName(user as any)} mengundang ${getPublisherDisplayName(targetUser as any)} untuk ${permission} "${entityTitle}"`,
 				userId: user._id as any,
-				userName: user.name,
+				userName: getPublisherDisplayName(user as any),
 				userRole: user.role,
 				entityId,
 				entityTitle,
@@ -382,14 +423,23 @@ router.post(
 			const storage = resolveStorage(req);
 			await expirePendingShares(m.PostSharing, m.UserNotification, storage);
 
-			const { entityType, entityId } = req.params;
-			const { permission } = req.body;
-			const user = req.user as AuthUser;
+		const { entityType, entityId } = req.params;
+		const { permission } = req.body;
+		const user = req.user as AuthUser;
 
 			if (!permission || !['view', 'edit'].includes(permission)) {
 				return res
 					.status(400)
 					.json({ message: 'permission must be view or edit' });
+			}
+
+			const permissions = await storage.getUserPermissions(String(user._id));
+			const etReq = entityType as SharingEntityType;
+			if (permissions.includes(editOthersPermissionForEntity(etReq))) {
+				return res.status(409).json({
+					message:
+						'Anda sudah punya akses melalui izin edit konten orang lain; tidak perlu mengajukan permintaan.',
+				});
 			}
 
 			const ownerIds = await getEntityOwnerIds(
@@ -448,7 +498,7 @@ router.post(
 						userId: ownerId,
 						type: 'sharing_request_updated',
 						title: `Permintaan diubah ke ${permission} untuk "${entityTitle}"`,
-						description: `${user.name} mengubah permintaan akses menjadi ${permission === 'edit' ? 'edit' : 'lihat'} untuk ${entityType === 'berita' ? 'berita' : entityType === 'events' ? 'event' : 'galeri'} "${entityTitle}".`,
+						description: `${getPublisherDisplayName(user as any)} mengubah permintaan akses menjadi ${permission === 'edit' ? 'edit' : 'lihat'} untuk ${entityType === 'berita' ? 'berita' : entityType === 'events' ? 'event' : 'galeri'} "${entityTitle}".`,
 						entityType,
 						entityId,
 						entityTitle,
@@ -456,7 +506,7 @@ router.post(
 							? String(updatedSharing._id)
 							: undefined,
 						fromUserId: String(user._id),
-						fromUserName: user.name,
+						fromUserName: getPublisherDisplayName(user as any),
 						actionUrl: `/dashboard/${entityType === 'events' ? 'events' : entityType === 'berita' ? 'berita' : 'library'}`,
 					});
 				}
@@ -517,13 +567,13 @@ router.post(
 					userId: ownerId,
 					type: 'sharing_request',
 					title: `Permintaan ${permission} untuk "${entityTitle}"`,
-					description: `${user.name} meminta akses ${permission === 'edit' ? 'edit' : 'lihat'} untuk ${entityType === 'berita' ? 'berita' : entityType === 'events' ? 'event' : 'galeri'} "${entityTitle}".`,
+					description: `${getPublisherDisplayName(user as any)} meminta akses ${permission === 'edit' ? 'edit' : 'lihat'} untuk ${entityType === 'berita' ? 'berita' : entityType === 'events' ? 'event' : 'galeri'} "${entityTitle}".`,
 					entityType,
 					entityId,
 					entityTitle,
 					sharingId: String(share._id),
 					fromUserId: String(user._id),
-					fromUserName: user.name,
+					fromUserName: getPublisherDisplayName(user as any),
 					actionUrl: `/dashboard/${entityType === 'events' ? 'events' : entityType === 'berita' ? 'berita' : 'library'}`,
 				});
 			}
@@ -534,9 +584,9 @@ router.post(
 					type: 'berita',
 					action: 'create',
 					title: `Sharing request dikirim`,
-					description: `${user.name} meminta akses ${permission} untuk "${entityTitle}"`,
+					description: `${getPublisherDisplayName(user as any)} meminta akses ${permission} untuk "${entityTitle}"`,
 					userId: user._id as any,
-					userName: user.name,
+					userName: getPublisherDisplayName(user as any),
 					userRole: user.role,
 					entityId,
 					entityTitle,
@@ -578,9 +628,10 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 				.json({ message: `Cannot decide on a ${share.status} sharing` });
 		}
 
-		const ownerIds = await getEntityOwnerIds(
-			storage, m.PostSharing,
-			share.entityType as SharingEntityType,
+		const shareEt = share.entityType as SharingEntityType;
+		const primaryOwnerIdDec = await getPrimaryContentOwnerId(
+			storage,
+			shareEt,
 			String(share.entityId),
 		);
 
@@ -591,10 +642,13 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 					.json({ message: 'Only the invited user can accept/decline' });
 			}
 		} else {
-			if (!ownerIds.includes(String(user._id))) {
+			if (
+				!primaryOwnerIdDec ||
+				String(user._id) !== primaryOwnerIdDec
+			) {
 				return res
 					.status(403)
-					.json({ message: 'Only owners can approve/decline requests' });
+					.json({ message: 'Only the content owner can approve/decline requests' });
 			}
 		}
 
@@ -656,13 +710,13 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 					newStatus === 'approved'
 						? `Undangan diterima untuk "${entityTitle}"`
 						: `Undangan ditolak untuk "${entityTitle}"`,
-				description: `${user.name} ${newStatus === 'approved' ? 'menerima' : 'menolak'} undangan ${share.permission} untuk "${entityTitle}".`,
+				description: `${getPublisherDisplayName(user as any)} ${newStatus === 'approved' ? 'menerima' : 'menolak'} undangan ${share.permission} untuk "${entityTitle}".`,
 				entityType: share.entityType,
 				entityId: String(share.entityId),
 				entityTitle,
 				sharingId: String(share._id),
 				fromUserId: String(user._id),
-				fromUserName: user.name,
+				fromUserName: getPublisherDisplayName(user as any),
 			});
 		} else {
 			await createNotification(m.UserNotification, {
@@ -675,13 +729,13 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 					newStatus === 'approved'
 						? `Permintaan akses disetujui untuk "${entityTitle}"`
 						: `Permintaan akses ditolak untuk "${entityTitle}"`,
-				description: `${user.name} ${newStatus === 'approved' ? 'menyetujui' : 'menolak'} permintaan ${share.permission} Anda untuk "${entityTitle}".`,
+				description: `${getPublisherDisplayName(user as any)} ${newStatus === 'approved' ? 'menyetujui' : 'menolak'} permintaan ${share.permission} Anda untuk "${entityTitle}".`,
 				entityType: share.entityType,
 				entityId: String(share.entityId),
 				entityTitle,
 				sharingId: String(share._id),
 				fromUserId: String(user._id),
-				fromUserName: user.name,
+				fromUserName: getPublisherDisplayName(user as any),
 			});
 		}
 
@@ -691,9 +745,9 @@ router.post('/decision/:sharingId', authenticate, async (req, res) => {
 				type: 'berita',
 				action: 'update',
 				title: `Sharing ${newStatus}`,
-				description: `${user.name} ${newStatus === 'approved' ? 'menyetujui' : 'menolak'} sharing ${share.permission} untuk "${entityTitle}"`,
+				description: `${getPublisherDisplayName(user as any)} ${newStatus === 'approved' ? 'menyetujui' : 'menolak'} sharing ${share.permission} untuk "${entityTitle}"`,
 				userId: user._id as any,
-				userName: user.name,
+				userName: getPublisherDisplayName(user as any),
 				userRole: user.role,
 				entityId: String(share.entityId),
 				entityTitle,
@@ -718,15 +772,23 @@ router.delete(
 			const { entityType, entityId, userId: revokeUserId } = req.params;
 			const user = req.user as AuthUser;
 
+			const etDel = entityType as SharingEntityType;
 			const ownerIds = await getEntityOwnerIds(
 				storage, m.PostSharing,
-				entityType as SharingEntityType,
+				etDel,
 				entityId,
 			);
 			const isSelf = String(user._id) === revokeUserId;
-			const isOwner = ownerIds.includes(String(user._id));
+			const primaryOwnerIdDel = await getPrimaryContentOwnerId(
+				storage,
+				etDel,
+				entityId,
+			);
+			const isPrimaryOwnerDel =
+				primaryOwnerIdDel != null &&
+				String(user._id) === primaryOwnerIdDel;
 
-			if (!isSelf && !isOwner) {
+			if (!isSelf && !isPrimaryOwnerDel) {
 				return res.status(403).json({
 					message: 'Only the owner or the user themselves can revoke access',
 				});
@@ -772,20 +834,20 @@ router.delete(
 				? ownerIds[0]
 				: revokeUserId;
 			if (notifyUserId) {
-				const revokedUser = await m.User.findById(revokeUserId, 'name').lean();
+				const revokedUser = await m.User.findById(revokeUserId, 'name divisionLabel').lean();
 				await createNotification(m.UserNotification, {
 					userId: notifyUserId,
 					type: 'sharing_revoked',
 					title: `Akses dicabut untuk "${entityTitle}"`,
 					description: isSelf
-						? `${user.name} menghapus aksesnya sendiri untuk "${entityTitle}".`
-						: `${user.name} mencabut akses ${(revokedUser as any)?.name || 'user'} untuk "${entityTitle}".`,
+						? `${getPublisherDisplayName(user as any)} menghapus aksesnya sendiri untuk "${entityTitle}".`
+						: `${getPublisherDisplayName(user as any)} mencabut akses ${revokedUser ? getPublisherDisplayName(revokedUser as any) : 'user'} untuk "${entityTitle}".`,
 					entityType,
 					entityId,
 					entityTitle,
 					sharingId: share?._id ? String(share._id) : undefined,
 					fromUserId: String(user._id),
-					fromUserName: user.name,
+					fromUserName: getPublisherDisplayName(user as any),
 				});
 			}
 
@@ -795,9 +857,9 @@ router.delete(
 					type: 'berita',
 					action: 'delete',
 					title: `Sharing access revoked`,
-					description: `Semua akses aktif untuk "${entityTitle}" pada user ini dicabut oleh ${user.name}`,
+					description: `Semua akses aktif untuk "${entityTitle}" pada user ini dicabut oleh ${getPublisherDisplayName(user as any)}`,
 					userId: user._id as any,
-					userName: user.name,
+					userName: getPublisherDisplayName(user as any),
 					userRole: user.role,
 					entityId,
 					entityTitle,
@@ -935,9 +997,10 @@ router.get('/users/search', authenticate, async (req, res) => {
 				$or: [
 					{ name: { $regex: q, $options: 'i' } },
 					{ username: { $regex: q, $options: 'i' } },
+					{ divisionLabel: { $regex: q, $options: 'i' } },
 				],
 			},
-			'name username role',
+			'name username role divisionLabel',
 		)
 			.limit(10)
 			.lean();
@@ -945,7 +1008,7 @@ router.get('/users/search', authenticate, async (req, res) => {
 		res.json(
 			users.map((u: any) => ({
 				_id: String(u._id),
-				name: u.name,
+				name: getPublisherDisplayName(u),
 				username: u.username,
 				role: u.role,
 			})),
@@ -965,21 +1028,32 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 
 		const { entityType, entityId } = req.params;
 		const user = req.user as AuthUser;
+		const et = entityType as SharingEntityType;
 
 		const ownerIds = await getEntityOwnerIds(
 			storage, m.PostSharing,
-			entityType as SharingEntityType,
+			et,
 			entityId,
 		);
-		const isOwner = ownerIds.includes(String(user._id));
+		const permissions = await storage.getUserPermissions(String(user._id));
+		const hasEditOthers = permissions.includes(editOthersPermissionForEntity(et));
+		const primaryOwnerId = await getPrimaryContentOwnerId(storage, et, entityId);
+		const uid = String(user._id);
+		const isPrimaryOwner =
+			primaryOwnerId != null && uid === primaryOwnerId;
+		const isInOwnerIds = ownerIds.includes(uid);
+		const isCoOwnerViaRole = hasEditOthers && !isPrimaryOwner;
+		const canInvite = isPrimaryOwner;
+		const canRequestAccess = !isPrimaryOwner && !isCoOwnerViaRole;
+		const isOwner = isInOwnerIds || isCoOwnerViaRole;
 
 		const approvedSharesRaw = await m.PostSharing.find({
 			entityType,
 			entityId,
 			status: 'approved',
 		})
-			.populate('targetId', 'name username')
-			.populate('requesterId', 'name username')
+			.populate('targetId', 'name username divisionLabel')
+			.populate('requesterId', 'name username divisionLabel')
 			.lean();
 		const approvedMap = new Map<string, any>();
 		for (const s of approvedSharesRaw as any[]) {
@@ -1005,14 +1079,14 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 		const approvedShares = Array.from(approvedMap.values());
 
 		let pendingShares: any[] = [];
-		if (isOwner) {
+		if (isPrimaryOwner) {
 			pendingShares = await m.PostSharing.find({
 				entityType,
 				entityId,
 				status: 'pending',
 			})
-				.populate('targetId', 'name username')
-				.populate('requesterId', 'name username')
+				.populate('targetId', 'name username divisionLabel')
+				.populate('requesterId', 'name username divisionLabel')
 				.lean();
 		} else {
 			pendingShares = await m.PostSharing.find({
@@ -1021,42 +1095,50 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 				status: 'pending',
 				targetId: user._id,
 			})
-				.populate('targetId', 'name username')
-				.populate('requesterId', 'name username')
+				.populate('targetId', 'name username divisionLabel')
+				.populate('requesterId', 'name username divisionLabel')
 				.lean();
 		}
 
 		const ownerUsers = await m.User.find(
 			{ _id: { $in: ownerIds } },
-			'name username',
+			'name username divisionLabel',
 		).lean();
 
+		const shareUserRef = (ref: any) =>
+			typeof ref === 'object' && ref && ref._id
+				? {
+						_id: String(ref._id),
+						name: getPublisherDisplayName(ref),
+						username: ref.username,
+					}
+				: ref;
+
+		const ownersPayload: any[] = ownerUsers.map((u: any) => ({
+			_id: String(u._id),
+			name: getPublisherDisplayName(u),
+			username: u.username,
+		}));
+		if (isCoOwnerViaRole && !ownerIds.includes(uid)) {
+			const me = await m.User.findById(uid, 'name username divisionLabel').lean();
+			if (me) {
+				ownersPayload.push({
+					_id: String(me._id),
+					name: getPublisherDisplayName(me as any),
+					username: (me as any).username,
+					source: 'role_edit_others',
+				});
+			}
+		}
+
 		res.json({
-			owners: ownerUsers.map((u: any) => ({
-				_id: String(u._id),
-				name: u.name,
-				username: u.username,
-			})),
+			owners: ownersPayload,
 			approved: approvedShares.map((s: any) => ({
 				_id: String(s._id),
 				kind: s.kind,
 				permission: s.permission,
-				targetId:
-					typeof s.targetId === 'object'
-						? {
-								_id: String(s.targetId._id),
-								name: s.targetId.name,
-								username: s.targetId.username,
-							}
-						: s.targetId,
-				requesterId:
-					typeof s.requesterId === 'object'
-						? {
-								_id: String(s.requesterId._id),
-								name: s.requesterId.name,
-								username: s.requesterId.username,
-							}
-						: s.requesterId,
+				targetId: shareUserRef(s.targetId),
+				requesterId: shareUserRef(s.requesterId),
 				createdAt: s.createdAt,
 			})),
 			pending: pendingShares.map((s: any) => ({
@@ -1065,25 +1147,15 @@ router.get('/:entityType/:entityId', authenticate, async (req, res) => {
 				permission: s.permission,
 				status: s.status,
 				expiresAt: s.expiresAt,
-				targetId:
-					typeof s.targetId === 'object'
-						? {
-								_id: String(s.targetId._id),
-								name: s.targetId.name,
-								username: s.targetId.username,
-							}
-						: s.targetId,
-				requesterId:
-					typeof s.requesterId === 'object'
-						? {
-								_id: String(s.requesterId._id),
-								name: s.requesterId.name,
-								username: s.requesterId.username,
-							}
-						: s.requesterId,
+				targetId: shareUserRef(s.targetId),
+				requesterId: shareUserRef(s.requesterId),
 				createdAt: s.createdAt,
 			})),
 			isOwner,
+			isPrimaryOwner,
+			isCoOwnerViaRole,
+			canInvite,
+			canRequestAccess,
 		});
 	} catch (error) {
 		console.error('Get sharing info error:', error);

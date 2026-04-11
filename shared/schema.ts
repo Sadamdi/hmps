@@ -10,6 +10,8 @@ export interface UserWithRole {
 	/** Nama role sesuai koleksi Role (termasuk role kustom) */
 	role: string;
 	division?: string;
+	/** Nama divisi/unit untuk attribution publik (publisher) */
+	divisionLabel?: string;
 	password?: string;
 	lastLogin?: Date;
 	createdAt?: Date;

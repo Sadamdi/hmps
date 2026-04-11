@@ -29,6 +29,7 @@ import {
 	updateMiddlewareSettings,
 } from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage';
+import { getPublisherDisplayName } from './user-display';
 import type { Request } from 'express';
 import {
 	applyOrganizationStructureAutoFill,
@@ -387,11 +388,12 @@ async function getEffectiveAuthors(
 			);
 			const users = await m.User.find(
 				{ _id: { $in: targetIds } },
-				'name',
+				'name divisionLabel',
 			).lean();
 			for (const u of users) {
-				if (u.name && !authors.includes(u.name)) {
-					authors.push(u.name);
+				const disp = getPublisherDisplayName(u as any);
+				if (disp && disp !== 'Unknown' && !authors.includes(disp)) {
+					authors.push(disp);
 				}
 			}
 		}
@@ -405,12 +407,30 @@ async function enrichBeritaWithAuthors(
 ): Promise<any[]> {
 	for (const item of items) {
 		const id = String(item._id || item.id);
-		const authors = await getEffectiveAuthors(
-			req,
-			'berita',
-			id,
-			item.author || 'Unknown',
-		);
+		let authors: string[];
+		if (item.authorId) {
+			authors = await getEffectiveAuthorsByAuthorId(
+				req,
+				'berita',
+				id,
+				String(item.authorId),
+			);
+			if (authors.length === 0) {
+				authors = await getEffectiveAuthors(
+					req,
+					'berita',
+					id,
+					item.author || 'Unknown',
+				);
+			}
+		} else {
+			authors = await getEffectiveAuthors(
+				req,
+				'berita',
+				id,
+				item.author || 'Unknown',
+			);
+		}
 		item.authorsDisplay = authors.join(' + ');
 		item.authors = authors;
 	}
@@ -430,10 +450,13 @@ async function getEffectiveAuthorsByAuthorId(
 		if (originalAuthorId) {
 			const originalAuthor = (await m.User.findById(
 				originalAuthorId,
-				'name',
+				'name divisionLabel',
 			).lean()) as any;
-			if (originalAuthor?.name && !authors.includes(originalAuthor.name)) {
-				authors.push(originalAuthor.name);
+			const disp = originalAuthor
+				? getPublisherDisplayName(originalAuthor)
+				: '';
+			if (disp && disp !== 'Unknown' && !authors.includes(disp)) {
+				authors.push(disp);
 			}
 		}
 
@@ -449,10 +472,11 @@ async function getEffectiveAuthorsByAuthorId(
 			);
 			const users = (await m.User.find(
 				{ _id: { $in: targetIds } },
-				'name',
+				'name divisionLabel',
 			).lean()) as any[];
 			for (const u of users) {
-				if (u?.name && !authors.includes(u.name)) authors.push(u.name);
+				const disp = getPublisherDisplayName(u);
+				if (disp && disp !== 'Unknown' && !authors.includes(disp)) authors.push(disp);
 			}
 		}
 	} catch {}
@@ -665,6 +689,8 @@ async function enrichEventTreeWithAuthors(
 		}
 	}
 }
+
+const DIVISION_LABEL_MAX = 200;
 
 export async function registerRoutes(app: Express): Promise<Server> {
 	// Use cookie parser for handling JWT tokens
@@ -1462,7 +1488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const storage = resolveStorage(req);
 			const userId = (req.user as UserWithRole)?._id;
-			const { username, name } = req.body;
+			const { username, name, divisionLabel } = req.body;
 
 			if (!userId) {
 				return res.status(401).json({ message: 'Authentication required' });
@@ -1483,9 +1509,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 			}
 
+			if (divisionLabel !== undefined) {
+				if (typeof divisionLabel !== 'string') {
+					return res.status(400).json({ message: 'divisionLabel harus berupa teks' });
+				}
+				if (divisionLabel.length > DIVISION_LABEL_MAX) {
+					return res.status(400).json({
+						message: `divisionLabel maksimal ${DIVISION_LABEL_MAX} karakter`,
+					});
+				}
+			}
+
 			const updateData: any = {};
 			if (username) updateData.username = username;
 			if (name) updateData.name = name;
+			if (divisionLabel !== undefined) {
+				updateData.divisionLabel = divisionLabel.trim();
+			}
 
 			const updatedUser = await storage.updateUser(userId, updateData);
 
@@ -1724,11 +1764,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const storage = resolveStorage(req);
-				const { username, password, name, email, role, division } = req.body;
+				const { username, password, name, email, role, division, divisionLabel } =
+					req.body;
 				if (!username || !password || !name || !email || !role) {
 					return res.status(400).json({
 						message: 'Username, password, name, email, and role are required',
 					});
+				}
+				if (typeof password !== 'string' || password.length < 8) {
+					return res.status(400).json({ message: 'Password minimal 8 karakter' });
+				}
+				if (divisionLabel !== undefined && divisionLabel !== null) {
+					if (typeof divisionLabel !== 'string') {
+						return res.status(400).json({ message: 'divisionLabel harus berupa teks' });
+					}
+					if (divisionLabel.length > DIVISION_LABEL_MAX) {
+						return res.status(400).json({
+							message: `divisionLabel maksimal ${DIVISION_LABEL_MAX} karakter`,
+						});
+					}
 				}
 				const existingUser = await storage.getUserByUsername(username);
 				if (existingUser) {
@@ -1739,14 +1793,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				} catch (e: any) {
 					return res.status(e.statusCode || 400).json({ message: e.message || 'Role tidak valid' });
 				}
-				const hashedPassword = await hashPassword(password);
 				const newUser = await storage.createUser({
 					username,
-					password: hashedPassword,
+					password,
 					name,
 					email,
 					role,
 					division: division || undefined,
+					divisionLabel:
+						typeof divisionLabel === 'string' ? divisionLabel.trim() : '',
 				});
 				const { password: _, ...userWithoutPassword } = newUser;
 				res.status(201).json(userWithoutPassword);
@@ -1765,7 +1820,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const storage = resolveStorage(req);
 				const userId = req.params.id;
-				const { username, name, email, role, division } = req.body;
+				const { username, name, email, role, division, divisionLabel, password } =
+					req.body;
 				if (!userId || userId === 'undefined') {
 					return res.status(400).json({ message: 'Invalid user ID' });
 				}
@@ -1793,6 +1849,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					});
 				}
 
+				if (divisionLabel !== undefined && divisionLabel !== null) {
+					if (typeof divisionLabel !== 'string') {
+						return res.status(400).json({ message: 'divisionLabel harus berupa teks' });
+					}
+					if (divisionLabel.length > DIVISION_LABEL_MAX) {
+						return res.status(400).json({
+							message: `divisionLabel maksimal ${DIVISION_LABEL_MAX} karakter`,
+						});
+					}
+				}
+
+				if (password !== undefined && password !== null && String(password).length > 0) {
+					if (typeof password !== 'string' || password.length < 8) {
+						return res.status(400).json({ message: 'Password minimal 8 karakter' });
+					}
+				}
+
 				const updates: any = {};
 				if (username) updates.username = username;
 				if (name) updates.name = name;
@@ -1806,6 +1879,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updates.role = role;
 				}
 				if (division !== undefined) updates.division = division;
+				if (divisionLabel !== undefined) {
+					updates.divisionLabel =
+						typeof divisionLabel === 'string' ? divisionLabel.trim() : '';
+				}
+				if (typeof password === 'string' && password.length > 0) {
+					updates.password = password;
+				}
 				const updatedUser = await storage.updateUser(userId, updates);
 				const { password: _, ...userWithoutPassword } = updatedUser;
 				res.json(userWithoutPassword);
@@ -2130,6 +2210,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						.status(403)
 						.json({ message: 'You do not have permission to view berita' });
 				}
+			}
+
+			try {
+				await enrichBeritaWithAuthors(beritaList, req);
+			} catch (e) {
+				console.warn('enrichBeritaWithAuthors (manage):', e);
 			}
 
 			res.json(beritaList);
@@ -2993,6 +3079,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			for (const row of items) {
 				attachLibraryDisplayFields(row as Record<string, unknown>);
 				await enrichLibraryRelations(row, req);
+			}
+
+			try {
+				await enrichLibraryWithAuthors(items, req);
+			} catch (e) {
+				console.warn('enrichLibraryWithAuthors (manage):', e);
 			}
 
 			res.json(items);
@@ -7239,6 +7331,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							? 'approved'
 							: undefined,
 				});
+			}
+
+			try {
+				await enrichEventsWithAuthors(enrichedEvents, req);
+			} catch (e) {
+				console.warn('enrichEventsWithAuthors (/api/events):', e);
 			}
 
 			res.json(enrichedEvents);

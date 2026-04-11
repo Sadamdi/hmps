@@ -233,6 +233,19 @@ export default function SharingPanel({
 	});
 
 	const isOwner = sharingData?.isOwner === true;
+	const isPrimaryOwner = sharingData?.isPrimaryOwner === true;
+	const canInvite =
+		sharingData?.canInvite === true ||
+		(sharingData?.canInvite === undefined && isOwner);
+	const canRequestAccess =
+		sharingData?.canRequestAccess !== undefined
+			? sharingData.canRequestAccess === true
+			: !isOwner;
+	/** Untuk API lama tanpa isPrimaryOwner, perilaku setara isOwner. */
+	const effectivePrimaryOwner =
+		sharingData?.isPrimaryOwner !== undefined
+			? isPrimaryOwner
+			: isOwner;
 	const approved = sharingData?.approved || [];
 	const pending = sharingData?.pending || [];
 	const owners = sharingData?.owners || [];
@@ -292,13 +305,20 @@ export default function SharingPanel({
 										<span className="text-xs text-muted-foreground min-w-0 break-words">
 											@{o.username}
 										</span>
+										{o.source === 'role_edit_others' && (
+											<Badge
+												variant="outline"
+												className="text-[10px] shrink-0">
+												Kontributor (izin edit semua)
+											</Badge>
+										)}
 									</div>
 								))}
 							</div>
 						</div>
 
-						{/* Invite (Owner only) */}
-						{isOwner && (
+						{/* Undang: hanya pemilik konten asli */}
+						{canInvite && (
 							<div className="space-y-3">
 								<Label className="text-xs uppercase tracking-wider text-muted-foreground">
 									Undang User
@@ -367,8 +387,8 @@ export default function SharingPanel({
 							</div>
 						)}
 
-						{/* Request (Non-owner) */}
-						{!isOwner && (
+						{/* Minta akses: bukan primary/co-owner via peran */}
+						{canRequestAccess && (
 							<div className="space-y-3">
 								<Label className="text-xs uppercase tracking-wider text-muted-foreground">
 									Minta Akses
@@ -440,7 +460,8 @@ export default function SharingPanel({
 											(p.kind === 'invite' &&
 												targetUserId ===
 													user?._id) ||
-											(p.kind === 'request' && isOwner);
+											(p.kind === 'request' &&
+												effectivePrimaryOwner);
 
 										return (
 											<div
@@ -544,7 +565,7 @@ export default function SharingPanel({
 												: a.targetId;
 
 										const canRevoke =
-											isOwner ||
+											effectivePrimaryOwner ||
 											targetUserId === user?._id;
 
 										return (

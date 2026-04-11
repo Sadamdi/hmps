@@ -543,6 +543,26 @@ export function buildPageContextPrompt(context?: PageContext): string {
 
 	appendDashboardSurfaceFromPageData(pageData, lines);
 
+	if (pageData && typeof pageData === 'object') {
+		const full =
+			typeof pageData.userFullName === 'string' ? pageData.userFullName.trim() : '';
+		const pub =
+			typeof pageData.userPublisherName === 'string'
+				? pageData.userPublisherName.trim()
+				: '';
+		if (full && pub) {
+			if (full === pub) {
+				lines.push(
+					`- Pengguna terautentikasi: "${pub}" (nama untuk salam dan referensi).`,
+				);
+			} else {
+				lines.push(
+					`- Pengguna terautentikasi: nama lengkap "${full}"; nama divisi/unit untuk tampilan publik (publisher/owner konten): "${pub}". Sebut "${pub}" bila konteksnya attribution organisasi; "${full}" bila konteks personal.`,
+				);
+			}
+		}
+	}
+
 	// Info akses fitur berbasis permission
 	const canViewBerita =
 		perms.has('berita.view') || perms.has('berita.create');

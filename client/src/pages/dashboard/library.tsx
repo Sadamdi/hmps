@@ -32,6 +32,7 @@ import {
 	Search,
 	Share2,
 	Trash2,
+	User,
 	VideoIcon,
 } from 'lucide-react';
 import {
@@ -65,6 +66,7 @@ interface LibraryItem {
 	authorId?: string;
 	_sharingPermission?: 'view' | 'edit';
 	_sharingStatus?: 'pending' | 'approved';
+	authorsDisplay?: string;
 }
 
 interface LibraryRequestable {
@@ -93,7 +95,13 @@ export default function DashboardLibrary() {
 		isLoading: isPermissionLoading,
 	} =
 		usePermissionGuardWithSharing(
-			['library.view', 'library.view_others', 'library.edit', 'library.create'],
+			[
+				'library.view',
+				'library.view_others',
+				'library.edit',
+				'library.edit_others',
+				'library.create',
+			],
 			'library',
 			{ allowRequestOnly: true },
 		);
@@ -113,7 +121,9 @@ export default function DashboardLibrary() {
 	);
 
 	const showRequestSharingSearch =
-		hasLibraryAccess && !hasSpecificPermission('library.view_others');
+		hasLibraryAccess &&
+		!hasSpecificPermission('library.view_others') &&
+		!hasSpecificPermission('library.edit_others');
 
 	const openSharingRequest = (item: LibraryRequestable) => {
 		setSharingItem({
@@ -520,6 +530,12 @@ export default function DashboardLibrary() {
 									<p className="text-sm text-gray-600 line-clamp-2">
 										{item.description}
 									</p>
+									{item.authorsDisplay ? (
+										<p className="text-xs text-muted-foreground flex items-center gap-1">
+											<User className="h-3 w-3 shrink-0" />
+											{item.authorsDisplay}
+										</p>
+									) : null}
 									<div className="text-xs text-gray-500">
 										{item.date} · {item.time}
 									</div>

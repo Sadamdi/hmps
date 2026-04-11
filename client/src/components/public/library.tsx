@@ -153,7 +153,11 @@ function LibraryGalleryCard({
 
 			<div className="p-4 sm:p-5">
 				<div className="mb-2">
-					<h3 className="font-bold text-lg leading-snug line-clamp-2">{item.title}</h3>
+					<Link href={`/library/${toSlug(item.title) || item._id || item.id}`}>
+						<h3 className="font-bold text-lg leading-snug line-clamp-2 hover:text-primary transition-colors cursor-pointer">
+							{item.title}
+						</h3>
+					</Link>
 				</div>
 				{item.authorsDisplay && (
 					<p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">

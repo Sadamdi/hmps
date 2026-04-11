@@ -41,6 +41,7 @@ interface BeritaData {
 	time?: string;
 	_sharingPermission?: 'view' | 'edit';
 	_sharingStatus?: 'pending' | 'approved';
+	authorsDisplay?: string;
 }
 
 interface BeritaRequestable {
@@ -71,14 +72,22 @@ export default function DashboardBerita() {
 		isLoading: isPermissionLoading,
 	} =
 		usePermissionGuardWithSharing(
-			['berita.view', 'berita.view_others', 'berita.edit', 'berita.create'],
+			[
+				'berita.view',
+				'berita.view_others',
+				'berita.edit',
+				'berita.edit_others',
+				'berita.create',
+			],
 			'berita',
 			{ allowRequestOnly: true },
 		);
 
 	const requestOnly = !hasRolePermission && !hasSharedAccess;
 	const showRequestSharingSearch =
-		hasBeritaAccess && !hasSpecificPermission('berita.view_others');
+		hasBeritaAccess &&
+		!hasSpecificPermission('berita.view_others') &&
+		!hasSpecificPermission('berita.edit_others');
 
 	const openSharingRequest = (item: BeritaRequestable) => {
 		setSharingItem({
@@ -482,7 +491,7 @@ export default function DashboardBerita() {
 													</p>
 													<div className="flex items-center text-xs text-muted-foreground">
 														<span className="mr-4">
-															By {(item as any).authorsDisplay || item.author}
+															By {item.authorsDisplay || item.author}
 														</span>
 														<span>
 															{item.date} at {item.time}

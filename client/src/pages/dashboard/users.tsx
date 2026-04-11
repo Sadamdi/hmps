@@ -48,6 +48,7 @@ interface UserWithRole {
 	email: string;
 	role: 'owner' | 'admin' | 'chair' | 'vice_chair' | 'division_head' | string;
 	division?: string;
+	divisionLabel?: string;
 	password?: string;
 	createdAt?: Date;
 	updatedAt?: Date;
@@ -81,6 +82,7 @@ export default function UsersPage() {
 	const [newPw, setNewPw] = useState('');
 	const [confirmPw, setConfirmPw] = useState('');
 	const [showPw, setShowPw] = useState(false);
+	const [showConfirmPw, setShowConfirmPw] = useState(false);
 	const [pwLoading, setPwLoading] = useState(false);
 
 	// Edit Email dialog state
@@ -554,7 +556,7 @@ export default function UsersPage() {
 			<Dialog
 				open={isPasswordDialogOpen}
 				onOpenChange={setIsPasswordDialogOpen}>
-				<DialogContent className="sm:max-w-md">
+				<DialogContent className="sm:max-w-md max-h-[min(90dvh,800px)] overflow-y-auto overscroll-contain">
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<Key className="h-5 w-5" />
@@ -588,12 +590,28 @@ export default function UsersPage() {
 						</div>
 						<div className="space-y-2">
 							<label className="text-sm font-medium">Konfirmasi Password</label>
-							<Input
-								type="password"
-								value={confirmPw}
-								onChange={(e) => setConfirmPw(e.target.value)}
-								placeholder="Masukkan ulang password"
-							/>
+							<div className="relative">
+								<Input
+									type={showConfirmPw ? 'text' : 'password'}
+									value={confirmPw}
+									onChange={(e) => setConfirmPw(e.target.value)}
+									placeholder="Masukkan ulang password"
+									className="pr-10"
+								/>
+								<button
+									type="button"
+									className="absolute inset-y-0 right-3 flex items-center text-muted-foreground hover:text-foreground"
+									onClick={() => setShowConfirmPw((v) => !v)}
+									aria-label={
+										showConfirmPw ? 'Sembunyikan password' : 'Tampilkan password'
+									}>
+									{showConfirmPw ? (
+										<EyeOff className="h-4 w-4" />
+									) : (
+										<Eye className="h-4 w-4" />
+									)}
+								</button>
+							</div>
 						</div>
 						<div className="flex justify-end gap-2 pt-2">
 							<Button
@@ -620,7 +638,7 @@ export default function UsersPage() {
 			<Dialog
 				open={isEmailDialogOpen}
 				onOpenChange={setIsEmailDialogOpen}>
-				<DialogContent className="sm:max-w-md">
+				<DialogContent className="sm:max-w-md max-h-[min(90dvh,800px)] overflow-y-auto overscroll-contain">
 					<DialogHeader>
 						<DialogTitle className="flex items-center gap-2">
 							<Mail className="h-5 w-5" />

@@ -59,6 +59,8 @@ const userSchema = new mongoose.Schema({
 		default: 'division_head',
 	},
 	division: { type: String, default: '' },
+	/** Nama divisi/unit untuk tampilan publik (berbeda dari slug `division`) */
+	divisionLabel: { type: String, default: '' },
 	permissionOverrides: {
 		allow: [{ type: String }],
 		deny: [{ type: String }],

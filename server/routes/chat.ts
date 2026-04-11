@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { authenticateOptional } from '../auth';
 import { Chat } from '../models/chat';
 import { mongoStorage } from '../mongo-storage';
+import { getPublisherDisplayName } from '../user-display';
 import type { Request } from 'express';
 
 function resolveStorage(req: Request): any {
@@ -220,6 +221,28 @@ router.post(
 					(parsedContext as any).path = normalizePathForTenant(
 						(parsedContext as any).path
 					);
+				}
+			}
+
+			if (req.user && parsedContext && typeof parsedContext === 'object') {
+				try {
+					const u = await resolveStorage(req).getUserById(
+						(req.user as any)._id.toString(),
+					);
+					if (u) {
+						const prev =
+							(parsedContext as any).pageData &&
+							typeof (parsedContext as any).pageData === 'object'
+								? (parsedContext as any).pageData
+								: {};
+						(parsedContext as any).pageData = {
+							...prev,
+							userFullName: (u as any).name,
+							userPublisherName: getPublisherDisplayName(u as any),
+						};
+					}
+				} catch {
+					/* ignore enrich failure */
 				}
 			}
 

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AtSign, Clock, Loader2, Mail, Shield, User } from 'lucide-react';
+import { AtSign, Briefcase, Clock, Loader2, Mail, Shield, User } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useToast } from '../../hooks/use-toast';
 import { logActivity } from '../../lib/activity-logger';
@@ -33,6 +33,7 @@ import {
 interface UserProfileData {
 	username: string;
 	name: string;
+	divisionLabel: string;
 }
 
 interface UserRoleData {
@@ -54,7 +55,17 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 	const [profileData, setProfileData] = useState<UserProfileData>({
 		username: user?.username || '',
 		name: user?.name || '',
+		divisionLabel: user?.divisionLabel || '',
 	});
+
+	useEffect(() => {
+		if (!user) return;
+		setProfileData({
+			username: user.username || '',
+			name: user.name || '',
+			divisionLabel: user.divisionLabel || '',
+		});
+	}, [user?._id, user?.username, user?.name, user?.divisionLabel]);
 
 	const [roleData, setRoleData] = useState<UserRoleData>({
 		role: user?.role || 'division_head',
@@ -330,6 +341,24 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 							onChange={handleProfileChange}
 							placeholder="Enter full name"
 						/>
+					</div>
+					<div className="space-y-2">
+						<Label
+							htmlFor="divisionLabel"
+							className="flex items-center gap-2">
+							<Briefcase className="h-4 w-4" />
+							Divisi
+						</Label>
+						<Input
+							id="divisionLabel"
+							name="divisionLabel"
+							value={profileData.divisionLabel}
+							onChange={handleProfileChange}
+							placeholder="Nama divisi/unit untuk tampilan publik (berita, galeri, sharing)"
+						/>
+						<p className="text-xs text-muted-foreground">
+							Tampil sebagai nama publisher/owner di konten publik. Kosongkan untuk memakai nama lengkap.
+						</p>
 					</div>
 					<div className="space-y-2">
 						<Label className="flex items-center gap-2">

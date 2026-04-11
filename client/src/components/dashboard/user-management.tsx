@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import { UserWithRole } from '@shared/schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 interface UserManagementProps {
@@ -38,9 +38,12 @@ export function UserManagement({
 		name: user?.name || '',
 		email: user?.email || '',
 		role: (user?.role as string) || 'division_head',
+		divisionLabel: user?.divisionLabel || '',
 		password: '',
 		confirmPassword: '',
 	});
+	const [showPassword, setShowPassword] = useState(false);
+	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
 	// Fetch assignable roles (tidak butuh roles.view)
 	const { data: assignableData } = useQuery({
@@ -93,6 +96,7 @@ export function UserManagement({
 				name: user.name || '',
 				email: user.email || '',
 				role: (user.role as string) || formData.role,
+				divisionLabel: user.divisionLabel || '',
 				password: '',
 				confirmPassword: '',
 			});
@@ -102,6 +106,7 @@ export function UserManagement({
 				name: '',
 				email: '',
 				role: assignableRoles[0].name as string,
+				divisionLabel: '',
 				password: '',
 				confirmPassword: '',
 			});
@@ -109,14 +114,32 @@ export function UserManagement({
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [user, assignableRoles]);
 
+	function buildUserPayload(data: typeof formData) {
+		const payload: Record<string, string> = {
+			username: data.username,
+			name: data.name,
+			email: data.email,
+			role: data.role,
+			divisionLabel: data.divisionLabel.trim(),
+		};
+		if (data.password.length > 0) {
+			payload.password = data.password;
+		}
+		return payload;
+	}
+
 	// Create/update user mutation
 	const userMutation = useMutation({
 		mutationFn: async (userData: typeof formData) => {
+			const payload = buildUserPayload(userData);
 			if (user) {
 				const userId = (user as any)._id;
-				return await apiRequest('PUT', `/api/users/${userId}`, userData);
+				return await apiRequest('PUT', `/api/users/${userId}`, payload);
 			} else {
-				return await apiRequest('POST', '/api/users', userData);
+				return await apiRequest('POST', '/api/users', {
+					...payload,
+					password: userData.password,
+				});
 			}
 		},
 		onSuccess: async (data) => {
@@ -211,10 +234,10 @@ export function UserManagement({
 			return;
 		}
 		if (!user || (formData.password && formData.password.length > 0)) {
-			if (formData.password.length < 6) {
+			if (formData.password.length < 8) {
 				toast({
 					title: 'Error',
-					description: 'Password must be at least 6 characters long',
+					description: 'Password minimal 8 karakter',
 					variant: 'destructive',
 				});
 				return;
@@ -273,6 +296,20 @@ export function UserManagement({
 					/>
 				</div>
 				<div className="space-y-2">
+					<Label htmlFor="divisionLabel">Divisi</Label>
+					<Input
+						id="divisionLabel"
+						name="divisionLabel"
+						placeholder="Nama divisi untuk tampilan publik (publisher)"
+						value={formData.divisionLabel}
+						onChange={handleInputChange}
+						disabled={viewOnly}
+					/>
+					<p className="text-xs text-muted-foreground">
+						Tampil di berita, galeri, event, dan sharing. Kosongkan untuk memakai nama lengkap.
+					</p>
+				</div>
+				<div className="space-y-2">
 					<Label htmlFor="role">Role</Label>
 					<Select
 						value={formData.role}
@@ -300,27 +337,57 @@ export function UserManagement({
 									? 'New Password (leave blank to keep current)'
 									: 'Password'}
 							</Label>
-							<Input
-								id="password"
-								name="password"
-								type="password"
-								placeholder={user ? 'Enter new password' : 'Enter password'}
-								value={formData.password}
-								onChange={handleInputChange}
-								required={!user}
-							/>
+							<div className="relative">
+								<Input
+									id="password"
+									name="password"
+									type={showPassword ? 'text' : 'password'}
+									placeholder={user ? 'Enter new password' : 'Enter password'}
+									value={formData.password}
+									onChange={handleInputChange}
+									className="pr-10"
+									required={!user}
+								/>
+								<button
+									type="button"
+									className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
+									onClick={() => setShowPassword((v) => !v)}
+									aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}>
+									{showPassword ? (
+										<EyeOff className="h-4 w-4" />
+									) : (
+										<Eye className="h-4 w-4" />
+									)}
+								</button>
+							</div>
 						</div>
 						<div className="space-y-2">
 							<Label htmlFor="confirmPassword">Confirm Password</Label>
-							<Input
-								id="confirmPassword"
-								name="confirmPassword"
-								type="password"
-								placeholder="Confirm password"
-								value={formData.confirmPassword}
-								onChange={handleInputChange}
-								required={!user || formData.password.length > 0}
-							/>
+							<div className="relative">
+								<Input
+									id="confirmPassword"
+									name="confirmPassword"
+									type={showConfirmPassword ? 'text' : 'password'}
+									placeholder="Confirm password"
+									value={formData.confirmPassword}
+									onChange={handleInputChange}
+									className="pr-10"
+									required={!user || formData.password.length > 0}
+								/>
+								<button
+									type="button"
+									className="absolute inset-y-0 right-2 flex items-center text-muted-foreground hover:text-foreground"
+									onClick={() => setShowConfirmPassword((v) => !v)}
+									aria-label={
+										showConfirmPassword ? 'Sembunyikan password' : 'Tampilkan password'
+									}>
+									{showConfirmPassword ? (
+										<EyeOff className="h-4 w-4" />
+									) : (
+										<Eye className="h-4 w-4" />
+									)}
+								</button>
+							</div>
 						</div>
 					</>
 				)}
