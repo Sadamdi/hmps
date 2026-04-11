@@ -52,12 +52,12 @@ const API_BERITA_LIST_CACHE_MS = envIntRoutes('API_BERITA_LIST_CACHE_MS', 6000);
 /** Respons JSON daftar berita publik — kurangi puluhan query Mongo per detik saat traffic tinggi. */
 const beritaListPublicCache = new ShortJsonCache(API_BERITA_LIST_CACHE_MS, 48);
 
-const API_SETTINGS_CACHE_MS = envIntRoutes('API_SETTINGS_CACHE_MS', 10000);
+const API_SETTINGS_CACHE_MS = envIntRoutes('API_SETTINGS_CACHE_MS', 30000);
 const settingsPublicCache = new ShortJsonCache(API_SETTINGS_CACHE_MS, 32);
 
 const API_HOME_IMAGES_ACTIVE_CACHE_MS = envIntRoutes(
 	'API_HOME_IMAGES_ACTIVE_CACHE_MS',
-	10000,
+	30000,
 );
 const homeImagesActivePublicCache = new ShortJsonCache(
 	API_HOME_IMAGES_ACTIVE_CACHE_MS,
@@ -2042,11 +2042,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	// Berita routes
 	app.get('/api/berita', async (req, res) => {
+		const { page, limit, isPaginated } = getPaginationParams(req.query);
+		const tenantKey = tenantCacheKey(req);
+		const cacheKey = `berita|${tenantKey}|${isPaginated ? `p${page}l${limit}` : 'all'}`;
 		try {
 			const storage = resolveStorage(req);
-			const { page, limit, isPaginated } = getPaginationParams(req.query);
-			const tenantKey = tenantCacheKey(req);
-			const cacheKey = `berita|${tenantKey}|${isPaginated ? `p${page}l${limit}` : 'all'}`;
 
 			const cached = await readPublicJsonCache(beritaListPublicCache, cacheKey);
 			if (cached) {
@@ -4573,8 +4573,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	// Settings routes (tenant-aware)
 	app.get('/api/settings', async (req, res) => {
+		const cacheKey = `settings|${tenantCacheKey(req)}`;
 		try {
-			const cacheKey = `settings|${tenantCacheKey(req)}`;
 			const cached = await readPublicJsonCache(settingsPublicCache, cacheKey);
 			if (cached) {
 				res.setHeader('X-HMPS-Cache', 'hit');
@@ -5269,8 +5269,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	// Public: get active year images
 	app.get('/api/home-images/active', async (req, res) => {
+		const cacheKey = `homeimg|${tenantCacheKey(req)}`;
 		try {
-			const cacheKey = `homeimg|${tenantCacheKey(req)}`;
 			const cached = await readPublicJsonCache(homeImagesActivePublicCache, cacheKey);
 			if (cached) {
 				res.setHeader('X-HMPS-Cache', 'hit');

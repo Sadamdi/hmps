@@ -1,39 +1,20 @@
 import type { ShortJsonCache } from './short-cache';
-import { getSharedRedis } from './redis-client';
 
-const PREFIX = 'hmps:public:';
-
-/** Baca cache JSON: memori dulu, lalu Redis (shared antar PM2). */
+/** Baca cache JSON dari memori worker (ShortJsonCache). */
 export async function readPublicJsonCache(
 	memory: ShortJsonCache,
-	redisKeySuffix: string,
+	keySuffix: string,
 ): Promise<string | null> {
-	const mem = memory.get(redisKeySuffix);
-	if (mem) return mem;
-	const r = getSharedRedis();
-	if (!r) return null;
-	try {
-		const v = await r.get(`${PREFIX}${redisKeySuffix}`);
-		return v ?? null;
-	} catch {
-		return null;
-	}
+	const v = memory.get(keySuffix);
+	return v ?? null;
 }
 
-/** Tulis cache JSON ke memori + Redis (TTL detik). */
+/** Tulis cache JSON ke memori worker. */
 export async function writePublicJsonCache(
 	memory: ShortJsonCache,
-	redisKeySuffix: string,
+	keySuffix: string,
 	body: string,
-	ttlMs: number,
+	_ttlMs: number,
 ): Promise<void> {
-	memory.set(redisKeySuffix, body);
-	const r = getSharedRedis();
-	if (!r) return;
-	try {
-		const sec = Math.max(1, Math.ceil(ttlMs / 1000));
-		await r.setex(`${PREFIX}${redisKeySuffix}`, sec, body);
-	} catch {
-		/* ignore */
-	}
+	memory.set(keySuffix, body);
 }
