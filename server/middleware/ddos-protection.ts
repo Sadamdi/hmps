@@ -100,19 +100,19 @@ async function getCachedDdosMiddlewareSettings() {
 // ==================== DDoS PROTECTION CONFIGURATION ====================
 
 // Tier 1 — default lebih longgar per IP (banyak pengguna berbagi satu IP publik / NAT)
-const TIER1_DEVICE_LIMIT = envInt('DDOS_TIER1_DEVICE_LIMIT', 100);
-const TIER1_IP_LIMIT = envInt('DDOS_TIER1_IP_LIMIT', 650);
+const TIER1_DEVICE_LIMIT = envInt('DDOS_TIER1_DEVICE_LIMIT', 500);
+const TIER1_IP_LIMIT = envInt('DDOS_TIER1_IP_LIMIT', 850);
 const TIER1_WINDOW_MS = 60 * 1000; // 1 menit
 
 // Tier 2: Quick Block 10 menit
-const TIER2_DEVICE_LIMIT = envInt('DDOS_TIER2_DEVICE_LIMIT', 300);
-const TIER2_IP_LIMIT = envInt('DDOS_TIER2_IP_LIMIT', 1000);
+const TIER2_DEVICE_LIMIT = envInt('DDOS_TIER2_DEVICE_LIMIT', 1000);
+const TIER2_IP_LIMIT = envInt('DDOS_TIER2_IP_LIMIT', 3000);
 const TIER2_WINDOW_MS = 5 * 60 * 1000; // 5 menit
 const TIER2_BLOCK_DURATION_MS = 10 * 60 * 1000; // 10 menit
 
 // Tier 3: Quick Block 60 menit
-const TIER3_DEVICE_LIMIT = envInt('DDOS_TIER3_DEVICE_LIMIT', 1000);
-const TIER3_IP_LIMIT = envInt('DDOS_TIER3_IP_LIMIT', 5000);
+const TIER3_DEVICE_LIMIT = envInt('DDOS_TIER3_DEVICE_LIMIT', 3000);
+const TIER3_IP_LIMIT = envInt('DDOS_TIER3_IP_LIMIT', 10000);
 const TIER3_WINDOW_MS = 60 * 60 * 1000; // 60 menit
 const TIER3_BLOCK_DURATION_MS = 60 * 60 * 1000; // 60 menit
 
@@ -187,7 +187,10 @@ const suspiciousPatterns = [
 	/etc\/shadow/i, // System files
 	/proc\//i, // System files
 	/var\/log/i, // System files
-	/config/i, // Configuration files
+	// Jangan /config/i — bentrok dengan /api/feedback/config (API resmi).
+	/\/wp-config/i,
+	/\/phpinfo/i,
+	/\/\.aws\/credentials/i,
 	/\.env/i, // Environment files
 	/\.git/i, // Git files
 	/\.svn/i, // SVN files
