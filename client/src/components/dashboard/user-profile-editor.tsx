@@ -714,32 +714,32 @@ export function PermissionOverridesSection({
 	}
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle className="flex items-center gap-2">
-					<Shield className="h-5 w-5" />
-					Permission Overrides
+		<Card className="min-w-0 overflow-hidden">
+			<CardHeader className="min-w-0 space-y-2 p-4 sm:p-6">
+				<CardTitle className="flex flex-wrap items-center gap-2 text-base sm:text-lg">
+					<Shield className="h-5 w-5 shrink-0" />
+					<span className="break-words">Permission Overrides</span>
 					{overrideCount > 0 && (
-						<Badge variant="secondary">{overrideCount} override{overrideCount > 1 ? 's' : ''}</Badge>
+						<Badge variant="secondary" className="shrink-0">{overrideCount} override{overrideCount > 1 ? 's' : ''}</Badge>
 					)}
 				</CardTitle>
-				<CardDescription>
+				<CardDescription className="break-words text-pretty">
 					Atur permission individual untuk user ini. Override berlaku di atas permission default dari role.
 					<strong> Deny</strong> akan mencabut permission meskipun role default memberinya.
 					<strong> Allow</strong> akan menambah permission yang tidak ada di role default.
 					<strong> Inherit</strong> mengikuti default role.
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="space-y-4">
-				<div className="flex flex-col sm:flex-row gap-2">
+			<CardContent className="space-y-4 min-w-0 p-4 pt-0 sm:p-6 sm:pt-0">
+				<div className="flex flex-col sm:flex-row gap-2 min-w-0">
 					<Input
 						placeholder="Cari permission..."
 						value={searchFilter}
 						onChange={(e) => setSearchFilter(e.target.value)}
-						className="flex-1"
+						className="min-w-0 flex-1"
 					/>
 					<Select value={categoryFilter} onValueChange={setCategoryFilter}>
-						<SelectTrigger className="w-full sm:w-[200px]">
+						<SelectTrigger className="w-full min-w-0 sm:w-[200px] shrink-0">
 							<SelectValue placeholder="Semua kategori" />
 						</SelectTrigger>
 						<SelectContent>
@@ -753,7 +753,7 @@ export function PermissionOverridesSection({
 					</Select>
 				</div>
 
-				<div className="max-h-[500px] overflow-y-auto space-y-4 border rounded-md p-3">
+				<div className="max-h-[min(500px,55dvh)] overflow-y-auto overflow-x-hidden space-y-4 border rounded-md p-2 sm:p-3 min-w-0">
 					{Array.from(groupedPermissions.entries()).map(([category, perms]) => (
 						<div key={category}>
 							<h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">
@@ -819,21 +819,21 @@ function PermissionOverrideRow({
 	];
 
 	return (
-		<div className="flex items-center justify-between gap-2 py-1.5 px-2 rounded hover:bg-accent/50">
-			<div className="flex-1 min-w-0">
-				<span className="text-sm font-medium truncate block">{perm.displayName}</span>
-				<span className="text-xs text-muted-foreground truncate block">
+		<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3 py-2 px-1 sm:px-2 rounded hover:bg-accent/50 border-b border-border/40 last:border-0 min-w-0">
+			<div className="min-w-0 flex-1">
+				<span className="text-sm font-medium break-words">{perm.displayName}</span>
+				<span className="text-xs text-muted-foreground break-all block mt-0.5">
 					{perm.name}
-					{inBase && <span className="ml-1 text-green-600 dark:text-green-400">(dari role)</span>}
+					{inBase && <span className="ml-1 text-green-600 dark:text-green-400 whitespace-normal">(dari role)</span>}
 				</span>
 			</div>
-			<div className="flex gap-1 shrink-0">
+			<div className="grid grid-cols-3 gap-1 w-full sm:flex sm:w-auto sm:shrink-0 sm:justify-end">
 				{options.map((opt) => (
 					<Button
 						key={opt.value}
 						size="sm"
 						variant={state === opt.value ? opt.variant : 'ghost'}
-						className={`h-7 px-2 text-xs ${state === opt.value ? '' : 'opacity-50'}`}
+						className={`h-8 px-1 sm:px-2 text-[10px] sm:text-xs min-w-0 ${state === opt.value ? '' : 'opacity-50'}`}
 						onClick={() => onChange(opt.value)}>
 						{opt.label}
 					</Button>

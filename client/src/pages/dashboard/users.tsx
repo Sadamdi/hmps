@@ -515,21 +515,22 @@ export default function UsersPage() {
 			<Dialog
 				open={isUserDialogOpen}
 				onOpenChange={setIsUserDialogOpen}>
-				<DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-					<DialogHeader>
-						<DialogTitle>
+				<DialogContent className="w-[calc(100vw-1.25rem)] max-w-2xl max-h-[min(90dvh,900px)] min-w-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6 gap-0 sm:gap-4">
+					<DialogHeader className="min-w-0 shrink-0 pr-8">
+						<DialogTitle className="break-words">
 							{editingUser
 								? canEdit
 									? 'Edit User'
 									: 'View User'
 								: 'Add New User'}
 						</DialogTitle>
-						<p className="text-sm text-muted-foreground">
+						<p className="text-sm text-muted-foreground break-words">
 							{editingUser
 								? 'View or modify user information based on your permission level.'
 								: 'Create a new user account with appropriate role and permissions.'}
 						</p>
 					</DialogHeader>
+					<div className="min-w-0 mt-4 space-y-4">
 					<UserManagement
 						user={editingUser as any}
 						viewOnly={Boolean(editingUser && !canEdit)}
@@ -539,7 +540,7 @@ export default function UsersPage() {
 					{editingUser &&
 						hasSpecificPermission('roles.edit_other') &&
 						currentUser?._id !== editingUser._id && (
-							<div className="mt-4">
+							<div className="min-w-0">
 								<PermissionOverridesSection
 									targetUserId={editingUser._id}
 									onSaved={async () => {
@@ -549,6 +550,7 @@ export default function UsersPage() {
 								/>
 							</div>
 						)}
+					</div>
 				</DialogContent>
 			</Dialog>
 

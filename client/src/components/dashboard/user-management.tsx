@@ -258,8 +258,8 @@ export function UserManagement({
 	return (
 		<form
 			onSubmit={handleSubmit}
-			className="space-y-6">
-			<div className="space-y-4">
+			className="space-y-6 min-w-0 max-w-full">
+			<div className="space-y-4 min-w-0">
 				<div className="space-y-2">
 					<Label htmlFor="username">Username</Label>
 					<Input
@@ -304,8 +304,9 @@ export function UserManagement({
 						value={formData.divisionLabel}
 						onChange={handleInputChange}
 						disabled={viewOnly}
+						className="min-w-0"
 					/>
-					<p className="text-xs text-muted-foreground">
+					<p className="text-xs text-muted-foreground break-words">
 						Tampil di berita, galeri, event, dan sharing. Kosongkan untuk memakai nama lengkap.
 					</p>
 				</div>
@@ -315,7 +316,7 @@ export function UserManagement({
 						value={formData.role}
 						onValueChange={handleRoleChange}
 						disabled={viewOnly}>
-						<SelectTrigger id="role">
+						<SelectTrigger id="role" className="min-w-0 w-full">
 							<SelectValue placeholder="Select role" />
 						</SelectTrigger>
 						<SelectContent>
@@ -392,32 +393,31 @@ export function UserManagement({
 					</>
 				)}
 			</div>
-			<div className="flex justify-between">
-				<div></div>
-				<div className="flex space-x-4">
+			<div className="flex flex-col gap-2 sm:flex-row sm:justify-end sm:gap-3 pt-2">
+				<Button
+					type="button"
+					variant="outline"
+					onClick={onCancel}
+					className="w-full sm:w-auto">
+					{viewOnly ? 'Close' : 'Cancel'}
+				</Button>
+				{!viewOnly && (
 					<Button
-						type="button"
-						variant="outline"
-						onClick={onCancel}>
-						{viewOnly ? 'Close' : 'Cancel'}
+						type="submit"
+						disabled={userMutation.isPending}
+						className="w-full sm:w-auto">
+						{userMutation.isPending ? (
+							<>
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+								Saving...
+							</>
+						) : user ? (
+							'Update User'
+						) : (
+							'Create User'
+						)}
 					</Button>
-					{!viewOnly && (
-						<Button
-							type="submit"
-							disabled={userMutation.isPending}>
-							{userMutation.isPending ? (
-								<>
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-									Saving...
-								</>
-							) : user ? (
-								'Update User'
-							) : (
-								'Create User'
-							)}
-						</Button>
-					)}
-				</div>
+				)}
 			</div>
 		</form>
 	);
