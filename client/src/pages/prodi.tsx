@@ -23,6 +23,7 @@ import {
 	ShieldCheck,
 	Users,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
@@ -912,40 +913,56 @@ function AccreditationSection({ data }: { data: any }) {
 				)}
 			</SectionCard>
 			<Dialog open={!!preview} onOpenChange={(open) => { if (!open) setPreview(null); }}>
-				<DialogContent className="max-w-5xl w-[95vw]">
-					<DialogHeader>
-						<DialogTitle className="truncate">{preview?.title || 'Preview Dokumen'}</DialogTitle>
+				<DialogContent
+					className={cn(
+						'flex w-[calc(100vw-1rem)] max-w-5xl flex-col gap-0 overflow-hidden p-4 pt-12 sm:w-[min(95vw,64rem)] sm:gap-3 sm:p-6 sm:pt-6',
+						'max-h-[min(92dvh,92vh)]',
+					)}>
+					<DialogHeader className="shrink-0 space-y-1 pr-10 text-left">
+						<DialogTitle className="line-clamp-2 break-words text-base leading-snug sm:text-lg">
+							{preview?.title || 'Preview Dokumen'}
+						</DialogTitle>
 					</DialogHeader>
-					<div className="border rounded-md overflow-hidden bg-muted/20">
+
+					<div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
 						{preview?.url ? (
 							isImageUrl(preview.url) ? (
-								<img
-									src={toAccreditationImageSrc(preview.url)}
-									alt={preview.title}
-									className="w-full max-h-[70vh] object-contain bg-background"
-								/>
+								<div className="flex max-h-[min(58dvh,calc(100dvh-11rem))] min-h-[10rem] w-full items-center justify-center overflow-auto rounded-md border border-border/80 bg-muted/20 p-2 sm:max-h-[min(65dvh,calc(100dvh-12rem))]">
+									<img
+										src={toAccreditationImageSrc(preview.url)}
+										alt={preview.title}
+										className="h-auto max-h-full w-full object-contain"
+									/>
+								</div>
 							) : (
-								<iframe
-									src={toAccreditationIframeSrc(preview.url, preferGoogleDocsPdf)}
-									title={preview.title}
-									className="w-full h-[70vh] bg-background border-0"
-									allow="fullscreen"
-									referrerPolicy="strict-origin-when-cross-origin"
-								/>
+								<div
+									className={cn(
+										'relative w-full flex-shrink-0 overflow-hidden rounded-md border border-border/80 bg-muted/20',
+										'h-[min(62dvh,calc(100dvh-10.5rem))] sm:h-[min(70dvh,calc(100dvh-12rem))]',
+									)}>
+									<iframe
+										src={toAccreditationIframeSrc(preview.url, preferGoogleDocsPdf)}
+										title={preview.title}
+										className="absolute inset-0 h-full w-full border-0 bg-background"
+										allow="fullscreen"
+										referrerPolicy="strict-origin-when-cross-origin"
+									/>
+								</div>
 							)
 						) : null}
+
+						{preview?.url && (
+							<a
+								href={preview.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex shrink-0 items-center gap-1 text-sm text-primary hover:underline"
+							>
+								Buka di tab baru
+								<ExternalLink className="w-3.5 h-3.5" />
+							</a>
+						)}
 					</div>
-					{preview?.url && (
-						<a
-							href={preview.url}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="inline-flex items-center gap-1 text-sm text-primary hover:underline"
-						>
-							Buka di tab baru
-							<ExternalLink className="w-3.5 h-3.5" />
-						</a>
-					)}
 				</DialogContent>
 			</Dialog>
 		</div>
