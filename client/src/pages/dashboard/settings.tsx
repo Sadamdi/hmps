@@ -903,6 +903,24 @@ export default function SettingsPage() {
 		await updateSettingsMutation.mutateAsync(formData);
 	};
 
+	/** Dialog domain embed: Tutup = simpan ke server (sama payload dengan Save Changes) lalu tutup. */
+	const closeEmbedDialogAndSave = async () => {
+		if (!formData) {
+			setEmbedDialogOpen(false);
+			return;
+		}
+		if (!canEditSettings) {
+			setEmbedDialogOpen(false);
+			return;
+		}
+		try {
+			await updateSettingsMutation.mutateAsync(formData);
+			setEmbedDialogOpen(false);
+		} catch {
+			// toast dari onError mutation
+		}
+	};
+
 	// Save middleware settings
 	const saveMiddlewareSettings = async () => {
 		if (!user) return;
@@ -1537,9 +1555,9 @@ export default function SettingsPage() {
 										<DialogHeader>
 											<DialogTitle>Domain Embed yang Diizinkan</DialogTitle>
 											<DialogDescription className="text-left text-sm">
-												Tidak ada tombol simpan di dialog ini: setelah mengubah domain, tutup dialog
-												lalu gulir ke bawah tab <strong>Pengaturan Situs</strong> dan klik{' '}
-												<strong>Save Changes</strong> agar perubahan tersimpan ke server.
+												Klik <strong>Tutup</strong> untuk menyimpan domain embed ke server (sama dengan{' '}
+												<strong>Save Changes</strong> di bawah halaman). Anda juga bisa tetap memakai{' '}
+												<strong>Save Changes</strong> tanpa menutup dialog dulu.
 											</DialogDescription>
 										</DialogHeader>
 
@@ -1627,8 +1645,16 @@ export default function SettingsPage() {
 											<Button
 												variant="secondary"
 												size="sm"
-												onClick={() => setEmbedDialogOpen(false)}>
-												Tutup
+												disabled={updateSettingsMutation.isPending}
+												onClick={() => void closeEmbedDialogAndSave()}>
+												{updateSettingsMutation.isPending ? (
+													<>
+														<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+														Menyimpan...
+													</>
+												) : (
+													'Tutup & simpan'
+												)}
 											</Button>
 										</DialogFooter>
 									</DialogContent>
