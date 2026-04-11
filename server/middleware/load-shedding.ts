@@ -1,24 +1,74 @@
 import { NextFunction, Request, Response } from 'express';
+import { getTrustedClientIp } from '../lib/client-ip';
 
 /**
- * Membatasi jumlah request yang sedang diproses per proses Node.
- * Saat penuh → 503 langsung (tanpa query Mongo), supaya DDoS tidak memenuhi pool DB & event loop.
+ * Dua lapis tanpa sentuh Mongo:
+ * 1) Batas in-flight per IP — satu penyerang tidak bisa memonopoli worker (IP lain tetap dapat slot).
+ * 2) Batas in-flight global — cadangan jika total beban seluruh dunia melebihi kapasitas proses.
  */
 function envInt(name: string, fallback: number): number {
 	const v = parseInt(process.env[name] || '', 10);
 	return Number.isFinite(v) && v > 0 ? v : fallback;
 }
 
-const MAX_IN_FLIGHT = envInt('LOAD_SHED_MAX_IN_FLIGHT', 110);
-const RETRY_AFTER_SEC = envInt('LOAD_SHED_RETRY_AFTER_SEC', 5);
+/** Permintaan paralel maksimal per IP di worker ini (sejajar dengan limit_conn Nginx; naikkan jika SPA perlu lebih banyak paralel). */
+const MAX_PER_IP = envInt('LOAD_SHED_MAX_PER_IP', 16);
+const MAX_IN_FLIGHT = envInt('LOAD_SHED_MAX_IN_FLIGHT', 120);
+const RETRY_AFTER_SEC = envInt('LOAD_SHED_RETRY_AFTER_SEC', 3);
 
-let inFlight = 0;
+const inFlightByIp = new Map<string, number>();
+let inFlightGlobal = 0;
 
 function shouldSkipLoadShed(req: Request): boolean {
 	const p = req.path || '';
 	if (req.method === 'OPTIONS') return true;
 	if (p.startsWith('/.well-known/')) return true;
 	return false;
+}
+
+function sendPerIp503(req: Request, res: Response) {
+	res.setHeader('Retry-After', String(RETRY_AFTER_SEC));
+	res.setHeader('X-HMPS-Reject', 'per-ip-concurrency');
+	if (req.path.startsWith('/api/') || req.get('accept')?.includes('application/json')) {
+		return res.status(503).json({
+			error: {
+				code: 503,
+				title: 'Service Unavailable',
+				message:
+					'Terlalu banyak permintaan bersamaan dari jaringan Anda. Coba lagi sebentar.',
+				reason: 'per_ip_concurrency',
+				retryAfter: RETRY_AFTER_SEC,
+				timestamp: new Date().toISOString(),
+			},
+		});
+	}
+	return res
+		.status(503)
+		.type('text/plain; charset=utf-8')
+		.send(
+			`Terlalu banyak koneksi bersamaan dari alamat Anda. Coba lagi dalam ${RETRY_AFTER_SEC} detik.\n`,
+		);
+}
+
+function sendGlobal503(req: Request, res: Response) {
+	res.setHeader('Retry-After', String(RETRY_AFTER_SEC));
+	res.setHeader('X-HMPS-Load-Shed', '1');
+	if (req.path.startsWith('/api/') || req.get('accept')?.includes('application/json')) {
+		return res.status(503).json({
+			error: {
+				code: 503,
+				title: 'Service Unavailable',
+				message:
+					'Server sedang sibuk. Silakan coba lagi sebentar lagi.',
+				retryAfter: RETRY_AFTER_SEC,
+				timestamp: new Date().toISOString(),
+			},
+		});
+	}
+	return res
+		.status(503)
+		.type('text/plain; charset=utf-8')
+		.send(`Server sibuk. Coba lagi dalam ${RETRY_AFTER_SEC} detik.\n`);
 }
 
 export function loadSheddingMiddleware(
@@ -30,35 +80,28 @@ export function loadSheddingMiddleware(
 		return next();
 	}
 
-	if (inFlight >= MAX_IN_FLIGHT) {
-		res.setHeader('Retry-After', String(RETRY_AFTER_SEC));
-		res.setHeader('X-HMPS-Load-Shed', '1');
-		if (req.path.startsWith('/api/') || req.get('accept')?.includes('application/json')) {
-			return res.status(503).json({
-				error: {
-					code: 503,
-					title: 'Service Unavailable',
-					message:
-						'Server sedang pada kapasitas penuh. Silakan coba lagi sebentar lagi.',
-					retryAfter: RETRY_AFTER_SEC,
-					timestamp: new Date().toISOString(),
-				},
-			});
-		}
-		return res
-			.status(503)
-			.type('text/plain; charset=utf-8')
-			.send(
-				`Server sibuk. Coba lagi dalam ${RETRY_AFTER_SEC} detik.\n`,
-			);
+	const ip = getTrustedClientIp(req);
+	const curIp = inFlightByIp.get(ip) || 0;
+
+	if (curIp >= MAX_PER_IP) {
+		return sendPerIp503(req, res);
 	}
 
-	inFlight++;
+	if (inFlightGlobal >= MAX_IN_FLIGHT) {
+		return sendGlobal503(req, res);
+	}
+
+	inFlightByIp.set(ip, curIp + 1);
+	inFlightGlobal++;
+
 	let decremented = false;
 	const done = () => {
 		if (decremented) return;
 		decremented = true;
-		inFlight = Math.max(0, inFlight - 1);
+		inFlightGlobal = Math.max(0, inFlightGlobal - 1);
+		const n = (inFlightByIp.get(ip) || 0) - 1;
+		if (n <= 0) inFlightByIp.delete(ip);
+		else inFlightByIp.set(ip, n);
 	};
 	res.on('finish', done);
 	res.on('close', done);
@@ -67,5 +110,10 @@ export function loadSheddingMiddleware(
 }
 
 export function getLoadSheddingStats() {
-	return { inFlight, maxInFlight: MAX_IN_FLIGHT };
+	return {
+		inFlightGlobal,
+		maxInFlight: MAX_IN_FLIGHT,
+		maxPerIp: MAX_PER_IP,
+		trackedIps: inFlightByIp.size,
+	};
 }
