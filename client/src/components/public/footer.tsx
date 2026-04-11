@@ -1,10 +1,11 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import type { ChangeEvent } from 'react';
 import { getOrCreateGuestSecret } from '@/lib/guest-identity';
 import { queryClient } from '@/lib/queryClient';
-import type { FeedbackMedia } from '@shared/schema';
+import type { FeedbackMedia, FeedbackFormConfig, FeedbackFieldDefinition } from '@shared/schema';
+import { DEFAULT_FEEDBACK_FORM_CONFIG } from '@shared/schema';
 
 interface Settings {
 	contactEmail?: string;
@@ -31,22 +32,18 @@ interface PublicFeedbackCard {
 	suggestionStatus?: 'pending' | 'accepted' | 'rejected';
 	suggestionDecisionComment?: string;
 	suggestionDeciderName?: string;
+	destinationLabel?: string;
+	typeLabel?: string;
+	extraFields?: Record<string, unknown>;
 	isOwn?: boolean;
 	createdAt: string;
 }
 
-const TARGET_OPTIONS = [
-	{ value: 'web', label: 'Website HMTI' },
-	{ value: 'himatif_encoder', label: 'Organisasi Himatif Encoder' },
-	{ value: 'prodi_ti_umalang', label: 'Prodi Teknik Informatika UIN Malang' },
-];
-const TARGET_SHORT: Record<string, string> = { web: 'Website', himatif_encoder: 'Himatif', prodi_ti_umalang: 'Prodi TI' };
-
-function StarInput({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+function StarInput({ value, onChange, max = 5 }: { value: number; onChange: (v: number) => void; max?: number }) {
 	const [hover, setHover] = useState(0);
 	return (
 		<span className="inline-flex items-center gap-0.5">
-			{[1, 2, 3, 4, 5].map((i) => (
+			{Array.from({ length: max }, (_, i) => i + 1).map((i) => (
 				<button key={i} type="button" onClick={() => onChange(value === i ? 0 : i)} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(0)} className="p-0.5 transition-transform hover:scale-110">
 					<svg className={`h-5 w-5 transition-colors ${i <= (hover || value) ? 'fill-yellow-400 text-yellow-400' : 'fill-none text-muted-foreground/40 dark:text-slate-500'}`} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
 						<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
@@ -55,6 +52,53 @@ function StarInput({ value, onChange }: { value: number; onChange: (v: number) =
 			))}
 		</span>
 	);
+}
+
+const RichTextEditor = lazy(() => import('@/components/dashboard/rich-text-editor'));
+
+function stripHtmlPreview(html: string): string {
+	return html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function renderExtraFieldsBlock(extra: Record<string, unknown> | undefined) {
+	if (!extra || Object.keys(extra).length === 0) return null;
+	return (
+		<div className="space-y-2 pt-2 border-t border-border/30">
+			<p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Lampiran & field tambahan</p>
+			<ul className="space-y-2 text-sm">
+				{Object.entries(extra).map(([key, val]) => (
+					<li key={key} className="rounded-md border border-border/40 bg-muted/20 p-2">
+						<span className="text-xs text-muted-foreground font-mono block mb-1">{key}</span>
+						<ExtraValueView value={val} />
+					</li>
+				))}
+			</ul>
+		</div>
+	);
+}
+
+function ExtraValueView({ value }: { value: unknown }) {
+	if (value === null || value === undefined) return <span className="text-muted-foreground">—</span>;
+	if (typeof value === 'boolean') return <span>{value ? 'Ya' : 'Tidak'}</span>;
+	if (typeof value === 'string') {
+		const looksHtml = /<[^>]+>/.test(value);
+		return <span className="whitespace-pre-wrap break-words">{looksHtml ? stripHtmlPreview(value) : value}</span>;
+	}
+	if (Array.isArray(value)) {
+		if (value.length > 0 && typeof value[0] === 'object' && value[0] !== null && 'url' in (value[0] as object)) {
+			return (
+				<div className="grid grid-cols-2 gap-2 mt-1">
+					{(value as { url: string; originalName?: string }[]).map((m, i) => (
+						<a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="block rounded overflow-hidden border border-border/30">
+							<img src={m.url} alt={m.originalName || `file-${i}`} className="w-full h-24 object-cover" loading="lazy" />
+						</a>
+					))}
+				</div>
+			);
+		}
+		return <span>{(value as string[]).join(', ')}</span>;
+	}
+	return <span className="break-all">{String(value)}</span>;
 }
 
 const SCROLL_SPEED = 40;
@@ -227,12 +271,12 @@ function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedba
 							onCardClick(card);
 						}}
 					>
-						{card.type === 'saran' && card.suggestionStatus === 'accepted' && (
+						{card.suggestionStatus === 'accepted' && (
 							<div className="absolute inset-0 bg-green-500/15 flex items-center justify-center z-[1] pointer-events-none">
 								<span className="text-green-600 dark:text-green-400 text-3xl font-black uppercase tracking-widest rotate-[-12deg] opacity-70 drop-shadow-sm">Diterima</span>
 							</div>
 						)}
-						{card.type === 'saran' && card.suggestionStatus === 'rejected' && (
+						{card.suggestionStatus === 'rejected' && (
 							<div className="absolute inset-0 bg-red-500/10 flex items-center justify-center z-[1] pointer-events-none">
 								<span className="text-red-600 dark:text-red-400 text-3xl font-black uppercase tracking-widest rotate-[-12deg] opacity-70 drop-shadow-sm">Ditolak</span>
 								<svg className="absolute inset-0 w-full h-full opacity-20" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -243,10 +287,10 @@ function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedba
 						)}
 						<div className="relative z-[2]">
 							<div className="flex items-center justify-between gap-1">
-								<span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${card.type === 'kritik' ? 'bg-red-500/10 text-red-500 dark:bg-red-500/20 dark:text-red-400' : 'bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400'}`}>
-									{card.type === 'kritik' ? 'Kritik' : 'Saran'}
+								<span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:bg-blue-500/20 dark:text-blue-400">
+									{card.typeLabel || card.type}
 								</span>
-								<span className="text-[10px] text-muted-foreground dark:text-slate-500">{TARGET_SHORT[card.target] || card.target}</span>
+								<span className="text-[10px] text-muted-foreground dark:text-slate-500">{card.destinationLabel || card.target}</span>
 							</div>
 							<p className="text-sm text-foreground dark:text-slate-200 line-clamp-3 mt-1">{card.body}</p>
 							<p className="text-[11px] text-muted-foreground dark:text-slate-400 mt-1">— {card.isAnonymous ? 'Anonim' : card.senderName}</p>
@@ -294,6 +338,36 @@ export default function Footer() {
 		staleTime: 30000,
 	});
 
+	const { data: fbConfig } = useQuery<FeedbackFormConfig>({
+		queryKey: ['/api/feedback/config'],
+		queryFn: async () => {
+			const res = await fetch('/api/feedback/config');
+			if (!res.ok) return DEFAULT_FEEDBACK_FORM_CONFIG;
+			return res.json();
+		},
+		staleTime: 60000,
+	});
+	const config = fbConfig || DEFAULT_FEEDBACK_FORM_CONFIG;
+
+	const destLabels = useMemo(() => {
+		const map: Record<string, string> = {};
+		for (const d of config.destinations) map[d.id] = d.label;
+		return map;
+	}, [config.destinations]);
+
+	const typeLabels = useMemo(() => {
+		const map: Record<string, string> = {};
+		for (const d of config.destinations) {
+			for (const t of d.types) map[t.id] = t.label;
+		}
+		return map;
+	}, [config.destinations]);
+
+	const sortedDestinations = useMemo(
+		() => [...config.destinations].sort((a, b) => a.order - b.order),
+		[config.destinations],
+	);
+
 	const contactEmail = settings?.contactEmail || 'hmti@uin-malang.ac.id';
 	const address = settings?.address || 'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang';
 	const mapsEmbedUrl = settings?.mapsEmbedUrl || '';
@@ -318,42 +392,155 @@ export default function Footer() {
 	const [editingCard, setEditingCard] = useState<PublicFeedbackCard | null>(null);
 	const [editBody, setEditBody] = useState('');
 	const [isAnonymous, setIsAnonymous] = useState(false);
-	const [target, setTarget] = useState('web');
-	const [feedbackType, setFeedbackType] = useState('saran');
-	const [body, setBody] = useState('');
+	const [target, setTarget] = useState(() => DEFAULT_FEEDBACK_FORM_CONFIG.destinations[0]?.id || 'web');
+	const [feedbackType, setFeedbackType] = useState(
+		() => DEFAULT_FEEDBACK_FORM_CONFIG.destinations[0]?.types[0]?.id || 'saran',
+	);
+	const [fieldValues, setFieldValues] = useState<Record<string, unknown>>({});
+	const [fileByField, setFileByField] = useState<Record<string, File[]>>({});
 	const [senderName, setSenderName] = useState('');
 	const [senderNim, setSenderNim] = useState('');
 	const [senderEmail, setSenderEmail] = useState('');
-	const [ratings, setRatings] = useState({ fasilitasTI: 0, website: 0, teknikInformatika: 0, himatifEncoder: 0 });
-	const [mediaFiles, setMediaFiles] = useState<File[]>([]);
-	const replaceInputRefs = useRef<Record<number, HTMLInputElement | null>>({});
+	const [ratings, setRatings] = useState<Record<string, number>>({});
+	const fileReplaceRefs = useRef<Record<string, HTMLInputElement | null>>({});
 	const [submitSuccess, setSubmitSuccess] = useState(false);
+	const [formClientError, setFormClientError] = useState<string | null>(null);
 
-	const handleMediaAppend = useCallback((e: ChangeEvent<HTMLInputElement>) => {
-		const picked = Array.from(e.target.files || []);
-		if (picked.length === 0) return;
-		setMediaFiles((prev) => [...prev, ...picked].slice(0, 10));
-		e.target.value = '';
-	}, []);
+	const currentDest = useMemo(() => config.destinations.find((d) => d.id === target), [config.destinations, target]);
+	const allowedTypes = currentDest?.types ?? [];
+	const sortedFields = useMemo(() => {
+		if (!currentDest) return [];
+		return [...currentDest.fields].sort((a, b) => a.order - b.order);
+	}, [currentDest]);
 
-	const handleRemoveMediaAt = useCallback((idx: number) => {
-		setMediaFiles((prev) => prev.filter((_, i) => i !== idx));
-	}, []);
+	useEffect(() => {
+		if (sortedDestinations.length > 0 && !sortedDestinations.some((d) => d.id === target)) {
+			setTarget(sortedDestinations[0].id);
+		}
+	}, [sortedDestinations, target]);
 
-	const handleReplaceMediaAt = useCallback((idx: number, file: File) => {
-		setMediaFiles((prev) => {
-			const next = [...prev];
-			next[idx] = file;
-			return next;
+	useEffect(() => {
+		setFieldValues({});
+		setFileByField({});
+		setRatings({});
+	}, [target]);
+
+	useEffect(() => {
+		if (allowedTypes.length > 0 && !allowedTypes.find((t) => t.id === feedbackType)) {
+			setFeedbackType(allowedTypes[0].id);
+		}
+	}, [allowedTypes, feedbackType]);
+
+	const maxFilesForField = useCallback((f: FeedbackFieldDefinition) => Math.min(20, Math.max(1, f.maxFiles ?? 10)), []);
+
+	const appendFilesForField = useCallback(
+		(fieldId: string, files: FileList | null, append: boolean) => {
+			const picked = Array.from(files || []);
+			if (picked.length === 0) return;
+			setFileByField((prev) => {
+				const field = sortedFields.find((x) => x.id === fieldId);
+				const max = field ? maxFilesForField(field) : 10;
+				const cur = append ? (prev[fieldId] || []) : [];
+				const merged = [...cur, ...picked].slice(0, max);
+				return { ...prev, [fieldId]: merged };
+			});
+		},
+		[sortedFields, maxFilesForField],
+	);
+
+	const removeFileAt = useCallback((fieldId: string, idx: number) => {
+		setFileByField((prev) => {
+			const list = [...(prev[fieldId] || [])];
+			list.splice(idx, 1);
+			return { ...prev, [fieldId]: list };
 		});
 	}, []);
 
+	const replaceFileAt = useCallback((fieldId: string, idx: number, file: File) => {
+		setFileByField((prev) => {
+			const list = [...(prev[fieldId] || [])];
+			list[idx] = file;
+			return { ...prev, [fieldId]: list };
+		});
+	}, []);
+
+	const toggleMultiSelect = useCallback((fieldId: string, option: string) => {
+		setFieldValues((p) => {
+			const cur = Array.isArray(p[fieldId]) ? (p[fieldId] as string[]) : [];
+			const next = cur.includes(option) ? cur.filter((x) => x !== option) : [...cur, option];
+			return { ...p, [fieldId]: next };
+		});
+	}, []);
+
+	const validateClient = useCallback((): string | null => {
+		if (!isAnonymous) {
+			if (!senderName.trim()) return 'Nama wajib diisi';
+			if (!senderNim.trim()) return 'NIM wajib diisi';
+			if (!senderEmail.trim()) return 'Email wajib diisi';
+		}
+		if (allowedTypes.length === 0) return 'Form belum dikonfigurasi (tidak ada jenis feedback)';
+		for (const f of sortedFields) {
+			if (f.kind === 'file') {
+				if (f.required && (fileByField[f.id]?.length || 0) === 0) return `"${f.label}" wajib diunggah`;
+				continue;
+			}
+			const v = fieldValues[f.id];
+			if (f.kind === 'checkbox') {
+				if (f.required && !v) return `"${f.label}" wajib dicentang`;
+				continue;
+			}
+			if (f.kind === 'multi_select') {
+				const arr = Array.isArray(v) ? (v as string[]) : [];
+				if (f.required && arr.length === 0) return `"${f.label}" wajib dipilih`;
+				continue;
+			}
+			const s = typeof v === 'string' ? v.trim() : '';
+			if (
+				f.required &&
+				(f.kind === 'short_text' || f.kind === 'textarea' || f.kind === 'rich_html' || f.kind === 'select') &&
+				!s
+			) {
+				return `"${f.label}" wajib diisi`;
+			}
+			if (f.kind === 'select' && s && f.options?.length && !f.options.includes(s)) {
+				return `Pilihan tidak valid untuk "${f.label}"`;
+			}
+		}
+		return null;
+	}, [isAnonymous, senderName, senderNim, senderEmail, allowedTypes.length, sortedFields, fieldValues, fileByField]);
+
 	const submitMut = useMutation({
 		mutationFn: async () => {
+			const jsonExtra: Record<string, unknown> = {};
+			for (const f of sortedFields) {
+				if (f.kind === 'file') continue;
+				const v = fieldValues[f.id];
+				if (f.kind === 'checkbox') {
+					jsonExtra[f.id] = !!v;
+					continue;
+				}
+				if (f.kind === 'multi_select') {
+					jsonExtra[f.id] = Array.isArray(v) ? v : [];
+					continue;
+				}
+				if (typeof v === 'string') {
+					const t = v.trim();
+					if (t) jsonExtra[f.id] = t;
+				}
+			}
+
+			const previewTa = sortedFields.find((f) => f.kind === 'textarea' && f.useForCardPreview);
+			const previewText =
+				previewTa && typeof fieldValues[previewTa.id] === 'string' ? (fieldValues[previewTa.id] as string).trim() : '';
+			const firstTa = sortedFields.find((f) => f.kind === 'textarea');
+			const firstTaText =
+				firstTa && typeof fieldValues[firstTa.id] === 'string' ? (fieldValues[firstTa.id] as string).trim() : '';
+			const bodyFieldText = previewText || firstTaText;
+
 			const fd = new FormData();
 			fd.append('target', target);
 			fd.append('type', feedbackType);
-			fd.append('body', body.trim());
+			fd.append('body', bodyFieldText);
 			fd.append('isAnonymous', String(isAnonymous));
 			if (!isAnonymous) {
 				fd.append('senderName', senderName.trim());
@@ -361,7 +548,14 @@ export default function Footer() {
 				fd.append('senderEmail', senderEmail.trim());
 			}
 			fd.append('ratings', JSON.stringify(ratings));
-			for (const file of mediaFiles) fd.append('media', file);
+			if (Object.keys(jsonExtra).length > 0) fd.append('extraFields', JSON.stringify(jsonExtra));
+
+			for (const f of sortedFields) {
+				if (f.kind !== 'file') continue;
+				for (const file of fileByField[f.id] || []) {
+					fd.append(`field_${f.id}`, file);
+				}
+			}
 
 			const res = await fetch('/api/feedback', {
 				method: 'POST',
@@ -376,11 +570,17 @@ export default function Footer() {
 		},
 		onSuccess: () => {
 			setSubmitSuccess(true);
-			setBody(''); setSenderName(''); setSenderNim(''); setSenderEmail('');
-			setRatings({ fasilitasTI: 0, website: 0, teknikInformatika: 0, himatifEncoder: 0 });
-			setMediaFiles([]);
+			setSenderName('');
+			setSenderNim('');
+			setSenderEmail('');
+			setRatings({});
+			setFieldValues({});
+			setFileByField({});
 			queryClient.invalidateQueries({ queryKey: ['/api/feedback/public'] });
-			setTimeout(() => { setSubmitSuccess(false); setFormOpen(false); }, 2500);
+			setTimeout(() => {
+				setSubmitSuccess(false);
+				setFormOpen(false);
+			}, 2500);
 		},
 	});
 
@@ -462,9 +662,17 @@ export default function Footer() {
 							<a href={socialLinks.facebook} target="_blank" rel="noopener noreferrer" className="text-muted-foreground dark:text-slate-300/80 hover:text-primary transition-colors"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M9 8h-3v4h3v12h5v-12h3.642l.358-4h-4v-1.667c0-.955.192-1.333 1.115-1.333h2.885v-5h-3.808c-3.596 0-5.192 1.583-5.192 4.615v3.385z" /></svg></a>
 						</div>
 						{submitEnabled && (
-							<button type="button" onClick={() => { setFormOpen(true); setSubmitSuccess(false); }} className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors">
+							<button
+								type="button"
+								onClick={() => {
+									setFormOpen(true);
+									setSubmitSuccess(false);
+									setFormClientError(null);
+								}}
+								className="mt-6 w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 text-primary text-sm font-medium transition-colors"
+							>
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" /></svg>
-								Tulis Saran / Kritik
+								Kirim Masukan
 							</button>
 						)}
 					</div>
@@ -481,18 +689,18 @@ export default function Footer() {
 					<div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDetailCard(null)} />
 					<div className="relative bg-background dark:bg-[#0c1a3a] border border-border rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-4">
 						<div className="flex items-center justify-between">
-							<h3 className="text-lg font-semibold">Detail {detailCard.type === 'kritik' ? 'Kritik' : 'Saran'}</h3>
+							<h3 className="text-lg font-semibold">Detail {typeLabels[detailCard.type] || detailCard.typeLabel || detailCard.type}</h3>
 							<button type="button" onClick={() => setDetailCard(null)} className="text-muted-foreground hover:text-foreground p-1">
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
 							</button>
 						</div>
 
 						<div className="flex items-center gap-2 flex-wrap">
-							<span className={`text-xs font-semibold uppercase px-2 py-0.5 rounded ${detailCard.type === 'kritik' ? 'bg-red-500/10 text-red-500' : 'bg-blue-500/10 text-blue-600'}`}>
-								{detailCard.type === 'kritik' ? 'Kritik' : 'Saran'}
+							<span className="text-xs font-semibold uppercase px-2 py-0.5 rounded bg-blue-500/10 text-blue-600">
+								{typeLabels[detailCard.type] || detailCard.typeLabel || detailCard.type}
 							</span>
-							<span className="text-xs text-muted-foreground">{TARGET_SHORT[detailCard.target] || detailCard.target}</span>
-							{detailCard.type === 'saran' && detailCard.suggestionStatus && detailCard.suggestionStatus !== 'pending' && (
+							<span className="text-xs text-muted-foreground">{destLabels[detailCard.target] || detailCard.destinationLabel || detailCard.target}</span>
+							{detailCard.suggestionStatus && detailCard.suggestionStatus !== 'pending' && (
 								<span className={`text-xs font-bold uppercase px-2 py-0.5 rounded ${detailCard.suggestionStatus === 'accepted' ? 'bg-green-500/20 text-green-600' : 'bg-red-500/20 text-red-600'}`}>
 									{detailCard.suggestionStatus === 'accepted' ? 'Diterima' : 'Ditolak'}
 								</span>
@@ -507,6 +715,8 @@ export default function Footer() {
 
 						<p className="text-sm whitespace-pre-wrap">{detailCard.body}</p>
 
+						{renderExtraFieldsBlock(detailCard.extraFields)}
+
 						{detailCard.media && detailCard.media.length > 0 && (
 							<div className="grid grid-cols-2 gap-2">
 								{detailCard.media.map((m, i) => (
@@ -518,7 +728,7 @@ export default function Footer() {
 						)}
 
 						{/* Decision comment */}
-						{detailCard.type === 'saran' && detailCard.suggestionStatus && detailCard.suggestionStatus !== 'pending' && detailCard.suggestionDecisionComment && (
+						{detailCard.suggestionStatus && detailCard.suggestionStatus !== 'pending' && detailCard.suggestionDecisionComment && (
 							<div className={`rounded-lg p-3 border-l-2 ${detailCard.suggestionStatus === 'accepted' ? 'bg-green-50 dark:bg-green-500/10 border-green-500' : 'bg-red-50 dark:bg-red-500/10 border-red-500'}`}>
 								<p className="text-xs text-muted-foreground mb-1">Komentar keputusan dari {detailCard.suggestionDeciderName}:</p>
 								<p className="text-sm whitespace-pre-wrap">{detailCard.suggestionDecisionComment}</p>
@@ -569,7 +779,7 @@ export default function Footer() {
 					<div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setFormOpen(false)} />
 					<div className="relative bg-background dark:bg-[#0c1a3a] border border-border rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 space-y-5">
 						<div className="flex items-center justify-between">
-							<h3 className="text-lg font-semibold">Tulis Saran / Kritik</h3>
+							<h3 className="text-lg font-semibold">Kirim Masukan</h3>
 							<button type="button" onClick={() => setFormOpen(false)} className="text-muted-foreground hover:text-foreground p-1">
 								<svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
 							</button>
@@ -581,26 +791,57 @@ export default function Footer() {
 									<svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
 								</div>
 								<p className="text-lg font-medium">Terima kasih!</p>
-								<p className="text-sm text-muted-foreground">Saran/kritik Anda berhasil dikirim.</p>
+								<p className="text-sm text-muted-foreground">Feedback Anda berhasil dikirim.</p>
 							</div>
 						) : (
-							<form onSubmit={(e) => { e.preventDefault(); submitMut.mutate(); }} className="space-y-4">
+							<form
+								onSubmit={(e) => {
+									e.preventDefault();
+									const err = validateClient();
+									if (err) {
+										setFormClientError(err);
+										return;
+									}
+									setFormClientError(null);
+									submitMut.mutate();
+								}}
+								className="space-y-4"
+							>
 								<div>
 									<label className="text-sm font-medium block mb-1.5">Tujuan</label>
-									<select value={target} onChange={(e) => setTarget(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50">
-										{TARGET_OPTIONS.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}
+									<select
+										value={target}
+										onChange={(e) => {
+											setTarget(e.target.value);
+										}}
+										className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+									>
+										{sortedDestinations.map((d) => (
+											<option key={d.id} value={d.id}>
+												{d.label}
+											</option>
+										))}
 									</select>
 								</div>
 
 								<div>
 									<label className="text-sm font-medium block mb-1.5">Jenis</label>
-									<div className="flex gap-3">
-										{['saran', 'kritik'].map((t) => (
-											<button key={t} type="button" onClick={() => setFeedbackType(t)} className={`flex-1 py-2 rounded-lg border text-sm font-medium transition-colors ${feedbackType === t ? (t === 'kritik' ? 'border-red-500/50 bg-red-500/10 text-red-500' : 'border-primary/50 bg-primary/10 text-primary') : 'border-border hover:bg-muted/50'}`}>
-												{t === 'saran' ? 'Saran' : 'Kritik'}
-											</button>
-										))}
-									</div>
+									{allowedTypes.length === 0 ? (
+										<p className="text-sm text-amber-600 dark:text-amber-400">Belum ada jenis feedback untuk tujuan ini.</p>
+									) : (
+										<div className="flex gap-3 flex-wrap">
+											{[...allowedTypes].sort((a, b) => a.order - b.order).map((t) => (
+												<button
+													key={t.id}
+													type="button"
+													onClick={() => setFeedbackType(t.id)}
+													className={`flex-1 min-w-[80px] py-2 rounded-lg border text-sm font-medium transition-colors ${feedbackType === t.id ? 'border-primary/50 bg-primary/10 text-primary' : 'border-border hover:bg-muted/50'}`}
+												>
+													{t.label}
+												</button>
+											))}
+										</div>
+									)}
 								</div>
 
 								<div className="flex items-center justify-between">
@@ -627,80 +868,228 @@ export default function Footer() {
 									</div>
 								)}
 
-								<div>
-									<label className="text-sm font-medium block mb-1.5">Isi {feedbackType === 'kritik' ? 'Kritik' : 'Saran'}</label>
-									<textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Tuliskan saran atau kritik Anda..." rows={4} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none" required />
-								</div>
-
-								{/* Media upload */}
-								<div>
-									<label className="text-sm font-medium block mb-1.5">Media <span className="text-muted-foreground font-normal">(opsional, maks 10 gambar)</span></label>
-									<input
-										type="file"
-										accept="image/*"
-										multiple
-										onChange={handleMediaAppend}
-										disabled={mediaFiles.length >= 10}
-										className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-border file:bg-muted/50 file:text-sm file:font-medium hover:file:bg-muted disabled:opacity-60"
-									/>
-									{mediaFiles.length > 0 && (
-										<div className="mt-2 space-y-2">
-											<p className="text-xs text-muted-foreground">{mediaFiles.length} file dipilih</p>
-											<div className="space-y-1.5">
-												{mediaFiles.map((file, idx) => (
-													<div key={`${file.name}-${file.lastModified}-${idx}`} className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1.5">
-														<div className="min-w-0">
-															<p className="text-xs font-medium truncate">{file.name}</p>
-															<p className="text-[11px] text-muted-foreground">{Math.max(1, Math.round(file.size / 1024))} KB</p>
-														</div>
-														<div className="flex items-center gap-1.5 shrink-0">
-															<input
-																ref={(el) => { replaceInputRefs.current[idx] = el; }}
-																type="file"
-																accept="image/*"
-																className="hidden"
-																onChange={(event) => {
-																	const next = event.target.files?.[0];
-																	if (next) handleReplaceMediaAt(idx, next);
-																	event.target.value = '';
-																}}
-															/>
-															<button
-																type="button"
-																onClick={() => replaceInputRefs.current[idx]?.click()}
-																className="rounded border border-border px-2 py-0.5 text-[11px] hover:bg-muted/60"
-															>
-																Replace
-															</button>
-															<button
-																type="button"
-																onClick={() => handleRemoveMediaAt(idx)}
-																className="rounded border border-red-500/40 px-2 py-0.5 text-[11px] text-red-500 hover:bg-red-500/10"
-															>
-																Hapus
-															</button>
-														</div>
+								<div className="space-y-4">
+									{sortedFields.map((f) => {
+										const req = f.required ? <span className="text-red-500 ml-0.5">*</span> : null;
+										const valStr = typeof fieldValues[f.id] === 'string' ? (fieldValues[f.id] as string) : '';
+										if (f.kind === 'short_text') {
+											return (
+												<div key={f.id}>
+													<label className="text-sm font-medium block mb-1.5">
+														{f.label}
+														{req}
+													</label>
+													<input
+														type="text"
+														value={valStr}
+														onChange={(e) => setFieldValues((p) => ({ ...p, [f.id]: e.target.value }))}
+														placeholder={f.placeholder || ''}
+														className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+													/>
+													{f.helpText ? <p className="text-xs text-muted-foreground mt-1">{f.helpText}</p> : null}
+												</div>
+											);
+										}
+										if (f.kind === 'textarea') {
+											return (
+												<div key={f.id}>
+													<label className="text-sm font-medium block mb-1.5">
+														{f.label}
+														{req}
+													</label>
+													<textarea
+														value={valStr}
+														onChange={(e) => setFieldValues((p) => ({ ...p, [f.id]: e.target.value }))}
+														placeholder={f.placeholder || 'Tuliskan masukan Anda...'}
+														rows={4}
+														className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+													/>
+													{f.helpText ? <p className="text-xs text-muted-foreground mt-1">{f.helpText}</p> : null}
+												</div>
+											);
+										}
+										if (f.kind === 'rich_html') {
+											return (
+												<div key={f.id}>
+													<label className="text-sm font-medium block mb-1.5">
+														{f.label}
+														{req}
+													</label>
+													<Suspense
+														fallback={<div className="min-h-[180px] rounded-lg border border-border bg-muted/30 animate-pulse" aria-hidden />}
+													>
+														<RichTextEditor
+															value={valStr}
+															onChange={(html) => setFieldValues((p) => ({ ...p, [f.id]: html }))}
+															height={220}
+															placeholder={f.placeholder || 'Tulis di sini...'}
+														/>
+													</Suspense>
+													{f.helpText ? <p className="text-xs text-muted-foreground mt-1">{f.helpText}</p> : null}
+												</div>
+											);
+										}
+										if (f.kind === 'select') {
+											return (
+												<div key={f.id}>
+													<label className="text-sm font-medium block mb-1.5">
+														{f.label}
+														{req}
+													</label>
+													<select
+														value={valStr}
+														onChange={(e) => setFieldValues((p) => ({ ...p, [f.id]: e.target.value }))}
+														className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+													>
+														<option value="">Pilih...</option>
+														{(f.options || []).map((opt) => (
+															<option key={opt} value={opt}>
+																{opt}
+															</option>
+														))}
+													</select>
+													{f.helpText ? <p className="text-xs text-muted-foreground mt-1">{f.helpText}</p> : null}
+												</div>
+											);
+										}
+										if (f.kind === 'checkbox') {
+											const checked = !!fieldValues[f.id];
+											return (
+												<label key={f.id} className="flex items-center gap-2 cursor-pointer text-sm">
+													<input
+														type="checkbox"
+														checked={checked}
+														onChange={(e) => setFieldValues((p) => ({ ...p, [f.id]: e.target.checked }))}
+														className="rounded border-border"
+													/>
+													<span>
+														{f.label}
+														{req}
+													</span>
+												</label>
+											);
+										}
+										if (f.kind === 'multi_select') {
+											const selected = Array.isArray(fieldValues[f.id]) ? (fieldValues[f.id] as string[]) : [];
+											return (
+												<div key={f.id}>
+													<p className="text-sm font-medium block mb-1.5">
+														{f.label}
+														{req}
+													</p>
+													<div className="space-y-1.5 pl-0.5">
+														{(f.options || []).map((opt) => (
+															<label key={opt} className="flex items-center gap-2 text-sm cursor-pointer">
+																<input
+																	type="checkbox"
+																	checked={selected.includes(opt)}
+																	onChange={() => toggleMultiSelect(f.id, opt)}
+																	className="rounded border-border"
+																/>
+																{opt}
+															</label>
+														))}
 													</div>
-												))}
-											</div>
+													{f.helpText ? <p className="text-xs text-muted-foreground mt-1">{f.helpText}</p> : null}
+												</div>
+											);
+										}
+										if (f.kind === 'file') {
+											const max = maxFilesForField(f);
+											/* Server memproses lewat uploadFeedbackImage (hanya gambar, WebP) */
+											const accept = 'image/*';
+											const list = fileByField[f.id] || [];
+											return (
+												<div key={f.id}>
+													<label className="text-sm font-medium block mb-1.5">
+														{f.label}
+														{req}{' '}
+														<span className="text-muted-foreground font-normal">(maks {max} file)</span>
+													</label>
+													<input
+														type="file"
+														accept={accept}
+														multiple
+														onChange={(e: ChangeEvent<HTMLInputElement>) => {
+															appendFilesForField(f.id, e.target.files, true);
+															e.target.value = '';
+														}}
+														disabled={list.length >= max}
+														className="w-full text-sm file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border file:border-border file:bg-muted/50 file:text-sm file:font-medium hover:file:bg-muted disabled:opacity-60"
+													/>
+													{list.length > 0 && (
+														<ul className="mt-2 space-y-1.5">
+															{list.map((file, idx) => (
+																<li
+																	key={`${file.name}-${file.lastModified}-${idx}`}
+																	className="flex items-center justify-between gap-2 rounded-md border border-border/60 bg-muted/20 px-2 py-1.5 text-xs"
+																>
+																	<span className="truncate font-medium">{file.name}</span>
+																	<span className="flex items-center gap-1 shrink-0">
+																		<input
+																			ref={(el) => {
+																				fileReplaceRefs.current[`${f.id}-${idx}`] = el;
+																			}}
+																			type="file"
+																			accept={accept}
+																			className="hidden"
+																			onChange={(event) => {
+																				const next = event.target.files?.[0];
+																				if (next) replaceFileAt(f.id, idx, next);
+																				event.target.value = '';
+																			}}
+																		/>
+																		<button
+																			type="button"
+																			className="rounded border border-border px-2 py-0.5 hover:bg-muted/60"
+																			onClick={() => fileReplaceRefs.current[`${f.id}-${idx}`]?.click()}
+																		>
+																			Ganti
+																		</button>
+																		<button
+																			type="button"
+																			className="rounded border border-red-500/40 px-2 py-0.5 text-red-500 hover:bg-red-500/10"
+																			onClick={() => removeFileAt(f.id, idx)}
+																		>
+																			Hapus
+																		</button>
+																	</span>
+																</li>
+															))}
+														</ul>
+													)}
+													{f.helpText ? <p className="text-xs text-muted-foreground mt-1">{f.helpText}</p> : null}
+												</div>
+											);
+										}
+										return null;
+									})}
+								</div>
+
+								{(currentDest?.ratings ?? []).length > 0 && (
+									<div className="space-y-2 p-3 rounded-lg border border-border/50 bg-muted/20">
+										<p className="text-sm font-medium mb-2">
+											Rating <span className="text-muted-foreground font-normal">(opsional, skala 1–5)</span>
+										</p>
+										<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+											{(currentDest?.ratings ?? []).map((dim) => (
+												<div key={dim.id} className="flex items-center justify-between gap-2">
+													<span className="text-xs text-muted-foreground">{dim.label}</span>
+													<StarInput value={ratings[dim.id] || 0} max={5} onChange={(v) => setRatings((p) => ({ ...p, [dim.id]: v }))} />
+												</div>
+											))}
 										</div>
-									)}
-								</div>
-
-								{/* Ratings */}
-								<div className="space-y-2 p-3 rounded-lg border border-border/50 bg-muted/20">
-									<p className="text-sm font-medium mb-2">Rating <span className="text-muted-foreground font-normal">(opsional)</span></p>
-									<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-										<div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Fasilitas TI</span><StarInput value={ratings.fasilitasTI} onChange={(v) => setRatings((p) => ({ ...p, fasilitasTI: v }))} /></div>
-										<div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Website</span><StarInput value={ratings.website} onChange={(v) => setRatings((p) => ({ ...p, website: v }))} /></div>
-										<div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Teknik Informatika</span><StarInput value={ratings.teknikInformatika} onChange={(v) => setRatings((p) => ({ ...p, teknikInformatika: v }))} /></div>
-										<div className="flex items-center justify-between"><span className="text-xs text-muted-foreground">Himatif Encoder</span><StarInput value={ratings.himatifEncoder} onChange={(v) => setRatings((p) => ({ ...p, himatifEncoder: v }))} /></div>
 									</div>
-								</div>
+								)}
 
-								{submitMut.isError && (<p className="text-sm text-red-500">{(submitMut.error as Error).message}</p>)}
+								{formClientError && <p className="text-sm text-red-500">{formClientError}</p>}
+								{submitMut.isError && <p className="text-sm text-red-500">{(submitMut.error as Error).message}</p>}
 
-								<button type="submit" disabled={submitMut.isPending || !body.trim()} className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+								<button
+									type="submit"
+									disabled={submitMut.isPending || allowedTypes.length === 0}
+									className="w-full py-2.5 rounded-lg bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+								>
 									{submitMut.isPending && (<svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>)}
 									Kirim
 								</button>

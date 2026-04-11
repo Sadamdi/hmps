@@ -932,9 +932,13 @@ export function createTenantStorage(models: TenantModels) {
 		if (filter?.type) q.type = filter.type;
 		return Feedback.countDocuments(q);
 	}
-	async function getVisibleFeedbackCardsFiltered(typeFilter: 'all' | 'saran' | 'kritik' = 'all') {
+	async function getVisibleFeedbackCardsFiltered(typeFilter: string = 'all', typeFilterIds: string[] = []) {
 		const filter: any = { isVisibleCard: true };
-		if (typeFilter !== 'all') filter.type = typeFilter;
+		if (typeFilterIds.length > 0) {
+			filter.type = { $in: typeFilterIds };
+		} else if (typeFilter !== 'all') {
+			filter.type = typeFilter;
+		}
 		return Feedback.find(filter).sort({ createdAt: -1 }).lean();
 	}
 	async function toggleFeedbackVisibility(id: string, visible: boolean) {
@@ -957,13 +961,23 @@ export function createTenantStorage(models: TenantModels) {
 			{ new: true },
 		).lean();
 	}
-	async function getFeedbackRatingAverages() {
+	async function getFeedbackRatingAverages(): Promise<Record<string, number> & { count: number }> {
 		const result = await Feedback.aggregate([
-			{ $group: { _id: null, fasilitasTI: { $avg: '$ratings.fasilitasTI' }, website: { $avg: '$ratings.website' }, teknikInformatika: { $avg: '$ratings.teknikInformatika' }, himatifEncoder: { $avg: '$ratings.himatifEncoder' }, count: { $sum: 1 } } },
+			{ $match: { ratings: { $exists: true, $ne: null } } },
+			{ $project: { ratingsArr: { $objectToArray: '$ratings' } } },
+			{ $unwind: '$ratingsArr' },
+			{ $match: { 'ratingsArr.v': { $gt: 0 } } },
+			{ $group: { _id: '$ratingsArr.k', avg: { $avg: '$ratingsArr.v' }, count: { $sum: 1 } } },
 		]);
-		if (!result.length) return { fasilitasTI: 0, website: 0, teknikInformatika: 0, himatifEncoder: 0, count: 0 };
-		const r = result[0];
-		return { fasilitasTI: r.fasilitasTI || 0, website: r.website || 0, teknikInformatika: r.teknikInformatika || 0, himatifEncoder: r.himatifEncoder || 0, count: r.count || 0 };
+		const totalResult = await Feedback.aggregate([
+			{ $match: { ratings: { $exists: true, $ne: null } } },
+			{ $project: { hasRating: { $gt: [{ $size: { $filter: { input: { $objectToArray: '$ratings' }, cond: { $gt: ['$$this.v', 0] } } } }, 0] } } },
+			{ $match: { hasRating: true } },
+			{ $count: 'count' },
+		]);
+		const out: Record<string, number> & { count: number } = { count: totalResult[0]?.count || 0 };
+		for (const r of result) out[r._id] = r.avg || 0;
+		return out;
 	}
 
 	// ── Organization aliases for routes.ts compat ──

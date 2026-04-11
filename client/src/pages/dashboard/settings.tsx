@@ -1195,13 +1195,13 @@ export default function SettingsPage() {
 								title="Panduan: Tampilan & perilaku"
 								variant="blue"
 								storageKey="settings-tab-appearance"
-								description="Switch mengontrol auto-scroll section event di beranda dan visibilitas blok feedback di footer. Perubahan disimpan bersama pengaturan situs.">
+								description="Switch di sini mengontrol auto-scroll section event di beranda. Pengaturan tombol dan kartu feedback di footer dipindah ke halaman Saran &amp; Kritik (izin feedback.manage).">
 								<ul className="list-disc list-inside space-y-1.5 text-sm">
 									<li>
-										<strong>Langkah</strong>: atur switch → simpan halaman Settings → uji beranda dan footer sebagai pengunjung.
+										<strong>Langkah</strong>: atur switch event → simpan halaman Settings → uji beranda sebagai pengunjung.
 									</li>
 									<li>
-										<strong>Contoh valid</strong>: auto-scroll ON untuk pameran event; feedback OFF saat pemeliharaan—card feedback ikut tersembunyi jika tombol kirim dimatikan.
+										<strong>Contoh valid</strong>: auto-scroll ON untuk pameran event di halaman utama.
 									</li>
 									<li>
 										<strong>Contoh tidak valid</strong>: menggeser switch tanpa izin <code className="text-xs bg-muted px-1 rounded">settings.animations</code> (tetap nonaktif).
@@ -1241,105 +1241,6 @@ export default function SettingsPage() {
 											}
 											disabled={!canManageAnimations}
 										/>
-									</div>
-									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
-										<div className="min-w-0">
-											<Label htmlFor="feedbackSubmitEnabled">
-												Feedback: Tombol Kirim
-											</Label>
-											<p className="text-sm text-muted-foreground">
-												Tampilkan tombol &quot;Tulis Saran/Kritik&quot; di
-												footer. Jika dimatikan, card feedback juga ikut
-												tersembunyi.
-											</p>
-										</div>
-										<Switch
-											className="flex-shrink-0"
-											id="feedbackSubmitEnabled"
-											checked={formData.feedbackSubmitEnabled ?? true}
-											onCheckedChange={(checked) =>
-												handleSwitchChange('feedbackSubmitEnabled', checked)
-											}
-											disabled={!canManageAnimations}
-										/>
-									</div>
-									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
-										<div className="min-w-0">
-											<Label htmlFor="feedbackCardsEnabled">
-												Feedback: Card di Footer
-											</Label>
-											<p className="text-sm text-muted-foreground">
-												Tampilkan section card saran/kritik di footer. Hanya
-												berlaku jika tombol kirim aktif.
-											</p>
-										</div>
-										<Switch
-											className="flex-shrink-0"
-											id="feedbackCardsEnabled"
-											checked={formData.feedbackCardsEnabled ?? true}
-											onCheckedChange={(checked) =>
-												handleSwitchChange('feedbackCardsEnabled', checked)
-											}
-											disabled={
-												!canManageAnimations ||
-												!(formData.feedbackSubmitEnabled ?? true)
-											}
-										/>
-									</div>
-									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
-										<div className="min-w-0">
-											<Label htmlFor="feedbackCardsAutoScrollEnabled">
-												Feedback Cards: Auto-scroll
-											</Label>
-											<p className="text-sm text-muted-foreground">
-												Aktifkan animasi scroll otomatis card saran/kritik di
-												footer
-											</p>
-										</div>
-										<Switch
-											className="flex-shrink-0"
-											id="feedbackCardsAutoScrollEnabled"
-											checked={formData.feedbackCardsAutoScrollEnabled ?? true}
-											onCheckedChange={(checked) =>
-												handleSwitchChange(
-													'feedbackCardsAutoScrollEnabled',
-													checked,
-												)
-											}
-											disabled={
-												!canManageAnimations ||
-												!(formData.feedbackSubmitEnabled ?? true) ||
-												!(formData.feedbackCardsEnabled ?? true)
-											}
-										/>
-									</div>
-									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4 pt-4 border-t">
-										<div className="min-w-0">
-											<Label htmlFor="feedbackPublicTypeFilter">
-												Feedback: Filter Tampilan Publik
-											</Label>
-											<p className="text-sm text-muted-foreground">
-												Pilih jenis feedback yang ditampilkan di footer publik
-											</p>
-										</div>
-										<Select
-											value={formData.feedbackPublicTypeFilter ?? 'all'}
-											onValueChange={(value) =>
-												setFormData({
-													...formData,
-													feedbackPublicTypeFilter: value,
-												})
-											}
-											disabled={!canManageAnimations}>
-											<SelectTrigger className="w-[160px] flex-shrink-0">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												<SelectItem value="all">Keduanya</SelectItem>
-												<SelectItem value="saran">Saran saja</SelectItem>
-												<SelectItem value="kritik">Kritik saja</SelectItem>
-											</SelectContent>
-										</Select>
 									</div>
 									{!canManageAnimations && (
 										<p className="text-xs text-muted-foreground">

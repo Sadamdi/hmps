@@ -600,7 +600,9 @@ const settingsSchema = new mongoose.Schema({
 	feedbackSubmitEnabled: { type: Boolean, default: true },
 	feedbackCardsEnabled: { type: Boolean, default: true },
 	feedbackCardsAutoScrollEnabled: { type: Boolean, default: true },
-	feedbackPublicTypeFilter: { type: String, enum: ['all', 'saran', 'kritik'], default: 'all' },
+	feedbackPublicTypeFilter: { type: String, default: 'all' },
+	feedbackPublicTypeFilterIds: { type: [String], default: [] },
+	feedbackFormConfig: { type: mongoose.Schema.Types.Mixed, default: null },
 	// Metadata backup bulanan (anti double-run)
 	lastMonthlyBackupAt: { type: Date, default: null },
 	lastMonthlyBackupKey: { type: String, default: '' },
@@ -1047,7 +1049,7 @@ prodiContentSchema.pre('save', async function (next) {
 	next();
 });
 
-// Model Feedback — saran/kritik publik untuk web, himatif encoder, atau prodi TI
+// Model Feedback — dynamic destinations/types configured per tenant
 const feedbackReplySchema = new mongoose.Schema({
 	adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 	adminName: { type: String, required: true },
@@ -1057,8 +1059,8 @@ const feedbackReplySchema = new mongoose.Schema({
 
 const feedbackSchema = new mongoose.Schema(
 	{
-		target: { type: String, enum: ['web', 'himatif_encoder', 'prodi_ti_umalang'], required: true },
-		type: { type: String, enum: ['saran', 'kritik'], required: true },
+		target: { type: String, required: true },
+		type: { type: String, required: true },
 		body: { type: String, required: true },
 		isAnonymous: { type: Boolean, default: false },
 		senderName: { type: String, default: '' },
@@ -1076,12 +1078,10 @@ const feedbackSchema = new mongoose.Schema(
 		suggestionDecidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
 		suggestionDeciderName: { type: String, default: '' },
 		suggestionDecidedAt: { type: Date, default: null },
-		ratings: {
-			fasilitasTI: { type: Number, min: 0, max: 5, default: 0 },
-			website: { type: Number, min: 0, max: 5, default: 0 },
-			teknikInformatika: { type: Number, min: 0, max: 5, default: 0 },
-			himatifEncoder: { type: Number, min: 0, max: 5, default: 0 },
-		},
+		ratings: { type: mongoose.Schema.Types.Mixed, default: {} },
+		extraFields: { type: mongoose.Schema.Types.Mixed, default: {} },
+		destinationLabel: { type: String, default: '' },
+		typeLabel: { type: String, default: '' },
 	},
 	{ timestamps: true },
 );

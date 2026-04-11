@@ -141,7 +141,9 @@ export interface Settings {
 	feedbackSubmitEnabled?: boolean;
 	feedbackCardsEnabled?: boolean;
 	feedbackCardsAutoScrollEnabled?: boolean;
-	feedbackPublicTypeFilter?: 'all' | 'saran' | 'kritik';
+	feedbackPublicTypeFilter?: string;
+	feedbackPublicTypeFilterIds?: string[];
+	feedbackFormConfig?: FeedbackFormConfig;
 	homeImageBannerSlots?: HomeImageBannerSlot[];
 	homeConfig?: HomeConfig;
 	// Halaman lengkap Tentang Kami
@@ -321,8 +323,8 @@ export interface CommentItem {
 }
 
 // Feedback Types
-export type FeedbackTarget = 'web' | 'himatif_encoder' | 'prodi_ti_umalang';
-export type FeedbackType = 'saran' | 'kritik';
+export type FeedbackTarget = string;
+export type FeedbackType = string;
 export type SuggestionStatus = 'pending' | 'accepted' | 'rejected';
 
 export interface FeedbackReply {
@@ -333,10 +335,7 @@ export interface FeedbackReply {
 }
 
 export interface FeedbackRatings {
-	fasilitasTI: number;
-	website: number;
-	teknikInformatika: number;
-	himatifEncoder: number;
+	[key: string]: number;
 }
 
 export interface FeedbackMedia {
@@ -363,12 +362,261 @@ export interface FeedbackItem {
 	suggestionDeciderName: string;
 	suggestionDecidedAt: Date | null;
 	ratings: FeedbackRatings;
+	extraFields?: Record<string, unknown>;
+	destinationLabel?: string;
+	typeLabel?: string;
 	isOwn?: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 }
 
 export type InsertFeedback = Omit<FeedbackItem, '_id' | 'reply' | 'isVisibleCard' | 'guestKeyHash' | 'media' | 'suggestionStatus' | 'suggestionDecisionComment' | 'suggestionDecidedBy' | 'suggestionDeciderName' | 'suggestionDecidedAt' | 'isOwn' | 'createdAt' | 'updatedAt'>;
+
+// Feedback Form Config v2 — per-destination types, fields, ratings (stars 1–5)
+export interface FeedbackTypePerDestination {
+	id: string;
+	label: string;
+	order: number;
+	enableDecisionWorkflow: boolean;
+}
+
+export type FeedbackFieldKind =
+	| 'short_text'
+	| 'textarea'
+	| 'rich_html'
+	| 'select'
+	| 'checkbox'
+	| 'multi_select'
+	| 'file';
+
+export interface FeedbackFieldDefinition {
+	id: string;
+	label: string;
+	order: number;
+	kind: FeedbackFieldKind;
+	required?: boolean;
+	options?: string[];
+	maxFiles?: number;
+	placeholder?: string;
+	helpText?: string;
+	/** Teks ringkas untuk kartu di footer jika diisi */
+	useForCardPreview?: boolean;
+}
+
+export interface FeedbackRatingDimension {
+	id: string;
+	label: string;
+}
+
+export interface FeedbackDestination {
+	id: string;
+	label: string;
+	order: number;
+	types: FeedbackTypePerDestination[];
+	fields: FeedbackFieldDefinition[];
+	ratings: FeedbackRatingDimension[];
+}
+
+export interface FeedbackFormConfig {
+	destinations: FeedbackDestination[];
+}
+
+const DEFAULT_RATINGS: FeedbackRatingDimension[] = [
+	{ id: 'fasilitasTI', label: 'Fasilitas TI' },
+	{ id: 'website', label: 'Website' },
+	{ id: 'teknikInformatika', label: 'Teknik Informatika' },
+	{ id: 'himatifEncoder', label: 'Himatif Encoder' },
+];
+
+const DEFAULT_TYPES: FeedbackTypePerDestination[] = [
+	{ id: 'saran', label: 'Saran', order: 0, enableDecisionWorkflow: true },
+	{ id: 'kritik', label: 'Kritik', order: 1, enableDecisionWorkflow: false },
+];
+
+const DEFAULT_FIELDS: FeedbackFieldDefinition[] = [
+	{ id: 'isi_utama', label: 'Isi masukan', order: 0, kind: 'textarea', required: true },
+];
+
+function destTemplate(id: string, label: string, order: number): FeedbackDestination {
+	return {
+		id,
+		label,
+		order,
+		types: DEFAULT_TYPES.map((t) => ({ ...t })),
+		fields: DEFAULT_FIELDS.map((f) => ({ ...f })),
+		ratings: DEFAULT_RATINGS.map((r) => ({ ...r })),
+	};
+}
+
+export const DEFAULT_FEEDBACK_FORM_CONFIG: FeedbackFormConfig = {
+	destinations: [
+		destTemplate('web', 'Website', 0),
+		destTemplate('himatif_encoder', 'Himatif Encoder', 1),
+		destTemplate('prodi_ti_umalang', 'Prodi TI UIN Malang', 2),
+	],
+};
+
+/** Bentuk lama: types global + typeIds + customFields + ratingDimensionsByDestination */
+function isLegacyFeedbackFormConfig(raw: unknown): raw is {
+	destinations: Array<{ id: string; label: string; order?: number; typeIds?: string[] }>;
+	types?: FeedbackTypePerDestination[];
+	ratingDimensionsByDestination?: Record<string, Array<{ id: string; label: string; max?: number }>>;
+	customFields?: Array<{
+		id: string;
+		label: string;
+		kind: string;
+		required?: boolean;
+		options?: string[];
+		destinationIds?: string[];
+	}>;
+} {
+	if (!raw || typeof raw !== 'object') return false;
+	const r = raw as Record<string, unknown>;
+	if (!Array.isArray(r.destinations) || r.destinations.length === 0) return false;
+	const first = r.destinations[0] as Record<string, unknown>;
+	if (first.types !== undefined && Array.isArray(first.types) && first.typeIds === undefined) {
+		return false;
+	}
+	return !!(r.types && Array.isArray(r.types)) || first.typeIds !== undefined;
+}
+
+function mapLegacyKind(k: string): FeedbackFieldKind {
+	if (k === 'textarea') return 'textarea';
+	if (k === 'select') return 'select';
+	return 'short_text';
+}
+
+const VALID_FIELD_KINDS = new Set<FeedbackFieldKind>([
+	'short_text', 'textarea', 'rich_html', 'select', 'checkbox', 'multi_select', 'file',
+]);
+
+/** Migrasi kind lama dari DB / klien lama */
+export function normalizeIncomingFieldKind(raw: string): FeedbackFieldKind | null {
+	if (raw === 'heading') return null;
+	if (raw === 'primary_body' || raw === 'textarea') return 'textarea';
+	if (raw === 'image' || raw === 'file') return 'file';
+	if (VALID_FIELD_KINDS.has(raw as FeedbackFieldKind)) return raw as FeedbackFieldKind;
+	return 'short_text';
+}
+
+function cloneDefaultConfig(): FeedbackFormConfig {
+	return JSON.parse(JSON.stringify(DEFAULT_FEEDBACK_FORM_CONFIG)) as FeedbackFormConfig;
+}
+
+export function normalizeFeedbackFormConfig(raw: unknown): FeedbackFormConfig {
+	if (!raw || typeof raw !== 'object') return cloneDefaultConfig();
+
+	if (!isLegacyFeedbackFormConfig(raw)) {
+		const r = raw as FeedbackFormConfig;
+		if (!Array.isArray(r.destinations) || r.destinations.length === 0) {
+			return cloneDefaultConfig();
+		}
+		const destinations: FeedbackDestination[] = r.destinations
+			.map((d, i) => ({
+				id: d.id || `dest_${i}`,
+				label: d.label || d.id,
+				order: d.order ?? i,
+				types: Array.isArray(d.types) ? d.types.map((t, j) => ({
+					id: t.id,
+					label: t.label || t.id,
+					order: t.order ?? j,
+					enableDecisionWorkflow: !!t.enableDecisionWorkflow,
+				})) : [],
+				fields: Array.isArray(d.fields) ? d.fields
+					.map((f, j) => {
+						const kind = normalizeIncomingFieldKind(String(f.kind || ''));
+						if (kind === null) return null;
+						return {
+							id: f.id,
+							label: f.label || f.id,
+							order: f.order ?? j,
+							kind,
+							required: !!f.required,
+							options: f.options,
+							maxFiles: f.maxFiles,
+							placeholder: f.placeholder,
+							helpText: f.helpText,
+							useForCardPreview: !!f.useForCardPreview,
+						};
+					})
+					.filter((x): x is NonNullable<typeof x> => x !== null)
+					.map((f, j) => ({ ...f, order: j })) : [],
+				ratings: Array.isArray(d.ratings) ? d.ratings.map((x) => ({
+					id: x.id,
+					label: x.label || x.id,
+				})) : [],
+			}))
+			.filter((d) => d.id && d.label);
+		for (const d of destinations) {
+			if (d.types.length === 0) d.types = DEFAULT_TYPES.map((t) => ({ ...t }));
+			if (d.fields.length === 0) d.fields = DEFAULT_FIELDS.map((f) => ({ ...f }));
+			if (d.ratings.length === 0) d.ratings = DEFAULT_RATINGS.map((r) => ({ ...r }));
+		}
+		return { destinations };
+	}
+
+	const globalTypes: FeedbackTypePerDestination[] = (raw.types || []).map((t, i) => ({
+		id: t.id,
+		label: t.label || t.id,
+		order: t.order ?? i,
+		enableDecisionWorkflow: !!t.enableDecisionWorkflow,
+	}));
+	const typeById = new Map(globalTypes.map((t) => [t.id, t]));
+	const ratingMap = raw.ratingDimensionsByDestination || {};
+	const customFields = raw.customFields || [];
+
+	const destinations: FeedbackDestination[] = raw.destinations.map((d, i) => {
+		const typeIds = d.typeIds || globalTypes.map((t) => t.id);
+		const types = typeIds
+			.map((tid, j) => {
+				const t = typeById.get(tid);
+				if (!t) return null;
+				return { ...t, order: j };
+			})
+			.filter(Boolean) as FeedbackTypePerDestination[];
+		const fields: FeedbackFieldDefinition[] = customFields
+			.filter((cf) => !cf.destinationIds?.length || cf.destinationIds.includes(d.id))
+			.map((cf, j) => ({
+				id: cf.id,
+				label: cf.label,
+				order: j,
+				kind: mapLegacyKind(cf.kind),
+				required: !!cf.required,
+				options: cf.options,
+			}));
+		if (fields.length === 0) {
+			fields.push(...DEFAULT_FIELDS.map((f) => ({ ...f })));
+		}
+		fields.sort((a, b) => a.order - b.order);
+		fields.forEach((f, idx) => { f.order = idx; });
+		const rd = ratingMap[d.id] || DEFAULT_RATINGS;
+		const ratings: FeedbackRatingDimension[] = rd.map((x) => ({
+			id: x.id,
+			label: x.label || x.id,
+		}));
+		return {
+			id: d.id,
+			label: d.label || d.id,
+			order: d.order ?? i,
+			types: types.length ? types : DEFAULT_TYPES.map((t) => ({ ...t })),
+			fields,
+			ratings,
+		};
+	});
+
+	return { destinations };
+}
+
+/** Semua type id yang punya alur accept/reject (v2) */
+export function feedbackDecisionTypeIds(config: FeedbackFormConfig): Set<string> {
+	const s = new Set<string>();
+	for (const d of config.destinations) {
+		for (const t of d.types) {
+			if (t.enableDecisionWorkflow) s.add(t.id);
+		}
+	}
+	return s;
+}
 
 // Insert/Update Types (for API operations)
 export type InsertUser = Omit<UserWithRole, '_id' | 'createdAt' | 'updatedAt'>;
