@@ -12,8 +12,8 @@ function envInt(name: string, fallback: number): number {
 }
 
 /** Permintaan paralel maksimal per IP di worker ini (sejajar dengan limit_conn Nginx; naikkan jika SPA perlu lebih banyak paralel). */
-const MAX_PER_IP = envInt('LOAD_SHED_MAX_PER_IP', 16);
-const MAX_IN_FLIGHT = envInt('LOAD_SHED_MAX_IN_FLIGHT', 120);
+const MAX_PER_IP = envInt('LOAD_SHED_MAX_PER_IP', 10);
+const MAX_IN_FLIGHT = envInt('LOAD_SHED_MAX_IN_FLIGHT', 65);
 const RETRY_AFTER_SEC = envInt('LOAD_SHED_RETRY_AFTER_SEC', 3);
 
 const inFlightByIp = new Map<string, number>();

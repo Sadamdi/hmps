@@ -40,6 +40,18 @@ import {
 	deriveBannerColorsFromTheme,
 	DEFAULT_THEME_COLOR,
 } from './services/banner-theme-derive';
+import { ShortJsonCache } from './lib/short-cache';
+
+function envIntRoutes(name: string, fallback: number): number {
+	const v = parseInt(process.env[name] || '', 10);
+	return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+
+/** Respons JSON daftar berita publik — kurangi puluhan query Mongo per detik saat traffic tinggi. */
+const beritaListPublicCache = new ShortJsonCache(
+	envIntRoutes('API_BERITA_LIST_CACHE_MS', 6000),
+	48,
+);
 
 /**
  * Returns tenant storage for tenant requests, otherwise mongoStorage.
@@ -2017,14 +2029,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const storage = resolveStorage(req);
 			const { page, limit, isPaginated } = getPaginationParams(req.query);
+			const tenantKey =
+				(req as { tenantSlug?: string; isTenantRequest?: boolean })
+					.isTenantRequest &&
+				(req as { tenantSlug?: string }).tenantSlug
+					? String((req as { tenantSlug?: string }).tenantSlug)
+					: 'main';
+			const cacheKey = `berita|${tenantKey}|${isPaginated ? `p${page}l${limit}` : 'all'}`;
+
+			const cached = beritaListPublicCache.get(cacheKey);
+			if (cached) {
+				res.setHeader('X-HMPS-Cache', 'hit');
+				res.setHeader('Content-Type', 'application/json; charset=utf-8');
+				return res.send(cached);
+			}
+
 			const allBerita = await storage.getPublishedBerita(
 				isPaginated ? { page, limit } : undefined,
 			);
 			await enrichBeritaWithAuthors(allBerita, req);
 			await enrichBeritaListRelations(allBerita, req);
+			let payload: unknown;
 			if (isPaginated) {
 				const total = await storage.getBeritaCount();
-				return res.json({
+				payload = {
 					data: allBerita,
 					meta: {
 						page,
@@ -2032,9 +2060,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						total,
 						totalPages: Math.ceil(total / limit),
 					},
-				});
+				};
+			} else {
+				payload = allBerita;
 			}
-			res.json(allBerita);
+			const body = JSON.stringify(payload);
+			beritaListPublicCache.set(cacheKey, body);
+			res.setHeader('X-HMPS-Cache', 'miss');
+			res.setHeader('Content-Type', 'application/json; charset=utf-8');
+			return res.send(body);
 		} catch (error) {
 			console.error('Get berita error:', error);
 			res.status(500).json({ message: 'Internal server error' });
