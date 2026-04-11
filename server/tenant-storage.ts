@@ -5,6 +5,7 @@
 import mongoose from 'mongoose';
 import { TenantModels } from '../db/tenant';
 import { hashPassword } from './auth';
+import { MONGO_QUERY_MAX_TIME_MS } from './lib/mongo-query-limits';
 
 function toObjectId(id: string | number): mongoose.Types.ObjectId | null {
 	if (!id) return null;
@@ -86,7 +87,10 @@ export function createTenantStorage(models: TenantModels) {
 		return applyPagination(Berita.find().sort({ createdAt: -1 }), options).lean();
 	}
 	async function getPublishedBerita(options?: PaginationOptions) {
-		return applyPagination(Berita.find({ published: true }).sort({ createdAt: -1 }), options).lean();
+		const q = Berita.find({ published: true })
+			.sort({ createdAt: -1 })
+			.maxTimeMS(MONGO_QUERY_MAX_TIME_MS);
+		return applyPagination(q, options).lean();
 	}
 	async function getBeritaById(id: string | number) {
 		const oid = toObjectId(id); if (!oid) return null;
@@ -113,7 +117,9 @@ export function createTenantStorage(models: TenantModels) {
 		const oid = toObjectId(id); if (!oid) return;
 		await Berita.findByIdAndDelete(oid);
 	}
-	async function getBeritaCount() { return Berita.countDocuments(); }
+	async function getBeritaCount() {
+		return Berita.countDocuments({}, { maxTimeMS: MONGO_QUERY_MAX_TIME_MS });
+	}
 	async function getPublishedBeritaCount() { return Berita.countDocuments({ published: true }); }
 
 	// ── Library ──

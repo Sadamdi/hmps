@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 import { deleteFile } from './upload';
 import { DEFAULT_IMAGE_URL } from './constants/default-image';
+import { MONGO_QUERY_MAX_TIME_MS } from './lib/mongo-query-limits';
 import {
 	Berita,
 	Community,
@@ -164,7 +165,9 @@ async function getAllBerita(options?: PaginationOptions): Promise<any[]> {
 }
 
 async function getPublishedBerita(options?: PaginationOptions): Promise<any[]> {
-	const query = Berita.find({ published: true }).sort({ createdAt: -1 });
+	const query = Berita.find({ published: true })
+		.sort({ createdAt: -1 })
+		.maxTimeMS(MONGO_QUERY_MAX_TIME_MS);
 	return await applyPagination(query, options).lean();
 }
 
@@ -247,7 +250,10 @@ async function deleteBerita(id: string | number): Promise<void> {
 }
 
 async function getBeritaCount(): Promise<number> {
-	return await Berita.countDocuments();
+	return await Berita.countDocuments(
+		{},
+		{ maxTimeMS: MONGO_QUERY_MAX_TIME_MS },
+	);
 }
 
 // Library functions

@@ -40,6 +40,7 @@ import {
 	deriveBannerColorsFromTheme,
 	DEFAULT_THEME_COLOR,
 } from './services/banner-theme-derive';
+import { readPublicJsonCache, writePublicJsonCache } from './lib/public-json-cache';
 import { ShortJsonCache } from './lib/short-cache';
 
 function envIntRoutes(name: string, fallback: number): number {
@@ -47,10 +48,20 @@ function envIntRoutes(name: string, fallback: number): number {
 	return Number.isFinite(v) && v > 0 ? v : fallback;
 }
 
+const API_BERITA_LIST_CACHE_MS = envIntRoutes('API_BERITA_LIST_CACHE_MS', 6000);
 /** Respons JSON daftar berita publik — kurangi puluhan query Mongo per detik saat traffic tinggi. */
-const beritaListPublicCache = new ShortJsonCache(
-	envIntRoutes('API_BERITA_LIST_CACHE_MS', 6000),
-	48,
+const beritaListPublicCache = new ShortJsonCache(API_BERITA_LIST_CACHE_MS, 48);
+
+const API_SETTINGS_CACHE_MS = envIntRoutes('API_SETTINGS_CACHE_MS', 10000);
+const settingsPublicCache = new ShortJsonCache(API_SETTINGS_CACHE_MS, 32);
+
+const API_HOME_IMAGES_ACTIVE_CACHE_MS = envIntRoutes(
+	'API_HOME_IMAGES_ACTIVE_CACHE_MS',
+	10000,
+);
+const homeImagesActivePublicCache = new ShortJsonCache(
+	API_HOME_IMAGES_ACTIVE_CACHE_MS,
+	16,
 );
 
 /**
@@ -65,6 +76,11 @@ function resolveModels(req: Request): any {
 	if (req.tenantModels) return req.tenantModels;
 	// Lazy-require main models to avoid circular deps
 	return require('../db/mongodb');
+}
+
+function tenantCacheKey(req: Request): string {
+	const r = req as Request & { isTenantRequest?: boolean; tenantSlug?: string };
+	return r.isTenantRequest && r.tenantSlug ? String(r.tenantSlug) : 'main';
 }
 
 function isValidPeriodRange(period: string): boolean {
@@ -2029,15 +2045,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const storage = resolveStorage(req);
 			const { page, limit, isPaginated } = getPaginationParams(req.query);
-			const tenantKey =
-				(req as { tenantSlug?: string; isTenantRequest?: boolean })
-					.isTenantRequest &&
-				(req as { tenantSlug?: string }).tenantSlug
-					? String((req as { tenantSlug?: string }).tenantSlug)
-					: 'main';
+			const tenantKey = tenantCacheKey(req);
 			const cacheKey = `berita|${tenantKey}|${isPaginated ? `p${page}l${limit}` : 'all'}`;
 
-			const cached = beritaListPublicCache.get(cacheKey);
+			const cached = await readPublicJsonCache(beritaListPublicCache, cacheKey);
 			if (cached) {
 				res.setHeader('X-HMPS-Cache', 'hit');
 				res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -2065,7 +2076,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				payload = allBerita;
 			}
 			const body = JSON.stringify(payload);
-			beritaListPublicCache.set(cacheKey, body);
+			await writePublicJsonCache(
+				beritaListPublicCache,
+				cacheKey,
+				body,
+				API_BERITA_LIST_CACHE_MS,
+			);
 			res.setHeader('X-HMPS-Cache', 'miss');
 			res.setHeader('Content-Type', 'application/json; charset=utf-8');
 			return res.send(body);
@@ -4558,9 +4574,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Settings routes (tenant-aware)
 	app.get('/api/settings', async (req, res) => {
 		try {
+			const cacheKey = `settings|${tenantCacheKey(req)}`;
+			const cached = await readPublicJsonCache(settingsPublicCache, cacheKey);
+			if (cached) {
+				res.setHeader('X-HMPS-Cache', 'hit');
+				res.setHeader('Content-Type', 'application/json; charset=utf-8');
+				return res.send(cached);
+			}
 			const storage = resolveStorage(req);
 			const settings = await storage.getSettings();
-			res.json(settings);
+			const body = JSON.stringify(settings);
+			await writePublicJsonCache(
+				settingsPublicCache,
+				cacheKey,
+				body,
+				API_SETTINGS_CACHE_MS,
+			);
+			res.setHeader('X-HMPS-Cache', 'miss');
+			res.setHeader('Content-Type', 'application/json; charset=utf-8');
+			return res.send(body);
 		} catch (error) {
 			console.error('Get settings error:', error);
 			res.status(500).json({ message: 'Internal server error' });
@@ -5238,8 +5270,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Public: get active year images
 	app.get('/api/home-images/active', async (req, res) => {
 		try {
+			const cacheKey = `homeimg|${tenantCacheKey(req)}`;
+			const cached = await readPublicJsonCache(homeImagesActivePublicCache, cacheKey);
+			if (cached) {
+				res.setHeader('X-HMPS-Cache', 'hit');
+				res.setHeader('Content-Type', 'application/json; charset=utf-8');
+				return res.send(cached);
+			}
 			const data = await resolveStorage(req).getActiveHomeImages();
-			res.json(data || {});
+			const body = JSON.stringify(data || {});
+			await writePublicJsonCache(
+				homeImagesActivePublicCache,
+				cacheKey,
+				body,
+				API_HOME_IMAGES_ACTIVE_CACHE_MS,
+			);
+			res.setHeader('X-HMPS-Cache', 'miss');
+			res.setHeader('Content-Type', 'application/json; charset=utf-8');
+			return res.send(body);
 		} catch (error) {
 			console.error('Get active home images error:', error);
 			res.status(500).json({ message: 'Internal server error' });

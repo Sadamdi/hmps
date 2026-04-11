@@ -1,6 +1,8 @@
 import rateLimit from 'express-rate-limit';
+import { RedisStore, type RedisReply } from 'rate-limit-redis';
 import { NextFunction, Request, Response } from 'express';
 import { getTrustedClientIp } from '../lib/client-ip';
+import { getSharedRedis } from '../lib/redis-client';
 import { getMiddlewareSettings } from '../models/middleware-settings';
 
 function envInt(name: string, fallback: number): number {
@@ -235,6 +237,7 @@ export const apiProtectionMiddleware = async (
  * Per menit: bucket terpisah anon vs login (`IP:anon` / `IP:auth`) supaya satu IP publik
  * (WiFi kampus, ISP) tidak cepat kena imbas traffic anon, sementara user login tetap nyaman.
  */
+const redisForApiRateLimit = getSharedRedis();
 const apiLimiterCore = rateLimit({
 	windowMs: 60 * 1000,
 	limit: (req) =>
@@ -244,6 +247,18 @@ const apiLimiterCore = rateLimit({
 	standardHeaders: true,
 	legacyHeaders: false,
 	skip: (req) => !req.path.startsWith('/api/'),
+	...(redisForApiRateLimit
+		? {
+				store: new RedisStore({
+					prefix: 'rl:hmps:api:',
+					sendCommand: (...args: string[]) =>
+						redisForApiRateLimit.call(
+							args[0]!,
+							...args.slice(1),
+						) as Promise<RedisReply>,
+				}),
+			}
+		: {}),
 	keyGenerator: (req) => {
 		const ip = getTrustedClientIp(req);
 		return hasAuthCredentials(req) ? `${ip}:auth` : `${ip}:anon`;

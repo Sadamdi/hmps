@@ -152,6 +152,7 @@ const beritaSchema = new mongoose.Schema({
 });
 
 beritaSchema.index({ slug: 1 });
+beritaSchema.index({ published: 1, createdAt: -1 });
 
 // Model Library
 const librarySchema = new mongoose.Schema({
