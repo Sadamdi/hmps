@@ -1,6 +1,12 @@
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
+import { getTrustedClientIp } from '../lib/client-ip';
 import { getMiddlewareSettings } from '../models/middleware-settings';
+
+function envInt(name: string, fallback: number): number {
+	const v = parseInt(process.env[name] || '', 10);
+	return Number.isFinite(v) && v > 0 ? v : fallback;
+}
 
 // Function to check if bot is legitimate
 function isLegitimateBot(userAgent: string): boolean {
@@ -93,26 +99,32 @@ async function getCachedDdosMiddlewareSettings() {
 
 // ==================== DDoS PROTECTION CONFIGURATION ====================
 
-// Tier 1: Beautiful Error (50 req/device/min atau 500 req/IP/min)
-const TIER1_DEVICE_LIMIT = 50;
-const TIER1_IP_LIMIT = 500;
+// Tier 1 (dapat di-override env — default lebih ketat untuk VPS kecil)
+const TIER1_DEVICE_LIMIT = envInt('DDOS_TIER1_DEVICE_LIMIT', 40);
+const TIER1_IP_LIMIT = envInt('DDOS_TIER1_IP_LIMIT', 180);
 const TIER1_WINDOW_MS = 60 * 1000; // 1 menit
 
-// Tier 2: Quick Block 10 menit (300 req/device/5min atau 3000 req/IP/5min)
-const TIER2_DEVICE_LIMIT = 300;
-const TIER2_IP_LIMIT = 3000;
+// Tier 2: Quick Block 10 menit
+const TIER2_DEVICE_LIMIT = envInt('DDOS_TIER2_DEVICE_LIMIT', 300);
+const TIER2_IP_LIMIT = envInt('DDOS_TIER2_IP_LIMIT', 1000);
 const TIER2_WINDOW_MS = 5 * 60 * 1000; // 5 menit
 const TIER2_BLOCK_DURATION_MS = 10 * 60 * 1000; // 10 menit
 
-// Tier 3: Quick Block 60 menit (4000 req/device/60min atau 30000 req/IP/60min)
-const TIER3_DEVICE_LIMIT = 4000;
-const TIER3_IP_LIMIT = 30000;
+// Tier 3: Quick Block 60 menit
+const TIER3_DEVICE_LIMIT = envInt('DDOS_TIER3_DEVICE_LIMIT', 1000);
+const TIER3_IP_LIMIT = envInt('DDOS_TIER3_IP_LIMIT', 5000);
 const TIER3_WINDOW_MS = 60 * 60 * 1000; // 60 menit
 const TIER3_BLOCK_DURATION_MS = 60 * 60 * 1000; // 60 menit
 
-// Concurrent connection limits
-const MAX_CONCURRENT_CONNECTIONS_PER_IP = 100;
-const MAX_CONCURRENT_CONNECTIONS_PER_DEVICE = 5;
+// Concurrent connection limits (semua route yang tidak di-skip)
+const MAX_CONCURRENT_CONNECTIONS_PER_IP = envInt(
+	'DDOS_MAX_CONCURRENT_PER_IP',
+	30,
+);
+const MAX_CONCURRENT_CONNECTIONS_PER_DEVICE = envInt(
+	'DDOS_MAX_CONCURRENT_PER_DEVICE',
+	8,
+);
 
 // Special rate limits untuk sensitive endpoints
 const MAX_LOGIN_ATTEMPTS_PER_IP = 10;
@@ -234,23 +246,11 @@ const allowlistedSearchBots = [
 ];
 
 // ==================== DEVICE ID GENERATION ====================
-function getClientIp(req: Request): string {
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	return (
-		forwardedIp ||
-		req.ip ||
-		(req.connection as any)?.remoteAddress ||
-		req.socket.remoteAddress ||
-		'unknown'
-	);
-}
-
 function generateDeviceId(req: Request): string {
 	const userAgent = req.get('User-Agent') || '';
 	const acceptLanguage = req.get('Accept-Language') || '';
 	const acceptEncoding = req.get('Accept-Encoding') || '';
-	const ip = getClientIp(req);
+	const ip = getTrustedClientIp(req);
 
 	// Create a unique device fingerprint
 	const fingerprint = `${userAgent}|${acceptLanguage}|${acceptEncoding}|${ip}`;
@@ -261,18 +261,49 @@ function generateDeviceId(req: Request): string {
 		.substring(0, 16);
 }
 
-// ==================== QUICK BLOCK RESPONSE ====================
-function sendQuickBlock(res: Response, tier: number) {
-	const messages = {
-		2: 'Rate limit exceeded. Blocked for 10 minutes.',
-		3: 'Aggressive rate limit exceeded. Blocked for 60 minutes.',
+// ==================== HARD BLOCK (tier 2 / 3) ====================
+/** Blokir nyata: 429 + Retry-After sampai masa blok habis. Hanya memengaruhi IP/device yang terdaftar di `blockedIPs` / `blockedDevices`. */
+function sendTierBlockResponse(
+	req: Request,
+	res: Response,
+	tier: number,
+	blockUntil: number,
+) {
+	const retryAfter = Math.max(1, Math.ceil((blockUntil - Date.now()) / 1000));
+	const messages: Record<number, string> = {
+		2: 'Terlalu banyak permintaan. Akses dari IP/perangkat ini diblokir sementara (tier 2).',
+		3: 'Polusi traffic terdeteksi. Akses dari IP/perangkat ini diblokir (tier 3).',
 	};
+	const message =
+		messages[tier as keyof typeof messages] ||
+		'Terlalu banyak permintaan. Akses dibatasi.';
 
-	res
+	res.setHeader('Retry-After', String(retryAfter));
+	res.setHeader('X-HMPS-RateLimit-Tier', String(tier));
+
+	const wantsJson =
+		req.path.startsWith('/api/') ||
+		!!req.get('accept')?.includes('application/json');
+
+	if (wantsJson) {
+		return res.status(429).json({
+			error: {
+				code: 429,
+				title: 'Too Many Requests',
+				message,
+				tier,
+				blocked: true,
+				retryAfter,
+				blockUntilIso: new Date(blockUntil).toISOString(),
+				timestamp: new Date().toISOString(),
+			},
+		});
+	}
+
+	return res
 		.status(429)
-		.set('Content-Type', 'text/plain')
-		.set('Retry-After', tier === 2 ? '600' : '3600')
-		.end(messages[tier as keyof typeof messages] || 'Rate limit exceeded.');
+		.set('Content-Type', 'text/plain; charset=utf-8')
+		.send(`${message} Silakan coba lagi setelah ±${retryAfter} detik.`);
 }
 
 // ==================== BEAUTIFUL ERROR RESPONSE ====================
@@ -337,7 +368,7 @@ export const ddosProtectionMiddleware = async (
 		if (!settings.ddosProtectionEnabled) {
 			return next();
 		}
-		const clientIP = getClientIp(req);
+		const clientIP = getTrustedClientIp(req);
 		const userAgent = req.get('User-Agent') || '';
 		const path = req.path;
 		const method = req.method;
@@ -368,7 +399,6 @@ export const ddosProtectionMiddleware = async (
 			path.endsWith('.eot') ||
 			path.startsWith('/error') ||
 			path.startsWith('/.well-known/') ||
-			path.startsWith('/api/') || // Skip API routes untuk rate limit global
 			path.includes('appspecific') || // Skip Vite specific paths
 			path.includes('vite') || // Skip Vite paths
 			path.includes('__vite') || // Skip Vite internal paths
@@ -397,18 +427,117 @@ export const ddosProtectionMiddleware = async (
 		const blockedIP = blockedIPs.get(clientIP);
 		const blockedDevice = blockedDevices.get(deviceId);
 
-		// Check if currently blocked, but still count for higher tiers
 		let isCurrentlyBlocked = false;
 		let currentBlockTier = 0;
+		let activeBlockUntil = 0;
 
 		if (blockedIP && now < blockedIP.blockUntil) {
 			isCurrentlyBlocked = true;
 			currentBlockTier = blockedIP.tier;
+			activeBlockUntil = Math.max(activeBlockUntil, blockedIP.blockUntil);
 		}
 
 		if (blockedDevice && now < blockedDevice.blockUntil) {
 			isCurrentlyBlocked = true;
 			currentBlockTier = Math.max(currentBlockTier, blockedDevice.tier);
+			activeBlockUntil = Math.max(activeBlockUntil, blockedDevice.blockUntil);
+		}
+
+		// ==================== TIER COUNTERS (semua route non-statis, termasuk /api/*) ====================
+		let tier3IPData = tier3RequestCountsByIP.get(clientIP);
+		let tier3DeviceData = tier3RequestCountsByDevice.get(deviceId);
+
+		if (!tier3IPData || now > tier3IPData.resetTime) {
+			tier3RequestCountsByIP.set(clientIP, {
+				count: 1,
+				resetTime: now + TIER3_WINDOW_MS,
+			});
+			tier3IPData = tier3RequestCountsByIP.get(clientIP)!;
+		} else {
+			tier3IPData.count++;
+			tier3RequestCountsByIP.set(clientIP, tier3IPData);
+		}
+
+		if (!tier3DeviceData || now > tier3DeviceData.resetTime) {
+			tier3RequestCountsByDevice.set(deviceId, {
+				count: 1,
+				resetTime: now + TIER3_WINDOW_MS,
+			});
+			tier3DeviceData = tier3RequestCountsByDevice.get(deviceId)!;
+		} else {
+			tier3DeviceData.count++;
+			tier3RequestCountsByDevice.set(deviceId, tier3DeviceData);
+		}
+
+		let tier2IPData = tier2RequestCountsByIP.get(clientIP);
+		let tier2DeviceData = tier2RequestCountsByDevice.get(deviceId);
+
+		if (!tier2IPData || now > tier2IPData.resetTime) {
+			tier2RequestCountsByIP.set(clientIP, {
+				count: 1,
+				resetTime: now + TIER2_WINDOW_MS,
+			});
+			tier2IPData = tier2RequestCountsByIP.get(clientIP)!;
+		} else {
+			tier2IPData.count++;
+			tier2RequestCountsByIP.set(clientIP, tier2IPData);
+		}
+
+		if (!tier2DeviceData || now > tier2DeviceData.resetTime) {
+			tier2RequestCountsByDevice.set(deviceId, {
+				count: 1,
+				resetTime: now + TIER2_WINDOW_MS,
+			});
+			tier2DeviceData = tier2RequestCountsByDevice.get(deviceId)!;
+		} else {
+			tier2DeviceData.count++;
+			tier2RequestCountsByDevice.set(deviceId, tier2DeviceData);
+		}
+
+		let tier1IPData = tier1RequestCountsByIP.get(clientIP);
+		let tier1DeviceData = tier1RequestCountsByDevice.get(deviceId);
+
+		if (!tier1IPData || now > tier1IPData.resetTime) {
+			tier1RequestCountsByIP.set(clientIP, {
+				count: 1,
+				resetTime: now + TIER1_WINDOW_MS,
+			});
+			tier1IPData = tier1RequestCountsByIP.get(clientIP)!;
+		} else {
+			tier1IPData.count++;
+			tier1RequestCountsByIP.set(clientIP, tier1IPData);
+		}
+
+		if (!tier1DeviceData || now > tier1DeviceData.resetTime) {
+			tier1RequestCountsByDevice.set(deviceId, {
+				count: 1,
+				resetTime: now + TIER1_WINDOW_MS,
+			});
+			tier1DeviceData = tier1RequestCountsByDevice.get(deviceId)!;
+		} else {
+			tier1DeviceData.count++;
+			tier1RequestCountsByDevice.set(deviceId, tier1DeviceData);
+		}
+
+		// Sudah kena blok tier 2/3: tolak segera — tanpa bypass bot & tanpa naikkan concurrent slot
+		if (isCurrentlyBlocked) {
+			if (tier3IPData && tier3IPData.count > TIER3_IP_LIMIT) {
+				const newUntil = now + TIER3_BLOCK_DURATION_MS;
+				blockedIPs.set(clientIP, { blockUntil: newUntil, tier: 3 });
+				console.log(
+					`🚨 Tier 3 (perpanjang): IP ${clientIP} masih melampaui ambang jam-jam, blok diperpanjang`,
+				);
+				return sendTierBlockResponse(req, res, 3, newUntil);
+			}
+			if (tier3DeviceData && tier3DeviceData.count > TIER3_DEVICE_LIMIT) {
+				const newUntil = now + TIER3_BLOCK_DURATION_MS;
+				blockedDevices.set(deviceId, { blockUntil: newUntil, tier: 3 });
+				console.log(
+					`🚨 Tier 3 (perpanjang): device ${deviceId} masih melampaui ambang jam-jam, blok diperpanjang`,
+				);
+				return sendTierBlockResponse(req, res, 3, newUntil);
+			}
+			return sendTierBlockResponse(req, res, currentBlockTier, activeBlockUntil);
 		}
 
 		// ==================== BOT/CRAWLER DETECTION ====================
@@ -425,37 +554,14 @@ export const ddosProtectionMiddleware = async (
 			p.test(userAgent)
 		);
 
-		// ==================== PUBLIC VS PRIVATE CONTENT DETECTION ====================
-		const isPublicContent =
-			path === '/' ||
-			path.startsWith('/berita') ||
-			path === '/sitemap.xml' ||
-			path === '/robots.txt';
-
-		const isPrivateContent =
-			path.startsWith('/dashboard') ||
-			path.startsWith('/api/') ||
-			path === '/login';
-
-		// Skip DDoS protection untuk bot legitimate
-		if (isLegitimateBot(userAgent)) {
+		// Bot crawler resmi: boleh lewat untuk HTML/SEO, tapi /api/* tetap kena tier (satu aturan dengan pengguna)
+		if (isLegitimateBot(userAgent) && !path.startsWith('/api/')) {
 			console.log(
 				`🤖 DDoS Protection: Legitimate Bot Access Allowed: ${userAgent} to ${path}`
 			);
 			return next();
 		}
 
-		// Untuk konten public, biarkan semua akses (termasuk yang mencurigakan)
-		// tapi tetap log untuk monitoring
-		if (isPublicContent) {
-			// Log aktivitas mencurigakan tapi tetap izinkan akses
-			if (isBot || isAllowlistedSearchBot) {
-				console.log(
-					`⚠️ DDoS Protection: Suspicious Activity on Public Content (ALLOWED): ${userAgent} from IP ${clientIP} to ${path}`
-				);
-			}
-			return next();
-		}
 		const isSeoPath =
 			path === '/' ||
 			path === '/sitemap.xml' ||
@@ -483,78 +589,6 @@ export const ddosProtectionMiddleware = async (
 					path: path,
 				}
 			);
-		}
-
-		// ==================== TIER 3 CHECK (60 MINUTE WINDOW) ====================
-		let tier3IPData = tier3RequestCountsByIP.get(clientIP);
-		let tier3DeviceData = tier3RequestCountsByDevice.get(deviceId);
-
-		if (!tier3IPData || now > tier3IPData.resetTime) {
-			tier3RequestCountsByIP.set(clientIP, {
-				count: 1,
-				resetTime: now + TIER3_WINDOW_MS,
-			});
-		} else {
-			tier3IPData.count++;
-			tier3RequestCountsByIP.set(clientIP, tier3IPData);
-		}
-
-		if (!tier3DeviceData || now > tier3DeviceData.resetTime) {
-			tier3RequestCountsByDevice.set(deviceId, {
-				count: 1,
-				resetTime: now + TIER3_WINDOW_MS,
-			});
-		} else {
-			tier3DeviceData.count++;
-			tier3RequestCountsByDevice.set(deviceId, tier3DeviceData);
-		}
-
-		// ==================== TIER 2 CHECK (5 MINUTE WINDOW) ====================
-		let tier2IPData = tier2RequestCountsByIP.get(clientIP);
-		let tier2DeviceData = tier2RequestCountsByDevice.get(deviceId);
-
-		if (!tier2IPData || now > tier2IPData.resetTime) {
-			tier2RequestCountsByIP.set(clientIP, {
-				count: 1,
-				resetTime: now + TIER2_WINDOW_MS,
-			});
-		} else {
-			tier2IPData.count++;
-			tier2RequestCountsByIP.set(clientIP, tier2IPData);
-		}
-
-		if (!tier2DeviceData || now > tier2DeviceData.resetTime) {
-			tier2RequestCountsByDevice.set(deviceId, {
-				count: 1,
-				resetTime: now + TIER2_WINDOW_MS,
-			});
-		} else {
-			tier2DeviceData.count++;
-			tier2RequestCountsByDevice.set(deviceId, tier2DeviceData);
-		}
-
-		// ==================== TIER 1 CHECK (1 MINUTE WINDOW) ====================
-		let tier1IPData = tier1RequestCountsByIP.get(clientIP);
-		let tier1DeviceData = tier1RequestCountsByDevice.get(deviceId);
-
-		if (!tier1IPData || now > tier1IPData.resetTime) {
-			tier1RequestCountsByIP.set(clientIP, {
-				count: 1,
-				resetTime: now + TIER1_WINDOW_MS,
-			});
-		} else {
-			tier1IPData.count++;
-			tier1RequestCountsByIP.set(clientIP, tier1IPData);
-		}
-
-		if (!tier1DeviceData || now > tier1DeviceData.resetTime) {
-			tier1RequestCountsByDevice.set(deviceId, {
-				count: 1,
-				resetTime: now + TIER1_WINDOW_MS,
-			});
-		} else {
-			tier1DeviceData.count++;
-			tier1RequestCountsByDevice.set(deviceId, tier1DeviceData);
 		}
 
 		// ==================== CONCURRENT CONNECTION LIMITING ====================
@@ -723,53 +757,7 @@ export const ddosProtectionMiddleware = async (
 			}
 		});
 
-		// ==================== FINAL BLOCKING DECISION ====================
-		// Check if currently blocked first
-		if (isCurrentlyBlocked) {
-			// Check if we need to upgrade to higher tier
-			let shouldUpgrade = false;
-			let newTier = currentBlockTier;
-			let newBlockUntil = 0;
-
-			// Check Tier 3 upgrade
-			if (tier3IPData && tier3IPData.count > TIER3_IP_LIMIT) {
-				shouldUpgrade = true;
-				newTier = 3;
-				newBlockUntil = now + TIER3_BLOCK_DURATION_MS;
-				blockedIPs.set(clientIP, { blockUntil: newBlockUntil, tier: 3 });
-				console.log(
-					`🚨 Tier 3 Upgrade: IP ${clientIP} exceeded ${TIER3_IP_LIMIT} requests in 60 minutes, upgraded from Tier ${currentBlockTier} to Tier 3, blocked until ${new Date(
-						newBlockUntil
-					).toLocaleString()}`
-				);
-			} else if (
-				tier3DeviceData &&
-				tier3DeviceData.count > TIER3_DEVICE_LIMIT
-			) {
-				shouldUpgrade = true;
-				newTier = 3;
-				newBlockUntil = now + TIER3_BLOCK_DURATION_MS;
-				blockedDevices.set(deviceId, { blockUntil: newBlockUntil, tier: 3 });
-				console.log(
-					`🚨 Tier 3 Upgrade: Device ${deviceId} exceeded ${TIER3_DEVICE_LIMIT} requests in 60 minutes, upgraded from Tier ${currentBlockTier} to Tier 3, blocked until ${new Date(
-						newBlockUntil
-					).toLocaleString()}`
-				);
-			}
-
-			if (shouldUpgrade) {
-				return sendQuickBlock(res, newTier);
-			}
-
-			// If no upgrade needed, continue with current block
-			console.log(
-				`🚫 Quick Block: IP/Device is blocked (Tier ${currentBlockTier}) until ${new Date(
-					blockedIP?.blockUntil || blockedDevice?.blockUntil || 0
-				).toLocaleString()}`
-			);
-			return sendQuickBlock(res, currentBlockTier);
-		}
-
+		// ==================== TIER 2/3 BARU (blok penuh per IP atau per device) ====================
 		// Check Tier 3 first (highest priority)
 		if (tier3IPData && tier3IPData.count > TIER3_IP_LIMIT) {
 			const blockUntil = now + TIER3_BLOCK_DURATION_MS;
@@ -779,7 +767,7 @@ export const ddosProtectionMiddleware = async (
 					blockUntil
 				).toLocaleString()}`
 			);
-			return sendQuickBlock(res, 3);
+			return sendTierBlockResponse(req, res, 3, blockUntil);
 		}
 
 		if (tier3DeviceData && tier3DeviceData.count > TIER3_DEVICE_LIMIT) {
@@ -790,7 +778,7 @@ export const ddosProtectionMiddleware = async (
 					blockUntil
 				).toLocaleString()}`
 			);
-			return sendQuickBlock(res, 3);
+			return sendTierBlockResponse(req, res, 3, blockUntil);
 		}
 
 		// Check Tier 2
@@ -802,7 +790,7 @@ export const ddosProtectionMiddleware = async (
 					blockUntil
 				).toLocaleString()}`
 			);
-			return sendQuickBlock(res, 2);
+			return sendTierBlockResponse(req, res, 2, blockUntil);
 		}
 
 		if (tier2DeviceData && tier2DeviceData.count > TIER2_DEVICE_LIMIT) {
@@ -813,7 +801,7 @@ export const ddosProtectionMiddleware = async (
 					blockUntil
 				).toLocaleString()}`
 			);
-			return sendQuickBlock(res, 2);
+			return sendTierBlockResponse(req, res, 2, blockUntil);
 		}
 
 		// Check Tier 1 (lowest priority)

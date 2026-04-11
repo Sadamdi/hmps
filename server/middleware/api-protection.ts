@@ -1,5 +1,12 @@
+import rateLimit from 'express-rate-limit';
 import { NextFunction, Request, Response } from 'express';
+import { getTrustedClientIp } from '../lib/client-ip';
 import { getMiddlewareSettings } from '../models/middleware-settings';
+
+function envInt(name: string, fallback: number): number {
+	const v = parseInt(process.env[name] || '', 10);
+	return Number.isFinite(v) && v > 0 ? v : fallback;
+}
 
 // Cache for middleware settings
 let middlewareSettingsCache: any = null;
@@ -216,12 +223,35 @@ export const apiProtectionMiddleware = async (
 };
 
 // ==================== API RATE LIMITING ====================
-const apiRequestCounts = new Map<
-	string,
-	{ count: number; resetTime: number }
->();
-const API_RATE_LIMIT = 100; // 100 requests per minute per IP for API
-const API_WINDOW_MS = 60 * 1000; // 1 minute
+/** Per menit per IP (CF-Connecting-IP / XFF). Pakai express-rate-limit (aman untuk request paralel). */
+const apiLimiterCore = rateLimit({
+	windowMs: 60 * 1000,
+	limit: () => envInt('API_RATE_LIMIT_PER_MINUTE', 90),
+	standardHeaders: true,
+	legacyHeaders: false,
+	skip: (req) => !req.path.startsWith('/api/'),
+	keyGenerator: (req) => getTrustedClientIp(req),
+	validate: false,
+	handler: (req, res) => {
+		const clientIP = getTrustedClientIp(req);
+		const retryAfter = envInt('API_RATE_LIMIT_WINDOW_SEC', 60);
+		console.log(
+			`🚨 API Rate Limit: IP ${clientIP} exceeded limit, retry in ${retryAfter}s`,
+		);
+		return sendBeautifulApiError(
+			res,
+			429,
+			'API Rate Limit Exceeded',
+			'Too many API requests. Please slow down and try again later.',
+			{
+				limit: envInt('API_RATE_LIMIT_PER_MINUTE', 90),
+				window: '1 minute',
+				retryAfter,
+				ip: clientIP,
+			},
+		);
+	},
+});
 
 export const apiRateLimitMiddleware = async (
 	req: Request,
@@ -230,78 +260,15 @@ export const apiRateLimitMiddleware = async (
 ) => {
 	try {
 		const settings = await getCachedMiddlewareSettings();
-
-		// Skip middleware if disabled
 		if (!settings.apiRateLimitEnabled) {
 			return next();
 		}
-		const path = req.path;
-
-		// Skip jika bukan API route
-		if (!path.startsWith('/api/')) {
-			return next();
-		}
-
-		const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-		const forwardedIp = xfwd.split(',')[0]?.trim();
-		const clientIP =
-			forwardedIp ||
-			(req as any).ip ||
-			(req as any).connection?.remoteAddress ||
-			'unknown';
-		const now = Date.now();
-		const ipData = apiRequestCounts.get(clientIP);
-
-		if (!ipData || now > ipData.resetTime) {
-			apiRequestCounts.set(clientIP, {
-				count: 1,
-				resetTime: now + API_WINDOW_MS,
-			});
-		} else {
-			ipData.count++;
-			apiRequestCounts.set(clientIP, ipData);
-
-			// Check API rate limit
-			if (ipData.count > API_RATE_LIMIT) {
-				const retryAfter = Math.ceil((ipData.resetTime - now) / 1000);
-				console.log(
-					`🚨 API Rate Limit: IP ${clientIP} exceeded API rate limit, retry in ${retryAfter}s`,
-				);
-
-				return sendBeautifulApiError(
-					res,
-					429,
-					'API Rate Limit Exceeded',
-					'Too many API requests. Please slow down and try again later.',
-					{
-						limit: API_RATE_LIMIT,
-						window: '1 minute',
-						retryAfter: retryAfter,
-						ip: clientIP,
-					},
-				);
-			}
-		}
-
-		next();
+		return apiLimiterCore(req, res, next);
 	} catch (error) {
 		console.error('Error in API rate limit middleware:', error);
-		// Continue processing if middleware fails
 		next();
 	}
 };
 
-// ==================== CLEANUP FUNCTION ====================
-export const cleanupApiData = () => {
-	const now = Date.now();
-
-	// Cleanup expired API request counts
-	for (const [ip, data] of Array.from(apiRequestCounts.entries())) {
-		if (now > data.resetTime) {
-			apiRequestCounts.delete(ip);
-		}
-	}
-};
-
-// Run cleanup every minute
-setInterval(cleanupApiData, 60 * 1000);
+/** No-op: kompatibilitas; limiter membersihkan memori sendiri. */
+export const cleanupApiData = () => {};
