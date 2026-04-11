@@ -34,6 +34,57 @@ function slugFromProfileUrl(profileUrl: string): string {
 
 type ProdiTabValue = 'profil' | 'dosen' | 'kurikulum' | 'laboratorium' | 'akreditasi';
 
+/** Samakan dengan galeri/event: URL Drive (termasuk open?id=) dinormalisasi ke /preview. */
+function resolveDrivePreviewUrl(url: string): string {
+	try {
+		const parsed = new URL(url);
+		const host = parsed.hostname.toLowerCase();
+		if (!host.includes('drive.google.com')) return url;
+		const parts = parsed.pathname.split('/').filter(Boolean);
+		const dIdx = parts.findIndex((p) => p === 'd');
+		if (dIdx >= 0 && parts[dIdx + 1]) {
+			return `https://drive.google.com/file/d/${parts[dIdx + 1]}/preview`;
+		}
+		const id = parsed.searchParams.get('id');
+		if (id) return `https://drive.google.com/file/d/${id}/preview`;
+		return url;
+	} catch {
+		return url;
+	}
+}
+
+function extractGoogleDriveFileId(rawUrl: string): string | null {
+	try {
+		const parsed = new URL(rawUrl);
+		const host = parsed.hostname.toLowerCase();
+		if (!host.includes('drive.google.com')) return null;
+		const parts = parsed.pathname.split('/').filter(Boolean);
+		const dIdx = parts.findIndex((p) => p === 'd');
+		if (dIdx >= 0 && parts[dIdx + 1]) return parts[dIdx + 1];
+		const id = parsed.searchParams.get('id');
+		if (id) return id;
+		return null;
+	} catch {
+		return null;
+	}
+}
+
+/**
+ * Preview akreditasi: untuk Google Drive jangan lewat /api/prodi/preview (proxy HTML Google
+ * ke origin kita) — itu sering gagal di mobile. Pakai embed langsung seperti galeri/event.
+ */
+function toAccreditationPreviewSrc(url: string): string {
+	const driveId = extractGoogleDriveFileId(url);
+	if (driveId) {
+		if (/\.(png|jpe?g|webp|gif)(\?|$)/i.test(url)) {
+			return `https://lh3.googleusercontent.com/d/${driveId}=s1600`;
+		}
+		return `https://drive.google.com/file/d/${driveId}/preview`;
+	}
+	const resolved = resolveDrivePreviewUrl(url);
+	return `/api/prodi/preview?url=${encodeURIComponent(resolved)}`;
+}
+
 function readTabFromUrl(): ProdiTabValue {
 	const raw = new URLSearchParams(window.location.search).get('tab')?.toLowerCase()?.trim();
 	if (raw === 'kurikulum' || raw === 'laboratorium' || raw === 'dosen' || raw === 'akreditasi') return raw;
@@ -732,13 +783,7 @@ function AccreditationSection({ data }: { data: any }) {
 		{ key: 's2', label: 'Master (S2)' },
 		{ key: 's3', label: 'Doctoral (S3)' },
 	] as const;
-	const resolvePreviewUrl = (url: string): string => {
-		const m = url.match(/drive\.google\.com\/file\/d\/([^/]+)\//i);
-		if (m) return `https://drive.google.com/file/d/${m[1]}/preview`;
-		return url;
-	};
 	const isImageUrl = (url: string): boolean => /\.(png|jpe?g|webp|gif)(\?|$)/i.test(url);
-	const toProxyPreviewUrl = (url: string): string => `/api/prodi/preview?url=${encodeURIComponent(resolvePreviewUrl(url))}`;
 	const active = levels.find((x) => x.key === selectedLevel) || levels[0];
 	const levelData = data?.[active.key];
 	const items = levelData?.items ?? [];
@@ -835,15 +880,17 @@ function AccreditationSection({ data }: { data: any }) {
 						{preview?.url ? (
 							isImageUrl(preview.url) ? (
 								<img
-									src={toProxyPreviewUrl(preview.url)}
+									src={toAccreditationPreviewSrc(preview.url)}
 									alt={preview.title}
 									className="w-full max-h-[70vh] object-contain bg-background"
 								/>
 							) : (
 								<iframe
-									src={toProxyPreviewUrl(preview.url)}
+									src={toAccreditationPreviewSrc(preview.url)}
 									title={preview.title}
-									className="w-full h-[70vh] bg-background"
+									className="w-full h-[70vh] bg-background border-0"
+									allow="fullscreen"
+									referrerPolicy="strict-origin-when-cross-origin"
 								/>
 							)
 						) : null}
