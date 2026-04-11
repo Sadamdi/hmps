@@ -35,10 +35,7 @@ import {
 	applyOrganizationStructureAutoFill,
 	previewOrganizationStructureAutoFill,
 } from './services/organization-structure-auto-fill';
-import {
-	getDefaultBannerTemplatePath,
-	renderBannerTemplateWebp,
-} from './services/banner-template-render';
+import { invokeBannerRender } from './banner-render-invoke';
 import {
 	deriveBannerColorsFromTheme,
 	DEFAULT_THEME_COLOR,
@@ -5398,8 +5395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						? files.logo[0].buffer
 						: null;
 
-				const webp = await renderBannerTemplateWebp({
-					templatePsdPath: getDefaultBannerTemplatePath(),
+				const webp = await invokeBannerRender({
 					personName: personName || 'Alfiya',
 					divisionText: divisionText || 'Divisi',
 					bgHex: palette.bgHex,
@@ -5407,6 +5403,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					nameStripeHex: palette.nameStripeHex,
 					fogHex: palette.fogHex,
 					showNameDivision: showDivisionName,
+					showLogo,
 					photoBuffer,
 					logoBuffer,
 				});

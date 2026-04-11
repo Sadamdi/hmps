@@ -5,8 +5,10 @@
   "license": "MIT",
   "scripts": {
     "dev": "tsx server/index.ts",
-    "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
+    "dev:banner-render": "tsx server/banner-render-service.ts",
+    "build": "vite build && esbuild server/index.ts server/banner-render-service.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
     "start": "cross-env NODE_ENV=production node dist/index.js",
+    "start:banner-render": "cross-env NODE_ENV=production node dist/banner-render-service.js",
     "check": "tsc",
     "generate-sitemap": "node scripts/generate-sitemap.js",
     "generate-favicon": "bash scripts/generate-favicon.sh",
