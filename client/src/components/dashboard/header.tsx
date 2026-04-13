@@ -47,6 +47,7 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 	const { logout } = useAuth();
 	const { theme, toggleTheme } = useTheme();
 	const [showAllNotifications, setShowAllNotifications] = useState(false);
+	const [selectedNotification, setSelectedNotification] = useState<any | null>(null);
 	const queryClient = useQueryClient();
 
 	// User-specific sharing notifications
@@ -215,6 +216,15 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 		return `${days} hari lalu`;
 	};
 
+	const openNotification = (notification: any) => {
+		const actionUrl = notification?.actionUrl;
+		if (actionUrl && typeof actionUrl === 'string' && actionUrl.trim()) {
+			window.location.href = actionUrl;
+			return;
+		}
+		setSelectedNotification(notification);
+	};
+
 	return (
 		<header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur transition-colors duration-150 ease-out">
 			<div className="px-3 sm:px-4 lg:px-6 py-3 lg:py-4 flex items-center justify-between gap-2">
@@ -297,9 +307,7 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 										<DropdownMenuItem
 											key={`sharing-${n._id}`}
 											className="py-3 px-4 focus:bg-secondary"
-											onClick={() => {
-												if (n.actionUrl) window.location.href = n.actionUrl;
-											}}>
+											onClick={() => openNotification(n)}>
 											<div className="flex items-start space-x-3 w-full">
 												<div className={`p-1.5 rounded-full ${n.type === 'bug_reply' ? 'text-red-600 bg-red-100 dark:bg-red-950' : 'text-primary bg-primary/10'}`}>
 													{n.type === 'bug_reply' ? <Bug className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
@@ -331,7 +339,8 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 									{notifications.map((notification: any, index: number) => (
 										<DropdownMenuItem
 											key={index}
-											className="py-3 px-4 focus:bg-secondary">
+											className="py-3 px-4 focus:bg-secondary cursor-pointer"
+											onClick={() => openNotification(notification)}>
 											<div className="flex items-start space-x-3 w-full">
 												<div
 													className={`p-1.5 rounded-full ${getActivityColor(
@@ -404,7 +413,8 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 								{allNotifications.map((notification: any, index: number) => (
 									<div
 										key={index}
-										className="flex items-start space-x-3 p-3 rounded-lg hover:bg-secondary">
+										className="flex items-start space-x-3 p-3 rounded-lg hover:bg-secondary cursor-pointer"
+										onClick={() => openNotification(notification)}>
 										<div
 											className={`p-2 rounded-full ${getActivityColor(
 												notification.type,
@@ -444,6 +454,59 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 							</div>
 						)}
 					</ScrollArea>
+				</DialogContent>
+			</Dialog>
+
+			{/* Notification Detail Modal */}
+			<Dialog open={!!selectedNotification} onOpenChange={(open) => !open && setSelectedNotification(null)}>
+				<DialogContent className="max-w-lg border-border bg-card text-foreground">
+					<DialogHeader>
+						<DialogTitle>Detail Notifikasi</DialogTitle>
+					</DialogHeader>
+					{selectedNotification && (
+						<div className="space-y-4">
+							<div className="flex items-start gap-3">
+								<div className={`p-2 rounded-full ${getActivityColor(selectedNotification.type || 'settings')}`}>
+									{getActivityIcon(selectedNotification.type || 'settings', selectedNotification.action || 'update')}
+								</div>
+								<div className="min-w-0 flex-1">
+									<p className="text-sm font-semibold">{selectedNotification.title || 'Notifikasi'}</p>
+									{selectedNotification.description && (
+										<p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">
+											{selectedNotification.description}
+										</p>
+									)}
+								</div>
+							</div>
+
+							<div className="text-xs text-muted-foreground space-y-1">
+								{(selectedNotification.createdAt || selectedNotification.timestamp) && (
+									<p>
+										Waktu:{' '}
+										{formatTimeAgo(selectedNotification.createdAt || selectedNotification.timestamp)}
+									</p>
+								)}
+								{selectedNotification.entityTitle && <p>Konten: {selectedNotification.entityTitle}</p>}
+								{selectedNotification.userName && <p>Oleh: {selectedNotification.userName}</p>}
+								{selectedNotification.fromUserName && <p>Dari: {selectedNotification.fromUserName}</p>}
+							</div>
+
+							<div className="flex justify-end gap-2 pt-2 border-t border-border/60">
+								<Button variant="outline" onClick={() => setSelectedNotification(null)}>
+									Tutup
+								</Button>
+								{selectedNotification.actionUrl && (
+									<Button
+										onClick={() => {
+											window.location.href = selectedNotification.actionUrl;
+										}}
+									>
+										Buka Halaman Terkait
+									</Button>
+								)}
+							</div>
+						</div>
+					)}
 				</DialogContent>
 			</Dialog>
 		</header>
