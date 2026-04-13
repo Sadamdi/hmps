@@ -102,7 +102,7 @@ export default function NotificationPrompt() {
 				try {
 					sub = await withTimeout(
 						reg.pushManager.subscribe({
-							userVisuallyPrompted: true,
+							userVisibleOnly: true,
 							applicationServerKey: urlBase64ToUint8Array(publicKey),
 						} as any),
 						OP_TIMEOUT_MS,
