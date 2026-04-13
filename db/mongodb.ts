@@ -857,7 +857,7 @@ const userNotificationSchema = new mongoose.Schema(
 		description: { type: String, default: '' },
 		entityType: {
 			type: String,
-			enum: ['berita', 'events', 'library'],
+			enum: ['berita', 'events', 'event', 'library', 'feedback', 'bug', ''],
 			default: null,
 		},
 		entityId: {
@@ -878,6 +878,8 @@ const userNotificationSchema = new mongoose.Schema(
 		fromUserName: { type: String, default: '' },
 		read: { type: Boolean, default: false },
 		actionUrl: { type: String, default: '' },
+		image: { type: String, default: '' },
+		tag: { type: String, default: '' },
 	},
 	{ timestamps: true },
 );

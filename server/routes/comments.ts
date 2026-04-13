@@ -189,17 +189,25 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 				const parentComment: any = await models.Comment.findById(parentId).lean();
 				if (parentComment?.userId && parentComment.userId.toString() !== (userId?.toString() || '')) {
 					const { dispatchNotification } = await import('../services/notification-orchestrator');
+					const tenantSlug = (req as any).tenantSlug || '';
+					let NotifModel: any;
+					if (tenantSlug && (req as any).tenantModels) {
+						NotifModel = (req as any).tenantModels.UserNotification;
+					}
+					const pathPrefix = targetType === 'berita' ? 'berita' : targetType === 'event' ? 'events' : 'library';
 					await dispatchNotification(
 						'comment_reply',
 						{ userId: userId?.toString() || 'guest', name: finalDisplayName },
-						{ userId: parentComment.userId.toString(), isAnonymous: parentComment.isAnonymous },
+						{ userId: parentComment.userId.toString(), isAnonymous: parentComment.isAnonymous, tenantSlug },
 						{
 							title: `${finalDisplayName} membalas komentar Anda`,
 							description: body.trim().slice(0, 200),
-							actionUrl: `/${targetType === 'berita' ? 'berita' : targetType === 'event' ? 'events' : 'library'}/${targetId}`,
+							actionUrl: `/${pathPrefix}/${targetId}`,
 							entityType: targetType,
 							entityId: targetId,
+							tag: 'komentar',
 						},
+						{ NotifModel },
 					);
 				}
 			} catch (notifErr) {

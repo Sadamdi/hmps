@@ -2839,6 +2839,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					if (published === 'true' && beritaId) {
 						try {
 							const { broadcastNotification } = await import('./services/notification-orchestrator');
+							const tSlug = tenantCtxFromReq(req).tenantSlug;
 							await broadcastNotification(
 								'news_published',
 								{ userId: authorId, name: authorName },
@@ -2849,7 +2850,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									entityType: 'berita',
 									entityId: beritaId,
 									entityTitle: title.trim(),
+									image: imageUrl && imageUrl !== DEFAULT_BERITA_IMAGE_PATH ? imageUrl : '',
+									tag: 'berita',
 								},
+								{ tenantSlug: tSlug !== 'main' ? tSlug : undefined },
 							);
 						} catch (notifErr) {
 							console.error('News publish broadcast failed:', notifErr);
@@ -3034,6 +3038,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						const user = req.user as UserWithRole;
 						const { broadcastNotification } = await import('./services/notification-orchestrator');
 						const slug = (updatedBerita as any)?.slug || beritaId;
+						const thumbImg = (updatedBerita as any)?.image || (existingBerita as any)?.image || '';
+						const tSlug = tenantCtxFromReq(req).tenantSlug;
 						await broadcastNotification(
 							'news_published',
 							{ userId: String(user._id), name: user.name || user.username },
@@ -3044,7 +3050,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								entityType: 'berita',
 								entityId: beritaId,
 								entityTitle: (title || (existingBerita as any).title || '').trim(),
+								image: thumbImg && thumbImg !== DEFAULT_BERITA_IMAGE_PATH ? thumbImg : '',
+								tag: 'berita',
 							},
+							{ tenantSlug: tSlug !== 'main' ? tSlug : undefined },
 						);
 					} catch (notifErr) {
 						console.error('News publish broadcast (update) failed:', notifErr);
@@ -7830,17 +7839,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						if (start <= now && now <= end) {
 							const user = req.user as UserWithRole;
 							const { broadcastNotification } = await import('./services/notification-orchestrator');
+							const tSlug = tenantCtxFromReq(req).tenantSlug;
 							await broadcastNotification(
 								'event_ongoing',
 								{ userId: String(user._id), name: user.name || user.username },
 								{
-									title: `Event Berlangsung: ${eventData.title}`,
+									title: `Event Sedang Berlangsung: ${eventData.title}`,
 									description: (eventData.description || '').slice(0, 200),
 									actionUrl: `/events`,
 									entityType: 'event',
 									entityId: createdEventId,
 									entityTitle: eventData.title,
+									image: thumbnail || '',
+									tag: 'event',
 								},
+								{ tenantSlug: tSlug !== 'main' ? tSlug : undefined },
 							);
 						}
 					} catch (notifErr) {
@@ -8064,17 +8077,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						if (start <= now && now <= end) {
 							const user = req.user as UserWithRole;
 							const { broadcastNotification } = await import('./services/notification-orchestrator');
+							const evtThumb = (event as any).thumbnail || (existingEvent as any).thumbnail || '';
+							const tSlug = tenantCtxFromReq(req).tenantSlug;
 							await broadcastNotification(
 								'event_ongoing',
 								{ userId: String(user._id), name: user.name || user.username },
 								{
-									title: `Event Berlangsung: ${(event as any).title || (existingEvent as any).title}`,
+									title: `Event Sedang Berlangsung: ${(event as any).title || (existingEvent as any).title}`,
 									description: ((event as any).description || '').slice(0, 200),
 									actionUrl: `/events`,
 									entityType: 'event',
 									entityId: id,
 									entityTitle: (event as any).title || (existingEvent as any).title,
+									image: evtThumb,
+									tag: 'event',
 								},
+								{ tenantSlug: tSlug !== 'main' ? tSlug : undefined },
 							);
 						}
 					} catch (notifErr) {

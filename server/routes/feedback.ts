@@ -555,6 +555,11 @@ router.post(
 			if ((feedback as any).userId) {
 				try {
 					const { dispatchNotification } = await import('../services/notification-orchestrator');
+					const tenantSlug = (req as any).tenantSlug || '';
+					let NotifModel: any;
+					if (tenantSlug && (req as any).tenantModels) {
+						NotifModel = (req as any).tenantModels.UserNotification;
+					}
 					await dispatchNotification(
 						'feedback_reply',
 						{ userId: user._id.toString(), name: user.name || user.username },
@@ -562,13 +567,15 @@ router.post(
 							userId: (feedback as any).userId.toString(),
 							email: feedback.isAnonymous ? undefined : feedback.senderEmail,
 							isAnonymous: feedback.isAnonymous,
+							tenantSlug,
 						},
 						{
 							title: 'Balasan Saran & Kritik',
-							description: `Feedback Anda telah dibalas oleh ${user.name || user.username}`,
+							description: `Feedback Anda telah dibalas oleh ${user.name || user.username}: "${message.trim().slice(0, 120)}"`,
 							actionUrl: '/#feedback',
+							tag: 'feedback',
 						},
-						{ skipEmail: true },
+						{ NotifModel, skipEmail: true },
 					);
 				} catch (notifErr) {
 					console.error('Feedback reply notification failed:', notifErr);
@@ -1043,8 +1050,9 @@ router.post(
 					},
 					{
 						title: 'Balasan Bug Report',
-						description: `Bug report Anda telah dibalas oleh ${user.name || user.username}`,
+						description: `Bug report Anda telah dibalas oleh ${user.name || user.username}: "${message.trim().slice(0, 120)}"`,
 						actionUrl: '/dashboard',
+						tag: 'bug',
 					},
 					{ NotifModel, skipEmail: true },
 				);

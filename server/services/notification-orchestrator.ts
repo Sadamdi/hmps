@@ -26,6 +26,12 @@ export interface NotifPayload {
 	entityType?: string;
 	entityId?: string;
 	entityTitle?: string;
+	/** Absolute or relative URL to a thumbnail image (berita/event). */
+	image?: string;
+	/** Small icon override (fallback: site logo). */
+	icon?: string;
+	/** Short tag shown in some browsers (e.g. "Berita", "Event"). */
+	tag?: string;
 }
 
 export interface NotifRecipient {
@@ -94,6 +100,8 @@ async function sendInAppNotification(
 		fromUserId: actor.userId,
 		fromUserName: actor.name,
 		actionUrl: payload.actionUrl || '',
+		image: payload.image || '',
+		tag: payload.tag || '',
 	});
 }
 
@@ -107,6 +115,17 @@ function getVapidConfig() {
 		process.env.WEB_PUSH_SUBJECT ||
 		'mailto:admin@himatif-encoder.com';
 	return { vapidPublic, vapidPrivate, vapidSubject };
+}
+
+function buildPushPayload(payload: NotifPayload): string {
+	return JSON.stringify({
+		title: payload.title,
+		body: payload.description || '',
+		url: payload.actionUrl || '/',
+		icon: payload.icon || '',
+		image: payload.image || '',
+		tag: payload.tag || '',
+	});
 }
 
 async function sendWebPush(
@@ -128,11 +147,7 @@ async function sendWebPush(
 		const webpush = await getWebPushClient();
 		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
-		const pushPayload = JSON.stringify({
-			title: payload.title,
-			body: payload.description || '',
-			url: payload.actionUrl || '/',
-		});
+		const pushPayload = buildPushPayload(payload);
 
 		for (const sub of subs) {
 			try {
@@ -243,13 +258,19 @@ export async function broadcastNotification(
 ): Promise<void> {
 	const prefKey = EVENT_TO_PREF_KEY[eventType];
 
-	const allSubs = await WebPushSubscription.find({ isActive: true }).lean();
+	const subFilter: Record<string, any> = { isActive: true };
+	if (options?.tenantSlug) {
+		subFilter.tenantSlug = options.tenantSlug;
+	}
+
+	const allSubs = await WebPushSubscription.find(subFilter).lean();
 	const { vapidPublic, vapidPrivate, vapidSubject } = getVapidConfig();
 
 	notifLog('broadcast-start', {
 		eventType,
 		totalActiveSubs: allSubs.length,
 		hasVapid: !!(vapidPublic && vapidPrivate),
+		tenantSlug: options?.tenantSlug || 'all',
 	});
 
 	if (allSubs.length === 0 || !vapidPublic || !vapidPrivate) return;
@@ -260,11 +281,7 @@ export async function broadcastNotification(
 		const webpush = await getWebPushClient();
 		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
-		const pushPayload = JSON.stringify({
-			title: payload.title,
-			body: payload.description || '',
-			url: payload.actionUrl || '/',
-		});
+		const pushPayload = buildPushPayload(payload);
 
 		for (const sub of allSubs) {
 			try {
