@@ -5,6 +5,7 @@ const SW_PATH = '/sw-push.js';
 const PROMPT_DELAY_MS = 2000;
 const AUTO_MINIMIZE_MS = 5000;
 const REMIND_INTERVAL_MS = 60 * 60 * 1000;
+const OP_TIMEOUT_MS = 8000;
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
 	const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -15,10 +16,21 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 	return arr;
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`${label} timeout (${ms}ms)`)), ms);
+		promise.then(
+			(v) => { clearTimeout(timer); resolve(v); },
+			(e) => { clearTimeout(timer); reject(e); },
+		);
+	});
+}
+
 export default function NotificationPrompt() {
 	const [visible, setVisible] = useState(false);
 	const [minimized, setMinimized] = useState(false);
 	const [subscribing, setSubscribing] = useState(false);
+	const [errorMsg, setErrorMsg] = useState<string | null>(null);
 	const [isMobile, setIsMobile] = useState(false);
 
 	useEffect(() => {
@@ -57,13 +69,13 @@ export default function NotificationPrompt() {
 	}, [visible]);
 
 	const dismiss = useCallback(() => {
-		// Tetap visible agar bubble tetap bisa dibuka lagi.
 		setVisible(true);
 		setMinimized(true);
 	}, []);
 
 	const subscribe = useCallback(async () => {
 		setSubscribing(true);
+		setErrorMsg(null);
 		try {
 			const permission = await Notification.requestPermission();
 			if (permission !== 'granted') {
@@ -71,21 +83,28 @@ export default function NotificationPrompt() {
 				return;
 			}
 
-			const reg = await navigator.serviceWorker.register(SW_PATH);
-			await navigator.serviceWorker.ready;
+			const reg = await withTimeout(
+				navigator.serviceWorker.register(SW_PATH),
+				OP_TIMEOUT_MS,
+				'SW register',
+			);
+			await withTimeout(navigator.serviceWorker.ready, 5000, 'SW ready');
 
 			const vapidRes = await fetch('/api/notifications/webpush/vapid-key');
 			const { publicKey } = await vapidRes.json();
 			if (!publicKey) {
-				console.warn('VAPID key not configured');
-				dismiss();
+				setErrorMsg('Server belum dikonfigurasi (VAPID key kosong).');
 				return;
 			}
 
-			const sub = await reg.pushManager.subscribe({
-				userVisuallyPrompted: true,
-				applicationServerKey: urlBase64ToUint8Array(publicKey),
-			} as any);
+			const sub = await withTimeout(
+				reg.pushManager.subscribe({
+					userVisuallyPrompted: true,
+					applicationServerKey: urlBase64ToUint8Array(publicKey),
+				} as any),
+				OP_TIMEOUT_MS,
+				'pushManager.subscribe',
+			);
 
 			const subJson = sub.toJSON();
 			await fetch('/api/notifications/webpush/subscribe', {
@@ -98,9 +117,10 @@ export default function NotificationPrompt() {
 				}),
 			});
 
-			dismiss();
+			setVisible(false);
 		} catch (err) {
 			console.error('Push subscription failed:', err);
+			setErrorMsg('Gagal mengaktifkan notifikasi. Coba lagi nanti.');
 		} finally {
 			setSubscribing(false);
 		}
@@ -140,6 +160,9 @@ export default function NotificationPrompt() {
 					<X className="h-4 w-4" />
 				</button>
 			</div>
+			{errorMsg && (
+				<p className="text-xs text-red-500 mt-2">{errorMsg}</p>
+			)}
 			<div className="flex gap-2 mt-3">
 				<button
 					onClick={dismiss}

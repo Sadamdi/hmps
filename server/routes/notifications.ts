@@ -58,20 +58,20 @@ router.patch('/preferences', authenticate, async (req, res) => {
 	}
 });
 
-router.post('/webpush/subscribe', authenticate, async (req, res) => {
+router.post('/webpush/subscribe', async (req, res) => {
 	try {
-		const user = req.user as any;
 		const { endpoint, keys } = req.body;
 		if (!endpoint || !keys?.p256dh || !keys?.auth) {
 			return res.status(400).json({ message: 'endpoint dan keys (p256dh, auth) diperlukan' });
 		}
 
 		const tenantSlug = (req as any).tenantSlug || '';
+		const userId = (req as any).user?._id || null;
 		await WebPushSubscription.findOneAndUpdate(
 			{ endpoint },
 			{
 				$set: {
-					userId: user._id,
+					userId,
 					keys,
 					userAgent: req.headers['user-agent'] || '',
 					tenantSlug,
@@ -88,7 +88,7 @@ router.post('/webpush/subscribe', authenticate, async (req, res) => {
 	}
 });
 
-router.delete('/webpush/unsubscribe', authenticate, async (req, res) => {
+router.delete('/webpush/unsubscribe', async (req, res) => {
 	try {
 		const { endpoint } = req.body;
 		if (!endpoint) {

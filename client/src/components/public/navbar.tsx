@@ -9,8 +9,9 @@ import {
 import { useAuth } from '@/lib/auth';
 import { useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+	Bell,
 	BellOff,
 	BellRing,
 	BookOpen,
@@ -27,6 +28,7 @@ import {
 	Moon,
 	Settings,
 	Sun,
+	X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
@@ -195,6 +197,8 @@ export default function Navbar({
 	// Dropdown open state (desktop + mobile)
 	const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
 	const [isPushActionLoading, setIsPushActionLoading] = useState(false);
+	const [pushStatus, setPushStatus] = useState<'unknown' | 'active' | 'inactive' | 'denied' | 'unsupported'>('unknown');
+	const [notifModalOpen, setNotifModalOpen] = useState(false);
 	const openDropdownIdRef = useRef<string | null>(null);
 	// Tracks whether the current scroll was triggered programmatically by a navbar click
 	// (smooth scroll to section). While true, scroll events must NOT close the dropdown.
@@ -220,7 +224,8 @@ export default function Navbar({
 	const isCollapsedRef = useRef(false);
 	const isAnimatingCollapseRef = useRef(false);
 	const isHomeLikePathRef = useRef(false);
-	const IDLE_DELAY = 3000;
+	const HOME_IDLE_DELAY = 3000;
+	const NON_HOME_IDLE_DELAY = 5000;
 	const ANIM_DURATION = 600;
 	const isHomeLikePath = useMemo(() => {
 		if (location === '/') return true;
@@ -269,9 +274,10 @@ export default function Navbar({
 		// Pause idle collapse while any dropdown is open
 		if (openDropdownIdRef.current) return;
 		if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+		const delay = isHomeLikePathRef.current ? HOME_IDLE_DELAY : NON_HOME_IDLE_DELAY;
 		idleTimeoutRef.current = setTimeout(() => {
 			triggerCollapse();
-		}, IDLE_DELAY);
+		}, delay);
 	};
 
 	useEffect(() => {
@@ -301,8 +307,7 @@ export default function Navbar({
 				}
 				scheduleCollapse();
 			} else if (!isCollapsedRef.current) {
-				// Di path non-beranda, jangan auto-expand dari scroll.
-				scheduleCollapse();
+				// Di path non-beranda, jangan auto-expand dan jangan reset timer dari scroll.
 			}
 		};
 
@@ -560,24 +565,67 @@ export default function Navbar({
 		await logout();
 	};
 
-	const subscribeWebPush = useCallback(async () => {
-		if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
-		const permission = await Notification.requestPermission();
-		if (permission !== 'granted') return;
-
-		const reg = await navigator.serviceWorker.register(SW_PATH);
-		await navigator.serviceWorker.ready;
-
-		const vapidRes = await fetch('/api/notifications/webpush/vapid-key', {
-			credentials: 'include',
+	const withTimeout = useCallback(<T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+		return new Promise<T>((resolve, reject) => {
+			const timer = setTimeout(() => reject(new Error(`${label} timeout (${ms}ms)`)), ms);
+			promise.then(
+				(v) => { clearTimeout(timer); resolve(v); },
+				(e) => { clearTimeout(timer); reject(e); },
+			);
 		});
-		const { publicKey } = await vapidRes.json();
-		if (!publicKey) throw new Error('VAPID public key belum tersedia');
+	}, []);
 
-		const sub = await reg.pushManager.subscribe({
-			userVisuallyPrompted: true,
-			applicationServerKey: urlBase64ToUint8Array(publicKey),
-		} as any);
+	const refreshPushStatus = useCallback(async () => {
+		if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+			setPushStatus('unsupported');
+			return;
+		}
+		if (Notification.permission === 'denied') {
+			setPushStatus('denied');
+			return;
+		}
+		if (Notification.permission !== 'granted') {
+			setPushStatus('inactive');
+			return;
+		}
+		try {
+			const reg = await withTimeout(navigator.serviceWorker.ready, 3000, 'SW ready');
+			const sub = await reg.pushManager.getSubscription();
+			setPushStatus(sub ? 'active' : 'inactive');
+		} catch {
+			setPushStatus('inactive');
+		}
+	}, [withTimeout]);
+
+	useEffect(() => {
+		refreshPushStatus();
+	}, [refreshPushStatus]);
+
+	const subscribeWebPush = useCallback(async () => {
+		if (!('Notification' in window) || !('serviceWorker' in navigator)) {
+			throw new Error('Browser tidak mendukung notifikasi');
+		}
+		const permission = await Notification.requestPermission();
+		if (permission !== 'granted') {
+			setPushStatus(permission === 'denied' ? 'denied' : 'inactive');
+			return;
+		}
+
+		const reg = await withTimeout(navigator.serviceWorker.register(SW_PATH), 8000, 'SW register');
+		await withTimeout(navigator.serviceWorker.ready, 5000, 'SW ready');
+
+		const vapidRes = await fetch('/api/notifications/webpush/vapid-key', { credentials: 'include' });
+		const { publicKey } = await vapidRes.json();
+		if (!publicKey) throw new Error('VAPID public key belum tersedia di server');
+
+		const sub = await withTimeout(
+			reg.pushManager.subscribe({
+				userVisuallyPrompted: true,
+				applicationServerKey: urlBase64ToUint8Array(publicKey),
+			} as any),
+			8000,
+			'pushManager.subscribe',
+		);
 		const subJson = sub.toJSON();
 		await fetch('/api/notifications/webpush/subscribe', {
 			method: 'POST',
@@ -585,32 +633,47 @@ export default function Navbar({
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys }),
 		});
-	}, []);
+		setPushStatus('active');
+	}, [withTimeout]);
+
+	const unsubscribeWebPush = useCallback(async () => {
+		try {
+			const reg = await withTimeout(navigator.serviceWorker.ready, 3000, 'SW ready');
+			const sub = await reg.pushManager.getSubscription();
+			if (sub) {
+				const endpoint = sub.endpoint;
+				await sub.unsubscribe().catch(() => {});
+				await fetch('/api/notifications/webpush/unsubscribe', {
+					method: 'DELETE',
+					credentials: 'include',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ endpoint }),
+				}).catch(() => {});
+			}
+		} catch {}
+		setPushStatus('inactive');
+	}, [withTimeout]);
 
 	const handlePushToggle = useCallback(async () => {
-		if (isPushActionLoading || !('serviceWorker' in navigator)) return;
+		if (isPushActionLoading) return;
 		setIsPushActionLoading(true);
 		try {
-			const reg = await navigator.serviceWorker.ready;
-			const sub = await reg.pushManager.getSubscription();
-			if (!sub) {
+			if (pushStatus === 'active') {
+				await unsubscribeWebPush();
+			} else {
 				await subscribeWebPush();
-				return;
 			}
-			const endpoint = sub.endpoint;
-			await sub.unsubscribe().catch(() => {});
-			await fetch('/api/notifications/webpush/unsubscribe', {
-				method: 'DELETE',
-				credentials: 'include',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ endpoint }),
-			}).catch(() => {});
 		} catch (error) {
 			console.error('Push toggle failed:', error);
 		} finally {
 			setIsPushActionLoading(false);
+			refreshPushStatus();
 		}
-	}, [isPushActionLoading, subscribeWebPush]);
+	}, [isPushActionLoading, pushStatus, subscribeWebPush, unsubscribeWebPush, refreshPushStatus]);
+
+	const handleOpenNotifModal = useCallback(() => {
+		setNotifModalOpen(true);
+	}, []);
 
 	/**
 	 * Resolve anchor ID untuk scroll/redirect saat klik parent dropdown.
@@ -1012,18 +1075,17 @@ export default function Navbar({
 											</DropdownMenuItem>
 										)}
 										<DropdownMenuItem
-											onClick={handlePushToggle}
-											disabled={isPushActionLoading}
+											onClick={handleOpenNotifModal}
 											className="cursor-pointer">
-											{isPushActionLoading ? (
+											{pushStatus === 'active' ? (
 												<>
-													<BellRing className="mr-2 h-4 w-4 animate-pulse" />
-													Memproses...
+													<BellRing className="mr-2 h-4 w-4 text-green-500" />
+													Notifikasi <span className="ml-1 text-xs text-green-500">Aktif</span>
 												</>
 											) : (
 												<>
 													<BellOff className="mr-2 h-4 w-4" />
-													Notifikasi Browser
+													Notifikasi <span className="ml-1 text-xs text-muted-foreground">{pushStatus === 'denied' ? 'Diblokir' : 'Nonaktif'}</span>
 												</>
 											)}
 										</DropdownMenuItem>
@@ -1335,18 +1397,17 @@ export default function Navbar({
 														</DropdownMenuItem>
 													)}
 													<DropdownMenuItem
-														onClick={handlePushToggle}
-														disabled={isPushActionLoading}
+														onClick={handleOpenNotifModal}
 														className="cursor-pointer">
-														{isPushActionLoading ? (
+														{pushStatus === 'active' ? (
 															<>
-																<BellRing className="mr-2 h-4 w-4 animate-pulse" />
-																Memproses...
+																<BellRing className="mr-2 h-4 w-4 text-green-500" />
+																Notifikasi <span className="ml-1 text-xs text-green-500">Aktif</span>
 															</>
 														) : (
 															<>
 																<BellOff className="mr-2 h-4 w-4" />
-																Notifikasi Browser
+																Notifikasi <span className="ml-1 text-xs text-muted-foreground">{pushStatus === 'denied' ? 'Diblokir' : 'Nonaktif'}</span>
 															</>
 														)}
 													</DropdownMenuItem>
@@ -1391,6 +1452,14 @@ export default function Navbar({
 				)}
 			</div>
 
+			{notifModalOpen && <NotifSettingsModal
+				pushStatus={pushStatus}
+				isPushActionLoading={isPushActionLoading}
+				onTogglePush={handlePushToggle}
+				onClose={() => setNotifModalOpen(false)}
+				isLoggedIn={!!user}
+			/>}
+
 			<style>{`
 				@media (max-width: 639px) {
 					html.events-modal-open .events-navbar-header,
@@ -1400,5 +1469,167 @@ export default function Navbar({
 				}
 			`}</style>
 		</>
+	);
+}
+
+const TOPIC_LABELS: Record<string, string> = {
+	news: 'Berita Baru',
+	event: 'Event',
+	commentReply: 'Balasan Komentar',
+	feedbackReply: 'Balasan Feedback',
+	bugReply: 'Balasan Bug Report',
+};
+
+function NotifSettingsModal({
+	pushStatus,
+	isPushActionLoading,
+	onTogglePush,
+	onClose,
+	isLoggedIn,
+}: {
+	pushStatus: string;
+	isPushActionLoading: boolean;
+	onTogglePush: () => void;
+	onClose: () => void;
+	isLoggedIn: boolean;
+}) {
+	const queryClient = useQueryClient();
+	const { data: prefs, isLoading: prefsLoading } = useQuery<Record<string, { inApp?: boolean; webPush?: boolean; email?: boolean }>>({
+		queryKey: ['/api/notifications/preferences'],
+		queryFn: async () => {
+			const res = await fetch('/api/notifications/preferences', { credentials: 'include' });
+			if (!res.ok) return null;
+			return res.json();
+		},
+		enabled: isLoggedIn,
+		staleTime: 5000,
+	});
+
+	const prefMut = useMutation({
+		mutationFn: async (body: Record<string, { webPush: boolean }>) => {
+			await fetch('/api/notifications/preferences', {
+				method: 'PATCH',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/notifications/preferences'] });
+		},
+	});
+
+	const topics = Object.keys(TOPIC_LABELS);
+	const allWebPushOn = prefs ? topics.every((k) => (prefs as any)[k]?.webPush !== false) : true;
+
+	const toggleTopic = (key: string) => {
+		if (!prefs) return;
+		const current = (prefs as any)[key]?.webPush !== false;
+		prefMut.mutate({ [key]: { webPush: !current } });
+	};
+
+	const toggleAll = () => {
+		const newVal = !allWebPushOn;
+		const body: Record<string, { webPush: boolean }> = {};
+		for (const k of topics) body[k] = { webPush: newVal };
+		prefMut.mutate(body);
+	};
+
+	return (
+		<div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+			<div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+			<div className="relative w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95 duration-200">
+				<div className="flex items-center justify-between mb-4">
+					<h3 className="text-base font-semibold flex items-center gap-2">
+						<Bell className="h-5 w-5 text-primary" />
+						Pengaturan Notifikasi
+					</h3>
+					<button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted/50">
+						<X className="h-4 w-4" />
+					</button>
+				</div>
+
+				{/* Push subscription master toggle */}
+				<div className="rounded-lg border border-border p-3 mb-4">
+					<div className="flex items-center justify-between">
+						<div>
+							<p className="text-sm font-medium">Notifikasi Browser</p>
+							<p className="text-xs text-muted-foreground mt-0.5">
+								{pushStatus === 'active' && 'Aktif — notifikasi push dikirim ke browser ini.'}
+								{pushStatus === 'inactive' && 'Nonaktif — aktifkan untuk menerima notif.'}
+								{pushStatus === 'denied' && 'Diblokir oleh browser. Ubah di setelan browser.'}
+								{pushStatus === 'unsupported' && 'Browser tidak mendukung notifikasi push.'}
+								{pushStatus === 'unknown' && 'Memeriksa status...'}
+							</p>
+						</div>
+						<button
+							onClick={onTogglePush}
+							disabled={isPushActionLoading || pushStatus === 'denied' || pushStatus === 'unsupported'}
+							className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ml-3 ${
+								pushStatus === 'active' ? 'bg-green-500' : 'bg-muted-foreground/30'
+							} disabled:opacity-50`}
+						>
+							{isPushActionLoading ? (
+								<span className="absolute inset-0 flex items-center justify-center">
+									<span className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+								</span>
+							) : (
+								<span className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform shadow-sm ${
+									pushStatus === 'active' ? 'translate-x-5' : ''
+								}`} />
+							)}
+						</button>
+					</div>
+				</div>
+
+				{/* Per-topic toggles — only if logged in and push active */}
+				{isLoggedIn && pushStatus === 'active' && (
+					<div className="space-y-2">
+						<div className="flex items-center justify-between mb-2">
+							<p className="text-sm font-medium">Topik Notifikasi</p>
+							<button
+								onClick={toggleAll}
+								disabled={prefMut.isPending}
+								className="text-xs text-primary hover:underline disabled:opacity-50"
+							>
+								{allWebPushOn ? 'Matikan Semua' : 'Aktifkan Semua'}
+							</button>
+						</div>
+
+						{prefsLoading ? (
+							<div className="flex justify-center py-4">
+								<span className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+							</div>
+						) : (
+							topics.map((key) => {
+								const on = (prefs as any)?.[key]?.webPush !== false;
+								return (
+									<div key={key} className="flex items-center justify-between py-1.5 px-1">
+										<span className="text-sm">{TOPIC_LABELS[key]}</span>
+										<button
+											onClick={() => toggleTopic(key)}
+											disabled={prefMut.isPending}
+											className={`relative w-9 h-5 rounded-full transition-colors ${
+												on ? 'bg-primary' : 'bg-muted-foreground/30'
+											} disabled:opacity-50`}
+										>
+											<span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${
+												on ? 'translate-x-4' : ''
+											}`} />
+										</button>
+									</div>
+								);
+							})
+						)}
+					</div>
+				)}
+
+				{pushStatus === 'denied' && (
+					<p className="text-xs text-amber-600 dark:text-amber-400 mt-2">
+						Untuk mengaktifkan kembali, buka pengaturan browser lalu izinkan notifikasi untuk situs ini.
+					</p>
+				)}
+			</div>
+		</div>
 	);
 }
