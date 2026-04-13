@@ -551,6 +551,30 @@ router.post(
 				}
 			}
 
+			// In-app + web push notification untuk pengirim feedback (jika punya userId)
+			if ((feedback as any).userId) {
+				try {
+					const { dispatchNotification } = await import('../services/notification-orchestrator');
+					await dispatchNotification(
+						'feedback_reply',
+						{ userId: user._id.toString(), name: user.name || user.username },
+						{
+							userId: (feedback as any).userId.toString(),
+							email: feedback.isAnonymous ? undefined : feedback.senderEmail,
+							isAnonymous: feedback.isAnonymous,
+						},
+						{
+							title: 'Balasan Saran & Kritik',
+							description: `Feedback Anda telah dibalas oleh ${user.name || user.username}`,
+							actionUrl: '/#feedback',
+						},
+						{ skipEmail: true },
+					);
+				} catch (notifErr) {
+					console.error('Feedback reply notification failed:', notifErr);
+				}
+			}
+
 			res.json(updated);
 		} catch (error) {
 			console.error('Error replying to feedback:', error);

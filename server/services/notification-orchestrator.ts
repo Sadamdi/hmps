@@ -40,6 +40,10 @@ export interface NotifActor {
 	name: string;
 }
 
+function notifLog(tag: string, data: Record<string, unknown>) {
+	console.log(`[notif-orchestrator] ${tag}:`, JSON.stringify(data));
+}
+
 async function getUserPreference(
 	userId: string,
 ): Promise<
@@ -80,17 +84,7 @@ async function sendInAppNotification(
 	});
 }
 
-async function sendWebPush(
-	recipient: NotifRecipient,
-	payload: NotifPayload,
-): Promise<void> {
-	const subs = await WebPushSubscription.find({
-		userId: recipient.userId,
-		isActive: true,
-	}).lean();
-
-	if (subs.length === 0) return;
-
+function getVapidConfig() {
 	const vapidPublic =
 		process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
 	const vapidPrivate =
@@ -99,8 +93,23 @@ async function sendWebPush(
 		process.env.VAPID_SUBJECT ||
 		process.env.WEB_PUSH_SUBJECT ||
 		'mailto:admin@himatif-encoder.com';
+	return { vapidPublic, vapidPrivate, vapidSubject };
+}
 
-	if (!vapidPublic || !vapidPrivate) return;
+async function sendWebPush(
+	recipient: NotifRecipient,
+	payload: NotifPayload,
+): Promise<{ sent: number; failed: number; expired: number }> {
+	const stats = { sent: 0, failed: 0, expired: 0 };
+	const subs = await WebPushSubscription.find({
+		userId: recipient.userId,
+		isActive: true,
+	}).lean();
+
+	if (subs.length === 0) return stats;
+
+	const { vapidPublic, vapidPrivate, vapidSubject } = getVapidConfig();
+	if (!vapidPublic || !vapidPrivate) return stats;
 
 	try {
 		const webpush = await import('web-push');
@@ -118,18 +127,23 @@ async function sendWebPush(
 					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
 					pushPayload,
 				);
+				stats.sent++;
 			} catch (err: any) {
 				if (err?.statusCode === 410 || err?.statusCode === 404) {
 					await WebPushSubscription.updateOne(
 						{ _id: (sub as any)._id },
 						{ $set: { isActive: false } },
 					);
+					stats.expired++;
+				} else {
+					stats.failed++;
 				}
 			}
 		}
 	} catch (err) {
 		console.error('Web push send error:', err);
 	}
+	return stats;
 }
 
 async function sendEmailNotification(
@@ -168,6 +182,13 @@ export async function dispatchNotification(
 		email: false,
 	};
 
+	notifLog('dispatch', {
+		eventType,
+		recipientId: recipient.userId,
+		prefKey,
+		channels: topicPref,
+	});
+
 	if (topicPref.inApp) {
 		try {
 			await sendInAppNotification(
@@ -177,6 +198,7 @@ export async function dispatchNotification(
 				payload,
 				options?.NotifModel,
 			);
+			notifLog('dispatch-inapp', { eventType, recipientId: recipient.userId, ok: true });
 		} catch (err) {
 			console.error(`In-app notification failed for ${eventType}:`, err);
 		}
@@ -184,7 +206,8 @@ export async function dispatchNotification(
 
 	if (topicPref.webPush) {
 		try {
-			await sendWebPush(recipient, payload);
+			const stats = await sendWebPush(recipient, payload);
+			notifLog('dispatch-webpush', { eventType, recipientId: recipient.userId, ...stats });
 		} catch (err) {
 			console.error(`Web push failed for ${eventType}:`, err);
 		}
@@ -208,56 +231,65 @@ export async function broadcastNotification(
 	const prefKey = EVENT_TO_PREF_KEY[eventType];
 
 	const allSubs = await WebPushSubscription.find({ isActive: true }).lean();
-	const vapidPublic =
-		process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
-	const vapidPrivate =
-		process.env.VAPID_PRIVATE_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
-	const vapidSubject =
-		process.env.VAPID_SUBJECT ||
-		process.env.WEB_PUSH_SUBJECT ||
-		'mailto:admin@himatif-encoder.com';
+	const { vapidPublic, vapidPrivate, vapidSubject } = getVapidConfig();
 
-	if (allSubs.length > 0 && vapidPublic && vapidPrivate) {
-		try {
-			const webpush = await import('web-push');
-			webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+	notifLog('broadcast-start', {
+		eventType,
+		totalActiveSubs: allSubs.length,
+		hasVapid: !!(vapidPublic && vapidPrivate),
+	});
 
-			const pushPayload = JSON.stringify({
-				title: payload.title,
-				body: payload.description || '',
-				url: payload.actionUrl || '/',
-			});
+	if (allSubs.length === 0 || !vapidPublic || !vapidPrivate) return;
 
-			for (const sub of allSubs) {
-				try {
-					const userId = (sub as any).userId;
-					let topicChannel: any = { webPush: true };
+	const stats = { sent: 0, skipped: 0, expired: 0, failed: 0 };
 
-					if (userId) {
-						const subPref: any = await NotifPreference.findOne({ userId }).lean();
-						topicChannel = subPref?.[prefKey] || topicChannel;
-					} else {
-						// Visitor anonim: gunakan preferensi yang tersimpan di subscription.
-						topicChannel = (sub as any)?.preferences?.[prefKey] || topicChannel;
-					}
+	try {
+		const webpush = await import('web-push');
+		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
-					if (!topicChannel.webPush) continue;
+		const pushPayload = JSON.stringify({
+			title: payload.title,
+			body: payload.description || '',
+			url: payload.actionUrl || '/',
+		});
 
-					await webpush.sendNotification(
-						{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
-						pushPayload,
+		for (const sub of allSubs) {
+			try {
+				const userId = (sub as any).userId;
+				let topicChannel: any = { webPush: true };
+
+				if (userId) {
+					const subPref: any = await NotifPreference.findOne({ userId }).lean();
+					topicChannel = subPref?.[prefKey] || topicChannel;
+				} else {
+					topicChannel = (sub as any)?.preferences?.[prefKey] || topicChannel;
+				}
+
+				if (!topicChannel.webPush) {
+					stats.skipped++;
+					continue;
+				}
+
+				await webpush.sendNotification(
+					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
+					pushPayload,
+				);
+				stats.sent++;
+			} catch (err: any) {
+				if (err?.statusCode === 410 || err?.statusCode === 404) {
+					await WebPushSubscription.updateOne(
+						{ _id: (sub as any)._id },
+						{ $set: { isActive: false } },
 					);
-				} catch (err: any) {
-					if (err?.statusCode === 410 || err?.statusCode === 404) {
-						await WebPushSubscription.updateOne(
-							{ _id: (sub as any)._id },
-							{ $set: { isActive: false } },
-						);
-					}
+					stats.expired++;
+				} else {
+					stats.failed++;
 				}
 			}
-		} catch (err) {
-			console.error('Broadcast web push error:', err);
 		}
+	} catch (err) {
+		console.error('Broadcast web push error:', err);
 	}
+
+	notifLog('broadcast-done', { eventType, ...stats });
 }

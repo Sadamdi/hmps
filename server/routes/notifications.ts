@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { NotifPreference, WebPushSubscription } from '../../db/mongodb';
-import { authenticate } from '../auth';
+import { authenticate, authenticateOptional } from '../auth';
 
 const router = Router();
 
@@ -66,7 +66,7 @@ router.patch('/preferences', authenticate, async (req, res) => {
 	}
 });
 
-router.post('/webpush/subscribe', async (req, res) => {
+router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 	try {
 		const { endpoint, keys, preferences } = req.body;
 		if (!endpoint || !keys?.p256dh || !keys?.auth) {
@@ -111,7 +111,7 @@ router.post('/webpush/subscribe', async (req, res) => {
 	}
 });
 
-router.delete('/webpush/unsubscribe', async (req, res) => {
+router.delete('/webpush/unsubscribe', authenticateOptional, async (req, res) => {
 	try {
 		const { endpoint } = req.body;
 		if (!endpoint) {

@@ -3025,6 +3025,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				res.json(updatedBerita);
+
+				// Broadcast notif saat transisi unpublished -> published
+				const wasDraft = !(existingBerita as any).published;
+				const isNowPublished = published === 'true';
+				if (wasDraft && isNowPublished && beritaId) {
+					try {
+						const user = req.user as UserWithRole;
+						const { broadcastNotification } = await import('./services/notification-orchestrator');
+						const slug = (updatedBerita as any)?.slug || beritaId;
+						await broadcastNotification(
+							'news_published',
+							{ userId: String(user._id), name: user.name || user.username },
+							{
+								title: `Berita Baru: ${title || (existingBerita as any).title || ''}`.trim(),
+								description: ((excerpt || (existingBerita as any).excerpt || '') as string).slice(0, 200),
+								actionUrl: `/berita/${slug}`,
+								entityType: 'berita',
+								entityId: beritaId,
+								entityTitle: (title || (existingBerita as any).title || '').trim(),
+							},
+						);
+					} catch (notifErr) {
+						console.error('News publish broadcast (update) failed:', notifErr);
+					}
+				}
 			} catch (error) {
 				console.error('Update berita error:', error);
 				res.status(500).json({ message: 'Internal server error' });
@@ -7796,6 +7821,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const savedEvent = await storage.getEventById(createdEventId);
 				res.status(201).json(savedEvent || event);
+
+				if (eventData.published && createdEventId) {
+					try {
+						const now = new Date();
+						const start = new Date(eventData.startDate);
+						const end = new Date(eventData.endDate);
+						if (start <= now && now <= end) {
+							const user = req.user as UserWithRole;
+							const { broadcastNotification } = await import('./services/notification-orchestrator');
+							await broadcastNotification(
+								'event_ongoing',
+								{ userId: String(user._id), name: user.name || user.username },
+								{
+									title: `Event Berlangsung: ${eventData.title}`,
+									description: (eventData.description || '').slice(0, 200),
+									actionUrl: `/events`,
+									entityType: 'event',
+									entityId: createdEventId,
+									entityTitle: eventData.title,
+								},
+							);
+						}
+					} catch (notifErr) {
+						console.error('Event ongoing broadcast (create) failed:', notifErr);
+					}
+				}
 			} catch (error) {
 				console.error('Error creating event:', error);
 				if (createdEventId) {
@@ -8001,6 +8052,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
+
+				// Broadcast saat transisi unpublished -> published + sedang ongoing
+				const wasDraft = !(existingEvent as any).published;
+				const isNowPublished = updateData.published === true;
+				if (wasDraft && isNowPublished) {
+					try {
+						const now = new Date();
+						const start = new Date((event as any).startDate || (existingEvent as any).startDate);
+						const end = new Date((event as any).endDate || (existingEvent as any).endDate);
+						if (start <= now && now <= end) {
+							const user = req.user as UserWithRole;
+							const { broadcastNotification } = await import('./services/notification-orchestrator');
+							await broadcastNotification(
+								'event_ongoing',
+								{ userId: String(user._id), name: user.name || user.username },
+								{
+									title: `Event Berlangsung: ${(event as any).title || (existingEvent as any).title}`,
+									description: ((event as any).description || '').slice(0, 200),
+									actionUrl: `/events`,
+									entityType: 'event',
+									entityId: id,
+									entityTitle: (event as any).title || (existingEvent as any).title,
+								},
+							);
+						}
+					} catch (notifErr) {
+						console.error('Event ongoing broadcast (update) failed:', notifErr);
+					}
+				}
 			} catch (error) {
 				console.error('Error updating event:', error);
 				res.status(500).json({ message: 'Internal server error' });
