@@ -7,6 +7,7 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
+import { getGuestIdentity } from '@/lib/guest-identity';
 import { useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -645,6 +646,26 @@ export default function Navbar({
 				'SW ready',
 			);
 			const sub = await reg.pushManager.getSubscription();
+			// Penting: kalau subscription sudah ada lalu user login setelahnya,
+			// sinkronkan ulang endpoint agar backend mengikat userId ke subscription ini.
+			if (sub) {
+				try {
+					const subJson = sub.toJSON();
+					const guest = getGuestIdentity();
+					await fetch('/api/notifications/webpush/subscribe', {
+						method: 'POST',
+						credentials: 'include',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({
+							endpoint: subJson.endpoint,
+							keys: subJson.keys,
+							guestSecret: guest?.secret || '',
+						}),
+					});
+				} catch {
+					// non-blocking: status tetap ditentukan dari adanya subscription di browser
+				}
+			}
 			setPushStatus(sub ? 'active' : 'inactive');
 		} catch {
 			setPushStatus('inactive');
@@ -698,11 +719,16 @@ export default function Navbar({
 			}
 		}
 		const subJson = sub.toJSON();
+		const guest = getGuestIdentity();
 		await fetch('/api/notifications/webpush/subscribe', {
 			method: 'POST',
 			credentials: 'include',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys }),
+			body: JSON.stringify({
+				endpoint: subJson.endpoint,
+				keys: subJson.keys,
+				guestSecret: guest?.secret || '',
+			}),
 		});
 		setPushStatus('active');
 	}, [withTimeout]);
@@ -1689,6 +1715,7 @@ function NotifSettingsModal({
 		const sub = await reg.pushManager.getSubscription();
 		if (!sub) return;
 		const subJson = sub.toJSON();
+		const guest = getGuestIdentity();
 		await fetch('/api/notifications/webpush/subscribe', {
 			method: 'POST',
 			credentials: 'include',
@@ -1696,6 +1723,7 @@ function NotifSettingsModal({
 			body: JSON.stringify({
 				endpoint: subJson.endpoint,
 				keys: subJson.keys,
+				guestSecret: guest?.secret || '',
 				preferences: nextPrefs,
 			}),
 		});

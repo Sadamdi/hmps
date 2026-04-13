@@ -1,5 +1,6 @@
 import { Bell, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
+import { getGuestIdentity } from '@/lib/guest-identity';
 
 const SW_PATH = '/sw-push.js';
 const PROMPT_DELAY_MS = 2000;
@@ -116,6 +117,7 @@ export default function NotificationPrompt() {
 			}
 
 			const subJson = sub.toJSON();
+			const guest = getGuestIdentity();
 			await fetch('/api/notifications/webpush/subscribe', {
 				method: 'POST',
 				credentials: 'include',
@@ -123,6 +125,7 @@ export default function NotificationPrompt() {
 				body: JSON.stringify({
 					endpoint: subJson.endpoint,
 					keys: subJson.keys,
+					guestSecret: guest?.secret || '',
 				}),
 			});
 

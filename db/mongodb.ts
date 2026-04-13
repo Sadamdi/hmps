@@ -1571,6 +1571,7 @@ const webPushSubscriptionSchema = new mongoose.Schema(
 			ref: 'User',
 			default: null,
 		},
+		guestKeyHash: { type: String, default: '' },
 		endpoint: { type: String, required: true },
 		keys: {
 			p256dh: { type: String, required: true },
@@ -1593,6 +1594,7 @@ const webPushSubscriptionSchema = new mongoose.Schema(
 );
 webPushSubscriptionSchema.index({ endpoint: 1 }, { unique: true });
 webPushSubscriptionSchema.index({ userId: 1, isActive: 1 });
+webPushSubscriptionSchema.index({ guestKeyHash: 1, isActive: 1 });
 
 const WebPushSubscription =
 	mongoose.models.WebPushSubscription ||

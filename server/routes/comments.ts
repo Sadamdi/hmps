@@ -209,6 +209,22 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 						},
 						{ NotifModel },
 					);
+				} else if (!parentComment?.userId && parentComment?.guestKeyHash) {
+					const { dispatchGuestNotification } = await import('../services/notification-orchestrator');
+					const pathPrefix = targetType === 'berita' ? 'berita' : targetType === 'event' ? 'events' : 'library';
+					await dispatchGuestNotification(
+						'comment_reply',
+						parentComment.guestKeyHash,
+						{
+							title: `${finalDisplayName} membalas komentar Anda`,
+							description: body.trim().slice(0, 200),
+							actionUrl: `/${pathPrefix}/${targetId}`,
+							entityType: targetType,
+							entityId: targetId,
+							tag: 'komentar',
+						},
+						{ tenantSlug: (req as any).tenantSlug || '' },
+					);
 				}
 			} catch (notifErr) {
 				console.error('Comment reply notification failed:', notifErr);

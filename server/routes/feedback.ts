@@ -580,6 +580,26 @@ router.post(
 				} catch (notifErr) {
 					console.error('Feedback reply notification failed:', notifErr);
 				}
+			} else if ((feedback as any).guestKeyHash) {
+				try {
+					const { dispatchGuestNotification } = await import('../services/notification-orchestrator');
+					const tenantSlug = (req as any).tenantSlug || '';
+					await dispatchGuestNotification(
+						'feedback_reply',
+						(feedback as any).guestKeyHash,
+						{
+							title: 'Balasan Saran & Kritik',
+							description: `Feedback Anda telah dibalas oleh ${user.name || user.username}: "${message.trim().slice(0, 120)}"`,
+							actionUrl: '/#feedback',
+							tag: 'feedback',
+							entityType: 'feedback',
+							entityId: String(feedback._id),
+						},
+						{ tenantSlug },
+					);
+				} catch (notifErr) {
+					console.error('Guest feedback reply notification failed:', notifErr);
+				}
 			}
 
 			res.json(updated);

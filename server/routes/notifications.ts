@@ -1,8 +1,13 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import { NotifPreference, WebPushSubscription } from '../../db/mongodb';
 import { authenticate, authenticateOptional } from '../auth';
 
 const router = Router();
+const GUEST_PEPPER = process.env.GUEST_KEY_PEPPER || 'hmps-comment-pepper';
+function hashGuestKey(secret: string): string {
+	return crypto.createHmac('sha256', GUEST_PEPPER).update(secret).digest('hex');
+}
 
 const DEFAULT_CHANNEL = { inApp: true, webPush: true, email: false };
 
@@ -68,7 +73,7 @@ router.patch('/preferences', authenticate, async (req, res) => {
 
 router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 	try {
-		const { endpoint, keys, preferences } = req.body;
+		const { endpoint, keys, preferences, guestSecret } = req.body;
 		if (!endpoint || !keys?.p256dh || !keys?.auth) {
 			return res
 				.status(400)
@@ -77,6 +82,10 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 
 		const tenantSlug = (req as any).tenantSlug || '';
 		const userId = (req as any).user?._id || null;
+		const guestKeyHash =
+			typeof guestSecret === 'string' && guestSecret.trim()
+				? hashGuestKey(guestSecret.trim())
+				: '';
 		const sanitizeWebPushPref = (src: any) => {
 			const keys = ['news', 'event', 'commentReply', 'feedbackReply', 'bugReply'] as const;
 			const out: Record<string, { webPush: boolean }> = {};
@@ -92,6 +101,7 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 			{
 				$set: {
 					userId,
+					guestKeyHash,
 					keys,
 					userAgent: req.headers['user-agent'] || '',
 					tenantSlug,

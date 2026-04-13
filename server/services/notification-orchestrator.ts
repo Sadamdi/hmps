@@ -39,6 +39,7 @@ export interface NotifRecipient {
 	email?: string;
 	isAnonymous?: boolean;
 	tenantSlug?: string;
+	guestKeyHash?: string;
 }
 
 export interface NotifActor {
@@ -170,6 +171,61 @@ async function sendWebPush(
 		}
 	} catch (err) {
 		console.error('Web push send error:', err);
+	}
+	return stats;
+}
+
+async function sendWebPushToGuest(
+	guestKeyHash: string,
+	payload: NotifPayload,
+	eventType: NotifEventType,
+	tenantSlug?: string,
+): Promise<{ sent: number; failed: number; expired: number; skipped: number }> {
+	const stats = { sent: 0, failed: 0, expired: 0, skipped: 0 };
+	if (!guestKeyHash) return stats;
+	const filter: Record<string, any> = {
+		guestKeyHash,
+		isActive: true,
+		userId: null,
+	};
+	if (tenantSlug) filter.tenantSlug = tenantSlug;
+	const subs = await WebPushSubscription.find(filter).lean();
+	if (subs.length === 0) return stats;
+	const { vapidPublic, vapidPrivate, vapidSubject } = getVapidConfig();
+	if (!vapidPublic || !vapidPrivate) return stats;
+	try {
+		const webpush = await getWebPushClient();
+		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+		const pushPayload = buildPushPayload(payload);
+		const prefKey = EVENT_TO_PREF_KEY[eventType];
+		for (const sub of subs) {
+			const topicChannel = (sub as any)?.preferences?.[prefKey] || {
+				webPush: true,
+			};
+			if (!topicChannel.webPush) {
+				stats.skipped++;
+				continue;
+			}
+			try {
+				await webpush.sendNotification(
+					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
+					pushPayload,
+				);
+				stats.sent++;
+			} catch (err: any) {
+				if (err?.statusCode === 410 || err?.statusCode === 404) {
+					await WebPushSubscription.updateOne(
+						{ _id: (sub as any)._id },
+						{ $set: { isActive: false } },
+					);
+					stats.expired++;
+				} else {
+					stats.failed++;
+				}
+			}
+		}
+	} catch (err) {
+		console.error('Web push guest send error:', err);
 	}
 	return stats;
 }
@@ -322,4 +378,27 @@ export async function broadcastNotification(
 	}
 
 	notifLog('broadcast-done', { eventType, ...stats });
+}
+
+export async function dispatchGuestNotification(
+	eventType: NotifEventType,
+	guestKeyHash: string,
+	payload: NotifPayload,
+	options?: { tenantSlug?: string },
+): Promise<void> {
+	try {
+		const stats = await sendWebPushToGuest(
+			guestKeyHash,
+			payload,
+			eventType,
+			options?.tenantSlug,
+		);
+		notifLog('dispatch-guest-webpush', {
+			eventType,
+			tenantSlug: options?.tenantSlug || 'all',
+			...stats,
+		});
+	} catch (err) {
+		console.error(`Guest web push failed for ${eventType}:`, err);
+	}
 }
