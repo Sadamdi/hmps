@@ -184,6 +184,29 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 			body: body.trim(),
 		});
 
+		if (parentId) {
+			try {
+				const parentComment: any = await models.Comment.findById(parentId).lean();
+				if (parentComment?.userId && parentComment.userId.toString() !== (userId?.toString() || '')) {
+					const { dispatchNotification } = await import('../services/notification-orchestrator');
+					await dispatchNotification(
+						'comment_reply',
+						{ userId: userId?.toString() || 'guest', name: finalDisplayName },
+						{ userId: parentComment.userId.toString(), isAnonymous: parentComment.isAnonymous },
+						{
+							title: `${finalDisplayName} membalas komentar Anda`,
+							description: body.trim().slice(0, 200),
+							actionUrl: `/${targetType === 'berita' ? 'berita' : targetType === 'event' ? 'events' : 'library'}/${targetId}`,
+							entityType: targetType,
+							entityId: targetId,
+						},
+					);
+				}
+			} catch (notifErr) {
+				console.error('Comment reply notification failed:', notifErr);
+			}
+		}
+
 		const result = comment.toObject();
 		res.status(201).json({
 			...result,

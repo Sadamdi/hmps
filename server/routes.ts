@@ -114,9 +114,11 @@ import {
 	syncLibraryLinksOnSave,
 } from './library-relations';
 import { normalizeEventAttachmentArray } from './event-attachments';
+import { registerUpload } from './services/file-scanner';
 import chatRouter from './routes/chat';
 import commentRouter from './routes/comments';
 import feedbackRouter from './routes/feedback';
+import notificationRouter from './routes/notifications';
 import sharingRouter, { expirePendingShares } from './routes/sharing';
 import { PostSharing } from '../db/mongodb';
 import {
@@ -2833,6 +2835,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 
 					res.status(201).json(finalBerita);
+
+					if (published === 'true' && beritaId) {
+						try {
+							const { broadcastNotification } = await import('./services/notification-orchestrator');
+							await broadcastNotification(
+								'news_published',
+								{ userId: authorId, name: authorName },
+								{
+									title: `Berita Baru: ${title.trim()}`,
+									description: (excerpt || '').trim().slice(0, 200),
+									actionUrl: `/berita/${slug}`,
+									entityType: 'berita',
+									entityId: beritaId,
+									entityTitle: title.trim(),
+								},
+							);
+						} catch (notifErr) {
+							console.error('News publish broadcast failed:', notifErr);
+						}
+					}
 				} catch (postErr) {
 					console.error('Create berita post-processing failed:', postErr);
 					if (beritaId) {
@@ -5664,6 +5686,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				fs.writeFileSync(filePath, processedBuffer);
 
 				const url = `${urlPrefix}/${fileName}`;
+				registerUpload({
+					url,
+					diskPath: filePath,
+					originalName: req.file.originalname,
+					mimeType: 'image/webp',
+					size: processedBuffer.length,
+					category: 'home-banner',
+					uploadedBy: req.user?._id ? String(req.user._id) : undefined,
+					tenantSlug: tenantCtxFromReq(req).tenantSlug,
+				}).catch(() => {});
 				const doc = await storage.updateHomeImageSlot(year, slot, url);
 				res.json(doc);
 			} catch (error) {
@@ -5794,6 +5826,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				fs.writeFileSync(filePath, processedBuffer);
 
 				const url = `${urlPrefix}/${fileName}`;
+				registerUpload({
+					url,
+					diskPath: filePath,
+					originalName: req.file.originalname,
+					mimeType: 'image/webp',
+					size: processedBuffer.length,
+					category: 'home-person',
+					uploadedBy: req.user?._id ? String(req.user._id) : undefined,
+					tenantSlug: tenantCtxFromReq(req).tenantSlug,
+				}).catch(() => {});
 				const doc = await storage.updateHomeImagePersonSlot(year, slot, url);
 				res.json(doc);
 			} catch (error) {
@@ -6374,6 +6416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use('/api/chat', chatRouter);
 	app.use('/api/comments', commentRouter);
 	app.use('/api/feedback', feedbackRouter);
+	app.use('/api/notifications', notificationRouter);
 	app.use('/api/sharing', sharingRouter);
 
 	// SPA Routing - Handle all frontend routes

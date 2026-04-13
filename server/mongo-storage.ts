@@ -9,6 +9,7 @@ import {
 	Event,
 	EventYear,
 	Feedback,
+	FileUpload,
 	HomeImages,
 	Library,
 	Organization,
@@ -1442,10 +1443,45 @@ async function deleteFeedback(id: string): Promise<void> {
 	if (!objectId) return;
 	const doc: any = await Feedback.findById(objectId).lean();
 	if (!doc) return;
+
+	const cleanupUrls = new Set<string>();
 	if (doc.media && Array.isArray(doc.media)) {
 		for (const m of doc.media) {
-			if (m.url) await deleteFile(m.url);
+			if (typeof m?.url === 'string' && m.url.trim()) cleanupUrls.add(m.url.trim());
 		}
+	}
+
+	const collectFromExtraFields = (value: unknown): void => {
+		if (!value) return;
+		if (typeof value === 'string') {
+			const text = value.trim();
+			if (text.startsWith('/uploads/') || text.startsWith('/attached_assets/')) {
+				cleanupUrls.add(text);
+			}
+			return;
+		}
+		if (Array.isArray(value)) {
+			for (const item of value) collectFromExtraFields(item);
+			return;
+		}
+		if (typeof value === 'object') {
+			const record = value as Record<string, unknown>;
+			if (typeof record.url === 'string' && record.url.trim()) {
+				const url = record.url.trim();
+				if (url.startsWith('/uploads/') || url.startsWith('/attached_assets/')) {
+					cleanupUrls.add(url);
+				}
+			}
+			for (const nested of Object.values(record)) collectFromExtraFields(nested);
+		}
+	};
+	collectFromExtraFields(doc.extraFields);
+
+	for (const url of Array.from(cleanupUrls)) {
+		await deleteFile(url);
+	}
+	if (cleanupUrls.size > 0) {
+		await FileUpload.deleteMany({ url: { $in: Array.from(cleanupUrls) } });
 	}
 	await Feedback.findByIdAndDelete(objectId);
 }

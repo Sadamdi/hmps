@@ -9,8 +9,10 @@ import NotFound from '@/pages/not-found';
 import { QueryClientProvider } from '@tanstack/react-query';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { Route, Switch, useLocation } from 'wouter';
+
+const NotificationPrompt = lazy(() => import('@/components/public/notification-prompt'));
 import { queryClient } from './lib/queryClient';
 
 const Home = lazy(() => import('@/pages/index'));
@@ -216,6 +218,20 @@ function Router() {
 	);
 }
 
+function PublicNotifPrompt() {
+	const [location] = useLocation();
+	const show = useMemo(() => {
+		const p = location.toLowerCase();
+		return p.startsWith('/berita') || p.startsWith('/events') || p.startsWith('/library');
+	}, [location]);
+	if (!show) return null;
+	return (
+		<Suspense fallback={null}>
+			<NotificationPrompt />
+		</Suspense>
+	);
+}
+
 function App() {
 	useEffect(() => {
 		AOS.init({
@@ -234,6 +250,7 @@ function App() {
 			<ThemeProvider>
 				<AuthProvider>
 					<Router />
+					<PublicNotifPrompt />
 					<Toaster />
 				</AuthProvider>
 			</ThemeProvider>

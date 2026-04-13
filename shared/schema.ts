@@ -345,6 +345,29 @@ export interface FeedbackMedia {
 	size?: number;
 }
 
+export interface FeedbackMediaLink {
+	url: string;
+	provider: string;
+	title: string;
+	description: string;
+	thumbnail: string;
+	mimeHint: string;
+}
+
+export interface NotifPreferenceChannel {
+	inApp: boolean;
+	webPush: boolean;
+	email: boolean;
+}
+
+export interface NotifPreferences {
+	news: NotifPreferenceChannel;
+	event: NotifPreferenceChannel;
+	commentReply: NotifPreferenceChannel;
+	feedbackReply: NotifPreferenceChannel;
+	bugReply: NotifPreferenceChannel;
+}
+
 export interface FeedbackItem {
 	_id: string;
 	target: FeedbackTarget;
@@ -357,6 +380,8 @@ export interface FeedbackItem {
 	isVisibleCard: boolean;
 	guestKeyHash?: string;
 	media: FeedbackMedia[];
+	gdriveLinks?: string[];
+	mediaLinks?: FeedbackMediaLink[];
 	reply: FeedbackReply | null;
 	suggestionStatus: SuggestionStatus;
 	suggestionDecisionComment: string;

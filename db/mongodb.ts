@@ -830,6 +830,10 @@ const userNotificationSchema = new mongoose.Schema(
 				'sharing_revoked',
 				'sharing_expired',
 				'bug_reply',
+				'news_published',
+				'event_ongoing',
+				'comment_reply',
+				'feedback_reply',
 			],
 		},
 		title: { type: String, required: true },
@@ -1083,6 +1087,15 @@ const feedbackSchema = new mongoose.Schema(
 			mimeType: { type: String, default: '' },
 			size: { type: Number, default: 0 },
 		}],
+		gdriveLinks: [{ type: String }],
+		mediaLinks: [{
+			url: { type: String, required: true },
+			provider: { type: String, default: '' },
+			title: { type: String, default: '' },
+			description: { type: String, default: '' },
+			thumbnail: { type: String, default: '' },
+			mimeHint: { type: String, default: '' },
+		}],
 		reply: { type: feedbackReplySchema, default: null },
 		suggestionStatus: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
 		suggestionDecisionComment: { type: String, default: '' },
@@ -1323,6 +1336,45 @@ fileUploadSchema.index({ url: 1 }, { unique: true });
 const FileUpload =
 	mongoose.models.FileUpload || mongoose.model('FileUpload', fileUploadSchema);
 
+// Model NotifPreference — per-user notification preferences per topic/channel
+const notifPreferenceSchema = new mongoose.Schema(
+	{
+		userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+		news: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: false } },
+		event: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: false } },
+		commentReply: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: false } },
+		feedbackReply: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: false } },
+		bugReply: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: true } },
+	},
+	{ timestamps: true },
+);
+notifPreferenceSchema.index({ userId: 1 }, { unique: true });
+
+const NotifPreference =
+	mongoose.models.NotifPreference || mongoose.model('NotifPreference', notifPreferenceSchema);
+
+// Model WebPushSubscription — browser push subscription per user
+const webPushSubscriptionSchema = new mongoose.Schema(
+	{
+		userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		endpoint: { type: String, required: true },
+		keys: {
+			p256dh: { type: String, required: true },
+			auth: { type: String, required: true },
+		},
+		userAgent: { type: String, default: '' },
+		tenantSlug: { type: String, default: '' },
+		isActive: { type: Boolean, default: true },
+		lastSeenAt: { type: Date, default: Date.now },
+	},
+	{ timestamps: true },
+);
+webPushSubscriptionSchema.index({ endpoint: 1 }, { unique: true });
+webPushSubscriptionSchema.index({ userId: 1, isActive: 1 });
+
+const WebPushSubscription =
+	mongoose.models.WebPushSubscription || mongoose.model('WebPushSubscription', webPushSubscriptionSchema);
+
 // Export all schemas for tenant model factory
 export const allSchemas = {
 	user: userSchema,
@@ -1359,6 +1411,7 @@ export {
 	FileUpload,
 	HomeImages,
 	Library,
+	NotifPreference,
 	Organization,
 	OtpChallenge,
 	Permission,
@@ -1371,5 +1424,6 @@ export {
 	TempUpload,
 	User,
 	UserNotification,
+	WebPushSubscription,
 	connectDB,
 };

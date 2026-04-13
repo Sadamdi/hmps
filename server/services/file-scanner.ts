@@ -21,6 +21,10 @@ let clamavAvailable: boolean | null = null;
 let NodeClam: any = null;
 let clamScanner: any = null;
 
+function scanLog(event: string, details: Record<string, unknown>): void {
+	console.log(`[scan:${event}]`, JSON.stringify(details));
+}
+
 async function initClamAV(): Promise<boolean> {
 	if (clamavAvailable !== null) return clamavAvailable;
 
@@ -105,6 +109,7 @@ export async function registerUpload(opts: {
 	tenantSlug?: string;
 }): Promise<void> {
 	try {
+		const existing = await FileUpload.findOne({ url: opts.url }).select('_id').lean();
 		await FileUpload.findOneAndUpdate(
 			{ url: opts.url },
 			{
@@ -123,6 +128,13 @@ export async function registerUpload(opts: {
 			},
 			{ upsert: true, new: true },
 		);
+		scanLog(existing ? 'refresh' : 'queued', {
+			url: opts.url,
+			category: opts.category,
+			tenantSlug: opts.tenantSlug || 'main',
+			size: opts.size,
+			mimeType: opts.mimeType,
+		});
 	} catch (err: any) {
 		if (err?.code !== 11000) {
 			console.error('registerUpload error:', err);
@@ -163,6 +175,7 @@ async function processQueue(): Promise<void> {
 				{ scanStatus: 'pending_scan' },
 				{ $set: { scanStatus: 'skipped', scanEngine: 'none', scannedAt: new Date() } },
 			);
+			scanLog('skipped_all_no_clamav', { reason: 'clamav_unavailable' });
 			return;
 		}
 
@@ -173,15 +186,28 @@ async function processQueue(): Promise<void> {
 
 		for (const record of pending) {
 			const filePath = record.publicPath || '';
+			const startedAt = Date.now();
 			if (!filePath || !fs.existsSync(filePath)) {
 				await FileUpload.updateOne(
 					{ _id: record._id },
 					{ $set: { scanStatus: 'skipped', scanEngine: 'none', scannedAt: new Date() } },
 				);
+				scanLog('result', {
+					url: record.url,
+					status: 'skipped',
+					engine: 'none',
+					reason: 'file_missing',
+				});
 				continue;
 			}
 
 			await FileUpload.updateOne({ _id: record._id }, { $set: { scanStatus: 'scanning' } });
+			scanLog('start', {
+				url: record.url,
+				path: filePath,
+				category: record.category || 'unknown',
+				tenantSlug: record.tenantSlug || 'main',
+			});
 
 			try {
 				const result = await clamScanner.isInfected(filePath);
@@ -203,6 +229,13 @@ async function processQueue(): Promise<void> {
 						},
 					},
 				);
+				scanLog('result', {
+					url: record.url,
+					status,
+					engine: 'ClamAV',
+					durationMs: Date.now() - startedAt,
+					threatName: result.isInfected ? (result.viruses?.join(', ') || 'Unknown') : '',
+				});
 
 				if (status === 'infected') {
 					console.warn(`INFECTED FILE DETECTED: ${filePath} — ${result.viruses?.join(', ')}`);
@@ -223,6 +256,12 @@ async function processQueue(): Promise<void> {
 					{ _id: record._id },
 					{ $set: { scanStatus: 'scan_failed', scanEngine: 'ClamAV', scannedAt: new Date() } },
 				);
+				scanLog('result', {
+					url: record.url,
+					status: 'scan_failed',
+					engine: 'ClamAV',
+					durationMs: Date.now() - startedAt,
+				});
 			}
 		}
 	} catch (err) {

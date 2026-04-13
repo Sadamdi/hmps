@@ -213,11 +213,11 @@ export async function uploadHandler(
 		await writeFile(filePath, file.buffer);
 
 		const fileUrl = `${urlPrefix}/${fileName}`;
-		registerUpload({
+		registerUploadedFile({
 			url: fileUrl, diskPath: filePath, originalName: file.originalname,
 			mimeType: file.mimetype, size: file.size, category,
 			tenantSlug: tenant?.tenantSlug,
-		}).catch(() => {});
+		});
 		return fileUrl;
 	} catch (error) {
 		console.error('Error handling file upload:', error);
@@ -273,11 +273,11 @@ export async function uploadBeritaImage(
 		await writeFile(filePath, processedBuffer);
 
 		const fileUrl = `${urlPrefix}/${fileName}`;
-		registerUpload({
+		registerUploadedFile({
 			url: fileUrl, diskPath: filePath, originalName: file.originalname,
 			mimeType: 'image/webp', size: processedBuffer.length, category: 'berita',
 			tenantSlug: tenant?.tenantSlug,
-		}).catch(() => {});
+		});
 		return fileUrl;
 	} catch (error) {
 		console.error('Error processing berita image:', error);
@@ -328,7 +328,17 @@ export async function uploadEventContentImage(
 	});
 
 	await writeFile(filePath, processedBuffer);
-	return `${urlPrefix}/${fileName}`;
+	const fileUrl = `${urlPrefix}/${fileName}`;
+	registerUploadedFile({
+		url: fileUrl,
+		diskPath: filePath,
+		originalName: file.originalname,
+		mimeType: 'image/webp',
+		size: processedBuffer.length,
+		category: 'events-content',
+		tenantSlug: tenant?.tenantSlug,
+	});
+	return fileUrl;
 }
 
 /**
@@ -371,8 +381,26 @@ export async function uploadEventThumbnail(
 			format: 'webp',
 		});
 		await writeFile(filePath, processedBuffer);
+		registerUploadedFile({
+			url: `${urlPrefix}/${fileName}`,
+			diskPath: filePath,
+			originalName: file.originalname,
+			mimeType: 'image/webp',
+			size: processedBuffer.length,
+			category: 'events-thumbnail',
+			tenantSlug: tenant?.tenantSlug,
+		});
 	} else {
 		await writeFile(filePath, file.buffer);
+		registerUploadedFile({
+			url: `${urlPrefix}/${fileName}`,
+			diskPath: filePath,
+			originalName: file.originalname,
+			mimeType: file.mimetype,
+			size: file.size,
+			category: 'events-thumbnail',
+			tenantSlug: tenant?.tenantSlug,
+		});
 	}
 
 	return `${urlPrefix}/${fileName}`;
@@ -407,7 +435,17 @@ export async function uploadEventAttachment(
 
 	const filePath = path.join(categoryDir, fileName);
 	await writeFile(filePath, file.buffer);
-	return `${urlPrefix}/${fileName}`;
+	const fileUrl = `${urlPrefix}/${fileName}`;
+	registerUploadedFile({
+		url: fileUrl,
+		diskPath: filePath,
+		originalName: file.originalname,
+		mimeType: file.mimetype,
+		size: file.size,
+		category: 'events-attachment',
+		tenantSlug: tenant?.tenantSlug,
+	});
+	return fileUrl;
 }
 
 /**
@@ -528,8 +566,17 @@ export async function uploadOrganizationMemberImage(
 		});
 
 		await writeFile(filePath, processedBuffer);
-
-		return `${urlPrefix}/${fileName}`;
+		const fileUrl = `${urlPrefix}/${fileName}`;
+		registerUploadedFile({
+			url: fileUrl,
+			diskPath: filePath,
+			originalName: file.originalname,
+			mimeType: 'image/webp',
+			size: processedBuffer.length,
+			category: 'organization',
+			tenantSlug: tenant?.tenantSlug,
+		});
+		return fileUrl;
 	} catch (error) {
 		console.error('Error processing organization member image:', error);
 		throw new Error('Failed to process organization member image');
@@ -537,6 +584,25 @@ export async function uploadOrganizationMemberImage(
 }
 
 const LOCAL_UPLOADS_PREFIX = '/uploads/';
+
+function registerUploadedFile(opts: {
+	url: string;
+	diskPath: string;
+	originalName: string;
+	mimeType: string;
+	size: number;
+	category: string;
+	tenantSlug?: string;
+}): void {
+	registerUpload(opts).catch((err) => {
+		console.error('[upload:registerUpload] Failed to register uploaded file', {
+			url: opts.url,
+			category: opts.category,
+			tenantSlug: opts.tenantSlug || 'main',
+			error: err instanceof Error ? err.message : String(err),
+		});
+	});
+}
 
 function maybeDeleteLocalUpload(oldFileUrl?: string): Promise<void> {
 	if (!oldFileUrl || !oldFileUrl.startsWith(LOCAL_UPLOADS_PREFIX)) {
@@ -589,8 +655,17 @@ export async function uploadProdiLecturerPhoto(
 		});
 
 		await writeFile(filePath, processedBuffer);
-
-		return `${urlPrefix}/${fileName}`;
+		const fileUrl = `${urlPrefix}/${fileName}`;
+		registerUploadedFile({
+			url: fileUrl,
+			diskPath: filePath,
+			originalName: file.originalname,
+			mimeType: 'image/webp',
+			size: processedBuffer.length,
+			category: 'prodi-lecturers',
+			tenantSlug: tenant?.tenantSlug,
+		});
+		return fileUrl;
 	} catch (error) {
 		console.error('Error processing prodi lecturer photo:', error);
 		throw new Error('Failed to process prodi photo');
@@ -647,8 +722,17 @@ export async function uploadProdiLabPhoto(
 		});
 
 		await writeFile(filePath, processedBuffer);
-
-		return `${urlPrefix}/${fileName}`;
+		const fileUrl = `${urlPrefix}/${fileName}`;
+		registerUploadedFile({
+			url: fileUrl,
+			diskPath: filePath,
+			originalName: file.originalname,
+			mimeType: 'image/webp',
+			size: processedBuffer.length,
+			category: `prodi-labs-${type}`,
+			tenantSlug: tenant?.tenantSlug,
+		});
+		return fileUrl;
 	} catch (error) {
 		console.error('Error processing prodi lab photo:', error);
 		throw new Error('Failed to process prodi lab photo');
@@ -689,8 +773,17 @@ export async function uploadProdiOrganizationStructureImage(
 		});
 
 		await writeFile(filePath, processedBuffer);
-
-		return `${urlPrefix}/${fileName}`;
+		const fileUrl = `${urlPrefix}/${fileName}`;
+		registerUploadedFile({
+			url: fileUrl,
+			diskPath: filePath,
+			originalName: file.originalname,
+			mimeType: 'image/webp',
+			size: processedBuffer.length,
+			category: 'prodi-organization-structure',
+			tenantSlug: tenant?.tenantSlug,
+		});
+		return fileUrl;
 	} catch (error) {
 		console.error('Error processing prodi organization structure image:', error);
 		throw new Error('Failed to process prodi organization structure image');
@@ -734,8 +827,17 @@ export async function uploadFilosofiImage(
 
 		const filePath = path.join(filosofiDir, fileName);
 		await writeFile(filePath, file.buffer);
-
-		return `${urlPrefix}/${fileName}`;
+		const fileUrl = `${urlPrefix}/${fileName}`;
+		registerUploadedFile({
+			url: fileUrl,
+			diskPath: filePath,
+			originalName: file.originalname,
+			mimeType: file.mimetype,
+			size: file.size,
+			category: 'filosofi',
+			tenantSlug: tenant?.tenantSlug,
+		});
+		return fileUrl;
 	} catch (error) {
 		console.error('Error uploading filosofi image:', error);
 		throw new Error('Filosofi image upload failed');
@@ -780,11 +882,11 @@ export async function uploadFeedbackImage(
 		url: `${urlPrefix}/${fileName}`,
 		originalName: file.originalname,
 	};
-	registerUpload({
+	registerUploadedFile({
 		url: feedbackResult.url, diskPath: filePath, originalName: file.originalname,
 		mimeType: 'image/webp', size: processedBuffer.length, category: 'feedback',
 		tenantSlug: tenant?.tenantSlug,
-	}).catch(() => {});
+	});
 	return feedbackResult;
 }
 
@@ -819,6 +921,7 @@ export async function uploadUniversalFile(
 		})();
 
 	const filePath = path.join(categoryDir, fileName);
+	let savedSize = file.size;
 
 	if (shouldProcessAsImage) {
 		const processedBuffer = await processImage(file.buffer, {
@@ -828,22 +931,24 @@ export async function uploadUniversalFile(
 			format: 'webp',
 		});
 		await writeFile(filePath, processedBuffer);
+		savedSize = processedBuffer.length;
 	} else {
 		await writeFile(filePath, file.buffer);
+		savedSize = file.size;
 	}
 
 	const result = {
 		url: `${urlPrefix}/${fileName}`,
 		originalName: file.originalname,
 		mimeType: shouldProcessAsImage ? 'image/webp' : file.mimetype,
-		size: file.size,
+		size: savedSize,
 	};
 
-	registerUpload({
+	registerUploadedFile({
 		url: result.url, diskPath: filePath, originalName: file.originalname,
 		mimeType: result.mimeType, size: result.size, category: subCategory,
 		tenantSlug: tenant?.tenantSlug,
-	}).catch(() => {});
+	});
 
 	return result;
 }
@@ -1056,6 +1161,15 @@ export async function uploadTempOnboarding(
 	await writeFile(filePath, file.buffer);
 
 	const url = `/attached_assets/${sub}/${fileName}`;
+	registerUploadedFile({
+		url,
+		diskPath: filePath,
+		originalName: file.originalname,
+		mimeType: file.mimetype,
+		size: file.size,
+		category: `temp-${category}`,
+		tenantSlug: 'tmp',
+	});
 	return { url, diskPath: filePath };
 }
 

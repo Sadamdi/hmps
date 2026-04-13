@@ -406,6 +406,12 @@ export default function Footer() {
 	const [submitSuccess, setSubmitSuccess] = useState(false);
 	const [formClientError, setFormClientError] = useState<string | null>(null);
 	const MAX_FEEDBACK_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+	const MAX_TOTAL_ATTACHMENTS = 10;
+	const [feedbackGdriveLinks, setFeedbackGdriveLinks] = useState<string[]>([]);
+	const [feedbackMediaLinks, setFeedbackMediaLinks] = useState<string[]>([]);
+
+	const totalFileCount = Object.values(fileByField).reduce((sum, arr) => sum + arr.length, 0);
+	const totalAttachmentCount = totalFileCount + feedbackGdriveLinks.filter(Boolean).length + feedbackMediaLinks.filter(Boolean).length;
 
 	const currentDest = useMemo(() => config.destinations.find((d) => d.id === target), [config.destinations, target]);
 	const allowedTypes = currentDest?.types ?? [];
@@ -562,6 +568,12 @@ export default function Footer() {
 			fd.append('ratings', JSON.stringify(ratings));
 			if (Object.keys(jsonExtra).length > 0) fd.append('extraFields', JSON.stringify(jsonExtra));
 
+			const validGdrive = feedbackGdriveLinks.filter((l) => l.trim());
+			if (validGdrive.length) fd.append('gdriveLinks', JSON.stringify(validGdrive));
+
+			const validMediaLinks = feedbackMediaLinks.filter((l) => l.trim());
+			if (validMediaLinks.length) fd.append('mediaLinks', JSON.stringify(validMediaLinks));
+
 			for (const f of sortedFields) {
 				if (f.kind !== 'file') continue;
 				for (const file of fileByField[f.id] || []) {
@@ -588,6 +600,8 @@ export default function Footer() {
 			setRatings({});
 			setFieldValues({});
 			setFileByField({});
+			setFeedbackGdriveLinks([]);
+			setFeedbackMediaLinks([]);
 			queryClient.invalidateQueries({ queryKey: ['/api/feedback/public'] });
 			setTimeout(() => {
 				setSubmitSuccess(false);
@@ -1078,6 +1092,66 @@ export default function Footer() {
 										}
 										return null;
 									})}
+								</div>
+
+								{/* Link GDrive + Media Umum */}
+								<div className="space-y-3 p-3 rounded-lg border border-border/50 bg-muted/20">
+									<p className="text-sm font-medium">
+										Link Lampiran{' '}
+										<span className="text-muted-foreground font-normal">
+											(opsional, gabungan maks {MAX_TOTAL_ATTACHMENTS} — sisa: {Math.max(0, MAX_TOTAL_ATTACHMENTS - totalAttachmentCount)})
+										</span>
+									</p>
+
+									<div className="space-y-1.5">
+										<label className="text-xs font-medium text-muted-foreground">Google Drive</label>
+										{feedbackGdriveLinks.map((link, i) => (
+											<div key={`gd-${i}`} className="flex gap-1.5">
+												<input
+													type="url"
+													placeholder="https://drive.google.com/..."
+													value={link}
+													onChange={(e) => {
+														setFeedbackGdriveLinks((prev) => prev.map((l, j) => j === i ? e.target.value : l));
+													}}
+													className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+												/>
+												<button type="button" className="text-red-500 text-xs px-2 hover:bg-red-500/10 rounded" onClick={() => setFeedbackGdriveLinks((prev) => prev.filter((_, j) => j !== i))}>
+													Hapus
+												</button>
+											</div>
+										))}
+										{totalAttachmentCount < MAX_TOTAL_ATTACHMENTS && (
+											<button type="button" className="text-xs text-primary hover:underline" onClick={() => setFeedbackGdriveLinks((prev) => [...prev, ''])}>
+												+ Tambah link GDrive
+											</button>
+										)}
+									</div>
+
+									<div className="space-y-1.5">
+										<label className="text-xs font-medium text-muted-foreground">Link Media Lain</label>
+										{feedbackMediaLinks.map((link, i) => (
+											<div key={`ml-${i}`} className="flex gap-1.5">
+												<input
+													type="url"
+													placeholder="https://youtube.com/... atau URL lain"
+													value={link}
+													onChange={(e) => {
+														setFeedbackMediaLinks((prev) => prev.map((l, j) => j === i ? e.target.value : l));
+													}}
+													className="flex-1 rounded-lg border border-border bg-background px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+												/>
+												<button type="button" className="text-red-500 text-xs px-2 hover:bg-red-500/10 rounded" onClick={() => setFeedbackMediaLinks((prev) => prev.filter((_, j) => j !== i))}>
+													Hapus
+												</button>
+											</div>
+										))}
+										{totalAttachmentCount < MAX_TOTAL_ATTACHMENTS && (
+											<button type="button" className="text-xs text-primary hover:underline" onClick={() => setFeedbackMediaLinks((prev) => [...prev, ''])}>
+												+ Tambah link media
+											</button>
+										)}
+									</div>
 								</div>
 
 								{(currentDest?.ratings ?? []).length > 0 && (

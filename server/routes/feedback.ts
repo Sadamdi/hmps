@@ -260,6 +260,50 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 		const guestKey = req.headers['x-guest-key'] as string | undefined;
 		const guestKeyHash = guestKey ? hashGuestKey(guestKey) : null;
 
+		let gdriveLinks: string[] = [];
+		try {
+			const raw = typeof req.body.gdriveLinks === 'string' ? JSON.parse(req.body.gdriveLinks) : (Array.isArray(req.body.gdriveLinks) ? req.body.gdriveLinks : []);
+			gdriveLinks = raw.filter((l: unknown) => typeof l === 'string' && (l as string).trim()).slice(0, 10);
+		} catch {}
+
+		let mediaLinksRaw: string[] = [];
+		try {
+			const raw = typeof req.body.mediaLinks === 'string' ? JSON.parse(req.body.mediaLinks) : (Array.isArray(req.body.mediaLinks) ? req.body.mediaLinks : []);
+			mediaLinksRaw = raw.filter((l: unknown) => typeof l === 'string' && (l as string).trim()).slice(0, 10);
+		} catch {}
+
+		const totalAttachments = media.length + gdriveLinks.length + mediaLinksRaw.length;
+		if (totalAttachments > 10) {
+			return res.status(400).json({ message: 'Gabungan file, GDrive, dan link media maks 10 item' });
+		}
+
+		const mediaLinks: { url: string; provider: string; title: string; description: string; thumbnail: string; mimeHint: string }[] = [];
+		for (const rawUrl of mediaLinksRaw) {
+			const linkMeta = { url: rawUrl, provider: '', title: '', description: '', thumbnail: '', mimeHint: '' };
+			try {
+				const urlObj = new URL(rawUrl);
+				linkMeta.provider = urlObj.hostname.replace(/^www\./, '');
+				const ctrl = new AbortController();
+				const timer = setTimeout(() => ctrl.abort(), 5000);
+				const resp = await fetch(rawUrl, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 HMPSBot/1.0' } });
+				clearTimeout(timer);
+				if (resp.ok) {
+					const html = await resp.text();
+					const titleMatch = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)
+						|| html.match(/<title[^>]*>([^<]+)<\/title>/i);
+					if (titleMatch) linkMeta.title = titleMatch[1].slice(0, 200);
+					const descMatch = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)
+						|| html.match(/<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i);
+					if (descMatch) linkMeta.description = descMatch[1].slice(0, 500);
+					const imgMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i);
+					if (imgMatch) linkMeta.thumbnail = imgMatch[1].slice(0, 500);
+					const typeMatch = html.match(/<meta[^>]+property=["']og:type["'][^>]+content=["']([^"']+)["']/i);
+					if (typeMatch) linkMeta.mimeHint = typeMatch[1];
+				}
+			} catch {}
+			mediaLinks.push(linkMeta);
+		}
+
 		const feedback = await storage.createFeedback({
 			target,
 			type,
@@ -273,6 +317,8 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 			destinationLabel: dest.label,
 			typeLabel: typeConfig.label,
 			media,
+			gdriveLinks,
+			mediaLinks,
 			guestKeyHash,
 			isVisibleCard: true,
 		});
@@ -950,35 +996,34 @@ router.post(
 			}
 
 			try {
-				const notifPayload = {
-					userId: bugReport.reporterUserId,
-					type: 'bug_reply',
-					title: 'Balasan Bug Report',
-					description: `Bug report Anda telah dibalas oleh ${user.name || user.username}`,
-					fromUserId: user._id,
-					fromUserName: user.name || user.username,
-					actionUrl: '/dashboard',
-				};
-
-				// Kirim notifikasi ke DB asal pengirim bug (main atau tenant)
+				let NotifModel: any = UserNotification;
 				if (bugReport.sourceCommunitySlug) {
 					try {
 						const { Community } = await import('../../db/mongodb');
 						const community: any = await Community.findOne({ slug: bugReport.sourceCommunitySlug }).lean();
 						if (community?.dbName) {
 							const { getTenantModels } = await import('../../db/tenant');
-							const tm = getTenantModels(String(community.dbName));
-							await tm.UserNotification.create(notifPayload);
-						} else {
-							await UserNotification.create(notifPayload);
+							NotifModel = getTenantModels(String(community.dbName)).UserNotification;
 						}
-					} catch (tenantNotifErr) {
-						console.error('Failed to create tenant bug notification, fallback to main:', tenantNotifErr);
-						await UserNotification.create(notifPayload);
-					}
-				} else {
-					await UserNotification.create(notifPayload);
+					} catch {}
 				}
+
+				const { dispatchNotification } = await import('../services/notification-orchestrator');
+				await dispatchNotification(
+					'bug_reply',
+					{ userId: user._id.toString(), name: user.name || user.username },
+					{
+						userId: bugReport.reporterUserId.toString(),
+						email: bugReport.reporterEmail,
+						tenantSlug: bugReport.sourceCommunitySlug,
+					},
+					{
+						title: 'Balasan Bug Report',
+						description: `Bug report Anda telah dibalas oleh ${user.name || user.username}`,
+						actionUrl: '/dashboard',
+					},
+					{ NotifModel, skipEmail: true },
+				);
 			} catch (notifErr) {
 				console.error('Failed to create bug reply notification:', notifErr);
 			}

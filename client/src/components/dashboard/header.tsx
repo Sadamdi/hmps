@@ -20,6 +20,8 @@ import { useTheme } from '@/lib/theme';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 	Bell,
+	Bug,
+	Calendar,
 	Edit3,
 	Eye,
 	FileText,
@@ -27,8 +29,8 @@ import {
 	Image as ImageIcon,
 	Loader2,
 	Menu,
+	MessageSquareReply,
 	Moon,
-	Bug,
 	Plus,
 	Settings,
 	Share2,
@@ -309,8 +311,20 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 											className="py-3 px-4 focus:bg-secondary"
 											onClick={() => openNotification(n)}>
 											<div className="flex items-start space-x-3 w-full">
-												<div className={`p-1.5 rounded-full ${n.type === 'bug_reply' ? 'text-red-600 bg-red-100 dark:bg-red-950' : 'text-primary bg-primary/10'}`}>
-													{n.type === 'bug_reply' ? <Bug className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+												<div className={`p-1.5 rounded-full ${
+													n.type === 'bug_reply' ? 'text-red-600 bg-red-100 dark:bg-red-950'
+													: n.type === 'news_published' ? 'text-blue-600 bg-blue-100 dark:bg-blue-950'
+													: n.type === 'event_ongoing' ? 'text-amber-600 bg-amber-100 dark:bg-amber-950'
+													: n.type === 'comment_reply' ? 'text-green-600 bg-green-100 dark:bg-green-950'
+													: n.type === 'feedback_reply' ? 'text-purple-600 bg-purple-100 dark:bg-purple-950'
+													: 'text-primary bg-primary/10'
+												}`}>
+													{n.type === 'bug_reply' ? <Bug className="h-4 w-4" />
+													: n.type === 'news_published' ? <FileText className="h-4 w-4" />
+													: n.type === 'event_ongoing' ? <Calendar className="h-4 w-4" />
+													: n.type === 'comment_reply' ? <MessageSquareReply className="h-4 w-4" />
+													: n.type === 'feedback_reply' ? <MessageSquareReply className="h-4 w-4" />
+													: <Share2 className="h-4 w-4" />}
 												</div>
 												<div className="flex-1 min-w-0">
 													<p className="text-sm font-medium text-foreground truncate">
