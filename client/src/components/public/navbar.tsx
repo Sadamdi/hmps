@@ -11,6 +11,8 @@ import { useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
 import { useQuery } from '@tanstack/react-query';
 import {
+	BellOff,
+	BellRing,
 	BookOpen,
 	Building2,
 	Calendar,
@@ -155,6 +157,16 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 
 /** Teks baris pertama menu Komunitas di situs tenant: link ke portal utama. Bukan `navbarBrand` tenant (itu nama komunitas seperti MOCAP). */
 const MAIN_PORTAL_COMMUNITY_LABEL = 'Himatif Encoder';
+const SW_PATH = '/sw-push.js';
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+	const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+	const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+	const raw = atob(base64);
+	const arr = new Uint8Array(raw.length);
+	for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+	return arr;
+}
 
 export default function Navbar({
 	activeSection,
@@ -182,6 +194,7 @@ export default function Navbar({
 
 	// Dropdown open state (desktop + mobile)
 	const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+	const [isPushActionLoading, setIsPushActionLoading] = useState(false);
 	const openDropdownIdRef = useRef<string | null>(null);
 	// Tracks whether the current scroll was triggered programmatically by a navbar click
 	// (smooth scroll to section). While true, scroll events must NOT close the dropdown.
@@ -206,12 +219,22 @@ export default function Navbar({
 	// Refs to read current state values inside event listeners without stale closure
 	const isCollapsedRef = useRef(false);
 	const isAnimatingCollapseRef = useRef(false);
+	const isHomeLikePathRef = useRef(false);
 	const IDLE_DELAY = 3000;
 	const ANIM_DURATION = 600;
+	const isHomeLikePath = useMemo(() => {
+		if (location === '/') return true;
+		if (!isTenant) return false;
+		return location === bp || location === `${bp}/`;
+	}, [location, isTenant, bp]);
 
 	useEffect(() => {
 		openDropdownIdRef.current = openDropdownId;
 	}, [openDropdownId]);
+
+	useEffect(() => {
+		isHomeLikePathRef.current = isHomeLikePath;
+	}, [isHomeLikePath]);
 
 	const triggerCollapse = () => {
 		isAnimatingCollapseRef.current = true;
@@ -271,12 +294,16 @@ export default function Navbar({
 					clearTimeout(collapseAnimTimeoutRef.current);
 				setIsAnimatingCollapse(false);
 			}
-			// Expand if currently collapsed
-			if (isCollapsedRef.current) {
-				triggerExpand();
+			if (isHomeLikePathRef.current) {
+				// Auto-expand saat scroll hanya di beranda utama/komunitas.
+				if (isCollapsedRef.current) {
+					triggerExpand();
+				}
+				scheduleCollapse();
+			} else if (!isCollapsedRef.current) {
+				// Di path non-beranda, jangan auto-expand dari scroll.
+				scheduleCollapse();
 			}
-			// Reset idle timer
-			scheduleCollapse();
 		};
 
 		// Start idle timer on mount
@@ -532,6 +559,58 @@ export default function Navbar({
 	const handleLogout = async () => {
 		await logout();
 	};
+
+	const subscribeWebPush = useCallback(async () => {
+		if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+		const permission = await Notification.requestPermission();
+		if (permission !== 'granted') return;
+
+		const reg = await navigator.serviceWorker.register(SW_PATH);
+		await navigator.serviceWorker.ready;
+
+		const vapidRes = await fetch('/api/notifications/webpush/vapid-key', {
+			credentials: 'include',
+		});
+		const { publicKey } = await vapidRes.json();
+		if (!publicKey) throw new Error('VAPID public key belum tersedia');
+
+		const sub = await reg.pushManager.subscribe({
+			userVisuallyPrompted: true,
+			applicationServerKey: urlBase64ToUint8Array(publicKey),
+		} as any);
+		const subJson = sub.toJSON();
+		await fetch('/api/notifications/webpush/subscribe', {
+			method: 'POST',
+			credentials: 'include',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ endpoint: subJson.endpoint, keys: subJson.keys }),
+		});
+	}, []);
+
+	const handlePushToggle = useCallback(async () => {
+		if (isPushActionLoading || !('serviceWorker' in navigator)) return;
+		setIsPushActionLoading(true);
+		try {
+			const reg = await navigator.serviceWorker.ready;
+			const sub = await reg.pushManager.getSubscription();
+			if (!sub) {
+				await subscribeWebPush();
+				return;
+			}
+			const endpoint = sub.endpoint;
+			await sub.unsubscribe().catch(() => {});
+			await fetch('/api/notifications/webpush/unsubscribe', {
+				method: 'DELETE',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ endpoint }),
+			}).catch(() => {});
+		} catch (error) {
+			console.error('Push toggle failed:', error);
+		} finally {
+			setIsPushActionLoading(false);
+		}
+	}, [isPushActionLoading, subscribeWebPush]);
 
 	/**
 	 * Resolve anchor ID untuk scroll/redirect saat klik parent dropdown.
@@ -932,6 +1011,22 @@ export default function Navbar({
 												)}
 											</DropdownMenuItem>
 										)}
+										<DropdownMenuItem
+											onClick={handlePushToggle}
+											disabled={isPushActionLoading}
+											className="cursor-pointer">
+											{isPushActionLoading ? (
+												<>
+													<BellRing className="mr-2 h-4 w-4 animate-pulse" />
+													Memproses...
+												</>
+											) : (
+												<>
+													<BellOff className="mr-2 h-4 w-4" />
+													Notifikasi Browser
+												</>
+											)}
+										</DropdownMenuItem>
 										<DropdownMenuSeparator />
 										<DropdownMenuItem
 											onClick={handleLogout}
@@ -1239,6 +1334,22 @@ export default function Navbar({
 															)}
 														</DropdownMenuItem>
 													)}
+													<DropdownMenuItem
+														onClick={handlePushToggle}
+														disabled={isPushActionLoading}
+														className="cursor-pointer">
+														{isPushActionLoading ? (
+															<>
+																<BellRing className="mr-2 h-4 w-4 animate-pulse" />
+																Memproses...
+															</>
+														) : (
+															<>
+																<BellOff className="mr-2 h-4 w-4" />
+																Notifikasi Browser
+															</>
+														)}
+													</DropdownMenuItem>
 													<DropdownMenuSeparator />
 													<DropdownMenuItem
 														onClick={handleLogout}
