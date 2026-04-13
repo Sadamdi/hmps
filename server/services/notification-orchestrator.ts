@@ -44,6 +44,19 @@ function notifLog(tag: string, data: Record<string, unknown>) {
 	console.log(`[notif-orchestrator] ${tag}:`, JSON.stringify(data));
 }
 
+async function getWebPushClient(): Promise<any> {
+	const mod: any = await import('web-push');
+	const client = mod?.default || mod;
+	if (
+		!client ||
+		typeof client.setVapidDetails !== 'function' ||
+		typeof client.sendNotification !== 'function'
+	) {
+		throw new Error('web-push module loaded with unexpected shape');
+	}
+	return client;
+}
+
 async function getUserPreference(
 	userId: string,
 ): Promise<
@@ -112,7 +125,7 @@ async function sendWebPush(
 	if (!vapidPublic || !vapidPrivate) return stats;
 
 	try {
-		const webpush = await import('web-push');
+		const webpush = await getWebPushClient();
 		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
 		const pushPayload = JSON.stringify({
@@ -244,7 +257,7 @@ export async function broadcastNotification(
 	const stats = { sent: 0, skipped: 0, expired: 0, failed: 0 };
 
 	try {
-		const webpush = await import('web-push');
+		const webpush = await getWebPushClient();
 		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
 		const pushPayload = JSON.stringify({
