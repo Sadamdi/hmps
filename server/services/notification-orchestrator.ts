@@ -1,4 +1,8 @@
-import { NotifPreference, UserNotification, WebPushSubscription } from '../../db/mongodb';
+import {
+	NotifPreference,
+	UserNotification,
+	WebPushSubscription,
+} from '../../db/mongodb';
 
 export type NotifEventType =
 	| 'news_published'
@@ -36,7 +40,11 @@ export interface NotifActor {
 	name: string;
 }
 
-async function getUserPreference(userId: string): Promise<Record<string, { inApp: boolean; webPush: boolean; email: boolean }>> {
+async function getUserPreference(
+	userId: string,
+): Promise<
+	Record<string, { inApp: boolean; webPush: boolean; email: boolean }>
+> {
 	const pref: any = await NotifPreference.findOne({ userId }).lean();
 	if (!pref) {
 		return {
@@ -83,9 +91,14 @@ async function sendWebPush(
 
 	if (subs.length === 0) return;
 
-	const vapidPublic = process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
-	const vapidPrivate = process.env.VAPID_PRIVATE_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
-	const vapidSubject = process.env.VAPID_SUBJECT || process.env.WEB_PUSH_SUBJECT || 'mailto:admin@himatif-encoder.com';
+	const vapidPublic =
+		process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
+	const vapidPrivate =
+		process.env.VAPID_PRIVATE_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
+	const vapidSubject =
+		process.env.VAPID_SUBJECT ||
+		process.env.WEB_PUSH_SUBJECT ||
+		'mailto:admin@himatif-encoder.com';
 
 	if (!vapidPublic || !vapidPrivate) return;
 
@@ -107,7 +120,10 @@ async function sendWebPush(
 				);
 			} catch (err: any) {
 				if (err?.statusCode === 410 || err?.statusCode === 404) {
-					await WebPushSubscription.updateOne({ _id: (sub as any)._id }, { $set: { isActive: false } });
+					await WebPushSubscription.updateOne(
+						{ _id: (sub as any)._id },
+						{ $set: { isActive: false } },
+					);
 				}
 			}
 		}
@@ -146,11 +162,21 @@ export async function dispatchNotification(
 ): Promise<void> {
 	const prefKey = EVENT_TO_PREF_KEY[eventType];
 	const prefs = await getUserPreference(recipient.userId);
-	const topicPref = (prefs as any)[prefKey] || { inApp: true, webPush: true, email: false };
+	const topicPref = (prefs as any)[prefKey] || {
+		inApp: true,
+		webPush: true,
+		email: false,
+	};
 
 	if (topicPref.inApp) {
 		try {
-			await sendInAppNotification(eventType, actor, recipient, payload, options?.NotifModel);
+			await sendInAppNotification(
+				eventType,
+				actor,
+				recipient,
+				payload,
+				options?.NotifModel,
+			);
 		} catch (err) {
 			console.error(`In-app notification failed for ${eventType}:`, err);
 		}
@@ -182,9 +208,14 @@ export async function broadcastNotification(
 	const prefKey = EVENT_TO_PREF_KEY[eventType];
 
 	const allSubs = await WebPushSubscription.find({ isActive: true }).lean();
-	const vapidPublic = process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
-	const vapidPrivate = process.env.VAPID_PRIVATE_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
-	const vapidSubject = process.env.VAPID_SUBJECT || process.env.WEB_PUSH_SUBJECT || 'mailto:admin@himatif-encoder.com';
+	const vapidPublic =
+		process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
+	const vapidPrivate =
+		process.env.VAPID_PRIVATE_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
+	const vapidSubject =
+		process.env.VAPID_SUBJECT ||
+		process.env.WEB_PUSH_SUBJECT ||
+		'mailto:admin@himatif-encoder.com';
 
 	if (allSubs.length > 0 && vapidPublic && vapidPrivate) {
 		try {
@@ -199,8 +230,17 @@ export async function broadcastNotification(
 
 			for (const sub of allSubs) {
 				try {
-					const subPref: any = await NotifPreference.findOne({ userId: (sub as any).userId }).lean();
-					const topicChannel = subPref?.[prefKey] || { webPush: true };
+					const userId = (sub as any).userId;
+					let topicChannel: any = { webPush: true };
+
+					if (userId) {
+						const subPref: any = await NotifPreference.findOne({ userId }).lean();
+						topicChannel = subPref?.[prefKey] || topicChannel;
+					} else {
+						// Visitor anonim: gunakan preferensi yang tersimpan di subscription.
+						topicChannel = (sub as any)?.preferences?.[prefKey] || topicChannel;
+					}
+
 					if (!topicChannel.webPush) continue;
 
 					await webpush.sendNotification(
@@ -209,7 +249,10 @@ export async function broadcastNotification(
 					);
 				} catch (err: any) {
 					if (err?.statusCode === 410 || err?.statusCode === 404) {
-						await WebPushSubscription.updateOne({ _id: (sub as any)._id }, { $set: { isActive: false } });
+						await WebPushSubscription.updateOne(
+							{ _id: (sub as any)._id },
+							{ $set: { isActive: false } },
+						);
 					}
 				}
 			}

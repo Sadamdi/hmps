@@ -144,9 +144,7 @@ const beritaSchema = new mongoose.Schema({
 		ref: 'Event',
 		default: null,
 	},
-	relatedGalleryIds: [
-		{ type: mongoose.Schema.Types.ObjectId, ref: 'Library' },
-	],
+	relatedGalleryIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Library' }],
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
 });
@@ -167,12 +165,8 @@ const librarySchema = new mongoose.Schema({
 	type: { type: String, enum: ['photo', 'video'], default: 'photo' },
 	published: { type: Boolean, default: true },
 	activityDate: { type: Date, default: null },
-	relatedEventIds: [
-		{ type: mongoose.Schema.Types.ObjectId, ref: 'Event' },
-	],
-	relatedBeritaIds: [
-		{ type: mongoose.Schema.Types.ObjectId, ref: 'Berita' },
-	],
+	relatedEventIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Event' }],
+	relatedBeritaIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Berita' }],
 	/** Folder Drive yang ditampilkan sebagai embed di publik (tanpa ekspansi file di server) */
 	gdriveEmbedFolders: [
 		{
@@ -329,7 +323,12 @@ const settingsSchema = new mongoose.Schema({
 		},
 	},
 	quickLinks: {
-		type: [{ label: { type: String, required: true }, url: { type: String, required: true } }],
+		type: [
+			{
+				label: { type: String, required: true },
+				url: { type: String, required: true },
+			},
+		],
 		default: undefined,
 	},
 	mapsLocationInput: { type: String, default: '' },
@@ -344,7 +343,11 @@ const settingsSchema = new mongoose.Schema({
 				id: { type: String, required: true },
 				kind: { type: String, enum: ['section', 'subItem'], required: true },
 				visible: { type: Boolean, default: true },
-				renderMode: { type: String, enum: ['summary', 'full'], default: 'summary' },
+				renderMode: {
+					type: String,
+					enum: ['summary', 'full'],
+					default: 'summary',
+				},
 			},
 		],
 		navbar: [
@@ -602,7 +605,13 @@ const settingsSchema = new mongoose.Schema({
 		],
 	},
 	homeImageBannerSlots: {
-		type: [{ id: { type: String, required: true }, label: { type: String, required: true }, order: { type: Number, required: true } }],
+		type: [
+			{
+				id: { type: String, required: true },
+				label: { type: String, required: true },
+				order: { type: Number, required: true },
+			},
+		],
 		default: undefined,
 	},
 	feedbackSubmitEnabled: { type: Boolean, default: true },
@@ -670,7 +679,11 @@ const eventSchema = new mongoose.Schema(
 		title: { type: String, required: true },
 		description: { type: String, default: '' },
 		thumbnail: { type: String, default: '' },
-		thumbnailSource: { type: String, enum: ['local', 'gdrive'], default: 'local' },
+		thumbnailSource: {
+			type: String,
+			enum: ['local', 'gdrive'],
+			default: 'local',
+		},
 		gdriveFileId: { type: String, default: '' },
 		startDate: { type: Date, required: true },
 		endDate: { type: Date, required: true },
@@ -680,7 +693,11 @@ const eventSchema = new mongoose.Schema(
 				name: { type: String, required: true },
 				url: { type: String, required: true },
 				type: { type: String, default: 'file' },
-				source: { type: String, enum: ['local', 'gdrive', 'url'], default: 'local' },
+				source: {
+					type: String,
+					enum: ['local', 'gdrive', 'url'],
+					default: 'local',
+				},
 			},
 		],
 		published: { type: Boolean, default: false },
@@ -690,20 +707,20 @@ const eventSchema = new mongoose.Schema(
 			ref: 'User',
 			required: true,
 		},
-	relatedBerita: [
-		{
+		relatedBerita: [
+			{
+				type: mongoose.Schema.Types.ObjectId,
+				ref: 'Berita',
+			},
+		],
+		sourceBeritaId: {
 			type: mongoose.Schema.Types.ObjectId,
 			ref: 'Berita',
+			default: null,
 		},
-	],
-	sourceBeritaId: {
-		type: mongoose.Schema.Types.ObjectId,
-		ref: 'Berita',
-		default: null,
-	},
-	relatedGalleryIds: [
-		{ type: mongoose.Schema.Types.ObjectId, ref: 'Library' },
-	],
+		relatedGalleryIds: [
+			{ type: mongoose.Schema.Types.ObjectId, ref: 'Library' },
+		],
 	},
 	{ timestamps: true },
 );
@@ -869,190 +886,251 @@ userNotificationSchema.index({ userId: 1, read: 1, createdAt: -1 });
 userNotificationSchema.index({ userId: 1, createdAt: -1 });
 
 // ProdiContent Schema — singleton document holding crawled prodi data
-const lecturerDetailSchema = new mongoose.Schema({
-	name: { type: String, default: '' },
-	nip: { type: String, default: '' },
-	nidn: { type: String, default: '' },
-	nidnUrl: { type: String, default: '' },
-	email: { type: String, default: '' },
-	education: { type: String, default: '' },
-	knowledgeGroup: { type: String, default: '' },
-	profileUrl: { type: String, default: '' },
-	photoUrl: { type: String, default: '' },
-	workingDaysHours: { type: String, default: '' },
-	googleScholar: { type: String, default: '' },
-	scopusId: { type: String, default: '' },
-	scopusUrl: { type: String, default: '' },
-	orcidId: { type: String, default: '' },
-	orcidUrl: { type: String, default: '' },
-	sintaId: { type: String, default: '' },
-	sintaUrl: { type: String, default: '' },
-	repositoryUrl: { type: String, default: '' },
-}, { _id: false });
+const lecturerDetailSchema = new mongoose.Schema(
+	{
+		name: { type: String, default: '' },
+		nip: { type: String, default: '' },
+		nidn: { type: String, default: '' },
+		nidnUrl: { type: String, default: '' },
+		email: { type: String, default: '' },
+		education: { type: String, default: '' },
+		knowledgeGroup: { type: String, default: '' },
+		profileUrl: { type: String, default: '' },
+		photoUrl: { type: String, default: '' },
+		workingDaysHours: { type: String, default: '' },
+		googleScholar: { type: String, default: '' },
+		scopusId: { type: String, default: '' },
+		scopusUrl: { type: String, default: '' },
+		orcidId: { type: String, default: '' },
+		orcidUrl: { type: String, default: '' },
+		sintaId: { type: String, default: '' },
+		sintaUrl: { type: String, default: '' },
+		repositoryUrl: { type: String, default: '' },
+	},
+	{ _id: false },
+);
 
-const lecturerGroupSchema = new mongoose.Schema({
-	name: { type: String, required: true },
-	lecturers: [lecturerDetailSchema],
-}, { _id: false });
+const lecturerGroupSchema = new mongoose.Schema(
+	{
+		name: { type: String, required: true },
+		lecturers: [lecturerDetailSchema],
+	},
+	{ _id: false },
+);
 
-const milestoneSchema = new mongoose.Schema({
-	year: { type: String, default: '' },
-	description: { type: String, default: '' },
-}, { _id: false });
+const milestoneSchema = new mongoose.Schema(
+	{
+		year: { type: String, default: '' },
+		description: { type: String, default: '' },
+	},
+	{ _id: false },
+);
 
-const managementPersonSchema = new mongoose.Schema({
-	name: { type: String, default: '' },
-	position: { type: String, default: '' },
-	profileUrl: { type: String, default: '' },
-	photoUrl: { type: String, default: '' },
-	workingDaysHours: { type: String, default: '' },
-	email: { type: String, default: '' },
-	nip: { type: String, default: '' },
-	nidn: { type: String, default: '' },
-	education: { type: String, default: '' },
-	knowledgeGroup: { type: String, default: '' },
-	googleScholar: { type: String, default: '' },
-	scopusUrl: { type: String, default: '' },
-	orcidUrl: { type: String, default: '' },
-	sintaUrl: { type: String, default: '' },
-	repositoryUrl: { type: String, default: '' },
-}, { _id: false });
+const managementPersonSchema = new mongoose.Schema(
+	{
+		name: { type: String, default: '' },
+		position: { type: String, default: '' },
+		profileUrl: { type: String, default: '' },
+		photoUrl: { type: String, default: '' },
+		workingDaysHours: { type: String, default: '' },
+		email: { type: String, default: '' },
+		nip: { type: String, default: '' },
+		nidn: { type: String, default: '' },
+		education: { type: String, default: '' },
+		knowledgeGroup: { type: String, default: '' },
+		googleScholar: { type: String, default: '' },
+		scopusUrl: { type: String, default: '' },
+		orcidUrl: { type: String, default: '' },
+		sintaUrl: { type: String, default: '' },
+		repositoryUrl: { type: String, default: '' },
+	},
+	{ _id: false },
+);
 
-const managementPeriodSchema = new mongoose.Schema({
-	period: { type: String, default: '' },
-	isCurrent: { type: Boolean, default: false },
-	members: [managementPersonSchema],
-}, { _id: false });
+const managementPeriodSchema = new mongoose.Schema(
+	{
+		period: { type: String, default: '' },
+		isCurrent: { type: Boolean, default: false },
+		members: [managementPersonSchema],
+	},
+	{ _id: false },
+);
 
-const curriculumSubjectSchema = new mongoose.Schema({
-	no: { type: String, default: '' },
-	code: { type: String, default: '' },
-	name: { type: String, default: '' },
-	sks: { type: String, default: '' },
-	prerequisite: { type: String, default: '' },
-	rpsUrl: { type: String, default: '' },
-}, { _id: false });
+const curriculumSubjectSchema = new mongoose.Schema(
+	{
+		no: { type: String, default: '' },
+		code: { type: String, default: '' },
+		name: { type: String, default: '' },
+		sks: { type: String, default: '' },
+		prerequisite: { type: String, default: '' },
+		rpsUrl: { type: String, default: '' },
+	},
+	{ _id: false },
+);
 
-const semesterSchema = new mongoose.Schema({
-	semester: { type: Number, required: true },
-	totalSks: { type: String, default: '' },
-	subjects: [curriculumSubjectSchema],
-}, { _id: false });
+const semesterSchema = new mongoose.Schema(
+	{
+		semester: { type: Number, required: true },
+		totalSks: { type: String, default: '' },
+		subjects: [curriculumSubjectSchema],
+	},
+	{ _id: false },
+);
 
-const rpsResourceLinkSchema = new mongoose.Schema({
-	label: { type: String, default: '' },
-	url: { type: String, default: '' },
-}, { _id: false });
+const rpsResourceLinkSchema = new mongoose.Schema(
+	{
+		label: { type: String, default: '' },
+		url: { type: String, default: '' },
+	},
+	{ _id: false },
+);
 
-const subjectRpsResourceSchema = new mongoose.Schema({
-	slug: { type: String, required: true },
-	subjectName: { type: String, default: '' },
-	materiPpt: [rpsResourceLinkSchema],
-	linkFile: [rpsResourceLinkSchema],
-	parsedAt: { type: Date },
-}, { _id: false });
+const subjectRpsResourceSchema = new mongoose.Schema(
+	{
+		slug: { type: String, required: true },
+		subjectName: { type: String, default: '' },
+		materiPpt: [rpsResourceLinkSchema],
+		linkFile: [rpsResourceLinkSchema],
+		parsedAt: { type: Date },
+	},
+	{ _id: false },
+);
 
-const accreditationItemSchema = new mongoose.Schema({
-	group: { type: String, default: '' },
-	title: { type: String, default: '' },
-	downloadUrl: { type: String, default: '' },
-	yearLabel: { type: String, default: '' },
-	isPrimary: { type: Boolean, default: false },
-}, { _id: false });
+const accreditationItemSchema = new mongoose.Schema(
+	{
+		group: { type: String, default: '' },
+		title: { type: String, default: '' },
+		downloadUrl: { type: String, default: '' },
+		yearLabel: { type: String, default: '' },
+		isPrimary: { type: Boolean, default: false },
+	},
+	{ _id: false },
+);
 
-const accreditationLevelSchema = new mongoose.Schema({
-	title: { type: String, default: '' },
-	sourceUrl: { type: String, default: '' },
-	groups: [{ type: String }],
-	items: [accreditationItemSchema],
-	lastSyncedAt: { type: Date, default: null },
-	lastError: { type: String, default: '' },
-}, { _id: false });
+const accreditationLevelSchema = new mongoose.Schema(
+	{
+		title: { type: String, default: '' },
+		sourceUrl: { type: String, default: '' },
+		groups: [{ type: String }],
+		items: [accreditationItemSchema],
+		lastSyncedAt: { type: Date, default: null },
+		lastError: { type: String, default: '' },
+	},
+	{ _id: false },
+);
 
-const curriculumYearEntrySchema = new mongoose.Schema({
-	academicYear: { type: Number, required: true },
-	periodLabel: { type: String, default: '' },
-	graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
-	knowledgeGroups: [{ type: String }],
-	structureSummary: { type: String, default: '' },
-	semesters: [semesterSchema],
-	optionalSubjects: [curriculumSubjectSchema],
-	subjectRpsResources: [subjectRpsResourceSchema],
-	guidebookUrl: { type: String, default: '' },
-	curriculumUrl: { type: String, default: '' },
-	officialUrl: { type: String, default: '' },
-	source: { type: String, enum: ['sync', 'manual'], default: 'sync' },
-	updatedAt: { type: Date, default: Date.now },
-}, { _id: false });
+const curriculumYearEntrySchema = new mongoose.Schema(
+	{
+		academicYear: { type: Number, required: true },
+		periodLabel: { type: String, default: '' },
+		graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
+		knowledgeGroups: [{ type: String }],
+		structureSummary: { type: String, default: '' },
+		semesters: [semesterSchema],
+		optionalSubjects: [curriculumSubjectSchema],
+		subjectRpsResources: [subjectRpsResourceSchema],
+		guidebookUrl: { type: String, default: '' },
+		curriculumUrl: { type: String, default: '' },
+		officialUrl: { type: String, default: '' },
+		source: { type: String, enum: ['sync', 'manual'], default: 'sync' },
+		updatedAt: { type: Date, default: Date.now },
+	},
+	{ _id: false },
+);
 
-const laboratorySchema = new mongoose.Schema({
-	name: { type: String, required: true },
-	description: { type: String, default: '' },
-	imageUrl: { type: String, default: '' },
-	imageUrls: { type: [String], default: [] },
-}, { _id: false });
+const laboratorySchema = new mongoose.Schema(
+	{
+		name: { type: String, required: true },
+		description: { type: String, default: '' },
+		imageUrl: { type: String, default: '' },
+		imageUrls: { type: [String], default: [] },
+	},
+	{ _id: false },
+);
 
-const prodiContentSchema = new mongoose.Schema({
-	autoSyncEnabled: { type: Boolean, default: true },
-	lastAutoSyncAt: { type: Date, default: null },
-	lastManualSyncAt: { type: Date, default: null },
-	syncStatus: { type: String, enum: ['idle', 'syncing', 'error'], default: 'idle' },
-	lastSyncError: { type: String, default: '' },
-
-	overrides: { type: mongoose.Schema.Types.Mixed, default: {} },
-
-	content: {
-		profile: {
-			history: { type: String, default: '' },
-			vision: { type: String, default: '' },
-			mission: [{ type: String }],
-			objectives: [{ type: String }],
-			strategy: { type: String, default: '' },
-			milestones: [milestoneSchema],
-			managements: [managementPeriodSchema],
-			organizationStructureImageUrl: { type: String, default: '' },
-			organizationStructureDescription: { type: String, default: '' },
+const prodiContentSchema = new mongoose.Schema(
+	{
+		autoSyncEnabled: { type: Boolean, default: true },
+		lastAutoSyncAt: { type: Date, default: null },
+		lastManualSyncAt: { type: Date, default: null },
+		syncStatus: {
+			type: String,
+			enum: ['idle', 'syncing', 'error'],
+			default: 'idle',
 		},
-		lecturers: {
-			headAndSecretary: [managementPersonSchema],
-			groups: [lecturerGroupSchema],
-			staff: [lecturerDetailSchema],
+		lastSyncError: { type: String, default: '' },
+
+		overrides: { type: mongoose.Schema.Types.Mixed, default: {} },
+
+		content: {
+			profile: {
+				history: { type: String, default: '' },
+				vision: { type: String, default: '' },
+				mission: [{ type: String }],
+				objectives: [{ type: String }],
+				strategy: { type: String, default: '' },
+				milestones: [milestoneSchema],
+				managements: [managementPeriodSchema],
+				organizationStructureImageUrl: { type: String, default: '' },
+				organizationStructureDescription: { type: String, default: '' },
+			},
+			lecturers: {
+				headAndSecretary: [managementPersonSchema],
+				groups: [lecturerGroupSchema],
+				staff: [lecturerDetailSchema],
+			},
+			curriculum: {
+				periodLabel: { type: String, default: '' },
+				graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
+				knowledgeGroups: [{ type: String }],
+				structureSummary: { type: String, default: '' },
+				semesters: [semesterSchema],
+				optionalSubjects: [curriculumSubjectSchema],
+				subjectRpsResources: [subjectRpsResourceSchema],
+				guidebookUrl: { type: String, default: '' },
+				curriculumUrl: { type: String, default: '' },
+				officialUrl: { type: String, default: '' },
+			},
+			laboratories: {
+				teaching: [laboratorySchema],
+				research: [laboratorySchema],
+			},
+			accreditation: {
+				s1: { type: accreditationLevelSchema, default: () => ({}) },
+				s2: { type: accreditationLevelSchema, default: () => ({}) },
+				s3: { type: accreditationLevelSchema, default: () => ({}) },
+				s3ManualUrl: { type: String, default: '' },
+				lastSyncAt: { type: Date, default: null },
+			},
 		},
-		curriculum: {
-			periodLabel: { type: String, default: '' },
-			graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
-			knowledgeGroups: [{ type: String }],
-			structureSummary: { type: String, default: '' },
-			semesters: [semesterSchema],
-			optionalSubjects: [curriculumSubjectSchema],
-			subjectRpsResources: [subjectRpsResourceSchema],
-			guidebookUrl: { type: String, default: '' },
-			curriculumUrl: { type: String, default: '' },
-			officialUrl: { type: String, default: '' },
-		},
-		laboratories: {
-			teaching: [laboratorySchema],
-			research: [laboratorySchema],
-		},
-		accreditation: {
-			s1: { type: accreditationLevelSchema, default: () => ({}) },
-			s2: { type: accreditationLevelSchema, default: () => ({}) },
-			s3: { type: accreditationLevelSchema, default: () => ({}) },
-			s3ManualUrl: { type: String, default: '' },
-			lastSyncAt: { type: Date, default: null },
+
+		curriculumByYear: [curriculumYearEntrySchema],
+
+		sources: {
+			profileUrl: {
+				type: String,
+				default: 'https://informatika.uin-malang.ac.id/undergraduate-s1/',
+			},
+			lecturerUrl: {
+				type: String,
+				default: 'https://informatika.uin-malang.ac.id/lecturer-and-staff/',
+			},
+			curriculumUrl: {
+				type: String,
+				default: 'https://informatika.uin-malang.ac.id/curriculum/',
+			},
+			teachingLabUrl: {
+				type: String,
+				default: 'https://informatika.uin-malang.ac.id/teaching-laboratory/',
+			},
+			researchLabUrl: {
+				type: String,
+				default: 'https://informatika.uin-malang.ac.id/research-laboratory/',
+			},
 		},
 	},
-
-	curriculumByYear: [curriculumYearEntrySchema],
-
-	sources: {
-		profileUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/undergraduate-s1/' },
-		lecturerUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/lecturer-and-staff/' },
-		curriculumUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/curriculum/' },
-		teachingLabUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/teaching-laboratory/' },
-		researchLabUrl: { type: String, default: 'https://informatika.uin-malang.ac.id/research-laboratory/' },
-	},
-}, { timestamps: true });
+	{ timestamps: true },
+);
 
 prodiContentSchema.pre('save', async function (next) {
 	if (this.isNew) {
@@ -1063,12 +1141,19 @@ prodiContentSchema.pre('save', async function (next) {
 });
 
 // Model Feedback — dynamic destinations/types configured per tenant
-const feedbackReplySchema = new mongoose.Schema({
-	adminId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-	adminName: { type: String, required: true },
-	message: { type: String, required: true },
-	repliedAt: { type: Date, default: Date.now },
-}, { _id: false });
+const feedbackReplySchema = new mongoose.Schema(
+	{
+		adminId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+		adminName: { type: String, required: true },
+		message: { type: String, required: true },
+		repliedAt: { type: Date, default: Date.now },
+	},
+	{ _id: false },
+);
 
 const feedbackSchema = new mongoose.Schema(
 	{
@@ -1081,25 +1166,37 @@ const feedbackSchema = new mongoose.Schema(
 		senderEmail: { type: String, default: '' },
 		isVisibleCard: { type: Boolean, default: false },
 		guestKeyHash: { type: String, default: null },
-		media: [{
-			url: { type: String, required: true },
-			originalName: { type: String, default: '' },
-			mimeType: { type: String, default: '' },
-			size: { type: Number, default: 0 },
-		}],
+		media: [
+			{
+				url: { type: String, required: true },
+				originalName: { type: String, default: '' },
+				mimeType: { type: String, default: '' },
+				size: { type: Number, default: 0 },
+			},
+		],
 		gdriveLinks: [{ type: String }],
-		mediaLinks: [{
-			url: { type: String, required: true },
-			provider: { type: String, default: '' },
-			title: { type: String, default: '' },
-			description: { type: String, default: '' },
-			thumbnail: { type: String, default: '' },
-			mimeHint: { type: String, default: '' },
-		}],
+		mediaLinks: [
+			{
+				url: { type: String, required: true },
+				provider: { type: String, default: '' },
+				title: { type: String, default: '' },
+				description: { type: String, default: '' },
+				thumbnail: { type: String, default: '' },
+				mimeHint: { type: String, default: '' },
+			},
+		],
 		reply: { type: feedbackReplySchema, default: null },
-		suggestionStatus: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
+		suggestionStatus: {
+			type: String,
+			enum: ['pending', 'accepted', 'rejected'],
+			default: 'pending',
+		},
 		suggestionDecisionComment: { type: String, default: '' },
-		suggestionDecidedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		suggestionDecidedBy: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			default: null,
+		},
 		suggestionDeciderName: { type: String, default: '' },
 		suggestionDecidedAt: { type: Date, default: null },
 		ratings: { type: mongoose.Schema.Types.Mixed, default: {} },
@@ -1115,32 +1212,50 @@ feedbackSchema.index({ isVisibleCard: 1, createdAt: -1 });
 feedbackSchema.index({ type: 1, suggestionStatus: 1 });
 
 // Model BugReport — laporan bug dari dashboard (disimpan di DB utama saja)
-const bugReportAttachmentSchema = new mongoose.Schema({
-	url: { type: String, required: true },
-	originalName: { type: String, default: '' },
-	mimeType: { type: String, default: '' },
-	size: { type: Number, default: 0 },
-}, { _id: false });
+const bugReportAttachmentSchema = new mongoose.Schema(
+	{
+		url: { type: String, required: true },
+		originalName: { type: String, default: '' },
+		mimeType: { type: String, default: '' },
+		size: { type: Number, default: 0 },
+	},
+	{ _id: false },
+);
 
-const bugReportReplySchema = new mongoose.Schema({
-	message: { type: String, required: true },
-	repliedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-	repliedByName: { type: String, required: true },
-	repliedAt: { type: Date, default: Date.now },
-}, { _id: false });
+const bugReportReplySchema = new mongoose.Schema(
+	{
+		message: { type: String, required: true },
+		repliedBy: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+		repliedByName: { type: String, required: true },
+		repliedAt: { type: Date, default: Date.now },
+	},
+	{ _id: false },
+);
 
 const bugReportSchema = new mongoose.Schema(
 	{
 		description: { type: String, required: true },
 		attachments: [bugReportAttachmentSchema],
 		gdriveLinks: [{ type: String }],
-		reporterUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+		reporterUserId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
 		reporterName: { type: String, required: true },
 		reporterUsername: { type: String, required: true },
 		reporterEmail: { type: String, required: true },
 		sourceCommunitySlug: { type: String, default: '' },
 		sourceCommunityName: { type: String, default: '' },
-		status: { type: String, enum: ['open', 'replied', 'closed'], default: 'open' },
+		status: {
+			type: String,
+			enum: ['open', 'replied', 'closed'],
+			default: 'open',
+		},
 		reply: { type: bugReportReplySchema, default: null },
 	},
 	{ timestamps: true },
@@ -1152,10 +1267,22 @@ bugReportSchema.index({ reporterUserId: 1 });
 // Model Comment — komentar publik pada berita/event/library dengan reply bertingkat
 const commentSchema = new mongoose.Schema(
 	{
-		targetType: { type: String, enum: ['berita', 'library', 'event'], required: true },
+		targetType: {
+			type: String,
+			enum: ['berita', 'library', 'event'],
+			required: true,
+		},
 		targetId: { type: mongoose.Schema.Types.ObjectId, required: true },
-		parentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Comment', default: null },
-		userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		parentId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'Comment',
+			default: null,
+		},
+		userId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			default: null,
+		},
 		guestKeyHash: { type: String, default: null },
 		displayName: { type: String, required: true },
 		isAnonymous: { type: Boolean, default: false },
@@ -1177,8 +1304,16 @@ const communitySchema = new mongoose.Schema({
 	logoUrl: { type: String, default: '' },
 	ownerUsername: { type: String, default: '' },
 	ownerEmail: { type: String, default: '' },
-	registrationCodeId: { type: mongoose.Schema.Types.ObjectId, ref: 'RegistrationCode', default: null },
-	status: { type: String, enum: ['active', 'inactive', 'suspended'], default: 'active' },
+	registrationCodeId: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'RegistrationCode',
+		default: null,
+	},
+	status: {
+		type: String,
+		enum: ['active', 'inactive', 'suspended'],
+		default: 'active',
+	},
 	initialDivisionCount: { type: Number, default: 3, min: 1, max: 20 },
 	socialLinks: {
 		facebook: { type: String, default: '' },
@@ -1199,18 +1334,28 @@ communitySchema.index({ status: 1 });
 const registrationCodeSchema = new mongoose.Schema({
 	code: { type: String, required: true, unique: true },
 	type: { type: String, enum: ['community', 'alumni'], required: true },
-	createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+	createdBy: {
+		type: mongoose.Schema.Types.ObjectId,
+		ref: 'User',
+		required: true,
+	},
 	createdByName: { type: String, default: '' },
 	maxUses: { type: Number, default: 1 },
 	currentUses: { type: Number, default: 0 },
 	expiresAt: { type: Date, required: true },
-	status: { type: String, enum: ['active', 'used', 'expired', 'revoked'], default: 'active' },
-	usedBy: [{
-		communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community' },
-		communityName: { type: String, default: '' },
-		usedAt: { type: Date, default: Date.now },
-		ownerEmail: { type: String, default: '' },
-	}],
+	status: {
+		type: String,
+		enum: ['active', 'used', 'expired', 'revoked'],
+		default: 'active',
+	},
+	usedBy: [
+		{
+			communityId: { type: mongoose.Schema.Types.ObjectId, ref: 'Community' },
+			communityName: { type: String, default: '' },
+			usedAt: { type: Date, default: Date.now },
+			ownerEmail: { type: String, default: '' },
+		},
+	],
 	note: { type: String, default: '' },
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
@@ -1222,8 +1367,7 @@ registrationCodeSchema.index({ status: 1, expiresAt: 1 });
 // Create models
 const EventYear =
 	mongoose.models.EventYear || mongoose.model('EventYear', eventYearSchema);
-const Event =
-	mongoose.models.Event || mongoose.model('Event', eventSchema);
+const Event = mongoose.models.Event || mongoose.model('Event', eventSchema);
 const HomeImages =
 	mongoose.models.HomeImages || mongoose.model('HomeImages', homeImagesSchema);
 const User = mongoose.models.User || mongoose.model('User', userSchema);
@@ -1242,13 +1386,17 @@ const Permission =
 const Session =
 	mongoose.models.Session || mongoose.model('Session', sessionSchema);
 const OtpChallenge =
-	mongoose.models.OtpChallenge || mongoose.model('OtpChallenge', otpChallengeSchema);
+	mongoose.models.OtpChallenge ||
+	mongoose.model('OtpChallenge', otpChallengeSchema);
 const PostSharing =
-	mongoose.models.PostSharing || mongoose.model('PostSharing', postSharingSchema);
+	mongoose.models.PostSharing ||
+	mongoose.model('PostSharing', postSharingSchema);
 const UserNotification =
-	mongoose.models.UserNotification || mongoose.model('UserNotification', userNotificationSchema);
+	mongoose.models.UserNotification ||
+	mongoose.model('UserNotification', userNotificationSchema);
 const ProdiContent =
-	mongoose.models.ProdiContent || mongoose.model('ProdiContent', prodiContentSchema);
+	mongoose.models.ProdiContent ||
+	mongoose.model('ProdiContent', prodiContentSchema);
 const Comment =
 	mongoose.models.Comment || mongoose.model('Comment', commentSchema);
 const Feedback =
@@ -1268,16 +1416,37 @@ export const Division =
 const Community =
 	mongoose.models.Community || mongoose.model('Community', communitySchema);
 const RegistrationCode =
-	mongoose.models.RegistrationCode || mongoose.model('RegistrationCode', registrationCodeSchema);
+	mongoose.models.RegistrationCode ||
+	mongoose.model('RegistrationCode', registrationCodeSchema);
 
 // Activity schema (imported from models for allSchemas export)
 const activitySchema = new mongoose.Schema(
 	{
-		type: { type: String, required: true, enum: ['berita', 'library', 'organization', 'content', 'settings', 'user', 'sharing'] },
-		action: { type: String, required: true, enum: ['create', 'update', 'delete', 'publish', 'unpublish'] },
+		type: {
+			type: String,
+			required: true,
+			enum: [
+				'berita',
+				'library',
+				'organization',
+				'content',
+				'settings',
+				'user',
+				'sharing',
+			],
+		},
+		action: {
+			type: String,
+			required: true,
+			enum: ['create', 'update', 'delete', 'publish', 'unpublish'],
+		},
 		title: { type: String, required: true },
 		description: { type: String },
-		userId: { type: mongoose.Schema.Types.ObjectId, required: true, ref: 'User' },
+		userId: {
+			type: mongoose.Schema.Types.ObjectId,
+			required: true,
+			ref: 'User',
+		},
 		userName: { type: String, required: true },
 		userRole: { type: String, required: true },
 		entityId: { type: String },
@@ -1291,15 +1460,18 @@ activitySchema.index({ timestamp: -1 });
 activitySchema.index({ type: 1, timestamp: -1 });
 
 // Temporary onboarding uploads — tracks files uploaded during registration (before login)
-const tempUploadSchema = new mongoose.Schema({
-	code: { type: String, required: true, index: true },
-	url: { type: String, required: true },
-	diskPath: { type: String, required: true },
-	category: { type: String, default: 'organization' },
-	key: { type: String, default: '' },
-	consumedAt: { type: Date, default: null },
-	expiresAt: { type: Date, required: true },
-}, { timestamps: true });
+const tempUploadSchema = new mongoose.Schema(
+	{
+		code: { type: String, required: true, index: true },
+		url: { type: String, required: true },
+		diskPath: { type: String, required: true },
+		category: { type: String, default: 'organization' },
+		key: { type: String, default: '' },
+		consumedAt: { type: Date, default: null },
+		expiresAt: { type: Date, required: true },
+	},
+	{ timestamps: true },
+);
 tempUploadSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 tempUploadSchema.index({ code: 1, consumedAt: 1 });
 
@@ -1318,13 +1490,24 @@ const fileUploadSchema = new mongoose.Schema(
 		category: { type: String, default: 'general' },
 		scanStatus: {
 			type: String,
-			enum: ['pending_scan', 'scanning', 'clean', 'infected', 'scan_failed', 'skipped'],
+			enum: [
+				'pending_scan',
+				'scanning',
+				'clean',
+				'infected',
+				'scan_failed',
+				'skipped',
+			],
 			default: 'pending_scan',
 		},
 		scanEngine: { type: String, default: '' },
 		scannedAt: { type: Date, default: null },
 		threatName: { type: String, default: '' },
-		uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		uploadedBy: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			default: null,
+		},
 		tenantSlug: { type: String, default: '' },
 	},
 	{ timestamps: true },
@@ -1339,24 +1522,53 @@ const FileUpload =
 // Model NotifPreference — per-user notification preferences per topic/channel
 const notifPreferenceSchema = new mongoose.Schema(
 	{
-		userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-		news: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: false } },
-		event: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: false } },
-		commentReply: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: false } },
-		feedbackReply: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: false } },
-		bugReply: { inApp: { type: Boolean, default: true }, webPush: { type: Boolean, default: true }, email: { type: Boolean, default: true } },
+		userId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+		news: {
+			inApp: { type: Boolean, default: true },
+			webPush: { type: Boolean, default: true },
+			email: { type: Boolean, default: false },
+		},
+		event: {
+			inApp: { type: Boolean, default: true },
+			webPush: { type: Boolean, default: true },
+			email: { type: Boolean, default: false },
+		},
+		commentReply: {
+			inApp: { type: Boolean, default: true },
+			webPush: { type: Boolean, default: true },
+			email: { type: Boolean, default: false },
+		},
+		feedbackReply: {
+			inApp: { type: Boolean, default: true },
+			webPush: { type: Boolean, default: true },
+			email: { type: Boolean, default: false },
+		},
+		bugReply: {
+			inApp: { type: Boolean, default: true },
+			webPush: { type: Boolean, default: true },
+			email: { type: Boolean, default: true },
+		},
 	},
 	{ timestamps: true },
 );
 notifPreferenceSchema.index({ userId: 1 }, { unique: true });
 
 const NotifPreference =
-	mongoose.models.NotifPreference || mongoose.model('NotifPreference', notifPreferenceSchema);
+	mongoose.models.NotifPreference ||
+	mongoose.model('NotifPreference', notifPreferenceSchema);
 
 // Model WebPushSubscription — browser push subscription per user
 const webPushSubscriptionSchema = new mongoose.Schema(
 	{
-		userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		userId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			default: null,
+		},
 		endpoint: { type: String, required: true },
 		keys: {
 			p256dh: { type: String, required: true },
@@ -1366,6 +1578,14 @@ const webPushSubscriptionSchema = new mongoose.Schema(
 		tenantSlug: { type: String, default: '' },
 		isActive: { type: Boolean, default: true },
 		lastSeenAt: { type: Date, default: Date.now },
+		preferences: {
+			news: { webPush: { type: Boolean, default: true } },
+			event: { webPush: { type: Boolean, default: true } },
+			commentReply: { webPush: { type: Boolean, default: true } },
+			feedbackReply: { webPush: { type: Boolean, default: true } },
+			// Untuk visitor anonim tidak ada alur bug-reply, default false.
+			bugReply: { webPush: { type: Boolean, default: false } },
+		},
 	},
 	{ timestamps: true },
 );
@@ -1373,7 +1593,8 @@ webPushSubscriptionSchema.index({ endpoint: 1 }, { unique: true });
 webPushSubscriptionSchema.index({ userId: 1, isActive: 1 });
 
 const WebPushSubscription =
-	mongoose.models.WebPushSubscription || mongoose.model('WebPushSubscription', webPushSubscriptionSchema);
+	mongoose.models.WebPushSubscription ||
+	mongoose.model('WebPushSubscription', webPushSubscriptionSchema);
 
 // Export all schemas for tenant model factory
 export const allSchemas = {
