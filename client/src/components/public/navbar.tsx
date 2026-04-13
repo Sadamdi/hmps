@@ -214,6 +214,7 @@ export default function Navbar({
 	const [isAnimatingCollapse, setIsAnimatingCollapse] = useState(false);
 	const [isAnimatingExpand, setIsAnimatingExpand] = useState(false);
 	const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+	const nonHomeAutoCloseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const collapseAnimTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
 		null,
 	);
@@ -242,6 +243,10 @@ export default function Navbar({
 	}, [isHomeLikePath]);
 
 	const triggerCollapse = () => {
+		if (nonHomeAutoCloseTimeoutRef.current) {
+			clearTimeout(nonHomeAutoCloseTimeoutRef.current);
+			nonHomeAutoCloseTimeoutRef.current = null;
+		}
 		isAnimatingCollapseRef.current = true;
 		setIsAnimatingCollapse(true);
 		setIsAnimatingExpand(false);
@@ -279,6 +284,30 @@ export default function Navbar({
 			triggerCollapse();
 		}, delay);
 	};
+
+	useEffect(() => {
+		// Di non-beranda: setelah bubble/nav terbuka, selalu auto-close 5 detik (konstan),
+		// tidak peduli user sedang scroll atau tidak.
+		if (isHomeLikePath) {
+			if (nonHomeAutoCloseTimeoutRef.current) {
+				clearTimeout(nonHomeAutoCloseTimeoutRef.current);
+				nonHomeAutoCloseTimeoutRef.current = null;
+			}
+			return;
+		}
+
+		if (!isMobileNavCollapsed) {
+			if (nonHomeAutoCloseTimeoutRef.current) {
+				clearTimeout(nonHomeAutoCloseTimeoutRef.current);
+			}
+			nonHomeAutoCloseTimeoutRef.current = setTimeout(() => {
+				triggerCollapse();
+			}, NON_HOME_IDLE_DELAY);
+		} else if (nonHomeAutoCloseTimeoutRef.current) {
+			clearTimeout(nonHomeAutoCloseTimeoutRef.current);
+			nonHomeAutoCloseTimeoutRef.current = null;
+		}
+	}, [isMobileNavCollapsed, isHomeLikePath, NON_HOME_IDLE_DELAY]);
 
 	useEffect(() => {
 		const handleScrollActivity = () => {
@@ -324,6 +353,8 @@ export default function Navbar({
 				clearTimeout(expandAnimTimeoutRef.current);
 			if (programmaticScrollTimerRef.current)
 				clearTimeout(programmaticScrollTimerRef.current);
+			if (nonHomeAutoCloseTimeoutRef.current)
+				clearTimeout(nonHomeAutoCloseTimeoutRef.current);
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []);
@@ -618,14 +649,24 @@ export default function Navbar({
 		const { publicKey } = await vapidRes.json();
 		if (!publicKey) throw new Error('VAPID public key belum tersedia di server');
 
-		const sub = await withTimeout(
-			reg.pushManager.subscribe({
-				userVisuallyPrompted: true,
-				applicationServerKey: urlBase64ToUint8Array(publicKey),
-			} as any),
-			8000,
-			'pushManager.subscribe',
-		);
+		let sub = await reg.pushManager.getSubscription();
+		if (!sub) {
+			try {
+				sub = await withTimeout(
+					reg.pushManager.subscribe({
+						userVisuallyPrompted: true,
+						applicationServerKey: urlBase64ToUint8Array(publicKey),
+					} as any),
+					8000,
+					'pushManager.subscribe',
+				);
+			} catch (err: any) {
+				// Browser tertentu bisa melempar InvalidStateError meski subscription sudah ada.
+				const fallbackSub = await reg.pushManager.getSubscription();
+				if (!fallbackSub) throw err;
+				sub = fallbackSub;
+			}
+		}
 		const subJson = sub.toJSON();
 		await fetch('/api/notifications/webpush/subscribe', {
 			method: 'POST',

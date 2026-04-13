@@ -350,7 +350,15 @@ app.use((req, res, next) => {
 		if (path.startsWith('/api')) {
 			let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
 			if (capturedJsonResponse) {
-				logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
+				let safeBody: any = capturedJsonResponse;
+				if (path === '/api/notifications/webpush/vapid-key') {
+					safeBody = { publicKey: '[REDACTED]' };
+				}
+				logLine += ` :: ${JSON.stringify(safeBody)}`
+					.replace(/"WEB_PUSH_VAPID_PRIVATE_KEY":"[^"]*"/g, '"WEB_PUSH_VAPID_PRIVATE_KEY":"[REDACTED]"')
+					.replace(/"VAPID_PRIVATE_KEY":"[^"]*"/g, '"VAPID_PRIVATE_KEY":"[REDACTED]"')
+					.replace(/"WEB_PUSH_VAPID_PUBLIC_KEY":"[^"]*"/g, '"WEB_PUSH_VAPID_PUBLIC_KEY":"[REDACTED]"')
+					.replace(/"VAPID_PUBLIC_KEY":"[^"]*"/g, '"VAPID_PUBLIC_KEY":"[REDACTED]"');
 			}
 
 			if (logLine.length > 80) {

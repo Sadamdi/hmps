@@ -97,14 +97,23 @@ export default function NotificationPrompt() {
 				return;
 			}
 
-			const sub = await withTimeout(
-				reg.pushManager.subscribe({
-					userVisuallyPrompted: true,
-					applicationServerKey: urlBase64ToUint8Array(publicKey),
-				} as any),
-				OP_TIMEOUT_MS,
-				'pushManager.subscribe',
-			);
+			let sub = await reg.pushManager.getSubscription();
+			if (!sub) {
+				try {
+					sub = await withTimeout(
+						reg.pushManager.subscribe({
+							userVisuallyPrompted: true,
+							applicationServerKey: urlBase64ToUint8Array(publicKey),
+						} as any),
+						OP_TIMEOUT_MS,
+						'pushManager.subscribe',
+					);
+				} catch (err: any) {
+					const fallbackSub = await reg.pushManager.getSubscription();
+					if (!fallbackSub) throw err;
+					sub = fallbackSub;
+				}
+			}
 
 			const subJson = sub.toJSON();
 			await fetch('/api/notifications/webpush/subscribe', {
