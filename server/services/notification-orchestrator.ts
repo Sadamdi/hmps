@@ -83,9 +83,9 @@ async function sendWebPush(
 
 	if (subs.length === 0) return;
 
-	const vapidPublic = process.env.VAPID_PUBLIC_KEY;
-	const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
-	const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@himatif-encoder.com';
+	const vapidPublic = process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
+	const vapidPrivate = process.env.VAPID_PRIVATE_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
+	const vapidSubject = process.env.VAPID_SUBJECT || process.env.WEB_PUSH_SUBJECT || 'mailto:admin@himatif-encoder.com';
 
 	if (!vapidPublic || !vapidPrivate) return;
 
@@ -182,9 +182,9 @@ export async function broadcastNotification(
 	const prefKey = EVENT_TO_PREF_KEY[eventType];
 
 	const allSubs = await WebPushSubscription.find({ isActive: true }).lean();
-	const vapidPublic = process.env.VAPID_PUBLIC_KEY;
-	const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
-	const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:admin@himatif-encoder.com';
+	const vapidPublic = process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY;
+	const vapidPrivate = process.env.VAPID_PRIVATE_KEY || process.env.WEB_PUSH_VAPID_PRIVATE_KEY;
+	const vapidSubject = process.env.VAPID_SUBJECT || process.env.WEB_PUSH_SUBJECT || 'mailto:admin@himatif-encoder.com';
 
 	if (allSubs.length > 0 && vapidPublic && vapidPrivate) {
 		try {

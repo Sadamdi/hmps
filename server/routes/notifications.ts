@@ -103,7 +103,7 @@ router.delete('/webpush/unsubscribe', async (req, res) => {
 });
 
 router.get('/webpush/vapid-key', (_req, res) => {
-	const publicKey = process.env.VAPID_PUBLIC_KEY || '';
+	const publicKey = process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY || '';
 	res.json({ publicKey });
 });
 
