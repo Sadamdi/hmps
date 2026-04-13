@@ -61,6 +61,7 @@
     "bcryptjs": "^3.0.2",
     "canvas": "^3.2.3",
     "cheerio": "^1.0.0",
+    "clamscan": "^2.4.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.1",
     "cmdk": "^1.0.0",

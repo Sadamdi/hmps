@@ -108,6 +108,42 @@ export async function sendFeedbackDecisionEmail(params: {
 	});
 }
 
+export async function sendBugReplyEmail(params: {
+	to: string;
+	reporterName: string;
+	bugDescription: string;
+	replyMessage: string;
+	adminName: string;
+}): Promise<void> {
+	const { to, reporterName, bugDescription, replyMessage, adminName } = params;
+	const transport = getTransporter();
+
+	const plainDesc = bugDescription.replace(/<[^>]+>/g, ' ').trim();
+	const truncatedDesc = plainDesc.length > 300 ? plainDesc.slice(0, 297) + '...' : plainDesc;
+
+	await transport.sendMail({
+		from: `"HMTI System" <${process.env.EMAIL}>`,
+		to,
+		subject: `[HMTI] Balasan untuk Bug Report Anda`,
+		html: `
+			<div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
+				<h2 style="color: #1a1a1a; margin-bottom: 8px;">Hai ${reporterName},</h2>
+				<p style="color: #555; margin-bottom: 16px;">Bug report yang Anda kirimkan telah mendapat balasan.</p>
+				<div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Bug report Anda:</p>
+					<p style="color: #333; font-size: 14px; margin: 0; white-space: pre-wrap;">${truncatedDesc}</p>
+				</div>
+				<div style="background: #eef6ff; border-left: 3px solid #ef4444; border-radius: 4px; padding: 16px; margin-bottom: 16px;">
+					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Balasan dari <strong>${adminName}</strong>:</p>
+					<p style="color: #1a1a1a; font-size: 14px; margin: 0; white-space: pre-wrap;">${replyMessage}</p>
+				</div>
+				<hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+				<p style="color: #aaa; font-size: 12px;">Terima kasih telah membantu meningkatkan kualitas sistem HMTI.</p>
+			</div>
+		`,
+	});
+}
+
 export async function sendOtpEmail(params: {
 	to: string;
 	code: string;

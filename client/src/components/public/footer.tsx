@@ -405,6 +405,7 @@ export default function Footer() {
 	const fileReplaceRefs = useRef<Record<string, HTMLInputElement | null>>({});
 	const [submitSuccess, setSubmitSuccess] = useState(false);
 	const [formClientError, setFormClientError] = useState<string | null>(null);
+	const MAX_FEEDBACK_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 	const currentDest = useMemo(() => config.destinations.find((d) => d.id === target), [config.destinations, target]);
 	const allowedTypes = currentDest?.types ?? [];
@@ -437,6 +438,12 @@ export default function Footer() {
 		(fieldId: string, files: FileList | null, append: boolean) => {
 			const picked = Array.from(files || []);
 			if (picked.length === 0) return;
+			const oversized = picked.find((f) => f.size > MAX_FEEDBACK_FILE_SIZE);
+			if (oversized) {
+				setFormClientError(`File "${oversized.name}" melebihi batas 10MB.`);
+				return;
+			}
+			setFormClientError(null);
 			setFileByField((prev) => {
 				const field = sortedFields.find((x) => x.id === fieldId);
 				const max = field ? maxFilesForField(field) : 10;
@@ -445,7 +452,7 @@ export default function Footer() {
 				return { ...prev, [fieldId]: merged };
 			});
 		},
-		[sortedFields, maxFilesForField],
+		[sortedFields, maxFilesForField, MAX_FEEDBACK_FILE_SIZE],
 	);
 
 	const removeFileAt = useCallback((fieldId: string, idx: number) => {
@@ -457,12 +464,17 @@ export default function Footer() {
 	}, []);
 
 	const replaceFileAt = useCallback((fieldId: string, idx: number, file: File) => {
+		if (file.size > MAX_FEEDBACK_FILE_SIZE) {
+			setFormClientError(`File "${file.name}" melebihi batas 10MB.`);
+			return;
+		}
+		setFormClientError(null);
 		setFileByField((prev) => {
 			const list = [...(prev[fieldId] || [])];
 			list[idx] = file;
 			return { ...prev, [fieldId]: list };
 		});
-	}, []);
+	}, [MAX_FEEDBACK_FILE_SIZE]);
 
 	const toggleMultiSelect = useCallback((fieldId: string, option: string) => {
 		setFieldValues((p) => {
@@ -721,7 +733,13 @@ export default function Footer() {
 							<div className="grid grid-cols-2 gap-2">
 								{detailCard.media.map((m, i) => (
 									<a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-border/30">
-										<img src={m.url} alt={m.originalName || `media-${i}`} className="w-full h-32 object-cover" loading="lazy" />
+										{(m as any).mimeType?.startsWith('image/') ? (
+											<img src={m.url} alt={m.originalName || `media-${i}`} className="w-full h-32 object-cover" loading="lazy" />
+										) : (
+											<div className="w-full h-32 flex items-center justify-center text-xs text-muted-foreground px-2 text-center">
+												{m.originalName || `Lampiran ${i + 1}`}
+											</div>
+										)}
 									</a>
 								))}
 							</div>
@@ -996,8 +1014,6 @@ export default function Footer() {
 										}
 										if (f.kind === 'file') {
 											const max = maxFilesForField(f);
-											/* Server memproses lewat uploadFeedbackImage (hanya gambar, WebP) */
-											const accept = 'image/*';
 											const list = fileByField[f.id] || [];
 											return (
 												<div key={f.id}>
@@ -1008,7 +1024,6 @@ export default function Footer() {
 													</label>
 													<input
 														type="file"
-														accept={accept}
 														multiple
 														onChange={(e: ChangeEvent<HTMLInputElement>) => {
 															appendFilesForField(f.id, e.target.files, true);
@@ -1031,7 +1046,6 @@ export default function Footer() {
 																				fileReplaceRefs.current[`${f.id}-${idx}`] = el;
 																			}}
 																			type="file"
-																			accept={accept}
 																			className="hidden"
 																			onChange={(event) => {
 																				const next = event.target.files?.[0];

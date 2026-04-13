@@ -829,6 +829,7 @@ const userNotificationSchema = new mongoose.Schema(
 				'sharing_declined',
 				'sharing_revoked',
 				'sharing_expired',
+				'bug_reply',
 			],
 		},
 		title: { type: String, required: true },
@@ -1079,6 +1080,8 @@ const feedbackSchema = new mongoose.Schema(
 		media: [{
 			url: { type: String, required: true },
 			originalName: { type: String, default: '' },
+			mimeType: { type: String, default: '' },
+			size: { type: Number, default: 0 },
 		}],
 		reply: { type: feedbackReplySchema, default: null },
 		suggestionStatus: { type: String, enum: ['pending', 'accepted', 'rejected'], default: 'pending' },
@@ -1097,6 +1100,41 @@ const feedbackSchema = new mongoose.Schema(
 feedbackSchema.index({ target: 1, type: 1, createdAt: -1 });
 feedbackSchema.index({ isVisibleCard: 1, createdAt: -1 });
 feedbackSchema.index({ type: 1, suggestionStatus: 1 });
+
+// Model BugReport — laporan bug dari dashboard (disimpan di DB utama saja)
+const bugReportAttachmentSchema = new mongoose.Schema({
+	url: { type: String, required: true },
+	originalName: { type: String, default: '' },
+	mimeType: { type: String, default: '' },
+	size: { type: Number, default: 0 },
+}, { _id: false });
+
+const bugReportReplySchema = new mongoose.Schema({
+	message: { type: String, required: true },
+	repliedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+	repliedByName: { type: String, required: true },
+	repliedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
+const bugReportSchema = new mongoose.Schema(
+	{
+		description: { type: String, required: true },
+		attachments: [bugReportAttachmentSchema],
+		gdriveLinks: [{ type: String }],
+		reporterUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+		reporterName: { type: String, required: true },
+		reporterUsername: { type: String, required: true },
+		reporterEmail: { type: String, required: true },
+		sourceCommunitySlug: { type: String, default: '' },
+		sourceCommunityName: { type: String, default: '' },
+		status: { type: String, enum: ['open', 'replied', 'closed'], default: 'open' },
+		reply: { type: bugReportReplySchema, default: null },
+	},
+	{ timestamps: true },
+);
+
+bugReportSchema.index({ status: 1, createdAt: -1 });
+bugReportSchema.index({ reporterUserId: 1 });
 
 // Model Comment — komentar publik pada berita/event/library dengan reply bertingkat
 const commentSchema = new mongoose.Schema(
@@ -1203,6 +1241,9 @@ const Comment =
 const Feedback =
 	mongoose.models.Feedback || mongoose.model('Feedback', feedbackSchema);
 
+const BugReport =
+	mongoose.models.BugReport || mongoose.model('BugReport', bugReportSchema);
+
 // Create Position model
 export const Position =
 	mongoose.models.Position || mongoose.model('Position', positionSchema);
@@ -1252,6 +1293,36 @@ tempUploadSchema.index({ code: 1, consumedAt: 1 });
 const TempUpload =
 	mongoose.models.TempUpload || mongoose.model('TempUpload', tempUploadSchema);
 
+// Model FileUpload — tracks all uploaded files with antivirus scan status
+const fileUploadSchema = new mongoose.Schema(
+	{
+		url: { type: String, required: true },
+		quarantinePath: { type: String, default: '' },
+		publicPath: { type: String, default: '' },
+		originalName: { type: String, default: '' },
+		mimeType: { type: String, default: '' },
+		size: { type: Number, default: 0 },
+		category: { type: String, default: 'general' },
+		scanStatus: {
+			type: String,
+			enum: ['pending_scan', 'scanning', 'clean', 'infected', 'scan_failed', 'skipped'],
+			default: 'pending_scan',
+		},
+		scanEngine: { type: String, default: '' },
+		scannedAt: { type: Date, default: null },
+		threatName: { type: String, default: '' },
+		uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		tenantSlug: { type: String, default: '' },
+	},
+	{ timestamps: true },
+);
+
+fileUploadSchema.index({ scanStatus: 1, createdAt: 1 });
+fileUploadSchema.index({ url: 1 }, { unique: true });
+
+const FileUpload =
+	mongoose.models.FileUpload || mongoose.model('FileUpload', fileUploadSchema);
+
 // Export all schemas for tenant model factory
 export const allSchemas = {
 	user: userSchema,
@@ -1272,17 +1343,20 @@ export const allSchemas = {
 	userNotification: userNotificationSchema,
 	comment: commentSchema,
 	feedback: feedbackSchema,
+	bugReport: bugReportSchema,
 	prodiContent: prodiContentSchema,
 	activity: activitySchema,
 };
 
 export {
 	Berita,
+	BugReport,
 	Comment,
 	Community,
 	Event,
 	EventYear,
 	Feedback,
+	FileUpload,
 	HomeImages,
 	Library,
 	Organization,

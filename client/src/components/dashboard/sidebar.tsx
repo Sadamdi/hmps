@@ -6,6 +6,7 @@ import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import {
 	BookOpen,
+	Bug,
 	Building2,
 	Calendar,
 	ChevronLeft,
@@ -21,8 +22,10 @@ import {
 	Shield,
 	UserCog,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useState, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'wouter';
+
+const BugReportDialog = lazy(() => import('./bug-report-dialog'));
 
 interface SidebarProps {
 	mobileOpen?: boolean;
@@ -41,6 +44,7 @@ export default function Sidebar({
 	const { user, logout, hasPermission, hasSpecificPermission } = useAuth();
 	const { isTenant } = useTenant();
 	const [internalExpanded, setInternalExpanded] = useState(true);
+	const [bugDialogOpen, setBugDialogOpen] = useState(false);
 
 	// Auto-refresh permissions every 30 seconds to catch role changes
 	usePermissionRefresh();
@@ -316,9 +320,19 @@ export default function Sidebar({
 								</Link>
 							);
 						})}
+						<div className="mt-4 pt-4 border-t border-sidebar-border">
+							<Button
+								variant="destructive"
+								className={`w-full ${isExpanded ? 'justify-start' : 'justify-center px-2'} gap-2 font-semibold`}
+								onClick={() => setBugDialogOpen(true)}
+							>
+								<Bug className="h-5 w-5 shrink-0" />
+								{isExpanded && <span>Report Bug</span>}
+							</Button>
+						</div>
 					</nav>
 
-					{/* User Profile - always at bottom */}
+				{/* User Profile - always at bottom */}
 					<div className="flex-shrink-0 border-t border-sidebar-border p-4">
 						<div
 							className={`flex ${
@@ -355,6 +369,12 @@ export default function Sidebar({
 					</div>
 				</div>
 			</aside>
+
+			{bugDialogOpen && (
+				<Suspense fallback={null}>
+					<BugReportDialog open={bugDialogOpen} onOpenChange={setBugDialogOpen} />
+				</Suspense>
+			)}
 		</>
 	);
 }

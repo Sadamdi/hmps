@@ -4,8 +4,9 @@ import { Router } from 'express';
 import { authenticate, requirePermission } from '../auth';
 import { feedbackRateLimiter } from '../middleware/public-rate-limit';
 import { mongoStorage } from '../mongo-storage';
-import { sendFeedbackReplyEmail, sendFeedbackDecisionEmail } from '../services/email';
-import { uploadMiddleware, uploadFeedbackImage } from '../upload';
+import { sendFeedbackReplyEmail, sendFeedbackDecisionEmail, sendBugReplyEmail } from '../services/email';
+import { uploadMiddleware, uploadFeedbackImage, uploadUniversalFile, tenantCtxFromReq, deleteFile } from '../upload';
+import { BugReport, UserNotification, FileUpload } from '../../db/mongodb';
 import {
 	normalizeFeedbackFormConfig,
 	normalizeIncomingFieldKind,
@@ -190,6 +191,9 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 			return res.status(400).json({ message: 'Terlalu banyak file' });
 		}
 
+			const tenantCtx = tenantCtxFromReq(req as any);
+		const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 		for (const field of sortedFields) {
 			if (field.kind !== 'file') continue;
 			const files = fileBuckets[field.id] || [];
@@ -197,10 +201,13 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 			if (field.required && files.length === 0) {
 				return res.status(400).json({ message: `Field "${field.label}" wajib diunggah` });
 			}
-			const uploaded: { url: string; originalName: string }[] = [];
+			const uploaded: { url: string; originalName: string; mimeType?: string; size?: number }[] = [];
 			for (const file of files.slice(0, max)) {
+				if (file.size > MAX_FILE_SIZE) {
+					return res.status(400).json({ message: `File "${file.originalname}" melebihi batas 10MB` });
+				}
 				try {
-					uploaded.push(await uploadFeedbackImage(file));
+					uploaded.push(await uploadUniversalFile(file, 'feedback', tenantCtx));
 				} catch (err) {
 					console.error('Failed to process feedback field file:', err);
 				}
@@ -211,10 +218,13 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 			if (uploaded.length) sanitizedExtra[field.id] = uploaded;
 		}
 
-		const media: { url: string; originalName: string }[] = [];
+		const media: { url: string; originalName: string; mimeType?: string; size?: number }[] = [];
 		for (const file of legacyMediaFiles.slice(0, 10)) {
+			if (file.size > MAX_FILE_SIZE) {
+				return res.status(400).json({ message: `File "${file.originalname}" melebihi batas 10MB` });
+			}
 			try {
-				media.push(await uploadFeedbackImage(file));
+				media.push(await uploadUniversalFile(file, 'feedback', tenantCtx));
 			} catch (err) {
 				console.error('Failed to process feedback media:', err);
 			}
@@ -759,6 +769,289 @@ router.patch(
 			});
 		} catch (error) {
 			console.error('Error updating feedback footer display settings:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	},
+);
+
+// ── Bug Report endpoints ──
+
+const BUG_MAX_FILES = 10;
+const BUG_MAX_GDRIVE = 10;
+const BUG_MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+router.post(
+	'/bug-report',
+	authenticate,
+	uploadMiddleware.array('files', BUG_MAX_FILES),
+	async (req, res) => {
+		try {
+			const user = req.user as any;
+			const { description, gdriveLinks: gdriveRaw } = req.body;
+
+			if (!description?.trim()) {
+				return res.status(400).json({ message: 'Deskripsi bug wajib diisi' });
+			}
+
+			let gdriveLinks: string[] = [];
+			try {
+				gdriveLinks = typeof gdriveRaw === 'string' ? JSON.parse(gdriveRaw) : (Array.isArray(gdriveRaw) ? gdriveRaw : []);
+			} catch { gdriveLinks = []; }
+			gdriveLinks = gdriveLinks.filter((l: string) => typeof l === 'string' && l.trim()).slice(0, BUG_MAX_GDRIVE);
+
+			const files = (req.files as Express.Multer.File[]) || [];
+			if (files.length + gdriveLinks.length > BUG_MAX_FILES + BUG_MAX_GDRIVE) {
+				return res.status(400).json({ message: `Maksimal ${BUG_MAX_FILES} file dan ${BUG_MAX_GDRIVE} link GDrive` });
+			}
+
+			const tenantCtx = tenantCtxFromReq(req as any);
+			const attachments: { url: string; originalName: string; mimeType: string; size: number }[] = [];
+			for (const file of files.slice(0, BUG_MAX_FILES)) {
+				if (file.size > BUG_MAX_FILE_SIZE) {
+					return res.status(400).json({ message: `File "${file.originalname}" melebihi batas 10MB` });
+				}
+				try {
+					attachments.push(await uploadUniversalFile(file, 'bugreport', tenantCtx));
+				} catch (err) {
+					console.error('Failed to upload bug report file:', err);
+				}
+			}
+
+			const communitySlug = (req as any).tenantSlug || '';
+			let communityName = '';
+			if (communitySlug) {
+				try {
+					const { Community } = await import('../../db/mongodb');
+					const community = await Community.findOne({ slug: communitySlug }).lean();
+					communityName = (community as any)?.name || communitySlug;
+				} catch { communityName = communitySlug; }
+			}
+
+			const bugReport = new BugReport({
+				description: stripUnsafeHtml(description),
+				attachments,
+				gdriveLinks,
+				reporterUserId: user._id,
+				reporterName: user.name || user.username,
+				reporterUsername: user.username,
+				reporterEmail: user.email,
+				sourceCommunitySlug: communitySlug,
+				sourceCommunityName: communityName,
+			});
+			await bugReport.save();
+
+			res.status(201).json({ message: 'Bug report berhasil dikirim', _id: bugReport._id });
+		} catch (error) {
+			console.error('Error creating bug report:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	},
+);
+
+router.get(
+	'/bug-report/list',
+	authenticate,
+	async (req, res) => {
+		try {
+			const user = req.user as any;
+			if (user.role !== 'owner') {
+				return res.status(403).json({ message: 'Hanya owner yang dapat mengakses daftar bug' });
+			}
+
+			const { status, page: pageStr, limit: limitStr } = req.query;
+			const page = Math.max(1, parseInt(pageStr as string, 10) || 1);
+			const limit = Math.min(100, Math.max(1, parseInt(limitStr as string, 10) || 20));
+			const skip = (page - 1) * limit;
+
+			const filter: any = {};
+			if (status && ['open', 'replied', 'closed'].includes(status as string)) {
+				filter.status = status;
+			}
+
+			const [items, total] = await Promise.all([
+				BugReport.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+				BugReport.countDocuments(filter),
+			]);
+
+			res.json({ items, total, page, limit });
+		} catch (error) {
+			console.error('Error fetching bug reports:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	},
+);
+
+router.get(
+	'/bug-report/count',
+	authenticate,
+	async (req, res) => {
+		try {
+			const user = req.user as any;
+			if (user.role !== 'owner') {
+				return res.status(403).json({ message: 'Forbidden' });
+			}
+
+			const [total, open, replied, closed] = await Promise.all([
+				BugReport.countDocuments({}),
+				BugReport.countDocuments({ status: 'open' }),
+				BugReport.countDocuments({ status: 'replied' }),
+				BugReport.countDocuments({ status: 'closed' }),
+			]);
+
+			res.json({ total, open, replied, closed });
+		} catch (error) {
+			console.error('Error counting bug reports:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	},
+);
+
+router.post(
+	'/bug-report/:id/reply',
+	authenticate,
+	async (req, res) => {
+		try {
+			const user = req.user as any;
+			if (user.role !== 'owner') {
+				return res.status(403).json({ message: 'Hanya owner yang dapat membalas bug report' });
+			}
+
+			const { message } = req.body;
+			if (!message?.trim()) {
+				return res.status(400).json({ message: 'Pesan balasan wajib diisi' });
+			}
+
+			const bugReport = await BugReport.findById(req.params.id);
+			if (!bugReport) {
+				return res.status(404).json({ message: 'Bug report tidak ditemukan' });
+			}
+
+			bugReport.reply = {
+				message: message.trim(),
+				repliedBy: user._id,
+				repliedByName: user.name || user.username,
+				repliedAt: new Date(),
+			};
+			bugReport.status = 'replied';
+			await bugReport.save();
+
+			if (bugReport.reporterEmail) {
+				try {
+					await sendBugReplyEmail({
+						to: bugReport.reporterEmail,
+						reporterName: bugReport.reporterName,
+						bugDescription: bugReport.description,
+						replyMessage: message.trim(),
+						adminName: user.name || user.username,
+					});
+				} catch (emailErr) {
+					console.error('Failed to send bug reply email:', emailErr);
+				}
+			}
+
+			try {
+				const notifPayload = {
+					userId: bugReport.reporterUserId,
+					type: 'bug_reply',
+					title: 'Balasan Bug Report',
+					description: `Bug report Anda telah dibalas oleh ${user.name || user.username}`,
+					fromUserId: user._id,
+					fromUserName: user.name || user.username,
+					actionUrl: '/dashboard',
+				};
+
+				// Kirim notifikasi ke DB asal pengirim bug (main atau tenant)
+				if (bugReport.sourceCommunitySlug) {
+					try {
+						const { Community } = await import('../../db/mongodb');
+						const community: any = await Community.findOne({ slug: bugReport.sourceCommunitySlug }).lean();
+						if (community?.dbName) {
+							const { getTenantModels } = await import('../../db/tenant');
+							const tm = getTenantModels(String(community.dbName));
+							await tm.UserNotification.create(notifPayload);
+						} else {
+							await UserNotification.create(notifPayload);
+						}
+					} catch (tenantNotifErr) {
+						console.error('Failed to create tenant bug notification, fallback to main:', tenantNotifErr);
+						await UserNotification.create(notifPayload);
+					}
+				} else {
+					await UserNotification.create(notifPayload);
+				}
+			} catch (notifErr) {
+				console.error('Failed to create bug reply notification:', notifErr);
+			}
+
+			res.json(bugReport.toObject());
+		} catch (error) {
+			console.error('Error replying to bug report:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	},
+);
+
+router.patch(
+	'/bug-report/:id/status',
+	authenticate,
+	async (req, res) => {
+		try {
+			const user = req.user as any;
+			if (user.role !== 'owner') {
+				return res.status(403).json({ message: 'Forbidden' });
+			}
+
+			const { status } = req.body;
+			if (!status || !['open', 'replied', 'closed'].includes(status)) {
+				return res.status(400).json({ message: 'Status harus open, replied, atau closed' });
+			}
+
+			const updated = await BugReport.findByIdAndUpdate(
+				req.params.id,
+				{ status },
+				{ new: true },
+			).lean();
+
+			if (!updated) return res.status(404).json({ message: 'Bug report tidak ditemukan' });
+			res.json(updated);
+		} catch (error) {
+			console.error('Error updating bug report status:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	},
+);
+
+router.delete(
+	'/bug-report/:id',
+	authenticate,
+	async (req, res) => {
+		try {
+			const user = req.user as any;
+			if (user.role !== 'owner') {
+				return res.status(403).json({ message: 'Forbidden' });
+			}
+
+			const existing = await BugReport.findById(req.params.id).lean();
+			if (!existing) return res.status(404).json({ message: 'Bug report tidak ditemukan' });
+
+			// Hapus semua file fisik + metadata upload yang terkait bug report
+			const attachments = Array.isArray((existing as any).attachments) ? (existing as any).attachments : [];
+			for (const att of attachments) {
+				if (att?.url) {
+					try { await deleteFile(String(att.url)); } catch (err) {
+						console.error('Failed deleting bug attachment file:', att.url, err);
+					}
+					try { await FileUpload.deleteOne({ url: String(att.url) }); } catch (err) {
+						console.error('Failed deleting file upload metadata:', att.url, err);
+					}
+				}
+			}
+
+			const deleted = await BugReport.findByIdAndDelete(req.params.id);
+			if (!deleted) return res.status(404).json({ message: 'Bug report tidak ditemukan' });
+			res.json({ message: 'Bug report deleted' });
+		} catch (error) {
+			console.error('Error deleting bug report:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	},

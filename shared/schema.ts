@@ -341,6 +341,8 @@ export interface FeedbackRatings {
 export interface FeedbackMedia {
 	url: string;
 	originalName: string;
+	mimeType?: string;
+	size?: number;
 }
 
 export interface FeedbackItem {
@@ -731,7 +733,39 @@ export type SharingNotificationType =
 	| 'sharing_approved'
 	| 'sharing_declined'
 	| 'sharing_revoked'
-	| 'sharing_expired';
+	| 'sharing_expired'
+	| 'bug_reply';
+
+export interface BugReportAttachment {
+	url: string;
+	originalName: string;
+	mimeType: string;
+	size: number;
+}
+
+export interface BugReportReply {
+	message: string;
+	repliedBy: string;
+	repliedByName: string;
+	repliedAt: Date;
+}
+
+export interface BugReportItem {
+	_id: string;
+	description: string;
+	attachments: BugReportAttachment[];
+	gdriveLinks: string[];
+	reporterUserId: string;
+	reporterName: string;
+	reporterUsername: string;
+	reporterEmail: string;
+	sourceCommunitySlug: string;
+	sourceCommunityName: string;
+	status: 'open' | 'replied' | 'closed';
+	reply: BugReportReply | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
 
 export interface UserNotification {
 	_id: string;
@@ -749,4 +783,39 @@ export interface UserNotification {
 	actionUrl?: string;
 	createdAt: Date;
 	updatedAt: Date;
+}
+
+// File Upload Scan Types
+export type FileScanStatus = 'pending_scan' | 'scanning' | 'clean' | 'infected' | 'scan_failed' | 'skipped';
+
+export interface FileUploadRecord {
+	_id: string;
+	url: string;
+	quarantinePath: string;
+	publicPath: string;
+	originalName: string;
+	mimeType: string;
+	size: number;
+	category: string;
+	scanStatus: FileScanStatus;
+	scanEngine: string;
+	scannedAt: Date | null;
+	threatName: string;
+	uploadedBy: string | null;
+	tenantSlug: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+// Login Auto-Detect Types
+export interface LoginTarget {
+	scope: 'main' | 'tenant';
+	slug?: string;
+	name: string;
+}
+
+export interface LoginAmbiguousResponse {
+	ambiguous: true;
+	targets: LoginTarget[];
+	message: string;
 }

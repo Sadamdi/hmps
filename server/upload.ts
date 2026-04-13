@@ -6,10 +6,17 @@ import { fileURLToPath } from 'url';
 import { promisify } from 'util';
 import { isProcessableImage, processImage } from './image-processor';
 import { DEFAULT_IMAGE_URL, DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
+import { registerUpload } from './services/file-scanner';
 
 // Promisify fs functions
 const mkdir = promisify(fs.mkdir);
-const writeFile = promisify(fs.writeFile);
+const _writeFile = promisify(fs.writeFile);
+
+/**
+ * Wrapped writeFile that tracks the last written file for scan registration.
+ * Not a replacement for registerUpload — just the raw fs write.
+ */
+const writeFile = _writeFile;
 
 // Resolve project root from the script location rather than process.cwd(),
 // so uploads land in the correct directory even if PM2/systemd starts
@@ -205,7 +212,13 @@ export async function uploadHandler(
 		const filePath = path.join(categoryDir, fileName);
 		await writeFile(filePath, file.buffer);
 
-		return `${urlPrefix}/${fileName}`;
+		const fileUrl = `${urlPrefix}/${fileName}`;
+		registerUpload({
+			url: fileUrl, diskPath: filePath, originalName: file.originalname,
+			mimeType: file.mimetype, size: file.size, category,
+			tenantSlug: tenant?.tenantSlug,
+		}).catch(() => {});
+		return fileUrl;
 	} catch (error) {
 		console.error('Error handling file upload:', error);
 		throw new Error('File upload failed');
@@ -259,7 +272,13 @@ export async function uploadBeritaImage(
 
 		await writeFile(filePath, processedBuffer);
 
-		return `${urlPrefix}/${fileName}`;
+		const fileUrl = `${urlPrefix}/${fileName}`;
+		registerUpload({
+			url: fileUrl, diskPath: filePath, originalName: file.originalname,
+			mimeType: 'image/webp', size: processedBuffer.length, category: 'berita',
+			tenantSlug: tenant?.tenantSlug,
+		}).catch(() => {});
+		return fileUrl;
 	} catch (error) {
 		console.error('Error processing berita image:', error);
 		throw new Error('Failed to process berita image');
@@ -757,10 +776,76 @@ export async function uploadFeedbackImage(
 
 	await writeFile(filePath, processedBuffer);
 
-	return {
+	const feedbackResult = {
 		url: `${urlPrefix}/${fileName}`,
 		originalName: file.originalname,
 	};
+	registerUpload({
+		url: feedbackResult.url, diskPath: filePath, originalName: file.originalname,
+		mimeType: 'image/webp', size: processedBuffer.length, category: 'feedback',
+		tenantSlug: tenant?.tenantSlug,
+	}).catch(() => {});
+	return feedbackResult;
+}
+
+/**
+ * Upload any file type (universal) — saves as-is without conversion.
+ * Images are still processed to WebP for consistency; other types kept raw.
+ */
+export async function uploadUniversalFile(
+	file: Express.Multer.File,
+	subCategory: string = 'feedback',
+	tenant?: TenantPathContext,
+): Promise<{ url: string; originalName: string; mimeType: string; size: number }> {
+	const timestamp = Date.now();
+	const randomName = crypto.randomBytes(8).toString('hex');
+	const safeOriginalName = file.originalname
+		.replace(/[^a-zA-Z0-9.]/g, '_')
+		.substring(0, 40);
+
+	const shouldProcessAsImage = isProcessableImage(file.mimetype);
+
+	const fileExtension = shouldProcessAsImage
+		? '.webp'
+		: (path.extname(file.originalname) || '.bin');
+	const fileName = `${timestamp}_${safeOriginalName}_${randomName}${fileExtension}`;
+
+	const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+		? resolveTenantPaths(subCategory, false, tenant)
+		: (() => {
+			const d = path.join(uploadDir, subCategory);
+			if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+			return { dir: d, urlPrefix: `/uploads/${subCategory}` };
+		})();
+
+	const filePath = path.join(categoryDir, fileName);
+
+	if (shouldProcessAsImage) {
+		const processedBuffer = await processImage(file.buffer, {
+			quality: 80,
+			maxWidth: 1920,
+			maxHeight: 1080,
+			format: 'webp',
+		});
+		await writeFile(filePath, processedBuffer);
+	} else {
+		await writeFile(filePath, file.buffer);
+	}
+
+	const result = {
+		url: `${urlPrefix}/${fileName}`,
+		originalName: file.originalname,
+		mimeType: shouldProcessAsImage ? 'image/webp' : file.mimetype,
+		size: file.size,
+	};
+
+	registerUpload({
+		url: result.url, diskPath: filePath, originalName: file.originalname,
+		mimeType: result.mimeType, size: result.size, category: subCategory,
+		tenantSlug: tenant?.tenantSlug,
+	}).catch(() => {});
+
+	return result;
 }
 
 /**

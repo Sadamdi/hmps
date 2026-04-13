@@ -3,13 +3,26 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from '@/components/ui/select';
 import { useErrorHandler } from '@/hooks/use-error-handler';
 import { useAuth } from '@/lib/auth';
 import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, Clock, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Building2, Clock, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
+
+interface LoginTargetOption {
+	scope: 'main' | 'tenant';
+	slug: string;
+	name: string;
+}
 
 export default function LoginForm() {
 	const [username, setUsername] = useState('');
@@ -18,6 +31,8 @@ export default function LoginForm() {
 	const [error, setError] = useState<string>('');
 	const [isRateLimited, setIsRateLimited] = useState(false);
 	const [retryAfter, setRetryAfter] = useState<number>(0);
+	const [loginTarget, setLoginTarget] = useState<string>('auto');
+	const [ambiguousTargets, setAmbiguousTargets] = useState<LoginTargetOption[] | null>(null);
 	const { user, login, isLoading } = useAuth();
 	const { handleError } = useErrorHandler();
 	const [, navigate] = useLocation();
@@ -25,6 +40,19 @@ export default function LoginForm() {
 	const { isTenant, basePath } = useTenant();
 	const { data: siteSettings } = useQuery<any>({ queryKey: ['/api/settings'], staleTime: 60000 });
 	const siteName = siteSettings?.siteName || siteSettings?.navbarBrand || (isTenant ? 'Komunitas' : 'HIMATIF ENCODER');
+
+	const { data: loginTargets } = useQuery<{ targets: LoginTargetOption[] }>({
+		queryKey: ['/api/auth/login-targets'],
+		queryFn: async () => {
+			const res = await fetch('/api/auth/login-targets');
+			if (!res.ok) return { targets: [] };
+			return res.json();
+		},
+		staleTime: 60000,
+		enabled: !isTenant,
+	});
+
+	const hasMultipleTargets = (loginTargets?.targets?.length ?? 0) > 1;
 
 	useEffect(() => {
 		document.title = isTenant ? `Login | ${siteName}` : 'Login | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
@@ -86,11 +114,36 @@ export default function LoginForm() {
 		e.preventDefault();
 		setError('');
 		setIsRateLimited(false);
+		setAmbiguousTargets(null);
 
 		try {
-			await login(username, password);
+			const target = loginTarget === 'auto' ? undefined : loginTarget;
+			await login(username, password, target);
 		} catch (err: any) {
+			if (err?.status === 409 && err?.targets) {
+				setAmbiguousTargets(err.targets);
+				setError('Akun ditemukan di beberapa konteks. Pilih tujuan login di bawah.');
+				return;
+			}
 			if (err?.status === 429 || err?.message?.includes('rate limit')) {
+				const retryTime = err?.retryAfter || 60;
+				setIsRateLimited(true);
+				setRetryAfter(retryTime);
+				setError(`Terlalu banyak percobaan login. Silakan tunggu ${retryTime} detik.`);
+			} else {
+				setError('Username atau password salah');
+			}
+		}
+	};
+
+	const handleAmbiguousChoice = async (target: LoginTargetOption) => {
+		setError('');
+		setAmbiguousTargets(null);
+		try {
+			const slug = target.scope === 'main' ? 'main' : target.slug;
+			await login(username, password, slug);
+		} catch (err: any) {
+			if (err?.status === 429) {
 				const retryTime = err?.retryAfter || 60;
 				setIsRateLimited(true);
 				setRetryAfter(retryTime);
@@ -188,6 +241,33 @@ export default function LoginForm() {
 						</div>
 					)}
 
+					{/* Ambiguous target chooser */}
+					{ambiguousTargets && (
+						<div className="mb-5 p-4 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-500/30 rounded-lg space-y-3">
+							<p className="text-sm font-medium text-amber-800 dark:text-amber-200">Pilih tujuan login:</p>
+							<div className="grid gap-2">
+								{ambiguousTargets.map((t, i) => (
+									<Button
+										key={i}
+										type="button"
+										variant="outline"
+										className="w-full justify-start gap-2 h-auto py-3 text-left"
+										onClick={() => handleAmbiguousChoice(t)}
+										disabled={isLoading}
+									>
+										<Building2 className="h-4 w-4 shrink-0 text-cyan-600" />
+										<div>
+											<div className="font-medium text-sm">{t.name}</div>
+											<div className="text-xs text-muted-foreground">
+												{t.scope === 'main' ? 'Web Utama' : 'Komunitas'}
+											</div>
+										</div>
+									</Button>
+								))}
+							</div>
+						</div>
+					)}
+
 					<form onSubmit={handleSubmit} className="space-y-5">
 						{/* Username or Email */}
 						<div className="space-y-1.5">
@@ -242,6 +322,31 @@ export default function LoginForm() {
 								</button>
 							</div>
 						</div>
+
+						{/* Login Target (only on main website, only if communities exist) */}
+						{!isTenant && hasMultipleTargets && (
+							<div className="space-y-1.5">
+								<Label htmlFor="loginTarget" className="text-slate-700 dark:text-slate-300 text-sm font-medium">
+									Login ke
+								</Label>
+								<div className="relative">
+									<Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500 z-10 pointer-events-none" />
+									<Select value={loginTarget} onValueChange={setLoginTarget}>
+										<SelectTrigger className="pl-9 bg-white dark:bg-white/5 border-slate-200 dark:border-white/15">
+											<SelectValue placeholder="Auto-detect" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="auto">Auto-detect</SelectItem>
+											{loginTargets?.targets.map((t) => (
+												<SelectItem key={t.slug} value={t.slug}>
+													{t.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
+							</div>
+						)}
 
 						{/* Remember Me + Forgot Password */}
 						<div className="flex items-center justify-between">

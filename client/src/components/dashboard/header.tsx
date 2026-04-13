@@ -28,6 +28,7 @@ import {
 	Loader2,
 	Menu,
 	Moon,
+	Bug,
 	Plus,
 	Settings,
 	Share2,
@@ -295,10 +296,13 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 									{userNotifData?.notifications?.slice(0, 3).map((n: any) => (
 										<DropdownMenuItem
 											key={`sharing-${n._id}`}
-											className="py-3 px-4 focus:bg-secondary">
+											className="py-3 px-4 focus:bg-secondary"
+											onClick={() => {
+												if (n.actionUrl) window.location.href = n.actionUrl;
+											}}>
 											<div className="flex items-start space-x-3 w-full">
-												<div className="p-1.5 rounded-full text-primary bg-primary/10">
-													<Share2 className="h-4 w-4" />
+												<div className={`p-1.5 rounded-full ${n.type === 'bug_reply' ? 'text-red-600 bg-red-100 dark:bg-red-950' : 'text-primary bg-primary/10'}`}>
+													{n.type === 'bug_reply' ? <Bug className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
 												</div>
 												<div className="flex-1 min-w-0">
 													<p className="text-sm font-medium text-foreground truncate">

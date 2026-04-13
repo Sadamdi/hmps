@@ -1,0 +1,33 @@
+declare module 'clamscan' {
+	interface ClamScanOptions {
+		removeInfected?: boolean;
+		quarantineInfected?: boolean;
+		debugMode?: boolean;
+		clamscan?: {
+			path?: string;
+			active?: boolean;
+		};
+		clamdscan?: {
+			path?: string;
+			active?: boolean;
+			socket?: string;
+			host?: string;
+			port?: number;
+			timeout?: number;
+		};
+		preference?: 'clamdscan' | 'clamscan';
+	}
+
+	interface ScanResult {
+		isInfected: boolean | null;
+		file: string;
+		viruses: string[];
+	}
+
+	class NodeClam {
+		init(options?: ClamScanOptions): Promise<NodeClam>;
+		isInfected(filePath: string): Promise<ScanResult>;
+	}
+
+	export default NodeClam;
+}

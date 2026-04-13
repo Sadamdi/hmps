@@ -1004,83 +1004,176 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Authentication routes (tenant-aware: works for both main and community logins)
+	// Helper: finalize login after user+context is resolved
+	async function finalizeLogin(
+		req: any, res: any,
+		user: any, storage: any, SessionModel: any,
+		tenantDbName: string | undefined,
+	) {
+		await storage.updateUser(user._id, { lastLogin: new Date() });
+		const sessionId = await createSessionRecord(req, String(user._id), SessionModel);
+		const token = generateToken({ ...(user as any), sessionId } as any, tenantDbName);
+		const { buildAuthCookieOptions } = await import('./auth');
+		res.cookie('authToken', token, buildAuthCookieOptions());
+
+		const { password: _, ...userWithoutPassword } = user;
+		let loginTenantSlug: string | undefined;
+		if (tenantDbName) {
+			try {
+				const { Community } = await import('../db/mongodb');
+				const community: any = await Community.findOne({ dbName: tenantDbName }).lean();
+				loginTenantSlug = community?.slug;
+			} catch {}
+		}
+		res.json({
+			...userWithoutPassword,
+			authScope: tenantDbName ? 'tenant' : 'main',
+			tenantSlug: loginTenantSlug,
+		});
+
+		try {
+			const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+			await SessionModel.deleteMany({ userId: user._id, revokedAt: { $lte: sevenDaysAgo } });
+			const activeSessions = await SessionModel.find({ userId: user._id }).sort({ createdAt: -1 }).lean();
+			if (activeSessions.length > 10) {
+				const ids = activeSessions.slice(10).map((s: any) => s._id);
+				await SessionModel.updateMany({ _id: { $in: ids }, revokedAt: null }, { $set: { revokedAt: new Date() } });
+			}
+		} catch (e) {
+			console.warn('Session retention maintenance (login) failed:', e);
+		}
+	}
+
 	app.post(
 		'/api/auth/login',
 		loginLimiter,
 		validateInput(loginSchema),
 		async (req, res) => {
 			try {
-				const { username, password } = req.body;
+				const { username, password, loginTarget } = req.body;
 
 				if (!username || !password) {
 					return res.status(400).json({ message: 'Username and password are required' });
 				}
 
-				// Resolve storage based on tenant context
-				let storage: any = mongoStorage;
-				let SessionModel: any;
-				let tenantDbName: string | undefined;
+				// If request is from a tenant subdomain, use that context directly
 				if (req.isTenantRequest && req.tenantModels) {
 					const { createTenantStorage } = await import('./tenant-storage');
-					storage = createTenantStorage(req.tenantModels);
-					SessionModel = req.tenantModels.Session;
-					tenantDbName = req.tenantDbName;
-				} else {
-					const { Session } = await import('../db/mongodb');
-					SessionModel = Session;
+					const storage = createTenantStorage(req.tenantModels);
+					const SessionModel = req.tenantModels.Session;
+					const tenantDbName = req.tenantDbName;
+
+					const user: any = await storage.getUserByUsernameOrEmail(username);
+					if (!user) return res.status(401).json({ message: 'Invalid username or password' });
+					const isValid = await verifyPassword(password, (user as any).password);
+					if (!isValid) return res.status(401).json({ message: 'Invalid username or password' });
+					return await finalizeLogin(req, res, user, storage, SessionModel, tenantDbName);
 				}
 
-				const user = await storage.getUserByUsernameOrEmail(username);
-				if (!user) {
+				// --- Auto-detect login from main website ---
+				if (loginTarget && loginTarget !== 'main') {
+					const { Community } = await import('../db/mongodb');
+					const community: any = await Community.findOne({ slug: loginTarget, status: 'active' }).lean();
+					if (!community) return res.status(401).json({ message: 'Komunitas tidak ditemukan atau tidak aktif' });
+					const { getTenantModels } = await import('../db/tenant');
+					const models = getTenantModels(community.dbName);
+					const { createTenantStorage } = await import('./tenant-storage');
+					const storage = createTenantStorage(models);
+					const user: any = await storage.getUserByUsernameOrEmail(username);
+					if (!user) return res.status(401).json({ message: 'Invalid username or password' });
+					const isValid = await verifyPassword(password, (user as any).password);
+					if (!isValid) return res.status(401).json({ message: 'Invalid username or password' });
+					return await finalizeLogin(req, res, user, storage, models.Session, community.dbName);
+				}
+
+				// Auto-detect: check main DB first
+				const { Session, Community } = await import('../db/mongodb');
+				const mainUser = await mongoStorage.getUserByUsernameOrEmail(username);
+				const mainValid = mainUser ? await verifyPassword(password, mainUser.password) : false;
+
+				// Check all active tenant DBs
+				interface MatchResult { user: any; dbName: string; slug: string; name: string; }
+				const tenantMatches: MatchResult[] = [];
+				const activeCommunities: any[] = await Community.find({ status: 'active' }).lean();
+
+				if (activeCommunities.length > 0) {
+					const { getTenantModels } = await import('../db/tenant');
+					const { createTenantStorage } = await import('./tenant-storage');
+
+					const checks = activeCommunities.map(async (c: any) => {
+						try {
+							const models = getTenantModels(c.dbName);
+							const tStorage = createTenantStorage(models);
+							const tUser: any = await tStorage.getUserByUsernameOrEmail(username);
+							if (tUser) {
+								const tValid = await verifyPassword(password, (tUser as any).password);
+								if (tValid) {
+									tenantMatches.push({ user: tUser, dbName: c.dbName, slug: c.slug, name: c.name });
+								}
+							}
+						} catch (e) {
+							console.warn(`Login auto-detect: failed checking tenant ${c.slug}:`, e);
+						}
+					});
+					await Promise.all(checks);
+				}
+
+				const totalMatches = (mainValid ? 1 : 0) + tenantMatches.length;
+
+				if (totalMatches === 0) {
 					return res.status(401).json({ message: 'Invalid username or password' });
 				}
 
-				const isPasswordValid = await verifyPassword(password, user.password);
-				if (!isPasswordValid) {
-					return res.status(401).json({ message: 'Invalid username or password' });
-				}
-
-				await storage.updateUser(user._id, { lastLogin: new Date() });
-
-				const sessionId = await createSessionRecord(req, String(user._id), SessionModel);
-
-			const token = generateToken({ ...(user as any), sessionId } as any, tenantDbName);
-			const { buildAuthCookieOptions } = await import('./auth');
-			res.cookie('authToken', token, buildAuthCookieOptions());
-
-				const { password: _, ...userWithoutPassword } = user;
-				let loginTenantSlug: string | undefined;
-				if (tenantDbName) {
-					try {
-						const { Community } = await import('../db/mongodb');
-						const community: any = await Community.findOne({ dbName: tenantDbName }).lean();
-						loginTenantSlug = community?.slug;
-					} catch {}
-				}
-				res.json({
-					...userWithoutPassword,
-					authScope: tenantDbName ? 'tenant' : 'main',
-					tenantSlug: loginTenantSlug,
-				});
-
-				// Session retention
-				try {
-					const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-					await SessionModel.deleteMany({ userId: user._id, revokedAt: { $lte: sevenDaysAgo } });
-					const activeSessions = await SessionModel.find({ userId: user._id }).sort({ createdAt: -1 }).lean();
-					if (activeSessions.length > 10) {
-						const ids = activeSessions.slice(10).map((s: any) => s._id);
-						await SessionModel.updateMany({ _id: { $in: ids }, revokedAt: null }, { $set: { revokedAt: new Date() } });
+				if (totalMatches === 1) {
+					if (mainValid && mainUser) {
+						return await finalizeLogin(req, res, mainUser, mongoStorage, Session, undefined);
 					}
-				} catch (e) {
-					console.warn('Session retention maintenance (login) failed:', e);
+					const match = tenantMatches[0];
+					const { getTenantModels } = await import('../db/tenant');
+					const { createTenantStorage } = await import('./tenant-storage');
+					const models = getTenantModels(match.dbName);
+					const storage = createTenantStorage(models);
+					return await finalizeLogin(req, res, match.user, storage, models.Session, match.dbName);
 				}
+
+				// Multiple matches => ambiguous, let user choose
+				const targets: { scope: 'main' | 'tenant'; slug?: string; name: string }[] = [];
+				if (mainValid) {
+					targets.push({ scope: 'main', name: 'Himatif (Web Utama)' });
+				}
+				for (const m of tenantMatches) {
+					targets.push({ scope: 'tenant', slug: m.slug, name: m.name });
+				}
+
+				return res.status(409).json({
+					ambiguous: true,
+					targets,
+					message: 'Akun ditemukan di beberapa konteks. Pilih tujuan login.',
+				});
 			} catch (error) {
 				console.error('Login error:', error);
 				res.status(500).json({ message: 'Internal server error' });
 			}
 		},
 	);
+
+	app.get('/api/auth/login-targets', async (_req, res) => {
+		try {
+			const { Community } = await import('../db/mongodb');
+			const active: any[] = await Community.find({ status: 'active' })
+				.select('slug name logoUrl')
+				.sort({ name: 1 })
+				.lean();
+			const targets = [
+				{ scope: 'main' as const, slug: 'main', name: 'Himatif (Web Utama)' },
+				...active.map((c: any) => ({ scope: 'tenant' as const, slug: c.slug, name: c.name })),
+			];
+			res.json({ targets });
+		} catch (error) {
+			console.error('Error fetching login targets:', error);
+			res.json({ targets: [{ scope: 'main', slug: 'main', name: 'Himatif (Web Utama)' }] });
+		}
+	});
 
 	app.post('/api/auth/logout', async (req, res) => {
 		const { buildClearCookieOptions } = await import('./auth');

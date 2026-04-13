@@ -50,11 +50,14 @@ import {
 	ArrowDown,
 	ArrowUp,
 	BookOpen,
+	Bug,
 	Check,
 	CheckCircle2,
 	ChevronsUpDown,
+	Download,
 	Eye,
 	EyeOff,
+	FileText,
 	LayoutPanelLeft,
 	Loader2,
 	MessageSquareReply,
@@ -74,8 +77,10 @@ import type {
 	FeedbackFieldDefinition,
 	FeedbackRatingDimension,
 	FeedbackFieldKind,
+	BugReportItem,
 } from '@shared/schema';
 import { DEFAULT_FEEDBACK_FORM_CONFIG, feedbackDecisionTypeIds } from '@shared/schema';
+import { useTenant } from '@/lib/tenant-context';
 
 const STATUS_LABELS: Record<string, string> = {
 	pending: 'Menunggu',
@@ -611,8 +616,103 @@ function ConfigEditor({ config, onSave, isSaving }: { config: FeedbackFormConfig
 	);
 }
 
+const CODE_EXTENSIONS = new Set([
+	'.js', '.ts', '.jsx', '.tsx', '.py', '.java', '.c', '.cpp', '.h', '.cs',
+	'.go', '.rs', '.rb', '.php', '.swift', '.kt', '.scala', '.r', '.sql',
+	'.html', '.css', '.scss', '.less', '.json', '.xml', '.yaml', '.yml',
+	'.toml', '.ini', '.cfg', '.conf', '.sh', '.bash', '.zsh', '.bat', '.ps1',
+	'.md', '.txt', '.log', '.env', '.gitignore', '.dockerfile',
+]);
+
+function getFileExt(name: string): string {
+	const idx = name.lastIndexOf('.');
+	return idx >= 0 ? name.slice(idx).toLowerCase() : '';
+}
+
+function isCodeLikeFile(name: string): boolean {
+	return CODE_EXTENSIONS.has(getFileExt(name));
+}
+
+function formatBytes(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function UniversalFilePreview({ url, name, mimeType, size }: { url: string; name: string; mimeType?: string; size?: number }) {
+	const [showPreview, setShowPreview] = useState(false);
+	const [codeContent, setCodeContent] = useState<string | null>(null);
+	const [codeLoading, setCodeLoading] = useState(false);
+
+	const mime = mimeType || '';
+	const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(name);
+	const isVideo = mime.startsWith('video/') || /\.(mp4|webm|ogg|mov|avi)$/i.test(name);
+	const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(name);
+	const isCode = isCodeLikeFile(name);
+
+	const loadCode = async () => {
+		if (codeContent !== null) return;
+		setCodeLoading(true);
+		try {
+			const res = await fetch(url);
+			const text = await res.text();
+			setCodeContent(text.slice(0, 8000));
+		} catch {
+			setCodeContent('(Gagal memuat konten file)');
+		} finally {
+			setCodeLoading(false);
+		}
+	};
+
+	return (
+		<div className="border rounded-md overflow-hidden">
+			<div className="flex items-center gap-2 p-2 bg-muted/50">
+				<FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+				<span className="text-sm truncate flex-1">{name}</span>
+				{size != null && size > 0 && <span className="text-xs text-muted-foreground">{formatBytes(size)}</span>}
+				{(isImage || isVideo || isPdf || isCode) && (
+					<Button
+						variant="ghost"
+						size="sm"
+						className="h-7 px-2"
+						onClick={() => {
+							setShowPreview(!showPreview);
+							if (isCode && !showPreview) loadCode();
+						}}
+					>
+						<Eye className="h-3.5 w-3.5 mr-1" />
+						{showPreview ? 'Tutup' : 'Preview'}
+					</Button>
+				)}
+				<a href={url} download={name} target="_blank" rel="noopener noreferrer">
+					<Button variant="ghost" size="sm" className="h-7 px-2">
+						<Download className="h-3.5 w-3.5 mr-1" />
+						Download
+					</Button>
+				</a>
+			</div>
+
+			{showPreview && (
+				<div className="p-3 border-t">
+					{isImage && <img src={url} alt={name} className="max-w-full max-h-96 rounded" />}
+					{isVideo && <video src={url} controls className="max-w-full max-h-96 rounded" />}
+					{isPdf && <iframe src={url} title={name} className="w-full h-96 rounded border" />}
+					{isCode && (
+						codeLoading ? (
+							<div className="flex items-center gap-2 p-4 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Memuat...</div>
+						) : (
+							<pre className="p-3 bg-muted rounded text-xs overflow-auto max-h-96 whitespace-pre-wrap font-mono">{codeContent}</pre>
+						)
+					)}
+				</div>
+			)}
+		</div>
+	);
+}
+
 export default function FeedbackPage() {
 	const { user, hasSpecificPermission } = useAuth();
+	const { isTenant } = useTenant();
 	usePermissionRefresh();
 
 	const { hasPermission, isLoading: isPermLoading } = usePermissionGuardAny([
@@ -621,9 +721,12 @@ export default function FeedbackPage() {
 	]);
 
 	const canManage = hasSpecificPermission('feedback.manage');
+	const isOwner = user?.role === 'owner' && !isTenant;
 	const { toast } = useToast();
 
-	const [activeTab, setActiveTab] = useState('list');
+	const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+	const initialTab = urlParams?.get('tab') === 'bugs' && isOwner ? 'bugs' : 'list';
+	const [activeTab, setActiveTab] = useState(initialTab);
 	const [listDestTab, setListDestTab] = useState<string>('all');
 	const [filterType, setFilterType] = useState<string>('all');
 	const [filterReply, setFilterReply] = useState<string>('all');
@@ -819,6 +922,98 @@ export default function FeedbackPage() {
 	const submitEnabled = siteSettings?.feedbackSubmitEnabled !== false;
 	const cardsEnabled = siteSettings?.feedbackCardsEnabled !== false;
 
+	// ── Bug Report state & queries (owner-only) ──
+	const [bugStatusFilter, setBugStatusFilter] = useState<string>('all');
+	const [bugReplyDialogOpen, setBugReplyDialogOpen] = useState(false);
+	const [bugReplyId, setBugReplyId] = useState<string | null>(null);
+	const [bugReplyMessage, setBugReplyMessage] = useState('');
+	const [expandedBugId, setExpandedBugId] = useState<string | null>(null);
+
+	const { data: bugData, isLoading: bugLoading } = useQuery<{ items: BugReportItem[]; total: number }>({
+		queryKey: ['/api/feedback/bug-report/list', bugStatusFilter],
+		queryFn: async () => {
+			const qs = bugStatusFilter !== 'all' ? `?status=${bugStatusFilter}` : '';
+			const res = await fetch(`/api/feedback/bug-report/list${qs}`, { credentials: 'include' });
+			if (!res.ok) throw new Error('Forbidden');
+			return res.json();
+		},
+		enabled: isOwner,
+		staleTime: 5000,
+	});
+
+	const { data: bugCount } = useQuery<{ total: number; open: number; replied: number; closed: number }>({
+		queryKey: ['/api/feedback/bug-report/count'],
+		queryFn: async () => {
+			const res = await fetch('/api/feedback/bug-report/count', { credentials: 'include' });
+			if (!res.ok) return { total: 0, open: 0, replied: 0, closed: 0 };
+			return res.json();
+		},
+		enabled: isOwner,
+		staleTime: 10000,
+	});
+
+	const bugReplyMut = useMutation({
+		mutationFn: async ({ id, message }: { id: string; message: string }) => {
+			await apiRequest('POST', `/api/feedback/bug-report/${id}/reply`, { message });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/feedback/bug-report/list'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/feedback/bug-report/count'] });
+			toast({ title: 'Balasan bug report terkirim' });
+			setBugReplyDialogOpen(false);
+			setBugReplyMessage('');
+		},
+		onError: () => toast({ title: 'Gagal mengirim balasan', variant: 'destructive' }),
+	});
+
+	const bugStatusMut = useMutation({
+		mutationFn: async ({ id, status }: { id: string; status: string }) => {
+			await apiRequest('PATCH', `/api/feedback/bug-report/${id}/status`, { status });
+		},
+		onSuccess: (_data, variables) => {
+			queryClient.setQueriesData(
+				{ queryKey: ['/api/feedback/bug-report/list'] },
+				(old: { items: BugReportItem[]; total: number } | undefined) =>
+					old
+						? {
+								...old,
+								items: old.items.map((item) =>
+									item._id === variables.id ? { ...item, status: variables.status as any } : item,
+								),
+							}
+						: old,
+			);
+			queryClient.invalidateQueries({ queryKey: ['/api/feedback/bug-report/list'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/feedback/bug-report/count'] });
+			toast({ title: 'Status diperbarui' });
+		},
+		onError: () => toast({ title: 'Gagal memperbarui status', variant: 'destructive' }),
+	});
+
+	const bugDeleteMut = useMutation({
+		mutationFn: async (id: string) => {
+			await apiRequest('DELETE', `/api/feedback/bug-report/${id}`);
+		},
+		onSuccess: (_data, deletedId) => {
+			queryClient.setQueriesData(
+				{ queryKey: ['/api/feedback/bug-report/list'] },
+				(old: { items: BugReportItem[]; total: number } | undefined) =>
+					old
+						? {
+								...old,
+								items: old.items.filter((item) => item._id !== deletedId),
+								total: Math.max(0, old.total - 1),
+							}
+						: old,
+			);
+			if (expandedBugId === deletedId) setExpandedBugId(null);
+			queryClient.invalidateQueries({ queryKey: ['/api/feedback/bug-report/list'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/feedback/bug-report/count'] });
+			toast({ title: 'Bug report dihapus' });
+		},
+		onError: () => toast({ title: 'Gagal menghapus', variant: 'destructive' }),
+	});
+
 	const feedbackPageDataForSpyro = useMemo(() => {
 		if (!user || isPermLoading) {
 			return buildSimpleSpyroPageData(
@@ -878,6 +1073,17 @@ export default function FeedbackPage() {
 						</TabsTrigger>
 					)}
 					{canManage && <TabsTrigger value="guide"><BookOpen className="h-4 w-4 mr-1" />Penjelasan form</TabsTrigger>}
+					{isOwner && (
+						<TabsTrigger value="bugs" className="text-red-600 data-[state=active]:text-red-700">
+							<Bug className="h-4 w-4 mr-1" />
+							Daftar Bug
+							{bugCount && bugCount.open > 0 && (
+								<Badge variant="destructive" className="ml-1.5 h-5 px-1.5 text-[10px]">
+									{bugCount.open}
+								</Badge>
+							)}
+						</TabsTrigger>
+					)}
 				</TabsList>
 
 				<TabsContent value="list">
@@ -1037,13 +1243,19 @@ export default function FeedbackPage() {
 															{Object.entries(fb.extraFields).map(([k, v]) => {
 																if (Array.isArray(v) && v.length && typeof v[0] === 'object' && v[0] !== null && 'url' in (v[0] as object)) {
 																	return (
-																		<div key={k} className="flex flex-wrap gap-2">
+																		<div key={k} className="space-y-1">
 																			<span className="font-medium text-muted-foreground">{flMap[k] || k}:</span>
-																			{(v as { url: string; originalName?: string }[]).map((m, i) => (
-																				<a key={i} href={m.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-																					{m.originalName || 'Buka lampiran'}
-																				</a>
-																			))}
+																			<div className="grid gap-1.5">
+																				{(v as { url: string; originalName?: string; mimeType?: string; size?: number }[]).map((m, i) => (
+																					<UniversalFilePreview
+																						key={i}
+																						url={m.url}
+																						name={m.originalName || 'file'}
+																						mimeType={m.mimeType}
+																						size={m.size}
+																					/>
+																				))}
+																			</div>
 																		</div>
 																	);
 																}
@@ -1066,13 +1278,19 @@ export default function FeedbackPage() {
 													)}
 
 													{Array.isArray(fb.media) && fb.media.length > 0 && (
-														<div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-															<span className="font-medium text-muted-foreground">Lampiran lama:</span>
-															{fb.media.map((m, idx) => (
-																<a key={idx} href={m.url} target="_blank" rel="noopener noreferrer" className="text-primary underline">
-																	{m.originalName || 'Buka lampiran'}
-																</a>
-															))}
+														<div className="space-y-1.5 text-xs">
+															<span className="font-medium text-muted-foreground">Lampiran:</span>
+															<div className="grid gap-1.5">
+																{fb.media.map((m, idx) => (
+																	<UniversalFilePreview
+																		key={idx}
+																		url={m.url}
+																		name={m.originalName || 'file'}
+																		mimeType={(m as any).mimeType}
+																		size={(m as any).size}
+																	/>
+																))}
+															</div>
 														</div>
 													)}
 
@@ -1241,6 +1459,179 @@ export default function FeedbackPage() {
 					</TabsContent>
 				)}
 
+				{isOwner && (
+					<TabsContent value="bugs">
+						<div className="space-y-6">
+							<DashboardHintCard
+								title="Daftar Bug"
+								variant="rose"
+								storageKey="dashboard-bug-reports"
+								description="Semua laporan bug dari user dashboard web utama dan komunitas.">
+								<ul className="list-disc list-inside space-y-1 text-sm">
+									<li>Bug report dikirim oleh user melalui tombol <strong>Report Bug</strong> di sidebar.</li>
+									<li>Hanya Anda (owner) yang dapat melihat dan membalas bug report.</li>
+								</ul>
+							</DashboardHintCard>
+
+							<div className="flex flex-wrap gap-2">
+								{([
+									['all', `Semua (${bugCount?.total ?? 0})`],
+									['open', `Open (${bugCount?.open ?? 0})`],
+									['replied', `Dibalas (${bugCount?.replied ?? 0})`],
+									['closed', `Closed (${bugCount?.closed ?? 0})`],
+								] as const).map(([val, label]) => (
+									<Button
+										key={val}
+										variant={bugStatusFilter === val ? 'default' : 'outline'}
+										size="sm"
+										onClick={() => setBugStatusFilter(val)}
+									>
+										{label}
+									</Button>
+								))}
+							</div>
+
+							{bugLoading ? (
+								<div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+							) : !bugData?.items?.length ? (
+								<Card><CardContent className="py-12 text-center text-muted-foreground">Belum ada bug report.</CardContent></Card>
+							) : (
+								<div className="space-y-4">
+									{bugData.items.map((bug: BugReportItem) => {
+										const isExpanded = expandedBugId === bug._id;
+										return (
+											<Card key={bug._id} className="shadow-sm">
+												<CardHeader className="pb-3 cursor-pointer" onClick={() => setExpandedBugId(isExpanded ? null : bug._id)}>
+													<div className="flex items-start justify-between gap-4">
+														<div className="min-w-0 flex-1">
+															<div className="flex items-center gap-2 flex-wrap mb-1">
+																<Badge variant={bug.status === 'open' ? 'destructive' : bug.status === 'replied' ? 'default' : 'secondary'}>
+																	{bug.status === 'open' ? 'Open' : bug.status === 'replied' ? 'Dibalas' : 'Closed'}
+																</Badge>
+																{bug.sourceCommunityName && (
+																	<Badge variant="outline">{bug.sourceCommunityName}</Badge>
+																)}
+																{!bug.sourceCommunitySlug && (
+																	<Badge variant="outline">Web Utama</Badge>
+																)}
+																<span className="text-xs text-muted-foreground">
+																	{new Date(bug.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+																</span>
+															</div>
+															<div className="text-sm">
+																<span className="font-medium">{bug.reporterName}</span>
+																<span className="text-muted-foreground ml-1">(@{bug.reporterUsername})</span>
+																<span className="text-muted-foreground ml-2">{bug.reporterEmail}</span>
+															</div>
+														</div>
+														<ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+													</div>
+												</CardHeader>
+
+												{isExpanded && (
+													<CardContent className="space-y-4 pt-0">
+														<div className="prose prose-sm max-w-none dark:prose-invert"
+															dangerouslySetInnerHTML={{ __html: bug.description }}
+														/>
+
+														{bug.attachments.length > 0 && (
+															<div className="space-y-2">
+																<Label className="text-xs font-medium">Lampiran ({bug.attachments.length})</Label>
+																<div className="grid gap-2">
+																	{bug.attachments.map((att, i) => (
+																		<UniversalFilePreview
+																			key={i}
+																			url={att.url}
+																			name={att.originalName}
+																			mimeType={att.mimeType}
+																			size={att.size}
+																		/>
+																	))}
+																</div>
+															</div>
+														)}
+
+														{bug.gdriveLinks.length > 0 && (
+															<div className="space-y-2">
+																<Label className="text-xs font-medium">Link Google Drive ({bug.gdriveLinks.length})</Label>
+																<div className="space-y-1">
+																	{bug.gdriveLinks.map((link, i) => (
+																		<a
+																			key={i}
+																			href={link}
+																			target="_blank"
+																			rel="noopener noreferrer"
+																			className="block text-sm text-blue-600 hover:underline truncate"
+																		>
+																			{link}
+																		</a>
+																	))}
+																</div>
+															</div>
+														)}
+
+														{bug.reply && (
+															<div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-md p-3 space-y-1">
+																<p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+																	Balasan dari {bug.reply.repliedByName} — {new Date(bug.reply.repliedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+																</p>
+																<p className="text-sm whitespace-pre-wrap">{bug.reply.message}</p>
+															</div>
+														)}
+
+														<div className="flex flex-wrap gap-2 pt-2 border-t">
+															{!bug.reply && (
+																<Button
+																	size="sm"
+																	onClick={() => {
+																		setBugReplyId(bug._id);
+																		setBugReplyMessage('');
+																		setBugReplyDialogOpen(true);
+																	}}
+																>
+																	<MessageSquareReply className="h-4 w-4 mr-1" />
+																	Balas
+																</Button>
+															)}
+															{bug.status !== 'closed' && (
+																<Button
+																	size="sm"
+																	variant="outline"
+																	onClick={() => bugStatusMut.mutate({ id: bug._id, status: 'closed' })}
+																>
+																	<CheckCircle2 className="h-4 w-4 mr-1" />
+																	Close
+																</Button>
+															)}
+															{bug.status === 'closed' && (
+																<Button
+																	size="sm"
+																	variant="outline"
+																	onClick={() => bugStatusMut.mutate({ id: bug._id, status: 'open' })}
+																>
+																	Reopen
+																</Button>
+															)}
+															<Button
+																size="sm"
+																variant="destructive"
+																onClick={() => bugDeleteMut.mutate(bug._id)}
+															>
+																<Trash2 className="h-4 w-4 mr-1" />
+																Hapus
+															</Button>
+														</div>
+													</CardContent>
+												)}
+											</Card>
+										);
+									})}
+								</div>
+							)}
+						</div>
+					</TabsContent>
+				)}
+
 				{canManage && (
 					<TabsContent value="guide">
 						<Card className="max-w-4xl shadow-sm">
@@ -1396,6 +1787,30 @@ export default function FeedbackPage() {
 						<Button variant="destructive" disabled={deleteMut.isPending} onClick={() => deleteFeedbackId && deleteMut.mutate(deleteFeedbackId)}>
 							{deleteMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
 							Hapus
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={bugReplyDialogOpen} onOpenChange={setBugReplyDialogOpen}>
+				<DialogContent>
+					<DialogHeader>
+						<DialogTitle>Balas Bug Report</DialogTitle>
+					</DialogHeader>
+					<Textarea
+						placeholder="Tulis balasan untuk pelapor bug..."
+						value={bugReplyMessage}
+						onChange={(e) => setBugReplyMessage(e.target.value)}
+						rows={5}
+					/>
+					<DialogFooter>
+						<Button variant="outline" onClick={() => setBugReplyDialogOpen(false)}>Batal</Button>
+						<Button
+							disabled={!bugReplyMessage.trim() || bugReplyMut.isPending}
+							onClick={() => bugReplyId && bugReplyMut.mutate({ id: bugReplyId, message: bugReplyMessage })}
+						>
+							{bugReplyMut.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+							Kirim Balasan
 						</Button>
 					</DialogFooter>
 				</DialogContent>

@@ -86,16 +86,29 @@ app.use(securityLogger);
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: false, limit: '100mb' }));
 
+// File access guard: block infected files from being served
+const fileAccessGuard = async (req: any, res: any, next: any) => {
+	try {
+		const { FileUpload } = await import('../db/mongodb');
+		const urlPath = req.originalUrl || req.url;
+		const record = await FileUpload.findOne({ url: urlPath }).lean() as any;
+		if (record && record.scanStatus === 'infected') {
+			return res.status(403).json({ message: 'File diblokir karena terdeteksi ancaman keamanan.' });
+		}
+	} catch {}
+	next();
+};
+
 // Tambahkan middleware static agar file upload bisa diakses publik
-app.use('/uploads', express.static(uploadDir));
+app.use('/uploads', fileAccessGuard, express.static(uploadDir));
 // Photopea di iframe (origin photopea.com) memuat PSD lewat fetch/XHR dari URL kita.
 // Dokumentasi resmi mewajibkan CORS: https://www.photopea.com/api/ ("Access-Control-Allow-Origin: *")
 app.use(
 	'/attached_assets',
+	fileAccessGuard,
 	(req, res, next) => {
 		res.setHeader('Access-Control-Allow-Origin', '*');
 		res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
-		// Override Helmet default (same-origin) agar Photopea bisa konsumsi aset lintas origin
 		res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
 		if (req.method === 'OPTIONS') {
 			return res.sendStatus(204);
@@ -835,6 +848,14 @@ setInterval(
 
 	server.listen(listenOptions, () => {
 		log(`🛡️ Secure server running on port ${port}`);
+
+		import('./services/file-scanner').then(({ startScanWorker }) => {
+			startScanWorker();
+			console.log('   ✅ Antivirus File Scanner Worker Started');
+		}).catch((err) => {
+			console.warn('   ⚠️ Antivirus File Scanner not started:', err.message);
+		});
+
 		console.log('🛡️ Security Features Activated:');
 		console.log('   ✅ DDoS Protection (Multi-Tier System)');
 		console.log('   ✅ SQL Injection Protection');

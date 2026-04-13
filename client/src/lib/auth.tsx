@@ -14,7 +14,7 @@ interface AuthContextType {
 	user: UserWithRole | null;
 	isLoading: boolean;
 	permissions: string[];
-	login: (username: string, password: string) => Promise<void>;
+	login: (username: string, password: string, loginTarget?: string) => Promise<void>;
 	logout: () => Promise<void>;
 	hasPermission: (roles: string[]) => boolean;
 	hasSpecificPermission: (permission: string) => boolean;
@@ -99,55 +99,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		}
 	};
 
-	const login = async (username: string, password: string) => {
+	const login = async (username: string, password: string, loginTarget?: string) => {
 		setIsLoading(true);
 		try {
+			const body: any = { username, password };
+			if (loginTarget && loginTarget !== 'main') body.loginTarget = loginTarget;
+
 			const response = await fetch('/api/auth/login', {
 				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ username, password }),
-				credentials: 'include', // Important for cookies
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+				credentials: 'include',
 			});
 
-			if (!response.ok) {
-				// Coba parse error response
-				let errorData;
-				try {
-					errorData = await response.json();
-				} catch (e) {
-					errorData = { message: 'Login failed' };
-				}
+			const responseData = await response.json().catch(() => ({ message: 'Login failed' }));
 
-				// Handle rate limit errors - PERBAIKAN: Throw error dengan retryAfter
+			if (response.status === 409 && responseData.ambiguous) {
+				const error = new Error('LOGIN_AMBIGUOUS');
+				(error as any).status = 409;
+				(error as any).targets = responseData.targets;
+				throw error;
+			}
+
+			if (!response.ok) {
 				if (response.status === 429) {
-					const retryAfter = errorData.retryAfter || 60;
+					const retryAfter = responseData.retryAfter || 60;
 					const error = new Error('Rate limit exceeded');
 					(error as any).status = 429;
 					(error as any).retryAfter = retryAfter;
 					throw error;
 				}
-
-				// Handle other errors
-				throw new Error(errorData.message || 'Login failed');
+				throw new Error(responseData.message || 'Login failed');
 			}
 
-			const userData = await response.json();
-			setUser(userData);
-
-			// Fetch user permissions after successful login
+			setUser(responseData);
 			await fetchUserPermissions();
 
 			toast({
 				title: 'Login Berhasil',
-				description: `Selamat datang kembali, ${
-					userData.name || userData.username
-				}!`,
+				description: `Selamat datang kembali, ${responseData.name || responseData.username}!`,
 			});
 		} catch (error: any) {
+			if (error?.status === 409) throw error;
 
-			// Check if it's a rate limit error - PERBAIKAN: Handle dengan retryAfter
 			if (error?.status === 429 || error?.message?.includes('rate limit')) {
 				const retryAfter = error?.retryAfter || 60;
 				toast({
@@ -155,7 +149,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 					description: `Silakan tunggu ${retryAfter} detik sebelum mencoba lagi.`,
 					variant: 'destructive',
 				});
-				// Re-throw error agar bisa ditangani di login form
 				throw error;
 			} else {
 				toast({
