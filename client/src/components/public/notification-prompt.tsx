@@ -141,7 +141,7 @@ export default function NotificationPrompt() {
 		return (
 			<button
 				onClick={() => setMinimized(false)}
-				className="fixed right-4 top-4 z-50 flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all animate-in slide-in-from-right duration-300"
+				className="fixed right-4 top-4 md:top-20 z-[70] flex items-center gap-1.5 rounded-full bg-primary px-3 py-2 text-primary-foreground text-xs font-medium shadow-lg hover:bg-primary/90 transition-all animate-in slide-in-from-right duration-300"
 			>
 				<Bell className="h-3.5 w-3.5" />
 				{isMobile ? 'Notif' : 'Notifikasi'}
@@ -151,7 +151,7 @@ export default function NotificationPrompt() {
 
 	return (
 		<div
-			className={`fixed right-4 top-4 z-50 rounded-xl border border-border bg-card p-4 shadow-2xl animate-in duration-300 ${
+			className={`fixed right-4 top-4 md:top-20 z-[70] rounded-xl border border-border bg-card p-4 shadow-2xl animate-in duration-300 ${
 				isMobile ? 'w-[min(92vw,22rem)] slide-in-from-right' : 'w-80 slide-in-from-top'
 			}`}
 		>

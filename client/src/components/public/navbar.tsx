@@ -322,8 +322,9 @@ export default function Navbar({
 				setOpenDropdownId(null);
 			}
 
-			// Cancel any in-progress collapse animation
-			if (isAnimatingCollapseRef.current) {
+			// Cancel in-progress collapse animation hanya di beranda.
+			// Di non-beranda, timer auto-close 5 detik harus tetap berjalan konstan.
+			if (isHomeLikePathRef.current && isAnimatingCollapseRef.current) {
 				isAnimatingCollapseRef.current = false;
 				if (collapseAnimTimeoutRef.current)
 					clearTimeout(collapseAnimTimeoutRef.current);
@@ -1140,11 +1141,24 @@ export default function Navbar({
 									</DropdownMenuContent>
 								</DropdownMenu>
 							) : (
-								<Link
-									href={loginHref}
-									className="inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-[0_2px_10px_rgba(37,99,235,0.3)] hover:shadow-[0_2px_16px_rgba(37,99,235,0.45)] hover:scale-[1.03] transition-all duration-200">
-									Login
-								</Link>
+								<>
+									<button
+										onClick={handleOpenNotifModal}
+										className="inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg border border-border/60 text-foreground/80 hover:text-foreground hover:bg-secondary transition-colors"
+									>
+										{pushStatus === 'active' ? (
+											<BellRing className="h-4 w-4 text-green-500" />
+										) : (
+											<BellOff className="h-4 w-4" />
+										)}
+										Notifikasi
+									</button>
+									<Link
+										href={loginHref}
+										className="inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-[0_2px_10px_rgba(37,99,235,0.3)] hover:shadow-[0_2px_16px_rgba(37,99,235,0.45)] hover:scale-[1.03] transition-all duration-200">
+										Login
+									</Link>
+								</>
 							)}
 						</div>
 
@@ -1462,28 +1476,43 @@ export default function Navbar({
 												</DropdownMenuContent>
 											</DropdownMenu>
 										) : (
-											<Link
-												href={loginHref}
-												aria-label="Login"
-												style={{
-													animationDelay: `${userDelay}ms`,
-													transitionDelay: `${userDelay}ms`,
-													opacity: isAnimatingExpand ? 0 : undefined,
-												}}
-												className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+											<div className="flex flex-col gap-1.5">
+												<button
+													onClick={handleOpenNotifModal}
+													aria-label="Pengaturan notifikasi"
+													style={{
+														animationDelay: `${userDelay}ms`,
+														transitionDelay: `${userDelay}ms`,
+														opacity: isAnimatingExpand ? 0 : undefined,
+													}}
+													className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+											           text-muted-foreground hover:bg-secondary hover:text-foreground
+											           transition-all duration-200 group ${userIconClass}`}>
+													{pushStatus === 'active' ? <BellRing className="h-4 w-4 text-green-500" /> : <BellOff className="h-4 w-4" />}
+												</button>
+												<Link
+													href={loginHref}
+													aria-label="Login"
+													style={{
+														animationDelay: `${userDelay}ms`,
+														transitionDelay: `${userDelay}ms`,
+														opacity: isAnimatingExpand ? 0 : undefined,
+													}}
+													className={`relative w-10 h-10 flex items-center justify-center rounded-xl
 											           bg-gradient-to-br from-blue-500 to-cyan-500 text-white
 											           shadow-[0_2px_8px_rgba(37,99,235,0.4)] hover:scale-105
 											           transition-all duration-200 group ${userIconClass}`}>
-												<LogIn className="h-4 w-4" />
-												<span
-													className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+													<LogIn className="h-4 w-4" />
+													<span
+														className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
 												           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
 												           bg-foreground/90 text-background
 												           opacity-0 pointer-events-none group-hover:opacity-100
 												           transition-opacity duration-150">
-													Login
-												</span>
-											</Link>
+														Login
+													</span>
+												</Link>
+											</div>
 										);
 									})()}
 								</>
