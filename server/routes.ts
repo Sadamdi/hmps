@@ -16,10 +16,12 @@ import {
 	verifyPassword,
 } from './auth';
 import {
+	consumeResetTokenSession,
 	confirmWithResetToken,
 	createOtpChallenge,
 	OtpError,
 	RateLimitError,
+	validateResetToken,
 	verifyAndIssueResetToken,
 	verifyOtpChallenge,
 } from './services/otp';
@@ -8326,7 +8328,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
 
 				try {
-					await confirmWithResetToken({ challengeId, resetToken, purpose: 'delete_community' });
+					await validateResetToken({ challengeId, resetToken, purpose: 'delete_community' });
 				} catch {
 					return res.status(400).json({ message: 'OTP tidak valid atau sudah expired' });
 				}
@@ -8339,14 +8341,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { getTenantConnection, clearTenantCache } = await import('../db/tenant');
 				const tenantDbName = (community as any).dbName;
 				const tenantConn = getTenantConnection(tenantDbName);
+
+				const dropTimeoutMs = 45_000;
+				const retryDelayMs = 1_500;
+				const dropWithTimeout = async () => {
+					return Promise.race([
+						tenantConn.dropDatabase(),
+						new Promise((_, reject) =>
+							setTimeout(
+								() => reject(new Error('DROP_DB_TIMEOUT')),
+								dropTimeoutMs,
+							),
+						),
+					]);
+				};
+
 				try {
-					await tenantConn.dropDatabase();
+					await dropWithTimeout();
 				} catch (dropErr: any) {
-					if (dropErr?.message?.includes('buffering timed out') || dropErr?.message?.includes('ECONNREFUSED')) {
-						await new Promise((r) => setTimeout(r, 2000));
-						await tenantConn.dropDatabase();
-					} else {
-						throw dropErr;
+					const msg = String(dropErr?.message || '');
+					const isRetriable =
+						msg.includes('buffering timed out') ||
+						msg.includes('ECONNREFUSED') ||
+						msg.includes('DROP_DB_TIMEOUT');
+					if (!isRetriable) throw dropErr;
+					await new Promise((r) => setTimeout(r, retryDelayMs));
+					try {
+						await dropWithTimeout();
+					} catch (retryErr: any) {
+						const retryMsg = String(retryErr?.message || '');
+						if (
+							retryMsg.includes('buffering timed out') ||
+							retryMsg.includes('ECONNREFUSED') ||
+							retryMsg.includes('DROP_DB_TIMEOUT')
+						) {
+							return res.status(503).json({
+								message:
+									'Penghapusan komunitas gagal karena koneksi database tenant timeout. Silakan coba lagi, OTP Anda masih bisa dipakai.',
+							});
+						}
+						throw retryErr;
 					}
 				}
 				clearTenantCache(tenantDbName);
@@ -8356,9 +8390,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				await mongoStorage.deleteCommunity(req.params.id);
 				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
 				invalidateCommunityCache((community as any).slug);
+				await consumeResetTokenSession({ challengeId });
 
 				res.json({ message: 'Komunitas dan semua datanya berhasil dihapus' });
 			} catch (error: any) {
+				if (error instanceof OtpError) {
+					return res.status(400).json({ message: error.message });
+				}
 				res.status(500).json({ message: error.message || 'Internal server error' });
 			}
 		},
@@ -8450,7 +8488,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(403).json({ message: 'Akun tidak sesuai dengan owner komunitas' });
 				}
 				try {
-					await confirmWithResetToken({ challengeId, resetToken, purpose: 'delete_community' });
+					await validateResetToken({ challengeId, resetToken, purpose: 'delete_community' });
 				} catch {
 					return res.status(400).json({ message: 'OTP tidak valid atau sudah expired' });
 				}
@@ -8462,14 +8500,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { getTenantConnection, clearTenantCache } = await import('../db/tenant');
 				const tenantDbName = (community as any).dbName;
 				const tenantConn = getTenantConnection(tenantDbName);
+
+				const dropTimeoutMs = 45_000;
+				const retryDelayMs = 1_500;
+				const dropWithTimeout = async () => {
+					return Promise.race([
+						tenantConn.dropDatabase(),
+						new Promise((_, reject) =>
+							setTimeout(
+								() => reject(new Error('DROP_DB_TIMEOUT')),
+								dropTimeoutMs,
+							),
+						),
+					]);
+				};
 				try {
-					await tenantConn.dropDatabase();
+					await dropWithTimeout();
 				} catch (dropErr: any) {
-					if (dropErr?.message?.includes('buffering timed out') || dropErr?.message?.includes('ECONNREFUSED')) {
-						await new Promise((r) => setTimeout(r, 2000));
-						await tenantConn.dropDatabase();
-					} else {
-						throw dropErr;
+					const msg = String(dropErr?.message || '');
+					const isRetriable =
+						msg.includes('buffering timed out') ||
+						msg.includes('ECONNREFUSED') ||
+						msg.includes('DROP_DB_TIMEOUT');
+					if (!isRetriable) throw dropErr;
+					await new Promise((r) => setTimeout(r, retryDelayMs));
+					try {
+						await dropWithTimeout();
+					} catch (retryErr: any) {
+						const retryMsg = String(retryErr?.message || '');
+						if (
+							retryMsg.includes('buffering timed out') ||
+							retryMsg.includes('ECONNREFUSED') ||
+							retryMsg.includes('DROP_DB_TIMEOUT')
+						) {
+							return res.status(503).json({
+								message:
+									'Penghapusan komunitas gagal karena koneksi database tenant timeout. Silakan coba lagi, OTP Anda masih bisa dipakai.',
+							});
+						}
+						throw retryErr;
 					}
 				}
 				clearTenantCache(tenantDbName);
@@ -8478,11 +8547,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				await mongoStorage.deleteCommunity(String((community as any)._id));
 				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
 				invalidateCommunityCache((community as any).slug);
+				await consumeResetTokenSession({ challengeId });
+				const { buildClearCookieOptions } = await import('./auth');
+				res.clearCookie('authToken', buildClearCookieOptions());
 				res.json({
 					message:
 						'Akun owner, database komunitas, dan data terkait telah dihapus. Anda akan keluar dari situs ini.',
 				});
 			} catch (error: any) {
+				if (error instanceof OtpError) {
+					return res.status(400).json({ message: error.message });
+				}
 				res.status(500).json({ message: error.message || 'Internal server error' });
 			}
 		},

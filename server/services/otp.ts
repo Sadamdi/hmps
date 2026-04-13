@@ -250,6 +250,20 @@ export async function confirmWithResetToken(params: {
 	challengeId: string;
 	resetToken: string;
 	purpose: string;
+	consume?: boolean;
+}): Promise<{ email: string; userId: string | null }> {
+	const consume = params.consume ?? true;
+	const result = await validateResetToken(params);
+	if (consume) {
+		await consumeResetTokenSession({ challengeId: params.challengeId });
+	}
+	return result;
+}
+
+export async function validateResetToken(params: {
+	challengeId: string;
+	resetToken: string;
+	purpose: string;
 }): Promise<{ email: string; userId: string | null }> {
 	const { challengeId, resetToken, purpose } = params;
 
@@ -286,15 +300,27 @@ export async function confirmWithResetToken(params: {
 		throw new OtpError('Reset token tidak valid');
 	}
 
-	await OtpChallenge.updateOne(
-		{ _id: challenge._id },
-		{ $set: { consumedAt: new Date() } },
-	);
-
 	return {
 		email: challenge.email,
 		userId: challenge.userId?.toString() || null,
 	};
+}
+
+export async function consumeResetTokenSession(params: {
+	challengeId: string;
+}): Promise<void> {
+	const { challengeId } = params;
+	const challenge = await OtpChallenge.findById(challengeId);
+	if (!challenge) {
+		throw new OtpError('Sesi tidak ditemukan atau sudah expired');
+	}
+	if (challenge.consumedAt) {
+		throw new OtpError('Sesi sudah digunakan');
+	}
+	await OtpChallenge.updateOne(
+		{ _id: challenge._id },
+		{ $set: { consumedAt: new Date() } },
+	);
 }
 
 export class OtpError extends Error {
