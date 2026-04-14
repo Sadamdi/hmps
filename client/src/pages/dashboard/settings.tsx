@@ -1,4 +1,5 @@
 import { BannerEditor } from '@/components/dashboard/banner-editor';
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { TenantOwnerDeleteAccountSection } from '@/components/dashboard/tenant-owner-delete-account-section';
@@ -191,6 +192,8 @@ export default function SettingsPage() {
 	);
 	const [isResetting, setIsResetting] = useState(false);
 	const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
+	const [embedHostsResetConfirmOpen, setEmbedHostsResetConfirmOpen] = useState(false);
+	const [resetAllSettingsConfirmOpen, setResetAllSettingsConfirmOpen] = useState(false);
 
 	// Update activeTab when permissions change or tenant context prevents certain tabs
 	useEffect(() => {
@@ -1674,11 +1677,7 @@ export default function SettingsPage() {
 												variant="ghost"
 												size="sm"
 												disabled={!canEditSettings || (formData.embedAllowedHosts ?? []).length === 0}
-												onClick={() => {
-													if (window.confirm('Reset domain tambahan ke kosong? Hanya domain bawaan yang akan diizinkan.')) {
-														setFormData((p) => ({ ...p, embedAllowedHosts: [] }));
-													}
-												}}>
+												onClick={() => setEmbedHostsResetConfirmOpen(true)}>
 												<RotateCcw className="h-4 w-4 mr-1" />
 												Reset ke default
 											</Button>
@@ -1767,15 +1766,7 @@ export default function SettingsPage() {
 												</p>
 												<Button
 													variant="destructive"
-													onClick={() => {
-														if (
-															window.confirm(
-																'Are you sure you want to reset all settings to their default values? This action cannot be undone.',
-															)
-														) {
-															resetToDefault();
-														}
-													}}
+													onClick={() => setResetAllSettingsConfirmOpen(true)}
 													disabled={isResetting || !canEditSettings}>
 													{isResetting ? (
 														<>
@@ -2594,6 +2585,29 @@ export default function SettingsPage() {
 					</Button>
 				</div>
 			) : null}
+
+			<ConfirmDeleteAlertDialog
+				open={embedHostsResetConfirmOpen}
+				onOpenChange={setEmbedHostsResetConfirmOpen}
+				title="Reset domain embed?"
+				description="Reset domain tambahan ke kosong? Hanya domain bawaan yang akan diizinkan."
+				confirmLabel="Reset"
+				onConfirm={() => {
+					setFormData((p) => ({ ...p, embedAllowedHosts: [] }));
+				}}
+			/>
+
+			<ConfirmDeleteAlertDialog
+				open={resetAllSettingsConfirmOpen}
+				onOpenChange={setResetAllSettingsConfirmOpen}
+				title="Reset semua pengaturan?"
+				description="Semua pengaturan akan dikembalikan ke nilai default. Tindakan ini tidak dapat dibatalkan."
+				confirmLabel="Reset"
+				isPending={isResetting}
+				onConfirm={async () => {
+					await resetToDefault();
+				}}
+			/>
 		</DashboardLayout>
 	);
 }
@@ -2738,6 +2752,7 @@ function HomeImagesTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 	const [copyTargetYear, setCopyTargetYear] = useState('');
 	const [copyOverwrite, setCopyOverwrite] = useState(false);
 	const [showCopyDialog, setShowCopyDialog] = useState(false);
+	const [yearPendingDelete, setYearPendingDelete] = useState<number | null>(null);
 
 	// Slot editor state
 	const [editingSlots, setEditingSlots] = useState<BannerSlotDef[] | null>(
@@ -3070,15 +3085,7 @@ function HomeImagesTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 									size="sm"
 									variant="destructive"
 									disabled={deleteYearMutation.isPending}
-									onClick={() => {
-										if (
-											window.confirm(
-												`Hapus semua data gambar tahun ${currentData.year}?`,
-											)
-										) {
-											deleteYearMutation.mutate(currentData.year);
-										}
-									}}>
+									onClick={() => setYearPendingDelete(currentData.year)}>
 									<Trash2 className="h-3.5 w-3.5 mr-1" />
 									Hapus Tahun
 								</Button>
@@ -3559,6 +3566,24 @@ function HomeImagesTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 					onSaved={refresh}
 				/>
 			)}
+
+			<ConfirmDeleteAlertDialog
+				open={yearPendingDelete !== null}
+				onOpenChange={(open) => {
+					if (!open) setYearPendingDelete(null);
+				}}
+				title="Hapus tahun gambar?"
+				description={
+					yearPendingDelete != null
+						? `Semua data gambar untuk tahun ${yearPendingDelete} akan dihapus dari server. Tindakan ini tidak dapat dibatalkan.`
+						: null
+				}
+				isPending={deleteYearMutation.isPending}
+				onConfirm={async () => {
+					if (yearPendingDelete == null) return;
+					await deleteYearMutation.mutateAsync(yearPendingDelete);
+				}}
+			/>
 		</div>
 	);
 }
@@ -4220,6 +4245,7 @@ function SlotUploader({
 	const fileRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
 	const [deleting, setDeleting] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [cacheBust, setCacheBust] = useState(() => Date.now());
 
 	const handleUpload = async (file: File) => {
@@ -4251,9 +4277,8 @@ function SlotUploader({
 		}
 	};
 
-	const handleDelete = async () => {
+	const performDeleteSlotImage = async () => {
 		if (!currentUrl) return;
-		if (!window.confirm(`Hapus gambar untuk ${displayLabel}?`)) return;
 		setDeleting(true);
 		try {
 			const res = await fetch(`/api/home-images/${year}/slot/${slot}`, {
@@ -4273,6 +4298,7 @@ function SlotUploader({
 				description: err.message,
 				variant: 'destructive',
 			});
+			throw err;
 		} finally {
 			setDeleting(false);
 		}
@@ -4319,7 +4345,7 @@ function SlotUploader({
 									<button
 										type="button"
 										className="flex items-center gap-1.5 text-white text-sm font-medium bg-red-500/70 backdrop-blur-sm rounded-lg px-3 py-1.5 hover:bg-red-500/85 transition"
-										onClick={handleDelete}>
+										onClick={() => setDeleteDialogOpen(true)}>
 										<Trash2 className="h-4 w-4" />
 										Hapus
 									</button>
@@ -4338,6 +4364,20 @@ function SlotUploader({
 					const file = e.target.files?.[0];
 					if (file) handleUpload(file);
 				}}
+			/>
+
+			<ConfirmDeleteAlertDialog
+				open={deleteDialogOpen}
+				onOpenChange={setDeleteDialogOpen}
+				title="Hapus gambar slot?"
+				description={
+					<>
+						Hapus gambar untuk <strong className="text-foreground">{displayLabel}</strong>?
+						Tindakan ini tidak dapat dibatalkan.
+					</>
+				}
+				isPending={deleting}
+				onConfirm={performDeleteSlotImage}
 			/>
 		</div>
 	);
@@ -4365,6 +4405,7 @@ function PersonSlotUploader({
 	const fileRef = useRef<HTMLInputElement>(null);
 	const [uploading, setUploading] = useState(false);
 	const [deleting, setDeleting] = useState(false);
+	const [personDeleteDialogOpen, setPersonDeleteDialogOpen] = useState(false);
 	const [cacheBust, setCacheBust] = useState(() => Date.now());
 
 	const handleUpload = async (file: File) => {
@@ -4399,9 +4440,8 @@ function PersonSlotUploader({
 		}
 	};
 
-	const handleDelete = async () => {
+	const performDeletePersonPhoto = async () => {
 		if (!currentUrl) return;
-		if (!window.confirm(`Hapus foto orang untuk ${displayLabel}?`)) return;
 		setDeleting(true);
 		try {
 			const res = await fetch(`/api/home-images/${year}/person/${slot}`, {
@@ -4421,6 +4461,7 @@ function PersonSlotUploader({
 				description: err.message,
 				variant: 'destructive',
 			});
+			throw err;
 		} finally {
 			setDeleting(false);
 		}
@@ -4467,7 +4508,7 @@ function PersonSlotUploader({
 									<button
 										type="button"
 										className="flex items-center gap-1.5 text-white text-sm font-medium bg-red-500/70 backdrop-blur-sm rounded-lg px-3 py-1.5 hover:bg-red-500/85 transition"
-										onClick={handleDelete}>
+										onClick={() => setPersonDeleteDialogOpen(true)}>
 										<Trash2 className="h-4 w-4" />
 										Hapus
 									</button>
@@ -4486,6 +4527,20 @@ function PersonSlotUploader({
 					const file = e.target.files?.[0];
 					if (file) handleUpload(file);
 				}}
+			/>
+
+			<ConfirmDeleteAlertDialog
+				open={personDeleteDialogOpen}
+				onOpenChange={setPersonDeleteDialogOpen}
+				title="Hapus foto orang?"
+				description={
+					<>
+						Hapus foto orang untuk <strong className="text-foreground">{displayLabel}</strong>?
+						Tindakan ini tidak dapat dibatalkan.
+					</>
+				}
+				isPending={deleting}
+				onConfirm={performDeletePersonPhoto}
 			/>
 		</div>
 	);

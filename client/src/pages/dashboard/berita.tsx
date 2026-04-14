@@ -1,5 +1,6 @@
 import BeritaEditor from '@/components/dashboard/berita-editor';
 import CommentPanel from '@/components/dashboard/comment-panel';
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import SharingPanel from '@/components/dashboard/sharing-panel';
@@ -58,6 +59,10 @@ export default function DashboardBerita() {
 	const [activeTab, setActiveTab] = useState('all');
 	const beritaContainerRef = useRef<HTMLDivElement>(null);
 	const [sharingItem, setSharingItem] = useState<BeritaData | null>(null);
+	const [beritaPendingDelete, setBeritaPendingDelete] = useState<{
+		id: string | number;
+		title: string;
+	} | null>(null);
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const { user, hasSpecificPermission } = useAuth();
@@ -240,10 +245,8 @@ export default function DashboardBerita() {
 		setIsEditorOpen(true);
 	};
 
-	const handleDeleteBerita = async (beritaId: string | number) => {
-		if (window.confirm('Yakin ingin menghapus berita ini?')) {
-			await deleteBeritaMutation.mutateAsync(beritaId);
-		}
+	const requestDeleteBerita = (beritaId: string | number, title: string) => {
+		setBeritaPendingDelete({ id: beritaId, title });
 	};
 
 	const closeEditor = () => {
@@ -520,7 +523,9 @@ export default function DashboardBerita() {
 															size="sm"
 															variant="outline"
 															className="text-red-600 border-red-200 hover:bg-red-50"
-															onClick={() => handleDeleteBerita(item._id)}>
+															onClick={() =>
+																requestDeleteBerita(item._id, item.title)
+															}>
 															<Trash2 className="h-4 w-4" />
 														</Button>
 													)}
@@ -588,6 +593,28 @@ export default function DashboardBerita() {
 					}}
 				/>
 			)}
+
+			<ConfirmDeleteAlertDialog
+				open={!!beritaPendingDelete}
+				onOpenChange={(open) => {
+					if (!open) setBeritaPendingDelete(null);
+				}}
+				title="Hapus berita?"
+				description={
+					beritaPendingDelete ? (
+						<>
+							Anda yakin ingin menghapus{' '}
+							<strong className="text-foreground">{beritaPendingDelete.title}</strong>?
+							Tindakan ini tidak dapat dibatalkan.
+						</>
+					) : null
+				}
+				isPending={deleteBeritaMutation.isPending}
+				onConfirm={async () => {
+					if (!beritaPendingDelete) return;
+					await deleteBeritaMutation.mutateAsync(beritaPendingDelete.id);
+				}}
+			/>
 		</DashboardLayout>
 	);
 }

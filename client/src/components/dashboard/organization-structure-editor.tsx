@@ -4,6 +4,7 @@
  * (anggota, jabatan, divisi) tanpa DashboardLayout wrapper.
  * Digunakan di Dashboard Kelembagaan tab Struktur Organisasi.
  */
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import OrganizationEditor from '@/components/dashboard/organization-editor';
 import MediaDisplay from '@/components/MediaDisplay';
@@ -508,6 +509,8 @@ export default function OrganizationStructureEditor() {
 	const [autoFillAnswers, setAutoFillAnswers] = useState<Record<string, unknown>>({});
 	const [autoFillStep, setAutoFillStep] = useState(0);
 	const [autoFillDialogOpen, setAutoFillDialogOpen] = useState(false);
+	const [memberIdPendingDelete, setMemberIdPendingDelete] = useState<string | number | null>(null);
+	const [divisionIdPendingDelete, setDivisionIdPendingDelete] = useState<string | null>(null);
 	/** upload → konfirmasi → tanya jawab setelah pratinjau */
 	const [autoFillUiPhase, setAutoFillUiPhase] = useState<
 		'upload' | 'confirm' | 'qa'
@@ -1019,10 +1022,8 @@ export default function OrganizationStructureEditor() {
 		toast({ title: 'Success', description: `Organization member ${editingMember ? 'updated' : 'created'} successfully` });
 	};
 
-	const handleDeleteMember = async (memberId: string | number) => {
-		if (confirm('Are you sure you want to delete this member?')) {
-			await deleteMemberMutation.mutateAsync(memberId);
-		}
+	const requestDeleteMember = (memberId: string | number) => {
+		setMemberIdPendingDelete(memberId);
 	};
 
 	const openDeletePeriodDialog = (period: string) => {
@@ -1245,10 +1246,8 @@ export default function OrganizationStructureEditor() {
 		setIsDivisionEditorOpen(false);
 	};
 
-	const handleDeleteDivision = (id: string) => {
-		if (confirm('Are you sure you want to delete this division?')) {
-			deleteDivisionMutation.mutate(id);
-		}
+	const requestDeleteDivision = (id: string) => {
+		setDivisionIdPendingDelete(id);
 	};
 
 	const setAutoFillAnswer = (id: string, value: unknown) => {
@@ -1504,7 +1503,7 @@ export default function OrganizationStructureEditor() {
 																<Button
 																	variant="outline"
 																	size="sm"
-																	onClick={() => handleDeleteMember((member as any)._id || member.id)}
+																	onClick={() => requestDeleteMember((member as any)._id || member.id)}
 																	className="text-red-600 hover:text-red-700 hover:bg-red-50">
 																	<Trash2 className="h-4 w-4" />
 																</Button>
@@ -1930,7 +1929,7 @@ export default function OrganizationStructureEditor() {
 																setEditingDivision(division);
 																setIsDivisionEditorOpen(true);
 															}}
-															onDelete={() => handleDeleteDivision(division._id)}
+															onDelete={() => requestDeleteDivision(division._id)}
 														/>
 													))}
 												</div>
@@ -2280,6 +2279,34 @@ export default function OrganizationStructureEditor() {
 				onSaved={handleUpdateDivision}
 				availablePositions={availablePositions}
 				periodScope={selectedPeriod || ''}
+			/>
+
+			<ConfirmDeleteAlertDialog
+				open={memberIdPendingDelete !== null}
+				onOpenChange={(open) => {
+					if (!open) setMemberIdPendingDelete(null);
+				}}
+				title="Hapus anggota?"
+				description="Anggota ini akan dihapus dari struktur organisasi untuk periode yang dipilih. Tindakan ini tidak dapat dibatalkan."
+				isPending={deleteMemberMutation.isPending}
+				onConfirm={async () => {
+					if (memberIdPendingDelete == null) return;
+					await deleteMemberMutation.mutateAsync(memberIdPendingDelete);
+				}}
+			/>
+
+			<ConfirmDeleteAlertDialog
+				open={divisionIdPendingDelete !== null}
+				onOpenChange={(open) => {
+					if (!open) setDivisionIdPendingDelete(null);
+				}}
+				title="Hapus divisi?"
+				description="Divisi dan data terkait akan dihapus. Tindakan ini tidak dapat dibatalkan."
+				isPending={deleteDivisionMutation.isPending}
+				onConfirm={async () => {
+					if (!divisionIdPendingDelete) return;
+					await deleteDivisionMutation.mutateAsync(divisionIdPendingDelete);
+				}}
 			/>
 
 			<AlertDialog

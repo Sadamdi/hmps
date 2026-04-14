@@ -1,3 +1,4 @@
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
@@ -184,6 +185,7 @@ function ModerationNode({
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const [replying, setReplying] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 
 	const deleteMut = useMutation({
 		mutationFn: async () => {
@@ -226,7 +228,7 @@ function ModerationNode({
 						variant="ghost"
 						size="sm"
 						className="h-6 text-xs text-muted-foreground hover:text-destructive"
-						onClick={() => { if (confirm('Hapus komentar ini beserta balasannya?')) deleteMut.mutate(); }}
+						onClick={() => setDeleteDialogOpen(true)}
 						disabled={deleteMut.isPending}
 					>
 						{deleteMut.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3 mr-0.5" />}
@@ -234,6 +236,17 @@ function ModerationNode({
 					</Button>
 				</div>
 			</div>
+
+			<ConfirmDeleteAlertDialog
+				open={deleteDialogOpen}
+				onOpenChange={setDeleteDialogOpen}
+				title="Hapus komentar?"
+				description="Komentar ini beserta seluruh balasannya akan dihapus permanen."
+				isPending={deleteMut.isPending}
+				onConfirm={async () => {
+					await deleteMut.mutateAsync();
+				}}
+			/>
 
 			{replying && (
 				<div className="ml-4 mt-1">

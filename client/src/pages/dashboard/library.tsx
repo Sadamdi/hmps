@@ -1,4 +1,5 @@
 import CommentPanel from '@/components/dashboard/comment-panel';
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import MediaUploader from '@/components/dashboard/media-uploader';
@@ -81,6 +82,10 @@ export default function DashboardLibrary() {
 	const [editingItem, setEditingItem] = useState<LibraryItem | null>(null);
 	const [activeTab, setActiveTab] = useState('all');
 	const [sharingItem, setSharingItem] = useState<LibraryItem | null>(null);
+	const [itemPendingDelete, setItemPendingDelete] = useState<{
+		id: string | number;
+		title: string;
+	} | null>(null);
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const { user, hasSpecificPermission } = useAuth();
@@ -218,14 +223,14 @@ export default function DashboardLibrary() {
 			}
 
 			toast({
-				title: 'Success',
-				description: 'Item deleted successfully',
+				title: 'Berhasil',
+				description: 'Item galeri berhasil dihapus',
 			});
 		},
 		onError: (error) => {
 			toast({
-				title: 'Error',
-				description: 'Failed to delete item',
+				title: 'Gagal',
+				description: 'Gagal menghapus item galeri',
 				variant: 'destructive',
 			});
 			console.error('Delete error:', error);
@@ -260,10 +265,8 @@ export default function DashboardLibrary() {
 		setIsUploaderOpen(true);
 	};
 
-	const handleDeleteItem = async (itemId: string | number) => {
-		if (window.confirm('Are you sure you want to delete this item?')) {
-			await deleteLibraryItemMutation.mutateAsync(itemId);
-		}
+	const requestDeleteItem = (itemId: string | number, title: string) => {
+		setItemPendingDelete({ id: itemId, title });
 	};
 
 	const closeUploader = () => {
@@ -520,7 +523,10 @@ export default function DashboardLibrary() {
 													variant="ghost"
 													className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
 													onClick={() =>
-														handleDeleteItem(item._id || item.id!)
+														requestDeleteItem(
+															item._id || item.id!,
+															item.title,
+														)
 													}>
 													<Trash2 className="h-4 w-4" />
 												</Button>
@@ -579,6 +585,28 @@ export default function DashboardLibrary() {
 					}}
 				/>
 			)}
+
+			<ConfirmDeleteAlertDialog
+				open={!!itemPendingDelete}
+				onOpenChange={(open) => {
+					if (!open) setItemPendingDelete(null);
+				}}
+				title="Hapus item galeri?"
+				description={
+					itemPendingDelete ? (
+						<>
+							Anda yakin ingin menghapus{' '}
+							<strong className="text-foreground">{itemPendingDelete.title}</strong>?
+							Tindakan ini tidak dapat dibatalkan.
+						</>
+					) : null
+				}
+				isPending={deleteLibraryItemMutation.isPending}
+				onConfirm={async () => {
+					if (!itemPendingDelete) return;
+					await deleteLibraryItemMutation.mutateAsync(itemPendingDelete.id);
+				}}
+			/>
 		</DashboardLayout>
 	);
 }

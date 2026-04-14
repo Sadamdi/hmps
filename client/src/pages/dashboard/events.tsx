@@ -1,4 +1,5 @@
 import CommentPanel from '@/components/dashboard/comment-panel';
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import SharingPanel from '@/components/dashboard/sharing-panel';
@@ -168,6 +169,7 @@ export default function DashboardEvents() {
 	const [deleteYearTarget, setDeleteYearTarget] = useState<EventYear | null>(null);
 	const [deleteYearConfirmText, setDeleteYearConfirmText] = useState('');
 	const [deleteYearEventsCount, setDeleteYearEventsCount] = useState<number | null>(null);
+	const [eventToDelete, setEventToDelete] = useState<EventItem | null>(null);
 	const [editingEvent, setEditingEvent] = useState<EventItem | null>(null);
 
 	// Event form state
@@ -1176,11 +1178,7 @@ export default function DashboardEvents() {
 																	variant="destructive"
 																	size="sm"
 																	className="flex-1 sm:flex-none text-xs"
-																	onClick={() => {
-																		if (confirm(`Hapus event "${ev.title}"?`)) {
-																			deleteEventMut.mutate(ev._id);
-																		}
-																	}}
+																	onClick={() => setEventToDelete(ev)}
 																	disabled={deleteEventMut.isPending}
 																>
 																	<Trash2 className="h-3 w-3 mr-1 sm:mr-0" />
@@ -1686,6 +1684,28 @@ export default function DashboardEvents() {
 					)}
 				</DialogContent>
 			</Dialog>
+			<ConfirmDeleteAlertDialog
+				open={!!eventToDelete}
+				onOpenChange={(open) => {
+					if (!open) setEventToDelete(null);
+				}}
+				title="Hapus event?"
+				description={
+					eventToDelete ? (
+						<>
+							Anda yakin ingin menghapus event{' '}
+							<strong className="text-foreground">{eventToDelete.title}</strong>?
+							Semua sub-event dan lampiran terkait ikut terhapus.
+						</>
+					) : null
+				}
+				isPending={deleteEventMut.isPending}
+				onConfirm={async () => {
+					if (!eventToDelete) return;
+					await deleteEventMut.mutateAsync(eventToDelete._id);
+				}}
+			/>
+
 			{sharingEvent && (
 				<SharingPanel
 					entityType="events"

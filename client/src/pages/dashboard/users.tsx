@@ -1,3 +1,4 @@
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { UserManagement } from '@/components/dashboard/user-management';
@@ -91,6 +92,9 @@ export default function UsersPage() {
 	const [newEmail, setNewEmail] = useState('');
 	const [emailLoading, setEmailLoading] = useState(false);
 
+	const [userPendingDelete, setUserPendingDelete] = useState<UserWithRole | null>(null);
+	const [deleteUserPending, setDeleteUserPending] = useState(false);
+
 	// Permission flags
 	const canCreate = hasSpecificPermission('users.create');
 	const canEdit = hasSpecificPermission('users.edit');
@@ -183,7 +187,7 @@ export default function UsersPage() {
 		setIsUserDialogOpen(true);
 	};
 
-	const handleDeleteUser = async (user: UserWithRole) => {
+	const openDeleteUserDialog = (user: UserWithRole) => {
 		if (!canDelete) return;
 		if (user.role === 'owner') {
 			toast({
@@ -201,9 +205,14 @@ export default function UsersPage() {
 			});
 			return;
 		}
-		if (!confirm(`Hapus user "${user.name || user.username}"?`)) return;
+		setUserPendingDelete(user);
+	};
+
+	const confirmDeleteUser = async () => {
+		if (!userPendingDelete) return;
+		setDeleteUserPending(true);
 		try {
-			await apiRequest('DELETE', `/api/users/${user._id}`, {});
+			await apiRequest('DELETE', `/api/users/${userPendingDelete._id}`, {});
 			toast({ title: 'Berhasil', description: 'User dihapus.' });
 			queryClient.invalidateQueries({ queryKey: ['/api/users'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
@@ -213,6 +222,9 @@ export default function UsersPage() {
 				description: e?.message || 'Gagal menghapus user.',
 				variant: 'destructive',
 			});
+			throw e;
+		} finally {
+			setDeleteUserPending(false);
 		}
 	};
 
@@ -498,7 +510,7 @@ export default function UsersPage() {
 														variant="ghost"
 														size="sm"
 														className="text-red-600 hover:text-red-700 hover:bg-red-50"
-														onClick={() => handleDeleteUser(user)}>
+														onClick={() => openDeleteUserDialog(user)}>
 														<Trash2 className="h-4 w-4" />
 													</Button>
 												)}
@@ -683,6 +695,27 @@ export default function UsersPage() {
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			<ConfirmDeleteAlertDialog
+				open={!!userPendingDelete}
+				onOpenChange={(open) => {
+					if (!open) setUserPendingDelete(null);
+				}}
+				title="Hapus user?"
+				description={
+					userPendingDelete ? (
+						<>
+							Anda yakin ingin menghapus{' '}
+							<strong className="text-foreground">
+								{userPendingDelete.name || userPendingDelete.username}
+							</strong>
+							? Tindakan ini tidak dapat dibatalkan.
+						</>
+					) : null
+				}
+				isPending={deleteUserPending}
+				onConfirm={confirmDeleteUser}
+			/>
 		</DashboardLayout>
 	);
 }
