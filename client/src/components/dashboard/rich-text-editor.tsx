@@ -1,3 +1,4 @@
+import { useToast } from '@/hooks/use-toast';
 import { useEffect, useRef } from 'react';
 
 interface RichTextEditorProps {
@@ -19,6 +20,7 @@ export default function RichTextEditor({
 	eventId,
 	parentEventId,
 }: RichTextEditorProps) {
+	const { toast } = useToast();
 	const editorRef = useRef<HTMLDivElement>(null);
 	const editorIdRef = useRef(
 		`tinymce-editor-${Math.random().toString(36).slice(2, 11)}`,
@@ -645,9 +647,11 @@ export default function RichTextEditor({
 										/* noop */
 									}
 								});
-								alert(
-									'Debug completed! Check if dialogs are working properly now.',
-								);
+								toast({
+									title: 'Debug selesai',
+									description:
+										'Periksa apakah dialog TinyMCE sekarang berfungsi dengan benar.',
+								});
 							}}
 							className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600 mr-2">
 							🔍 Debug Toolbar
@@ -679,13 +683,17 @@ export default function RichTextEditor({
 									button.style.setProperty('pointer-events', 'auto', 'important');
 								});
 								if (dialogs.length > 0) {
-									alert(
-										`✅ Dialog Fix Applied!\n\nFixed: ${inputs.length} input field(s) and ${buttons.length} button(s)`,
-									);
+									toast({
+										title: 'Perbaikan dialog diterapkan',
+										description: `Memperbaiki ${inputs.length} field dan ${buttons.length} tombol.`,
+									});
 								} else {
-									alert(
-										'❌ Tidak ada dialog yang terbuka!\n\nBuka dialog Link atau Image dari toolbar lalu coba lagi.',
-									);
+									toast({
+										title: 'Tidak ada dialog TinyMCE',
+										description:
+											'Buka dialog Link atau Image dari toolbar, lalu coba lagi.',
+										variant: 'destructive',
+									});
 								}
 							}}
 							className="px-2 py-1 bg-green-500 text-white text-xs rounded hover:bg-green-600">

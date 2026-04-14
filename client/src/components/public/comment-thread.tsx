@@ -1,3 +1,4 @@
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -272,6 +273,7 @@ function CommentNode({
 
 	const [replying, setReplying] = useState(false);
 	const [editing, setEditing] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [editBody, setEditBody] = useState(comment.body);
 
 	const isModeratorMode = mode === 'moderation';
@@ -409,9 +411,7 @@ function CommentNode({
 								variant="ghost"
 								size="sm"
 								className="h-7 text-xs text-muted-foreground hover:text-destructive"
-								onClick={() => {
-									if (confirm('Hapus komentar ini?')) deleteMutation.mutate();
-								}}
+								onClick={() => setDeleteDialogOpen(true)}
 								disabled={deleteMutation.isPending}
 							>
 								{deleteMutation.isPending ? (
@@ -425,6 +425,17 @@ function CommentNode({
 					</div>
 				)}
 			</div>
+
+			<ConfirmDeleteAlertDialog
+				open={deleteDialogOpen}
+				onOpenChange={setDeleteDialogOpen}
+				title="Hapus komentar?"
+				description="Komentar ini akan dihapus. Jika ada balasan di bawahnya, ikut terhapus."
+				isPending={deleteMutation.isPending}
+				onConfirm={async () => {
+					await deleteMutation.mutateAsync();
+				}}
+			/>
 
 			{/* Reply form */}
 			{replying && (

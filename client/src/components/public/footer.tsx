@@ -1,3 +1,4 @@
+import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
@@ -388,6 +389,7 @@ export default function Footer() {
 	const showCards = submitEnabled && cardsEnabled;
 
 	const [formOpen, setFormOpen] = useState(false);
+	const [deleteFeedbackOpen, setDeleteFeedbackOpen] = useState(false);
 	const [detailCard, setDetailCard] = useState<PublicFeedbackCard | null>(null);
 	const [editingCard, setEditingCard] = useState<PublicFeedbackCard | null>(null);
 	const [editBody, setEditBody] = useState('');
@@ -425,6 +427,10 @@ export default function Footer() {
 			setTarget(sortedDestinations[0].id);
 		}
 	}, [sortedDestinations, target]);
+
+	useEffect(() => {
+		if (!detailCard) setDeleteFeedbackOpen(false);
+	}, [detailCard]);
 
 	useEffect(() => {
 		setFieldValues({});
@@ -779,7 +785,7 @@ export default function Footer() {
 						{detailCard.isOwn && (
 							<div className="flex gap-2 pt-2 border-t border-border/30">
 								<button type="button" onClick={() => { setEditingCard(detailCard); setEditBody(detailCard.body); }} className="flex-1 py-2 rounded-lg border border-border text-sm font-medium hover:bg-muted/50 transition-colors">Edit</button>
-								<button type="button" onClick={() => { if (confirm('Hapus feedback ini?')) deleteMut.mutate(detailCard._id); }} className="flex-1 py-2 rounded-lg border border-red-500/30 text-red-500 text-sm font-medium hover:bg-red-500/10 transition-colors">
+								<button type="button" onClick={() => setDeleteFeedbackOpen(true)} className="flex-1 py-2 rounded-lg border border-red-500/30 text-red-500 text-sm font-medium hover:bg-red-500/10 transition-colors">
 									{deleteMut.isPending ? 'Menghapus...' : 'Hapus'}
 								</button>
 							</div>
@@ -1186,6 +1192,26 @@ export default function Footer() {
 					</div>
 				</div>
 			)}
+
+			<ConfirmDeleteAlertDialog
+				open={deleteFeedbackOpen && !!detailCard}
+				onOpenChange={(open) => {
+					if (!open) setDeleteFeedbackOpen(false);
+				}}
+				title="Hapus feedback?"
+				description={
+					detailCard ? (
+						<>
+							Anda yakin ingin menghapus feedback ini? Tindakan ini tidak dapat dibatalkan.
+						</>
+					) : null
+				}
+				isPending={deleteMut.isPending}
+				onConfirm={async () => {
+					if (!detailCard) return;
+					await deleteMut.mutateAsync(detailCard._id);
+				}}
+			/>
 		</footer>
 	);
 }
