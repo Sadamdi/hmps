@@ -22,6 +22,12 @@ export interface TenantModels {
 	Feedback: Model<any>;
 	ProdiContent: Model<any>;
 	Activity: Model<any>;
+	StoreSettings: Model<any>;
+	StoreProductCategory: Model<any>;
+	StoreProduct: Model<any>;
+	StoreProductShare: Model<any>;
+	GuestStoreSession: Model<any>;
+	StoreOrder: Model<any>;
 }
 
 const modelCache = new Map<string, TenantModels>();
@@ -56,6 +62,12 @@ function createModelsForConnection(conn: Connection): TenantModels {
 		Feedback: getOrCreateModel(conn, 'Feedback', allSchemas.feedback),
 		ProdiContent: getOrCreateModel(conn, 'ProdiContent', allSchemas.prodiContent),
 		Activity: getOrCreateModel(conn, 'Activity', allSchemas.activity),
+		StoreSettings: getOrCreateModel(conn, 'StoreSettings', allSchemas.storeSettings),
+		StoreProductCategory: getOrCreateModel(conn, 'StoreProductCategory', allSchemas.storeProductCategory),
+		StoreProduct: getOrCreateModel(conn, 'StoreProduct', allSchemas.storeProduct),
+		StoreProductShare: getOrCreateModel(conn, 'StoreProductShare', allSchemas.storeProductShare),
+		GuestStoreSession: getOrCreateModel(conn, 'GuestStoreSession', allSchemas.guestStoreSession),
+		StoreOrder: getOrCreateModel(conn, 'StoreOrder', allSchemas.storeOrder),
 	};
 }
 

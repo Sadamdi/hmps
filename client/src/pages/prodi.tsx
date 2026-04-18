@@ -1,7 +1,7 @@
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
-import { Button } from '@/components/ui/button';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
 	Select,
@@ -13,7 +13,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery } from '@tanstack/react-query';
 import {
-	ArrowLeft,
 	BookOpen,
 	ChevronDown,
 	ExternalLink,
@@ -25,7 +24,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useLocation } from 'wouter';
+import { Link } from 'wouter';
 
 function slugFromProfileUrl(profileUrl: string): string {
 	if (!profileUrl) return '';
@@ -118,7 +117,6 @@ function readTabFromUrl(): ProdiTabValue {
 }
 
 export default function ProdiPage() {
-	const [, setLocation] = useLocation();
 	const [activeTab, setActiveTab] = useState<ProdiTabValue>(readTabFromUrl);
 	const cleaningRef = useRef(false);
 
@@ -219,17 +217,7 @@ export default function ProdiPage() {
 
 			<div className="bg-card border-b border-border">
 				<div className="max-w-7xl mx-auto px-4 py-3">
-					<div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-						<Button
-							onClick={() => setLocation('/')}
-							variant="ghost"
-							size="sm"
-							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Beranda
-						</Button>
-						<span className="text-border">/</span>
-						<span className="text-foreground font-medium">Prodi</span>
-					</div>
+					<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: 'Prodi' }]} />
 				</div>
 			</div>
 
@@ -306,16 +294,6 @@ export default function ProdiPage() {
 					</Tabs>
 				</div>
 			)}
-
-			<div className="py-12 text-center">
-				<Button
-					onClick={() => setLocation('/')}
-					variant="outline"
-					className="px-8 py-2.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold transition-colors">
-					<ArrowLeft className="w-4 h-4 mr-2" />
-					Kembali ke Beranda
-				</Button>
-			</div>
 
 			<Footer />
 

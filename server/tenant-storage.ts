@@ -1200,6 +1200,8 @@ export function createTenantStorage(models: TenantModels) {
 			{ name: 'comments.manage', displayName: 'Manage Comments', description: 'Menghapus komentar publik', category: 'comments' },
 			{ name: 'feedback.view', displayName: 'View Feedback', description: 'Melihat saran/kritik', category: 'feedback' },
 			{ name: 'feedback.manage', displayName: 'Manage Feedback', description: 'Mengelola saran/kritik', category: 'feedback' },
+			{ name: 'toko.view', displayName: 'View Toko', description: 'Melihat dashboard toko dan katalog', category: 'toko' },
+			{ name: 'toko.manage', displayName: 'Manage Toko', description: 'Mengelola toko, produk, layout, sharing', category: 'toko' },
 		];
 
 		let addedCount = 0;

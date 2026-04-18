@@ -4,7 +4,7 @@ import ProtectedRoute from '@/components/auth/protected-route';
 import { useMainAuth } from '@/lib/auth';
 import { TenantAuthProvider } from '@/lib/tenant-auth';
 import { TenantProvider } from '@/lib/tenant-context';
-import { Button } from '@/components/ui/button';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import NotFound from '@/pages/not-found';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
@@ -32,6 +32,12 @@ const EventsYear = lazy(() => import('@/pages/events/[year]'));
 const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
 const LibraryPage = lazy(() => import('@/pages/library/index'));
 const LibraryDetailPage = lazy(() => import('@/pages/library/detail'));
+const TokoIndexPage = lazy(() => import('@/pages/toko/index'));
+const TokoProductPage = lazy(() => import('@/pages/toko/[slug]'));
+const TokoCartPage = lazy(() => import('@/pages/toko/cart'));
+const TokoOrderInvoicePage = lazy(() => import('@/pages/toko/order/[orderNo]'));
+const TokoOrdersHistoryPage = lazy(() => import('@/pages/toko/orders/index'));
+const DashboardToko = lazy(() => import('@/pages/dashboard/toko'));
 
 function RouteLoadingFallback() {
 	return (
@@ -67,6 +73,14 @@ function CrossTenantGuard({ slug, children }: { slug: string; children: ReactNod
 export default function CommunityShell() {
 	const params = useParams();
 	const slug = (params as any)?.slug || '';
+	const normalizeStorePath = (raw?: string): string => {
+		const cleaned = String(raw || '/toko').trim();
+		if (!cleaned) return '/toko';
+		const withSlash = cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
+		const compact = withSlash.replace(/\/{2,}/g, '/');
+		if (compact === '/') return '/toko';
+		return compact.endsWith('/') ? compact.slice(0, -1) : compact;
+	};
 
 	const { isLoading, isError } = useQuery({
 		queryKey: ['community-exists', slug],
@@ -80,9 +94,42 @@ export default function CommunityShell() {
 		retry: false,
 		staleTime: 5 * 60_000,
 	});
+	const { data: storeNavSettings, isLoading: storeSettingsLoading } = useQuery<{ navbarPath?: string }>({
+		queryKey: ['community-store-settings', slug],
+		queryFn: async () => {
+			const res = await fetch(`/api/c/${slug}/store/public/settings`, { credentials: 'include' });
+			if (!res.ok) return { navbarPath: '/toko' };
+			return res.json();
+		},
+		enabled: !!slug,
+		staleTime: 60_000,
+	});
+	const storeBasePath = normalizeStorePath(storeNavSettings?.navbarPath);
+	const restPath = (() => {
+		const p = typeof window !== 'undefined' ? window.location.pathname : `/${slug}`;
+		const prefix = `/${slug}`;
+		if (!p.startsWith(prefix)) return '/';
+		const rest = p.slice(prefix.length) || '/';
+		return rest.startsWith('/') ? rest : `/${rest}`;
+	})();
+	const staticPrefixes = [
+		'/',
+		'/berita',
+		'/profil',
+		'/kelembagaan',
+		'/events',
+		'/library',
+		'/toko',
+		'/login',
+		'/forgot-password',
+		'/dashboard',
+	];
+	const isLikelyDynamicStorePath =
+		restPath !== '/' &&
+		!staticPrefixes.some((prefix) => restPath === prefix || restPath.startsWith(`${prefix}/`));
 
 	if (!slug || isError) return <NotFound />;
-	if (isLoading) return <RouteLoadingFallback />;
+	if (isLoading || (storeSettingsLoading && isLikelyDynamicStorePath)) return <RouteLoadingFallback />;
 
 	return (
 		<TenantProvider slug={slug}>
@@ -103,6 +150,20 @@ export default function CommunityShell() {
 							<Route path="/events/:year" component={EventsYear} />
 							<Route path="/library/:id" component={LibraryDetailPage} />
 							<Route path="/library" component={LibraryPage} />
+							<Route path="/toko/cart" component={TokoCartPage} />
+							<Route path="/toko/orders" component={TokoOrdersHistoryPage} />
+							<Route path="/toko/order/:orderNo" component={TokoOrderInvoicePage} />
+							<Route path="/toko/:slug" component={TokoProductPage} />
+							<Route path="/toko" component={TokoIndexPage} />
+							{storeBasePath !== '/toko' && (
+								<>
+									<Route path={`${storeBasePath}/cart`} component={TokoCartPage} />
+									<Route path={`${storeBasePath}/orders`} component={TokoOrdersHistoryPage} />
+									<Route path={`${storeBasePath}/order/:orderNo`} component={TokoOrderInvoicePage} />
+									<Route path={`${storeBasePath}/:slug`} component={TokoProductPage} />
+									<Route path={storeBasePath} component={TokoIndexPage} />
+								</>
+							)}
 							<Route path="/login" component={LoginForm} />
 							<Route path="/forgot-password" component={ForgotPassword} />
 
@@ -136,15 +197,18 @@ export default function CommunityShell() {
 							<Route path="/dashboard/feedback">
 								{() => <ProtectedRoute><DashboardFeedback /></ProtectedRoute>}
 							</Route>
+							<Route path="/dashboard/toko">
+								{() => <ProtectedRoute><DashboardToko /></ProtectedRoute>}
+							</Route>
 							<Route>
 								{() => (
-									<div className="min-h-screen flex flex-col items-center justify-center gap-4 px-4">
+									<div className="min-h-screen flex flex-col items-center justify-center gap-6 px-4">
+										<PageBreadcrumb
+											items={[{ label: 'Beranda', href: '/' }, { label: 'Halaman tidak ditemukan' }]}
+										/>
 										<p className="text-muted-foreground text-center max-w-md">
 											Rute ini tidak tersedia di komunitas ini. Slug komunitas valid — periksa URL atau kembali ke beranda komunitas.
 										</p>
-										<Link href="/">
-											<Button variant="outline">Kembali ke beranda komunitas</Button>
-										</Link>
 									</div>
 								)}
 							</Route>

@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/lib/theme';
 import Error from '@/pages/error';
 import NotFound from '@/pages/not-found';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { lazy, Suspense, useEffect, useMemo } from 'react';
@@ -45,6 +46,12 @@ const EventsYear = lazy(() => import('@/pages/events/[year]'));
 const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
 const LibraryPage = lazy(() => import('@/pages/library/index'));
 const LibraryDetailPage = lazy(() => import('@/pages/library/detail'));
+const TokoIndexPage = lazy(() => import('@/pages/toko/index'));
+const TokoProductPage = lazy(() => import('@/pages/toko/[slug]'));
+const TokoCartPage = lazy(() => import('@/pages/toko/cart'));
+const TokoOrderInvoicePage = lazy(() => import('@/pages/toko/order/[orderNo]'));
+const TokoOrdersHistoryPage = lazy(() => import('@/pages/toko/orders/index'));
+const DashboardToko = lazy(() => import('@/pages/dashboard/toko'));
 
 function RedirectTo({ to }: { to: string }) {
 	const [, setLocation] = useLocation();
@@ -61,6 +68,52 @@ function RouteLoadingFallback() {
 }
 
 function Router() {
+	const [location] = useLocation();
+	const normalizeStorePath = (raw?: string): string => {
+		const cleaned = String(raw || '/toko').trim();
+		if (!cleaned) return '/toko';
+		const withSlash = cleaned.startsWith('/') ? cleaned : `/${cleaned}`;
+		const compact = withSlash.replace(/\/{2,}/g, '/');
+		if (compact === '/') return '/toko';
+		return compact.endsWith('/') ? compact.slice(0, -1) : compact;
+	};
+	const { data: storeNavSettings, isLoading: storePathLoading } = useQuery<{ navbarPath?: string }>({
+		queryKey: ['/api/store/public/settings', 'router-store-path'],
+		queryFn: async () => {
+			const res = await fetch('/api/store/public/settings', { credentials: 'include' });
+			if (!res.ok) return { navbarPath: '/toko' };
+			return res.json();
+		},
+		staleTime: 60_000,
+	});
+	const storeBasePath = normalizeStorePath(storeNavSettings?.navbarPath);
+	const pathname = location.split('?')[0].split('#')[0] || '/';
+	const staticPrefixes = [
+		'/berita',
+		'/login',
+		'/register',
+		'/forgot-password',
+		'/error',
+		'/profil',
+		'/kelembagaan',
+		'/prodi',
+		'/events',
+		'/library',
+		'/toko',
+		'/dashboard',
+		'/communities',
+	];
+	const isLikelyDynamicStorePath =
+		pathname !== '/' &&
+		!pathname.startsWith('/api/') &&
+		!staticPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+
+	// Hindari false 404 saat hard-reload di path toko dinamis:
+	// tunggu settings navbarPath selesai diambil dulu sebelum route fallback.
+	if (storePathLoading && isLikelyDynamicStorePath) {
+		return <RouteLoadingFallback />;
+	}
+
 	return (
 		<Suspense fallback={<RouteLoadingFallback />}>
 			<Switch>
@@ -117,6 +170,20 @@ function Router() {
 				<Route path="/events/:year" component={EventsYear} />
 				<Route path="/library/:id" component={LibraryDetailPage} />
 				<Route path="/library" component={LibraryPage} />
+				<Route path="/toko/cart" component={TokoCartPage} />
+				<Route path="/toko/orders" component={TokoOrdersHistoryPage} />
+				<Route path="/toko/order/:orderNo" component={TokoOrderInvoicePage} />
+				<Route path="/toko/:slug" component={TokoProductPage} />
+				<Route path="/toko" component={TokoIndexPage} />
+				{storeBasePath !== '/toko' && (
+					<>
+						<Route path={`${storeBasePath}/cart`} component={TokoCartPage} />
+						<Route path={`${storeBasePath}/orders`} component={TokoOrdersHistoryPage} />
+						<Route path={`${storeBasePath}/order/:orderNo`} component={TokoOrderInvoicePage} />
+						<Route path={`${storeBasePath}/:slug`} component={TokoProductPage} />
+						<Route path={storeBasePath} component={TokoIndexPage} />
+					</>
+				)}
 
 				{/* Dashboard Routes - Protected */}
 				<Route path="/dashboard">
@@ -200,6 +267,13 @@ function Router() {
 			{() => (
 				<ProtectedRoute>
 					<DashboardRegistration />
+				</ProtectedRoute>
+			)}
+		</Route>
+		<Route path="/dashboard/toko">
+			{() => (
+				<ProtectedRoute>
+					<DashboardToko />
 				</ProtectedRoute>
 			)}
 		</Route>

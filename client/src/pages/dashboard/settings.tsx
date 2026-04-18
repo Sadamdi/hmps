@@ -106,6 +106,7 @@ import {
 	ALL_SECTION_BLOCKS,
 	ALL_SUBITEM_BLOCKS,
 	DEFAULT_HOME_CONFIG,
+	DEFAULT_TENANT_HOME_CONFIG,
 	TENANT_NAVBAR_ITEMS,
 	TENANT_SECTION_BLOCKS,
 	type HomeBlockItem,
@@ -425,7 +426,7 @@ export default function SettingsPage() {
 		const extra = (formData.embedAllowedHosts ?? [])
 			.map((h) => h.trim().toLowerCase())
 			.filter(Boolean);
-		return [...new Set([...DEFAULT_EMBED_HOSTNAMES, ...extra])].sort((a, b) =>
+		return Array.from(new Set([...DEFAULT_EMBED_HOSTNAMES, ...extra])).sort((a, b) =>
 			a.localeCompare(b),
 		);
 	}, [formData.embedAllowedHosts]);
@@ -4703,7 +4704,7 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 				? settings.homeConfig.navbar
 				: [];
 			const currentIds = new Set(currentNavbar.map((n) => n.id));
-			const defaultCfg = isTenant ? DEFAULT_HOME_CONFIG : DEFAULT_HOME_CONFIG;
+			const defaultCfg = isTenant ? DEFAULT_TENANT_HOME_CONFIG : DEFAULT_HOME_CONFIG;
 			const missing = defaultCfg.navbar.filter(
 				(n) => !currentIds.has(n.id),
 			);

@@ -120,6 +120,7 @@ import commentRouter from './routes/comments';
 import feedbackRouter from './routes/feedback';
 import notificationRouter from './routes/notifications';
 import sharingRouter, { expirePendingShares } from './routes/sharing';
+import storeRouter from './routes/store';
 import { PostSharing } from '../db/mongodb';
 import {
 	cleanupBeritaImages,
@@ -6450,6 +6451,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use('/api/chat', chatRouter);
 	app.use('/api/comments', commentRouter);
 	app.use('/api/feedback', feedbackRouter);
+	app.use('/api/store', storeRouter);
 	app.use('/api/notifications', notificationRouter);
 	app.use('/api/sharing', sharingRouter);
 

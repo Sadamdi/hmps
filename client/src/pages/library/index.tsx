@@ -2,9 +2,7 @@ import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Library from '@/components/public/library';
 import Navbar from '@/components/public/navbar';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
-import { Link } from 'wouter';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { useTenant } from '@/lib/tenant-context';
 
 export default function LibraryPage() {
@@ -19,12 +17,7 @@ export default function LibraryPage() {
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
 			<main className="flex-1">
 				<div className="max-w-7xl mx-auto px-4 pt-8 pb-0">
-					<Link href="/">
-						<Button variant="ghost" size="sm" className="mb-4">
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Kembali ke Beranda
-						</Button>
-					</Link>
+					<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: 'Galeri' }]} />
 				</div>
 				<Library variant="page" />
 			</main>

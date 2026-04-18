@@ -1,3 +1,4 @@
+import { PageBreadcrumb } from "@/components/public/page-breadcrumb";
 import { Card, CardContent } from "@/components/ui/card";
 import { AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -23,8 +24,12 @@ export default function NotFound() {
   }, [navigate]);
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-background text-foreground dark:bg-slate-950 dark:text-slate-100">
-      <Card className="w-full max-w-md mx-4 bg-card text-card-foreground dark:bg-slate-900/90 dark:border-slate-700/80 shadow-lg">
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background text-foreground dark:bg-slate-950 dark:text-slate-100 px-4">
+      <PageBreadcrumb
+        className="mb-6 self-stretch max-w-md mx-auto w-full"
+        items={[{ label: "Beranda", href: "/" }, { label: "Halaman tidak ditemukan" }]}
+      />
+      <Card className="w-full max-w-md mx-auto bg-card text-card-foreground dark:bg-slate-900/90 dark:border-slate-700/80 shadow-lg">
         <CardContent className="pt-6 pb-5">
           <div className="flex mb-3 gap-2 items-center">
             <AlertCircle className="h-8 w-8 text-red-500" />
@@ -56,7 +61,7 @@ export default function NotFound() {
             onClick={() => navigate("/")}
             className="mt-5 inline-flex items-center justify-center rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90 transition-colors w-full"
           >
-            Kembali ke Beranda sekarang
+            Ke beranda sekarang
           </button>
         </CardContent>
       </Card>

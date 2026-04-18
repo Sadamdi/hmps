@@ -7,6 +7,7 @@ import {
 } from '@/components/public/events-tree';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import EventAttachmentPreviewDialog, {
 	type EventAttachmentPreviewItem,
 } from '@/components/public/event-attachment-preview-dialog';
@@ -16,7 +17,6 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import {
-	ArrowLeft,
 	Calendar,
 	Download,
 	ExternalLink,
@@ -92,14 +92,16 @@ export default function EventDetailPage() {
 					scrollToSection={scrollToSection}
 				/>
 				<main className="flex-1 flex items-center justify-center p-8">
-					<div className="text-center">
-						<p className="text-muted-foreground mb-4">Event tidak ditemukan.</p>
-						<Link href={year ? `/events/${year}` : '/'}>
-							<Button variant="outline">
-								<ArrowLeft className="h-4 w-4 mr-2" />
-								Kembali
-							</Button>
-						</Link>
+					<div className="text-center space-y-4">
+						<PageBreadcrumb
+							items={[
+								{ label: 'Beranda', href: '/' },
+								{ label: 'Event', href: '/events' },
+								...(year ? [{ label: year, href: `/events/${year}` }] : []),
+								{ label: 'Tidak ditemukan' },
+							]}
+						/>
+						<p className="text-muted-foreground">Event tidak ditemukan.</p>
 					</div>
 				</main>
 				<Footer />
@@ -115,15 +117,30 @@ export default function EventDetailPage() {
 			/>
 			<main className="flex-1 py-12 px-4">
 				<div className="max-w-3xl mx-auto">
-					<Link href={year ? `/events/${year}` : '/'}>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="mb-6">
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Kembali ke Daftar Event
-						</Button>
-					</Link>
+					{!isLoading && event ? (
+						<PageBreadcrumb
+							items={[
+								{ label: 'Beranda', href: '/' },
+								{ label: 'Event', href: '/events' },
+								...(year ? [{ label: year, href: `/events/${year}` }] : []),
+								{
+									label:
+										event.title.length > 48
+											? `${event.title.slice(0, 48)}…`
+											: event.title,
+								},
+							]}
+						/>
+					) : (
+						<PageBreadcrumb
+							items={[
+								{ label: 'Beranda', href: '/' },
+								{ label: 'Event', href: '/events' },
+								...(year ? [{ label: year, href: `/events/${year}` }] : []),
+								{ label: '…' },
+							]}
+						/>
+					)}
 
 					{isLoading ? (
 						<div className="h-96 animate-pulse bg-muted rounded-lg" />

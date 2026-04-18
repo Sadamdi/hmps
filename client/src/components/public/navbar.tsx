@@ -8,7 +8,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
 import { getGuestIdentity } from '@/lib/guest-identity';
-import { useTenant } from '@/lib/tenant-context';
+import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -28,6 +28,7 @@ import {
 	Menu,
 	Moon,
 	Settings,
+	ShoppingBag,
 	Sun,
 	X,
 } from 'lucide-react';
@@ -59,6 +60,7 @@ type NavItem =
 			icon: React.ReactNode;
 			children?: undefined;
 			homeSection?: undefined;
+			externalHref?: string;
 	  }
 	| {
 			id: string;
@@ -66,6 +68,7 @@ type NavItem =
 			icon: React.ReactNode;
 			homeSection: string;
 			children: { label: string; href?: string; month?: number }[];
+			externalHref?: never;
 	  };
 
 // Peta item navbar → section beranda untuk scroll otomatis
@@ -374,6 +377,20 @@ export default function Navbar({
 		refetchOnMount: true,
 	});
 
+	const storeSettingsUrl = useApiUrl('/store/public/settings');
+	const { data: storeNavSettings } = useQuery<{
+		navbarLabel?: string;
+		navbarPath?: string;
+	}>({
+		queryKey: [storeSettingsUrl],
+		queryFn: async () => {
+			const r = await fetch(storeSettingsUrl, { credentials: 'include' });
+			if (!r.ok) return null;
+			return r.json();
+		},
+		staleTime: 60 * 1000,
+	});
+
 	const { data: eventsData } = useQuery<{
 		year?: { year: number } | null;
 		years?: {
@@ -471,7 +488,7 @@ export default function Navbar({
 						...c,
 						href: c.href ? px(c.href) : c.href,
 					})),
-				};
+				} as NavItem;
 			} else {
 				prefixed = raw;
 			}
@@ -510,10 +527,25 @@ export default function Navbar({
 			navItemMap.set('events', eventsNavItem);
 		}
 
+		{
+			const tokoLabel = String(storeNavSettings?.navbarLabel ?? '').trim() || 'Toko';
+			const rawPath = String(storeNavSettings?.navbarPath ?? '/toko').trim() || '/toko';
+			const path = rawPath.startsWith('/') ? rawPath : `/${rawPath}`;
+			navItemMap.set('toko', {
+				id: 'toko',
+				label: tokoLabel,
+				icon: <ShoppingBag className="h-4 w-4" />,
+				homeSection: 'toko',
+				children: [
+					{ label: 'Lihat semua katalog', href: px(path) },
+				],
+			});
+		}
+
 		let orderedIds: string[] =
 			navCfgArr && navCfgArr.length > 0
 				? navCfgArr.map((n) => n.id)
-				: ['home', 'profil', 'kelembagaan', 'events', 'berita', 'library'];
+				: ['home', 'profil', 'kelembagaan', 'events', 'berita', 'library', 'toko'];
 		if (isTenant) {
 			orderedIds = orderedIds.filter((id) => id !== 'prodi');
 		}
@@ -580,6 +612,7 @@ export default function Navbar({
 		tenantSlug,
 		hasTrackRecord,
 		hasLambang,
+		storeNavSettings,
 	]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
@@ -849,6 +882,11 @@ export default function Navbar({
 				return null;
 			}
 
+			if (itemId === 'toko') {
+				if (isVisible('toko', 'section')) return 'toko';
+				return null;
+			}
+
 			return item.homeSection ?? null;
 		},
 		[settings?.homeConfig?.blocks],
@@ -991,6 +1029,21 @@ export default function Navbar({
 						{/* Desktop nav links */}
 						<nav className="hidden sm:flex items-center gap-1">
 							{navItems.map((item: NavItem) => {
+								if (!('children' in item) && item.externalHref) {
+									return (
+										<Link
+											key={item.id}
+											href={item.externalHref}
+											className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+												location === item.externalHref ||
+												location.startsWith(item.externalHref + '/')
+													? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
+													: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
+											}`}>
+											{item.label}
+										</Link>
+									);
+								}
 								if (item.children) {
 									const dropdownId = item.id;
 									return (
@@ -1293,6 +1346,38 @@ export default function Navbar({
 											: isAnimatingExpand
 												? 'nav-icon-spreading'
 												: '';
+
+										if (!('children' in item) && item.externalHref) {
+											return (
+												<Link
+													key={item.id}
+													href={item.externalHref}
+													aria-label={item.label}
+													style={{
+														animationDelay: `${delay}ms`,
+														transitionDelay: `${delay}ms`,
+														opacity: isAnimatingExpand ? 0 : undefined,
+													}}
+													className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+													            transition-all duration-200 group ${iconClass}
+													            ${
+																		location === item.externalHref ||
+																		location.startsWith(item.externalHref + '/')
+																			? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
+																			: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+																	}`}>
+													{item.icon}
+													<span
+														className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+														           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
+														           bg-foreground/90 text-background
+														           opacity-0 pointer-events-none group-hover:opacity-100
+														           transition-opacity duration-150">
+														{item.label}
+													</span>
+												</Link>
+											);
+										}
 
 										if (item.children) {
 											const dropdownId = `${item.id}-mobile`;

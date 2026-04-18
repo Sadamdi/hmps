@@ -1,5 +1,6 @@
 import { createContext, ReactNode, useContext, useEffect, useMemo, useRef } from 'react';
 import { queryClient } from './queryClient';
+import { setActiveTenantSlug } from './tenant-api-rewrite';
 
 interface TenantContextType {
 	slug: string | null;
@@ -17,6 +18,11 @@ const TenantContext = createContext<TenantContextType>({
 
 export function TenantProvider({ slug, children }: { slug: string; children: ReactNode }) {
 	const prevSlug = useRef<string | null>(null);
+
+	useEffect(() => {
+		setActiveTenantSlug(slug);
+		return () => setActiveTenantSlug(null);
+	}, [slug]);
 
 	useEffect(() => {
 		if (prevSlug.current !== slug) {
@@ -43,6 +49,10 @@ export function TenantProvider({ slug, children }: { slug: string; children: Rea
 }
 
 export function MainSiteProvider({ children }: { children: ReactNode }) {
+	useEffect(() => {
+		setActiveTenantSlug(null);
+	}, []);
+
 	const value = useMemo(() => ({
 		slug: null,
 		apiPrefix: '/api',

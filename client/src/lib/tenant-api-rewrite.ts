@@ -25,6 +25,12 @@ const RESERVED_FIRST_SEGMENTS = new Set([
 
 const MAIN_ONLY_API_PREFIXES = ['/api/register', '/api/communities', '/api/registration'];
 
+declare global {
+	interface Window {
+		__HMPS_ACTIVE_TENANT_SLUG__?: string | null;
+	}
+}
+
 function isMainOnlyApi(url: string): boolean {
 	return MAIN_ONLY_API_PREFIXES.some(
 		(p) => url === p || url.startsWith(`${p}/`) || url.startsWith(`${p}?`),
@@ -36,14 +42,11 @@ export function rewriteApiUrlForTenantPath(url: string): string {
 	// Sudah scoped tenant atau main-only: jangan rewrite dua kali (hindari /api/c/x/api/c/x/...)
 	if (!url.startsWith('/api/') || url.startsWith('/api/c/')) return url;
 	if (isMainOnlyApi(url)) return url;
-
-	const m = window.location.pathname.match(/^\/([a-zA-Z0-9_-]+)(?:\/|$)/);
-	if (!m) return url;
-	const first = m[1].toLowerCase();
-	if (RESERVED_FIRST_SEGMENTS.has(first)) return url;
+	const activeTenantSlug = window.__HMPS_ACTIVE_TENANT_SLUG__;
+	if (!activeTenantSlug) return url;
 
 	const rest = url.replace(/^\/api/, '');
-	return `/api/c/${m[1]}${rest}`;
+	return `/api/c/${activeTenantSlug}${rest}`;
 }
 
 /** First path segment if it looks like a tenant slug (not a reserved app route). */
@@ -59,6 +62,11 @@ export function tenantLoginPathFromPathname(pathname: string): string | null {
 	const slug = getTenantSlugFromPathname(pathname);
 	if (!slug) return null;
 	return `/${slug}/login`;
+}
+
+export function setActiveTenantSlug(slug: string | null): void {
+	if (typeof window === 'undefined') return;
+	window.__HMPS_ACTIVE_TENANT_SLUG__ = slug || null;
 }
 
 let _fetchPatched = false;

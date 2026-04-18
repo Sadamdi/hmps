@@ -1,4 +1,5 @@
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -47,7 +48,7 @@ import {
 	X,
 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'wouter';
+import { Link, useLocation } from 'wouter';
 
 interface LambangItemWithId {
 	_dndId: string;
@@ -588,6 +589,12 @@ export default function RegisterPage() {
 				/>
 				<Card className="relative z-10 w-full max-w-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 backdrop-blur-xl shadow-xl">
 					<CardContent className="py-12 text-center">
+						<div className="flex justify-center mb-4">
+							<PageBreadcrumb
+								className="mb-0"
+								items={[{ label: 'Beranda', href: '/' }, { label: 'Daftar' }]}
+							/>
+						</div>
 						<Building2 className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
 						<h2 className="text-lg font-semibold mb-2">
 							Registrasi Tidak Tersedia
@@ -595,11 +602,8 @@ export default function RegisterPage() {
 						<p className="text-sm text-muted-foreground mb-4">
 							Pendaftaran komunitas sedang tidak diaktifkan oleh administrator.
 						</p>
-						<Button
-							variant="outline"
-							onClick={() => navigate('/login')}>
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Kembali ke Login
+						<Button variant="outline" onClick={() => navigate('/login')}>
+							Ke halaman login
 						</Button>
 					</CardContent>
 				</Card>
@@ -645,16 +649,22 @@ export default function RegisterPage() {
 				}}
 			/>
 
-			<button
-				onClick={() => navigate('/login')}
-				className="absolute top-5 left-5 flex items-center gap-1.5 text-slate-600 dark:text-muted-foreground hover:text-primary text-sm font-medium transition-colors duration-200 z-20">
-				<ArrowLeft className="h-4 w-4" />
-				Kembali ke Login
-			</button>
-
 			<Card
 				className={`relative z-10 w-full border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 backdrop-blur-xl shadow-xl animate-scale-in ${step === 'profil' ? 'max-w-2xl' : 'max-w-xl'}`}>
 				<CardHeader className="text-center pb-2 pt-8 px-8">
+					<div className="flex justify-center w-full mb-3">
+						<PageBreadcrumb
+							className="mb-0"
+							items={[{ label: 'Beranda', href: '/' }, { label: 'Daftar' }]}
+						/>
+					</div>
+					<p className="text-sm text-slate-600 dark:text-muted-foreground mb-4">
+						<Link
+							href="/login"
+							className="hover:text-primary underline-offset-2 hover:underline transition-colors">
+							Ke halaman login
+						</Link>
+					</p>
 					<div className="mx-auto mb-4 w-16 h-16 rounded-full ring-2 ring-cyan-400/40 flex items-center justify-center bg-slate-100 dark:bg-white/5">
 						<Building2 className="w-8 h-8 text-cyan-500" />
 					</div>
@@ -843,7 +853,7 @@ export default function RegisterPage() {
 									}}
 									className="flex-1">
 									<ArrowLeft className="h-4 w-4 mr-2" />
-									Kembali
+									Sebelumnya
 								</Button>
 								<Button
 									onClick={() => {
@@ -985,7 +995,7 @@ export default function RegisterPage() {
 									onClick={() => setStep('basic')}
 									className="flex-1">
 									<ArrowLeft className="h-4 w-4 mr-2" />
-									Kembali
+									Sebelumnya
 								</Button>
 								<Button
 									onClick={() => setStep('profil')}
@@ -1212,7 +1222,7 @@ export default function RegisterPage() {
 									onClick={() => setStep('structure')}
 									className="flex-1">
 									<ArrowLeft className="h-4 w-4 mr-2" />
-									Kembali
+									Sebelumnya
 								</Button>
 								<Button
 									onClick={() => setStep('accounts')}
@@ -1338,7 +1348,7 @@ export default function RegisterPage() {
 									onClick={() => setStep('profil')}
 									className="flex-1">
 									<ArrowLeft className="h-4 w-4 mr-2" />
-									Kembali
+									Sebelumnya
 								</Button>
 								<Button
 									onClick={handleSubmit}

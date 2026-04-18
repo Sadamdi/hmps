@@ -8,9 +8,10 @@ import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import { usePagination } from '@/hooks/use-pagination';
 import Navbar from '@/components/public/navbar';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
-import { ArrowLeft, Calendar, ChevronDown, Filter, Search, Tag, User } from 'lucide-react';
+import { Calendar, ChevronDown, Filter, Search, Tag, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
@@ -216,14 +217,7 @@ export default function AllBerita() {
 			<div className="container mx-auto px-4 py-8">
 				{/* Header */}
 				<div className="mb-8" data-aos="fade-down">
-					<div className="flex items-center gap-4 mb-4">
-						<Link href="/#berita">
-							<Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-								<ArrowLeft className="h-4 w-4 mr-2" />
-								Kembali ke Beranda
-							</Button>
-						</Link>
-					</div>
+					<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: 'Berita' }]} />
 				<h1 className="text-3xl font-bold text-foreground mb-2">Semua Berita</h1>
 				<p className="text-muted-foreground">
 					Temukan berita dan informasi terkini dari Himatif Encoder

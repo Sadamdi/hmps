@@ -75,6 +75,7 @@ export type UploadCategory =
 	| 'filosofi' // Gambar filosofi lambang HIMATIF (attached_assets/filosofi)
 	| 'events' // Thumbnail dan attachment event
 	| 'feedback' // Media saran/kritik
+	| 'store' // Gambar produk toko
 	| 'general'; // File umum lainnya
 
 // Membuat subfolder jika belum ada
@@ -282,6 +283,63 @@ export async function uploadBeritaImage(
 	} catch (error) {
 		console.error('Error processing berita image:', error);
 		throw new Error('Failed to process berita image');
+	}
+}
+
+/** Gambar thumbnail/galeri produk toko → uploads/store/ (WebP) */
+export async function uploadStoreProductImage(
+	file: Express.Multer.File,
+	oldFileUrl?: string,
+	tenant?: TenantPathContext,
+): Promise<string> {
+	try {
+		await maybeDeleteLocalUpload(oldFileUrl);
+
+		if (!isProcessableImage(file.mimetype)) {
+			throw new Error(`File type ${file.mimetype} is not processable`);
+		}
+
+		const timestamp = Date.now();
+		const randomName = crypto.randomBytes(8).toString('hex');
+		const safeOriginalName = file.originalname
+			.replace(/[^a-zA-Z0-9.]/g, '_')
+			.substring(0, 20);
+		const fileName = `${timestamp}_${safeOriginalName}_${randomName}.webp`;
+
+		const sub = 'store';
+		const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+			? resolveTenantPaths(sub, false, tenant)
+			: (() => {
+					const d = path.join(uploadDir, sub);
+					if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+					return { dir: d, urlPrefix: `/uploads/${sub}` };
+				})();
+
+		const filePath = path.join(categoryDir, fileName);
+
+		const processedBuffer = await processImage(file.buffer, {
+			quality: 80,
+			maxWidth: 1920,
+			maxHeight: 1080,
+			format: 'webp',
+		});
+
+		await writeFile(filePath, processedBuffer);
+
+		const fileUrl = `${urlPrefix}/${fileName}`;
+		registerUploadedFile({
+			url: fileUrl,
+			diskPath: filePath,
+			originalName: file.originalname,
+			mimeType: 'image/webp',
+			size: processedBuffer.length,
+			category: 'store',
+			tenantSlug: tenant?.tenantSlug,
+		});
+		return fileUrl;
+	} catch (error) {
+		console.error('Error processing store product image:', error);
+		throw new Error('Failed to process store product image');
 	}
 }
 

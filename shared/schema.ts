@@ -186,6 +186,7 @@ export const ALL_SECTION_BLOCKS: { id: string; label: string }[] = [
 	{ id: 'prodi', label: 'Program Studi' },
 	{ id: 'berita', label: 'Berita' },
 	{ id: 'library', label: 'Galeri / Library' },
+	{ id: 'toko', label: 'Toko / Katalog' },
 	{ id: 'footer', label: 'Footer' },
 ];
 
@@ -205,6 +206,7 @@ export const ALL_NAVBAR_ITEMS: { id: string; label: string }[] = [
 	{ id: 'events', label: 'Event' },
 	{ id: 'berita', label: 'Berita' },
 	{ id: 'library', label: 'Galeri' },
+	{ id: 'toko', label: 'Toko' },
 ];
 
 export const DEFAULT_HOME_CONFIG: HomeConfig = {
@@ -843,4 +845,131 @@ export interface LoginAmbiguousResponse {
 	ambiguous: true;
 	targets: LoginTarget[];
 	message: string;
+}
+
+// ── Store / Toko ──
+export interface StoreGalleryItem {
+	url: string;
+	source: 'local' | 'gdrive';
+	gdriveFileId?: string;
+}
+
+export interface StoreLayoutBlock {
+	id: string;
+	type: string;
+	visible: boolean;
+	order: number;
+	props: Record<string, unknown>;
+}
+
+export interface StoreSettingsDoc {
+	_id: string;
+	key: string;
+	navbarLabel: string;
+	navbarPath: string;
+	whatsappPhone: string;
+	whatsappContactName: string;
+	defaultBuyMessageTemplate: string;
+	checkoutMessageTemplate: string;
+	taxPercent: number;
+	taxEnabled: boolean;
+	storeAddress: string;
+	/** ISO 4217, default IDR */
+	defaultCurrency: string;
+	layoutBlocks: StoreLayoutBlock[];
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface StorePriceTier {
+	minQty: number;
+	unitPrice: number;
+	/** Per baris: berlaku kelipatan untuk tier ini */
+	applyMultiples?: boolean;
+}
+
+export interface StoreProductCategoryDoc {
+	_id: string;
+	name: string;
+	slug: string;
+	order: number;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface StoreProductDoc {
+	_id: string;
+	/** Urutan tampilan katalog (naik) */
+	sortOrder?: number;
+	slug: string;
+	name: string;
+	shortDescription: string;
+	descriptionHtml: string;
+	price: number;
+	/** Tier harga: beli ≥ minQty pakai unitPrice tersebut (bukan harga dasar) */
+	priceTiers?: StorePriceTier[];
+	/** @deprecated Gunakan applyMultiples di tiap priceTiers; fallback jika tier lama tanpa flag */
+	priceTierMultiples?: boolean;
+	/** -1 atau tidak ada = stok tak dibatasi */
+	stock?: number;
+	categoryId?: string | null;
+	/** Kosong = pakai defaultCurrency toko */
+	currency: string;
+	thumbnail: string;
+	thumbnailSource: 'local' | 'gdrive';
+	thumbnailGdriveFileId: string;
+	gallery: StoreGalleryItem[];
+	videoUrl: string;
+	videoType: 'youtube' | 'gdrive' | 'public' | '';
+	whatsappPhoneOverride: string;
+	whatsappContactNameOverride: string;
+	buyMessageTemplateOverride: string;
+	storeAddressOverride: string;
+	published: boolean;
+	authorId: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface StoreProductShareDoc {
+	_id: string;
+	productId: string;
+	targetUserId: string;
+	accessLevel: 'view' | 'edit';
+	createdBy: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface StoreOrderItemLine {
+	productId: string;
+	name: string;
+	slug: string;
+	qty: number;
+	unitPrice: number;
+	lineSubtotal: number;
+	currency?: string;
+}
+
+export interface StoreOrderDoc {
+	_id: string;
+	orderNo: string;
+	/** Token untuk buka invoice tanpa cookie sesi (opsional, tidak dikembalikan di GET publik) */
+	invoiceAccessToken?: string;
+	guestSessionKeyHash: string;
+	items: StoreOrderItemLine[];
+	subtotal: number;
+	taxPercent: number;
+	taxAmount: number;
+	total: number;
+	fulfillment: 'pickup' | 'delivery';
+	customerName: string;
+	customerPhone: string;
+	shippingAddress: string;
+	storeAddressSnapshot: string;
+	whatsappPhoneUsed: string;
+	whatsappMessageSnapshot: string;
+	status: 'pending' | 'confirmed' | 'paid' | 'completed' | 'cancelled';
+	createdAt: Date;
+	updatedAt: Date;
 }

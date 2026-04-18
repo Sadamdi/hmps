@@ -1,15 +1,14 @@
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
-import { Button } from '@/components/ui/button';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ChevronLeft, ChevronRight, FlaskConical, Loader2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FlaskConical, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { useLocation, useParams } from 'wouter';
+import { useParams } from 'wouter';
 
 export default function LaboratoriumDetailPage() {
 	const { type, index: indexStr } = useParams<{ type: string; index: string }>();
-	const [, setLocation] = useLocation();
 	const index = parseInt(indexStr || '0', 10);
 
 	const { data, isLoading } = useQuery<any>({
@@ -36,21 +35,14 @@ export default function LaboratoriumDetailPage() {
 
 			<div className="bg-card border-b border-border">
 				<div className="max-w-7xl mx-auto px-4 py-3">
-					<div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-						<Button onClick={() => setLocation('/')} variant="ghost" size="sm"
-							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Beranda
-						</Button>
-						<span className="text-border">/</span>
-						<Button onClick={() => setLocation('/prodi')} variant="ghost" size="sm"
-							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Prodi
-						</Button>
-						<span className="text-border">/</span>
-						<span className="text-foreground font-medium truncate max-w-[200px]">
-							{lab?.name || 'Laboratorium'}
-						</span>
-					</div>
+					<PageBreadcrumb
+						className="mb-0"
+						items={[
+							{ label: 'Beranda', href: '/' },
+							{ label: 'Prodi', href: '/prodi' },
+							{ label: lab?.name || 'Laboratorium' },
+						]}
+					/>
 				</div>
 			</div>
 
@@ -60,10 +52,7 @@ export default function LaboratoriumDetailPage() {
 				</div>
 			) : !lab ? (
 				<div className="py-24 text-center text-muted-foreground">
-					<p className="mb-4">Laboratorium tidak ditemukan.</p>
-					<Button onClick={() => setLocation('/prodi')} variant="outline">
-						<ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Prodi
-					</Button>
+					<p>Laboratorium tidak ditemukan.</p>
 				</div>
 			) : (
 				<div className="max-w-4xl mx-auto px-4 py-12">
@@ -83,12 +72,6 @@ export default function LaboratoriumDetailPage() {
 						</div>
 					</div>
 
-					<div className="mt-8 text-center">
-						<Button onClick={() => setLocation('/prodi')} variant="outline"
-							className="px-8 py-2.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold transition-colors">
-							<ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Prodi
-						</Button>
-					</div>
 				</div>
 			)}
 

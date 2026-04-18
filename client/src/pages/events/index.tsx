@@ -3,8 +3,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Calendar } from 'lucide-react';
+import { Calendar } from 'lucide-react';
 import { Link } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
 
@@ -37,12 +38,7 @@ export default function EventsYearPicker() {
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
 			<main className="flex-1 py-12 px-4">
 				<div className="max-w-3xl mx-auto">
-					<Link href="/">
-						<Button variant="ghost" size="sm" className="mb-6">
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Kembali ke Beranda
-						</Button>
-					</Link>
+					<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: 'Event' }]} />
 
 					<h1 className="text-3xl font-bold mb-2">Event</h1>
 					<p className="text-muted-foreground mb-8">Pilih tahun untuk melihat event</p>

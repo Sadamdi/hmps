@@ -2502,6 +2502,20 @@ async function initializeDefaultPermissions() {
 			category: 'feedback',
 		},
 
+		// Toko / katalog
+		{
+			name: 'toko.view',
+			displayName: 'View Toko',
+			description: 'Melihat dashboard toko dan katalog (baca)',
+			category: 'toko',
+		},
+		{
+			name: 'toko.manage',
+			displayName: 'Manage Toko',
+			description: 'Mengelola pengaturan toko, produk, layout, dan sharing',
+			category: 'toko',
+		},
+
 		// Registration permissions
 		{
 			name: 'registration.view',

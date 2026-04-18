@@ -6,6 +6,9 @@ import {
 	Organization as MainOrganization,
 	ProdiContent as MainProdiContent,
 	Settings as MainSettings,
+	StoreProduct as MainStoreProduct,
+	StoreProductShare as MainStoreProductShare,
+	StoreSettings as MainStoreSettings,
 	User as MainUser,
 } from '../../db/mongodb';
 import { getTenantModels } from '../../db/tenant';
@@ -13,6 +16,7 @@ import { mongoStorage } from '../mongo-storage';
 import { createTenantStorage } from '../tenant-storage';
 import { DEFAULT_BERITA_IMAGE_PATH } from '../upload';
 import { normalizeEventAttachmentArray } from '../event-attachments';
+import { normalizeProductCurrencyOverride } from '../../shared/store-currency';
 
 type ToolModelsBundle = {
 	Berita: typeof MainBerita;
@@ -22,6 +26,9 @@ type ToolModelsBundle = {
 	Organization: typeof MainOrganization;
 	ProdiContent: typeof MainProdiContent;
 	Settings: typeof MainSettings;
+	StoreProduct: typeof MainStoreProduct;
+	StoreProductShare: typeof MainStoreProductShare;
+	StoreSettings: typeof MainStoreSettings;
 	User: typeof MainUser;
 };
 
@@ -36,6 +43,9 @@ function getToolModels(tenantDbName?: string | null): ToolModelsBundle {
 			Organization: tm.Organization as typeof MainOrganization,
 			ProdiContent: tm.ProdiContent as typeof MainProdiContent,
 			Settings: tm.Settings as typeof MainSettings,
+			StoreProduct: tm.StoreProduct as typeof MainStoreProduct,
+			StoreProductShare: tm.StoreProductShare as typeof MainStoreProductShare,
+			StoreSettings: tm.StoreSettings as typeof MainStoreSettings,
 			User: tm.User as typeof MainUser,
 		};
 	}
@@ -47,6 +57,9 @@ function getToolModels(tenantDbName?: string | null): ToolModelsBundle {
 		Organization: MainOrganization,
 		ProdiContent: MainProdiContent,
 		Settings: MainSettings,
+		StoreProduct: MainStoreProduct,
+		StoreProductShare: MainStoreProductShare,
+		StoreSettings: MainStoreSettings,
 		User: MainUser,
 	};
 }
@@ -76,6 +89,8 @@ interface AIToolDef {
 	requiredPermissions?: string[];
 	/** Mutates data — needs extra guard */
 	isWrite?: boolean;
+	/** Hanya di path Dashboard Toko (/dashboard/toko atau /:slug/dashboard/toko) */
+	requiresTokoDashboardPath?: boolean;
 	/** Perlu (berita.edit|berita.edit_others) DAN (events.edit|events.edit_others) */
 	requiresBeritaAndEventEdit?: boolean;
 	/** Perlu (events.view|events.view_others) DAN berita.create */
@@ -99,6 +114,21 @@ export function isDashboardAiWriteAllowed(
 	}
 	if (pathname.startsWith('/dashboard')) return true;
 	return /^\/[^/]+\/dashboard(\/|$)/.test(pathname);
+}
+
+/** Aksi AI katalog (tulis) hanya di halaman Dashboard Toko. */
+export function isDashboardTokoPath(pagePath?: string | null): boolean {
+	if (pagePath == null || typeof pagePath !== 'string') return false;
+	let pathname = pagePath.trim();
+	try {
+		if (/^https?:\/\//i.test(pathname)) {
+			pathname = new URL(pathname).pathname;
+		}
+	} catch {
+		return false;
+	}
+	if (pathname.startsWith('/dashboard/toko')) return true;
+	return /^\/[^/]+\/dashboard\/toko(\/|$)/.test(pathname);
 }
 
 // ---------------------------------------------------------------------------
@@ -394,6 +424,28 @@ const DASHBOARD_READ_TOOLS: AIToolDef[] = [
 			'library.edit',
 			'library.create',
 		],
+	},
+	{
+		name: 'get_dashboard_store_products',
+		description:
+			'Ambil daftar produk toko untuk konteks situs aktif (situs utama atau satu komunitas; tidak lintas-tenant). Nama, slug, harga, status publikasi. Gunakan untuk menjawab "produk apa saja" atau sebelum edit/hapus lewat tool lain — pengelola melihat semua; user sharing hanya produk yang dibagikan. Tidak memerlukan halaman /toko publik; cukup pengguna login dengan izin.',
+		parameters: {
+			type: 'object',
+			properties: {
+				keyword: {
+					type: 'string',
+					description:
+						'Kata kunci (opsional) pada nama, ringkasan, deskripsi, atau slug.',
+				},
+				limit: {
+					type: 'number',
+					description: 'Jumlah maksimal. Default 30.',
+				},
+			},
+			required: [],
+		},
+		isPublic: false,
+		requiredPermissions: ['toko.view', 'toko.manage'],
 	},
 ];
 
@@ -853,6 +905,102 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 		requiredPermissions: ['events.create'],
 		isWrite: true,
 	},
+
+	// -- Toko / katalog (wajib toko.manage + halaman Dashboard Toko) --
+
+	{
+		name: 'create_store_product',
+		description:
+			'Buat produk/katalog baru di toko. Thumbnail wajib di API; jika tidak diberikan, sistem memakai placeholder — pengguna harus mengganti thumbnail asli di Dashboard Toko. Gunakan setelah konfirmasi user di halaman Dashboard Toko.',
+		parameters: {
+			type: 'object',
+			properties: {
+				name: { type: 'string', description: 'Nama produk (wajib).' },
+				price: { type: 'number', description: 'Harga dalam Rupiah (wajib, >= 0).' },
+				shortDescription: { type: 'string', description: 'Ringkasan singkat (opsional).' },
+				descriptionHtml: { type: 'string', description: 'Deskripsi HTML (opsional).' },
+				slug: { type: 'string', description: 'Slug URL (opsional; jika kosong dibuat otomatis dari nama).' },
+				thumbnail: {
+					type: 'string',
+					description:
+						'URL gambar thumbnail (opsional). Jika kosong dipakai placeholder — unggah asli lewat Dashboard.',
+				},
+				videoUrl: { type: 'string', description: 'Link demo YouTube / Google Drive / URL video publik .mp4/.webm/.mov (opsional).' },
+				whatsappPhoneOverride: { type: 'string', description: 'Override nomor WA untuk produk ini (opsional).' },
+				buyMessageTemplateOverride: { type: 'string', description: 'Override template pesan beli (opsional).' },
+				storeAddressOverride: { type: 'string', description: 'Override alamat toko untuk produk ini (opsional).' },
+				published: { type: 'boolean', description: 'true = langsung tampil di toko publik. Default false (draft).' },
+			},
+			required: ['name', 'price'],
+		},
+		isPublic: false,
+		requiredPermissions: ['toko.manage'],
+		isWrite: true,
+		requiresTokoDashboardPath: true,
+	},
+	{
+		name: 'update_store_product',
+		description:
+			'Perbarui produk/katalog yang ada (nama, harga, slug, deskripsi, publish, WA override, dll.). Hanya field yang dikirim yang diubah.',
+		parameters: {
+			type: 'object',
+			properties: {
+				productId: { type: 'string', description: 'ID MongoDB produk (wajib).' },
+				name: { type: 'string' },
+				slug: { type: 'string' },
+				shortDescription: { type: 'string' },
+				descriptionHtml: { type: 'string' },
+				price: { type: 'number' },
+				thumbnail: { type: 'string' },
+				videoUrl: { type: 'string' },
+				whatsappPhoneOverride: { type: 'string' },
+				buyMessageTemplateOverride: { type: 'string' },
+				storeAddressOverride: { type: 'string' },
+				published: { type: 'boolean' },
+			},
+			required: ['productId'],
+		},
+		isPublic: false,
+		requiredPermissions: ['toko.manage'],
+		isWrite: true,
+		requiresTokoDashboardPath: true,
+	},
+	{
+		name: 'delete_store_product',
+		description: 'Hapus produk/katalog beserta data sharing terkait. Tindakan permanen.',
+		parameters: {
+			type: 'object',
+			properties: {
+				productId: { type: 'string', description: 'ID MongoDB produk (wajib).' },
+			},
+			required: ['productId'],
+		},
+		isPublic: false,
+		requiredPermissions: ['toko.manage'],
+		isWrite: true,
+		requiresTokoDashboardPath: true,
+	},
+	{
+		name: 'update_store_layout_blocks',
+		description:
+			'Mengatur ulang blok layout halaman beranda toko publik (hero, kisi produk, dll.) — sama seperti drag-and-drop di tab Pengaturan toko. Kirim array layoutBlocks lengkap dengan urutan order.',
+		parameters: {
+			type: 'object',
+			properties: {
+				layoutBlocks: {
+					type: 'array',
+					description:
+						'Daftar blok: masing-masing punya id, type, visible, order, props (objek).',
+					items: { type: 'object' },
+				},
+			},
+			required: ['layoutBlocks'],
+		},
+		isPublic: false,
+		requiredPermissions: ['toko.manage'],
+		isWrite: true,
+		requiresTokoDashboardPath: true,
+	},
 ];
 
 // ---------------------------------------------------------------------------
@@ -909,6 +1057,9 @@ export function getToolsForPermissions(
 	return ALL_AI_TOOLS.filter((tool) => {
 		if (!toolAllowedByPermissions(tool, perms)) return false;
 		if (tool.isWrite && !onDashboard) return false;
+		if (tool.requiresTokoDashboardPath && !isDashboardTokoPath(pagePath)) {
+			return false;
+		}
 		return true;
 	}).map(({ name, description, parameters }) => ({
 		name,
@@ -949,6 +1100,9 @@ function checkRuntimePermission(
 	if (meta.isPublic) return null;
 	if (meta.isWrite && !isDashboardAiWriteAllowed(pagePath)) {
 		return 'Aksi tulis/hapus/publish hanya bisa dilakukan saat Anda berada di halaman Dashboard (path /dashboard). Buka Dashboard terlebih dahulu.';
+	}
+	if (meta.requiresTokoDashboardPath && !isDashboardTokoPath(pagePath)) {
+		return 'Aksi kelola katalog toko (tambah/edit/hapus/layout) hanya bisa dilakukan saat Anda berada di halaman Dashboard Toko (/dashboard/toko). Buka menu Toko di dashboard.';
 	}
 	const perms = new Set(permissions);
 	if (meta.requiresBeritaAndEventEdit) {
@@ -1237,6 +1391,33 @@ async function fetchAndExtractWebpage(
 }
 
 // ---------------------------------------------------------------------------
+// Toko / katalog helpers (selaras dengan server/routes/store.ts)
+// ---------------------------------------------------------------------------
+
+const STORE_THUMB_PLACEHOLDER =
+	'data:image/svg+xml,' +
+	encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+
+function validateStoreVideoUrl(url: string): { ok: boolean; type: '' | 'youtube' | 'gdrive' | 'public' } {
+	if (!url || !String(url).trim()) return { ok: true, type: '' };
+	const u = url.trim();
+	if (/youtube\.com|youtu\.be/i.test(u)) return { ok: true, type: 'youtube' };
+	if (/drive\.google\.com/i.test(u)) return { ok: true, type: 'gdrive' };
+	if (/^https?:\/\//i.test(u) && /\.(mp4|webm|ogg|mov)(?:$|[?#])/i.test(u)) return { ok: true, type: 'public' };
+	return { ok: false, type: '' };
+}
+
+function storeProductSlugify(text: string): string {
+	const s = String(text || '')
+		.toLowerCase()
+		.trim()
+		.replace(/[^\w\s-]/g, '')
+		.replace(/[\s_-]+/g, '-')
+		.replace(/^-+|-+$/g, '');
+	return s || 'produk';
+}
+
+// ---------------------------------------------------------------------------
 // Tool executor
 // ---------------------------------------------------------------------------
 
@@ -1269,6 +1450,9 @@ export async function executeToolCall(
 			ProdiContent,
 			Settings,
 			User,
+			StoreProduct,
+			StoreSettings,
+			StoreProductShare,
 		} = getToolModels(tenantDbName);
 
 		switch (name) {
@@ -2008,6 +2192,46 @@ export async function executeToolCall(
 				};
 			}
 
+			case 'get_dashboard_store_products': {
+				if (!authUserId) return { error: 'Login diperlukan.' };
+				const limit = Math.min((args.limit as number) || 30, 50);
+				const keyword = args.keyword as string | undefined;
+				const pset = new Set(permissions);
+				let filter: Record<string, unknown> = {};
+				if (pset.has('toko.manage') || pset.has('toko.view')) {
+					filter = {};
+				} else {
+					const shares = await StoreProductShare.find({ targetUserId: authUserId })
+						.select('productId')
+						.lean();
+					const ids = shares.map((s: any) => s.productId);
+					if (!ids.length) return { count: 0, products: [] };
+					filter = { _id: { $in: ids } };
+				}
+				const kw = buildKeywordAndOrFields(keyword, [
+					'name',
+					'shortDescription',
+					'descriptionHtml',
+					'slug',
+				]);
+				const query = kw ? { ...filter, ...kw } : filter;
+				const items = await StoreProduct.find(query)
+					.select('name slug price published updatedAt')
+					.sort({ updatedAt: -1 })
+					.limit(limit)
+					.lean();
+				return {
+					count: items.length,
+					products: items.map((p: any) => ({
+						id: p._id.toString(),
+						name: p.name,
+						slug: p.slug,
+						price: p.price,
+						published: p.published,
+					})),
+				};
+			}
+
 			// ==================== DASHBOARD WRITE ====================
 
 			case 'create_berita_draft': {
@@ -2723,6 +2947,137 @@ export async function executeToolCall(
 						parentEventId: String(parent._id),
 					},
 				};
+			}
+
+			case 'create_store_product': {
+				if (!authUserId)
+					return { error: 'Login diperlukan untuk membuat produk.' };
+				const name = String(args.name || '').trim();
+				if (!name) return { error: 'Nama produk wajib diisi' };
+				const price = Number(args.price);
+				if (!Number.isFinite(price) || price < 0) return { error: 'Harga tidak valid' };
+				const thumbRaw = String(args.thumbnail || '').trim();
+				const thumbnail = thumbRaw || STORE_THUMB_PLACEHOLDER;
+				const videoUrl = String(args.videoUrl || '').trim();
+				const vid = validateStoreVideoUrl(videoUrl);
+				if (!vid.ok) return { error: 'Video harus link YouTube, Google Drive, atau URL video publik (.mp4/.webm/.mov)' };
+				let baseSlug = storeProductSlugify(String(args.slug || name));
+				let slug = baseSlug;
+				let n = 0;
+				while (await StoreProduct.findOne({ slug }).lean()) {
+					n += 1;
+					slug = `${baseSlug}-${n}`;
+				}
+				const doc = await StoreProduct.create({
+					slug,
+					name,
+					shortDescription: String(args.shortDescription || '').slice(0, 500),
+					descriptionHtml: String(args.descriptionHtml || ''),
+					price,
+					priceTiers: [],
+					stock: -1,
+					categoryId: null,
+					currency: normalizeProductCurrencyOverride(args.currency),
+					thumbnail,
+					thumbnailSource: 'local',
+					thumbnailGdriveFileId: '',
+					gallery: [],
+					videoUrl,
+					videoType: vid.type,
+					whatsappPhoneOverride: String(args.whatsappPhoneOverride || ''),
+					buyMessageTemplateOverride: String(args.buyMessageTemplateOverride || ''),
+					storeAddressOverride: String(args.storeAddressOverride || ''),
+					published: !!args.published,
+					authorId: authUserId,
+				});
+				return {
+					success: true,
+					product: {
+						id: doc._id.toString(),
+						slug: doc.slug,
+						name: doc.name,
+					},
+					message: thumbRaw
+						? 'Produk dibuat.'
+						: 'Produk dibuat dengan thumbnail placeholder — ganti thumbnail asli di Dashboard Toko.',
+				};
+			}
+
+			case 'update_store_product': {
+				if (!authUserId) return { error: 'Login diperlukan.' };
+				const productId = args.productId as string;
+				if (!productId) return { error: 'ID produk diperlukan' };
+				const p = await StoreProduct.findById(productId);
+				if (!p) return { error: 'Produk tidak ditemukan' };
+				if (args.slug !== undefined) {
+					const ns = storeProductSlugify(String(args.slug));
+					const clash = await StoreProduct.findOne({
+						slug: ns,
+						_id: { $ne: p._id },
+					}).lean();
+					if (clash) return { error: 'Slug sudah dipakai' };
+					p.slug = ns;
+				}
+				if (args.name !== undefined) p.name = String(args.name).trim();
+				if (args.shortDescription !== undefined)
+					p.shortDescription = String(args.shortDescription).slice(0, 500);
+				if (args.descriptionHtml !== undefined) p.descriptionHtml = String(args.descriptionHtml);
+				if (args.price !== undefined) {
+					const price = Number(args.price);
+					if (!Number.isFinite(price) || price < 0) return { error: 'Harga tidak valid' };
+					p.price = price;
+				}
+				if (args.currency !== undefined) p.currency = normalizeProductCurrencyOverride(args.currency);
+				if (args.thumbnail !== undefined) p.thumbnail = String(args.thumbnail).trim();
+				if (args.videoUrl !== undefined) {
+					const v = validateStoreVideoUrl(String(args.videoUrl));
+					if (!v.ok) return { error: 'Video harus link YouTube, Google Drive, atau URL video publik (.mp4/.webm/.mov)' };
+					p.videoUrl = String(args.videoUrl);
+					p.videoType = v.type;
+				}
+				if (args.whatsappPhoneOverride !== undefined)
+					p.whatsappPhoneOverride = String(args.whatsappPhoneOverride || '');
+				if (args.buyMessageTemplateOverride !== undefined)
+					p.buyMessageTemplateOverride = String(args.buyMessageTemplateOverride || '');
+				if (args.storeAddressOverride !== undefined)
+					p.storeAddressOverride = String(args.storeAddressOverride || '');
+				if (args.published !== undefined) p.published = !!args.published;
+				p.updatedAt = new Date();
+				await p.save();
+				return { success: true, message: 'Produk diperbarui.' };
+			}
+
+			case 'delete_store_product': {
+				if (!authUserId) return { error: 'Login diperlukan.' };
+				const productId = args.productId as string;
+				if (!productId) return { error: 'ID produk diperlukan' };
+				await StoreProductShare.deleteMany({ productId });
+				const r = await StoreProduct.findByIdAndDelete(productId);
+				if (!r) return { error: 'Produk tidak ditemukan' };
+				return { success: true, message: 'Produk dihapus.' };
+			}
+
+			case 'update_store_layout_blocks': {
+				if (!authUserId) return { error: 'Login diperlukan.' };
+				const blocks = args.layoutBlocks;
+				if (!Array.isArray(blocks) || !blocks.length)
+					return { error: 'layoutBlocks harus berupa array tidak kosong' };
+				const layoutBlocks = blocks.map((b: any, i: number) => ({
+					id: String(b.id || `blk-${i}`),
+					type: String(b.type || 'block'),
+					visible: b.visible !== false,
+					order: typeof b.order === 'number' ? b.order : i,
+					props: typeof b.props === 'object' && b.props ? b.props : {},
+				}));
+				await StoreSettings.findOneAndUpdate(
+					{ key: 'default' },
+					{
+						$set: { layoutBlocks, updatedAt: new Date() },
+						$setOnInsert: { key: 'default' },
+					},
+					{ upsert: true, new: true },
+				);
+				return { success: true, message: 'Layout beranda toko diperbarui.' };
 			}
 
 			// ==================== INTERNET SEARCH & FETCH ====================

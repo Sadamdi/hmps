@@ -5,9 +5,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { getEventStatus, formatEventDate, StatusBadge } from '@/components/public/events-tree';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Eye, FileText } from 'lucide-react';
+import { Calendar, Eye, FileText } from 'lucide-react';
 import { Link, useParams } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
 import { toSlug } from '@/utils/slug';
@@ -73,14 +74,15 @@ export default function EventsYearPage() {
 			<div className="min-h-screen flex flex-col">
 				<Navbar activeSection="" scrollToSection={scrollToSection} />
 				<main className="flex-1 flex items-center justify-center p-8">
-					<div className="text-center">
-						<p className="text-muted-foreground mb-4">Tahun event tidak ditemukan.</p>
-						<Link href="/">
-							<Button variant="outline">
-								<ArrowLeft className="h-4 w-4 mr-2" />
-								Kembali ke Beranda
-							</Button>
-						</Link>
+					<div className="text-center space-y-4">
+						<PageBreadcrumb
+							items={[
+								{ label: 'Beranda', href: '/' },
+								{ label: 'Event', href: '/events' },
+								{ label: 'Tidak ditemukan' },
+							]}
+						/>
+						<p className="text-muted-foreground">Tahun event tidak ditemukan.</p>
 					</div>
 				</main>
 				<Footer />
@@ -93,12 +95,13 @@ export default function EventsYearPage() {
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
 			<main className="flex-1 py-12 px-4">
 				<div className="max-w-4xl mx-auto">
-					<Link href="/">
-						<Button variant="ghost" size="sm" className="mb-6">
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Kembali ke Beranda
-						</Button>
-					</Link>
+					<PageBreadcrumb
+						items={[
+							{ label: 'Beranda', href: '/' },
+							{ label: 'Event', href: '/events' },
+							{ label: year ? String(year) : '…' },
+						]}
+					/>
 
 					{isLoading ? (
 						<div className="space-y-6">

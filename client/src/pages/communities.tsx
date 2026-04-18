@@ -1,12 +1,11 @@
-import { Button } from '@/components/ui/button';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Building2, ExternalLink, Loader2 } from 'lucide-react';
+import { Building2, ExternalLink, Loader2 } from 'lucide-react';
 import { useEffect } from 'react';
-import { Link, useLocation } from 'wouter';
+import { Link } from 'wouter';
 
 export default function AllCommunitiesPage() {
-	const [, navigate] = useLocation();
 	const { data: communities = [], isLoading } = useQuery<any[]>({
 		queryKey: ['/api/communities'],
 	});
@@ -19,10 +18,10 @@ export default function AllCommunitiesPage() {
 		<div className="min-h-screen bg-background">
 			<div className="max-w-6xl mx-auto px-4 py-12">
 				<div className="mb-8">
-					<button onClick={() => navigate('/')} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground text-sm mb-4 transition-colors">
-						<ArrowLeft className="h-4 w-4" />
-						Kembali ke Beranda
-					</button>
+					<PageBreadcrumb
+						className="mb-4"
+						items={[{ label: 'Beranda', href: '/' }, { label: 'Semua Komunitas' }]}
+					/>
 					<h1 className="text-3xl font-bold">Semua Komunitas</h1>
 					<p className="text-muted-foreground mt-2">Daftar komunitas yang terdaftar di platform Himatif Encoder</p>
 				</div>

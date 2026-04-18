@@ -15,7 +15,8 @@ export type DashboardSpyroModule =
 	| 'feedback'
 	| 'roles'
 	| 'prodi'
-	| 'settings';
+	| 'settings'
+	| 'toko';
 
 /** Lokasi halaman dalam satu modul (URL sering tetap /dashboard/...). */
 export type DashboardSpyroSurface =
@@ -43,7 +44,13 @@ export type DashboardSpyroSurface =
 	| 'roles.permissions_loading'
 	| 'roles.main'
 	| 'prodi.permissions_loading'
-	| 'prodi.main';
+	| 'prodi.main'
+	| 'toko.permissions_loading'
+	| 'toko.tab_products'
+	| 'toko.tab_settings'
+	| 'toko.tab_orders'
+	| 'toko.tab_categories'
+	| 'toko.product_editor_open';
 
 export type DashboardSpyroPageData = {
 	module: DashboardSpyroModule;
@@ -62,10 +69,14 @@ export type DashboardSpyroPageData = {
 	beritaId?: string;
 	beritaTitle?: string;
 	isNewBerita?: boolean;
+	/** Events / Toko: mode kelola penuh */
 	manageEnabled?: boolean;
 	uploaderOpen?: boolean;
 	userDialogOpen?: boolean;
 	editingUserSummary?: string;
+	/** Toko */
+	productDialogOpen?: boolean;
+	editingProductSummary?: string;
 };
 
 export function buildLibrarySpyroPageData(input: {
@@ -236,5 +247,65 @@ export function buildSimpleSpyroPageData(
 		surface,
 		summary,
 		...extras,
+	};
+}
+
+export function buildTokoSpyroPageData(input: {
+	permissionsLoading: boolean;
+	canManage: boolean;
+	activeTab: string;
+	productDialogOpen: boolean;
+	editingProductId: string | null;
+	editingProductName?: string;
+}): DashboardSpyroPageData {
+	if (input.permissionsLoading) {
+		return {
+			module: 'toko',
+			surface: 'toko.permissions_loading',
+			summary: 'Memuat izin halaman Toko.',
+		};
+	}
+	const tab = input.activeTab;
+	const surface: DashboardSpyroSurface = input.productDialogOpen
+		? 'toko.product_editor_open'
+		: tab === 'settings'
+			? 'toko.tab_settings'
+			: tab === 'orders'
+				? 'toko.tab_orders'
+				: tab === 'categories'
+					? 'toko.tab_categories'
+					: 'toko.tab_products';
+
+	const tabSummaries: Record<string, string> = {
+		products:
+			'Tab Produk: daftar/grid produk, tambah/edit/hapus (manage), publish/draft, thumbnail & galeri, stok & tier harga, override WA per produk, sharing internal per produk, urutan tampilan grid toko publik.',
+		settings:
+			'Tab Pengaturan: label/path menu navbar toko, layout blok halaman publik /toko (drag), nomor WA global & template pesan, pajak & mata uang default, field toko lain yang tampil di katalog.',
+		orders:
+			'Tab Pesanan: daftar order, ubah status (menunggu → dibayar → dikonfirmasi → diterima / dibatalkan), hapus satu pesanan atau hapus semua riwayat (permanen).',
+		categories:
+			'Tab Kategori: buat/hapus kategori; produk mengait kategori lewat form di tab Produk.',
+	};
+
+	let summary = input.canManage
+		? `Dashboard Toko (kelola penuh). ${tabSummaries[tab] ?? tabSummaries.products}`
+		: `Dashboard Toko (akses terbatas/sharing). ${tab === 'products' ? tabSummaries.products : `Tab "${tab}".`}`;
+	if (input.productDialogOpen) {
+		const label = (input.editingProductName || '').trim();
+		summary += input.editingProductId
+			? ` Form produk terbuka (mengedit: ${label || 'produk'}).`
+			: ' Form produk baru terbuka.';
+	}
+
+	return {
+		module: 'toko',
+		surface,
+		summary,
+		tab,
+		manageEnabled: input.canManage,
+		productDialogOpen: input.productDialogOpen,
+		editingProductSummary: input.editingProductId
+			? (input.editingProductName || '').trim() || undefined
+			: undefined,
 	};
 }

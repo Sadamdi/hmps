@@ -2,6 +2,7 @@ import AIChat from '@/components/public/ai-chat';
 import CommentThread from '@/components/public/comment-thread';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,6 @@ import {
 import { toSlug } from '@/utils/slug';
 import { useQuery } from '@tanstack/react-query';
 import {
-	ArrowLeft,
 	BookOpen,
 	Calendar,
 	CalendarDays,
@@ -45,6 +45,7 @@ interface BeritaItem {
 	tags?: string[];
 	slug?: string;
 	viewCount?: number;
+	relatedGalleryPreview?: { _id: string; title: string }[];
 }
 
 interface RelatedBerita {
@@ -321,12 +322,13 @@ export default function BeritaDetail() {
 						<h1 className="text-2xl font-bold text-foreground mb-4">
 							Berita tidak ditemukan
 						</h1>
-						<Button
-							onClick={() => setLocation('/')}
-							variant="outline">
-							<ArrowLeft className="w-4 h-4 mr-2" />
-							Kembali ke Beranda
-						</Button>
+						<PageBreadcrumb
+							items={[
+								{ label: 'Beranda', href: '/' },
+								{ label: 'Berita', href: '/berita' },
+								{ label: 'Tidak ditemukan' },
+							]}
+						/>
 					</div>
 				</div>
 			</div>
@@ -340,38 +342,20 @@ export default function BeritaDetail() {
 				scrollToSection={scrollToSection}
 			/>
 
-			{/* Breadcrumb bar */}
 			<div className="bg-card border-b border-border">
 				<div className="max-w-7xl mx-auto px-4 py-3">
-					<div className="flex items-center gap-1.5 text-sm text-muted-foreground mb-2">
-						<Button
-							onClick={() => setLocation('/')}
-							variant="ghost"
-							size="sm"
-							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Beranda
-						</Button>
-						<span className="text-border">/</span>
-						<Button
-							onClick={() => setLocation('/berita')}
-							variant="ghost"
-							size="sm"
-							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Berita
-						</Button>
-						<span className="text-border">/</span>
-						<span className="text-foreground font-medium truncate max-w-xs">
-							{berita.title}
-						</span>
-					</div>
-					<Button
-						onClick={() => setLocation('/berita')}
-						variant="ghost"
-						size="sm"
-						className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
-						<ArrowLeft className="w-4 h-4 mr-2" />
-						Kembali ke Berita
-					</Button>
+					<PageBreadcrumb
+						items={[
+							{ label: 'Beranda', href: '/' },
+							{ label: 'Berita', href: '/berita' },
+							{
+								label:
+									berita.title.length > 56
+										? `${berita.title.slice(0, 56)}…`
+										: berita.title,
+							},
+						]}
+					/>
 				</div>
 			</div>
 
@@ -503,7 +487,7 @@ export default function BeritaDetail() {
 										</h3>
 									</div>
 									<div className="flex flex-wrap gap-2">
-										{berita.relatedGalleryPreview.map((g) => (
+										{berita.relatedGalleryPreview.map((g: { _id: string; title: string }) => (
 											<Link
 												key={g._id}
 												href={`/library/${toSlug(g.title) || g._id}`}>
@@ -656,19 +640,6 @@ export default function BeritaDetail() {
 							/>
 						)}
 
-						{/* Back button */}
-						<div
-							className="mt-8 text-center"
-							data-aos="fade-up"
-							data-aos-delay="400">
-							<Button
-								onClick={() => setLocation('/')}
-								variant="outline"
-								className="px-8 py-2.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold transition-colors">
-								<ArrowLeft className="w-4 h-4 mr-2" />
-								Kembali ke Beranda
-							</Button>
-						</div>
 					</div>
 				</div>
 

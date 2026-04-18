@@ -2,7 +2,7 @@ import { AboutVideoEmbed } from '@/components/public/about-video-embed';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
-import { Button } from '@/components/ui/button';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { apiRequest } from '@/lib/queryClient';
 import type {
 	AboutPageLambangItem,
@@ -10,9 +10,7 @@ import type {
 } from '@shared/schema';
 import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import { useEffect, useLayoutEffect } from 'react';
-import { useLocation } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
 
 interface Settings {
@@ -24,7 +22,6 @@ interface Settings {
 }
 
 export default function ProfilPage() {
-	const [, setLocation] = useLocation();
 	const { isTenant, basePath } = useTenant();
 	const bp = basePath || '';
 
@@ -121,17 +118,7 @@ export default function ProfilPage() {
 			{/* Breadcrumb bar */}
 			<div className="bg-card border-b border-border">
 				<div className="max-w-7xl mx-auto px-4 py-3">
-					<div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-						<Button
-							onClick={() => setLocation('/')}
-							variant="ghost"
-							size="sm"
-							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Beranda
-						</Button>
-						<span className="text-border">/</span>
-						<span className="text-foreground font-medium">Profil</span>
-					</div>
+					<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: 'Profil' }]} />
 				</div>
 			</div>
 
@@ -462,17 +449,6 @@ export default function ProfilPage() {
 					<div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/35 to-transparent" />
 				</section>
 			)}
-
-			{/* Back button */}
-			<div className="py-12 text-center">
-				<Button
-					onClick={() => setLocation('/')}
-					variant="outline"
-					className="px-8 py-2.5 border-primary text-primary hover:bg-primary hover:text-primary-foreground font-semibold transition-colors">
-					<ArrowLeft className="w-4 h-4 mr-2" />
-					Kembali ke Beranda
-				</Button>
-			</div>
 
 			<Footer />
 

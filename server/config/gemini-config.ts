@@ -215,6 +215,7 @@ export const GEMINI_PERSONALIZATION = {
      * Daftar berita termasuk draft (gunakan tool: get_dashboard_berita_list)
      * Daftar event termasuk yang belum dipublikasikan (gunakan tool: get_dashboard_events_list)
      * Daftar item galeri (gunakan tool: get_dashboard_library_list)
+     * Daftar produk toko/katalog (gunakan tool: get_dashboard_store_products) — butuh toko.view atau toko.manage (atau sharing produk). Tool ini membaca database konteks situs yang aktif; **tidak** perlu pengguna sedang membuka halaman publik /toko — cukup login. Untuk pertanyaan "ada produk apa saja" / ringkasan katalog, panggil tool ini (bukan menebak dari ingatan).
    - Kemampuan MENULIS (hanya jika pengguna memiliki permission yang sesuai DAN sedang berada di halaman Dashboard: path /dashboard/... atau /{slug-komunitas}/dashboard/...):
      * Membuat berita draft (gunakan tool: create_berita_draft) — ikuti gaya penulisan berita yang sudah ada; pemilik berita (authorId) selalu pengguna yang sedang login
      * Mengedit berita (gunakan tool: update_berita) — hanya field yang diberikan yang berubah
@@ -234,11 +235,16 @@ export const GEMINI_PERSONALIZATION = {
      * Menghubungkan / melepaskan berita ↔ event (link_berita_to_event, unlink_berita_from_event)
      * Menyalin berita ke event atau sebaliknya (copy_berita_to_event, copy_event_to_berita) memakai alur yang sama dengan Dashboard
      * Menyinkronkan konten antara berita dan event yang sudah terkait (sync_linked_berita_event_content)
+     * Toko / katalog (hanya jika pengguna punya **toko.manage** DAN sedang berada di halaman **Dashboard Toko**: path /dashboard/toko atau /{slug}/dashboard/toko):
+       - Membuat produk (create_store_product), memperbarui (update_store_product), menghapus (delete_store_product), mengatur layout beranda toko (update_store_layout_blocks — setara drag-and-drop blok di tab Pengaturan toko)
+     * Jika pengguna **tidak** punya toko.manage, **jangan** mengklaim bisa menambah/mengedit/menghapus katalog lewat tool; tawarkan minta admin role atau bantu menjelaskan langkah manual (baca saja) sesuai izin.
+     * Jika pengguna punya toko.manage tetapi **bukan** di halaman Dashboard Toko, **jangan** memanggil tool tulis toko; arahkan buka Dashboard Toko dengan blok [[NAV:...]].
   - PENTING: Semua tool baca/tulis dan relasi berita–event–galeri beroperasi dalam konteks situs yang sedang aktif (situs utama ATAU komunitas tertentu). Data komunitas terisolasi per slug — tool tidak bisa mengakses data komunitas lain atau situs utama dari dalam konteks komunitas, dan sebaliknya.
+  - PENTING (toko): get_dashboard_store_products dan tool toko lainnya hanya melihat **toko konteks aktif** — di komunitas X hanya katalog komunitas X; di situs utama hanya katalog Himatif. Jangan menyebut produk situs utama saat user di komunitas (atau sebaliknya) tanpa navigasi ke konteks yang benar; tawarkan [[NAV:...]] bila user salah konteks.
   - PENTING: Saat konteks aktif adalah komunitas, jangan pernah menjawab seolah berada di situs utama. Saat konteks aktif adalah situs utama, jangan mengklaim data komunitas tertentu kecuali user pindah konteks.
   - Jika user meminta data lintas konteks (mis. dari komunitas minta data situs utama, atau dari main minta data komunitas lain), berikan jawaban singkat bahwa konteks saat ini terbatas lalu tawarkan pindah konteks dengan blok [[NAV:...]] yang sesuai (soft-redirect).
   - Saat berada di komunitas dan mengarahkan user ke SITUS UTAMA, path [[NAV:...]] harus tanpa prefix komunitas (contoh: /berita, /dashboard/berita), bukan /{slug}/berita.
-   - PENTING: Di UI publik (beranda, /prodi, /events, dll) meskipun pengguna login dan punya permission edit, tool tulis di atas TIDAK tersedia — arahkan pengguna ke Dashboard untuk mengubah data
+   - PENTING: Di UI publik (beranda, /prodi, /events, /toko, dll) meskipun pengguna login dan punya permission edit, tool tulis berita/event/galeri di atas TIDAK tersedia — arahkan pengguna ke Dashboard untuk mengubah data. Khusus **katalog toko**: tool tulis (create/update/delete/layout) juga **tidak tersedia** kecuali path halaman adalah **Dashboard Toko** (/dashboard/toko atau /{slug}/dashboard/toko), meskipun user punya toko.manage.
    - Saat user meminta "carikan …", "ada berita/event tentang …", atau sejenisnya: gunakan tool pencarian dengan keyword yang luas — pecah sinonim atau variasi singkat (mis. "pra raker", "prarakernas") dan coba beberapa query jika hasil kosong
    - SELALU gunakan tools ini ketika user bertanya tentang informasi spesifik Himatif Encoder yang mungkin berubah
    - Prioritas sumber jawaban (urutan): (1) Data dari database internal — paling akurat untuk info Himatif Encoder; (2) Hasil pencarian internet via internet_search dan fetch_website_content — untuk info terbaru di luar database; (3) Pengetahuan umum Anda — sebagai fallback terakhir jika kedua sumber di atas tidak memadai
@@ -277,6 +283,7 @@ export const GEMINI_PERSONALIZATION = {
        /dashboard/roles — Manajemen Roles
        /dashboard/settings — Pengaturan Situs
        /dashboard/feedback — Masukan/saran (feedback)
+       /dashboard/toko — Toko & katalog (produk, pengaturan WA/pajak/layout, pesanan)
        /dashboard/registration — Registrasi & kode undangan (hanya situs utama)
      Publik:
        / — Beranda
@@ -324,6 +331,7 @@ export const GEMINI_PERSONALIZATION = {
    - Users & Roles: kelola user dan permission role sesuai akses.
    - Settings: tab General, Appearance, Contact, Links, Security, Home Images, Beranda (home-config), Middleware (owner, situs utama), Profile akun — simpan per tab; izin settings.view/edit.
    - Feedback: tinjau dan ubah status masukan.
+   - Toko: tab **Produk** (CRUD, publish/draft, thumbnail wajib, galeri/video, stok & tier harga, override WA per produk, sharing internal per produk, urutan grid tampilan publik); tab **Pengaturan** (label/path menu navbar toko, drag blok layout halaman publik /toko, WA global & template pesan beli/keranjang, pajak, mata uang default); tab **Pesanan** (status: menunggu → dibayar → dikonfirmasi → diterima / dibatalkan; hapus satu atau hapus semua riwayat permanen); tab **Kategori** (kelompok produk; produk mengait kategori dari form Produk). **Publik toko**: header breadcrumb + riwayat + keranjang (badge jumlah); tambah ke keranjang bisa animasi ke ikon keranjang; checkout keranjang bisa **parsial** (centang baris). Izin: toko.view (baca/terbatas/sharing), toko.manage (penuh). Baca daftar produk lewat get_dashboard_store_products dari halaman mana pun (dashboard/publik) selama login & izin; tool tulis katalog hanya jika toko.manage **dan** path Dashboard Toko.
    - Registrasi (situs utama): kode undangan, komunitas baru/hapus (OTP).
    - Editor berita (dalam form): ikuti hint di editor untuk publish, sharing, lampiran, dan penyematan URL (Drive/YouTube) di konten.
 
@@ -474,6 +482,38 @@ function appendDashboardSurfaceFromPageData(
 			);
 		}
 	}
+	if (mod === 'toko') {
+		if (pageData.manageEnabled === true) {
+			lines.push(
+				'- Pengguna punya izin kelola toko (manage). Tool tulis katalog (create/update/delete/layout) hanya boleh digunakan jika path halaman adalah Dashboard Toko; jika konteks UI menunjuk tab/produk tertentu, sesuaikan saran.',
+			);
+		} else {
+			lines.push(
+				'- Pengguna tidak punya toko.manage: bantu baca/penjelasan atau edit terbatas sesuai sharing produk; jangan sarankan tool tulis katalog.',
+			);
+		}
+		if (surface === 'toko.product_editor_open') {
+			lines.push(
+				'- Form/dialog produk sedang terbuka: bantu isian, publish vs draft, thumbnail & galeri, override WA — ingat thumbnail wajib sebelum tampil sempurna di publik.',
+			);
+		} else if (surface === 'toko.tab_settings') {
+			lines.push(
+				'- Tab Pengaturan toko aktif: jelaskan navbar publik, layout blok /toko, WA global, pajak — simpan per area setelah mengubah.',
+			);
+		} else if (surface === 'toko.tab_orders') {
+			lines.push(
+				'- Tab Pesanan aktif: ubah status per order (menunggu → dibayar → dikonfirmasi → diterima / dibatalkan); hapus satu pesanan atau hapus semua lewat UI (bukan lewat tool AI kecuali nanti ditambahkan).',
+			);
+		} else if (surface === 'toko.tab_categories') {
+			lines.push(
+				'- Tab Kategori aktif: buat/hapus kategori; pengaitan ke produk lewat form di tab Produk.',
+			);
+		} else if (surface === 'toko.tab_products') {
+			lines.push(
+				'- Tab Produk aktif: grid/tabel produk, tambah/edit, sharing — get_dashboard_store_products untuk daftar live.',
+			);
+		}
+	}
 	if (typeof pageData.tab === 'string' && pageData.tab) {
 		lines.push(`- Tab/panel aktif di halaman: "${pageData.tab}".`);
 	}
@@ -503,7 +543,7 @@ export function buildPageContextPrompt(context?: PageContext): string {
 				`- Konteks situs: KOMUNITAS (slug: ${slug}). Prefix navigasi untuk blok [[NAV:...]]: gunakan path penuh dengan awalan ${base} (contoh: ${base}/dashboard/berita), BUKAN hanya /dashboard/... agar tombol navigasi di chat berfungsi.`,
 			);
 			lines.push(
-				'- Di rute komunitas, modul Dashboard yang tersedia: utama, berita, library, users, roles, settings, profil, kelembagaan, events, feedback. Modul yang tidak di-route di komunitas (hanya situs utama): Dashboard Prodi, Dashboard Registrasi/kode undangan. Jangan sarankan buka /dashboard/prodi atau /dashboard/registration di komunitas; arahkan ke situs utama jika user butuh fitur itu.',
+				'- Di rute komunitas, modul Dashboard yang tersedia: utama, berita, library, users, roles, settings, profil, kelembagaan, events, feedback, toko. Modul yang tidak di-route di komunitas (hanya situs utama): Dashboard Prodi, Dashboard Registrasi/kode undangan. Jangan sarankan buka /dashboard/prodi atau /dashboard/registration di komunitas; arahkan ke situs utama jika user butuh fitur itu.',
 			);
 			lines.push(
 				'- Isolasi konteks: selama berada di komunitas ini, gunakan hanya data komunitas aktif. Jika user meminta data situs utama atau komunitas lain, lakukan soft-redirect dengan [[NAV:...]] ke konteks yang benar.',
@@ -592,6 +632,9 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	const canCreateEvents = perms.has('events.create');
 	const canPublishEvents = perms.has('events.publish');
 	const canCreateLibrary = perms.has('library.create');
+	const canViewTokoDash =
+		perms.has('toko.view') || perms.has('toko.manage');
+	const canManageToko = perms.has('toko.manage');
 
 	if (canViewDashboard) {
 		lines.push(
@@ -696,6 +739,16 @@ export function buildPageContextPrompt(context?: PageContext): string {
 			'- Pengguna BISA MEMBUAT item galeri baru. Anda bisa membuatkan entry galeri melalui tool create_library_item.',
 		);
 	}
+	if (canViewTokoDash) {
+		lines.push(
+			'- Pengguna memiliki akses toko (view/manage/sharing). Untuk daftar nama produk, slug, harga, status publikasi: panggil get_dashboard_store_products — **boleh dari halaman apa pun** (mis. dashboard utama, komunitas, chat) selama masih konteks situs yang sama; tidak wajib membuka /toko publik.',
+		);
+	}
+	if (canManageToko) {
+		lines.push(
+			'- Pengguna memiliki toko.manage: kelola penuh produk, pengaturan toko, layout publik, kategori, dan pesanan. Tool tulis katalog (create/update/delete/update_store_layout_blocks) hanya aktif jika path halaman adalah /dashboard/toko (atau /{slug}/dashboard/toko).',
+		);
+	}
 
 	if (perms.has('berita.edit') || perms.has('berita.edit_others')) {
 		lines.push(
@@ -778,6 +831,10 @@ export function buildPageContextPrompt(context?: PageContext): string {
 	} else if (pathMod.startsWith('/dashboard/events')) {
 		lines.push(
 			'- Pengguna sedang berada di halaman Dashboard Events. Jelaskan cara: membuat event baru (tombol "Buat Event"), mengedit event, menambahkan sub-event, mengatur tahun event, toggle publish, dan menambahkan lampiran/thumbnail. Lampiran mendukung upload file lokal serta link online; Google Drive untuk lampiran link hanya single-file. Di deskripsi event (rich text) bisa menyematkan YouTube atau Google Drive seperti di berita.',
+		);
+	} else if (pathMod.startsWith('/dashboard/toko')) {
+		lines.push(
+			'- Pengguna sedang di Dashboard Toko & Katalog: tab Produk; Pengaturan; Pesanan (status 4 langkah + hapus riwayat); Kategori. Di situs publik toko: checkout parsial dari keranjang. Jelaskan fitur yang ada di UI ini saja. Tool tulis katalog hanya jika toko.manage; untuk menjawab "produk apa saja" gunakan get_dashboard_store_products.',
 		);
 	} else if (pathMod.startsWith('/dashboard')) {
 		lines.push(

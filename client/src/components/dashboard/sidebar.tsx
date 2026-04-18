@@ -2,7 +2,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
-import { useTenant } from '@/lib/tenant-context';
+import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import {
 	BookOpen,
@@ -20,6 +20,7 @@ import {
 	MessageSquareText,
 	Settings,
 	Shield,
+	ShoppingBag,
 	UserCog,
 } from 'lucide-react';
 import { useState, lazy, Suspense } from 'react';
@@ -59,6 +60,21 @@ export default function Sidebar({
 		staleTime: 0, // Always fetch fresh data
 		refetchOnWindowFocus: true,
 		refetchOnMount: true,
+	});
+
+	const storeAccessUrl = useApiUrl('/store/admin/access-summary');
+	const { data: storeAccess } = useQuery<{
+		canOpenDashboard?: boolean;
+	}>({
+		queryKey: [storeAccessUrl],
+		queryFn: async () => {
+			const r = await fetch(storeAccessUrl, { credentials: 'include' });
+			if (r.status === 401) return { canOpenDashboard: false };
+			if (!r.ok) return { canOpenDashboard: false };
+			return r.json();
+		},
+		enabled: !!user,
+		staleTime: 30_000,
 	});
 
 	const navItems = [
@@ -123,6 +139,13 @@ export default function Sidebar({
 			requirePermission: 'feedback.view',
 		},
 		{
+			label: 'Toko',
+			icon: <ShoppingBag className="h-5 w-5" />,
+			href: '/dashboard/toko',
+			active: location.startsWith('/dashboard/toko'),
+			requirePermission: 'toko.view',
+		},
+		{
 			label: 'User Management',
 			icon: <UserCog className="h-5 w-5" />,
 			href: '/dashboard/users',
@@ -165,6 +188,7 @@ export default function Sidebar({
 		'/dashboard/kelembagaan',
 		'/dashboard/events',
 		'/dashboard/feedback',
+		'/dashboard/toko',
 		'/dashboard/users',
 		'/dashboard/roles',
 		'/dashboard/settings',
@@ -250,6 +274,14 @@ export default function Sidebar({
 								if (
 									!hasSpecificPermission('feedback.view') &&
 									!hasSpecificPermission('feedback.manage')
+								) {
+									return null;
+								}
+							} else if (item.requirePermission === 'toko.view') {
+								if (
+									!hasSpecificPermission('toko.view') &&
+									!hasSpecificPermission('toko.manage') &&
+									!storeAccess?.canOpenDashboard
 								) {
 									return null;
 								}

@@ -1,3 +1,4 @@
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -14,7 +15,7 @@ import { useErrorHandler } from '@/hooks/use-error-handler';
 import { useAuth } from '@/lib/auth';
 import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
-import { AlertCircle, ArrowLeft, Building2, Clock, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react';
+import { AlertCircle, Building2, Clock, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'wouter';
 
@@ -194,17 +195,15 @@ export default function LoginForm() {
 				}}
 			/>
 
-			{/* Back to home – pojok kiri atas */}
-			<button
-				onClick={() => navigate('/')}
-				className="absolute top-5 left-5 flex items-center gap-1.5 text-slate-600 dark:text-muted-foreground hover:text-primary text-sm font-medium transition-colors duration-200">
-				<ArrowLeft className="h-4 w-4" />
-				Kembali ke Beranda
-			</button>
-
 			{/* Card */}
 			<Card className="relative z-10 w-full max-w-md border border-slate-200 dark:border-white/10 bg-white dark:bg-white/5 backdrop-blur-xl shadow-xl dark:shadow-[0_32px_80px_rgba(0,0,0,0.5)] animate-scale-in">
 				<CardHeader className="text-center pb-2 pt-8 px-8">
+					<div className="flex justify-center w-full mb-3">
+						<PageBreadcrumb
+							className="mb-0"
+							items={[{ label: 'Beranda', href: homeHref }, { label: 'Login' }]}
+						/>
+					</div>
 					{/* Logo */}
 					<div className="mx-auto mb-4 animate-glow-pulse w-16 h-16 rounded-full ring-2 ring-cyan-400/40 flex items-center justify-center bg-slate-100 dark:bg-white/5">
 						{siteSettings?.logoUrl ? (

@@ -1297,6 +1297,210 @@ const commentSchema = new mongoose.Schema(
 commentSchema.index({ targetType: 1, targetId: 1, createdAt: 1 });
 commentSchema.index({ parentId: 1 });
 
+// ── Store (katalog toko, keranjang guest, order) ──
+const storeGalleryItemSchema = new mongoose.Schema(
+	{
+		url: { type: String, required: true },
+		source: { type: String, enum: ['local', 'gdrive'], default: 'local' },
+		gdriveFileId: { type: String, default: '' },
+	},
+	{ _id: false },
+);
+
+const storeLayoutBlockSchema = new mongoose.Schema(
+	{
+		id: { type: String, required: true },
+		type: { type: String, required: true },
+		visible: { type: Boolean, default: true },
+		order: { type: Number, default: 0 },
+		props: { type: mongoose.Schema.Types.Mixed, default: {} },
+	},
+	{ _id: false },
+);
+
+const storeSettingsSchema = new mongoose.Schema(
+	{
+		key: { type: String, default: 'default', unique: true },
+		navbarLabel: { type: String, default: 'Toko' },
+		navbarPath: { type: String, default: '/toko' },
+		whatsappPhone: { type: String, default: '' },
+		whatsappContactName: { type: String, default: '' },
+		defaultBuyMessageTemplate: {
+			type: String,
+			default:
+				'Halo, saya tertarik membeli:\n\n{{productName}}\nHarga: {{price}}\nJumlah: {{qty}}\nLink: {{url}}',
+		},
+		checkoutMessageTemplate: {
+			type: String,
+			default:
+				'Halo, saya ingin checkout keranjang:\n\n{{items}}\nSubtotal: {{subtotal}}\nPajak ({{taxPercent}}%): {{tax}}\nTotal: {{total}}\n\nPengiriman: {{fulfillment}}\nAlamat: {{address}}\nNama: {{customerName}}\nWA: {{customerPhone}}\n\nLihat invoice: {{invoiceUrl}}',
+		},
+		taxPercent: { type: Number, default: 0 },
+		taxEnabled: { type: Boolean, default: false },
+		storeAddress: { type: String, default: '' },
+		/** Mata uang default katalog (ISO 4217, mis. IDR) */
+		defaultCurrency: { type: String, default: 'IDR' },
+		layoutBlocks: { type: [storeLayoutBlockSchema], default: [] },
+	},
+	{ timestamps: true },
+);
+
+const storePriceTierSchema = new mongoose.Schema(
+	{
+		minQty: { type: Number, required: true, min: 2 },
+		unitPrice: { type: Number, required: true, min: 0 },
+		/** per tier: harga grosir per kelipatan minQty vs blok pertama saja */
+		applyMultiples: { type: Boolean, default: false },
+	},
+	{ _id: false },
+);
+
+const storeProductCategorySchema = new mongoose.Schema(
+	{
+		name: { type: String, required: true, trim: true },
+		slug: { type: String, required: true, unique: true },
+		order: { type: Number, default: 0 },
+	},
+	{ timestamps: true },
+);
+storeProductCategorySchema.index({ order: 1, name: 1 });
+
+const storeProductSchema = new mongoose.Schema(
+	{
+		slug: { type: String, required: true, unique: true },
+		name: { type: String, required: true },
+		shortDescription: { type: String, default: '' },
+		descriptionHtml: { type: String, default: '' },
+		price: { type: Number, required: true, min: 0 },
+		/** Harga grosir / paket: minQty minimal 2, harga satuan untuk qty ≥ minQty */
+		priceTiers: { type: [storePriceTierSchema], default: [] },
+		/** true: diskon per kelipatan minQty; false: hanya minQty unit pertama pakai harga grosir */
+		priceTierMultiples: { type: Boolean, default: false },
+		/** Stok: -1 = tak terbatas (default). ≥ 0 = terlacak & berkurang saat checkout */
+		stock: { type: Number, default: -1 },
+		categoryId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'StoreProductCategory',
+			default: null,
+		},
+		/** Kosong = pakai defaultCurrency pengaturan toko */
+		currency: { type: String, default: '' },
+		thumbnail: { type: String, required: true },
+		thumbnailSource: { type: String, enum: ['local', 'gdrive'], default: 'local' },
+		thumbnailGdriveFileId: { type: String, default: '' },
+		gallery: { type: [storeGalleryItemSchema], default: [] },
+		videoUrl: { type: String, default: '' },
+		videoType: { type: String, enum: ['youtube', 'gdrive', 'public', ''], default: '' },
+		whatsappPhoneOverride: { type: String, default: '' },
+		whatsappContactNameOverride: { type: String, default: '' },
+		buyMessageTemplateOverride: { type: String, default: '' },
+		storeAddressOverride: { type: String, default: '' },
+		published: { type: Boolean, default: false },
+		/** Urutan tampilan katalog (naik); drag-and-drop di dashboard */
+		sortOrder: { type: Number, default: 0 },
+		authorId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+	},
+	{ timestamps: true },
+);
+storeProductSchema.index({ published: 1, sortOrder: 1, createdAt: -1 });
+storeProductSchema.index({ authorId: 1 });
+storeProductSchema.index({ categoryId: 1, published: 1 });
+
+const storeProductShareSchema = new mongoose.Schema(
+	{
+		productId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'StoreProduct',
+			required: true,
+		},
+		targetUserId: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+		accessLevel: { type: String, enum: ['view', 'edit'], required: true },
+		createdBy: {
+			type: mongoose.Schema.Types.ObjectId,
+			ref: 'User',
+			required: true,
+		},
+	},
+	{ timestamps: true },
+);
+storeProductShareSchema.index({ productId: 1, targetUserId: 1 }, { unique: true });
+
+const guestStoreSessionSchema = new mongoose.Schema(
+	{
+		sessionKeyHash: { type: String, required: true, unique: true },
+		cartItems: [
+			{
+				productId: {
+					type: mongoose.Schema.Types.ObjectId,
+					ref: 'StoreProduct',
+					required: true,
+				},
+				qty: { type: Number, required: true, min: 1 },
+			},
+		],
+		checkoutDraft: {
+			customerName: { type: String, default: '' },
+			customerPhone: { type: String, default: '' },
+			fulfillment: { type: String, enum: ['pickup', 'delivery', ''], default: '' },
+			shippingAddress: { type: String, default: '' },
+		},
+		expireAt: { type: Date, required: true },
+	},
+	{ timestamps: true },
+);
+guestStoreSessionSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
+
+const storeOrderSchema = new mongoose.Schema(
+	{
+		orderNo: { type: String, required: true, unique: true },
+		/** Token acak untuk buka invoice tanpa cookie sesi (mis. dari WA) */
+		invoiceAccessToken: { type: String, default: '' },
+		guestSessionKeyHash: { type: String, default: '' },
+		items: [
+			{
+				productId: {
+					type: mongoose.Schema.Types.ObjectId,
+					ref: 'StoreProduct',
+					required: true,
+				},
+				name: { type: String, required: true },
+				slug: { type: String, required: true },
+				qty: { type: Number, required: true },
+				unitPrice: { type: Number, required: true },
+				lineSubtotal: { type: Number, required: true },
+				currency: { type: String, default: '' },
+			},
+		],
+		subtotal: { type: Number, required: true },
+		taxPercent: { type: Number, default: 0 },
+		taxAmount: { type: Number, default: 0 },
+		total: { type: Number, required: true },
+		fulfillment: { type: String, enum: ['pickup', 'delivery'], required: true },
+		customerName: { type: String, required: true },
+		customerPhone: { type: String, required: true },
+		shippingAddress: { type: String, default: '' },
+		storeAddressSnapshot: { type: String, default: '' },
+		whatsappPhoneUsed: { type: String, default: '' },
+		whatsappMessageSnapshot: { type: String, default: '' },
+		status: {
+			type: String,
+			enum: ['pending', 'confirmed', 'paid', 'completed', 'cancelled'],
+			default: 'pending',
+		},
+	},
+	{ timestamps: true },
+);
+storeOrderSchema.index({ createdAt: -1 });
+storeOrderSchema.index({ guestSessionKeyHash: 1, createdAt: -1 });
+
 // Community Schema - registry of all communities (stored in main DB only)
 const communitySchema = new mongoose.Schema({
 	name: { type: String, required: true },
@@ -1403,6 +1607,23 @@ const Comment =
 	mongoose.models.Comment || mongoose.model('Comment', commentSchema);
 const Feedback =
 	mongoose.models.Feedback || mongoose.model('Feedback', feedbackSchema);
+
+const StoreSettings =
+	mongoose.models.StoreSettings ||
+	mongoose.model('StoreSettings', storeSettingsSchema);
+const StoreProductCategory =
+	mongoose.models.StoreProductCategory ||
+	mongoose.model('StoreProductCategory', storeProductCategorySchema);
+const StoreProduct =
+	mongoose.models.StoreProduct || mongoose.model('StoreProduct', storeProductSchema);
+const StoreProductShare =
+	mongoose.models.StoreProductShare ||
+	mongoose.model('StoreProductShare', storeProductShareSchema);
+const GuestStoreSession =
+	mongoose.models.GuestStoreSession ||
+	mongoose.model('GuestStoreSession', guestStoreSessionSchema);
+const StoreOrder =
+	mongoose.models.StoreOrder || mongoose.model('StoreOrder', storeOrderSchema);
 
 const BugReport =
 	mongoose.models.BugReport || mongoose.model('BugReport', bugReportSchema);
@@ -1623,6 +1844,12 @@ export const allSchemas = {
 	bugReport: bugReportSchema,
 	prodiContent: prodiContentSchema,
 	activity: activitySchema,
+	storeSettings: storeSettingsSchema,
+	storeProductCategory: storeProductCategorySchema,
+	storeProduct: storeProductSchema,
+	storeProductShare: storeProductShareSchema,
+	guestStoreSession: guestStoreSessionSchema,
+	storeOrder: storeOrderSchema,
 };
 
 export {
@@ -1633,6 +1860,7 @@ export {
 	Event,
 	EventYear,
 	Feedback,
+	GuestStoreSession,
 	FileUpload,
 	HomeImages,
 	Library,
@@ -1646,6 +1874,11 @@ export {
 	Role,
 	Session,
 	Settings,
+	StoreOrder,
+	StoreProduct,
+	StoreProductCategory,
+	StoreProductShare,
+	StoreSettings,
 	TempUpload,
 	User,
 	UserNotification,

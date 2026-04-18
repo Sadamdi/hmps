@@ -5,12 +5,11 @@ import {
 	LibraryItemDetailContent,
 } from '@/components/public/library-item-detail';
 import Navbar from '@/components/public/navbar';
-import { Button } from '@/components/ui/button';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft } from 'lucide-react';
 import { useEffect } from 'react';
-import { Link, useLocation, useParams } from 'wouter';
+import { useLocation, useParams } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
 import { isObjectId, toSlug } from '@/utils/slug';
 
@@ -57,12 +56,36 @@ export default function LibraryDetailPage() {
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
 			<main className="flex-1">
 				<div className="max-w-4xl mx-auto px-4 pt-8 pb-12">
-					<Link href="/library">
-						<Button variant="ghost" size="sm" className="mb-6">
-							<ArrowLeft className="h-4 w-4 mr-2" />
-							Kembali ke galeri
-						</Button>
-					</Link>
+					{error || (!isLoading && !item) ? (
+						<PageBreadcrumb
+							items={[
+								{ label: 'Beranda', href: '/' },
+								{ label: 'Galeri', href: '/library' },
+								{ label: 'Tidak ditemukan' },
+							]}
+						/>
+					) : item ? (
+						<PageBreadcrumb
+							items={[
+								{ label: 'Beranda', href: '/' },
+								{ label: 'Galeri', href: '/library' },
+								{
+									label:
+										item.title.length > 52
+											? `${item.title.slice(0, 52)}…`
+											: item.title,
+								},
+							]}
+						/>
+					) : (
+						<PageBreadcrumb
+							items={[
+								{ label: 'Beranda', href: '/' },
+								{ label: 'Galeri', href: '/library' },
+								{ label: '…' },
+							]}
+						/>
+					)}
 
 					{isLoading && (
 						<div className="animate-pulse space-y-4">
@@ -74,11 +97,6 @@ export default function LibraryDetailPage() {
 					{error || (!isLoading && !item) ? (
 						<div className="text-center py-16 text-muted-foreground">
 							<p>Galeri tidak ditemukan atau tidak tersedia.</p>
-							<Link href="/library">
-								<Button variant="link" className="mt-2">
-									Kembali ke daftar galeri
-								</Button>
-							</Link>
 						</div>
 					) : null}
 

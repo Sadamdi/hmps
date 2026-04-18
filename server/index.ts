@@ -677,6 +677,101 @@ setInterval(
 			}
 		});
 
+		// ==================== TOKO / KATALOG SEO PRERENDER ====================
+		app.get('/toko/:slug', async (req, res, next) => {
+			try {
+				const { slug } = req.params;
+				const { StoreProduct } = await import('../db/mongodb');
+				const distPath = path.resolve(process.cwd(), 'dist', 'public');
+				const htmlPath = path.join(distPath, 'index.html');
+				if (!fs.existsSync(htmlPath)) return next();
+
+				const product: any = await StoreProduct.findOne({ slug, published: true })
+					.select('name shortDescription thumbnail slug')
+					.lean();
+				let html = fs.readFileSync(htmlPath, 'utf-8');
+
+				if (product) {
+					const esc = (s: string) =>
+						String(s)
+							.replace(/&/g, '&amp;')
+							.replace(/"/g, '&quot;')
+							.replace(/</g, '&lt;')
+							.replace(/>/g, '&gt;');
+					const host = req.get('host') || 'localhost';
+					const proto = (req.headers['x-forwarded-proto'] as string) || (req.secure ? 'https' : 'http');
+					const title = `${product.name} | Toko`;
+					const description = String(product.shortDescription || product.name || 'Produk').slice(0, 160);
+					const canonicalUrl = `${proto}://${host}/toko/${product.slug}`;
+					const defaultOg =
+						'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
+					const ogImage =
+						product.thumbnail && String(product.thumbnail).startsWith('http')
+							? product.thumbnail
+							: product.thumbnail
+								? `${proto}://${host}${product.thumbnail}`
+								: defaultOg;
+
+					html = html
+						.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
+						.replace(
+							/<meta\s[^>]*name="title"[^>]*>/,
+							`<meta name="title" content="${esc(title)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*name="description"[^>]*>/,
+							`<meta name="description" content="${esc(description)}" />`,
+						)
+						.replace(
+							/<link\s[^>]*rel="canonical"[^>]*>/,
+							`<link rel="canonical" href="${canonicalUrl}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:type"[^>]*>/,
+							`<meta property="og:type" content="product" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:url"[^>]*>/,
+							`<meta property="og:url" content="${canonicalUrl}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:title"[^>]*>/,
+							`<meta property="og:title" content="${esc(title)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:description"[^>]*>/,
+							`<meta property="og:description" content="${esc(description)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="og:image"[^>]*>/,
+							`<meta property="og:image" content="${ogImage}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="twitter:url"[^>]*>/,
+							`<meta property="twitter:url" content="${canonicalUrl}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="twitter:title"[^>]*>/,
+							`<meta property="twitter:title" content="${esc(title)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="twitter:description"[^>]*>/,
+							`<meta property="twitter:description" content="${esc(description)}" />`,
+						)
+						.replace(
+							/<meta\s[^>]*property="twitter:image"[^>]*>/,
+							`<meta property="twitter:image" content="${ogImage}" />`,
+						);
+				}
+
+				res.set('Content-Type', 'text/html');
+				return res.send(html);
+			} catch (err) {
+				console.log('Toko prerender error, falling back to SPA:', err);
+				return next();
+			}
+		});
+
 		// ==================== PAGE META INJECTION (per halaman untuk embed & mesin pencari) ====================
 		// Setiap halaman punya meta sendiri (og:*, twitter:*, canonical) — terbaca semua mesin pencari
 		const injectPageMeta = (

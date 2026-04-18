@@ -1,17 +1,16 @@
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
-import { Button } from '@/components/ui/button';
+import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { useQuery } from '@tanstack/react-query';
 import {
-	ArrowLeft,
 	BookOpen,
 	ExternalLink,
 	FileText,
 	Loader2,
 } from 'lucide-react';
 import { useEffect } from 'react';
-import { useLocation, useParams } from 'wouter';
+import { useParams } from 'wouter';
 
 function normalizeSlug(raw: string): string {
 	try {
@@ -83,7 +82,6 @@ function findRpsResources(data: any, slug: string) {
 
 export default function CurriculumSubjectPage() {
 	const { slug } = useParams<{ slug: string }>();
-	const [, setLocation] = useLocation();
 
 	const { data, isLoading } = useQuery<any>({
 		queryKey: ['/api/prodi'],
@@ -110,21 +108,14 @@ export default function CurriculumSubjectPage() {
 
 			<div className="bg-card border-b border-border">
 				<div className="max-w-7xl mx-auto px-4 py-3">
-					<div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap">
-						<Button onClick={() => setLocation('/')} variant="ghost" size="sm"
-							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Beranda
-						</Button>
-						<span className="text-border">/</span>
-						<Button onClick={() => setLocation('/prodi')} variant="ghost" size="sm"
-							className="text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors p-1 h-auto">
-							Prodi
-						</Button>
-						<span className="text-border">/</span>
-						<span className="text-foreground font-medium truncate max-w-[250px]">
-							{displayName}
-						</span>
-					</div>
+					<PageBreadcrumb
+						className="mb-0"
+						items={[
+							{ label: 'Beranda', href: '/' },
+							{ label: 'Prodi', href: '/prodi' },
+							{ label: displayName },
+						]}
+					/>
 				</div>
 			</div>
 
@@ -134,10 +125,7 @@ export default function CurriculumSubjectPage() {
 				</div>
 			) : !hasContent ? (
 				<div className="py-24 text-center text-muted-foreground">
-					<p className="mb-4">Mata kuliah tidak ditemukan.</p>
-					<Button onClick={() => setLocation('/prodi')} variant="outline">
-						<ArrowLeft className="w-4 h-4 mr-2" /> Kembali ke Prodi
-					</Button>
+					<p>Mata kuliah tidak ditemukan.</p>
 				</div>
 			) : (
 				<div className="max-w-4xl mx-auto px-4 py-12 space-y-8">
@@ -224,11 +212,6 @@ export default function CurriculumSubjectPage() {
 						)}
 					</div>
 
-					<div className="flex justify-center">
-						<Button onClick={() => setLocation('/prodi')} variant="outline" className="gap-2">
-							<ArrowLeft className="w-4 h-4" /> Kembali ke Prodi
-						</Button>
-					</div>
 				</div>
 			)}
 
