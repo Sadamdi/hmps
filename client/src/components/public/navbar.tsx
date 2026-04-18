@@ -1157,22 +1157,6 @@ export default function Navbar({
 
 						{/* Right side actions — desktop */}
 						<div className="hidden sm:flex items-center gap-2">
-							{/* Theme toggle */}
-							<button
-								onClick={toggleTheme}
-								className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-								aria-label={
-									theme === 'dark'
-										? 'Ganti ke mode siang'
-										: 'Ganti ke mode malam'
-								}>
-								{theme === 'dark' ? (
-									<Sun className="h-4 w-4 text-amber-400" />
-								) : (
-									<Moon className="h-4 w-4 text-slate-500" />
-								)}
-							</button>
-
 							{/* User dropdown */}
 							{user ? (
 								<DropdownMenu
@@ -1283,6 +1267,22 @@ export default function Navbar({
 									</Link>
 								</>
 							)}
+
+							{/* Theme toggle */}
+							<button
+								onClick={toggleTheme}
+								className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+								aria-label={
+									theme === 'dark'
+										? 'Ganti ke mode siang'
+										: 'Ganti ke mode malam'
+								}>
+								{theme === 'dark' ? (
+									<Sun className="h-4 w-4 text-amber-400" />
+								) : (
+									<Moon className="h-4 w-4 text-slate-500" />
+								)}
+							</button>
 						</div>
 
 						{/* Mobile right: theme toggle only */}
