@@ -91,11 +91,18 @@ export const securityMiddleware = {
 			directives: {
 				defaultSrc: ["'self'"],
 				styleSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tiny.cloud'],
-				scriptSrc: ["'self'", "'unsafe-inline'", 'https://cdn.tiny.cloud'],
+				scriptSrc: [
+					"'self'",
+					"'unsafe-inline'",
+					'https://cdn.tiny.cloud',
+					'https://static.cloudflareinsights.com',
+				],
 				imgSrc: ["'self'", 'data:', 'https:', 'blob:', 'https://*.google.com', 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://*.ggpht.com'],
 				connectSrc: [
 					"'self'",
 					'https://cdn.tiny.cloud',
+					'https://cloudflareinsights.com',
+					'https://static.cloudflareinsights.com',
 					'https://*.googleapis.com',
 					'https://*.googleusercontent.com',
 					'https://drive.google.com',

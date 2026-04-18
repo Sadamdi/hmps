@@ -41,6 +41,7 @@ export default function LoginForm() {
 	const { isTenant, basePath } = useTenant();
 	const { data: siteSettings } = useQuery<any>({ queryKey: ['/api/settings'], staleTime: 60000 });
 	const siteName = siteSettings?.siteName || siteSettings?.navbarBrand || (isTenant ? 'Komunitas' : 'HIMATIF ENCODER');
+	const homeHref = isTenant && basePath ? basePath : '/';
 
 	const { data: loginTargets } = useQuery<{ targets: LoginTargetOption[] }>({
 		queryKey: ['/api/auth/login-targets'],
