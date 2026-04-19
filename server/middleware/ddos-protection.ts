@@ -358,7 +358,7 @@ function sendBeautifulError(
 	statusCode: number,
 	title: string,
 	message: string,
-	details?: any
+	details?: any,
 ) {
 	const errorResponse = {
 		error: {
@@ -405,7 +405,7 @@ function sendBeautifulError(
 export const ddosProtectionMiddleware = async (
 	req: Request,
 	res: Response,
-	next: NextFunction
+	next: NextFunction,
 ) => {
 	try {
 		const settings = await getCachedDdosMiddlewareSettings();
@@ -583,7 +583,12 @@ export const ddosProtectionMiddleware = async (
 				);
 				return sendTierBlockResponse(req, res, 3, newUntil);
 			}
-			return sendTierBlockResponse(req, res, currentBlockTier, activeBlockUntil);
+			return sendTierBlockResponse(
+				req,
+				res,
+				currentBlockTier,
+				activeBlockUntil,
+			);
 		}
 
 		// ==================== BOT/CRAWLER DETECTION ====================
@@ -597,13 +602,13 @@ export const ddosProtectionMiddleware = async (
 
 		// Whitelist well-known search bots for non-API and SEO-critical routes
 		const isAllowlistedSearchBot = allowlistedSearchBots.some((p) =>
-			p.test(userAgent)
+			p.test(userAgent),
 		);
 
 		// Bot crawler resmi: boleh lewat untuk HTML/SEO, tapi /api/* tetap kena tier (satu aturan dengan pengguna)
 		if (isLegitimateBot(userAgent) && !path.startsWith('/api/')) {
 			console.log(
-				`🤖 DDoS Protection: Legitimate Bot Access Allowed: ${userAgent} to ${path}`
+				`🤖 DDoS Protection: Legitimate Bot Access Allowed: ${userAgent} to ${path}`,
 			);
 			return next();
 		}
@@ -633,7 +638,7 @@ export const ddosProtectionMiddleware = async (
 					detectedBot: userAgent,
 					ip: clientIP,
 					path: path,
-				}
+				},
 			);
 		}
 
@@ -644,7 +649,7 @@ export const ddosProtectionMiddleware = async (
 
 		if (currentIPConnections >= MAX_CONCURRENT_CONNECTIONS_PER_IP) {
 			console.log(
-				`🚨 DDoS Protection: Too many concurrent connections from IP ${clientIP}`
+				`🚨 DDoS Protection: Too many concurrent connections from IP ${clientIP}`,
 			);
 			return sendBeautifulError(
 				res,
@@ -653,13 +658,13 @@ export const ddosProtectionMiddleware = async (
 				'Too many concurrent connections from your IP address. Please try again later.',
 				{
 					maxConnections: MAX_CONCURRENT_CONNECTIONS_PER_IP,
-				}
+				},
 			);
 		}
 
 		if (currentDeviceConnections >= MAX_CONCURRENT_CONNECTIONS_PER_DEVICE) {
 			console.log(
-				`🚨 DDoS Protection: Too many concurrent connections from device ${deviceId}`
+				`🚨 DDoS Protection: Too many concurrent connections from device ${deviceId}`,
 			);
 			return sendBeautifulError(
 				res,
@@ -668,7 +673,7 @@ export const ddosProtectionMiddleware = async (
 				'Too many concurrent connections from your device. Please try again later.',
 				{
 					maxConnections: MAX_CONCURRENT_CONNECTIONS_PER_DEVICE,
-				}
+				},
 			);
 		}
 
@@ -693,7 +698,7 @@ export const ddosProtectionMiddleware = async (
 				if (loginData.count > MAX_LOGIN_ATTEMPTS_PER_IP) {
 					const retryAfter = Math.ceil((loginData.resetTime - now) / 1000);
 					console.log(
-						`🚨 DDoS Protection: Too many login attempts from IP ${clientIP}, retry in ${retryAfter}s`
+						`🚨 DDoS Protection: Too many login attempts from IP ${clientIP}, retry in ${retryAfter}s`,
 					);
 					return sendBeautifulError(
 						res,
@@ -704,7 +709,7 @@ export const ddosProtectionMiddleware = async (
 							maxAttempts: MAX_LOGIN_ATTEMPTS_PER_IP,
 							window: '1 minute',
 							retryAfter: retryAfter,
-						}
+						},
 					);
 				}
 			}
@@ -726,7 +731,7 @@ export const ddosProtectionMiddleware = async (
 				if (uploadData.count > MAX_UPLOAD_REQUESTS_PER_IP) {
 					const retryAfter = Math.ceil((uploadData.resetTime - now) / 1000);
 					console.log(
-						`🚨 DDoS Protection: Too many upload requests from IP ${clientIP}, retry in ${retryAfter}s`
+						`🚨 DDoS Protection: Too many upload requests from IP ${clientIP}, retry in ${retryAfter}s`,
 					);
 					return sendBeautifulError(
 						res,
@@ -737,7 +742,7 @@ export const ddosProtectionMiddleware = async (
 							maxUploads: MAX_UPLOAD_REQUESTS_PER_IP,
 							window: '1 minute',
 							retryAfter: retryAfter,
-						}
+						},
 					);
 				}
 			}
@@ -769,7 +774,7 @@ export const ddosProtectionMiddleware = async (
 		// ==================== RESPONSE TO SUSPICIOUS ACTIVITY ====================
 		if (isSuspicious) {
 			console.log(
-				`🚨 DDoS Protection: Suspicious activity detected from IP ${clientIP}`
+				`🚨 DDoS Protection: Suspicious activity detected from IP ${clientIP}`,
 			);
 			console.log(`   Reason: ${suspiciousReason}`);
 			console.log(`   Path: ${path}`);
@@ -787,7 +792,7 @@ export const ddosProtectionMiddleware = async (
 					method: method,
 					ip: clientIP,
 					deviceId: deviceId,
-				}
+				},
 			);
 		}
 
@@ -812,8 +817,8 @@ export const ddosProtectionMiddleware = async (
 			blockedIPs.set(clientIP, { blockUntil, tier: 3 });
 			console.log(
 				`🚨 Tier 3 Block: IP ${clientIP} exceeded ${TIER3_IP_LIMIT} requests in 60 minutes, blocked until ${new Date(
-					blockUntil
-				).toLocaleString()}`
+					blockUntil,
+				).toLocaleString()}`,
 			);
 			return sendTierBlockResponse(req, res, 3, blockUntil);
 		}
@@ -823,8 +828,8 @@ export const ddosProtectionMiddleware = async (
 			blockedDevices.set(deviceId, { blockUntil, tier: 3 });
 			console.log(
 				`🚨 Tier 3 Block: Device ${deviceId} exceeded ${TIER3_DEVICE_LIMIT} requests in 60 minutes, blocked until ${new Date(
-					blockUntil
-				).toLocaleString()}`
+					blockUntil,
+				).toLocaleString()}`,
 			);
 			return sendTierBlockResponse(req, res, 3, blockUntil);
 		}
@@ -835,8 +840,8 @@ export const ddosProtectionMiddleware = async (
 			blockedIPs.set(clientIP, { blockUntil, tier: 2 });
 			console.log(
 				`🚨 Tier 2 Block: IP ${clientIP} exceeded ${TIER2_IP_LIMIT} requests in 5 minutes, blocked until ${new Date(
-					blockUntil
-				).toLocaleString()}`
+					blockUntil,
+				).toLocaleString()}`,
 			);
 			return sendTierBlockResponse(req, res, 2, blockUntil);
 		}
@@ -846,8 +851,8 @@ export const ddosProtectionMiddleware = async (
 			blockedDevices.set(deviceId, { blockUntil, tier: 2 });
 			console.log(
 				`🚨 Tier 2 Block: Device ${deviceId} exceeded ${TIER2_DEVICE_LIMIT} requests in 5 minutes, blocked until ${new Date(
-					blockUntil
-				).toLocaleString()}`
+					blockUntil,
+				).toLocaleString()}`,
 			);
 			return sendTierBlockResponse(req, res, 2, blockUntil);
 		}
@@ -856,7 +861,7 @@ export const ddosProtectionMiddleware = async (
 		if (tier1IPData && tier1IPData.count > TIER1_IP_LIMIT) {
 			const retryAfter = Math.ceil((tier1IPData.resetTime - now) / 1000);
 			console.log(
-				`🚨 Tier 1 Block: IP ${clientIP} exceeded ${TIER1_IP_LIMIT} requests in 1 minute, retry in ${retryAfter}s`
+				`🚨 Tier 1 Block: IP ${clientIP} exceeded ${TIER1_IP_LIMIT} requests in 1 minute, retry in ${retryAfter}s`,
 			);
 			return sendBeautifulError(
 				res,
@@ -867,14 +872,14 @@ export const ddosProtectionMiddleware = async (
 					limit: TIER1_IP_LIMIT,
 					window: '1 minute',
 					retryAfter: retryAfter,
-				}
+				},
 			);
 		}
 
 		if (tier1DeviceData && tier1DeviceData.count > TIER1_DEVICE_LIMIT) {
 			const retryAfter = Math.ceil((tier1DeviceData.resetTime - now) / 1000);
 			console.log(
-				`🚨 Tier 1 Block: Device ${deviceId} exceeded ${TIER1_DEVICE_LIMIT} requests in 1 minute, retry in ${retryAfter}s`
+				`🚨 Tier 1 Block: Device ${deviceId} exceeded ${TIER1_DEVICE_LIMIT} requests in 1 minute, retry in ${retryAfter}s`,
 			);
 			return sendBeautifulError(
 				res,
@@ -885,14 +890,14 @@ export const ddosProtectionMiddleware = async (
 					limit: TIER1_DEVICE_LIMIT,
 					window: '1 minute',
 					retryAfter: retryAfter,
-				}
+				},
 			);
 		}
 
 		// ==================== STATISTICS LOGGING ====================
 		if (tier1IPData && tier1IPData.count % 100 === 0) {
 			console.log(
-				`📊 DDoS Stats: IP ${clientIP} has made ${tier1IPData.count} requests in current window`
+				`📊 DDoS Stats: IP ${clientIP} has made ${tier1IPData.count} requests in current window`,
 			);
 		}
 
@@ -926,21 +931,21 @@ export const cleanupDdosData = () => {
 
 	// Cleanup expired request counts by device
 	for (const [deviceId, data] of Array.from(
-		tier1RequestCountsByDevice.entries()
+		tier1RequestCountsByDevice.entries(),
 	)) {
 		if (now > data.resetTime) {
 			tier1RequestCountsByDevice.delete(deviceId);
 		}
 	}
 	for (const [deviceId, data] of Array.from(
-		tier2RequestCountsByDevice.entries()
+		tier2RequestCountsByDevice.entries(),
 	)) {
 		if (now > data.resetTime) {
 			tier2RequestCountsByDevice.delete(deviceId);
 		}
 	}
 	for (const [deviceId, data] of Array.from(
-		tier3RequestCountsByDevice.entries()
+		tier3RequestCountsByDevice.entries(),
 	)) {
 		if (now > data.resetTime) {
 			tier3RequestCountsByDevice.delete(deviceId);
@@ -988,10 +993,10 @@ export const getDdosStats = () => {
 		totalDevices: tier1RequestCountsByDevice.size,
 		activeConnectionsByIP: Array.from(activeConnectionsByIP.values()).reduce(
 			(a, b) => a + b,
-			0
+			0,
 		),
 		activeConnectionsByDevice: Array.from(
-			activeConnectionsByDevice.values()
+			activeConnectionsByDevice.values(),
 		).reduce((a, b) => a + b, 0),
 		topIPs: [] as Array<{ ip: string; requests: number }>,
 		topDevices: [] as Array<{ deviceId: string; requests: number }>,
@@ -1017,7 +1022,7 @@ export const getDdosStats = () => {
 	const ipEntries = Array.from(tier1RequestCountsByIP.entries());
 	const validIPEntries = ipEntries.filter(([, data]) => now <= data.resetTime);
 	const sortedIPEntries = validIPEntries.sort(
-		([, a], [, b]) => b.count - a.count
+		([, a], [, b]) => b.count - a.count,
 	);
 	const topIPEntries = sortedIPEntries.slice(0, 5);
 
@@ -1029,10 +1034,10 @@ export const getDdosStats = () => {
 	// Get top 5 devices by request count
 	const deviceEntries = Array.from(tier1RequestCountsByDevice.entries());
 	const validDeviceEntries = deviceEntries.filter(
-		([, data]) => now <= data.resetTime
+		([, data]) => now <= data.resetTime,
 	);
 	const sortedDeviceEntries = validDeviceEntries.sort(
-		([, a], [, b]) => b.count - a.count
+		([, a], [, b]) => b.count - a.count,
 	);
 	const topDeviceEntries = sortedDeviceEntries.slice(0, 5);
 
@@ -1048,7 +1053,10 @@ export const getDdosStats = () => {
 setInterval(cleanupDdosData, 60 * 1000);
 
 // Log statistics every 5 minutes
-setInterval(() => {
-	const stats = getDdosStats();
-	console.log('📊 DDoS Protection Stats:', stats);
-}, 5 * 60 * 1000);
+setInterval(
+	() => {
+		const stats = getDdosStats();
+		console.log('📊 DDoS Protection Stats:', stats);
+	},
+	5 * 60 * 1000,
+);

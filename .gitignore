@@ -5,6 +5,7 @@ node_modules
 dist
 .DS_Store
 .cursor
+.claude
 .kiro
 .vscode
 server/public
@@ -17,3 +18,5 @@ server/gen-lang-client-0095636115-aab30f032fed - Copy.json
 logs/
 scripts/
 psd/
+# Added by code-review-graph
+.code-review-graph/

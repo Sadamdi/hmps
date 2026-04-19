@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { getMiddlewareSettings } from '../models/middleware-settings';
+import { getTrustedClientIp } from '../lib/client-ip';
 
 // Cache for middleware settings
 let antiSpoofingSettingsCache: any = null;
@@ -50,9 +51,11 @@ const PRIVATE_IP_RANGES = [
 
 // Function to check if IP is in private range
 function isPrivateIP(ip: string): boolean {
+	const normalizedIp = ip.replace(/^::ffff:/, '').trim();
+
 	// Handle IPv4
-	if (ip.includes('.')) {
-		const parts = ip.split('.').map(Number);
+	if (normalizedIp.includes('.')) {
+		const parts = normalizedIp.split('.').map(Number);
 		if (parts.length !== 4) return false;
 
 		// 10.0.0.0/8
@@ -70,8 +73,12 @@ function isPrivateIP(ip: string): boolean {
 	}
 
 	// Handle IPv6 (simplified check)
-	if (ip.includes(':')) {
-		if (ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fc00:')) {
+	if (normalizedIp.includes(':')) {
+		if (
+			normalizedIp === '::1' ||
+			normalizedIp.startsWith('fe80:') ||
+			normalizedIp.startsWith('fc00:')
+		) {
 			return true;
 		}
 	}
@@ -390,6 +397,7 @@ export const antiSpoofingProtectionMiddleware = async (
 		}
 
 		const clientIP = req.ip || req.connection?.remoteAddress || 'unknown';
+		const trustedClientIP = getTrustedClientIp(req);
 		const userAgent = req.get('User-Agent') || '';
 		const referrer = req.get('Referer') || '';
 		const xForwardedFor = req.get('X-Forwarded-For') || '';
@@ -438,20 +446,25 @@ export const antiSpoofingProtectionMiddleware = async (
 			let spoofingReason = '';
 
 			// ==================== IP SPOOFING DETECTION ====================
-			// Check X-Forwarded-For header for private IPs
+			// Check only the original client hop in X-Forwarded-For.
+			// Private IPs in subsequent hops are usually internal reverse-proxy chain.
 			if (xForwardedFor) {
 				const forwardedIPs = xForwardedFor.split(',').map((ip) => ip.trim());
-				for (const forwardedIP of forwardedIPs) {
-					if (isPrivateIP(forwardedIP)) {
-						spoofingDetected = true;
-						spoofingReason = `Private IP detected in X-Forwarded-For: ${forwardedIP}`;
-						break;
-					}
+				const originalClientHop = forwardedIPs[0];
+				if (originalClientHop && isPrivateIP(originalClientHop)) {
+					spoofingDetected = true;
+					spoofingReason = `Private client IP detected in X-Forwarded-For: ${originalClientHop}`;
 				}
 			}
 
-			// Check X-Real-IP header for private IPs
-			if (!spoofingDetected && xRealIP && isPrivateIP(xRealIP)) {
+			// X-Real-IP often contains local proxy IP in reverse-proxy deployments.
+			// Treat it as spoofing only when trusted client IP is also private.
+			if (
+				!spoofingDetected &&
+				xRealIP &&
+				isPrivateIP(xRealIP) &&
+				isPrivateIP(trustedClientIP)
+			) {
 				spoofingDetected = true;
 				spoofingReason = `Private IP detected in X-Real-IP: ${xRealIP}`;
 			}

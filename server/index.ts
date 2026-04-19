@@ -27,12 +27,12 @@ import {
 	cleanupDnsLayerData,
 	dnsLayerProtectionMiddleware,
 } from './middleware/dns-layer-protection';
+import { loadSheddingMiddleware } from './middleware/load-shedding';
 import {
 	noSqlInjectionProtectionMiddleware,
 	sqlInjectionProtectionMiddleware,
 } from './middleware/sql-injection-protection';
 import { sanitizeInput, securityLogger, securityMiddleware } from './security';
-import { loadSheddingMiddleware } from './middleware/load-shedding';
 
 // Import models to ensure they are registered
 import './models/activity';
@@ -91,9 +91,11 @@ const fileAccessGuard = async (req: any, res: any, next: any) => {
 	try {
 		const { FileUpload } = await import('../db/mongodb');
 		const urlPath = req.originalUrl || req.url;
-		const record = await FileUpload.findOne({ url: urlPath }).lean() as any;
+		const record = (await FileUpload.findOne({ url: urlPath }).lean()) as any;
 		if (record && record.scanStatus === 'infected') {
-			return res.status(403).json({ message: 'File diblokir karena terdeteksi ancaman keamanan.' });
+			return res
+				.status(403)
+				.json({ message: 'File diblokir karena terdeteksi ancaman keamanan.' });
 		}
 	} catch {}
 	next();
@@ -139,24 +141,24 @@ app.get('/sitemap.xml', async (_req, res) => {
 		// Always include base URLs
 		const baseUrls = [
 			{ loc: `${host}/`, changefreq: 'daily', priority: '1.0', lastmod: now },
-		{
-			loc: `${host}/berita`,
-			changefreq: 'daily',
-			priority: '0.9',
-			lastmod: now,
-		},
-		{
-			loc: `${host}/events`,
-			changefreq: 'weekly',
-			priority: '0.8',
-			lastmod: now,
-		},
-		{
-			loc: `${host}/library`,
-			changefreq: 'weekly',
-			priority: '0.8',
-			lastmod: now,
-		},
+			{
+				loc: `${host}/berita`,
+				changefreq: 'daily',
+				priority: '0.9',
+				lastmod: now,
+			},
+			{
+				loc: `${host}/events`,
+				changefreq: 'weekly',
+				priority: '0.8',
+				lastmod: now,
+			},
+			{
+				loc: `${host}/library`,
+				changefreq: 'weekly',
+				priority: '0.8',
+				lastmod: now,
+			},
 			{
 				loc: `${host}/profil`,
 				changefreq: 'monthly',
@@ -212,7 +214,8 @@ app.get('/sitemap.xml', async (_req, res) => {
 			const isConnected = await connectDB();
 
 			if (isConnected) {
-				const { Berita, Event, EventYear, Library } = await import('../db/mongodb');
+				const { Berita, Event, EventYear, Library } =
+					await import('../db/mongodb');
 
 				if (Berita) {
 					const beritaList = await Berita.find({ published: true })
@@ -221,18 +224,20 @@ app.get('/sitemap.xml', async (_req, res) => {
 
 					console.log(`📄 Found ${beritaList.length} published berita`);
 
-				beritaUrls = beritaList.filter((a: any) => a.slug).map((a: any) => {
-					const url = `${host}/berita/${a.slug}`;
-					console.log(`📝 Adding berita URL: ${url}`);
-						return {
-							loc: url,
-							lastmod:
-								(a.updatedAt || a.createdAt)?.toISOString?.().slice(0, 10) ||
-								now,
-							changefreq: 'monthly',
-							priority: '0.8',
-						};
-					});
+					beritaUrls = beritaList
+						.filter((a: any) => a.slug)
+						.map((a: any) => {
+							const url = `${host}/berita/${a.slug}`;
+							console.log(`📝 Adding berita URL: ${url}`);
+							return {
+								loc: url,
+								lastmod:
+									(a.updatedAt || a.createdAt)?.toISOString?.().slice(0, 10) ||
+									now,
+								changefreq: 'monthly',
+								priority: '0.8',
+							};
+						});
 				} else {
 					console.log(
 						'⚠️ Berita model not found, continuing with base URLs only',
@@ -355,10 +360,22 @@ app.use((req, res, next) => {
 					safeBody = { publicKey: '[REDACTED]' };
 				}
 				logLine += ` :: ${JSON.stringify(safeBody)}`
-					.replace(/"WEB_PUSH_VAPID_PRIVATE_KEY":"[^"]*"/g, '"WEB_PUSH_VAPID_PRIVATE_KEY":"[REDACTED]"')
-					.replace(/"VAPID_PRIVATE_KEY":"[^"]*"/g, '"VAPID_PRIVATE_KEY":"[REDACTED]"')
-					.replace(/"WEB_PUSH_VAPID_PUBLIC_KEY":"[^"]*"/g, '"WEB_PUSH_VAPID_PUBLIC_KEY":"[REDACTED]"')
-					.replace(/"VAPID_PUBLIC_KEY":"[^"]*"/g, '"VAPID_PUBLIC_KEY":"[REDACTED]"');
+					.replace(
+						/"WEB_PUSH_VAPID_PRIVATE_KEY":"[^"]*"/g,
+						'"WEB_PUSH_VAPID_PRIVATE_KEY":"[REDACTED]"',
+					)
+					.replace(
+						/"VAPID_PRIVATE_KEY":"[^"]*"/g,
+						'"VAPID_PRIVATE_KEY":"[REDACTED]"',
+					)
+					.replace(
+						/"WEB_PUSH_VAPID_PUBLIC_KEY":"[^"]*"/g,
+						'"WEB_PUSH_VAPID_PUBLIC_KEY":"[REDACTED]"',
+					)
+					.replace(
+						/"VAPID_PUBLIC_KEY":"[^"]*"/g,
+						'"VAPID_PUBLIC_KEY":"[REDACTED]"',
+					);
 			}
 
 			if (logLine.length > 80) {
@@ -392,7 +409,7 @@ setInterval(cleanupAntiSpoofingData, 60 * 1000);
 setInterval(cleanupDnsLayerData, 5 * 60 * 1000);
 
 // ==================== TEMP ONBOARDING UPLOAD CLEANUP (every hour) ====================
-import { runTempUploadCleanup, uploadDir, assetsDir, PROJECT_ROOT } from './upload';
+import { assetsDir, runTempUploadCleanup, uploadDir } from './upload';
 setInterval(runTempUploadCleanup, 60 * 60 * 1000);
 
 // ==================== MONTHLY DB BACKUP SCHEDULER ====================
@@ -474,12 +491,17 @@ setInterval(
 		const legacy = indexes.find((idx: any) => idx.name === 'databaseName_1');
 		if (legacy) {
 			await (Community as any).collection.dropIndex('databaseName_1');
-			console.log('[migration] Dropped legacy index databaseName_1 on communities');
+			console.log(
+				'[migration] Dropped legacy index databaseName_1 on communities',
+			);
 		} else {
 			console.log('[migration] No legacy databaseName_1 index found — OK');
 		}
 	} catch (migErr) {
-		console.warn('[migration] Failed to check/drop databaseName_1 index:', migErr);
+		console.warn(
+			'[migration] Failed to check/drop databaseName_1 index:',
+			migErr,
+		);
 	}
 
 	// Cluster backup (opsional): koneksi persisten + ping — dipakai job snapshot tanpa buka-tutup klien tiap kali
@@ -524,7 +546,9 @@ setInterval(
 
 		// ==================== BERITA 301 REDIRECT: old /berita/:id/:slug → /berita/:slug ====================
 		app.get('/berita/:id/:slug', async (req, res) => {
-			const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+			const qs = req.originalUrl.includes('?')
+				? req.originalUrl.slice(req.originalUrl.indexOf('?'))
+				: '';
 			return res.redirect(301, `/berita/${req.params.slug}${qs}`);
 		});
 
@@ -532,16 +556,22 @@ setInterval(
 		app.get('/berita/:slugOrId', async (req, res, next) => {
 			try {
 				const { slugOrId } = req.params;
-				const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+				const qs = req.originalUrl.includes('?')
+					? req.originalUrl.slice(req.originalUrl.indexOf('?'))
+					: '';
 
 				const { Berita } = await import('../db/mongodb');
 				const mongoose = await import('mongoose');
 
 				// Old ID-based URL → redirect 301 to slug
-				const isObjectId = mongoose.default.Types.ObjectId.isValid(slugOrId) && /^[0-9a-fA-F]{24}$/.test(slugOrId);
+				const isObjectId =
+					mongoose.default.Types.ObjectId.isValid(slugOrId) &&
+					/^[0-9a-fA-F]{24}$/.test(slugOrId);
 				if (isObjectId) {
 					try {
-						const found = await Berita.findById(slugOrId).select('slug').lean() as any;
+						const found = (await Berita.findById(slugOrId)
+							.select('slug')
+							.lean()) as any;
 						if (found?.slug) {
 							return res.redirect(301, `/berita/${found.slug}${qs}`);
 						}
@@ -686,7 +716,10 @@ setInterval(
 				const htmlPath = path.join(distPath, 'index.html');
 				if (!fs.existsSync(htmlPath)) return next();
 
-				const product: any = await StoreProduct.findOne({ slug, published: true })
+				const product: any = await StoreProduct.findOne({
+					slug,
+					published: true,
+				})
 					.select('name shortDescription thumbnail slug')
 					.lean();
 				let html = fs.readFileSync(htmlPath, 'utf-8');
@@ -699,9 +732,13 @@ setInterval(
 							.replace(/</g, '&lt;')
 							.replace(/>/g, '&gt;');
 					const host = req.get('host') || 'localhost';
-					const proto = (req.headers['x-forwarded-proto'] as string) || (req.secure ? 'https' : 'http');
+					const proto =
+						(req.headers['x-forwarded-proto'] as string) ||
+						(req.secure ? 'https' : 'http');
 					const title = `${product.name} | Toko`;
-					const description = String(product.shortDescription || product.name || 'Produk').slice(0, 160);
+					const description = String(
+						product.shortDescription || product.name || 'Produk',
+					).slice(0, 160);
 					const canonicalUrl = `${proto}://${host}/toko/${product.slug}`;
 					const defaultOg =
 						'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
@@ -878,7 +915,8 @@ setInterval(
 		app.get(
 			'/profil',
 			serveHtmlWithMeta({
-				title: 'Profil | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				title:
+					'Profil | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 				description:
 					'Profil HIMATIF Encoder - Tentang Kami, Sejarah Rekam Jejak Ketua Himpunan & Divisi, serta Filosofi Lambang - Himpunan Mahasiswa Teknik Informatika UIN Malang.',
 				canonicalUrl: 'https://himatif-encoder.com/profil',
@@ -888,7 +926,8 @@ setInterval(
 		app.get(
 			'/kelembagaan',
 			serveHtmlWithMeta({
-				title: 'Kelembagaan | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				title:
+					'Kelembagaan | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 				description:
 					'Visi dan Misi serta Struktur Organisasi HIMATIF Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.',
 				canonicalUrl: 'https://himatif-encoder.com/kelembagaan',
@@ -898,7 +937,8 @@ setInterval(
 		app.get(
 			'/berita',
 			serveHtmlWithMeta({
-				title: 'Berita | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				title:
+					'Berita | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 				description:
 					'Daftar berita dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.',
 				canonicalUrl: 'https://himatif-encoder.com/berita',
@@ -908,7 +948,8 @@ setInterval(
 		app.get(
 			'/login',
 			serveHtmlWithMeta({
-				title: 'Login | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				title:
+					'Login | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 				description:
 					'Masuk ke akun Anda untuk mengakses dashboard Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang.',
 				canonicalUrl: 'https://himatif-encoder.com/login',
@@ -919,7 +960,8 @@ setInterval(
 		app.get(
 			'/error',
 			serveHtmlWithMeta({
-				title: 'Error | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
+				title:
+					'Error | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 				description:
 					'Halaman error - Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.',
 				canonicalUrl: 'https://himatif-encoder.com/error',
@@ -952,12 +994,14 @@ setInterval(
 	server.listen(listenOptions, () => {
 		log(`🛡️ Secure server running on port ${port}`);
 
-		import('./services/file-scanner').then(({ startScanWorker }) => {
-			startScanWorker();
-			console.log('   ✅ Antivirus File Scanner Worker Started');
-		}).catch((err) => {
-			console.warn('   ⚠️ Antivirus File Scanner not started:', err.message);
-		});
+		import('./services/file-scanner')
+			.then(({ startScanWorker }) => {
+				startScanWorker();
+				console.log('   ✅ Antivirus File Scanner Worker Started');
+			})
+			.catch((err) => {
+				console.warn('   ⚠️ Antivirus File Scanner not started:', err.message);
+			});
 
 		console.log('🛡️ Security Features Activated:');
 		console.log('   ✅ DDoS Protection (Multi-Tier System)');

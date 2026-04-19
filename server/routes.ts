@@ -1,8 +1,9 @@
 import cookieParser from 'cookie-parser';
-import type { Express } from 'express';
+import type { Express, Request } from 'express';
 import fs from 'fs';
 import { createServer, type Server } from 'http';
 import path from 'path';
+import { PostSharing } from '../db/mongodb';
 import {
 	authenticate,
 	authenticateOptional,
@@ -10,14 +11,49 @@ import {
 	canManageRole,
 	createSessionRecord,
 	generateToken,
-	hashPassword,
 	mainOnly,
 	requirePermission,
 	verifyPassword,
 } from './auth';
+import { invokeBannerRender } from './banner-render-invoke';
+import { DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
+import { normalizeEventAttachmentArray } from './event-attachments';
+import { isProcessableImage, processImage } from './image-processor';
 import {
-	consumeResetTokenSession,
+	readPublicJsonCache,
+	writePublicJsonCache,
+} from './lib/public-json-cache';
+import { ShortJsonCache } from './lib/short-cache';
+import {
+	attachLibraryDisplayFields,
+	removeLibraryFromAllRelations,
+	syncBeritaGalleryLinksOnSave,
+	syncEventGalleryLinksOnSave,
+	syncLibraryLinksOnSave,
+} from './library-relations';
+import {
+	getMiddlewareSettings,
+	updateMiddlewareSettings,
+} from './models/middleware-settings';
+import { mongoStorage } from './mongo-storage';
+import chatRouter from './routes/chat';
+import commentRouter from './routes/comments';
+import feedbackRouter from './routes/feedback';
+import notificationRouter from './routes/notifications';
+import sharingRouter, { expirePendingShares } from './routes/sharing';
+import storeRouter from './routes/store';
+import {
+	DEFAULT_THEME_COLOR,
+	deriveBannerColorsFromTheme,
+} from './services/banner-theme-derive';
+import { registerUpload } from './services/file-scanner';
+import {
+	applyOrganizationStructureAutoFill,
+	previewOrganizationStructureAutoFill,
+} from './services/organization-structure-auto-fill';
+import {
 	confirmWithResetToken,
+	consumeResetTokenSession,
 	createOtpChallenge,
 	OtpError,
 	RateLimitError,
@@ -25,25 +61,30 @@ import {
 	verifyAndIssueResetToken,
 	verifyOtpChallenge,
 } from './services/otp';
-import { isProcessableImage, processImage } from './image-processor';
 import {
-	getMiddlewareSettings,
-	updateMiddlewareSettings,
-} from './models/middleware-settings';
-import { mongoStorage } from './mongo-storage';
+	cleanupBeritaImages,
+	cleanupTempDir,
+	DEFAULT_BERITA_IMAGE_PATH,
+	deleteFile,
+	extractImageUrlsFromContent,
+	isProtectedDefaultImageUrl,
+	PROJECT_ROOT,
+	promoteTempFile,
+	removeCommunityUploadDirectories,
+	resolveTenantPaths,
+	TEMP_UPLOAD_TTL_MS,
+	tenantCtxFromReq,
+	uploadBeritaImage,
+	uploadFilosofiImage,
+	uploadHandler,
+	uploadMiddleware,
+	uploadOrganizationMemberImage,
+	uploadProdiLabPhoto,
+	uploadProdiLecturerPhoto,
+	uploadProdiOrganizationStructureImage,
+	uploadTempOnboarding,
+} from './upload';
 import { getPublisherDisplayName } from './user-display';
-import type { Request } from 'express';
-import {
-	applyOrganizationStructureAutoFill,
-	previewOrganizationStructureAutoFill,
-} from './services/organization-structure-auto-fill';
-import { invokeBannerRender } from './banner-render-invoke';
-import {
-	deriveBannerColorsFromTheme,
-	DEFAULT_THEME_COLOR,
-} from './services/banner-theme-derive';
-import { readPublicJsonCache, writePublicJsonCache } from './lib/public-json-cache';
-import { ShortJsonCache } from './lib/short-cache';
 
 function envIntRoutes(name: string, fallback: number): number {
 	const v = parseInt(process.env[name] || '', 10);
@@ -92,7 +133,10 @@ function isValidPeriodRange(period: string): boolean {
 }
 
 /** Pastikan role ada di koleksi Role dan aktif (untuk create/update user). */
-async function assertActiveRoleForStorage(storage: any, roleName: unknown): Promise<void> {
+async function assertActiveRoleForStorage(
+	storage: any,
+	roleName: unknown,
+): Promise<void> {
 	if (typeof roleName !== 'string' || !roleName.trim()) {
 		const e: any = new Error('Role tidak valid');
 		e.statusCode = 400;
@@ -106,46 +150,6 @@ async function assertActiveRoleForStorage(storage: any, roleName: unknown): Prom
 		throw e;
 	}
 }
-import {
-	attachLibraryDisplayFields,
-	removeLibraryFromAllRelations,
-	syncBeritaGalleryLinksOnSave,
-	syncEventGalleryLinksOnSave,
-	syncLibraryLinksOnSave,
-} from './library-relations';
-import { normalizeEventAttachmentArray } from './event-attachments';
-import { registerUpload } from './services/file-scanner';
-import chatRouter from './routes/chat';
-import commentRouter from './routes/comments';
-import feedbackRouter from './routes/feedback';
-import notificationRouter from './routes/notifications';
-import sharingRouter, { expirePendingShares } from './routes/sharing';
-import storeRouter from './routes/store';
-import { PostSharing } from '../db/mongodb';
-import {
-	cleanupBeritaImages,
-	cleanupTempDir,
-	DEFAULT_BERITA_IMAGE_PATH,
-	deleteFile,
-	extractImageUrlsFromContent,
-	isProtectedDefaultImageUrl,
-	promoteTempFile,
-	removeCommunityUploadDirectories,
-	TEMP_UPLOAD_TTL_MS,
-	uploadBeritaImage,
-	uploadFilosofiImage,
-	uploadHandler,
-	uploadMiddleware,
-	uploadOrganizationMemberImage,
-	uploadProdiLabPhoto,
-	uploadProdiLecturerPhoto,
-	uploadProdiOrganizationStructureImage,
-	uploadTempOnboarding,
-	resolveTenantPaths,
-	tenantCtxFromReq,
-	PROJECT_ROOT,
-} from './upload';
-import { DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
 
 // Import security middleware
 import {
@@ -255,14 +259,26 @@ async function checkBeritaPermission(
 					permissions.includes('berita.edit_others')
 				)
 					return true;
-				return hasApprovedSharing('berita', beritaId, user._id.toString(), 'edit', req);
+				return hasApprovedSharing(
+					'berita',
+					beritaId,
+					user._id.toString(),
+					'edit',
+					req,
+				);
 			case 'delete':
 				if (
 					(permissions.includes('berita.delete') && isOwner) ||
 					permissions.includes('berita.delete_others')
 				)
 					return true;
-				return hasApprovedSharing('berita', beritaId, user._id.toString(), 'edit', req);
+				return hasApprovedSharing(
+					'berita',
+					beritaId,
+					user._id.toString(),
+					'edit',
+					req,
+				);
 			case 'publish':
 				return permissions.includes('berita.publish');
 			default:
@@ -283,8 +299,7 @@ async function checkEventPermission(
 	try {
 		const storage = req ? resolveStorage(req) : mongoStorage;
 		const permissions = await storage.getUserPermissions(String(user._id));
-		const isOwner =
-			user._id.toString() === (event.createdBy || '').toString();
+		const isOwner = user._id.toString() === (event.createdBy || '').toString();
 		const eventId = String(event._id || event.id);
 
 		switch (action) {
@@ -294,21 +309,39 @@ async function checkEventPermission(
 					permissions.includes('events.view_others')
 				)
 					return true;
-				return hasApprovedSharing('events', eventId, user._id.toString(), 'view', req);
+				return hasApprovedSharing(
+					'events',
+					eventId,
+					user._id.toString(),
+					'view',
+					req,
+				);
 			case 'edit':
 				if (
 					(permissions.includes('events.edit') && isOwner) ||
 					permissions.includes('events.edit_others')
 				)
 					return true;
-				return hasApprovedSharing('events', eventId, user._id.toString(), 'edit', req);
+				return hasApprovedSharing(
+					'events',
+					eventId,
+					user._id.toString(),
+					'edit',
+					req,
+				);
 			case 'delete':
 				if (
 					(permissions.includes('events.delete') && isOwner) ||
 					permissions.includes('events.delete_others')
 				)
 					return true;
-				return hasApprovedSharing('events', eventId, user._id.toString(), 'edit', req);
+				return hasApprovedSharing(
+					'events',
+					eventId,
+					user._id.toString(),
+					'edit',
+					req,
+				);
 			case 'publish':
 				return permissions.includes('events.publish');
 			default:
@@ -336,7 +369,13 @@ async function canViewBerita(
 	)
 		return true;
 	const beritaId = String(berita._id || berita.id);
-	return hasApprovedSharing('berita', beritaId, user._id.toString(), 'view', req);
+	return hasApprovedSharing(
+		'berita',
+		beritaId,
+		user._id.toString(),
+		'view',
+		req,
+	);
 }
 
 async function checkLibraryPermission(
@@ -359,14 +398,26 @@ async function checkLibraryPermission(
 					permissions.includes('library.edit_others')
 				)
 					return true;
-				return hasApprovedSharing('library', itemId, user._id.toString(), 'edit', req);
+				return hasApprovedSharing(
+					'library',
+					itemId,
+					user._id.toString(),
+					'edit',
+					req,
+				);
 			case 'delete':
 				if (
 					(permissions.includes('library.delete') && isOwner) ||
 					permissions.includes('library.delete_others')
 				)
 					return true;
-				return hasApprovedSharing('library', itemId, user._id.toString(), 'edit', req);
+				return hasApprovedSharing(
+					'library',
+					itemId,
+					user._id.toString(),
+					'edit',
+					req,
+				);
 			default:
 				return false;
 		}
@@ -395,7 +446,13 @@ async function canViewLibraryItem(
 	)
 		return true;
 	const itemId = String(libraryItem._id || libraryItem.id);
-	return hasApprovedSharing('library', itemId, user._id.toString(), 'view', req);
+	return hasApprovedSharing(
+		'library',
+		itemId,
+		user._id.toString(),
+		'view',
+		req,
+	);
 }
 
 async function getEffectiveAuthors(
@@ -506,7 +563,8 @@ async function getEffectiveAuthorsByAuthorId(
 			).lean()) as any[];
 			for (const u of users) {
 				const disp = getPublisherDisplayName(u);
-				if (disp && disp !== 'Unknown' && !authors.includes(disp)) authors.push(disp);
+				if (disp && disp !== 'Unknown' && !authors.includes(disp))
+					authors.push(disp);
 			}
 		}
 	} catch {}
@@ -520,7 +578,9 @@ async function enrichEventsWithAuthors(
 ): Promise<any[]> {
 	for (const item of items) {
 		const id = String(item._id || item.id);
-		const originalAuthorId = item.createdBy ? String(item.createdBy) : undefined;
+		const originalAuthorId = item.createdBy
+			? String(item.createdBy)
+			: undefined;
 		const authors = await getEffectiveAuthorsByAuthorId(
 			req,
 			'events',
@@ -591,7 +651,10 @@ async function enrichLibraryRelations(item: any, req: Request): Promise<void> {
 }
 
 /** Preview galeri + event (batch) untuk daftar berita publik / home */
-async function enrichBeritaListRelations(items: any[], req: Request): Promise<void> {
+async function enrichBeritaListRelations(
+	items: any[],
+	req: Request,
+): Promise<void> {
 	if (!items?.length) return;
 	try {
 		const m = resolveModels(req);
@@ -625,7 +688,10 @@ async function enrichBeritaListRelations(items: any[], req: Request): Promise<vo
 			safeItems.map((it) => String(it._id || it.id)).filter(Boolean),
 		);
 		const beritaIds = Array.from(beritaIdSet);
-		const eventsByBerita = new Map<string, { _id: string; title: string; year?: number }[]>();
+		const eventsByBerita = new Map<
+			string,
+			{ _id: string; title: string; year?: number }[]
+		>();
 		if (beritaIds.length > 0) {
 			const events = await m.Event.find({
 				relatedBerita: { $in: beritaIds },
@@ -678,7 +744,8 @@ async function cleanupSingleEventFiles(
 	event: any,
 	tCtx: { isTenant: boolean; tenantSlug?: string },
 ): Promise<void> {
-	const { deleteFile: delFile, extractImageUrlsFromContent } = await import('./upload');
+	const { deleteFile: delFile, extractImageUrlsFromContent } =
+		await import('./upload');
 	if (event.thumbnail && event.thumbnailSource === 'local') {
 		await delFile(event.thumbnail).catch(() => {});
 	}
@@ -834,9 +901,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					} else if (userSpecifiedType === 'image') {
 						mediaType = 'image';
 					} else {
-						mediaType = file.mimeType.startsWith('video/')
-							? 'video'
-							: 'image';
+						mediaType = file.mimeType.startsWith('video/') ? 'video' : 'image';
 					}
 
 					const mimeType =
@@ -956,7 +1021,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						fileName = meta.name || fileName;
 						mimeType = meta.mimeType;
 						if (!userSpecifiedType) {
-							mediaType = meta.mimeType.startsWith('video/') ? 'video' : 'image';
+							mediaType = meta.mimeType.startsWith('video/')
+								? 'video'
+								: 'image';
 						}
 					}
 				} catch {
@@ -975,9 +1042,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-				const mediaUrl = mediaType === 'video'
-					? `https://drive.google.com/file/d/${actualFileId}/preview`
-					: `https://lh3.googleusercontent.com/d/${actualFileId}=s2000`;
+				const mediaUrl =
+					mediaType === 'video'
+						? `https://drive.google.com/file/d/${actualFileId}/preview`
+						: `https://lh3.googleusercontent.com/d/${actualFileId}=s2000`;
 
 				const metadata = {
 					id: actualFileId,
@@ -991,13 +1059,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					type: mediaType,
 					url: mediaUrl,
 					metadata,
-					files: [{
-						id: actualFileId,
-						name: fileName,
-						url: mediaUrl,
-						type: mediaType,
-						mimeType,
-					}],
+					files: [
+						{
+							id: actualFileId,
+							name: fileName,
+							url: mediaUrl,
+							type: mediaType,
+							mimeType,
+						},
+					],
 				});
 			}
 		} catch (error) {
@@ -1009,13 +1079,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Authentication routes (tenant-aware: works for both main and community logins)
 	// Helper: finalize login after user+context is resolved
 	async function finalizeLogin(
-		req: any, res: any,
-		user: any, storage: any, SessionModel: any,
+		req: any,
+		res: any,
+		user: any,
+		storage: any,
+		SessionModel: any,
 		tenantDbName: string | undefined,
 	) {
 		await storage.updateUser(user._id, { lastLogin: new Date() });
-		const sessionId = await createSessionRecord(req, String(user._id), SessionModel);
-		const token = generateToken({ ...(user as any), sessionId } as any, tenantDbName);
+		const sessionId = await createSessionRecord(
+			req,
+			String(user._id),
+			SessionModel,
+		);
+		const token = generateToken(
+			{ ...(user as any), sessionId } as any,
+			tenantDbName,
+		);
 		const { buildAuthCookieOptions } = await import('./auth');
 		res.cookie('authToken', token, buildAuthCookieOptions());
 
@@ -1024,7 +1104,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		if (tenantDbName) {
 			try {
 				const { Community } = await import('../db/mongodb');
-				const community: any = await Community.findOne({ dbName: tenantDbName }).lean();
+				const community: any = await Community.findOne({
+					dbName: tenantDbName,
+				}).lean();
 				loginTenantSlug = community?.slug;
 			} catch {}
 		}
@@ -1036,11 +1118,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 		try {
 			const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-			await SessionModel.deleteMany({ userId: user._id, revokedAt: { $lte: sevenDaysAgo } });
-			const activeSessions = await SessionModel.find({ userId: user._id }).sort({ createdAt: -1 }).lean();
+			await SessionModel.deleteMany({
+				userId: user._id,
+				revokedAt: { $lte: sevenDaysAgo },
+			});
+			const activeSessions = await SessionModel.find({ userId: user._id })
+				.sort({ createdAt: -1 })
+				.lean();
 			if (activeSessions.length > 10) {
 				const ids = activeSessions.slice(10).map((s: any) => s._id);
-				await SessionModel.updateMany({ _id: { $in: ids }, revokedAt: null }, { $set: { revokedAt: new Date() } });
+				await SessionModel.updateMany(
+					{ _id: { $in: ids }, revokedAt: null },
+					{ $set: { revokedAt: new Date() } },
+				);
 			}
 		} catch (e) {
 			console.warn('Session retention maintenance (login) failed:', e);
@@ -1056,7 +1146,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { username, password, loginTarget } = req.body;
 
 				if (!username || !password) {
-					return res.status(400).json({ message: 'Username and password are required' });
+					return res
+						.status(400)
+						.json({ message: 'Username and password are required' });
 				}
 
 				// If request is from a tenant subdomain, use that context directly
@@ -1067,37 +1159,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					const tenantDbName = req.tenantDbName;
 
 					const user: any = await storage.getUserByUsernameOrEmail(username);
-					if (!user) return res.status(401).json({ message: 'Invalid username or password' });
-					const isValid = await verifyPassword(password, (user as any).password);
-					if (!isValid) return res.status(401).json({ message: 'Invalid username or password' });
-					return await finalizeLogin(req, res, user, storage, SessionModel, tenantDbName);
+					if (!user)
+						return res
+							.status(401)
+							.json({ message: 'Invalid username or password' });
+					const isValid = await verifyPassword(
+						password,
+						(user as any).password,
+					);
+					if (!isValid)
+						return res
+							.status(401)
+							.json({ message: 'Invalid username or password' });
+					return await finalizeLogin(
+						req,
+						res,
+						user,
+						storage,
+						SessionModel,
+						tenantDbName,
+					);
 				}
 
 				// --- Auto-detect login from main website ---
 				if (loginTarget && loginTarget !== 'main') {
 					const { Community } = await import('../db/mongodb');
-					const community: any = await Community.findOne({ slug: loginTarget, status: 'active' }).lean();
-					if (!community) return res.status(401).json({ message: 'Komunitas tidak ditemukan atau tidak aktif' });
+					const community: any = await Community.findOne({
+						slug: loginTarget,
+						status: 'active',
+					}).lean();
+					if (!community)
+						return res
+							.status(401)
+							.json({ message: 'Komunitas tidak ditemukan atau tidak aktif' });
 					const { getTenantModels } = await import('../db/tenant');
 					const models = getTenantModels(community.dbName);
 					const { createTenantStorage } = await import('./tenant-storage');
 					const storage = createTenantStorage(models);
 					const user: any = await storage.getUserByUsernameOrEmail(username);
-					if (!user) return res.status(401).json({ message: 'Invalid username or password' });
-					const isValid = await verifyPassword(password, (user as any).password);
-					if (!isValid) return res.status(401).json({ message: 'Invalid username or password' });
-					return await finalizeLogin(req, res, user, storage, models.Session, community.dbName);
+					if (!user)
+						return res
+							.status(401)
+							.json({ message: 'Invalid username or password' });
+					const isValid = await verifyPassword(
+						password,
+						(user as any).password,
+					);
+					if (!isValid)
+						return res
+							.status(401)
+							.json({ message: 'Invalid username or password' });
+					return await finalizeLogin(
+						req,
+						res,
+						user,
+						storage,
+						models.Session,
+						community.dbName,
+					);
 				}
 
 				// Auto-detect: check main DB first
 				const { Session, Community } = await import('../db/mongodb');
 				const mainUser = await mongoStorage.getUserByUsernameOrEmail(username);
-				const mainValid = mainUser ? await verifyPassword(password, mainUser.password) : false;
+				const mainValid = mainUser
+					? await verifyPassword(password, mainUser.password)
+					: false;
 
 				// Check all active tenant DBs
-				interface MatchResult { user: any; dbName: string; slug: string; name: string; }
+				interface MatchResult {
+					user: any;
+					dbName: string;
+					slug: string;
+					name: string;
+				}
 				const tenantMatches: MatchResult[] = [];
-				const activeCommunities: any[] = await Community.find({ status: 'active' }).lean();
+				const activeCommunities: any[] = await Community.find({
+					status: 'active',
+				}).lean();
 
 				if (activeCommunities.length > 0) {
 					const { getTenantModels } = await import('../db/tenant');
@@ -1107,15 +1246,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						try {
 							const models = getTenantModels(c.dbName);
 							const tStorage = createTenantStorage(models);
-							const tUser: any = await tStorage.getUserByUsernameOrEmail(username);
+							const tUser: any =
+								await tStorage.getUserByUsernameOrEmail(username);
 							if (tUser) {
-								const tValid = await verifyPassword(password, (tUser as any).password);
+								const tValid = await verifyPassword(
+									password,
+									(tUser as any).password,
+								);
 								if (tValid) {
-									tenantMatches.push({ user: tUser, dbName: c.dbName, slug: c.slug, name: c.name });
+									tenantMatches.push({
+										user: tUser,
+										dbName: c.dbName,
+										slug: c.slug,
+										name: c.name,
+									});
 								}
 							}
 						} catch (e) {
-							console.warn(`Login auto-detect: failed checking tenant ${c.slug}:`, e);
+							console.warn(
+								`Login auto-detect: failed checking tenant ${c.slug}:`,
+								e,
+							);
 						}
 					});
 					await Promise.all(checks);
@@ -1124,23 +1275,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const totalMatches = (mainValid ? 1 : 0) + tenantMatches.length;
 
 				if (totalMatches === 0) {
-					return res.status(401).json({ message: 'Invalid username or password' });
+					return res
+						.status(401)
+						.json({ message: 'Invalid username or password' });
 				}
 
 				if (totalMatches === 1) {
 					if (mainValid && mainUser) {
-						return await finalizeLogin(req, res, mainUser, mongoStorage, Session, undefined);
+						return await finalizeLogin(
+							req,
+							res,
+							mainUser,
+							mongoStorage,
+							Session,
+							undefined,
+						);
 					}
 					const match = tenantMatches[0];
 					const { getTenantModels } = await import('../db/tenant');
 					const { createTenantStorage } = await import('./tenant-storage');
 					const models = getTenantModels(match.dbName);
 					const storage = createTenantStorage(models);
-					return await finalizeLogin(req, res, match.user, storage, models.Session, match.dbName);
+					return await finalizeLogin(
+						req,
+						res,
+						match.user,
+						storage,
+						models.Session,
+						match.dbName,
+					);
 				}
 
 				// Multiple matches => ambiguous, let user choose
-				const targets: { scope: 'main' | 'tenant'; slug?: string; name: string }[] = [];
+				const targets: {
+					scope: 'main' | 'tenant';
+					slug?: string;
+					name: string;
+				}[] = [];
 				if (mainValid) {
 					targets.push({ scope: 'main', name: 'Himatif (Web Utama)' });
 				}
@@ -1169,12 +1340,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				.lean();
 			const targets = [
 				{ scope: 'main' as const, slug: 'main', name: 'Himatif (Web Utama)' },
-				...active.map((c: any) => ({ scope: 'tenant' as const, slug: c.slug, name: c.name })),
+				...active.map((c: any) => ({
+					scope: 'tenant' as const,
+					slug: c.slug,
+					name: c.name,
+				})),
 			];
 			res.json({ targets });
 		} catch (error) {
 			console.error('Error fetching login targets:', error);
-			res.json({ targets: [{ scope: 'main', slug: 'main', name: 'Himatif (Web Utama)' }] });
+			res.json({
+				targets: [{ scope: 'main', slug: 'main', name: 'Himatif (Web Utama)' }],
+			});
 		}
 	});
 
@@ -1206,7 +1383,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			try {
-				await UserModel.updateOne({ _id: userId }, { $inc: { tokenVersion: 1 } });
+				await UserModel.updateOne(
+					{ _id: userId },
+					{ $inc: { tokenVersion: 1 } },
+				);
 			} catch (e) {
 				await resolveStorage(req).updateUser(userId, {
 					tokenVersion: ((req.user as any)?.tokenVersion || 0) + 1,
@@ -1259,18 +1439,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		let authScope: 'main' | 'tenant' = 'main';
 		let tenantSlug: string | undefined;
 
-		if (req.isTenantRequest && req.tenantDbName && !(req as any)._authResolvedFromMainInTenant) {
+		if (
+			req.isTenantRequest &&
+			req.tenantDbName &&
+			!(req as any)._authResolvedFromMainInTenant
+		) {
 			authScope = 'tenant';
 			try {
 				const { Community } = await import('../db/mongodb');
-				const community: any = await Community.findOne({ dbName: req.tenantDbName }).lean();
+				const community: any = await Community.findOne({
+					dbName: req.tenantDbName,
+				}).lean();
 				tenantSlug = community?.slug;
 			} catch {}
 		} else if ((req as any)._authTokenTenant) {
 			authScope = 'tenant';
 			try {
 				const { Community } = await import('../db/mongodb');
-				const community: any = await Community.findOne({ dbName: (req as any)._authTokenTenant }).lean();
+				const community: any = await Community.findOne({
+					dbName: (req as any)._authTokenTenant,
+				}).lean();
 				tenantSlug = community?.slug;
 			} catch {}
 		}
@@ -1290,7 +1478,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 			const userId = (req.user as any)?._id;
 			const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-			await SessionModel.deleteMany({ userId, revokedAt: { $lte: sevenDaysAgo } });
+			await SessionModel.deleteMany({
+				userId,
+				revokedAt: { $lte: sevenDaysAgo },
+			});
 			const all = await SessionModel.find({ userId }).sort({ createdAt: -1 });
 			if (all.length > 10) {
 				const toRevoke = all.slice(10);
@@ -1379,9 +1570,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// ══════════════════════════════════════════════════════════════
 
 	function getRequestIp(req: any): string {
-		return (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim()
-			|| req.socket?.remoteAddress
-			|| '';
+		return (
+			(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+			req.socket?.remoteAddress ||
+			''
+		);
 	}
 
 	// --- Forgot password (no auth required) ---
@@ -1393,9 +1586,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			const models = resolveModels(req);
-			const user = await models.User.findOne({ email: email.trim().toLowerCase() }).lean() as any;
+			const user = (await models.User.findOne({
+				email: email.trim().toLowerCase(),
+			}).lean()) as any;
 			if (!user) {
-				return res.status(404).json({ message: 'Tidak ada email yang tersedia' });
+				return res
+					.status(404)
+					.json({ message: 'Tidak ada email yang tersedia' });
 			}
 
 			const { challengeId } = await createOtpChallenge({
@@ -1410,7 +1607,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
 		} catch (error: any) {
 			if (error instanceof RateLimitError) {
-				return res.status(429).json({ message: error.message, retryAfterSeconds: error.retryAfterSeconds });
+				return res
+					.status(429)
+					.json({
+						message: error.message,
+						retryAfterSeconds: error.retryAfterSeconds,
+					});
 			}
 			console.error('Forgot password OTP error:', error);
 			res.status(500).json({ message: 'Internal server error' });
@@ -1421,7 +1623,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const { challengeId, otpCode } = req.body;
 			if (!challengeId || !otpCode) {
-				return res.status(400).json({ message: 'challengeId dan otpCode diperlukan' });
+				return res
+					.status(400)
+					.json({ message: 'challengeId dan otpCode diperlukan' });
 			}
 
 			const result = await verifyAndIssueResetToken({
@@ -1449,7 +1653,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const { challengeId, resetToken, newPassword } = req.body;
 			if (!challengeId || !resetToken || !newPassword) {
-				return res.status(400).json({ message: 'challengeId, resetToken, dan newPassword diperlukan' });
+				return res
+					.status(400)
+					.json({
+						message: 'challengeId, resetToken, dan newPassword diperlukan',
+					});
 			}
 			if (typeof newPassword !== 'string' || newPassword.length < 8) {
 				return res.status(400).json({ message: 'Password minimal 8 karakter' });
@@ -1463,7 +1671,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const storage = resolveStorage(req);
 			const models = resolveModels(req);
-			const user = await models.User.findOne({ email: result.email }).lean() as any;
+			const user = (await models.User.findOne({
+				email: result.email,
+			}).lean()) as any;
 			if (!user) {
 				return res.status(404).json({ message: 'User tidak ditemukan' });
 			}
@@ -1481,82 +1691,104 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// --- Change password with OTP (authenticated) ---
-	app.post('/api/auth/change-password/request-otp', authenticate, async (req, res) => {
-		try {
-			const userId = (req.user as UserWithRole)?._id;
-			if (!userId) {
-				return res.status(401).json({ message: 'Authentication required' });
-			}
-
-			const user = await resolveStorage(req).getUserById(userId);
-			if (!user) {
-				return res.status(404).json({ message: 'User tidak ditemukan' });
-			}
-
-			const { challengeId } = await createOtpChallenge({
-				purpose: 'change_password',
-				email: user.email,
-				userId: userId.toString(),
-				ttlMinutes: 10,
-				requestIp: getRequestIp(req),
-				username: (user as any).username,
-			});
-
-			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
-		} catch (error: any) {
-			if (error instanceof RateLimitError) {
-				return res.status(429).json({ message: error.message, retryAfterSeconds: error.retryAfterSeconds });
-			}
-			console.error('Change password OTP error:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
-	});
-
-	app.post('/api/auth/change-password/confirm', authenticate, async (req, res) => {
-		try {
-			const { challengeId, otpCode, currentPassword, newPassword } = req.body;
-			if (!challengeId || !otpCode || !newPassword) {
-				return res.status(400).json({ message: 'challengeId, otpCode, dan newPassword diperlukan' });
-			}
-			if (typeof newPassword !== 'string' || newPassword.length < 8) {
-				return res.status(400).json({ message: 'Password minimal 8 karakter' });
-			}
-
-			const userId = (req.user as UserWithRole)?._id;
-			if (!userId) {
-				return res.status(401).json({ message: 'Authentication required' });
-			}
-
-			const pwdStorage = resolveStorage(req);
-			const user = await pwdStorage.getUserById(userId);
-			if (!user) {
-				return res.status(404).json({ message: 'User tidak ditemukan' });
-			}
-
-			if (currentPassword) {
-				const isPasswordValid = await verifyPassword(currentPassword, user.password);
-				if (!isPasswordValid) {
-					return res.status(400).json({ message: 'Password saat ini salah' });
+	app.post(
+		'/api/auth/change-password/request-otp',
+		authenticate,
+		async (req, res) => {
+			try {
+				const userId = (req.user as UserWithRole)?._id;
+				if (!userId) {
+					return res.status(401).json({ message: 'Authentication required' });
 				}
+
+				const user = await resolveStorage(req).getUserById(userId);
+				if (!user) {
+					return res.status(404).json({ message: 'User tidak ditemukan' });
+				}
+
+				const { challengeId } = await createOtpChallenge({
+					purpose: 'change_password',
+					email: user.email,
+					userId: userId.toString(),
+					ttlMinutes: 10,
+					requestIp: getRequestIp(req),
+					username: (user as any).username,
+				});
+
+				res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
+			} catch (error: any) {
+				if (error instanceof RateLimitError) {
+					return res
+						.status(429)
+						.json({
+							message: error.message,
+							retryAfterSeconds: error.retryAfterSeconds,
+						});
+				}
+				console.error('Change password OTP error:', error);
+				res.status(500).json({ message: 'Internal server error' });
 			}
+		},
+	);
 
-			await verifyOtpChallenge({
-				challengeId,
-				code: otpCode,
-				purpose: 'change_password',
-			});
+	app.post(
+		'/api/auth/change-password/confirm',
+		authenticate,
+		async (req, res) => {
+			try {
+				const { challengeId, otpCode, currentPassword, newPassword } = req.body;
+				if (!challengeId || !otpCode || !newPassword) {
+					return res
+						.status(400)
+						.json({
+							message: 'challengeId, otpCode, dan newPassword diperlukan',
+						});
+				}
+				if (typeof newPassword !== 'string' || newPassword.length < 8) {
+					return res
+						.status(400)
+						.json({ message: 'Password minimal 8 karakter' });
+				}
 
-			await pwdStorage.updateUser(userId, { password: newPassword });
+				const userId = (req.user as UserWithRole)?._id;
+				if (!userId) {
+					return res.status(401).json({ message: 'Authentication required' });
+				}
 
-			res.json({ message: 'Password berhasil diubah' });
-		} catch (error: any) {
-			if (error instanceof OtpError) {
-				return res.status(400).json({ message: error.message });
+				const pwdStorage = resolveStorage(req);
+				const user = await pwdStorage.getUserById(userId);
+				if (!user) {
+					return res.status(404).json({ message: 'User tidak ditemukan' });
+				}
+
+				if (currentPassword) {
+					const isPasswordValid = await verifyPassword(
+						currentPassword,
+						user.password,
+					);
+					if (!isPasswordValid) {
+						return res.status(400).json({ message: 'Password saat ini salah' });
+					}
+				}
+
+				await verifyOtpChallenge({
+					challengeId,
+					code: otpCode,
+					purpose: 'change_password',
+				});
+
+				await pwdStorage.updateUser(userId, { password: newPassword });
+
+				res.json({ message: 'Password berhasil diubah' });
+			} catch (error: any) {
+				if (error instanceof OtpError) {
+					return res.status(400).json({ message: error.message });
+				}
+				console.error('Change password confirm error:', error);
+				res.status(500).json({ message: 'Internal server error' });
 			}
-			console.error('Change password confirm error:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
-	});
+		},
+	);
 
 	// --- Admin edit password (no OTP, requires permission + hierarchy) ---
 	app.post(
@@ -1568,8 +1800,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { id } = req.params;
 				const { newPassword } = req.body;
 
-				if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
-					return res.status(400).json({ message: 'Password minimal 8 karakter' });
+				if (
+					!newPassword ||
+					typeof newPassword !== 'string' ||
+					newPassword.length < 8
+				) {
+					return res
+						.status(400)
+						.json({ message: 'Password minimal 8 karakter' });
 				}
 
 				const storage = resolveStorage(req);
@@ -1580,19 +1818,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				if (targetUser._id.toString() === requester._id.toString()) {
-					return res.status(400).json({ message: 'Gunakan fitur change password untuk akun sendiri' });
+					return res
+						.status(400)
+						.json({
+							message: 'Gunakan fitur change password untuk akun sendiri',
+						});
 				}
 
 				const allRoles = await storage.getAllRoles();
-				const requesterRole = allRoles.find((r: any) => r.name === requester.role) as any;
-				const targetRole = allRoles.find((r: any) => r.name === targetUser.role) as any;
+				const requesterRole = allRoles.find(
+					(r: any) => r.name === requester.role,
+				) as any;
+				const targetRole = allRoles.find(
+					(r: any) => r.name === targetUser.role,
+				) as any;
 
 				const requesterLevel = requesterRole?.level ?? 999;
 				const targetLevel = targetRole?.level ?? 999;
 
 				if (requesterLevel >= targetLevel) {
 					return res.status(403).json({
-						message: 'Anda hanya bisa mengubah password user dengan role di bawah Anda',
+						message:
+							'Anda hanya bisa mengubah password user dengan role di bawah Anda',
 					});
 				}
 
@@ -1634,7 +1881,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			if (divisionLabel !== undefined) {
 				if (typeof divisionLabel !== 'string') {
-					return res.status(400).json({ message: 'divisionLabel harus berupa teks' });
+					return res
+						.status(400)
+						.json({ message: 'divisionLabel harus berupa teks' });
 				}
 				if (divisionLabel.length > DIVISION_LABEL_MAX) {
 					return res.status(400).json({
@@ -1661,42 +1910,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// --- Change email with OTP (authenticated, self only) ---
-	app.post('/api/auth/change-email/request-otp', authenticate, async (req, res) => {
-		try {
-			const userId = (req.user as UserWithRole)?._id;
-			if (!userId) {
-				return res.status(401).json({ message: 'Authentication required' });
-			}
+	app.post(
+		'/api/auth/change-email/request-otp',
+		authenticate,
+		async (req, res) => {
+			try {
+				const userId = (req.user as UserWithRole)?._id;
+				if (!userId) {
+					return res.status(401).json({ message: 'Authentication required' });
+				}
 
-			const user = await resolveStorage(req).getUserById(userId);
-			if (!user) {
-				return res.status(404).json({ message: 'User tidak ditemukan' });
-			}
+				const user = await resolveStorage(req).getUserById(userId);
+				if (!user) {
+					return res.status(404).json({ message: 'User tidak ditemukan' });
+				}
 
-			const { challengeId } = await createOtpChallenge({
-				purpose: 'change_email',
-				email: user.email,
-				userId: userId.toString(),
-				ttlMinutes: 10,
-				requestIp: getRequestIp(req),
-				username: (user as any).username,
-			});
+				const { challengeId } = await createOtpChallenge({
+					purpose: 'change_email',
+					email: user.email,
+					userId: userId.toString(),
+					ttlMinutes: 10,
+					requestIp: getRequestIp(req),
+					username: (user as any).username,
+				});
 
-			res.json({ message: 'Kode OTP telah dikirim ke email saat ini.', challengeId });
-		} catch (error: any) {
-			if (error instanceof RateLimitError) {
-				return res.status(429).json({ message: error.message, retryAfterSeconds: error.retryAfterSeconds });
+				res.json({
+					message: 'Kode OTP telah dikirim ke email saat ini.',
+					challengeId,
+				});
+			} catch (error: any) {
+				if (error instanceof RateLimitError) {
+					return res
+						.status(429)
+						.json({
+							message: error.message,
+							retryAfterSeconds: error.retryAfterSeconds,
+						});
+				}
+				console.error('Change email OTP error:', error);
+				res.status(500).json({ message: 'Internal server error' });
 			}
-			console.error('Change email OTP error:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
-	});
+		},
+	);
 
 	app.post('/api/auth/change-email/confirm', authenticate, async (req, res) => {
 		try {
 			const { challengeId, otpCode, newEmail } = req.body;
 			if (!challengeId || !otpCode || !newEmail) {
-				return res.status(400).json({ message: 'challengeId, otpCode, dan newEmail diperlukan' });
+				return res
+					.status(400)
+					.json({ message: 'challengeId, otpCode, dan newEmail diperlukan' });
 			}
 			if (typeof newEmail !== 'string' || !newEmail.includes('@')) {
 				return res.status(400).json({ message: 'Format email tidak valid' });
@@ -1714,12 +1977,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			});
 
 			const changeStorage = resolveStorage(req);
-			const emailTaken = await changeStorage.getUserByEmail(newEmail.trim().toLowerCase());
+			const emailTaken = await changeStorage.getUserByEmail(
+				newEmail.trim().toLowerCase(),
+			);
 			if (emailTaken && emailTaken._id.toString() !== userId.toString()) {
-				return res.status(400).json({ message: 'Email sudah digunakan oleh user lain' });
+				return res
+					.status(400)
+					.json({ message: 'Email sudah digunakan oleh user lain' });
 			}
 
-			await changeStorage.updateUser(userId, { email: newEmail.trim().toLowerCase() });
+			await changeStorage.updateUser(userId, {
+				email: newEmail.trim().toLowerCase(),
+			});
 
 			res.json({ message: 'Email berhasil diubah' });
 		} catch (error: any) {
@@ -1741,7 +2010,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { id } = req.params;
 				const { newEmail } = req.body;
 
-				if (!newEmail || typeof newEmail !== 'string' || !newEmail.includes('@')) {
+				if (
+					!newEmail ||
+					typeof newEmail !== 'string' ||
+					!newEmail.includes('@')
+				) {
 					return res.status(400).json({ message: 'Format email tidak valid' });
 				}
 
@@ -1753,25 +2026,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				if (targetUser._id.toString() === requester._id.toString()) {
-					return res.status(400).json({ message: 'Gunakan fitur change email untuk akun sendiri' });
+					return res
+						.status(400)
+						.json({ message: 'Gunakan fitur change email untuk akun sendiri' });
 				}
 
 				const allRoles = await storage.getAllRoles();
-				const requesterRole = allRoles.find((r: any) => r.name === requester.role) as any;
-				const targetRole = allRoles.find((r: any) => r.name === targetUser.role) as any;
+				const requesterRole = allRoles.find(
+					(r: any) => r.name === requester.role,
+				) as any;
+				const targetRole = allRoles.find(
+					(r: any) => r.name === targetUser.role,
+				) as any;
 
 				const requesterLevel = requesterRole?.level ?? 999;
 				const targetLevel = targetRole?.level ?? 999;
 
 				if (requesterLevel >= targetLevel) {
 					return res.status(403).json({
-						message: 'Anda hanya bisa mengubah email user dengan role di bawah Anda',
+						message:
+							'Anda hanya bisa mengubah email user dengan role di bawah Anda',
 					});
 				}
 
-				const emailTaken = await storage.getUserByEmail(newEmail.trim().toLowerCase());
-				if (emailTaken && emailTaken._id.toString() !== targetUser._id.toString()) {
-					return res.status(400).json({ message: 'Email sudah digunakan oleh user lain' });
+				const emailTaken = await storage.getUserByEmail(
+					newEmail.trim().toLowerCase(),
+				);
+				if (
+					emailTaken &&
+					emailTaken._id.toString() !== targetUser._id.toString()
+				) {
+					return res
+						.status(400)
+						.json({ message: 'Email sudah digunakan oleh user lain' });
 				}
 
 				await storage.updateUser(id, { email: newEmail.trim().toLowerCase() });
@@ -1809,7 +2096,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					try {
 						await assertActiveRoleForStorage(storage, role);
 					} catch (e: any) {
-						return res.status(e.statusCode || 400).json({ message: e.message || 'Role tidak valid' });
+						return res
+							.status(e.statusCode || 400)
+							.json({ message: e.message || 'Role tidak valid' });
 					}
 					updateData.role = role;
 				}
@@ -1887,19 +2176,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const storage = resolveStorage(req);
-				const { username, password, name, email, role, division, divisionLabel } =
-					req.body;
+				const {
+					username,
+					password,
+					name,
+					email,
+					role,
+					division,
+					divisionLabel,
+				} = req.body;
 				if (!username || !password || !name || !email || !role) {
 					return res.status(400).json({
 						message: 'Username, password, name, email, and role are required',
 					});
 				}
 				if (typeof password !== 'string' || password.length < 8) {
-					return res.status(400).json({ message: 'Password minimal 8 karakter' });
+					return res
+						.status(400)
+						.json({ message: 'Password minimal 8 karakter' });
 				}
 				if (divisionLabel !== undefined && divisionLabel !== null) {
 					if (typeof divisionLabel !== 'string') {
-						return res.status(400).json({ message: 'divisionLabel harus berupa teks' });
+						return res
+							.status(400)
+							.json({ message: 'divisionLabel harus berupa teks' });
 					}
 					if (divisionLabel.length > DIVISION_LABEL_MAX) {
 						return res.status(400).json({
@@ -1914,7 +2214,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				try {
 					await assertActiveRoleForStorage(storage, role);
 				} catch (e: any) {
-					return res.status(e.statusCode || 400).json({ message: e.message || 'Role tidak valid' });
+					return res
+						.status(e.statusCode || 400)
+						.json({ message: e.message || 'Role tidak valid' });
 				}
 				const newUser = await storage.createUser({
 					username,
@@ -1943,8 +2245,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const storage = resolveStorage(req);
 				const userId = req.params.id;
-				const { username, name, email, role, division, divisionLabel, password } =
-					req.body;
+				const {
+					username,
+					name,
+					email,
+					role,
+					division,
+					divisionLabel,
+					password,
+				} = req.body;
 				if (!userId || userId === 'undefined') {
 					return res.status(400).json({ message: 'Invalid user ID' });
 				}
@@ -1974,7 +2283,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				if (divisionLabel !== undefined && divisionLabel !== null) {
 					if (typeof divisionLabel !== 'string') {
-						return res.status(400).json({ message: 'divisionLabel harus berupa teks' });
+						return res
+							.status(400)
+							.json({ message: 'divisionLabel harus berupa teks' });
 					}
 					if (divisionLabel.length > DIVISION_LABEL_MAX) {
 						return res.status(400).json({
@@ -1983,9 +2294,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-				if (password !== undefined && password !== null && String(password).length > 0) {
+				if (
+					password !== undefined &&
+					password !== null &&
+					String(password).length > 0
+				) {
 					if (typeof password !== 'string' || password.length < 8) {
-						return res.status(400).json({ message: 'Password minimal 8 karakter' });
+						return res
+							.status(400)
+							.json({ message: 'Password minimal 8 karakter' });
 					}
 				}
 
@@ -1997,7 +2314,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					try {
 						await assertActiveRoleForStorage(storage, role);
 					} catch (e: any) {
-						return res.status(e.statusCode || 400).json({ message: e.message || 'Role tidak valid' });
+						return res
+							.status(e.statusCode || 400)
+							.json({ message: e.message || 'Role tidak valid' });
 					}
 					updates.role = role;
 				}
@@ -2205,23 +2524,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Events linked to a berita by slug (public use)
-	app.get('/api/berita/slug/:slug/events', authenticateOptional, async (req, res) => {
-		try {
-			const storage = resolveStorage(req);
-			const beritaItem = await storage.getBeritaBySlug(req.params.slug);
-			if (!beritaItem) {
-				return res.status(404).json({ message: 'Berita not found' });
+	app.get(
+		'/api/berita/slug/:slug/events',
+		authenticateOptional,
+		async (req, res) => {
+			try {
+				const storage = resolveStorage(req);
+				const beritaItem = await storage.getBeritaBySlug(req.params.slug);
+				if (!beritaItem) {
+					return res.status(404).json({ message: 'Berita not found' });
+				}
+				let events = await storage.getEventsByBeritaId(String(beritaItem._id));
+				if (!req.user) {
+					events = events.filter((e: any) => e.published);
+				}
+				res.json(events);
+			} catch (error) {
+				console.error('Get berita events by slug error:', error);
+				res.status(500).json({ message: 'Internal server error' });
 			}
-			let events = await storage.getEventsByBeritaId(String(beritaItem._id));
-			if (!req.user) {
-				events = events.filter((e: any) => e.published);
-			}
-			res.json(events);
-		} catch (error) {
-			console.error('Get berita events by slug error:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
-	});
+		},
+	);
 
 	// Related berita (PLACE BEFORE /api/berita/:id/:slug to avoid 302 redirect)
 	app.get('/api/berita/:id/related', async (req, res) => {
@@ -2299,9 +2622,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const mergeSharedBerita = async (accessList: typeof sharedAccess) => {
 				if (accessList.length === 0) return;
-				const existingIds = new Set(
-					beritaList.map((b: any) => String(b._id)),
-				);
+				const existingIds = new Set(beritaList.map((b: any) => String(b._id)));
 				const sharedIds = (accessList as { entityId: unknown }[])
 					.map((s) => String(s.entityId))
 					.filter((id: string) => !existingIds.has(id));
@@ -2400,56 +2721,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-			try {
-				const currentViews =
-					typeof (beritaItem as any).viewCount === 'number'
-						? (beritaItem as any).viewCount
-						: 0;
-				const nextViews = currentViews + 1;
-				await storage.updateBerita(String(beritaItem._id || beritaId), {
-					viewCount: nextViews,
-				});
-				(beritaItem as any).viewCount = nextViews;
-			} catch (incError) {
-				console.warn('Failed to increment viewCount (id+slug):', incError);
-			}
+				try {
+					const currentViews =
+						typeof (beritaItem as any).viewCount === 'number'
+							? (beritaItem as any).viewCount
+							: 0;
+					const nextViews = currentViews + 1;
+					await storage.updateBerita(String(beritaItem._id || beritaId), {
+						viewCount: nextViews,
+					});
+					(beritaItem as any).viewCount = nextViews;
+				} catch (incError) {
+					console.warn('Failed to increment viewCount (id+slug):', incError);
+				}
 
-			await enrichBeritaWithAuthors([beritaItem], req);
-			await enrichBeritaListRelations([beritaItem], req);
-			res.json(beritaItem);
-		} catch (error) {
-			console.error('Get berita by ID and slug error:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
+				await enrichBeritaWithAuthors([beritaItem], req);
+				await enrichBeritaListRelations([beritaItem], req);
+				res.json(beritaItem);
+			} catch (error) {
+				console.error('Get berita by ID and slug error:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
 		},
 	);
 
 	// Get berita by slug for SEO-friendly URLs (MUST BE BEFORE /:id route)
-	app.get(
-		'/api/berita/slug/:slug',
-		authenticateOptional,
-		async (req, res) => {
-			try {
-				const slug = req.params.slug;
-				const storage = resolveStorage(req);
-				const beritaItem = await storage.getBeritaBySlug(slug);
+	app.get('/api/berita/slug/:slug', authenticateOptional, async (req, res) => {
+		try {
+			const slug = req.params.slug;
+			const storage = resolveStorage(req);
+			const beritaItem = await storage.getBeritaBySlug(slug);
 
-				if (!beritaItem) {
-					return res.status(404).json({ message: 'Berita not found' });
-				}
+			if (!beritaItem) {
+				return res.status(404).json({ message: 'Berita not found' });
+			}
 
-				if (!beritaItem.published) {
-					const canView = await canViewBerita(
-						req.user as UserWithRole | undefined,
-						beritaItem,
-						req,
-					);
-					if (!canView) {
-						return res.status(403).json({
-							message: 'You do not have permission to view this berita',
-						});
-					}
+			if (!beritaItem.published) {
+				const canView = await canViewBerita(
+					req.user as UserWithRole | undefined,
+					beritaItem,
+					req,
+				);
+				if (!canView) {
+					return res.status(403).json({
+						message: 'You do not have permission to view this berita',
+					});
 				}
+			}
 
 			try {
 				const currentViews =
@@ -2472,8 +2790,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			console.error('Get berita by slug error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
-		},
-	);
+	});
 
 	app.get('/api/berita/:id', authenticateOptional, async (req, res) => {
 		try {
@@ -2503,9 +2820,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						? (beritaItem as any).viewCount
 						: 0;
 				const nextViews = currentViews + 1;
-				await resolveStorage(req).updateBerita(String(beritaItem._id || beritaId), {
-					viewCount: nextViews,
-				});
+				await resolveStorage(req).updateBerita(
+					String(beritaItem._id || beritaId),
+					{
+						viewCount: nextViews,
+					},
+				);
 				(beritaItem as any).viewCount = nextViews;
 			} catch (incError) {
 				console.warn('Failed to increment viewCount (id):', incError);
@@ -2839,7 +3159,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 					if (published === 'true' && beritaId) {
 						try {
-							const { broadcastNotification } = await import('./services/notification-orchestrator');
+							const { broadcastNotification } =
+								await import('./services/notification-orchestrator');
 							const tSlug = tenantCtxFromReq(req).tenantSlug;
 							await broadcastNotification(
 								'news_published',
@@ -2851,7 +3172,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									entityType: 'berita',
 									entityId: beritaId,
 									entityTitle: title.trim(),
-									image: imageUrl && imageUrl !== DEFAULT_BERITA_IMAGE_PATH ? imageUrl : '',
+									image:
+										imageUrl && imageUrl !== DEFAULT_BERITA_IMAGE_PATH
+											? imageUrl
+											: '',
 									tag: 'berita',
 								},
 								{ tenantSlug: tSlug !== 'main' ? tSlug : undefined },
@@ -2997,10 +3321,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Update berita
-				const updatedBerita = await storage.updateBerita(
-					beritaId,
-					updates,
-				);
+				const updatedBerita = await storage.updateBerita(beritaId, updates);
 
 				if (req.body.relatedGalleryIds !== undefined) {
 					await syncBeritaGalleryLinksOnSave(
@@ -3037,21 +3358,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (wasDraft && isNowPublished && beritaId) {
 					try {
 						const user = req.user as UserWithRole;
-						const { broadcastNotification } = await import('./services/notification-orchestrator');
+						const { broadcastNotification } =
+							await import('./services/notification-orchestrator');
 						const slug = (updatedBerita as any)?.slug || beritaId;
-						const thumbImg = (updatedBerita as any)?.image || (existingBerita as any)?.image || '';
+						const thumbImg =
+							(updatedBerita as any)?.image ||
+							(existingBerita as any)?.image ||
+							'';
 						const tSlug = tenantCtxFromReq(req).tenantSlug;
 						await broadcastNotification(
 							'news_published',
 							{ userId: String(user._id), name: user.name || user.username },
 							{
-								title: `Berita Baru: ${title || (existingBerita as any).title || ''}`.trim(),
-								description: ((excerpt || (existingBerita as any).excerpt || '') as string).slice(0, 200),
+								title:
+									`Berita Baru: ${title || (existingBerita as any).title || ''}`.trim(),
+								description: (
+									(excerpt || (existingBerita as any).excerpt || '') as string
+								).slice(0, 200),
 								actionUrl: `/berita/${slug}`,
 								entityType: 'berita',
 								entityId: beritaId,
-								entityTitle: (title || (existingBerita as any).title || '').trim(),
-								image: thumbImg && thumbImg !== DEFAULT_BERITA_IMAGE_PATH ? thumbImg : '',
+								entityTitle: (
+									title ||
+									(existingBerita as any).title ||
+									''
+								).trim(),
+								image:
+									thumbImg && thumbImg !== DEFAULT_BERITA_IMAGE_PATH
+										? thumbImg
+										: '',
 								tag: 'berita',
 							},
 							{ tenantSlug: tSlug !== 'main' ? tSlug : undefined },
@@ -3146,8 +3481,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				await enrichLibraryRelations(item, req);
 				// Normalisasi untuk item lama tanpa mediaKinds
 				const a = item as any;
-				if ((!a.mediaKinds || a.mediaKinds.length === 0) && a.images?.length > 0) {
-					a.mediaKinds = a.images.map(() => a.type === 'video' ? 'video' : 'image');
+				if (
+					(!a.mediaKinds || a.mediaKinds.length === 0) &&
+					a.images?.length > 0
+				) {
+					a.mediaKinds = a.images.map(() =>
+						a.type === 'video' ? 'video' : 'image',
+					);
 				}
 			}
 
@@ -3296,10 +3636,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get('/api/library/slug/:slug', authenticateOptional, async (req, res) => {
 		try {
 			const slug = String(req.params.slug || '').trim();
-			if (!slug) return res.status(400).json({ message: 'Invalid library slug' });
+			if (!slug)
+				return res.status(400).json({ message: 'Invalid library slug' });
 			const items = await resolveStorage(req).getPublishedLibraryItems();
-			const item = (items || []).find((it: any) => toUrlSlug(String(it?.title || '')) === slug);
-			if (!item) return res.status(404).json({ message: 'Library item not found' });
+			const item = (items || []).find(
+				(it: any) => toUrlSlug(String(it?.title || '')) === slug,
+			);
+			if (!item)
+				return res.status(404).json({ message: 'Library item not found' });
 			res.json(item);
 		} catch (error) {
 			console.error('Get library by slug error:', error);
@@ -3324,9 +3668,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Increment viewCount (fire-and-forget, like berita/event)
 			try {
-				const currentViews = typeof (item as any).viewCount === 'number' ? (item as any).viewCount : 0;
+				const currentViews =
+					typeof (item as any).viewCount === 'number'
+						? (item as any).viewCount
+						: 0;
 				const nextViews = currentViews + 1;
-				await resolveStorage(req).updateLibraryItem(itemId, { viewCount: nextViews });
+				await resolveStorage(req).updateLibraryItem(itemId, {
+					viewCount: nextViews,
+				});
 				(item as any).viewCount = nextViews;
 			} catch (incError) {
 				console.warn('Failed to increment library viewCount:', incError);
@@ -3336,8 +3685,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			await enrichLibraryRelations(item, req);
 			// Normalisasi untuk item lama tanpa mediaKinds
 			const a = item as any;
-			if ((!a.mediaKinds || a.mediaKinds.length === 0) && a.images?.length > 0) {
-				a.mediaKinds = a.images.map(() => a.type === 'video' ? 'video' : 'image');
+			if (
+				(!a.mediaKinds || a.mediaKinds.length === 0) &&
+				a.images?.length > 0
+			) {
+				a.mediaKinds = a.images.map(() =>
+					a.type === 'video' ? 'video' : 'image',
+				);
 			}
 			try {
 				await enrichLibraryWithAuthors([item], req);
@@ -3361,7 +3715,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const storage = resolveStorage(req);
 				const { Library } = resolveModels(req);
 				const item = await Library.findById(libraryId).lean();
-				if (!item) return res.status(404).json({ message: 'Library item not found' });
+				if (!item)
+					return res.status(404).json({ message: 'Library item not found' });
 
 				const user = req.user as any;
 				const isAdmin = !!user;
@@ -3369,9 +3724,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(404).json({ message: 'Not found' });
 				}
 
-				const embeds: { folderId: string; url: string }[] = (item as any).gdriveEmbedFolders || [];
+				const embeds: { folderId: string; url: string }[] =
+					(item as any).gdriveEmbedFolders || [];
 				if (!embeds.some((e) => e.folderId === folderId)) {
-					return res.status(403).json({ message: 'Folder not linked to this library item' });
+					return res
+						.status(403)
+						.json({ message: 'Folder not linked to this library item' });
 				}
 
 				const { getFolderContents } = await import('./googleDrive');
@@ -3391,7 +3749,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					id: f.id,
 					name: f.name,
 					mimeType: f.mimeType,
-					thumbnailLink: f.thumbnailLink || `https://drive.google.com/thumbnail?id=${f.id}&sz=w400`,
+					thumbnailLink:
+						f.thumbnailLink ||
+						`https://drive.google.com/thumbnail?id=${f.id}&sz=w400`,
 				}));
 
 				res.json({ files: mapped, folderId });
@@ -3476,8 +3836,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					const raw = body.tags;
 					if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
 					if (typeof raw === 'string') {
-						try { const j = JSON.parse(raw); if (Array.isArray(j)) return j.map(String).filter(Boolean); } catch { /* ignore */ }
-						return raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+						try {
+							const j = JSON.parse(raw);
+							if (Array.isArray(j)) return j.map(String).filter(Boolean);
+						} catch {
+							/* ignore */
+						}
+						return raw
+							.split(',')
+							.map((s: string) => s.trim())
+							.filter(Boolean);
 					}
 					return [];
 				};
@@ -3605,7 +3973,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				if (imageUrls.length === 0) {
 					return res.status(400).json({
-						message: 'At least one media item is required (upload or Google Drive link)',
+						message:
+							'At least one media item is required (upload or Google Drive link)',
 					});
 				}
 
@@ -3728,8 +4097,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				};
 
 				const title = (body.title ?? (existingItem as any).title ?? '').trim();
-				const description = (body.description ?? (existingItem as any).description ?? '').trim();
-				const fullDescription = (body.fullDescription ?? (existingItem as any).fullDescription ?? '').trim();
+				const description = (
+					body.description ??
+					(existingItem as any).description ??
+					''
+				).trim();
+				const fullDescription = (
+					body.fullDescription ??
+					(existingItem as any).fullDescription ??
+					''
+				).trim();
 				let type = (body.type || (existingItem as any).type || 'photo') as
 					| 'photo'
 					| 'video';
@@ -3737,7 +4114,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					body.published !== undefined
 						? body.published === 'true' || body.published === true
 						: (existingItem as any).published !== false;
-				let activityDate: Date | undefined | null = (existingItem as any).activityDate ?? null;
+				let activityDate: Date | undefined | null =
+					(existingItem as any).activityDate ?? null;
 				if (body.activityDate !== undefined && body.activityDate !== '') {
 					const d = new Date(body.activityDate);
 					if (!Number.isNaN(d.getTime())) activityDate = d;
@@ -3756,8 +4134,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					const raw = body.tags;
 					if (Array.isArray(raw)) return raw.map(String).filter(Boolean);
 					if (typeof raw === 'string') {
-						try { const j = JSON.parse(raw); if (Array.isArray(j)) return j.map(String).filter(Boolean); } catch { /* ignore */ }
-						return raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+						try {
+							const j = JSON.parse(raw);
+							if (Array.isArray(j)) return j.map(String).filter(Boolean);
+						} catch {
+							/* ignore */
+						}
+						return raw
+							.split(',')
+							.map((s: string) => s.trim())
+							.filter(Boolean);
 					}
 					return [];
 				};
@@ -3938,18 +4324,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const updatedItem = await storage.updateLibraryItem(itemId, updates);
 
 				const models = resolveModels(req);
-				const prevE = ((existingItem as any).relatedEventIds || []).map((x: any) =>
-					String(x),
+				const prevE = ((existingItem as any).relatedEventIds || []).map(
+					(x: any) => String(x),
 				);
-				const prevB = ((existingItem as any).relatedBeritaIds || []).map((x: any) =>
-					String(x),
+				const prevB = ((existingItem as any).relatedBeritaIds || []).map(
+					(x: any) => String(x),
 				);
-				const nextE = hasRelE
-					? relatedEventIds
-					: prevE;
-				const nextB = hasRelB
-					? relatedBeritaIds
-					: prevB;
+				const nextE = hasRelE ? relatedEventIds : prevE;
+				const nextB = hasRelB ? relatedBeritaIds : prevB;
 				await syncLibraryLinksOnSave(
 					models,
 					String(itemId),
@@ -3957,7 +4339,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					{ relatedEventIds: nextE, relatedBeritaIds: nextB },
 				);
 
-				attachLibraryDisplayFields((updatedItem || {}) as Record<string, unknown>);
+				attachLibraryDisplayFields(
+					(updatedItem || {}) as Record<string, unknown>,
+				);
 				res.json(updatedItem);
 			} catch (error) {
 				console.error('Update library item error:', error);
@@ -4135,7 +4519,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const divisions = await storage.getAllDivisions(period);
 				if (!divisions.length) {
 					return res.status(400).json({
-						message: 'Divisi belum tersedia di periode ini. Buat divisi terlebih dahulu.',
+						message:
+							'Divisi belum tersedia di periode ini. Buat divisi terlebih dahulu.',
 					});
 				}
 				const result = await storage.createPositionsForPeriod(
@@ -4185,17 +4570,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					!isValidPeriodRange(targetPeriod)
 				) {
 					return res.status(400).json({
-						message: 'sourcePeriod dan targetPeriod wajib format YYYY-YYYY berurutan.',
+						message:
+							'sourcePeriod dan targetPeriod wajib format YYYY-YYYY berurutan.',
 					});
 				}
 				const periods = await storage.getOrganizationPeriods();
-				if (!periods.includes(sourcePeriod) || !periods.includes(targetPeriod)) {
+				if (
+					!periods.includes(sourcePeriod) ||
+					!periods.includes(targetPeriod)
+				) {
 					return res.status(400).json({
 						message: 'Periode sumber/tujuan harus sudah tersedia.',
 					});
 				}
 
-				const existingPositions = await storage.getPositionsByPeriod(targetPeriod);
+				const existingPositions =
+					await storage.getPositionsByPeriod(targetPeriod);
 				const existingDivisions = await storage.getAllDivisions(targetPeriod);
 				const hasExistingStructure =
 					(Array.isArray(existingPositions) && existingPositions.length > 0) ||
@@ -4347,10 +4737,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				let positions: { name: string; order?: number }[] | undefined;
 				const membersRaw = req.body.members;
 				const positionsRaw = req.body.positions;
-				if (
-					membersRaw != null &&
-					String(membersRaw).trim() !== ''
-				) {
+				if (membersRaw != null && String(membersRaw).trim() !== '') {
 					try {
 						members = JSON.parse(membersRaw as string) as {
 							id: string;
@@ -4367,10 +4754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						});
 					}
 				}
-				if (
-					positionsRaw != null &&
-					String(positionsRaw).trim() !== ''
-				) {
+				if (positionsRaw != null && String(positionsRaw).trim() !== '') {
 					try {
 						positions = JSON.parse(positionsRaw as string) as {
 							name: string;
@@ -4470,7 +4854,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const divisions = await storage.getAllDivisions(period);
 				if (!divisions.length) {
 					return res.status(400).json({
-						message: 'Divisi belum tersedia pada periode ini. Buat divisi terlebih dahulu.',
+						message:
+							'Divisi belum tersedia pada periode ini. Buat divisi terlebih dahulu.',
 					});
 				}
 				const positions = await storage.getPositionsByPeriod(period);
@@ -4479,7 +4864,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					: [];
 				if (!allowed.includes(position)) {
 					return res.status(400).json({
-						message: 'Jabatan tidak valid untuk periode ini. Buat/pilih jabatan yang tersedia.',
+						message:
+							'Jabatan tidak valid untuk periode ini. Buat/pilih jabatan yang tersedia.',
 					});
 				}
 
@@ -4514,7 +4900,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					imageUrl = gdriveUrl;
 				} else if (req.file) {
 					// Process the uploaded image with WebP conversion and compression
-					imageUrl = await uploadOrganizationMemberImage(req.file, undefined, tenantCtxFromReq(req));
+					imageUrl = await uploadOrganizationMemberImage(
+						req.file,
+						undefined,
+						tenantCtxFromReq(req),
+					);
 				}
 
 				// Create organization member
@@ -4563,7 +4953,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const divisions = await storage.getAllDivisions(period);
 				if (!divisions.length) {
 					return res.status(400).json({
-						message: 'Divisi belum tersedia pada periode ini. Buat divisi terlebih dahulu.',
+						message:
+							'Divisi belum tersedia pada periode ini. Buat divisi terlebih dahulu.',
 					});
 				}
 				const positions = await storage.getPositionsByPeriod(period);
@@ -4572,7 +4963,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					: [];
 				if (!allowed.includes(position)) {
 					return res.status(400).json({
-						message: 'Jabatan tidak valid untuk periode ini. Buat/pilih jabatan yang tersedia.',
+						message:
+							'Jabatan tidak valid untuk periode ini. Buat/pilih jabatan yang tersedia.',
 					});
 				}
 
@@ -4790,9 +5182,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								body.mapsEmbedUrl = resolvedUrl;
 							} else {
 								// Extract coordinates or query from link
-								const placeMatch = resolvedUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+								const placeMatch = resolvedUrl.match(
+									/@(-?\d+\.\d+),(-?\d+\.\d+)/,
+								);
 								const queryMatch = resolvedUrl.match(/[?&]q=([^&]+)/);
-								const placeNameMatch = resolvedUrl.match(/\/maps\/place\/([^/@?]+)/);
+								const placeNameMatch = resolvedUrl.match(
+									/\/maps\/place\/([^/@?]+)/,
+								);
 
 								if (placeMatch) {
 									const lat = placeMatch[1];
@@ -4801,7 +5197,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								} else if (queryMatch) {
 									body.mapsEmbedUrl = `https://www.google.com/maps?q=${queryMatch[1]}&output=embed`;
 								} else if (placeNameMatch) {
-									const placeName = decodeURIComponent(placeNameMatch[1].replace(/\+/g, ' '));
+									const placeName = decodeURIComponent(
+										placeNameMatch[1].replace(/\+/g, ' '),
+									);
 									body.mapsEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(placeName)}&output=embed`;
 								} else {
 									body.mapsEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(resolvedUrl)}&output=embed`;
@@ -4839,12 +5237,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					const validKinds = ['section', 'subItem'];
 					const validModes = ['summary', 'full'];
 					const sanitized = blocks
-						.filter((b: any) => b && typeof b.id === 'string' && validKinds.includes(b.kind))
+						.filter(
+							(b: any) =>
+								b && typeof b.id === 'string' && validKinds.includes(b.kind),
+						)
 						.map((b: any) => ({
 							id: b.id,
 							kind: b.kind,
 							visible: typeof b.visible === 'boolean' ? b.visible : true,
-							...(b.kind === 'subItem' && validModes.includes(b.renderMode) ? { renderMode: b.renderMode } : { renderMode: 'summary' }),
+							...(b.kind === 'subItem' && validModes.includes(b.renderMode)
+								? { renderMode: b.renderMode }
+								: { renderMode: 'summary' }),
 						}));
 					updatePayload['homeConfig.blocks'] = sanitized;
 				}
@@ -4863,7 +5266,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					updatePayload['homeConfig.showDashboardLink'] = showDashboardLink;
 				}
 
-				const updatedSettings = await resolveStorage(req).updateSettings(updatePayload);
+				const updatedSettings =
+					await resolveStorage(req).updateSettings(updatePayload);
 				res.json(updatedSettings);
 			} catch (error) {
 				console.error('Update home config error:', error);
@@ -4900,16 +5304,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 				for (const s of slots) {
 					if (!s.id || !s.label || typeof s.order !== 'number') {
-						return res.status(400).json({ message: 'Each slot must have id, label, and order' });
+						return res
+							.status(400)
+							.json({ message: 'Each slot must have id, label, and order' });
 					}
 				}
 				const storage = resolveStorage(req);
 
 				// Detect removed slots and cleanup their HomeImages data + files
 				const oldSettings = await storage.getSettings();
-				const oldSlotArr: string[] = ((oldSettings as any)?.homeImageBannerSlots || []).map((s: any) => s.id);
+				const oldSlotArr: string[] = (
+					(oldSettings as any)?.homeImageBannerSlots || []
+				).map((s: any) => s.id);
 				const newSlotSet = new Set(slots.map((s: any) => s.id));
-				const removedSlotIds = oldSlotArr.filter((id: string) => !newSlotSet.has(id));
+				const removedSlotIds = oldSlotArr.filter(
+					(id: string) => !newSlotSet.has(id),
+				);
 
 				if (removedSlotIds.length > 0) {
 					try {
@@ -4931,10 +5341,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							}
 							if (Object.keys(unsetFields).length > 0) {
 								const models = resolveModels(req);
-								await models.HomeImages.updateOne({ _id: hi._id }, { $unset: unsetFields });
+								await models.HomeImages.updateOne(
+									{ _id: hi._id },
+									{ $unset: unsetFields },
+								);
 								for (const url of urlsToDelete) {
 									try {
-										const abs = path.resolve(PROJECT_ROOT, url.replace(/^\//, ''));
+										const abs = path.resolve(
+											PROJECT_ROOT,
+											url.replace(/^\//, ''),
+										);
 										if (fs.existsSync(abs)) fs.unlinkSync(abs);
 									} catch {}
 								}
@@ -4945,7 +5361,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-				const updated = await storage.updateSettings({ homeImageBannerSlots: slots });
+				const updated = await storage.updateSettings({
+					homeImageBannerSlots: slots,
+				});
 				res.json(updated);
 			} catch (error) {
 				console.error('Update home image slots error:', error);
@@ -4979,7 +5397,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				return res.status(400).json({ message: 'URL tidak valid' });
 			}
 			if (!['http:', 'https:'].includes(parsed.protocol)) {
-				return res.status(400).json({ message: 'Hanya URL http/https yang didukung' });
+				return res
+					.status(400)
+					.json({ message: 'Hanya URL http/https yang didukung' });
 			}
 
 			const controller = new AbortController();
@@ -5001,13 +5421,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					});
 				}
 
-				const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-				const contentDisposition = upstream.headers.get('content-disposition') || 'inline';
-				const cacheControl = upstream.headers.get('cache-control') || 'public, max-age=300';
+				const contentType =
+					upstream.headers.get('content-type') || 'application/octet-stream';
+				const contentDisposition =
+					upstream.headers.get('content-disposition') || 'inline';
+				const cacheControl =
+					upstream.headers.get('cache-control') || 'public, max-age=300';
 				const buffer = Buffer.from(await upstream.arrayBuffer());
 
 				res.setHeader('Content-Type', contentType);
-				res.setHeader('Content-Disposition', contentDisposition.includes('attachment') ? contentDisposition.replace('attachment', 'inline') : contentDisposition);
+				res.setHeader(
+					'Content-Disposition',
+					contentDisposition.includes('attachment')
+						? contentDisposition.replace('attachment', 'inline')
+						: contentDisposition,
+				);
 				res.setHeader('Cache-Control', cacheControl);
 				res.setHeader('X-Content-Type-Options', 'nosniff');
 				return res.send(buffer);
@@ -5017,7 +5445,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		} catch (error: any) {
 			const aborted = error?.name === 'AbortError';
 			if (aborted) {
-				return res.status(504).json({ message: 'Timeout saat mengambil dokumen preview' });
+				return res
+					.status(504)
+					.json({ message: 'Timeout saat mengambil dokumen preview' });
 			}
 			console.error('Prodi preview proxy error:', error);
 			return res.status(500).json({ message: 'Gagal memuat preview dokumen' });
@@ -5032,7 +5462,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				await mongoStorage.ensureCurriculumByYearMigrated();
 				const doc = await resolveStorage(req).getProdiContent();
-				const result = doc.toObject ? doc.toObject() : JSON.parse(JSON.stringify(doc));
+				const result = doc.toObject
+					? doc.toObject()
+					: JSON.parse(JSON.stringify(doc));
 				const years = await mongoStorage.getProdiCurriculumYears();
 				const activeYear = mongoStorage.resolveAcademicYearByDate(new Date());
 				result.curriculumYears = years;
@@ -5053,9 +5485,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const year = parseInt(req.params.year, 10);
-				if (!Number.isFinite(year)) return res.status(400).json({ message: 'Tahun tidak valid' });
+				if (!Number.isFinite(year))
+					return res.status(400).json({ message: 'Tahun tidak valid' });
 				const data = await mongoStorage.getProdiCurriculumByYear(year);
-				if (!data) return res.status(404).json({ message: `Kurikulum tahun ${year} tidak ditemukan` });
+				if (!data)
+					return res
+						.status(404)
+						.json({ message: `Kurikulum tahun ${year} tidak ditemukan` });
 				res.json(data);
 			} catch (error) {
 				console.error('Get prodi curriculum by year error:', error);
@@ -5100,32 +5536,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const { academicYear, copyFromYear } = req.body;
 				const year = parseInt(String(academicYear), 10);
 				if (!Number.isFinite(year) || year < 2000 || year > 2100) {
-					return res.status(400).json({ message: 'Tahun harus antara 2000–2100' });
+					return res
+						.status(400)
+						.json({ message: 'Tahun harus antara 2000–2100' });
 				}
 				let payload: any = {
-					semesters: [], optionalSubjects: [], graduateProfile: [],
-					knowledgeGroups: [], structureSummary: '', subjectRpsResources: [],
+					semesters: [],
+					optionalSubjects: [],
+					graduateProfile: [],
+					knowledgeGroups: [],
+					structureSummary: '',
+					subjectRpsResources: [],
 					source: 'manual',
 				};
 				if (copyFromYear) {
-					const src = await mongoStorage.getProdiCurriculumByYear(parseInt(String(copyFromYear), 10));
+					const src = await mongoStorage.getProdiCurriculumByYear(
+						parseInt(String(copyFromYear), 10),
+					);
 					if (src) {
 						payload = {
 							semesters: JSON.parse(JSON.stringify(src.semesters ?? [])),
-							optionalSubjects: JSON.parse(JSON.stringify(src.optionalSubjects ?? [])),
-							graduateProfile: JSON.parse(JSON.stringify(src.graduateProfile ?? [])),
-							knowledgeGroups: JSON.parse(JSON.stringify(src.knowledgeGroups ?? [])),
+							optionalSubjects: JSON.parse(
+								JSON.stringify(src.optionalSubjects ?? []),
+							),
+							graduateProfile: JSON.parse(
+								JSON.stringify(src.graduateProfile ?? []),
+							),
+							knowledgeGroups: JSON.parse(
+								JSON.stringify(src.knowledgeGroups ?? []),
+							),
 							structureSummary: src.structureSummary ?? '',
-							subjectRpsResources: JSON.parse(JSON.stringify(src.subjectRpsResources ?? [])),
+							subjectRpsResources: JSON.parse(
+								JSON.stringify(src.subjectRpsResources ?? []),
+							),
 							source: 'manual',
 						};
 					}
 				}
-				const result = await mongoStorage.upsertProdiCurriculumByYear(year, payload, { overwrite: false });
+				const result = await mongoStorage.upsertProdiCurriculumByYear(
+					year,
+					payload,
+					{ overwrite: false },
+				);
 				if (result.action === 'needs_confirm') {
-					return res.status(409).json({ message: `Kurikulum tahun ${year} sudah ada` });
+					return res
+						.status(409)
+						.json({ message: `Kurikulum tahun ${year} sudah ada` });
 				}
-				res.json({ message: `Kurikulum tahun ${year} berhasil dibuat`, year: result.year, action: result.action });
+				res.json({
+					message: `Kurikulum tahun ${year} berhasil dibuat`,
+					year: result.year,
+					action: result.action,
+				});
 			} catch (error) {
 				console.error('Create curriculum year error:', error);
 				res.status(500).json({ message: 'Internal server error' });
@@ -5143,16 +5605,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				let slug = String(req.body?.slug || '').trim();
-				const oldPhotoUrl = String(req.body?.oldPhotoUrl || '').trim() || undefined;
+				const oldPhotoUrl =
+					String(req.body?.oldPhotoUrl || '').trim() || undefined;
 				if (!slug) {
 					const profileUrl = String(req.body?.profileUrl || '').trim();
 					const last = profileUrl.replace(/\/+$/, '').split('/').pop() || '';
 					slug = last;
 				}
 				if (!slug) {
-					return res.status(400).json({ message: 'slug atau profile URL wajib untuk unggah foto' });
+					return res
+						.status(400)
+						.json({ message: 'slug atau profile URL wajib untuk unggah foto' });
 				}
-				const url = await uploadProdiLecturerPhoto(req.file!, slug, oldPhotoUrl, tenantCtxFromReq(req));
+				const url = await uploadProdiLecturerPhoto(
+					req.file!,
+					slug,
+					oldPhotoUrl,
+					tenantCtxFromReq(req),
+				);
 				res.json({ url });
 			} catch (error: any) {
 				console.error('Prodi member photo upload error:', error);
@@ -5172,18 +5642,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		validateFileUpload,
 		async (req, res) => {
 			try {
-				const typeRaw = String(req.body?.type || '').trim().toLowerCase();
+				const typeRaw = String(req.body?.type || '')
+					.trim()
+					.toLowerCase();
 				const type = typeRaw === 'research' ? 'research' : 'teaching';
 				const labIndex = parseInt(String(req.body?.labIndex ?? ''), 10);
 				const imgIndex = parseInt(String(req.body?.imgIndex ?? ''), 10);
-				const oldPhotoUrl = String(req.body?.oldPhotoUrl || '').trim() || undefined;
+				const oldPhotoUrl =
+					String(req.body?.oldPhotoUrl || '').trim() || undefined;
 				if (!Number.isFinite(labIndex) || labIndex < 0) {
 					return res.status(400).json({ message: 'labIndex tidak valid' });
 				}
 				if (!Number.isFinite(imgIndex) || imgIndex < 0) {
 					return res.status(400).json({ message: 'imgIndex tidak valid' });
 				}
-				const url = await uploadProdiLabPhoto(req.file!, type, labIndex, imgIndex, oldPhotoUrl, tenantCtxFromReq(req));
+				const url = await uploadProdiLabPhoto(
+					req.file!,
+					type,
+					labIndex,
+					imgIndex,
+					oldPhotoUrl,
+					tenantCtxFromReq(req),
+				);
 				res.json({ url });
 			} catch (error: any) {
 				console.error('Prodi lab photo upload error:', error);
@@ -5203,7 +5683,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		validateFileUpload,
 		async (req, res) => {
 			try {
-				const oldPhotoUrl = String(req.body?.oldPhotoUrl || '').trim() || undefined;
+				const oldPhotoUrl =
+					String(req.body?.oldPhotoUrl || '').trim() || undefined;
 				const url = await uploadProdiOrganizationStructureImage(
 					req.file!,
 					oldPhotoUrl,
@@ -5230,20 +5711,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(409).json({ message: 'Sync sedang berjalan' });
 				}
 				const scope = (req.body?.scope || 'all') as string;
-				const validScopes = ['all', 'profile', 'lecturers', 'curriculum', 'labs', 'accreditation'];
+				const validScopes = [
+					'all',
+					'profile',
+					'lecturers',
+					'curriculum',
+					'labs',
+					'accreditation',
+				];
 				if (!validScopes.includes(scope)) {
-					return res.status(400).json({ message: `Scope tidak valid. Pilih: ${validScopes.join(', ')}` });
+					return res
+						.status(400)
+						.json({
+							message: `Scope tidak valid. Pilih: ${validScopes.join(', ')}`,
+						});
 				}
 				const overwrite = req.body?.overwrite === true;
 				const { runProdiSyncScoped } = await import('./services/prodi-sync');
 				const result = await runProdiSyncScoped(scope as any, { overwrite });
 
 				if (result.curriculumYearAction === 'needs_confirm') {
-					const years = result.curriculumNeedsConfirmYears ?? (result.curriculumTargetYear ? [result.curriculumTargetYear] : []);
+					const years =
+						result.curriculumNeedsConfirmYears ??
+						(result.curriculumTargetYear ? [result.curriculumTargetYear] : []);
 					return res.status(200).json({
-						message: years.length > 1
-							? `Data kurikulum tahun ${years.join(', ')} sudah ada. Konfirmasi overwrite?`
-							: `Data kurikulum tahun ${years[0] ?? result.curriculumTargetYear} sudah ada. Konfirmasi overwrite?`,
+						message:
+							years.length > 1
+								? `Data kurikulum tahun ${years.join(', ')} sudah ada. Konfirmasi overwrite?`
+								: `Data kurikulum tahun ${years[0] ?? result.curriculumTargetYear} sudah ada. Konfirmasi overwrite?`,
 						needsConfirm: true,
 						curriculumTargetYear: result.curriculumTargetYear,
 						curriculumNeedsConfirmYears: years,
@@ -5293,7 +5788,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				res.json(list);
 			} catch (error: any) {
 				console.error('List backups error:', error);
-				res.status(500).json({ message: error?.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error?.message || 'Internal server error' });
 			}
 		},
 	);
@@ -5306,7 +5803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const user = req.user as UserWithRole;
 				const models = resolveModels(req);
-				const u = await models.User.findById(user._id).lean() as any;
+				const u = (await models.User.findById(user._id).lean()) as any;
 				if (!u?.email) {
 					return res.status(400).json({ message: 'Email tidak ditemukan' });
 				}
@@ -5351,7 +5848,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					? await restoreTenantFromSnapshot(tenantDbName, snapshotKey)
 					: await restoreFromSnapshot(snapshotKey);
 				if (!result.success) {
-					return res.status(400).json({ message: result.error || 'Restore gagal' });
+					return res
+						.status(400)
+						.json({ message: result.error || 'Restore gagal' });
 				}
 				res.json({
 					message: tenantDbName
@@ -5382,17 +5881,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					result = await runBackupNowMainOverride();
 				}
 				if (!result.success) {
-					return res.status(500).json({ message: result.error || 'Backup gagal' });
+					return res
+						.status(500)
+						.json({ message: result.error || 'Backup gagal' });
 				}
 				res.json({
-					message: result.replaced ? 'Backup berhasil (override bulan ini)' : 'Backup berhasil',
+					message: result.replaced
+						? 'Backup berhasil (override bulan ini)'
+						: 'Backup berhasil',
 					scope: tenantDbName ? 'tenant' : 'main',
 					snapshotKey: result.snapshotKey,
 					replaced: result.replaced,
 				});
 			} catch (error: any) {
 				console.error('Backup now error:', error);
-				res.status(500).json({ message: error?.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error?.message || 'Internal server error' });
 			}
 		},
 	);
@@ -5406,7 +5911,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		mainOnly,
 		(_req, res) => {
 			res.status(410).json({
-				message: 'Orphan asset cleanup telah dinonaktifkan untuk mencegah penghapusan file valid.',
+				message:
+					'Orphan asset cleanup telah dinonaktifkan untuk mencegah penghapusan file valid.',
 				disabled: true,
 			});
 		},
@@ -5423,7 +5929,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.get('/api/home-images/active', async (req, res) => {
 		const cacheKey = `homeimg|${tenantCacheKey(req)}`;
 		try {
-			const cached = await readPublicJsonCache(homeImagesActivePublicCache, cacheKey);
+			const cached = await readPublicJsonCache(
+				homeImagesActivePublicCache,
+				cacheKey,
+			);
 			if (cached) {
 				res.setHeader('X-HMPS-Cache', 'hit');
 				res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -5453,7 +5962,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const currentYear = new Date().getFullYear();
 			const existing = await storage.getHomeImagesByYear(currentYear);
 			if (!existing) {
-				await storage.createHomeImages({ year: currentYear, isActive: false, desktopMode: 'combined' });
+				await storage.createHomeImages({
+					year: currentYear,
+					isActive: false,
+					desktopMode: 'combined',
+				});
 			}
 			const list = await storage.getAllHomeImages();
 			res.json(list);
@@ -5604,9 +6117,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const personName = String(req.body.personName ?? '').trim();
 				const divisionText = String(req.body.divisionText ?? '').trim();
 
-				let themeRaw = String(
-					req.body.themeColor ?? '',
-				).trim();
+				let themeRaw = String(req.body.themeColor ?? '').trim();
 				if (themeRaw && !themeRaw.startsWith('#')) themeRaw = `#${themeRaw}`;
 
 				const palette =
@@ -5625,9 +6136,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					| undefined;
 				const photoBuffer = files?.photo?.[0]?.buffer ?? null;
 				const logoBuffer =
-					showLogo && files?.logo?.[0]?.buffer
-						? files.logo[0].buffer
-						: null;
+					showLogo && files?.logo?.[0]?.buffer ? files.logo[0].buffer : null;
 
 				const webp = await invokeBannerRender({
 					personName: personName || 'Alfiya',
@@ -5667,8 +6176,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const fixedSlots = ['bennerfull', 'orang', 'desktopBackground'];
 				const defaultBannerSlots = [
-					'public_relation', 'technopreneurship', 'intelektual',
-					'wakil_ketua', 'ketua', 'medinfo', 'religius', 'senor',
+					'public_relation',
+					'technopreneurship',
+					'intelektual',
+					'wakil_ketua',
+					'ketua',
+					'medinfo',
+					'religius',
+					'senor',
 				];
 
 				const storage = resolveStorage(req);
@@ -5700,7 +6215,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Process image → webp (banner slot quality tuned for small-but-sharp output)
-				const isFull = slot === 'bennerfull' || slot === 'orang' || slot === 'desktopBackground';
+				const isFull =
+					slot === 'bennerfull' ||
+					slot === 'orang' ||
+					slot === 'desktopBackground';
 				const processedBuffer = await processImage(req.file.buffer, {
 					quality: isFull ? 82 : 85,
 					maxWidth: isFull ? 3840 : 1920,
@@ -5709,7 +6227,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 
 				const { dir: slotDir, urlPrefix } = resolveTenantPaths(
-					`benner/${year}`, true, tenantCtxFromReq(req),
+					`benner/${year}`,
+					true,
+					tenantCtxFromReq(req),
 				);
 				const fileName = `${slot}.webp`;
 				const filePath = path.join(slotDir, fileName);
@@ -5752,8 +6272,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const fixedSlots = ['bennerfull', 'orang', 'desktopBackground'];
 				const defaultBannerSlots = [
-					'public_relation', 'technopreneurship', 'intelektual',
-					'wakil_ketua', 'ketua', 'medinfo', 'religius', 'senor',
+					'public_relation',
+					'technopreneurship',
+					'intelektual',
+					'wakil_ketua',
+					'ketua',
+					'medinfo',
+					'religius',
+					'senor',
 				];
 
 				const storage = resolveStorage(req);
@@ -5776,7 +6302,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(404).json({ message: 'Year not found' });
 
 				const { dir: slotDir } = resolveTenantPaths(
-					`benner/${year}`, true, tenantCtxFromReq(req),
+					`benner/${year}`,
+					true,
+					tenantCtxFromReq(req),
 				);
 				const fileName = `${slot}.webp`;
 				const filePath = path.join(slotDir, fileName);
@@ -5809,8 +6337,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const fixedSlots = ['bennerfull', 'orang', 'desktopBackground'];
 				const defaultBannerSlots = [
-					'public_relation', 'technopreneurship', 'intelektual',
-					'wakil_ketua', 'ketua', 'medinfo', 'religius', 'senor',
+					'public_relation',
+					'technopreneurship',
+					'intelektual',
+					'wakil_ketua',
+					'ketua',
+					'medinfo',
+					'religius',
+					'senor',
 				];
 
 				const storage = resolveStorage(req);
@@ -5849,7 +6383,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 
 				const { dir: personDir, urlPrefix } = resolveTenantPaths(
-					`benner/${year}`, true, tenantCtxFromReq(req),
+					`benner/${year}`,
+					true,
+					tenantCtxFromReq(req),
 				);
 				const fileName = `person__${slot}.webp`;
 				const filePath = path.join(personDir, fileName);
@@ -5892,8 +6428,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const fixedSlots = ['bennerfull', 'orang', 'desktopBackground'];
 				const defaultBannerSlots = [
-					'public_relation', 'technopreneurship', 'intelektual',
-					'wakil_ketua', 'ketua', 'medinfo', 'religius', 'senor',
+					'public_relation',
+					'technopreneurship',
+					'intelektual',
+					'wakil_ketua',
+					'ketua',
+					'medinfo',
+					'religius',
+					'senor',
 				];
 
 				const storage = resolveStorage(req);
@@ -5912,10 +6454,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				const existingDoc = await storage.getHomeImagesByYear(year);
-				if (!existingDoc) return res.status(404).json({ message: 'Year not found' });
+				if (!existingDoc)
+					return res.status(404).json({ message: 'Year not found' });
 
 				const { dir: personDir } = resolveTenantPaths(
-					`benner/${year}`, true, tenantCtxFromReq(req),
+					`benner/${year}`,
+					true,
+					tenantCtxFromReq(req),
 				);
 				const fileName = `person__${slot}.webp`;
 				const filePath = path.join(personDir, fileName);
@@ -5948,7 +6493,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				const { Community } = await import('../db/mongodb');
 				const { getTenantModels } = await import('../db/tenant');
-				const communities = await Community.find({ status: 'active' }).lean() as any[];
+				const communities = (await Community.find({
+					status: 'active',
+				}).lean()) as any[];
 
 				const MEDIA_PREFIXES = ['/attached_assets/', '/uploads/'];
 
@@ -5986,7 +6533,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					} catch {}
 				};
 
-				const results: { slug: string; migrated: number; errors: string[] }[] = [];
+				const results: { slug: string; migrated: number; errors: string[] }[] =
+					[];
 
 				for (const community of communities) {
 					const slug = community.slug as string;
@@ -6000,10 +6548,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						const models = getTenantModels(dbName);
 
 						// Migrate HomeImages
-						const homeImagesDocs = await models.HomeImages.find({}).lean() as any[];
+						const homeImagesDocs = (await models.HomeImages.find(
+							{},
+						).lean()) as any[];
 						for (const doc of homeImagesDocs) {
 							const updates: Record<string, string> = {};
-							for (const field of ['bennerfull', 'orang', 'desktopBackground'] as const) {
+							for (const field of [
+								'bennerfull',
+								'orang',
+								'desktopBackground',
+							] as const) {
 								const val = doc[field];
 								if (needsMigration(val)) {
 									const newVal = migrateUrl(val, slug);
@@ -6030,13 +6584,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								}
 							}
 							if (Object.keys(updates).length > 0) {
-								await models.HomeImages.updateOne({ _id: doc._id }, { $set: updates });
+								await models.HomeImages.updateOne(
+									{ _id: doc._id },
+									{ $set: updates },
+								);
 								migrated += Object.keys(updates).length;
 							}
 						}
 
 						// Migrate Berita images
-						const beritaDocs = await models.Berita.find({}).lean() as any[];
+						const beritaDocs = (await models.Berita.find({}).lean()) as any[];
 						for (const doc of beritaDocs) {
 							const updates: Record<string, any> = {};
 							if (needsMigration(doc.image)) {
@@ -6053,18 +6610,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									}
 									return img;
 								});
-								if (newImages.some((ni: string, i: number) => ni !== doc.images[i])) {
+								if (
+									newImages.some(
+										(ni: string, i: number) => ni !== doc.images[i],
+									)
+								) {
 									updates.images = newImages;
 								}
 							}
 							if (Object.keys(updates).length > 0) {
-								await models.Berita.updateOne({ _id: doc._id }, { $set: updates });
+								await models.Berita.updateOne(
+									{ _id: doc._id },
+									{ $set: updates },
+								);
 								migrated += Object.keys(updates).length;
 							}
 						}
 
 						// Migrate Library images
-						const libraryDocs = await models.Library.find({}).lean() as any[];
+						const libraryDocs = (await models.Library.find({}).lean()) as any[];
 						for (const doc of libraryDocs) {
 							if (doc.images && Array.isArray(doc.images)) {
 								const newImages = doc.images.map((img: string) => {
@@ -6075,33 +6639,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									}
 									return img;
 								});
-								if (newImages.some((ni: string, i: number) => ni !== doc.images[i])) {
-									await models.Library.updateOne({ _id: doc._id }, { $set: { images: newImages } });
+								if (
+									newImages.some(
+										(ni: string, i: number) => ni !== doc.images[i],
+									)
+								) {
+									await models.Library.updateOne(
+										{ _id: doc._id },
+										{ $set: { images: newImages } },
+									);
 									migrated++;
 								}
 							}
 						}
 
 						// Migrate Organization member images
-						const orgDocs = await models.Organization.find({}).lean() as any[];
+						const orgDocs = (await models.Organization.find(
+							{},
+						).lean()) as any[];
 						for (const doc of orgDocs) {
 							if (needsMigration(doc.imageUrl)) {
 								const nv = migrateUrl(doc.imageUrl, slug);
 								copyMediaFile(doc.imageUrl, nv);
-								await models.Organization.updateOne({ _id: doc._id }, { $set: { imageUrl: nv } });
+								await models.Organization.updateOne(
+									{ _id: doc._id },
+									{ $set: { imageUrl: nv } },
+								);
 								migrated++;
 							}
 						}
 
 						// Migrate Settings logoUrl
-						const settingsDoc = await models.Settings.findOne({}).lean() as any;
+						const settingsDoc = (await models.Settings.findOne(
+							{},
+						).lean()) as any;
 						if (settingsDoc && needsMigration(settingsDoc.logoUrl)) {
 							const nv = migrateUrl(settingsDoc.logoUrl, slug);
 							copyMediaFile(settingsDoc.logoUrl, nv);
-							await models.Settings.updateOne({ _id: settingsDoc._id }, { $set: { logoUrl: nv } });
+							await models.Settings.updateOne(
+								{ _id: settingsDoc._id },
+								{ $set: { logoUrl: nv } },
+							);
 							migrated++;
 						}
-
 					} catch (e: any) {
 						errors.push(e.message || String(e));
 					}
@@ -6341,7 +6921,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						.status(400)
 						.json({ message: 'Key is required (e.g. Lingkaran, Bidikan)' });
 				}
-				const url = await uploadFilosofiImage(req.file, key, tenantCtxFromReq(req));
+				const url = await uploadFilosofiImage(
+					req.file,
+					key,
+					tenantCtxFromReq(req),
+				);
 				res.json({ url });
 			} catch (error) {
 				console.error('Upload filosofi error:', error);
@@ -6758,7 +7342,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					category,
 				};
 
-				const permission = await resolveStorage(req).createPermission(permissionData);
+				const permission =
+					await resolveStorage(req).createPermission(permissionData);
 				res.status(201).json(permission);
 			} catch (error) {
 				console.error('Error creating permission:', error);
@@ -6798,7 +7383,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					typeof req.query.period === 'string' ? req.query.period.trim() : '';
 				if (!period) {
 					return res.status(400).json({
-						message: 'Query period wajib diisi untuk mengambil jabatan tersedia.',
+						message:
+							'Query period wajib diisi untuk mengambil jabatan tersedia.',
 					});
 				}
 				const divisions = await storage.getAllDivisions(period || undefined);
@@ -6821,7 +7407,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
-				const uniqueAvailablePositions = Array.from(new Set(availablePositions));
+				const uniqueAvailablePositions = Array.from(
+					new Set(availablePositions),
+				);
 
 				res.json(uniqueAvailablePositions);
 			} catch (error) {
@@ -6831,30 +7419,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	app.post(
-		'/api/divisions/copy',
-		authenticate,
-		async (req, res) => {
-			try {
-				const { sourcePeriod, targetPeriod } = req.body || {};
-				if (!sourcePeriod || !targetPeriod) {
-					return res
-						.status(400)
-						.json({ message: 'sourcePeriod dan targetPeriod wajib diisi' });
-				}
-				await resolveStorage(req).copyDivisionsFromPeriod(
-					String(sourcePeriod),
-					String(targetPeriod),
-				);
-				res.json({ message: 'Divisi disalin ke periode tujuan' });
-			} catch (error: any) {
-				console.error('Error copying divisions:', error);
-				res.status(500).json({
-					message: error?.message || 'Internal server error',
-				});
+	app.post('/api/divisions/copy', authenticate, async (req, res) => {
+		try {
+			const { sourcePeriod, targetPeriod } = req.body || {};
+			if (!sourcePeriod || !targetPeriod) {
+				return res
+					.status(400)
+					.json({ message: 'sourcePeriod dan targetPeriod wajib diisi' });
 			}
-		},
-	);
+			await resolveStorage(req).copyDivisionsFromPeriod(
+				String(sourcePeriod),
+				String(targetPeriod),
+			);
+			res.json({ message: 'Divisi disalin ke periode tujuan' });
+		} catch (error: any) {
+			console.error('Error copying divisions:', error);
+			res.status(500).json({
+				message: error?.message || 'Internal server error',
+			});
+		}
+	});
 
 	app.post(
 		'/api/divisions',
@@ -6883,9 +7467,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const period =
 					(typeof bodyPeriod === 'string' && bodyPeriod.trim()) ||
 					(periods[0] ?? '');
-				if (!period || !isValidPeriodRange(period) || !periods.includes(period)) {
+				if (
+					!period ||
+					!isValidPeriodRange(period) ||
+					!periods.includes(period)
+				) {
 					return res.status(400).json({
-						message: 'Periode divisi tidak valid. Buat periode dulu sebelum menambah divisi.',
+						message:
+							'Periode divisi tidak valid. Buat periode dulu sebelum menambah divisi.',
 					});
 				}
 
@@ -6988,10 +7577,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Periode tidak valid.' });
 				}
 				if (!orders.length) {
-					return res.status(400).json({ message: 'orders wajib berupa array.' });
+					return res
+						.status(400)
+						.json({ message: 'orders wajib berupa array.' });
 				}
 				const normalized = orders
-					.filter((item: any) => item?.id && Number.isFinite(Number(item.sortOrder)))
+					.filter(
+						(item: any) => item?.id && Number.isFinite(Number(item.sortOrder)),
+					)
 					.map((item: any) => ({
 						id: String(item.id),
 						sortOrder: Number(item.sortOrder),
@@ -7085,7 +7678,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					)
 				) {
 					return res.status(403).json({
-						message: 'You can only manage overrides for users with a lower role',
+						message:
+							'You can only manage overrides for users with a lower role',
 					});
 				}
 
@@ -7127,7 +7721,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					)
 				) {
 					return res.status(403).json({
-						message: 'You can only manage overrides for users with a lower role',
+						message:
+							'You can only manage overrides for users with a lower role',
 					});
 				}
 
@@ -7152,11 +7747,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						deny,
 					});
 				} else {
-					await storage.updateUser(id, { permissionOverrides: { allow: cleanAllow, deny } });
+					await storage.updateUser(id, {
+						permissionOverrides: { allow: cleanAllow, deny },
+					});
 				}
 
-				const effectivePermissions =
-					await storage.getUserPermissions(id);
+				const effectivePermissions = await storage.getUserPermissions(id);
 
 				res.json({
 					message: 'Permission overrides updated',
@@ -7214,7 +7810,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const allRoles = await storage.getAllRoles();
 				const ownerRole = allRoles.find((r: any) => r.name === 'owner');
 				if (ownerRole) {
-					await storage.updateRole(String(ownerRole._id), { permissions: allNames, updatedAt: new Date() });
+					await storage.updateRole(String(ownerRole._id), {
+						permissions: allNames,
+						updatedAt: new Date(),
+					});
 				}
 				res.json({
 					message: `Owner role updated with ${allNames.length} permissions`,
@@ -7362,7 +7961,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				for (const ev of allEvents) {
 					await cleanupSingleEventFiles(ev, tCtx);
 					const parentId = ev.parentId ? String(ev.parentId) : null;
-					await deleteEventFileTree(String(ev._id), parentId, tCtx).catch(() => {});
+					await deleteEventFileTree(String(ev._id), parentId, tCtx).catch(
+						() => {},
+					);
 				}
 
 				await storage.deleteEventYear(id);
@@ -7533,9 +8134,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					if (!existingIds.has(sid)) {
 						const ev = await storage.getEventById(sid);
 						if (ev && String((ev as any).yearId) === yearId) {
-							const matchParent = pId === null
-								? !(ev as any).parentId
-								: String((ev as any).parentId) === pId;
+							const matchParent =
+								pId === null
+									? !(ev as any).parentId
+									: String((ev as any).parentId) === pId;
 							if (matchParent) events.push(ev);
 						}
 					}
@@ -7599,66 +8201,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	app.get('/api/events/year/:year/slug/:slug', authenticateOptional, async (req, res) => {
-		try {
-			const year = parseInt(req.params.year, 10);
-			const slug = String(req.params.slug || '').trim();
-			if (Number.isNaN(year) || !slug) {
-				return res.status(400).json({ message: 'Invalid event year/slug' });
-			}
-			const withChildren = req.query.children === 'true';
-			const storage = resolveStorage(req);
-			const yearData = await storage.getEventsByYear(year, false, false);
-			if (!yearData) return res.status(404).json({ message: 'Year not found' });
-			const matched = (yearData.events || []).find(
-				(ev: any) => toUrlSlug(String(ev?.title || '')) === slug,
-			);
-			if (!matched) return res.status(404).json({ message: 'Event not found' });
-			const event = withChildren
-				? await storage.getEventWithChildren(String((matched as any)._id))
-				: await storage.getEventById(String((matched as any)._id));
-			if (!event) return res.status(404).json({ message: 'Event not found' });
-
-			if (!(event as any).published) {
-				if (!req.user) {
-					return res.status(403).json({
-						message: 'You do not have permission to view this event',
-					});
+	app.get(
+		'/api/events/year/:year/slug/:slug',
+		authenticateOptional,
+		async (req, res) => {
+			try {
+				const year = parseInt(req.params.year, 10);
+				const slug = String(req.params.slug || '').trim();
+				if (Number.isNaN(year) || !slug) {
+					return res.status(400).json({ message: 'Invalid event year/slug' });
 				}
-				const canView = await checkEventPermission(
-					req.user as UserWithRole,
-					event,
-					'view',
-					req,
+				const withChildren = req.query.children === 'true';
+				const storage = resolveStorage(req);
+				const yearData = await storage.getEventsByYear(year, false, false);
+				if (!yearData)
+					return res.status(404).json({ message: 'Year not found' });
+				const matched = (yearData.events || []).find(
+					(ev: any) => toUrlSlug(String(ev?.title || '')) === slug,
 				);
-				if (!canView) {
-					return res.status(403).json({
-						message: 'You do not have permission to view this event',
-					});
+				if (!matched)
+					return res.status(404).json({ message: 'Event not found' });
+				const event = withChildren
+					? await storage.getEventWithChildren(String((matched as any)._id))
+					: await storage.getEventById(String((matched as any)._id));
+				if (!event) return res.status(404).json({ message: 'Event not found' });
+
+				if (!(event as any).published) {
+					if (!req.user) {
+						return res.status(403).json({
+							message: 'You do not have permission to view this event',
+						});
+					}
+					const canView = await checkEventPermission(
+						req.user as UserWithRole,
+						event,
+						'view',
+						req,
+					);
+					if (!canView) {
+						return res.status(403).json({
+							message: 'You do not have permission to view this event',
+						});
+					}
 				}
-			}
 
-			try {
-				const currentViews = typeof (event as any).viewCount === 'number' ? (event as any).viewCount : 0;
-				const nextViews = currentViews + 1;
-				await storage.updateEvent(String((event as any)._id), { viewCount: nextViews });
-				(event as any).viewCount = nextViews;
-			} catch (incError) {
-				console.warn('Failed to increment event viewCount (slug):', incError);
-			}
+				try {
+					const currentViews =
+						typeof (event as any).viewCount === 'number'
+							? (event as any).viewCount
+							: 0;
+					const nextViews = currentViews + 1;
+					await storage.updateEvent(String((event as any)._id), {
+						viewCount: nextViews,
+					});
+					(event as any).viewCount = nextViews;
+				} catch (incError) {
+					console.warn('Failed to increment event viewCount (slug):', incError);
+				}
 
-			try {
-				await enrichEventTreeWithAuthors(event, req);
-			} catch (e) {
-				console.warn('Failed to enrich event authors:', e);
-			}
+				try {
+					await enrichEventTreeWithAuthors(event, req);
+				} catch (e) {
+					console.warn('Failed to enrich event authors:', e);
+				}
 
-			res.json(event);
-		} catch (error) {
-			console.error('Error getting event by year/slug:', error);
-			res.status(500).json({ message: 'Internal server error' });
-		}
-	});
+				res.json(event);
+			} catch (error) {
+				console.error('Error getting event by year/slug:', error);
+				res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
 
 	app.get('/api/events/:id', authenticateOptional, async (req, res) => {
 		try {
@@ -7690,7 +8303,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			try {
-				const currentViews = typeof (event as any).viewCount === 'number' ? (event as any).viewCount : 0;
+				const currentViews =
+					typeof (event as any).viewCount === 'number'
+						? (event as any).viewCount
+						: 0;
 				const nextViews = currentViews + 1;
 				await storage.updateEvent(id, { viewCount: nextViews });
 				(event as any).viewCount = nextViews;
@@ -7737,15 +8353,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				let relatedBerita: string[] = [];
 				if (body.relatedBeritaIds) {
-					try { relatedBerita = JSON.parse(body.relatedBeritaIds); } catch { /* ignore */ }
+					try {
+						relatedBerita = JSON.parse(body.relatedBeritaIds);
+					} catch {
+						/* ignore */
+					}
 				}
 
 				let relatedGalleryIds: string[] = [];
 				if (body.relatedGalleryIds) {
 					try {
 						const g = JSON.parse(body.relatedGalleryIds);
-						if (Array.isArray(g)) relatedGalleryIds = g.map((x: any) => String(x));
-					} catch { /* ignore */ }
+						if (Array.isArray(g))
+							relatedGalleryIds = g.map((x: any) => String(x));
+					} catch {
+						/* ignore */
+					}
 				}
 
 				let existingLinkAtts: any[] = [];
@@ -7758,7 +8381,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						}
 						existingLinkAtts = normalized.attachments;
 					} catch {
-						return res.status(400).json({ message: 'Format attachments tidak valid.' });
+						return res
+							.status(400)
+							.json({ message: 'Format attachments tidak valid.' });
 					}
 				}
 
@@ -7802,21 +8427,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				if (files?.thumbnail?.[0]) {
 					const { uploadEventThumbnail } = await import('./upload');
-					thumbnail = await uploadEventThumbnail(files.thumbnail[0], createdEventId, parentId, undefined, tCtx);
+					thumbnail = await uploadEventThumbnail(
+						files.thumbnail[0],
+						createdEventId,
+						parentId,
+						undefined,
+						tCtx,
+					);
 					uploadedLocalUrls.push(thumbnail);
 					thumbnailSource = 'local';
-					await storage.updateEvent(createdEventId, { thumbnail, thumbnailSource });
+					await storage.updateEvent(createdEventId, {
+						thumbnail,
+						thumbnailSource,
+					});
 				}
 
 				if (files?.attachmentFiles) {
-					const totalAfterUpload = existingLinkAtts.length + files.attachmentFiles.length;
+					const totalAfterUpload =
+						existingLinkAtts.length + files.attachmentFiles.length;
 					if (totalAfterUpload > 10) {
-						return res.status(400).json({ message: `Maksimal 10 lampiran per event. Saat ini ada ${totalAfterUpload} lampiran.` });
+						return res
+							.status(400)
+							.json({
+								message: `Maksimal 10 lampiran per event. Saat ini ada ${totalAfterUpload} lampiran.`,
+							});
 					}
 					const { uploadEventAttachment } = await import('./upload');
 					const attachments = [...existingLinkAtts];
 					for (const f of files.attachmentFiles) {
-						const url = await uploadEventAttachment(f, createdEventId, parentId, tCtx);
+						const url = await uploadEventAttachment(
+							f,
+							createdEventId,
+							parentId,
+							tCtx,
+						);
 						uploadedLocalUrls.push(url);
 						attachments.push({
 							name: f.originalname,
@@ -7827,7 +8471,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 					await storage.updateEvent(createdEventId, { attachments });
 				} else if (existingLinkAtts.length > 10) {
-					return res.status(400).json({ message: `Maksimal 10 lampiran per event. Saat ini ada ${existingLinkAtts.length} lampiran.` });
+					return res
+						.status(400)
+						.json({
+							message: `Maksimal 10 lampiran per event. Saat ini ada ${existingLinkAtts.length} lampiran.`,
+						});
 				}
 
 				const savedEvent = await storage.getEventById(createdEventId);
@@ -7840,7 +8488,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						const end = new Date(eventData.endDate);
 						if (start <= now && now <= end) {
 							const user = req.user as UserWithRole;
-							const { broadcastNotification } = await import('./services/notification-orchestrator');
+							const { broadcastNotification } =
+								await import('./services/notification-orchestrator');
 							const tSlug = tenantCtxFromReq(req).tenantSlug;
 							await broadcastNotification(
 								'event_ongoing',
@@ -7865,15 +8514,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			} catch (error) {
 				console.error('Error creating event:', error);
 				if (createdEventId) {
-					try { await resolveStorage(req).deleteEvent(createdEventId); } catch {}
+					try {
+						await resolveStorage(req).deleteEvent(createdEventId);
+					} catch {}
 				}
 				for (const u of uploadedLocalUrls) {
-					try { await deleteFile(u); } catch {}
+					try {
+						await deleteFile(u);
+					} catch {}
 				}
 				if (createdEventId) {
 					try {
 						const { deleteEventFileTree } = await import('./upload');
-						await deleteEventFileTree(createdEventId, req.body.parentId || null, tenantCtxFromReq(req));
+						await deleteEventFileTree(
+							createdEventId,
+							req.body.parentId || null,
+							tenantCtxFromReq(req),
+						);
 					} catch {}
 				}
 				res.status(500).json({ message: 'Internal server error' });
@@ -7908,10 +8565,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						message: 'You do not have permission to edit this event',
 					});
 				}
-				if (
-					body.published === 'true' ||
-					body.published === true
-				) {
+				if (body.published === 'true' || body.published === true) {
 					const canPublish = await checkEventPermission(
 						req.user as UserWithRole,
 						existingEvent,
@@ -7920,8 +8574,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					);
 					if (!canPublish) {
 						return res.status(403).json({
-							message:
-								'You do not have permission to publish events',
+							message: 'You do not have permission to publish events',
 						});
 					}
 				}
@@ -7941,8 +8594,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				if (files?.thumbnail?.[0]) {
 					const { uploadEventThumbnail } = await import('./upload');
-					const parentId = (existingEvent as any).parentId ? String((existingEvent as any).parentId) : null;
-					const oldThumb = (existingEvent as any).thumbnailSource === 'local' ? (existingEvent as any).thumbnail : undefined;
+					const parentId = (existingEvent as any).parentId
+						? String((existingEvent as any).parentId)
+						: null;
+					const oldThumb =
+						(existingEvent as any).thumbnailSource === 'local'
+							? (existingEvent as any).thumbnail
+							: undefined;
 					updateData.thumbnail = await uploadEventThumbnail(
 						files.thumbnail[0],
 						id,
@@ -7972,8 +8630,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 				if (body.endDate) updateData.endDate = new Date(body.endDate);
 
-			if (body.attachments) {
-				try {
+				if (body.attachments) {
+					try {
 						const parsed = JSON.parse(body.attachments);
 						const normalized = normalizeEventAttachmentArray(parsed);
 						if (!normalized.ok) {
@@ -8001,7 +8659,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							}
 						}
 					} catch {
-						return res.status(400).json({ message: 'Format attachments tidak valid.' });
+						return res
+							.status(400)
+							.json({ message: 'Format attachments tidak valid.' });
 					}
 				}
 
@@ -8011,13 +8671,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						const existing = await storage.getEventById(id);
 						updateData.attachments = existing?.attachments || [];
 					}
-					const totalAfterUpload = (updateData.attachments?.length || 0) + files.attachmentFiles.length;
+					const totalAfterUpload =
+						(updateData.attachments?.length || 0) +
+						files.attachmentFiles.length;
 					if (totalAfterUpload > 10) {
-						return res.status(400).json({ message: `Maksimal 10 lampiran per event. Saat ini ada ${totalAfterUpload} lampiran.` });
+						return res
+							.status(400)
+							.json({
+								message: `Maksimal 10 lampiran per event. Saat ini ada ${totalAfterUpload} lampiran.`,
+							});
 					}
-					const parentId = (existingEvent as any).parentId ? String((existingEvent as any).parentId) : null;
+					const parentId = (existingEvent as any).parentId
+						? String((existingEvent as any).parentId)
+						: null;
 					for (const f of files.attachmentFiles) {
-						const url = await uploadEventAttachment(f, id, parentId, tenantCtxFromReq(req));
+						const url = await uploadEventAttachment(
+							f,
+							id,
+							parentId,
+							tenantCtxFromReq(req),
+						);
 						updateData.attachments.push({
 							name: f.originalname,
 							url,
@@ -8028,7 +8701,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				if (updateData.attachments && updateData.attachments.length > 10) {
-					return res.status(400).json({ message: `Maksimal 10 lampiran per event. Saat ini ada ${updateData.attachments.length} lampiran.` });
+					return res
+						.status(400)
+						.json({
+							message: `Maksimal 10 lampiran per event. Saat ini ada ${updateData.attachments.length} lampiran.`,
+						});
 				}
 
 				if (body.relatedBeritaIds !== undefined) {
@@ -8074,12 +8751,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (wasDraft && isNowPublished) {
 					try {
 						const now = new Date();
-						const start = new Date((event as any).startDate || (existingEvent as any).startDate);
-						const end = new Date((event as any).endDate || (existingEvent as any).endDate);
+						const start = new Date(
+							(event as any).startDate || (existingEvent as any).startDate,
+						);
+						const end = new Date(
+							(event as any).endDate || (existingEvent as any).endDate,
+						);
 						if (start <= now && now <= end) {
 							const user = req.user as UserWithRole;
-							const { broadcastNotification } = await import('./services/notification-orchestrator');
-							const evtThumb = (event as any).thumbnail || (existingEvent as any).thumbnail || '';
+							const { broadcastNotification } =
+								await import('./services/notification-orchestrator');
+							const evtThumb =
+								(event as any).thumbnail ||
+								(existingEvent as any).thumbnail ||
+								'';
 							const tSlug = tenantCtxFromReq(req).tenantSlug;
 							await broadcastNotification(
 								'event_ongoing',
@@ -8090,7 +8775,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									actionUrl: `/events`,
 									entityType: 'event',
 									entityId: id,
-									entityTitle: (event as any).title || (existingEvent as any).title,
+									entityTitle:
+										(event as any).title || (existingEvent as any).title,
 									image: evtThumb,
 									tag: 'event',
 								},
@@ -8113,8 +8799,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const { id } = req.params;
 			const storage = resolveStorage(req);
 			const event = await storage.getEventById(id);
-			if (!event)
-				return res.status(404).json({ message: 'Event not found' });
+			if (!event) return res.status(404).json({ message: 'Event not found' });
 
 			const canDelete = await checkEventPermission(
 				req.user as UserWithRole,
@@ -8129,14 +8814,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			const tCtx = tenantCtxFromReq(req);
-			const parentId = (event as any).parentId ? String((event as any).parentId) : null;
+			const parentId = (event as any).parentId
+				? String((event as any).parentId)
+				: null;
 
 			const eventWithChildren = await storage.getEventWithChildren(id);
 			const children: any[] = (eventWithChildren as any)?.children || [];
 			for (const child of children) {
 				await cleanupSingleEventFiles(child, tCtx);
 				const { deleteEventFileTree } = await import('./upload');
-				await deleteEventFileTree(String(child._id), String(event._id), tCtx).catch(() => {});
+				await deleteEventFileTree(
+					String(child._id),
+					String(event._id),
+					tCtx,
+				).catch(() => {});
 			}
 
 			await cleanupSingleEventFiles(event, tCtx);
@@ -8152,43 +8843,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// ── Copy Event → Berita ──
-	app.post(
-		'/api/events/:id/copy-to-berita',
-		authenticate,
-		async (req, res) => {
-			try {
-				const { id } = req.params;
-				const user = req.user as UserWithRole;
-				const storage = resolveStorage(req);
-				const event = await storage.getEventById(id);
-				if (!event)
-					return res.status(404).json({ message: 'Event not found' });
-				const canView = await checkEventPermission(user, event, 'view', req);
-				if (!canView) {
-					return res.status(403).json({
-						message:
-							'You do not have permission to view this event',
-					});
-				}
-				const { copyAttachments } = req.body;
-				const beritaItem = await storage.copyEventToBerita(
-					id,
-					String(user._id),
-					user.name || user.username,
-					{
-						copyAttachments:
-							copyAttachments === true || copyAttachments === 'true',
-					},
-				);
-				res.status(201).json(beritaItem);
-			} catch (error: any) {
-				console.error('Error copying event to berita:', error);
-				res
-					.status(500)
-					.json({ message: error.message || 'Internal server error' });
+	app.post('/api/events/:id/copy-to-berita', authenticate, async (req, res) => {
+		try {
+			const { id } = req.params;
+			const user = req.user as UserWithRole;
+			const storage = resolveStorage(req);
+			const event = await storage.getEventById(id);
+			if (!event) return res.status(404).json({ message: 'Event not found' });
+			const canView = await checkEventPermission(user, event, 'view', req);
+			if (!canView) {
+				return res.status(403).json({
+					message: 'You do not have permission to view this event',
+				});
 			}
-		},
-	);
+			const { copyAttachments } = req.body;
+			const beritaItem = await storage.copyEventToBerita(
+				id,
+				String(user._id),
+				user.name || user.username,
+				{
+					copyAttachments:
+						copyAttachments === true || copyAttachments === 'true',
+				},
+			);
+			res.status(201).json(beritaItem);
+		} catch (error: any) {
+			console.error('Error copying event to berita:', error);
+			res
+				.status(500)
+				.json({ message: error.message || 'Internal server error' });
+		}
+	});
 
 	// ── Copy Berita → Event ──
 	app.post(
@@ -8220,40 +8905,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	app.post(
-		'/api/events/:id/attach-berita',
-		authenticate,
-		async (req, res) => {
-			try {
-				const { id } = req.params;
-				const user = req.user as UserWithRole;
-				const storage = resolveStorage(req);
-				const existingEvent = await storage.getEventById(id);
-				if (!existingEvent)
-					return res.status(404).json({ message: 'Event not found' });
-				const canEdit = await checkEventPermission(user, existingEvent, 'edit', req);
-				if (!canEdit) {
-					return res.status(403).json({
-						message:
-							'You do not have permission to edit this event',
-					});
-				}
-				const { beritaId, copyFiles } = req.body;
-				if (!beritaId)
-					return res.status(400).json({ message: 'beritaId required' });
-				const event = await storage.attachBeritaToEvent(id, beritaId, {
-					copyFiles: copyFiles === true || copyFiles === 'true',
+	app.post('/api/events/:id/attach-berita', authenticate, async (req, res) => {
+		try {
+			const { id } = req.params;
+			const user = req.user as UserWithRole;
+			const storage = resolveStorage(req);
+			const existingEvent = await storage.getEventById(id);
+			if (!existingEvent)
+				return res.status(404).json({ message: 'Event not found' });
+			const canEdit = await checkEventPermission(
+				user,
+				existingEvent,
+				'edit',
+				req,
+			);
+			if (!canEdit) {
+				return res.status(403).json({
+					message: 'You do not have permission to edit this event',
 				});
-				if (!event) return res.status(404).json({ message: 'Event not found' });
-				res.json(event);
-			} catch (error: any) {
-				console.error('Error attaching berita to event:', error);
-				res
-					.status(500)
-					.json({ message: error.message || 'Internal server error' });
 			}
-		},
-	);
+			const { beritaId, copyFiles } = req.body;
+			if (!beritaId)
+				return res.status(400).json({ message: 'beritaId required' });
+			const event = await storage.attachBeritaToEvent(id, beritaId, {
+				copyFiles: copyFiles === true || copyFiles === 'true',
+			});
+			if (!event) return res.status(404).json({ message: 'Event not found' });
+			res.json(event);
+		} catch (error: any) {
+			console.error('Error attaching berita to event:', error);
+			res
+				.status(500)
+				.json({ message: error.message || 'Internal server error' });
+		}
+	});
 
 	// ── Detach Berita from Event ──
 	app.delete(
@@ -8267,11 +8952,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const existingEvent = await storage.getEventById(id);
 				if (!existingEvent)
 					return res.status(404).json({ message: 'Event not found' });
-				const canEdit = await checkEventPermission(user, existingEvent, 'edit', req);
+				const canEdit = await checkEventPermission(
+					user,
+					existingEvent,
+					'edit',
+					req,
+				);
 				if (!canEdit) {
 					return res.status(403).json({
-						message:
-							'You do not have permission to edit this event',
+						message: 'You do not have permission to edit this event',
 					});
 				}
 				const event = await storage.detachBeritaFromEvent(id, beritaId);
@@ -8287,44 +8976,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	);
 
 	// ── Attach Event to Berita (same effect: update event.relatedBerita) ──
-	app.post(
-		'/api/berita/:id/attach-event',
-		authenticate,
-		async (req, res) => {
-			try {
-				const { id: beritaId } = req.params;
-				const user = req.user as UserWithRole;
-				const { eventId, copyFiles } = req.body;
-				if (!eventId)
-					return res.status(400).json({ message: 'eventId required' });
-				const storage = resolveStorage(req);
-				const existingEvent = await storage.getEventById(eventId);
-				if (!existingEvent)
-					return res.status(404).json({ message: 'Event not found' });
-				const canEdit = await checkEventPermission(user, existingEvent, 'edit', req);
-				if (!canEdit) {
-					return res.status(403).json({
-						message:
-							'You do not have permission to edit this event',
-					});
-				}
-				const event = await storage.attachBeritaToEvent(
-					eventId,
-					beritaId,
-					{
-						copyFiles: copyFiles === true || copyFiles === 'true',
-					},
-				);
-				if (!event) return res.status(404).json({ message: 'Event not found' });
-				res.json(event);
-			} catch (error: any) {
-				console.error('Error attaching event to berita:', error);
-				res
-					.status(500)
-					.json({ message: error.message || 'Internal server error' });
+	app.post('/api/berita/:id/attach-event', authenticate, async (req, res) => {
+		try {
+			const { id: beritaId } = req.params;
+			const user = req.user as UserWithRole;
+			const { eventId, copyFiles } = req.body;
+			if (!eventId)
+				return res.status(400).json({ message: 'eventId required' });
+			const storage = resolveStorage(req);
+			const existingEvent = await storage.getEventById(eventId);
+			if (!existingEvent)
+				return res.status(404).json({ message: 'Event not found' });
+			const canEdit = await checkEventPermission(
+				user,
+				existingEvent,
+				'edit',
+				req,
+			);
+			if (!canEdit) {
+				return res.status(403).json({
+					message: 'You do not have permission to edit this event',
+				});
 			}
-		},
-	);
+			const event = await storage.attachBeritaToEvent(eventId, beritaId, {
+				copyFiles: copyFiles === true || copyFiles === 'true',
+			});
+			if (!event) return res.status(404).json({ message: 'Event not found' });
+			res.json(event);
+		} catch (error: any) {
+			console.error('Error attaching event to berita:', error);
+			res
+				.status(500)
+				.json({ message: error.message || 'Internal server error' });
+		}
+	});
 
 	// ── Detach Event from Berita ──
 	app.delete(
@@ -8338,17 +9023,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const existingEvent = await storage.getEventById(eventId);
 				if (!existingEvent)
 					return res.status(404).json({ message: 'Event not found' });
-				const canEdit = await checkEventPermission(user, existingEvent, 'edit', req);
+				const canEdit = await checkEventPermission(
+					user,
+					existingEvent,
+					'edit',
+					req,
+				);
 				if (!canEdit) {
 					return res.status(403).json({
-						message:
-							'You do not have permission to edit this event',
+						message: 'You do not have permission to edit this event',
 					});
 				}
-				const event = await storage.detachBeritaFromEvent(
-					eventId,
-					beritaId,
-				);
+				const event = await storage.detachBeritaFromEvent(eventId, beritaId);
 				if (!event) return res.status(404).json({ message: 'Event not found' });
 				res.json(event);
 			} catch (error: any) {
@@ -8375,7 +9061,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const codes = await mongoStorage.getAllRegistrationCodes();
 				res.json(codes);
 			} catch (error: any) {
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8391,11 +9079,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const user = req.user as UserWithRole;
 				const { type, maxUses, expiresInHours, note } = req.body;
 				if (!type || !['community', 'alumni'].includes(type)) {
-					return res.status(400).json({ message: 'Tipe registrasi harus community atau alumni' });
+					return res
+						.status(400)
+						.json({ message: 'Tipe registrasi harus community atau alumni' });
 				}
 				const hours = parseInt(expiresInHours) || 72;
 				const code = Array.from({ length: 4 }, () =>
-					Math.random().toString(36).substring(2, 6).toUpperCase()
+					Math.random().toString(36).substring(2, 6).toUpperCase(),
 				).join('-');
 
 				const regCode = await mongoStorage.createRegistrationCode({
@@ -8410,7 +9100,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 				res.status(201).json(regCode);
 			} catch (error: any) {
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8424,7 +9116,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const code = await mongoStorage.getRegistrationCodeById(req.params.id);
-				if (!code) return res.status(404).json({ message: 'Kode tidak ditemukan' });
+				if (!code)
+					return res.status(404).json({ message: 'Kode tidak ditemukan' });
 				const currentUses = (code as any).currentUses ?? 0;
 				const confirmUsedDelete =
 					req.body?.confirmUsedDelete === true ||
@@ -8439,7 +9132,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				await mongoStorage.deleteRegistrationCode(req.params.id);
 				res.json({ message: 'Kode dihapus permanen' });
 			} catch (error: any) {
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8452,13 +9147,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		requirePermission('registration.manage'),
 		async (req, res) => {
 			try {
-				const {
-					code,
-					regenerateCode,
-					maxUsesIncrement,
-					extendHours,
-					note,
-				} = req.body || {};
+				const { code, regenerateCode, maxUsesIncrement, extendHours, note } =
+					req.body || {};
 				const hasAny =
 					(code !== undefined && String(code).trim() !== '') ||
 					regenerateCode === true ||
@@ -8466,21 +9156,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					extendHours !== undefined ||
 					note !== undefined;
 				if (!hasAny) {
-					return res.status(400).json({ message: 'Tidak ada perubahan yang dikirim' });
+					return res
+						.status(400)
+						.json({ message: 'Tidak ada perubahan yang dikirim' });
 				}
-				const updated = await mongoStorage.patchRegistrationCode(req.params.id, {
-					code,
-					regenerateCode: regenerateCode === true,
-					maxUsesIncrement:
-						maxUsesIncrement !== undefined ? Number(maxUsesIncrement) : undefined,
-					extendHours: extendHours !== undefined ? Number(extendHours) : undefined,
-					note,
-				});
-				if (!updated) return res.status(404).json({ message: 'Kode tidak ditemukan' });
+				const updated = await mongoStorage.patchRegistrationCode(
+					req.params.id,
+					{
+						code,
+						regenerateCode: regenerateCode === true,
+						maxUsesIncrement:
+							maxUsesIncrement !== undefined
+								? Number(maxUsesIncrement)
+								: undefined,
+						extendHours:
+							extendHours !== undefined ? Number(extendHours) : undefined,
+						note,
+					},
+				);
+				if (!updated)
+					return res.status(404).json({ message: 'Kode tidak ditemukan' });
 				res.json(updated);
 			} catch (error: any) {
 				const msg = error.message || 'Internal server error';
-				const client = /sudah|tidak valid|tidak boleh|Format|Gagal membuat/.test(msg);
+				const client =
+					/sudah|tidak valid|tidak boleh|Format|Gagal membuat/.test(msg);
 				res.status(client ? 400 : 500).json({ message: msg });
 			}
 		},
@@ -8495,14 +9195,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const code = await mongoStorage.getRegistrationCodeById(req.params.id);
-				if (!code) return res.status(404).json({ message: 'Kode tidak ditemukan' });
+				if (!code)
+					return res.status(404).json({ message: 'Kode tidak ditemukan' });
 				if ((code as any).status === 'revoked') {
 					return res.status(400).json({ message: 'Kode sudah direvoke' });
 				}
-				await mongoStorage.updateRegistrationCode(req.params.id, { status: 'revoked' });
+				await mongoStorage.updateRegistrationCode(req.params.id, {
+					status: 'revoked',
+				});
 				res.json({ message: 'Kode berhasil direvoke' });
 			} catch (error: any) {
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8515,10 +9220,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		requirePermission('registration.view'),
 		async (_req, res) => {
 			try {
-				const communities = await mongoStorage.getAllCommunitiesWithRegistrationMeta();
+				const communities =
+					await mongoStorage.getAllCommunitiesWithRegistrationMeta();
 				res.json(communities);
 			} catch (error: any) {
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8532,18 +9240,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const community = await mongoStorage.getCommunityById(req.params.id);
-				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
-				const { name, description, ownerUsername, ownerEmail, status } = req.body;
+				if (!community)
+					return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
+				const { name, description, ownerUsername, ownerEmail, status } =
+					req.body;
 				const updates: any = {};
 				if (name !== undefined) updates.name = name;
 				if (description !== undefined) updates.description = description;
 				if (ownerUsername !== undefined) updates.ownerUsername = ownerUsername;
 				if (ownerEmail !== undefined) updates.ownerEmail = ownerEmail;
 				if (status !== undefined) updates.status = status;
-				const updated = await mongoStorage.updateCommunity(req.params.id, updates);
+				const updated = await mongoStorage.updateCommunity(
+					req.params.id,
+					updates,
+				);
 				res.json(updated);
 			} catch (error: any) {
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8558,15 +9273,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			try {
 				const { challengeId, resetToken } = req.body || {};
 				if (!challengeId || !resetToken) {
-					return res.status(400).json({ message: 'OTP konfirmasi diperlukan untuk menghapus komunitas' });
+					return res
+						.status(400)
+						.json({
+							message: 'OTP konfirmasi diperlukan untuk menghapus komunitas',
+						});
 				}
 				const community = await mongoStorage.getCommunityById(req.params.id);
-				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
+				if (!community)
+					return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
 
 				try {
-					await validateResetToken({ challengeId, resetToken, purpose: 'delete_community' });
+					await validateResetToken({
+						challengeId,
+						resetToken,
+						purpose: 'delete_community',
+					});
 				} catch {
-					return res.status(400).json({ message: 'OTP tidak valid atau sudah expired' });
+					return res
+						.status(400)
+						.json({ message: 'OTP tidak valid atau sudah expired' });
 				}
 
 				const mongoose = (await import('mongoose')).default;
@@ -8574,7 +9300,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					await mongoose.connection.asPromise();
 				}
 
-				const { getTenantConnection, clearTenantCache } = await import('../db/tenant');
+				const { getTenantConnection, clearTenantCache } =
+					await import('../db/tenant');
 				const tenantDbName = (community as any).dbName;
 				const tenantConn = getTenantConnection(tenantDbName);
 
@@ -8624,7 +9351,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				removeCommunityUploadDirectories(String((community as any).slug || ''));
 
 				await mongoStorage.deleteCommunity(req.params.id);
-				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
+				const { invalidateCommunityCache } =
+					await import('./middleware/tenant-resolver');
 				invalidateCommunityCache((community as any).slug);
 				await consumeResetTokenSession({ challengeId });
 
@@ -8633,7 +9361,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (error instanceof OtpError) {
 					return res.status(400).json({ message: error.message });
 				}
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8645,30 +9375,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				if (!req.isTenantRequest || !req.tenantSlug) {
-					return res.status(403).json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
+					return res
+						.status(403)
+						.json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
 				}
 				const u = req.user as any;
 				if ((u?.role || '').toString() !== 'owner') {
-					return res.status(403).json({ message: 'Hanya owner yang dapat menghapus komunitas' });
+					return res
+						.status(403)
+						.json({ message: 'Hanya owner yang dapat menghapus komunitas' });
 				}
 				const community = await mongoStorage.getCommunityBySlug(req.tenantSlug);
-				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
-				if ((community as any).ownerUsername && (community as any).ownerUsername !== u.username) {
-					return res.status(403).json({ message: 'Akun tidak sesuai dengan owner komunitas' });
+				if (!community)
+					return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
+				if (
+					(community as any).ownerUsername &&
+					(community as any).ownerUsername !== u.username
+				) {
+					return res
+						.status(403)
+						.json({ message: 'Akun tidak sesuai dengan owner komunitas' });
 				}
-				if (!u.email) return res.status(400).json({ message: 'Email tidak tersedia untuk OTP' });
+				if (!u.email)
+					return res
+						.status(400)
+						.json({ message: 'Email tidak tersedia untuk OTP' });
 				const { challengeId } = await createOtpChallenge({
 					purpose: 'delete_community',
 					email: u.email,
 					userId: u._id?.toString?.() || u._id,
-					requestIp: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '',
+					requestIp:
+						(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+						req.socket.remoteAddress ||
+						'',
 				});
 				res.json({ challengeId, message: 'OTP telah dikirim ke email Anda' });
 			} catch (error: any) {
 				if (error instanceof RateLimitError) {
-					return res.status(429).json({ message: error.message, retryAfter: error.retryAfterSeconds });
+					return res
+						.status(429)
+						.json({
+							message: error.message,
+							retryAfter: error.retryAfterSeconds,
+						});
 				}
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8679,14 +9432,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				if (!req.isTenantRequest || !req.tenantSlug) {
-					return res.status(403).json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
+					return res
+						.status(403)
+						.json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
 				}
 				const u = req.user as any;
 				if ((u?.role || '').toString() !== 'owner') {
-					return res.status(403).json({ message: 'Hanya owner yang dapat menghapus komunitas' });
+					return res
+						.status(403)
+						.json({ message: 'Hanya owner yang dapat menghapus komunitas' });
 				}
 				const { challengeId, otp } = req.body || {};
-				if (!challengeId || !otp) return res.status(400).json({ message: 'challengeId dan otp diperlukan' });
+				if (!challengeId || !otp)
+					return res
+						.status(400)
+						.json({ message: 'challengeId dan otp diperlukan' });
 				const { resetToken } = await verifyAndIssueResetToken({
 					challengeId,
 					code: otp,
@@ -8697,107 +9457,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (error instanceof OtpError) {
 					return res.status(400).json({ message: error.message });
 				}
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
 
-	app.delete(
-		'/api/community',
-		authenticate,
-		async (req, res) => {
+	app.delete('/api/community', authenticate, async (req, res) => {
+		try {
+			if (!req.isTenantRequest || !req.tenantSlug) {
+				return res
+					.status(403)
+					.json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
+			}
+			const u = req.user as any;
+			if ((u?.role || '').toString() !== 'owner') {
+				return res
+					.status(403)
+					.json({ message: 'Hanya owner yang dapat menghapus komunitas' });
+			}
+			const { challengeId, resetToken } = req.body || {};
+			if (!challengeId || !resetToken) {
+				return res
+					.status(400)
+					.json({
+						message: 'OTP konfirmasi diperlukan untuk menghapus komunitas',
+					});
+			}
+			const community = await mongoStorage.getCommunityBySlug(req.tenantSlug);
+			if (!community)
+				return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
+			if (
+				(community as any).ownerUsername &&
+				(community as any).ownerUsername !== u.username
+			) {
+				return res
+					.status(403)
+					.json({ message: 'Akun tidak sesuai dengan owner komunitas' });
+			}
 			try {
-				if (!req.isTenantRequest || !req.tenantSlug) {
-					return res.status(403).json({ message: 'Endpoint ini hanya untuk konteks komunitas' });
-				}
-				const u = req.user as any;
-				if ((u?.role || '').toString() !== 'owner') {
-					return res.status(403).json({ message: 'Hanya owner yang dapat menghapus komunitas' });
-				}
-				const { challengeId, resetToken } = req.body || {};
-				if (!challengeId || !resetToken) {
-					return res.status(400).json({ message: 'OTP konfirmasi diperlukan untuk menghapus komunitas' });
-				}
-				const community = await mongoStorage.getCommunityBySlug(req.tenantSlug);
-				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
-				if ((community as any).ownerUsername && (community as any).ownerUsername !== u.username) {
-					return res.status(403).json({ message: 'Akun tidak sesuai dengan owner komunitas' });
-				}
-				try {
-					await validateResetToken({ challengeId, resetToken, purpose: 'delete_community' });
-				} catch {
-					return res.status(400).json({ message: 'OTP tidak valid atau sudah expired' });
-				}
-				const mongoose = (await import('mongoose')).default;
-				if (mongoose.connection.readyState !== 1) {
-					await mongoose.connection.asPromise();
-				}
+				await validateResetToken({
+					challengeId,
+					resetToken,
+					purpose: 'delete_community',
+				});
+			} catch {
+				return res
+					.status(400)
+					.json({ message: 'OTP tidak valid atau sudah expired' });
+			}
+			const mongoose = (await import('mongoose')).default;
+			if (mongoose.connection.readyState !== 1) {
+				await mongoose.connection.asPromise();
+			}
 
-				const { getTenantConnection, clearTenantCache } = await import('../db/tenant');
-				const tenantDbName = (community as any).dbName;
-				const tenantConn = getTenantConnection(tenantDbName);
+			const { getTenantConnection, clearTenantCache } =
+				await import('../db/tenant');
+			const tenantDbName = (community as any).dbName;
+			const tenantConn = getTenantConnection(tenantDbName);
 
-				const dropTimeoutMs = 45_000;
-				const retryDelayMs = 1_500;
-				const dropWithTimeout = async () => {
-					return Promise.race([
-						tenantConn.dropDatabase(),
-						new Promise((_, reject) =>
-							setTimeout(
-								() => reject(new Error('DROP_DB_TIMEOUT')),
-								dropTimeoutMs,
-							),
+			const dropTimeoutMs = 45_000;
+			const retryDelayMs = 1_500;
+			const dropWithTimeout = async () => {
+				return Promise.race([
+					tenantConn.dropDatabase(),
+					new Promise((_, reject) =>
+						setTimeout(
+							() => reject(new Error('DROP_DB_TIMEOUT')),
+							dropTimeoutMs,
 						),
-					]);
-				};
+					),
+				]);
+			};
+			try {
+				await dropWithTimeout();
+			} catch (dropErr: any) {
+				const msg = String(dropErr?.message || '');
+				const isRetriable =
+					msg.includes('buffering timed out') ||
+					msg.includes('ECONNREFUSED') ||
+					msg.includes('DROP_DB_TIMEOUT');
+				if (!isRetriable) throw dropErr;
+				await new Promise((r) => setTimeout(r, retryDelayMs));
 				try {
 					await dropWithTimeout();
-				} catch (dropErr: any) {
-					const msg = String(dropErr?.message || '');
-					const isRetriable =
-						msg.includes('buffering timed out') ||
-						msg.includes('ECONNREFUSED') ||
-						msg.includes('DROP_DB_TIMEOUT');
-					if (!isRetriable) throw dropErr;
-					await new Promise((r) => setTimeout(r, retryDelayMs));
-					try {
-						await dropWithTimeout();
-					} catch (retryErr: any) {
-						const retryMsg = String(retryErr?.message || '');
-						if (
-							retryMsg.includes('buffering timed out') ||
-							retryMsg.includes('ECONNREFUSED') ||
-							retryMsg.includes('DROP_DB_TIMEOUT')
-						) {
-							return res.status(503).json({
-								message:
-									'Penghapusan komunitas gagal karena koneksi database tenant timeout. Silakan coba lagi, OTP Anda masih bisa dipakai.',
-							});
-						}
-						throw retryErr;
+				} catch (retryErr: any) {
+					const retryMsg = String(retryErr?.message || '');
+					if (
+						retryMsg.includes('buffering timed out') ||
+						retryMsg.includes('ECONNREFUSED') ||
+						retryMsg.includes('DROP_DB_TIMEOUT')
+					) {
+						return res.status(503).json({
+							message:
+								'Penghapusan komunitas gagal karena koneksi database tenant timeout. Silakan coba lagi, OTP Anda masih bisa dipakai.',
+						});
 					}
+					throw retryErr;
 				}
-				clearTenantCache(tenantDbName);
-
-				removeCommunityUploadDirectories(String((community as any).slug || req.tenantSlug || ''));
-				await mongoStorage.deleteCommunity(String((community as any)._id));
-				const { invalidateCommunityCache } = await import('./middleware/tenant-resolver');
-				invalidateCommunityCache((community as any).slug);
-				await consumeResetTokenSession({ challengeId });
-				const { buildClearCookieOptions } = await import('./auth');
-				res.clearCookie('authToken', buildClearCookieOptions());
-				res.json({
-					message:
-						'Akun owner, database komunitas, dan data terkait telah dihapus. Anda akan keluar dari situs ini.',
-				});
-			} catch (error: any) {
-				if (error instanceof OtpError) {
-					return res.status(400).json({ message: error.message });
-				}
-				res.status(500).json({ message: error.message || 'Internal server error' });
 			}
-		},
-	);
+			clearTenantCache(tenantDbName);
+
+			removeCommunityUploadDirectories(
+				String((community as any).slug || req.tenantSlug || ''),
+			);
+			await mongoStorage.deleteCommunity(String((community as any)._id));
+			const { invalidateCommunityCache } =
+				await import('./middleware/tenant-resolver');
+			invalidateCommunityCache((community as any).slug);
+			await consumeResetTokenSession({ challengeId });
+			const { buildClearCookieOptions } = await import('./auth');
+			res.clearCookie('authToken', buildClearCookieOptions());
+			res.json({
+				message:
+					'Akun owner, database komunitas, dan data terkait telah dihapus. Anda akan keluar dari situs ini.',
+			});
+		} catch (error: any) {
+			if (error instanceof OtpError) {
+				return res.status(400).json({ message: error.message });
+			}
+			res
+				.status(500)
+				.json({ message: error.message || 'Internal server error' });
+		}
+	});
 
 	// Public: list active communities (for navbar dropdown)
 	app.get('/api/communities', async (_req, res) => {
@@ -8812,7 +9596,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}));
 			res.json(safe);
 		} catch (error: any) {
-			res.status(500).json({ message: error.message || 'Internal server error' });
+			res
+				.status(500)
+				.json({ message: error.message || 'Internal server error' });
 		}
 	});
 
@@ -8825,22 +9611,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const community = await mongoStorage.getCommunityById(req.params.id);
-				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
+				if (!community)
+					return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
 				const user = req.user as UserWithRole;
-				if (!user.email) return res.status(400).json({ message: 'Email tidak ditemukan' });
+				if (!user.email)
+					return res.status(400).json({ message: 'Email tidak ditemukan' });
 
 				const { challengeId } = await createOtpChallenge({
 					purpose: 'delete_community',
 					email: user.email,
 					userId: (user._id as any)?.toString?.() || user._id,
-					requestIp: (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket.remoteAddress || '',
+					requestIp:
+						(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+						req.socket.remoteAddress ||
+						'',
 				});
 				res.json({ challengeId, message: 'OTP telah dikirim ke email Anda' });
 			} catch (error: any) {
 				if (error instanceof RateLimitError) {
-					return res.status(429).json({ message: error.message, retryAfter: error.retryAfterSeconds });
+					return res
+						.status(429)
+						.json({
+							message: error.message,
+							retryAfter: error.retryAfterSeconds,
+						});
 				}
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8854,7 +9652,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const { challengeId, otp } = req.body;
-				if (!challengeId || !otp) return res.status(400).json({ message: 'challengeId dan otp diperlukan' });
+				if (!challengeId || !otp)
+					return res
+						.status(400)
+						.json({ message: 'challengeId dan otp diperlukan' });
 				const { resetToken } = await verifyAndIssueResetToken({
 					challengeId,
 					code: otp,
@@ -8865,7 +9666,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (error instanceof OtpError) {
 					return res.status(400).json({ message: error.message });
 				}
-				res.status(500).json({ message: error.message || 'Internal server error' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Internal server error' });
 			}
 		},
 	);
@@ -8873,7 +9676,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Public: validate registration code
 	app.post('/api/register/validate-code', async (req, res) => {
 		try {
-			const { checkRegistrationCodeLock, recordRegistrationCodeFailure } = await import('./middleware/registration-code-attempts');
+			const { checkRegistrationCodeLock, recordRegistrationCodeFailure } =
+				await import('./middleware/registration-code-attempts');
 			const lock = checkRegistrationCodeLock(req);
 			if (lock.locked) {
 				return res.status(429).json({
@@ -8884,17 +9688,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			const { code } = req.body;
-			if (!code) return res.status(400).json({ valid: false, message: 'Kode diperlukan' });
+			if (!code)
+				return res
+					.status(400)
+					.json({ valid: false, message: 'Kode diperlukan' });
 			const regCode = await mongoStorage.getRegistrationCodeByCode(code);
 
-			if (!regCode) { recordRegistrationCodeFailure(req); return res.json({ valid: false, message: 'Kode tidak ditemukan' }); }
-			if ((regCode as any).status !== 'active') { recordRegistrationCodeFailure(req); return res.json({ valid: false, message: 'Kode sudah tidak aktif' }); }
-			if ((regCode as any).expiresAt < new Date()) { recordRegistrationCodeFailure(req); return res.json({ valid: false, message: 'Kode sudah expired' }); }
-			if ((regCode as any).currentUses >= (regCode as any).maxUses) { recordRegistrationCodeFailure(req); return res.json({ valid: false, message: 'Kode sudah mencapai batas pemakaian' }); }
+			if (!regCode) {
+				recordRegistrationCodeFailure(req);
+				return res.json({ valid: false, message: 'Kode tidak ditemukan' });
+			}
+			if ((regCode as any).status !== 'active') {
+				recordRegistrationCodeFailure(req);
+				return res.json({ valid: false, message: 'Kode sudah tidak aktif' });
+			}
+			if ((regCode as any).expiresAt < new Date()) {
+				recordRegistrationCodeFailure(req);
+				return res.json({ valid: false, message: 'Kode sudah expired' });
+			}
+			if ((regCode as any).currentUses >= (regCode as any).maxUses) {
+				recordRegistrationCodeFailure(req);
+				return res.json({
+					valid: false,
+					message: 'Kode sudah mencapai batas pemakaian',
+				});
+			}
 
 			res.json({ valid: true, type: (regCode as any).type });
 		} catch (error: any) {
-			res.status(500).json({ valid: false, message: error.message || 'Internal server error' });
+			res
+				.status(500)
+				.json({
+					valid: false,
+					message: error.message || 'Internal server error',
+				});
 		}
 	});
 
@@ -8906,17 +9733,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		validateFileUpload,
 		async (req, res) => {
 			try {
-				if (!req.file) return res.status(400).json({ message: 'File is required' });
+				if (!req.file)
+					return res.status(400).json({ message: 'File is required' });
 				const code = (req.body.code || '').trim();
-				if (!code) return res.status(400).json({ message: 'Registration code is required' });
+				if (!code)
+					return res
+						.status(400)
+						.json({ message: 'Registration code is required' });
 
 				const regCode = await mongoStorage.getRegistrationCodeByCode(code);
-				if (!regCode || (regCode as any).status !== 'active' || (regCode as any).expiresAt < new Date()) {
-					return res.status(403).json({ message: 'Kode registrasi tidak valid atau expired' });
+				if (
+					!regCode ||
+					(regCode as any).status !== 'active' ||
+					(regCode as any).expiresAt < new Date()
+				) {
+					return res
+						.status(403)
+						.json({ message: 'Kode registrasi tidak valid atau expired' });
 				}
 
 				const category = (req.body.category || 'organization') as any;
-				const { url, diskPath } = await uploadTempOnboarding(req.file, code, category);
+				const { url, diskPath } = await uploadTempOnboarding(
+					req.file,
+					code,
+					category,
+				);
 
 				const { TempUpload } = await import('../db/mongodb');
 				await TempUpload.create({
@@ -8939,7 +9780,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// Public: register a new community (onboarding) — atomic with rollback
 	app.post('/api/register/community', async (req, res) => {
 		try {
-			const { checkRegistrationCodeLock, recordRegistrationCodeFailure } = await import('./middleware/registration-code-attempts');
+			const { checkRegistrationCodeLock, recordRegistrationCodeFailure } =
+				await import('./middleware/registration-code-attempts');
 			const lock = checkRegistrationCodeLock(req);
 			if (lock.locked) {
 				return res.status(429).json({
@@ -8950,13 +9792,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const settings = await mongoStorage.getSettings();
 			if (!(settings as any).enableRegistration) {
-				return res.status(403).json({ message: 'Registrasi saat ini tidak diaktifkan' });
+				return res
+					.status(403)
+					.json({ message: 'Registrasi saat ini tidak diaktifkan' });
 			}
 
 			const {
-				code, communityName, slug, ownerUsername, ownerPassword,
-				ownerEmail, ownerName, description, contactEmail, address,
-				socialLinks, initialDivisionCount: rawDivCount,
+				code,
+				communityName,
+				slug,
+				ownerUsername,
+				ownerPassword,
+				ownerEmail,
+				ownerName,
+				description,
+				contactEmail,
+				address,
+				socialLinks,
+				initialDivisionCount: rawDivCount,
 				// Extended onboarding fields
 				divisions: customDivisions,
 				bphPositions: customBph,
@@ -8968,26 +9821,67 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				aboutPageLambang: onboardLambang,
 				logoUrl: onboardLogoUrl,
 			} = req.body;
-			const initialDivisionCount = Math.max(1, Math.min(20, parseInt(rawDivCount) || 3));
+			const initialDivisionCount = Math.max(
+				1,
+				Math.min(20, parseInt(rawDivCount) || 3),
+			);
 
-			if (!code || !communityName || !slug || !ownerUsername || !ownerPassword) {
-				return res.status(400).json({ message: 'Nama komunitas, slug, username, dan password owner wajib diisi' });
+			if (
+				!code ||
+				!communityName ||
+				!slug ||
+				!ownerUsername ||
+				!ownerPassword
+			) {
+				return res
+					.status(400)
+					.json({
+						message:
+							'Nama komunitas, slug, username, dan password owner wajib diisi',
+					});
 			}
 
 			if (!/^[a-z0-9_-]+$/.test(slug)) {
-				return res.status(400).json({ message: 'URL slug hanya boleh huruf kecil, angka, dash, dan underscore' });
+				return res
+					.status(400)
+					.json({
+						message:
+							'URL slug hanya boleh huruf kecil, angka, dash, dan underscore',
+					});
 			}
 			if (slug.length > 20) {
-				return res.status(400).json({ message: 'URL slug maksimal 20 karakter' });
+				return res
+					.status(400)
+					.json({ message: 'URL slug maksimal 20 karakter' });
 			}
-			const reserved = ['api', 'login', 'dashboard', 'register', 'forgot-password', 'error', 'berita', 'profil', 'kelembagaan', 'prodi', 'events', 'communities', 'uploads', 'assets', 'attached_assets'];
+			const reserved = [
+				'api',
+				'login',
+				'dashboard',
+				'register',
+				'forgot-password',
+				'error',
+				'berita',
+				'profil',
+				'kelembagaan',
+				'prodi',
+				'events',
+				'communities',
+				'uploads',
+				'assets',
+				'attached_assets',
+			];
 			if (reserved.includes(slug)) {
-				return res.status(400).json({ message: 'URL slug ini sudah digunakan oleh sistem' });
+				return res
+					.status(400)
+					.json({ message: 'URL slug ini sudah digunakan oleh sistem' });
 			}
 
 			const existingCommunity = await mongoStorage.getCommunityBySlug(slug);
 			if (existingCommunity) {
-				return res.status(400).json({ message: 'URL slug sudah digunakan komunitas lain' });
+				return res
+					.status(400)
+					.json({ message: 'URL slug sudah digunakan komunitas lain' });
 			}
 
 			const regCode = await mongoStorage.getRegistrationCodeByCode(code);
@@ -8997,7 +9891,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 			if ((regCode as any).expiresAt < new Date()) {
 				recordRegistrationCodeFailure(req);
-				return res.status(400).json({ message: 'Kode registrasi sudah expired' });
+				return res
+					.status(400)
+					.json({ message: 'Kode registrasi sudah expired' });
 			}
 
 			const dbName = `community_${slug.replace(/-/g, '_')}`;
@@ -9021,7 +9917,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			// Provision tenant database — rollback community record if this fails
 			try {
-				await mongoStorage.redeemRegistrationCode(code, communityId, communityName, ownerEmail || '');
+				await mongoStorage.redeemRegistrationCode(
+					code,
+					communityId,
+					communityName,
+					ownerEmail || '',
+				);
 
 				const { createTenantStorage } = await import('./tenant-storage');
 				const { getTenantModels } = await import('../db/tenant');
@@ -9030,23 +9931,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				await tenantStorage.initializeDefaultPermissions();
 
-			const ownerUser = await tenantStorage.createUser({
-				username: ownerUsername,
-				password: ownerPassword,
-				name: ownerName || ownerUsername,
-				email: (ownerEmail || '').trim() || `${ownerUsername.toLowerCase()}@no-email.local`,
-				role: 'owner',
-				division: '',
-			});
+				const ownerUser = await tenantStorage.createUser({
+					username: ownerUsername,
+					password: ownerPassword,
+					name: ownerName || ownerUsername,
+					email:
+						(ownerEmail || '').trim() ||
+						`${ownerUsername.toLowerCase()}@no-email.local`,
+					role: 'owner',
+					division: '',
+				});
 
-				await tenantStorage.initializeDefaultRoles(String((ownerUser as any)._id));
+				await tenantStorage.initializeDefaultRoles(
+					String((ownerUser as any)._id),
+				);
 				await tenantStorage.initializeDefaultDivisions();
 
 				// Build divisions from custom input or fallback to numbered divisions
 				const divList: Array<{ id: string; label: string }> = [];
 				if (Array.isArray(customDivisions) && customDivisions.length > 0) {
 					for (const d of customDivisions) {
-						const id = (d.id || d.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+						const id = (d.id || d.name || '')
+							.toLowerCase()
+							.replace(/[^a-z0-9]+/g, '_')
+							.replace(/^_|_$/g, '');
 						const label = d.label || d.name || id;
 						if (id) divList.push({ id, label });
 					}
@@ -9057,9 +9965,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Build BPH positions from custom input or use defaults
-				const bphList: string[] = Array.isArray(customBph) && customBph.length > 0
-					? customBph.map((p: any) => typeof p === 'string' ? p : (p.name || p.label || '')).filter(Boolean)
-					: ['Ketua', 'Wakil Ketua', 'Sekretaris', 'Bendahara'];
+				const bphList: string[] =
+					Array.isArray(customBph) && customBph.length > 0
+						? customBph
+								.map((p: any) =>
+									typeof p === 'string' ? p : p.name || p.label || '',
+								)
+								.filter(Boolean)
+						: ['Ketua', 'Wakil Ketua', 'Sekretaris', 'Bendahara'];
 
 				// Create divisions in DB
 				const bannerSlots: { id: string; label: string; order: number }[] = [];
@@ -9090,14 +10003,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Auto-create user accounts for BPH/divisions if opted-in
-				const createdAccounts: Array<{ username: string; role: string; defaultPassword: boolean }> = [];
-				if (autoCreateAccounts && Array.isArray(accountEntries) && accountEntries.length > 0) {
+				const createdAccounts: Array<{
+					username: string;
+					role: string;
+					defaultPassword: boolean;
+				}> = [];
+				if (
+					autoCreateAccounts &&
+					Array.isArray(accountEntries) &&
+					accountEntries.length > 0
+				) {
 					for (const entry of accountEntries) {
 						const uname = (entry.username || '').trim();
 						if (!uname) continue;
 						const pw = (entry.password || '').trim() || 'admin123';
 						const isDefault = !entry.password || !entry.password.trim();
-						const email = (entry.email || '').trim() || `${uname.toLowerCase()}@no-email.local`;
+						const email =
+							(entry.email || '').trim() ||
+							`${uname.toLowerCase()}@no-email.local`;
 						const role = entry.role || 'bph';
 						const division = entry.division || '';
 						try {
@@ -9111,9 +10034,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								role,
 								division,
 							});
-							createdAccounts.push({ username: uname, role, defaultPassword: isDefault });
+							createdAccounts.push({
+								username: uname,
+								role,
+								defaultPassword: isDefault,
+							});
 						} catch (accErr: any) {
-							console.warn(`Account creation failed for ${uname}:`, accErr?.message || accErr);
+							console.warn(
+								`Account creation failed for ${uname}:`,
+								accErr?.message || accErr,
+							);
 						}
 					}
 				}
@@ -9122,7 +10052,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					siteName: communityName,
 					siteTagline: description || communityName,
 					siteDescription: description || communityName,
-					navbarBrand: communityName.length > 10 ? communityName.substring(0, 10) : communityName,
+					navbarBrand:
+						communityName.length > 10
+							? communityName.substring(0, 10)
+							: communityName,
 					contactEmail: contactEmail || ownerEmail || '',
 					address: address || '',
 					socialLinks: socialLinks || {},
@@ -9132,11 +10065,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Promote temporary onboarding uploads to final tenant path
 				{
 					const { TempUpload } = await import('../db/mongodb');
-					const tempFiles = await TempUpload.find({ code, consumedAt: null }).lean();
+					const tempFiles = await TempUpload.find({
+						code,
+						consumedAt: null,
+					}).lean();
 
 					const urlMap = new Map<string, string>();
 					for (const tf of tempFiles as any[]) {
-						const newUrl = promoteTempFile(tf.diskPath, tf.url, slug, tf.category || 'organization');
+						const newUrl = promoteTempFile(
+							tf.diskPath,
+							tf.url,
+							slug,
+							tf.category || 'organization',
+						);
 						if (newUrl !== tf.url) urlMap.set(tf.url, newUrl);
 					}
 
@@ -9152,19 +10093,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					// Save profile content + logo from onboarding (with defaults when empty)
 					const profileUpdate: Record<string, any> = {};
 
-					profileUpdate.aboutUs = onboardAboutUs || `<p>Selamat datang di <strong>${communityName}</strong>.</p><p>Deskripsi profil komunitas belum diisi. Silakan edit di Dashboard &gt; Profil &gt; Tentang Kami.</p>`;
+					profileUpdate.aboutUs =
+						onboardAboutUs ||
+						`<p>Selamat datang di <strong>${communityName}</strong>.</p><p>Deskripsi profil komunitas belum diisi. Silakan edit di Dashboard &gt; Profil &gt; Tentang Kami.</p>`;
 
-					if (Array.isArray(onboardTrackRecord) && onboardTrackRecord.length > 0) {
+					if (
+						Array.isArray(onboardTrackRecord) &&
+						onboardTrackRecord.length > 0
+					) {
 						profileUpdate.aboutPageTrackRecord = onboardTrackRecord;
 					} else {
 						profileUpdate.aboutPageTrackRecord = [];
 					}
 
 					if (Array.isArray(onboardLambang) && onboardLambang.length > 0) {
-						profileUpdate.aboutPageLambang = onboardLambang.map((item: any) => ({
-							...item,
-							imageUrl: item.imageUrl ? resolveUrl(item.imageUrl) : '',
-						}));
+						profileUpdate.aboutPageLambang = onboardLambang.map(
+							(item: any) => ({
+								...item,
+								imageUrl: item.imageUrl ? resolveUrl(item.imageUrl) : '',
+							}),
+						);
 					} else {
 						profileUpdate.aboutPageLambang = [];
 					}
@@ -9177,35 +10125,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				// Final validation: owner must exist in tenant DB
-				const verifyOwner = await tenantStorage.getUserByUsername(ownerUsername);
+				const verifyOwner =
+					await tenantStorage.getUserByUsername(ownerUsername);
 				if (!verifyOwner) {
 					throw new Error('Owner verification failed after provisioning');
 				}
 			} catch (provisionError: any) {
-				console.error('Tenant provisioning failed, rolling back community:', provisionError);
-				try { await mongoStorage.deleteCommunity(communityId); } catch {}
+				console.error(
+					'Tenant provisioning failed, rolling back community:',
+					provisionError,
+				);
 				try {
-					const { RegistrationCode: RegCodeModel } = await import('../db/mongodb');
+					await mongoStorage.deleteCommunity(communityId);
+				} catch {}
+				try {
+					const { RegistrationCode: RegCodeModel } =
+						await import('../db/mongodb');
 					await RegCodeModel.updateOne(
 						{ code },
-						{ $set: { status: 'active' }, $unset: { usedBy: 1, usedAt: 1 }, $inc: { currentUses: -1 } },
+						{
+							$set: { status: 'active' },
+							$unset: { usedBy: 1, usedAt: 1 },
+							$inc: { currentUses: -1 },
+						},
 					);
 				} catch {}
 				// Cleanup temporary onboarding uploads on rollback
 				try {
 					const { TempUpload } = await import('../db/mongodb');
-					const tempDocs = await TempUpload.find({ code, consumedAt: null }).lean();
+					const tempDocs = await TempUpload.find({
+						code,
+						consumedAt: null,
+					}).lean();
 					for (const tf of tempDocs as any[]) {
 						if (tf.diskPath && fs.existsSync(tf.diskPath)) {
-							try { fs.unlinkSync(tf.diskPath); } catch {}
+							try {
+								fs.unlinkSync(tf.diskPath);
+							} catch {}
 						}
 					}
 					await TempUpload.deleteMany({ code });
 					cleanupTempDir(code);
 				} catch (cleanupErr) {
-					console.warn('[register] Temp file cleanup on rollback failed:', cleanupErr);
+					console.warn(
+						'[register] Temp file cleanup on rollback failed:',
+						cleanupErr,
+					);
 				}
-				return res.status(500).json({ message: `Gagal provisioning komunitas: ${provisionError.message}` });
+				return res
+					.status(500)
+					.json({
+						message: `Gagal provisioning komunitas: ${provisionError.message}`,
+					});
 			}
 
 			res.status(201).json({
@@ -9214,7 +10185,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			});
 		} catch (error: any) {
 			console.error('Error registering community:', error);
-			res.status(500).json({ message: error.message || 'Gagal membuat komunitas' });
+			res
+				.status(500)
+				.json({ message: error.message || 'Gagal membuat komunitas' });
 		}
 	});
 
@@ -9226,30 +10199,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		requirePermission('registration.manage'),
 		async (req, res) => {
 			try {
-				const community: any = await mongoStorage.getCommunityById(req.params.id);
-				if (!community) return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
+				const community: any = await mongoStorage.getCommunityById(
+					req.params.id,
+				);
+				if (!community)
+					return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
 
 				const { createTenantStorage } = await import('./tenant-storage');
 				const { getTenantModels } = await import('../db/tenant');
 				const tenantModels = getTenantModels(community.dbName);
 				const tenantStorage = createTenantStorage(tenantModels);
 
-				const existingOwner = await tenantStorage.getUserByUsername(community.ownerUsername);
+				const existingOwner = await tenantStorage.getUserByUsername(
+					community.ownerUsername,
+				);
 				if (existingOwner) {
-					return res.json({ message: 'Komunitas sudah valid, owner ditemukan', repaired: false });
+					return res.json({
+						message: 'Komunitas sudah valid, owner ditemukan',
+						repaired: false,
+					});
 				}
 
 				await tenantStorage.initializeDefaultPermissions();
 
 				const newPassword = req.body.newPassword || 'TempPass123!';
-			const ownerUser = await tenantStorage.createUser({
-				username: community.ownerUsername,
-				password: newPassword,
-				name: community.ownerUsername,
-				email: (community.ownerEmail || '').trim() || `${community.ownerUsername.toLowerCase()}@no-email.local`,
-				role: 'owner',
-				division: '',
-			});
+				const ownerUser = await tenantStorage.createUser({
+					username: community.ownerUsername,
+					password: newPassword,
+					name: community.ownerUsername,
+					email:
+						(community.ownerEmail || '').trim() ||
+						`${community.ownerUsername.toLowerCase()}@no-email.local`,
+					role: 'owner',
+					division: '',
+				});
 
 				await tenantStorage.initializeDefaultRoles(String(ownerUser._id));
 				await tenantStorage.initializeDefaultDivisions();
@@ -9274,7 +10257,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 			} catch (error: any) {
 				console.error('Repair community error:', error);
-				res.status(500).json({ message: error.message || 'Gagal memperbaiki komunitas' });
+				res
+					.status(500)
+					.json({ message: error.message || 'Gagal memperbaiki komunitas' });
 			}
 		},
 	);
@@ -9294,7 +10279,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				for (const community of communities as any[]) {
 					try {
 						const models = getTenantModels(community.dbName);
-						const ownerCount = await models.User.countDocuments({ role: 'owner' });
+						const ownerCount = await models.User.countDocuments({
+							role: 'owner',
+						});
 						const rolesCount = await models.Role.countDocuments();
 						const permsCount = await models.Permission.countDocuments();
 						const settingsDoc = await models.Settings.findOne().lean();
@@ -9309,7 +10296,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							hasSettings: !!settingsDoc,
 						});
 					} catch (e: any) {
-						results.push({ slug: community.slug, name: community.name, healthy: false, error: e.message });
+						results.push({
+							slug: community.slug,
+							name: community.name,
+							healthy: false,
+							error: e.message,
+						});
 					}
 				}
 

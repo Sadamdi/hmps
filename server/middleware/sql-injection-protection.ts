@@ -40,7 +40,7 @@ function sendBeautifulError(
 	statusCode: number,
 	title: string,
 	message: string,
-	details?: any
+	details?: any,
 ) {
 	const errorResponse = {
 		error: {
@@ -199,7 +199,7 @@ const xssPatterns = [
 export const sqlInjectionProtectionMiddleware = async (
 	req: Request,
 	res: Response,
-	next: NextFunction
+	next: NextFunction,
 ) => {
 	try {
 		const settings = await getCachedSqlMiddlewareSettings();
@@ -425,7 +425,7 @@ export const sqlInjectionProtectionMiddleware = async (
 		// ==================== RESPONSE TO INJECTION ATTEMPT ====================
 		if (isInjectionDetected) {
 			console.log(
-				`🚨 SQL Injection Protection: ${injectionType} attempt detected from IP ${clientIP}`
+				`🚨 SQL Injection Protection: ${injectionType} attempt detected from IP ${clientIP}`,
 			);
 			console.log(`   Pattern: ${detectedPattern}`);
 			console.log(`   Path: ${req.path}`);
@@ -444,7 +444,7 @@ export const sqlInjectionProtectionMiddleware = async (
 					body: req.body ? JSON.stringify(req.body).substring(0, 200) : null,
 					query: req.query ? JSON.stringify(req.query).substring(0, 200) : null,
 					timestamp: new Date().toISOString(),
-				}
+				},
 			);
 
 			// Return beautiful error response
@@ -459,7 +459,7 @@ export const sqlInjectionProtectionMiddleware = async (
 					path: req.path,
 					method: req.method,
 					ip: clientIP,
-				}
+				},
 			);
 		}
 
@@ -475,7 +475,7 @@ export const sqlInjectionProtectionMiddleware = async (
 export const noSqlInjectionProtectionMiddleware = async (
 	req: Request,
 	res: Response,
-	next: NextFunction
+	next: NextFunction,
 ) => {
 	try {
 		const settings = await getCachedSqlMiddlewareSettings();
@@ -557,7 +557,7 @@ export const noSqlInjectionProtectionMiddleware = async (
 
 		if (isInjectionDetected) {
 			console.log(
-				`🚨 NoSQL Injection Protection: NoSQL injection attempt detected from IP ${clientIP}`
+				`🚨 NoSQL Injection Protection: NoSQL injection attempt detected from IP ${clientIP}`,
 			);
 			console.log(`   Pattern: ${detectedPattern}`);
 			console.log(`   Path: ${req.path}`);
@@ -572,7 +572,7 @@ export const noSqlInjectionProtectionMiddleware = async (
 					method: req.method,
 					userAgent: req.get('User-Agent'),
 					timestamp: new Date().toISOString(),
-				}
+				},
 			);
 
 			// Return beautiful error response
@@ -587,7 +587,7 @@ export const noSqlInjectionProtectionMiddleware = async (
 					path: req.path,
 					method: req.method,
 					ip: clientIP,
-				}
+				},
 			);
 		}
 
