@@ -1819,6 +1819,7 @@ const webPushSubscriptionSchema = new mongoose.Schema(
 		},
 		userAgent: { type: String, default: '' },
 		tenantSlug: { type: String, default: '' },
+		vapidPublicKey: { type: String, default: '' },
 		isActive: { type: Boolean, default: true },
 		lastSeenAt: { type: Date, default: Date.now },
 		preferences: {

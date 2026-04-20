@@ -82,6 +82,8 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 
 		const tenantSlug = (req as any).tenantSlug || '';
 		const userId = (req as any).user?._id || null;
+		const currentVapidPublic =
+			process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY || '';
 		const guestKeyHash =
 			typeof guestSecret === 'string' && guestSecret.trim()
 				? hashGuestKey(guestSecret.trim())
@@ -105,6 +107,7 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 					keys,
 					userAgent: req.headers['user-agent'] || '',
 					tenantSlug,
+					vapidPublicKey: currentVapidPublic,
 					isActive: true,
 					lastSeenAt: new Date(),
 					...(Object.keys(normalizedPrefs).length > 0
@@ -114,6 +117,20 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 			},
 			{ upsert: true },
 		);
+
+		// Keep guest subscriptions clean: one active endpoint per guest identity + tenant.
+		// This prevents legacy/stale endpoints from staying active forever.
+		if (guestKeyHash) {
+			await WebPushSubscription.updateMany(
+				{
+					guestKeyHash,
+					tenantSlug,
+					isActive: true,
+					endpoint: { $ne: endpoint },
+				},
+				{ $set: { isActive: false } },
+			);
+		}
 		res.json({ message: 'Subscribed' });
 	} catch (error) {
 		console.error('Error subscribing web push:', error);

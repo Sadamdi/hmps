@@ -129,6 +129,56 @@ function buildPushPayload(payload: NotifPayload): string {
 	});
 }
 
+function shouldDeactivateSubscription(statusCode?: number): boolean {
+	// 401/403: auth invalid (often VAPID mismatch)
+	// 404/410: endpoint expired/unregistered
+	// 422: subscription payload no longer accepted by push service
+	return [401, 403, 404, 410, 422].includes(Number(statusCode));
+}
+
+function endpointSuffix(endpoint: string): string {
+	if (!endpoint) return 'unknown-endpoint';
+	return endpoint.slice(Math.max(0, endpoint.length - 48));
+}
+
+function shouldDeactivateByVapidMismatch(sub: any, currentVapidPublic?: string): boolean {
+	const subVapid = String(sub?.vapidPublicKey || '');
+	const current = String(currentVapidPublic || '');
+	if (!current) return false;
+	if (!subVapid) return false; // legacy rows without fingerprint are handled by HTTP status checks.
+	return subVapid !== current;
+}
+
+async function handleWebPushError(
+	sub: any,
+	err: any,
+	stats: { failed: number; expired: number },
+	context: string,
+) {
+	const statusCode = Number(err?.statusCode || 0);
+	const suffix = endpointSuffix(String(sub?.endpoint || ''));
+	if (shouldDeactivateSubscription(statusCode)) {
+		await WebPushSubscription.updateOne(
+			{ _id: sub?._id },
+			{ $set: { isActive: false } },
+		);
+		stats.expired++;
+		notifLog('webpush-deactivated', {
+			context,
+			statusCode,
+			endpointSuffix: suffix,
+		});
+		return;
+	}
+	stats.failed++;
+	notifLog('webpush-failed', {
+		context,
+		statusCode,
+		endpointSuffix: suffix,
+		message: String(err?.message || ''),
+	});
+}
+
 async function sendWebPush(
 	recipient: NotifRecipient,
 	payload: NotifPayload,
@@ -149,24 +199,30 @@ async function sendWebPush(
 		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
 		const pushPayload = buildPushPayload(payload);
+		const pushOptions = { TTL: 12 * 60 * 60, urgency: 'high' as const };
 
 		for (const sub of subs) {
 			try {
-				await webpush.sendNotification(
-					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
-					pushPayload,
-				);
-				stats.sent++;
-			} catch (err: any) {
-				if (err?.statusCode === 410 || err?.statusCode === 404) {
+				if (shouldDeactivateByVapidMismatch(sub, vapidPublic)) {
 					await WebPushSubscription.updateOne(
 						{ _id: (sub as any)._id },
 						{ $set: { isActive: false } },
 					);
 					stats.expired++;
-				} else {
-					stats.failed++;
+					notifLog('webpush-deactivated', {
+						context: 'dispatch-user-vapid-mismatch',
+						endpointSuffix: endpointSuffix(String((sub as any).endpoint || '')),
+					});
+					continue;
 				}
+				await webpush.sendNotification(
+					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
+					pushPayload,
+					pushOptions,
+				);
+				stats.sent++;
+			} catch (err: any) {
+				await handleWebPushError(sub, err, stats, 'dispatch-user');
 			}
 		}
 	} catch (err) {
@@ -197,6 +253,7 @@ async function sendWebPushToGuest(
 		const webpush = await getWebPushClient();
 		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 		const pushPayload = buildPushPayload(payload);
+		const pushOptions = { TTL: 12 * 60 * 60, urgency: 'high' as const };
 		const prefKey = EVENT_TO_PREF_KEY[eventType];
 		for (const sub of subs) {
 			const topicChannel = (sub as any)?.preferences?.[prefKey] || {
@@ -207,21 +264,26 @@ async function sendWebPushToGuest(
 				continue;
 			}
 			try {
-				await webpush.sendNotification(
-					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
-					pushPayload,
-				);
-				stats.sent++;
-			} catch (err: any) {
-				if (err?.statusCode === 410 || err?.statusCode === 404) {
+				if (shouldDeactivateByVapidMismatch(sub, vapidPublic)) {
 					await WebPushSubscription.updateOne(
 						{ _id: (sub as any)._id },
 						{ $set: { isActive: false } },
 					);
 					stats.expired++;
-				} else {
-					stats.failed++;
+					notifLog('webpush-deactivated', {
+						context: 'dispatch-guest-vapid-mismatch',
+						endpointSuffix: endpointSuffix(String((sub as any).endpoint || '')),
+					});
+					continue;
 				}
+				await webpush.sendNotification(
+					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
+					pushPayload,
+					pushOptions,
+				);
+				stats.sent++;
+			} catch (err: any) {
+				await handleWebPushError(sub, err, stats, 'dispatch-guest');
 			}
 		}
 	} catch (err) {
@@ -338,6 +400,7 @@ export async function broadcastNotification(
 		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
 
 		const pushPayload = buildPushPayload(payload);
+		const pushOptions = { TTL: 12 * 60 * 60, urgency: 'high' as const };
 
 		for (const sub of allSubs) {
 			try {
@@ -356,21 +419,27 @@ export async function broadcastNotification(
 					continue;
 				}
 
-				await webpush.sendNotification(
-					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
-					pushPayload,
-				);
-				stats.sent++;
-			} catch (err: any) {
-				if (err?.statusCode === 410 || err?.statusCode === 404) {
+				if (shouldDeactivateByVapidMismatch(sub, vapidPublic)) {
 					await WebPushSubscription.updateOne(
 						{ _id: (sub as any)._id },
 						{ $set: { isActive: false } },
 					);
 					stats.expired++;
-				} else {
-					stats.failed++;
+					notifLog('webpush-deactivated', {
+						context: 'broadcast-vapid-mismatch',
+						endpointSuffix: endpointSuffix(String((sub as any).endpoint || '')),
+					});
+					continue;
 				}
+
+				await webpush.sendNotification(
+					{ endpoint: (sub as any).endpoint, keys: (sub as any).keys },
+					pushPayload,
+					pushOptions,
+				);
+				stats.sent++;
+			} catch (err: any) {
+				await handleWebPushError(sub, err, stats, 'broadcast');
 			}
 		}
 	} catch (err) {
