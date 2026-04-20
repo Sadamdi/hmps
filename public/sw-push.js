@@ -31,7 +31,26 @@ self.addEventListener('push', function (event) {
 	}
 
 	event.waitUntil(
-		self.registration.showNotification(data.title, opts)
+		(function () {
+			var showPromise = self.clients
+				.matchAll({ type: 'window', includeUncontrolled: true })
+				.then(function (clientList) {
+					var hasVisible = clientList.some(function (c) {
+						return c.visibilityState === 'visible' || c.focused === true;
+					});
+					// If a tab is currently visible the in-app SSE toast already
+					// handles the live notification. Suppressing the OS popup
+					// avoids double-notifying the user (push + SSE).
+					if (hasVisible) {
+						return undefined;
+					}
+					return self.registration.showNotification(data.title, opts);
+				})
+				.catch(function () {
+					return self.registration.showNotification(data.title, opts);
+				});
+			return showPromise;
+		})()
 	);
 });
 

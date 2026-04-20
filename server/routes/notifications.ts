@@ -2,6 +2,10 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { NotifPreference, WebPushSubscription } from '../../db/mongodb';
 import { authenticate, authenticateOptional } from '../auth';
+import {
+	getStreamStats,
+	registerStreamClient,
+} from '../services/notification-stream';
 
 const router = Router();
 const GUEST_PEPPER = process.env.GUEST_KEY_PEPPER || 'hmps-comment-pepper';
@@ -159,6 +163,63 @@ router.get('/webpush/vapid-key', (_req, res) => {
 	const publicKey =
 		process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY || '';
 	res.json({ publicKey });
+});
+
+/**
+ * Live realtime stream (SSE) for in-tab notifications. This complements the
+ * existing web-push delivery which can be throttled by browser/OS when tabs
+ * are in the background. When the tab is open we push events immediately via
+ * this channel so news/events appear instantly without waiting for the OS.
+ */
+router.get('/stream', authenticateOptional, (req, res) => {
+	const tenantSlug = (req as any).tenantSlug || '';
+	const userId = ((req as any).user?._id as string | undefined) || null;
+	const guestSecretRaw =
+		typeof req.query.guestSecret === 'string'
+			? (req.query.guestSecret as string).trim()
+			: '';
+	const guestKeyHash = guestSecretRaw ? hashGuestKey(guestSecretRaw) : null;
+
+	res.status(200);
+	res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+	res.setHeader('Cache-Control', 'no-cache, no-transform');
+	res.setHeader('Connection', 'keep-alive');
+	res.setHeader('X-Accel-Buffering', 'no');
+	// Disable idle-socket timeouts so long-lived streams are not cut off.
+	if (req.socket && typeof req.socket.setTimeout === 'function') {
+		try {
+			req.socket.setTimeout(0);
+		} catch {
+			// ignore
+		}
+	}
+	// Retry hint for browsers (ms) when the connection drops.
+	res.write('retry: 5000\n\n');
+	if (typeof (res as any).flushHeaders === 'function') {
+		try {
+			(res as any).flushHeaders();
+		} catch {
+			// ignore
+		}
+	}
+
+	const cleanup = registerStreamClient(res, {
+		tenantSlug,
+		userId,
+		guestKeyHash,
+	});
+
+	req.on('close', cleanup);
+	req.on('aborted', cleanup);
+	res.on('error', cleanup);
+});
+
+/**
+ * Diagnostic endpoint — only reveals aggregate counts (no client data).
+ * Useful to confirm from logs that SSE connections are live.
+ */
+router.get('/stream/stats', (_req, res) => {
+	res.json(getStreamStats());
 });
 
 export default router;

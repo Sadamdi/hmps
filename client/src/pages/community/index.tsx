@@ -38,6 +38,7 @@ const TokoCartPage = lazy(() => import('@/pages/toko/cart'));
 const TokoOrderInvoicePage = lazy(() => import('@/pages/toko/order/[orderNo]'));
 const TokoOrdersHistoryPage = lazy(() => import('@/pages/toko/orders/index'));
 const DashboardToko = lazy(() => import('@/pages/dashboard/toko'));
+const NotificationStream = lazy(() => import('@/components/public/notification-stream'));
 
 function RouteLoadingFallback() {
 	return (
@@ -136,6 +137,9 @@ export default function CommunityShell() {
 			<Router base={`/${slug}`}>
 				<TenantAuthProvider slug={slug}>
 					<CrossTenantGuard slug={slug}>
+					<Suspense fallback={null}>
+						<NotificationStream />
+					</Suspense>
 					<Suspense fallback={<RouteLoadingFallback />}>
 						<Switch>
 							<Route path="/" component={Home} />

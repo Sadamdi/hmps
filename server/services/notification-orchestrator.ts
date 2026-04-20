@@ -3,6 +3,7 @@ import {
 	UserNotification,
 	WebPushSubscription,
 } from '../../db/mongodb';
+import { publishStreamEvent } from './notification-stream';
 
 export type NotifEventType =
 	| 'news_published'
@@ -359,6 +360,27 @@ export async function dispatchNotification(
 		}
 	}
 
+	// Always mirror to the live SSE channel (subject to recipient context).
+	// The client only receives the event if it holds an active stream tied to
+	// the same user/tenant, so this is safe even when webPush/inApp are off.
+	try {
+		const streamRes = publishStreamEvent(eventType, payload, {
+			tenantSlug: recipient.tenantSlug || '',
+			userId: recipient.userId,
+			guestKeyHash: recipient.guestKeyHash || null,
+		});
+		if (streamRes.delivered > 0) {
+			notifLog('dispatch-stream', {
+				eventType,
+				recipientId: recipient.userId,
+				delivered: streamRes.delivered,
+				tenantKey: streamRes.tenantKey,
+			});
+		}
+	} catch (err) {
+		console.error(`Stream dispatch failed for ${eventType}:`, err);
+	}
+
 	if (topicPref.email && !options?.skipEmail) {
 		try {
 			await sendEmailNotification(recipient, payload, actor);
@@ -383,6 +405,22 @@ export async function broadcastNotification(
 
 	const allSubs = await WebPushSubscription.find(subFilter).lean();
 	const { vapidPublic, vapidPrivate, vapidSubject } = getVapidConfig();
+
+	// Fan out to live SSE subscribers immediately so currently-open tabs show
+	// the notification with zero OS-push latency. This runs independently of
+	// whether web-push VAPID keys/subscriptions exist.
+	try {
+		const streamRes = publishStreamEvent(eventType, payload, {
+			tenantSlug: options?.tenantSlug || '',
+		});
+		notifLog('broadcast-stream', {
+			eventType,
+			delivered: streamRes.delivered,
+			tenantKey: streamRes.tenantKey,
+		});
+	} catch (err) {
+		console.error(`Stream broadcast failed for ${eventType}:`, err);
+	}
 
 	notifLog('broadcast-start', {
 		eventType,
@@ -469,5 +507,21 @@ export async function dispatchGuestNotification(
 		});
 	} catch (err) {
 		console.error(`Guest web push failed for ${eventType}:`, err);
+	}
+
+	try {
+		const streamRes = publishStreamEvent(eventType, payload, {
+			tenantSlug: options?.tenantSlug || '',
+			guestKeyHash,
+		});
+		if (streamRes.delivered > 0) {
+			notifLog('dispatch-guest-stream', {
+				eventType,
+				delivered: streamRes.delivered,
+				tenantKey: streamRes.tenantKey,
+			});
+		}
+	} catch (err) {
+		console.error(`Guest stream dispatch failed for ${eventType}:`, err);
 	}
 }

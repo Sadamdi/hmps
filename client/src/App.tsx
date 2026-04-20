@@ -14,6 +14,7 @@ import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { Route, Switch, useLocation } from 'wouter';
 
 const NotificationPrompt = lazy(() => import('@/components/public/notification-prompt'));
+const NotificationStream = lazy(() => import('@/components/public/notification-stream'));
 import { queryClient } from './lib/queryClient';
 
 const Home = lazy(() => import('@/pages/index'));
@@ -306,6 +307,53 @@ function PublicNotifPrompt() {
 	);
 }
 
+const MAIN_SITE_ROOT_PREFIXES = [
+	'berita',
+	'events',
+	'library',
+	'profil',
+	'kelembagaan',
+	'prodi',
+	'toko',
+	'communities',
+	'dashboard',
+	'login',
+	'register',
+	'forgot-password',
+	'error',
+];
+
+function PublicNotifStream() {
+	const [location] = useLocation();
+	const skip = useMemo(() => {
+		const path = location.toLowerCase();
+		// Skip auth/error/dashboard pages — they're not "live feeds" and the
+		// dashboard-scoped user will get events via its tenant-aware stream.
+		if (
+			path.startsWith('/dashboard') ||
+			path.startsWith('/login') ||
+			path.startsWith('/register') ||
+			path.startsWith('/forgot-password') ||
+			path.startsWith('/error')
+		) {
+			return true;
+		}
+		// Also skip tenant routes (e.g. /gdgoc/...) — CommunityShell mounts
+		// its own tenant-aware NotificationStream so we don't double-connect.
+		const firstSeg = path.split('/').filter(Boolean)[0];
+		if (firstSeg && !MAIN_SITE_ROOT_PREFIXES.includes(firstSeg)) {
+			return true;
+		}
+		return false;
+	}, [location]);
+	if (skip) return null;
+	return (
+		<Suspense fallback={null}>
+			<NotificationStream />
+		</Suspense>
+	);
+}
+
 function App() {
 	useEffect(() => {
 		AOS.init({
@@ -325,6 +373,7 @@ function App() {
 				<AuthProvider>
 					<Router />
 					<PublicNotifPrompt />
+					<PublicNotifStream />
 					<Toaster />
 				</AuthProvider>
 			</ThemeProvider>
