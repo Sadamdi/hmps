@@ -7,6 +7,7 @@ import Footer from '@/components/public/footer';
 import Hero from '@/components/public/hero';
 import Library from '@/components/public/library';
 import Navbar from '@/components/public/navbar';
+import TokoSection from '@/components/public/toko-section';
 import VisionMission from '@/components/public/vision-mission';
 import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
@@ -18,12 +19,10 @@ import {
 	useCallback,
 	useEffect,
 	useLayoutEffect,
-	useMemo,
 	useRef,
 	useState,
 } from 'react';
 import { useLocation } from 'wouter';
-import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { ALL_SUBITEM_BLOCKS, DEFAULT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
 import { ArrowRight } from 'lucide-react';
 
@@ -80,8 +79,6 @@ export default function Home() {
 	const [heroReady, setHeroReady] = useState(false);
 	const [heroTrigger, setHeroTrigger] = useState(() => Date.now());
 	const [location] = useLocation();
-	const { basePath } = useTenant();
-	const bp = basePath || '';
 
 	const [isDesktopViewport, setIsDesktopViewport] = useState(() =>
 		typeof window !== 'undefined' &&
@@ -206,23 +203,6 @@ export default function Home() {
 		refetchOnWindowFocus: false,
 		refetchOnMount: false,
 	});
-
-	const storePublicSettingsUrl = useApiUrl('/store/public/settings');
-	const { data: storeNavSettings } = useQuery<{ navbarPath?: string }>({
-		queryKey: [storePublicSettingsUrl],
-		queryFn: async () => {
-			const r = await fetch(storePublicSettingsUrl, { credentials: 'include' });
-			if (!r.ok) return null;
-			return r.json();
-		},
-		staleTime: 60 * 1000,
-	});
-
-	const catalogHref = useMemo(() => {
-		const raw = String(storeNavSettings?.navbarPath || '/toko').trim() || '/toko';
-		const path = raw.startsWith('/') ? raw : `/${raw}`;
-		return bp ? `${bp}${path}` : path;
-	}, [storeNavSettings?.navbarPath, bp]);
 
 	// Tanpa blok hero, tidak ada yang memanggil onIntroSettled — buka gate desktop.
 	useEffect(() => {
@@ -414,26 +394,7 @@ export default function Home() {
 			case 'library':
 				return <Library key="library" />;
 				case 'toko':
-					return (
-						<section key="toko" id="toko" className="py-16 scroll-mt-20">
-							<div className="max-w-5xl mx-auto px-4 text-center">
-								<span className="inline-block px-3 py-1 mb-3 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase">
-									Toko
-								</span>
-								<h2 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
-									Katalog Produk
-								</h2>
-								<p className="text-muted-foreground mb-6">
-									Lihat katalog terbaru dan lanjutkan pembelian via WhatsApp.
-								</p>
-								<a
-									href={catalogHref}
-									className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">
-									Kunjungi Toko <ArrowRight className="h-4 w-4" />
-								</a>
-							</div>
-						</section>
-					);
+					return <TokoSection key="toko" />;
 				case 'footer':
 					return <Footer key="footer" />;
 				default:

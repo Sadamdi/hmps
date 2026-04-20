@@ -5,6 +5,7 @@ import { nanoid } from 'nanoid';
 import path from 'path';
 import { createLogger, createServer as createViteServer } from 'vite';
 import viteConfig from '../vite.config';
+import { getTrustedHosts } from './config/trusted-network';
 
 const viteLogger = createLogger();
 
@@ -20,15 +21,11 @@ export function log(message: string, source = 'express') {
 }
 
 export async function setupVite(app: Express, server: Server) {
+	const trustedHosts = getTrustedHosts().filter((host) => !host.startsWith('*.'));
 	const serverOptions = {
 		middlewareMode: true,
 		hmr: { server },
-		allowedHosts: [
-			'localhost',
-			'himatif-encoder.com',
-			'www.himatif-encoder.com',
-			'43.157.211.134',
-		],
+		allowedHosts: trustedHosts,
 	};
 
 	const vite = await createViteServer({
@@ -69,7 +66,7 @@ export async function setupVite(app: Express, server: Server) {
 			const clientTemplate = path.resolve(
 				process.cwd(),
 				'client',
-				'index.html'
+				'index.html',
 			);
 
 			// Check if template file exists
@@ -82,7 +79,7 @@ export async function setupVite(app: Express, server: Server) {
 			let template = await fs.promises.readFile(clientTemplate, 'utf-8');
 			template = template.replace(
 				`src="/src/main.tsx"`,
-				`src="/src/main.tsx?v=${nanoid()}"`
+				`src="/src/main.tsx?v=${nanoid()}"`,
 			);
 			const page = await vite.transformIndexHtml(url, template);
 			res.status(200).set({ 'Content-Type': 'text/html' }).end(page);
@@ -99,7 +96,7 @@ export function serveStatic(app: Express) {
 
 	if (!fs.existsSync(distPath)) {
 		throw new Error(
-			`Could not find the build directory: ${distPath}, make sure to build the client first`
+			`Could not find the build directory: ${distPath}, make sure to build the client first`,
 		);
 	}
 

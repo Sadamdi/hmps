@@ -5,6 +5,18 @@ import { StorePublicHeaderRow } from '@/components/public/store-public-header';
 import { AboutVideoEmbed } from '@/components/public/about-video-embed';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
 import { useApiUrl } from '@/lib/tenant-context';
 import { apiRequest } from '@/lib/queryClient';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
@@ -101,7 +113,8 @@ export default function TokoProductDetailPage() {
 	const productUrl = useApiUrl(`/store/public/products/${encodeURIComponent(slug)}`);
 	const cartItemsUrl = useApiUrl('/store/cart/items');
 	const cartUrl = useApiUrl('/store/cart');
-	const buyLinkUrl = useApiUrl('/store/buy-link');
+	const directCheckoutUrl = useApiUrl('/store/direct-checkout');
+	const myOrdersUrl = useApiUrl('/store/my-orders');
 	const gdriveImageProxyBase = useApiUrl('/store/public/gdrive-image');
 	const settingsUrl = useApiUrl('/store/public/settings');
 	const { data: storeSettings } = useQuery<{
@@ -211,13 +224,107 @@ export default function TokoProductDetailPage() {
 			}),
 	});
 
-	const buyNow = () => {
-		if (!product?._id) return;
-		apiRequest('POST', buyLinkUrl, { productId: product._id, qty })
-			.then((res) => res.json())
-			.then((data: { whatsappUrl: string }) => {
-				window.open(data.whatsappUrl, '_blank', 'noopener,noreferrer');
+	// Ambil checkoutDraft dari /cart untuk prefill form beli langsung
+	const { data: cartData } = useQuery<{
+		checkoutDraft?: {
+			customerName?: string;
+			customerPhone?: string;
+			fulfillment?: 'pickup' | 'delivery' | '';
+			shippingAddress?: string;
+		};
+	}>({
+		queryKey: [cartUrl],
+		queryFn: async () => {
+			const r = await fetch(cartUrl, { credentials: 'include' });
+			if (!r.ok) return {};
+			return r.json();
+		},
+		staleTime: 30 * 1000,
+	});
+
+	const [buyDialogOpen, setBuyDialogOpen] = useState(false);
+	const [buyerName, setBuyerName] = useState('');
+	const [buyerPhone, setBuyerPhone] = useState('');
+	const [buyerFulfillment, setBuyerFulfillment] =
+		useState<'pickup' | 'delivery'>('pickup');
+	const [buyerAddress, setBuyerAddress] = useState('');
+	const [formErrors, setFormErrors] = useState<{
+		name?: string;
+		phone?: string;
+		address?: string;
+	}>({});
+
+	useEffect(() => {
+		const draft = cartData?.checkoutDraft;
+		if (!draft) return;
+		setBuyerName((prev) => prev || String(draft.customerName || ''));
+		setBuyerPhone((prev) => prev || String(draft.customerPhone || ''));
+		setBuyerFulfillment((prev) =>
+			draft.fulfillment === 'delivery' || draft.fulfillment === 'pickup'
+				? (draft.fulfillment as 'pickup' | 'delivery')
+				: prev,
+		);
+		setBuyerAddress((prev) => prev || String(draft.shippingAddress || ''));
+	}, [cartData?.checkoutDraft]);
+
+	const directCheckoutMutation = useMutation({
+		mutationFn: async () => {
+			if (!product?._id) throw new Error('no product');
+			const payload = {
+				productId: product._id,
+				qty,
+				customerName: buyerName.trim(),
+				customerPhone: buyerPhone.trim(),
+				fulfillment: buyerFulfillment,
+				shippingAddress:
+					buyerFulfillment === 'delivery' ? buyerAddress.trim() : '',
+			};
+			const res = await apiRequest('POST', directCheckoutUrl, payload);
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.message || 'Checkout langsung gagal');
+			}
+			return res.json() as Promise<{ whatsappUrl: string; invoiceUrl: string }>;
+		},
+		onSuccess: (data) => {
+			queryClient.invalidateQueries({ queryKey: [cartUrl] });
+			queryClient.invalidateQueries({ queryKey: [myOrdersUrl] });
+			toast({
+				title: 'Pesanan dibuat',
+				description: 'WhatsApp dibuka. Order juga tersimpan di riwayat.',
 			});
+			setBuyDialogOpen(false);
+			if (data.whatsappUrl) {
+				window.open(data.whatsappUrl, '_blank', 'noopener,noreferrer');
+			}
+		},
+		onError: (e: Error) =>
+			toast({
+				title: 'Gagal membuat pesanan',
+				description: e.message,
+				variant: 'destructive',
+			}),
+	});
+
+	const openBuyDialog = () => {
+		if (!product?._id) return;
+		setFormErrors({});
+		setBuyDialogOpen(true);
+	};
+
+	const submitBuyForm = () => {
+		const errs: typeof formErrors = {};
+		if (!buyerName.trim()) errs.name = 'Nama wajib diisi';
+		if (!buyerPhone.trim()) errs.phone = 'Nomor WhatsApp wajib diisi';
+		if (buyerFulfillment === 'delivery' && !buyerAddress.trim()) {
+			errs.address = 'Alamat pengiriman wajib diisi';
+		}
+		if (Object.keys(errs).length > 0) {
+			setFormErrors(errs);
+			return;
+		}
+		setFormErrors({});
+		directCheckoutMutation.mutate();
 	};
 
 	if (isLoading) {
@@ -448,7 +555,10 @@ export default function TokoProductDetailPage() {
 								<p className="text-muted-foreground mt-4">{product.shortDescription}</p>
 							)}
 							<div className="flex flex-wrap gap-3 mt-8">
-								<Button size="lg" onClick={buyNow} disabled={productOutOfStock}>
+								<Button
+									size="lg"
+									onClick={openBuyDialog}
+									disabled={productOutOfStock}>
 									Beli via WhatsApp
 								</Button>
 								<Button
@@ -491,6 +601,100 @@ export default function TokoProductDetailPage() {
 					</div>
 				</div>
 			</main>
+			<Dialog open={buyDialogOpen} onOpenChange={setBuyDialogOpen}>
+				<DialogContent className="sm:max-w-lg">
+					<DialogHeader>
+						<DialogTitle>Beli via WhatsApp</DialogTitle>
+						<DialogDescription>
+							Isi data pemesan. Pesanan akan masuk ke riwayat dan invoice, lalu
+							WhatsApp admin terbuka. Data ini disimpan untuk pembelian
+							berikutnya.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="space-y-4 py-2">
+						<div className="space-y-1.5">
+							<Label htmlFor="buyer-name">Nama</Label>
+							<Input
+								id="buyer-name"
+								value={buyerName}
+								onChange={(e) => setBuyerName(e.target.value)}
+								placeholder="Nama lengkap"
+							/>
+							{formErrors.name && (
+								<p className="text-xs text-destructive">{formErrors.name}</p>
+							)}
+						</div>
+						<div className="space-y-1.5">
+							<Label htmlFor="buyer-phone">Nomor WhatsApp</Label>
+							<Input
+								id="buyer-phone"
+								value={buyerPhone}
+								onChange={(e) => setBuyerPhone(e.target.value)}
+								placeholder="08xxxxxxxxxx"
+								inputMode="tel"
+							/>
+							{formErrors.phone && (
+								<p className="text-xs text-destructive">{formErrors.phone}</p>
+							)}
+						</div>
+						<div className="space-y-1.5">
+							<Label>Pengiriman</Label>
+							<RadioGroup
+								value={buyerFulfillment}
+								onValueChange={(v) =>
+									setBuyerFulfillment(v as 'pickup' | 'delivery')
+								}
+								className="flex gap-4">
+								<div className="flex items-center gap-2">
+									<RadioGroupItem value="pickup" id="buy-pickup" />
+									<Label htmlFor="buy-pickup">Ambil di tempat</Label>
+								</div>
+								<div className="flex items-center gap-2">
+									<RadioGroupItem value="delivery" id="buy-delivery" />
+									<Label htmlFor="buy-delivery">Diantar</Label>
+								</div>
+							</RadioGroup>
+						</div>
+						{buyerFulfillment === 'delivery' && (
+							<div className="space-y-1.5">
+								<Label htmlFor="buyer-address">Alamat pengiriman</Label>
+								<Textarea
+									id="buyer-address"
+									value={buyerAddress}
+									onChange={(e) => setBuyerAddress(e.target.value)}
+									rows={3}
+									placeholder="Alamat lengkap untuk pengiriman"
+								/>
+								{formErrors.address && (
+									<p className="text-xs text-destructive">
+										{formErrors.address}
+									</p>
+								)}
+							</div>
+						)}
+					</div>
+					<DialogFooter>
+						<Button
+							variant="ghost"
+							onClick={() => setBuyDialogOpen(false)}
+							disabled={directCheckoutMutation.isPending}>
+							Batal
+						</Button>
+						<Button
+							onClick={submitBuyForm}
+							disabled={directCheckoutMutation.isPending}>
+							{directCheckoutMutation.isPending ? (
+								<>
+									<Loader2 className="h-4 w-4 mr-2 animate-spin" />
+									Memproses...
+								</>
+							) : (
+								'Lanjut ke WhatsApp'
+							)}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 			<Footer />
 			<AIChat pageContext={{ path: storeBasePath, permissions: [] }} />
 		</div>

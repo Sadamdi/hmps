@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { getMiddlewareSettings } from '../models/middleware-settings';
+import { getTrustedHosts } from '../config/trusted-network';
 
 function normalizeHostHeader(hostHeader: string): string {
 	const v = (hostHeader || '').trim().toLowerCase();
@@ -108,14 +109,8 @@ async function getCachedDnsLayerMiddlewareSettings() {
 
 // ==================== DNS LAYER PROTECTION CONFIGURATION ====================
 
-// Whitelisted domains (your legitimate domains)
-const WHITELISTED_DOMAINS = [
-	'localhost',
-	'127.0.0.1',
-	'43.157.211.134',
-	'himatif-encoder.com',
-	'www.himatif-encoder.com',
-];
+// Whitelisted domains (runtime-configurable via TRUSTED_HOSTS)
+const WHITELISTED_DOMAINS = getTrustedHosts();
 
 // Allowed TLDs for legitimate requests
 const ALLOWED_TLDS = [
@@ -891,7 +886,7 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 						details: {
 							type: 'dns_cache_poisoning',
 							ip: clientIP,
-						host: rawHostHeader,
+							host: rawHostHeader,
 							requestCount: suspiciousSourceTracker.get(clientIP)?.count || 0,
 						},
 						help: 'This request appears to be from a suspicious domain or may be a DNS-related attack. Please contact the administrator if you believe this is an error.',

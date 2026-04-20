@@ -85,7 +85,15 @@ export async function invokeBannerRender(
 ): Promise<Buffer> {
 	const workerUrl = process.env.BANNER_RENDER_SERVICE_URL?.trim();
 	if (workerUrl) {
-		return proxyToWorker(workerUrl, input);
+		try {
+			return await proxyToWorker(workerUrl, input);
+		} catch (error: any) {
+			// Saat migrasi VPS/tunnel, worker lokal bisa belum aktif.
+			// Fallback ke render lokal agar fitur tidak gagal total.
+			console.warn(
+				`[banner-render] Worker render gagal (${error?.message || 'unknown'}), fallback ke local renderer`,
+			);
+		}
 	}
 
 	const mod = await import('./services/banner-template-render');

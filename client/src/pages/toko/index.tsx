@@ -1,11 +1,10 @@
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
+import StoreProductCard from '@/components/public/store-product-card';
 import { StorePublicHeaderRow } from '@/components/public/store-public-header';
-import MediaDisplay from '@/components/MediaDisplay';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -13,16 +12,10 @@ import { apiRequest } from '@/lib/queryClient';
 import { useApiUrl } from '@/lib/tenant-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, Loader2, Search, ShoppingCart } from 'lucide-react';
-import { Link } from 'wouter';
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, Loader2, Search } from 'lucide-react';
 import { useTenant } from '@/lib/tenant-context';
 import { useEffect, useMemo, useState } from 'react';
-import {
-	effectiveProductCurrency,
-	formatStoreMoney,
-	normalizeStoreCurrency,
-} from '@shared/store-currency';
-import { getStoreStockAvailable } from '@shared/store-pricing';
+import { normalizeStoreCurrency } from '@shared/store-currency';
 
 type StoreCategory = { _id: string; name: string; slug: string };
 
@@ -245,66 +238,18 @@ export default function TokoIndexPage() {
 										) : (
 											<>
 											<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-												{products.map((p: any) => {
-													const stockAvail = getStoreStockAvailable(p.stock);
-													const out =
-														stockAvail !== null && stockAvail < 1;
-													return (
-														<Card
-															key={p._id}
-															className="h-full overflow-hidden hover:border-primary/40 transition-colors group">
-															<Link href={prefix(`${storeBasePath}/${p.slug}`)}>
-																<div className="aspect-[4/3] bg-muted relative overflow-hidden block">
-																	<MediaDisplay
-																		src={p.thumbnail}
-																		alt={p.name}
-																		className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
-																	/>
-																</div>
-															</Link>
-															<CardContent className="p-4">
-																<Link href={prefix(`${storeBasePath}/${p.slug}`)}>
-																	<h3 className="font-semibold line-clamp-2 hover:text-primary">
-																		{p.name}
-																	</h3>
-																</Link>
-																{p.categoryId &&
-																	typeof p.categoryId === 'object' &&
-																	(p.categoryId as { name?: string }).name && (
-																		<p className="text-xs text-muted-foreground mt-1">
-																			{(p.categoryId as { name: string }).name}
-																		</p>
-																	)}
-																<p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-																	{p.shortDescription}
-																</p>
-																<div className="flex items-center justify-between gap-2 mt-3">
-																	<p className="text-primary font-bold">
-																		{formatStoreMoney(
-																			p.price,
-																			effectiveProductCurrency(p, defaultCur),
-																		)}
-																	</p>
-																	<Button
-																		type="button"
-																		size="icon"
-																		variant="secondary"
-																		className="shrink-0"
-																		disabled={out || quickAddMutation.isPending}
-																		aria-label="Tambah ke keranjang"
-																		onClick={(e) =>
-																			quickAddMutation.mutate({
-																				productId: String(p._id),
-																				fromEl: e.currentTarget,
-																			})
-																		}>
-																		<ShoppingCart className="h-4 w-4" />
-																	</Button>
-																</div>
-															</CardContent>
-														</Card>
-													);
-												})}
+												{products.map((p: any) => (
+													<StoreProductCard
+														key={p._id}
+														product={p}
+														detailHref={prefix(`${storeBasePath}/${p.slug}`)}
+														defaultCurrency={defaultCur}
+														quickAddDisabled={quickAddMutation.isPending}
+														onQuickAdd={(productId, fromEl) =>
+															quickAddMutation.mutate({ productId, fromEl })
+														}
+													/>
+												))}
 											</div>
 											{totalPages > 1 && (
 												<div className="flex items-center justify-center gap-4 mt-8">

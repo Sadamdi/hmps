@@ -467,9 +467,15 @@ router.get('/public/products', async (req, res) => {
 		const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit || '9'), 10) || 9));
 		const skip = (page - 1) * limit;
 
+		const sortMode = String(req.query.sort || '').trim().toLowerCase();
+		const sortSpec: Record<string, 1 | -1> =
+			sortMode === 'latest'
+				? { createdAt: -1 }
+				: { sortOrder: 1, createdAt: -1 };
+
 		const total = await StoreProduct.countDocuments(filter);
 		const list = await StoreProduct.find(filter)
-			.sort({ sortOrder: 1, createdAt: -1 })
+			.sort(sortSpec)
 			.skip(skip)
 			.limit(limit)
 			.populate({ path: 'categoryId', select: 'name slug' })
@@ -1503,6 +1509,142 @@ router.post('/checkout', async (req, res) => {
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Checkout gagal' });
+	}
+});
+
+router.post('/direct-checkout', async (req, res) => {
+	try {
+		const { StoreProduct, StoreOrder } = resolveModels(req);
+		const body = req.body || {};
+		const productId = body.productId;
+		const qty = Math.max(1, parseInt(String(body.qty || 1), 10) || 1);
+
+		const customerName = String(body.customerName || '').trim();
+		const customerPhone = String(body.customerPhone || '').trim();
+		const fulfillment = body.fulfillment === 'delivery' ? 'delivery' : 'pickup';
+		const shippingAddress = String(body.shippingAddress || '').trim();
+
+		if (!customerName || !customerPhone) {
+			return res.status(400).json({ message: 'Nama dan nomor WA wajib' });
+		}
+		if (fulfillment === 'delivery' && !shippingAddress) {
+			return res.status(400).json({ message: 'Alamat pengiriman wajib untuk pengiriman' });
+		}
+
+		const p = await StoreProduct.findById(productId).lean();
+		if (!p || !p.published) {
+			return res.status(400).json({ message: 'Produk tidak tersedia' });
+		}
+
+		const settings: any = await ensureSettings(req);
+		const itemWa = normalizeWaDigits(p.whatsappPhoneOverride || '');
+		const globalWa = normalizeWaDigits(settings.whatsappPhone || '');
+		const waNumber = itemWa || globalWa;
+		if (!waNumber) {
+			return res.status(400).json({ message: 'Nomor WhatsApp belum diatur' });
+		}
+
+		const defCur = normalizeStoreCurrency(settings.defaultCurrency);
+		const currency = effectiveProductCurrency(p, defCur);
+		const lineSubtotal = lineSubtotalForProduct(p, qty);
+		const unitPrice = lineSubtotal / qty;
+		const subtotal = lineSubtotal;
+
+		if (!isStoreStockUnlimited(p.stock)) {
+			const r = await StoreProduct.updateOne(
+				{ _id: p._id, stock: { $gte: qty } },
+				{ $inc: { stock: -qty } },
+			);
+			if (r.modifiedCount !== 1) {
+				return res.status(400).json({ message: 'Stok tidak mencukupi' });
+			}
+		}
+
+		const taxPercent = settings.taxEnabled ? Number(settings.taxPercent || 0) : 0;
+		const taxAmount = settings.taxEnabled ? Math.round((subtotal * taxPercent) / 100) : 0;
+		const total = subtotal + taxAmount;
+
+		const orderNo = `ORD-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex')}`;
+		const invoiceAccessToken = crypto.randomBytes(24).toString('hex');
+
+		const base = publicBaseUrl(req);
+		const storePath = normalizeStorePath(settings?.navbarPath);
+		const invoiceUrl = `${base}${storePath}/order/${encodeURIComponent(orderNo)}?inv=${encodeURIComponent(invoiceAccessToken)}`;
+		const productUrl = `${base}${storePath}/${p.slug}`;
+		const itemsText = `• ${p.name} x${qty} — ${formatStoreMoney(lineSubtotal, currency)} (${productUrl})`;
+
+		const storeAddr = String(p.storeAddressOverride || '').trim() || settings.storeAddress || '';
+
+		const tplBase = String(settings.checkoutMessageTemplate || '');
+		const tpl = tplBase.includes('{{invoiceUrl}}')
+			? tplBase
+			: `${tplBase}${tplBase.trim() ? '\n\n' : ''}Lihat invoice: {{invoiceUrl}}`;
+		const msg = applyTemplate(tpl, {
+			items: itemsText,
+			subtotal: formatStoreMoney(subtotal, currency),
+			taxPercent: String(taxPercent),
+			tax: formatStoreMoney(taxAmount, currency),
+			total: formatStoreMoney(total, currency),
+			fulfillment: fulfillment === 'delivery' ? 'Diantar' : 'Ambil di tempat',
+			address:
+				fulfillment === 'delivery'
+					? shippingAddress
+					: storeAddr || '(ambil di toko)',
+			customerName,
+			customerPhone,
+			orderNo,
+			invoiceUrl,
+		});
+
+		const { doc: sessDoc, sessionKeyHash } = await getOrCreateGuestSession(req, res);
+
+		const order = await StoreOrder.create({
+			orderNo,
+			invoiceAccessToken,
+			guestSessionKeyHash: sessionKeyHash,
+			items: [
+				{
+					productId: p._id,
+					name: p.name,
+					slug: p.slug,
+					qty,
+					unitPrice,
+					lineSubtotal,
+					currency,
+				},
+			],
+			subtotal,
+			taxPercent,
+			taxAmount,
+			total,
+			fulfillment,
+			customerName,
+			customerPhone,
+			shippingAddress: fulfillment === 'delivery' ? shippingAddress : '',
+			storeAddressSnapshot: storeAddr,
+			whatsappPhoneUsed: waNumber,
+			whatsappMessageSnapshot: msg,
+			status: 'pending',
+		});
+
+		sessDoc.checkoutDraft = {
+			customerName,
+			customerPhone,
+			fulfillment,
+			shippingAddress: fulfillment === 'delivery' ? shippingAddress : '',
+		};
+		await sessDoc.save();
+
+		const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`;
+
+		res.json({
+			order: stripInvoiceTokenFromOrder(order.toObject()),
+			whatsappUrl: waUrl,
+			invoiceUrl,
+		});
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Checkout langsung gagal' });
 	}
 });
 

@@ -1,7 +1,8 @@
-import rateLimit from 'express-rate-limit';
 import { NextFunction, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { getTrustedClientIp } from '../lib/client-ip';
 import { getMiddlewareSettings } from '../models/middleware-settings';
+import { isTrustedHost, isTrustedOrigin } from '../config/trusted-network';
 
 function envInt(name: string, fallback: number): number {
 	const v = parseInt(process.env[name] || '', 10);
@@ -168,22 +169,9 @@ export const apiProtectionMiddleware = async (
 
 		// Cek apakah request dari frontend (production dan development)
 		const isFromFrontend =
-			referer.includes('localhost:5000') ||
-			origin.includes('localhost:5000') ||
-			referer.includes('localhost:5173') ||
-			origin.includes('localhost:5173') ||
-			referer.includes('43.157.211.134') ||
-			origin.includes('43.157.211.134') ||
-			referer.includes('https://43.157.211.134') ||
-			origin.includes('https://43.157.211.134') ||
-			referer.includes('http://43.157.211.134') ||
-			origin.includes('http://43.157.211.134') ||
-			referer.includes('himatif-encoder.com') ||
-			origin.includes('himatif-encoder.com') ||
-			referer.includes('https://himatif-encoder.com') ||
-			origin.includes('https://himatif-encoder.com') ||
-			referer.includes('www.himatif-encoder.com') ||
-			origin.includes('www.himatif-encoder.com');
+			isTrustedOrigin(referer) ||
+			isTrustedOrigin(origin) ||
+			isTrustedHost(host);
 
 		// Cek apakah ada authentication header atau session
 		const hasAuth =

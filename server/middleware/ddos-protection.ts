@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import { getTrustedClientIp } from '../lib/client-ip';
 import { getMiddlewareSettings } from '../models/middleware-settings';
+import { isTrustedHost, isTrustedOrigin } from '../config/trusted-network';
 
 function envInt(name: string, fallback: number): number {
 	const v = parseInt(process.env[name] || '', 10);
@@ -21,30 +22,17 @@ function isOfficialSiteApiTraffic(req: Request): boolean {
 	const host = req.get('Host') || '';
 	const secSite = req.get('Sec-Fetch-Site') || '';
 
-	const fromHimatif =
-		/himatif-encoder\.com/i.test(referer) ||
-		/himatif-encoder\.com/i.test(origin) ||
-		/himatif-encoder\.com/i.test(host);
-
-	const fromDev =
-		referer.includes('localhost:') ||
-		origin.includes('localhost:') ||
-		referer.includes('127.0.0.1') ||
-		origin.includes('127.0.0.1');
-
-	const fromLegacyIp =
-		referer.includes('43.157.211.134') || origin.includes('43.157.211.134');
+	const fromTrustedOrigin = isTrustedOrigin(referer) || isTrustedOrigin(origin);
+	const fromTrustedHost = isTrustedHost(host);
 
 	const hasAuthCookie = /(?:^|;\s*)authToken=/.test(req.headers.cookie || '');
 
 	const browserSameSiteToProd =
-		/himatif-encoder\.com/i.test(host) &&
-		(secSite === 'same-origin' || secSite === 'same-site');
+		isTrustedHost(host) && (secSite === 'same-origin' || secSite === 'same-site');
 
 	return (
-		fromHimatif ||
-		fromDev ||
-		fromLegacyIp ||
+		fromTrustedOrigin ||
+		fromTrustedHost ||
 		hasAuthCookie ||
 		browserSameSiteToProd
 	);

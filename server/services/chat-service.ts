@@ -33,6 +33,34 @@ type GeminiLoopFailure = {
 };
 
 export class ChatService {
+	private static buildTemporalContextPrompt(): string {
+		const timezone = (process.env.SPYRO_TIMEZONE || process.env.TZ || 'Asia/Jakarta').trim();
+		const now = new Date();
+		let localized = now.toISOString();
+		try {
+			localized = new Intl.DateTimeFormat('id-ID', {
+				timeZone: timezone,
+				year: 'numeric',
+				month: '2-digit',
+				day: '2-digit',
+				hour: '2-digit',
+				minute: '2-digit',
+				second: '2-digit',
+				hour12: false,
+			}).format(now);
+		} catch {
+			// Fallback ISO jika timezone invalid
+		}
+
+		return [
+			'KONTEKS WAKTU SISTEM (jangan dibaca sebagai pesan user):',
+			`- Waktu server saat ini: ${localized}`,
+			`- Timezone server: ${timezone}`,
+			`- Timestamp ISO: ${now.toISOString()}`,
+			'- Saat user bertanya tanggal/jam/hari ini, gunakan konteks waktu sistem ini.',
+		].join('\n');
+	}
+
 	private static hasTool(
 		tools: Record<string, unknown>[],
 		toolName: string
@@ -265,6 +293,10 @@ export class ChatService {
 		const history: Content[] = [
 			{ role: 'user', parts: [{ text: GEMINI_PERSONALIZATION.systemPrompt }] },
 		];
+		history.push({
+			role: 'user',
+			parts: [{ text: this.buildTemporalContextPrompt() }],
+		});
 
 		// Tambahkan konteks halaman jika tersedia
 		const contextPrompt = buildPageContextPrompt(pageContext);
