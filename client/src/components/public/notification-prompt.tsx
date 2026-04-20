@@ -28,7 +28,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
 	});
 }
 
-export default function NotificationPrompt() {
+export default function NotificationPrompt({ showPrompt = true }: { showPrompt?: boolean }) {
 	const [visible, setVisible] = useState(false);
 	const [minimized, setMinimized] = useState(false);
 	const [subscribing, setSubscribing] = useState(false);
@@ -36,6 +36,7 @@ export default function NotificationPrompt() {
 	const [isMobile, setIsMobile] = useState(false);
 
 	useEffect(() => {
+		if (!showPrompt) return;
 		if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
 		if (Notification.permission === 'granted') return;
 		if (Notification.permission === 'denied') return;
@@ -62,7 +63,7 @@ export default function NotificationPrompt() {
 			clearInterval(remindTimer);
 			media.removeEventListener('change', syncMobile);
 		};
-	}, []);
+	}, [showPrompt]);
 
 	useEffect(() => {
 		if (!visible) return;
@@ -169,7 +170,7 @@ export default function NotificationPrompt() {
 		void syncSubscription({ requestPermission: false, silent: true });
 	}, [syncSubscription]);
 
-	if (!visible) return null;
+	if (!showPrompt || !visible) return null;
 
 	if (minimized) {
 		return (

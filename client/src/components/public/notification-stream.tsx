@@ -101,6 +101,7 @@ export default function NotificationStream() {
 
 				es.addEventListener('open', () => {
 					retryRef.current = BASE_RETRY_MS;
+					console.info('[notif-stream] connected', { url });
 				});
 
 				es.addEventListener('ready', () => {
@@ -132,6 +133,7 @@ export default function NotificationStream() {
 				});
 
 				es.addEventListener('error', () => {
+					console.warn('[notif-stream] error', { readyState: es.readyState });
 					// EventSource will auto-retry on transient failures, but if
 					// the connection fully closes we reopen ourselves with
 					// exponential backoff so the stream survives server

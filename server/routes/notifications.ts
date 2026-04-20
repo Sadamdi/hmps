@@ -12,6 +12,10 @@ const GUEST_PEPPER = process.env.GUEST_KEY_PEPPER || 'hmps-comment-pepper';
 function hashGuestKey(secret: string): string {
 	return crypto.createHmac('sha256', GUEST_PEPPER).update(secret).digest('hex');
 }
+function endpointSuffix(endpoint: string): string {
+	if (!endpoint) return 'unknown-endpoint';
+	return endpoint.slice(Math.max(0, endpoint.length - 48));
+}
 
 const DEFAULT_CHANNEL = { inApp: true, webPush: true, email: false };
 
@@ -121,6 +125,15 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 			},
 			{ upsert: true },
 		);
+		console.log(
+			'[notif-route] webpush-subscribed:',
+			JSON.stringify({
+				tenantSlug: tenantSlug || 'main',
+				userId: userId ? String(userId) : null,
+				hasGuest: !!guestKeyHash,
+				endpointSuffix: endpointSuffix(String(endpoint)),
+			}),
+		);
 
 		// Keep guest subscriptions clean: one active endpoint per guest identity + tenant.
 		// This prevents legacy/stale endpoints from staying active forever.
@@ -152,6 +165,10 @@ router.delete('/webpush/unsubscribe', authenticateOptional, async (req, res) => 
 			{ endpoint },
 			{ $set: { isActive: false } },
 		);
+		console.log(
+			'[notif-route] webpush-unsubscribed:',
+			JSON.stringify({ endpointSuffix: endpointSuffix(String(endpoint)) }),
+		);
 		res.json({ message: 'Unsubscribed' });
 	} catch (error) {
 		console.error('Error unsubscribing web push:', error);
@@ -163,6 +180,32 @@ router.get('/webpush/vapid-key', (_req, res) => {
 	const publicKey =
 		process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY || '';
 	res.json({ publicKey });
+});
+
+router.get('/webpush/subscription-status', authenticateOptional, async (req, res) => {
+	try {
+		const endpoint =
+			typeof req.query.endpoint === 'string' ? req.query.endpoint.trim() : '';
+		if (!endpoint) {
+			return res.status(400).json({ message: 'endpoint query diperlukan' });
+		}
+		const row: any = await WebPushSubscription.findOne({ endpoint }).lean();
+		const currentVapid =
+			process.env.VAPID_PUBLIC_KEY || process.env.WEB_PUSH_VAPID_PUBLIC_KEY || '';
+		res.json({
+			found: !!row,
+			isActive: !!row?.isActive,
+			tenantSlug: row?.tenantSlug || '',
+			userId: row?.userId ? String(row.userId) : null,
+			hasGuest: !!row?.guestKeyHash,
+			lastSeenAt: row?.lastSeenAt || null,
+			vapidMatchesCurrent: row ? String(row.vapidPublicKey || '') === String(currentVapid) : null,
+			endpointSuffix: endpointSuffix(endpoint),
+		});
+	} catch (error) {
+		console.error('Error checking web push subscription status:', error);
+		res.status(500).json({ message: 'Internal server error' });
+	}
 });
 
 /**
@@ -208,10 +251,27 @@ router.get('/stream', authenticateOptional, (req, res) => {
 		userId,
 		guestKeyHash,
 	});
+	console.log(
+		'[notif-route] stream-connected:',
+		JSON.stringify({
+			tenantSlug: tenantSlug || 'main',
+			userId: userId ? String(userId) : null,
+			hasGuest: !!guestKeyHash,
+		}),
+	);
 
-	req.on('close', cleanup);
-	req.on('aborted', cleanup);
-	res.on('error', cleanup);
+	req.on('close', () => {
+		cleanup();
+		console.log('[notif-route] stream-disconnected:', JSON.stringify({ reason: 'req-close' }));
+	});
+	req.on('aborted', () => {
+		cleanup();
+		console.log('[notif-route] stream-disconnected:', JSON.stringify({ reason: 'req-aborted' }));
+	});
+	res.on('error', () => {
+		cleanup();
+		console.log('[notif-route] stream-disconnected:', JSON.stringify({ reason: 'res-error' }));
+	});
 });
 
 /**

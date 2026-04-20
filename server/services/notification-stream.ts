@@ -75,7 +75,10 @@ export function registerStreamClient(
 	}
 	tenantClients.get(key)!.add(client);
 
+	let closed = false;
 	const cleanup = () => {
+		if (closed) return;
+		closed = true;
 		clearInterval(heartbeat);
 		const set = tenantClients.get(key);
 		if (set) {

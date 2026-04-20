@@ -299,10 +299,9 @@ function PublicNotifPrompt() {
 		const p = location.toLowerCase();
 		return p.startsWith('/berita') || p.startsWith('/events') || p.startsWith('/library');
 	}, [location]);
-	if (!show) return null;
 	return (
 		<Suspense fallback={null}>
-			<NotificationPrompt />
+			<NotificationPrompt showPrompt={show} />
 		</Suspense>
 	);
 }
