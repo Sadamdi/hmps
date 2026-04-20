@@ -11,7 +11,25 @@ const connectDB = async () => {
 			throw new Error('MONGODB_URI is not defined in environment variables.');
 		}
 
-		console.log('Connecting to MongoDB...');
+		let parsedUri: URL;
+		try {
+			parsedUri = new URL(MONGODB_URI);
+		} catch {
+			throw new Error('MONGODB_URI tidak valid (gagal parse URL).');
+		}
+
+		const explicitDbName = process.env.MONGODB_DB_NAME?.trim() || '';
+		const dbNameFromUri = parsedUri.pathname.replace(/^\/+/, '').trim();
+		const resolvedDbName = explicitDbName || dbNameFromUri;
+		if (!resolvedDbName) {
+			throw new Error(
+				'MONGODB_URI tidak menyertakan nama database. Tambahkan path DB pada URI (contoh: /himatifwebmain) atau set MONGODB_DB_NAME.',
+			);
+		}
+
+		console.log(
+			`Connecting to MongoDB (${parsedUri.hostname}/${resolvedDbName})...`,
+		);
 
 		mongoose.set('bufferTimeoutMS', 60_000);
 
@@ -19,6 +37,7 @@ const connectDB = async () => {
 		const pool = Number.isFinite(maxPool) && maxPool > 0 ? maxPool : 14;
 
 		await mongoose.connect(MONGODB_URI, {
+			dbName: resolvedDbName,
 			serverSelectionTimeoutMS: 5000,
 			connectTimeoutMS: 10000,
 			socketTimeoutMS: 120_000,
@@ -27,7 +46,7 @@ const connectDB = async () => {
 			maxConnecting: Math.min(3, pool),
 		});
 
-		console.log('Connected to MongoDB');
+		console.log(`Connected to MongoDB database: ${resolvedDbName}`);
 		return true;
 	} catch (error) {
 		console.error('MongoDB connection error:', error);

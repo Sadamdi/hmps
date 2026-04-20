@@ -1,7 +1,4 @@
 import mongoose from 'mongoose';
-import { deleteFile } from './upload';
-import { DEFAULT_IMAGE_URL } from './constants/default-image';
-import { MONGO_QUERY_MAX_TIME_MS } from './lib/mongo-query-limits';
 import {
 	Berita,
 	Community,
@@ -22,6 +19,9 @@ import {
 	User,
 } from '../db/mongodb';
 import { hashPassword } from './auth';
+import { DEFAULT_IMAGE_URL } from './constants/default-image';
+import { MONGO_QUERY_MAX_TIME_MS } from './lib/mongo-query-limits';
+import { deleteFile } from './upload';
 
 // Utility function to convert string/number ID to ObjectId
 function toObjectId(id: string | number): mongoose.Types.ObjectId | null {
@@ -104,7 +104,9 @@ async function getUserByUsername(username: string): Promise<any | null> {
 	return await User.findOne({ username }).lean();
 }
 
-async function getUserByUsernameOrEmail(identifier: string): Promise<any | null> {
+async function getUserByUsernameOrEmail(
+	identifier: string,
+): Promise<any | null> {
 	if (!identifier) return null;
 	const byUsername = await User.findOne({ username: identifier }).lean();
 	if (byUsername) return byUsername;
@@ -146,7 +148,7 @@ async function updateUser(id: string | number, userData: any): Promise<any> {
 	return await User.findByIdAndUpdate(
 		objectId,
 		{ $set: userData },
-		{ new: true, runValidators: true }
+		{ new: true, runValidators: true },
 	)
 		.select('-password')
 		.lean();
@@ -172,9 +174,7 @@ async function getPublishedBerita(options?: PaginationOptions): Promise<any[]> {
 	return await applyPagination(query, options).lean();
 }
 
-async function getBeritaByAuthorId(
-	authorId: string | number
-): Promise<any[]> {
+async function getBeritaByAuthorId(authorId: string | number): Promise<any[]> {
 	const objectId = toObjectId(authorId);
 	if (!objectId) return [];
 
@@ -223,7 +223,7 @@ async function createBerita(beritaData: any): Promise<any> {
 
 async function updateBerita(
 	id: string | number,
-	beritaData: any
+	beritaData: any,
 ): Promise<any> {
 	beritaData.updatedAt = new Date();
 
@@ -239,7 +239,7 @@ async function updateBerita(
 	return await Berita.findByIdAndUpdate(
 		objectId,
 		{ $set: beritaData },
-		{ new: true, runValidators: true }
+		{ new: true, runValidators: true },
 	).lean();
 }
 
@@ -268,20 +268,16 @@ async function getAllLibraryItems(options?: PaginationOptions): Promise<any[]> {
 }
 
 async function getPublishedLibraryItems(): Promise<any[]> {
-	return await Library.find(libraryPublishedFilter())
-		.sort(LIBRARY_SORT)
-		.lean();
+	return await Library.find(libraryPublishedFilter()).sort(LIBRARY_SORT).lean();
 }
 
 async function getLibraryItemsByAuthorId(
-	authorId: string | number
+	authorId: string | number,
 ): Promise<any[]> {
 	const objectId = toObjectId(authorId);
 	if (!objectId) return [];
 
-	return await Library.find({ authorId: objectId })
-		.sort(LIBRARY_SORT)
-		.lean();
+	return await Library.find({ authorId: objectId }).sort(LIBRARY_SORT).lean();
 }
 
 async function getLibraryItemById(id: string | number): Promise<any | null> {
@@ -327,7 +323,7 @@ async function createLibraryItem(itemData: any): Promise<any> {
 
 async function updateLibraryItem(
 	id: string | number,
-	itemData: any
+	itemData: any,
 ): Promise<any> {
 	// Set updated timestamp
 	itemData.updatedAt = new Date();
@@ -350,7 +346,7 @@ async function updateLibraryItem(
 	return await Library.findByIdAndUpdate(
 		objectId,
 		{ $set: itemData },
-		{ new: true, runValidators: true }
+		{ new: true, runValidators: true },
 	).lean();
 }
 
@@ -374,7 +370,7 @@ async function getLibraryItemsCount(opts?: {
 // Organization functions
 async function getOrganizationMembersByPeriod(
 	period: string,
-	options?: PaginationOptions
+	options?: PaginationOptions,
 ): Promise<any[]> {
 	const query = Organization.find({ period }).sort({ position: 1 });
 	return await applyPagination(query, options).lean();
@@ -410,7 +406,7 @@ function getPeriodsModel() {
 				new mongoose.Schema({
 					period: { type: String, required: true, unique: true },
 					createdAt: { type: Date, default: Date.now },
-				})
+				}),
 			);
 		}
 	}
@@ -439,7 +435,7 @@ async function deleteOrganizationPeriod(period: string): Promise<void> {
 }
 
 async function getOrganizationMemberById(
-	id: string | number
+	id: string | number,
 ): Promise<any | null> {
 	if (!id) return null;
 	try {
@@ -465,7 +461,7 @@ async function createOrganizationMember(memberData: any): Promise<any> {
 
 async function updateOrganizationMember(
 	id: string | number,
-	memberData: any
+	memberData: any,
 ): Promise<any> {
 	// Set updated timestamp
 	memberData.updatedAt = new Date();
@@ -477,7 +473,7 @@ async function updateOrganizationMember(
 	return await Organization.findByIdAndUpdate(
 		objectId,
 		{ $set: memberData },
-		{ new: true, runValidators: true }
+		{ new: true, runValidators: true },
 	).lean();
 }
 
@@ -489,7 +485,9 @@ async function deleteOrganizationMember(id: string | number): Promise<void> {
 	await Organization.findByIdAndDelete(objectId);
 }
 
-async function deleteOrganizationMembersByPeriod(period: string): Promise<void> {
+async function deleteOrganizationMembersByPeriod(
+	period: string,
+): Promise<void> {
 	await Organization.deleteMany({ period });
 }
 
@@ -513,7 +511,7 @@ async function getOrganizationAlumniMembersCount(): Promise<number> {
 
 // Position functions
 async function getPositionsByPeriod(
-	period: string
+	period: string,
 ): Promise<{ name: string; order: number }[]> {
 	const positionRecord = (await Position.findOne({ period }).lean()) as any;
 	return positionRecord && positionRecord.positions
@@ -533,7 +531,7 @@ async function getAllPositions(): Promise<
 
 async function createPositionsForPeriod(
 	period: string,
-	positions: { name: string; order: number }[]
+	positions: { name: string; order: number }[],
 ): Promise<any> {
 	// Check if positions already exist for this period
 	const existing = await Position.findOne({ period });
@@ -548,7 +546,7 @@ async function createPositionsForPeriod(
 					updatedAt: new Date(),
 				},
 			},
-			{ new: true, runValidators: true }
+			{ new: true, runValidators: true },
 		).lean();
 	} else {
 		// Create new positions
@@ -568,7 +566,7 @@ async function deletePositionsForPeriod(period: string): Promise<void> {
 
 async function copyPositionsFromPeriod(
 	sourcePeriod: string,
-	targetPeriod: string
+	targetPeriod: string,
 ): Promise<any> {
 	const sourcePositions = (await Position.findOne({
 		period: sourcePeriod,
@@ -580,7 +578,7 @@ async function copyPositionsFromPeriod(
 
 	return await createPositionsForPeriod(
 		targetPeriod,
-		(sourcePositions as any).positions || []
+		(sourcePositions as any).positions || [],
 	);
 }
 
@@ -606,7 +604,7 @@ async function updateSettings(settingsData: any): Promise<any> {
 		return await Settings.findByIdAndUpdate(
 			existingSettings._id,
 			{ $set: settingsData },
-			{ new: true, runValidators: true }
+			{ new: true, runValidators: true },
 		).lean();
 	} else {
 		// Create new settings
@@ -647,7 +645,11 @@ async function createHomeImages(data: any) {
 }
 
 async function updateHomeImages(year: number, data: any) {
-	return await HomeImages.findOneAndUpdate({ year }, { $set: data }, { new: true });
+	return await HomeImages.findOneAndUpdate(
+		{ year },
+		{ $set: data },
+		{ new: true },
+	);
 }
 
 async function deleteHomeImages(year: number) {
@@ -684,7 +686,9 @@ async function copyHomeImages(
 		orang: source.orang,
 		desktopBackground: source.desktopBackground || '',
 		banners: source.banners ? JSON.parse(JSON.stringify(source.banners)) : {},
-		people: (source as any).people ? JSON.parse(JSON.stringify((source as any).people)) : {},
+		people: (source as any).people
+			? JSON.parse(JSON.stringify((source as any).people))
+			: {},
 	};
 
 	if (existing) {
@@ -710,7 +714,11 @@ async function updateHomeImageSlot(year: number, slot: string, url: string) {
 	);
 }
 
-async function updateHomeImagePersonSlot(year: number, slot: string, url: string) {
+async function updateHomeImagePersonSlot(
+	year: number,
+	slot: string,
+	url: string,
+) {
 	return await HomeImages.findOneAndUpdate(
 		{ year },
 		{ $set: { [`people.${slot}`]: url } },
@@ -792,7 +800,11 @@ async function setActiveEventYear(id: string): Promise<any | null> {
 
 // ── Event functions ──
 
-async function getEventsByYear(year: number, parentOnly = false, publishedOnly = true): Promise<{ yearDoc: any; events: any[] } | null> {
+async function getEventsByYear(
+	year: number,
+	parentOnly = false,
+	publishedOnly = true,
+): Promise<{ yearDoc: any; events: any[] } | null> {
 	const yearDoc = await EventYear.findOne({ year }).lean();
 	if (!yearDoc) return null;
 	const filter: any = { yearId: (yearDoc as any)._id };
@@ -853,7 +865,9 @@ async function getEventWithChildren(id: string): Promise<any | null> {
 }
 
 async function getEventsForHome(): Promise<any | null> {
-	const activeYears = await EventYear.find({ isActiveOnHome: true }).sort({ year: 1 }).lean();
+	const activeYears = await EventYear.find({ isActiveOnHome: true })
+		.sort({ year: 1 })
+		.lean();
 	if (!activeYears || activeYears.length === 0) return null;
 
 	const buildYearEntry = async (activeYear: any) => {
@@ -903,7 +917,10 @@ async function getEventsForHome(): Promise<any | null> {
 	};
 }
 
-async function toggleEventYearActive(id: string, active: boolean): Promise<any | null> {
+async function toggleEventYearActive(
+	id: string,
+	active: boolean,
+): Promise<any | null> {
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 	return await EventYear.findByIdAndUpdate(
@@ -996,14 +1013,28 @@ async function getEventsCount(yearId?: string): Promise<number> {
  * Parses Indonesian-format date strings from berita content.
  * Returns { startDate, endDate, month } or null if not found.
  */
-function parseIndonesianDateFromContent(content: string, fallback: Date): { startDate: Date; endDate: Date; month: number } {
+function parseIndonesianDateFromContent(
+	content: string,
+	fallback: Date,
+): { startDate: Date; endDate: Date; month: number } {
 	const MONTHS: Record<string, number> = {
-		januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
-		juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+		januari: 0,
+		februari: 1,
+		maret: 2,
+		april: 3,
+		mei: 4,
+		juni: 5,
+		juli: 6,
+		agustus: 7,
+		september: 8,
+		oktober: 9,
+		november: 10,
+		desember: 11,
 	};
 
 	// Try range pattern: "1–31 Maret 2025" or "1-31 Maret 2025"
-	const rangeRegex = /(\d{1,2})\s*[-–]\s*(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+(\d{4})/i;
+	const rangeRegex =
+		/(\d{1,2})\s*[-–]\s*(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+(\d{4})/i;
 	const rangeMatch = content.replace(/<[^>]*>/g, ' ').match(rangeRegex);
 	if (rangeMatch) {
 		const day1 = parseInt(rangeMatch[1], 10);
@@ -1018,7 +1049,8 @@ function parseIndonesianDateFromContent(content: string, fallback: Date): { star
 	}
 
 	// Try single date: "1 Maret 2025"
-	const singleRegex = /(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+(\d{4})/i;
+	const singleRegex =
+		/(\d{1,2})\s+(Januari|Februari|Maret|April|Mei|Juni|Juli|Agustus|September|Oktober|November|Desember)\s+(\d{4})/i;
 	const singleMatch = content.replace(/<[^>]*>/g, ' ').match(singleRegex);
 	if (singleMatch) {
 		const day = parseInt(singleMatch[1], 10);
@@ -1041,26 +1073,51 @@ async function copyEventToBerita(
 	userDisplayName: string,
 	options: { copyAttachments?: boolean } = {},
 ): Promise<any> {
-	const event = await Event.findById(toObjectId(eventId))
+	const event = (await Event.findById(toObjectId(eventId))
 		.populate('relatedBerita', '_id title slug')
-		.lean() as any;
+		.lean()) as any;
 	if (!event) throw new Error('Event not found');
 
 	// Build excerpt from description (strip HTML, max 200 chars)
 	const plainDesc = (event.description || '').replace(/<[^>]*>/g, '').trim();
-	const excerpt = plainDesc.length > 200 ? plainDesc.slice(0, 197) + '...' : plainDesc || event.title;
+	const excerpt =
+		plainDesc.length > 200
+			? plainDesc.slice(0, 197) + '...'
+			: plainDesc || event.title;
 
 	// Derive year from startDate
-	const startYear = event.startDate ? new Date(event.startDate).getFullYear() : new Date().getFullYear();
-	const MONTH_NAMES = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+	const startYear = event.startDate
+		? new Date(event.startDate).getFullYear()
+		: new Date().getFullYear();
+	const MONTH_NAMES = [
+		'Januari',
+		'Februari',
+		'Maret',
+		'April',
+		'Mei',
+		'Juni',
+		'Juli',
+		'Agustus',
+		'September',
+		'Oktober',
+		'November',
+		'Desember',
+	];
 	const monthName = MONTH_NAMES[(event.month || 1) - 1] || '';
 
 	// Build content including date info header
-	let contentHeader = `<p><strong>Tanggal:</strong> ${event.startDate ? new Date(event.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}`
-		+ (event.endDate && event.endDate.toString() !== event.startDate?.toString() ? ` – ${new Date(event.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}` : '')
-		+ `</p>`;
+	let contentHeader =
+		`<p><strong>Tanggal:</strong> ${event.startDate ? new Date(event.startDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' }) : ''}` +
+		(event.endDate && event.endDate.toString() !== event.startDate?.toString()
+			? ` – ${new Date(event.endDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`
+			: '') +
+		`</p>`;
 
-	if (options.copyAttachments && event.attachments && event.attachments.length > 0) {
+	if (
+		options.copyAttachments &&
+		event.attachments &&
+		event.attachments.length > 0
+	) {
 		contentHeader += `<p><strong>Lampiran:</strong></p><ul>`;
 		for (const att of event.attachments) {
 			contentHeader += `<li><a href="${att.url}" target="_blank">${att.name}</a></li>`;
@@ -1099,7 +1156,9 @@ async function copyEventToBerita(
 	const newBerita = new Berita(beritaData);
 	const saved = await newBerita.save();
 
-	await Event.findByIdAndUpdate(event._id, { $addToSet: { relatedBerita: saved._id } });
+	await Event.findByIdAndUpdate(event._id, {
+		$addToSet: { relatedBerita: saved._id },
+	});
 
 	return saved;
 }
@@ -1107,22 +1166,31 @@ async function copyEventToBerita(
 async function copyBeritaToEvent(
 	beritaId: string,
 	userId: string,
-	options: { year?: number; parentEventId?: string; copyAttachments?: boolean } = {},
+	options: {
+		year?: number;
+		parentEventId?: string;
+		copyAttachments?: boolean;
+	} = {},
 ): Promise<any> {
-	const item = await Berita.findById(toObjectId(beritaId)).lean() as any;
+	const item = (await Berita.findById(toObjectId(beritaId)).lean()) as any;
 	if (!item) throw new Error('Berita not found');
 
 	const targetYear = options.year || new Date(item.createdAt).getFullYear();
 
-	let yearDoc = await EventYear.findOne({ year: targetYear }).lean() as any;
+	let yearDoc = (await EventYear.findOne({ year: targetYear }).lean()) as any;
 	if (!yearDoc) {
 		const newYear = new EventYear({ year: targetYear, isActiveOnHome: false });
 		yearDoc = await newYear.save();
 	}
 
-	const { startDate, endDate, month } = parseIndonesianDateFromContent(item.content, new Date(item.createdAt));
+	const { startDate, endDate, month } = parseIndonesianDateFromContent(
+		item.content,
+		new Date(item.createdAt),
+	);
 
-	const parentId = options.parentEventId ? toObjectId(options.parentEventId) : null;
+	const parentId = options.parentEventId
+		? toObjectId(options.parentEventId)
+		: null;
 	const uOid = toObjectId(userId);
 
 	const attachments: any[] = [];
@@ -1169,7 +1237,7 @@ async function attachBeritaToEvent(
 	const update: any = { $addToSet: { relatedBerita: aOid } };
 
 	if (options.copyFiles) {
-		const item = await Berita.findById(aOid).lean() as any;
+		const item = (await Berita.findById(aOid).lean()) as any;
 		if (item?.image) {
 			update.$push = {
 				attachments: {
@@ -1185,11 +1253,18 @@ async function attachBeritaToEvent(
 	return await Event.findByIdAndUpdate(eOid, update, { new: true }).lean();
 }
 
-async function detachBeritaFromEvent(eventId: string, beritaId: string): Promise<any> {
+async function detachBeritaFromEvent(
+	eventId: string,
+	beritaId: string,
+): Promise<any> {
 	const aOid = toObjectId(beritaId);
 	const eOid = toObjectId(eventId);
 	if (!aOid || !eOid) throw new Error('Invalid IDs');
-	return await Event.findByIdAndUpdate(eOid, { $pull: { relatedBerita: aOid } }, { new: true }).lean();
+	return await Event.findByIdAndUpdate(
+		eOid,
+		{ $pull: { relatedBerita: aOid } },
+		{ new: true },
+	).lean();
 }
 
 // ─── ProdiContent CRUD ───
@@ -1207,7 +1282,9 @@ async function getProdiContentPublic(): Promise<any> {
 	const doc = await getProdiContent();
 	const content = doc.content ? JSON.parse(JSON.stringify(doc.content)) : {};
 	const entries: any[] = doc.curriculumByYear ?? [];
-	const availableYears = entries.map((e: any) => e.academicYear as number).sort((a: number, b: number) => b - a);
+	const availableYears = entries
+		.map((e: any) => e.academicYear as number)
+		.sort((a: number, b: number) => b - a);
 	const activeYear = resolveActiveCurriculumYear(entries);
 	content.curriculumMeta = { availableYears, activeYear };
 	// Build a map of all curriculum year data so frontend can switch
@@ -1221,7 +1298,8 @@ async function getProdiContentPublic(): Promise<any> {
 
 async function updateProdiContent(data: any): Promise<any> {
 	const doc = await getProdiContent();
-	if (data.autoSyncEnabled !== undefined) doc.autoSyncEnabled = data.autoSyncEnabled;
+	if (data.autoSyncEnabled !== undefined)
+		doc.autoSyncEnabled = data.autoSyncEnabled;
 	if (data.content) {
 		for (const section of Object.keys(data.content)) {
 			for (const field of Object.keys(data.content[section])) {
@@ -1264,7 +1342,10 @@ async function applyAutoSyncData(
 	return await doc.save();
 }
 
-async function setProdiSyncStatus(status: 'idle' | 'syncing' | 'error', error?: string): Promise<void> {
+async function setProdiSyncStatus(
+	status: 'idle' | 'syncing' | 'error',
+	error?: string,
+): Promise<void> {
 	const doc = await getProdiContent();
 	doc.syncStatus = status;
 	if (error !== undefined) doc.lastSyncError = error;
@@ -1299,7 +1380,8 @@ async function ensureCurriculumByYearMigrated(): Promise<void> {
 	const legacy = doc.content?.curriculum;
 	if (!legacy) return;
 	const hasSemesters = legacy.semesters && legacy.semesters.length > 0;
-	const hasOptional = legacy.optionalSubjects && legacy.optionalSubjects.length > 0;
+	const hasOptional =
+		legacy.optionalSubjects && legacy.optionalSubjects.length > 0;
 	if (!hasSemesters && !hasOptional) return;
 
 	const entry = {
@@ -1326,7 +1408,9 @@ async function getProdiCurriculumYears(): Promise<number[]> {
 	await ensureCurriculumByYearMigrated();
 	const doc = await getProdiContent();
 	const entries: any[] = doc.curriculumByYear ?? [];
-	return entries.map((e: any) => e.academicYear as number).sort((a: number, b: number) => b - a);
+	return entries
+		.map((e: any) => e.academicYear as number)
+		.sort((a: number, b: number) => b - a);
 }
 
 async function getProdiCurriculumByYear(year?: number): Promise<any> {
@@ -1337,12 +1421,14 @@ async function getProdiCurriculumByYear(year?: number): Promise<any> {
 
 	if (year !== undefined) {
 		const found = entries.find((e: any) => e.academicYear === year);
-		return found ? found.toObject?.() ?? found : null;
+		return found ? (found.toObject?.() ?? found) : null;
 	}
 	const activeYear = resolveActiveCurriculumYear(entries);
 	const found = entries.find((e: any) => e.academicYear === activeYear);
 	if (found) return found.toObject?.() ?? found;
-	const sorted = [...entries].sort((a: any, b: any) => b.academicYear - a.academicYear);
+	const sorted = [...entries].sort(
+		(a: any, b: any) => b.academicYear - a.academicYear,
+	);
 	return sorted[0]?.toObject?.() ?? sorted[0] ?? null;
 }
 
@@ -1350,12 +1436,17 @@ async function upsertProdiCurriculumByYear(
 	year: number,
 	payload: any,
 	options?: { overwrite?: boolean },
-): Promise<{ action: 'created' | 'overwritten' | 'needs_confirm'; year: number }> {
+): Promise<{
+	action: 'created' | 'overwritten' | 'needs_confirm';
+	year: number;
+}> {
 	await ensureCurriculumByYearMigrated();
 	const doc = await getProdiContent();
 	if (!doc.curriculumByYear) doc.curriculumByYear = [];
 
-	const idx = (doc.curriculumByYear as any[]).findIndex((e: any) => e.academicYear === year);
+	const idx = (doc.curriculumByYear as any[]).findIndex(
+		(e: any) => e.academicYear === year,
+	);
 
 	if (idx >= 0 && !options?.overwrite) {
 		return { action: 'needs_confirm', year };
@@ -1390,7 +1481,8 @@ async function upsertProdiCurriculumByYear(
 	if (!(doc as any).content.curriculum) (doc as any).content.curriculum = {};
 	(doc as any).content.curriculum.semesters = entry.semesters;
 	(doc as any).content.curriculum.optionalSubjects = entry.optionalSubjects;
-	(doc as any).content.curriculum.subjectRpsResources = entry.subjectRpsResources;
+	(doc as any).content.curriculum.subjectRpsResources =
+		entry.subjectRpsResources;
 	(doc as any).content.curriculum.graduateProfile = entry.graduateProfile;
 	(doc as any).content.curriculum.knowledgeGroups = entry.knowledgeGroups;
 	(doc as any).content.curriculum.structureSummary = entry.structureSummary;
@@ -1406,7 +1498,13 @@ async function upsertProdiCurriculumByYear(
 
 // ─── Feedback CRUD ───
 
-async function getAllFeedback(options?: PaginationOptions & { target?: string; type?: string; hasReply?: boolean }): Promise<any[]> {
+async function getAllFeedback(
+	options?: PaginationOptions & {
+		target?: string;
+		type?: string;
+		hasReply?: boolean;
+	},
+): Promise<any[]> {
 	const filter: any = {};
 	if (options?.target) filter.target = options.target;
 	if (options?.type) filter.type = options.type;
@@ -1423,7 +1521,9 @@ async function getFeedbackById(id: string): Promise<any | null> {
 }
 
 async function getVisibleFeedbackCards(): Promise<any[]> {
-	return await Feedback.find({ isVisibleCard: true }).sort({ createdAt: -1 }).lean();
+	return await Feedback.find({ isVisibleCard: true })
+		.sort({ createdAt: -1 })
+		.lean();
 }
 
 async function createFeedback(data: any): Promise<any> {
@@ -1435,7 +1535,11 @@ async function updateFeedback(id: string, data: any): Promise<any | null> {
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 	data.updatedAt = new Date();
-	return await Feedback.findByIdAndUpdate(objectId, { $set: data }, { new: true }).lean();
+	return await Feedback.findByIdAndUpdate(
+		objectId,
+		{ $set: data },
+		{ new: true },
+	).lean();
 }
 
 async function deleteFeedback(id: string): Promise<void> {
@@ -1447,7 +1551,8 @@ async function deleteFeedback(id: string): Promise<void> {
 	const cleanupUrls = new Set<string>();
 	if (doc.media && Array.isArray(doc.media)) {
 		for (const m of doc.media) {
-			if (typeof m?.url === 'string' && m.url.trim()) cleanupUrls.add(m.url.trim());
+			if (typeof m?.url === 'string' && m.url.trim())
+				cleanupUrls.add(m.url.trim());
 		}
 	}
 
@@ -1455,7 +1560,10 @@ async function deleteFeedback(id: string): Promise<void> {
 		if (!value) return;
 		if (typeof value === 'string') {
 			const text = value.trim();
-			if (text.startsWith('/uploads/') || text.startsWith('/attached_assets/')) {
+			if (
+				text.startsWith('/uploads/') ||
+				text.startsWith('/attached_assets/')
+			) {
 				cleanupUrls.add(text);
 			}
 			return;
@@ -1468,11 +1576,15 @@ async function deleteFeedback(id: string): Promise<void> {
 			const record = value as Record<string, unknown>;
 			if (typeof record.url === 'string' && record.url.trim()) {
 				const url = record.url.trim();
-				if (url.startsWith('/uploads/') || url.startsWith('/attached_assets/')) {
+				if (
+					url.startsWith('/uploads/') ||
+					url.startsWith('/attached_assets/')
+				) {
 					cleanupUrls.add(url);
 				}
 			}
-			for (const nested of Object.values(record)) collectFromExtraFields(nested);
+			for (const nested of Object.values(record))
+				collectFromExtraFields(nested);
 		}
 	};
 	collectFromExtraFields(doc.extraFields);
@@ -1486,41 +1598,73 @@ async function deleteFeedback(id: string): Promise<void> {
 	await Feedback.findByIdAndDelete(objectId);
 }
 
-async function toggleFeedbackVisibility(id: string, visible: boolean): Promise<any | null> {
+async function toggleFeedbackVisibility(
+	id: string,
+	visible: boolean,
+): Promise<any | null> {
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
-	return await Feedback.findByIdAndUpdate(objectId, { $set: { isVisibleCard: visible } }, { new: true }).lean();
+	return await Feedback.findByIdAndUpdate(
+		objectId,
+		{ $set: { isVisibleCard: visible } },
+		{ new: true },
+	).lean();
 }
 
-async function replyToFeedback(id: string, replyData: { adminId: string; adminName: string; message: string }): Promise<any | null> {
+async function replyToFeedback(
+	id: string,
+	replyData: { adminId: string; adminName: string; message: string },
+): Promise<any | null> {
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 	const adminOid = toObjectId(replyData.adminId);
 	return await Feedback.findByIdAndUpdate(
 		objectId,
-		{ $set: { reply: { adminId: adminOid, adminName: replyData.adminName, message: replyData.message, repliedAt: new Date() } } },
+		{
+			$set: {
+				reply: {
+					adminId: adminOid,
+					adminName: replyData.adminName,
+					message: replyData.message,
+					repliedAt: new Date(),
+				},
+			},
+		},
 		{ new: true },
 	).lean();
 }
 
-async function decideSuggestion(id: string, data: { status: 'accepted' | 'rejected'; comment: string; decidedBy: string; deciderName: string }): Promise<any | null> {
+async function decideSuggestion(
+	id: string,
+	data: {
+		status: 'accepted' | 'rejected';
+		comment: string;
+		decidedBy: string;
+		deciderName: string;
+	},
+): Promise<any | null> {
 	const objectId = toObjectId(id);
 	if (!objectId) return null;
 	const adminOid = toObjectId(data.decidedBy);
 	return await Feedback.findByIdAndUpdate(
 		objectId,
-		{ $set: {
-			suggestionStatus: data.status,
-			suggestionDecisionComment: data.comment,
-			suggestionDecidedBy: adminOid,
-			suggestionDeciderName: data.deciderName,
-			suggestionDecidedAt: new Date(),
-		}},
+		{
+			$set: {
+				suggestionStatus: data.status,
+				suggestionDecisionComment: data.comment,
+				suggestionDecidedBy: adminOid,
+				suggestionDeciderName: data.deciderName,
+				suggestionDecidedAt: new Date(),
+			},
+		},
 		{ new: true },
 	).lean();
 }
 
-async function getVisibleFeedbackCardsFiltered(typeFilter: string = 'all', typeFilterIds: string[] = []): Promise<any[]> {
+async function getVisibleFeedbackCardsFiltered(
+	typeFilter: string = 'all',
+	typeFilterIds: string[] = [],
+): Promise<any[]> {
 	const filter: any = { isVisibleCard: true };
 	if (typeFilterIds.length > 0) {
 		filter.type = { $in: typeFilterIds };
@@ -1530,28 +1674,57 @@ async function getVisibleFeedbackCardsFiltered(typeFilter: string = 'all', typeF
 	return await Feedback.find(filter).sort({ createdAt: -1 }).lean();
 }
 
-async function getFeedbackCount(filter?: { target?: string; type?: string }): Promise<number> {
+async function getFeedbackCount(filter?: {
+	target?: string;
+	type?: string;
+}): Promise<number> {
 	const q: any = {};
 	if (filter?.target) q.target = filter.target;
 	if (filter?.type) q.type = filter.type;
 	return await Feedback.countDocuments(q);
 }
 
-async function getFeedbackRatingAverages(): Promise<Record<string, number> & { count: number }> {
+async function getFeedbackRatingAverages(): Promise<
+	Record<string, number> & { count: number }
+> {
 	const result = await Feedback.aggregate([
 		{ $match: { ratings: { $exists: true, $ne: null } } },
 		{ $project: { ratingsArr: { $objectToArray: '$ratings' } } },
 		{ $unwind: '$ratingsArr' },
 		{ $match: { 'ratingsArr.v': { $gt: 0 } } },
-		{ $group: { _id: '$ratingsArr.k', avg: { $avg: '$ratingsArr.v' }, count: { $sum: 1 } } },
+		{
+			$group: {
+				_id: '$ratingsArr.k',
+				avg: { $avg: '$ratingsArr.v' },
+				count: { $sum: 1 },
+			},
+		},
 	]);
 	const totalResult = await Feedback.aggregate([
 		{ $match: { ratings: { $exists: true, $ne: null } } },
-		{ $project: { hasRating: { $gt: [{ $size: { $filter: { input: { $objectToArray: '$ratings' }, cond: { $gt: ['$$this.v', 0] } } } }, 0] } } },
+		{
+			$project: {
+				hasRating: {
+					$gt: [
+						{
+							$size: {
+								$filter: {
+									input: { $objectToArray: '$ratings' },
+									cond: { $gt: ['$$this.v', 0] },
+								},
+							},
+						},
+						0,
+					],
+				},
+			},
+		},
 		{ $match: { hasRating: true } },
 		{ $count: 'count' },
 	]);
-	const out: Record<string, number> & { count: number } = { count: totalResult[0]?.count || 0 };
+	const out: Record<string, number> & { count: number } = {
+		count: totalResult[0]?.count || 0,
+	};
 	for (const r of result) out[r._id] = r.avg || 0;
 	return out;
 }
@@ -1765,7 +1938,7 @@ async function deleteRole(roleId: string) {
 		return await Role.findByIdAndUpdate(
 			roleId,
 			{ isActive: false },
-			{ new: true }
+			{ new: true },
 		);
 	} catch (error) {
 		console.error('Error deleting role:', error);
@@ -1820,7 +1993,7 @@ async function deletePermission(permissionId: string) {
 		return await Permission.findByIdAndUpdate(
 			permissionId,
 			{ isActive: false },
-			{ new: true }
+			{ new: true },
 		);
 	} catch (error) {
 		console.error('Error deleting permission:', error);
@@ -1840,9 +2013,11 @@ async function getUserBasePermissions(userId: string): Promise<string[]> {
 	}
 }
 
-async function getUserPermissionOverrides(userId: string): Promise<{ allow: string[]; deny: string[] }> {
+async function getUserPermissionOverrides(
+	userId: string,
+): Promise<{ allow: string[]; deny: string[] }> {
 	try {
-		const user = await User.findById(userId).lean() as any;
+		const user = (await User.findById(userId).lean()) as any;
 		if (!user) return { allow: [], deny: [] };
 		return {
 			allow: user.permissionOverrides?.allow ?? [],
@@ -1904,7 +2079,9 @@ async function migrateLegacyDivisionPeriodsOnce() {
 		const periods = await getOrganizationPeriods();
 		const fb = periods[0] || 'legacy';
 		await Division.updateMany(
-			{ $or: [{ period: { $exists: false } }, { period: null }, { period: '' }] },
+			{
+				$or: [{ period: { $exists: false } }, { period: null }, { period: '' }],
+			},
 			{ $set: { period: fb } },
 		);
 		_divisionsPeriodMigrated = true;
@@ -1919,7 +2096,8 @@ async function ensureDivisionIndexesOnce() {
 	try {
 		const indexes = await Division.collection.indexes();
 		const legacyNameUnique = indexes.find(
-			(idx: any) => idx?.name === 'name_1' && idx?.unique && idx?.key?.name === 1,
+			(idx: any) =>
+				idx?.name === 'name_1' && idx?.unique && idx?.key?.name === 1,
 		);
 		if (legacyNameUnique) {
 			await Division.collection.dropIndex('name_1');
@@ -1947,11 +2125,20 @@ async function getAllDivisions(period?: string) {
 	}
 }
 
-async function copyDivisionsFromPeriod(sourcePeriod: string, targetPeriod: string) {
+async function copyDivisionsFromPeriod(
+	sourcePeriod: string,
+	targetPeriod: string,
+) {
 	await migrateLegacyDivisionPeriodsOnce();
 	await ensureDivisionIndexesOnce();
-	const sources = await Division.find({ isActive: true, period: sourcePeriod }).lean();
-	const existing = await Division.find({ isActive: true, period: targetPeriod }).lean();
+	const sources = await Division.find({
+		isActive: true,
+		period: sourcePeriod,
+	}).lean();
+	const existing = await Division.find({
+		isActive: true,
+		period: targetPeriod,
+	}).lean();
 	const taken = new Set((existing as any[]).map((d) => d.name));
 	for (const s of sources as any[]) {
 		if (taken.has(s.name)) continue;
@@ -2030,7 +2217,7 @@ async function deleteDivision(id: string) {
 		const doc: any = await Division.findByIdAndUpdate(
 			id,
 			{ isActive: false },
-			{ new: true }
+			{ new: true },
 		);
 		if (!doc) return null;
 
@@ -2052,7 +2239,10 @@ async function deleteDivision(id: string) {
 					}
 
 					if (Object.keys(unsetFields).length > 0) {
-						await HomeImages.updateOne({ _id: hi._id }, { $unset: unsetFields });
+						await HomeImages.updateOne(
+							{ _id: hi._id },
+							{ $unset: unsetFields },
+						);
 						for (const url of urlsToDelete) {
 							try {
 								await deleteFile(url);
@@ -2130,13 +2320,15 @@ async function initializeDefaultPermissions() {
 			{
 				name: 'users.edit_password',
 				displayName: 'Edit Password',
-				description: 'Mengubah password user lain (tanpa OTP, hanya untuk role di bawahnya)',
+				description:
+					'Mengubah password user lain (tanpa OTP, hanya untuk role di bawahnya)',
 				category: 'users',
 			},
 			{
 				name: 'users.edit_email',
 				displayName: 'Edit Email',
-				description: 'Mengubah email user lain (tanpa OTP, hanya untuk role di bawahnya)',
+				description:
+					'Mengubah email user lain (tanpa OTP, hanya untuk role di bawahnya)',
 				category: 'users',
 			},
 
@@ -2179,55 +2371,55 @@ async function initializeDefaultPermissions() {
 				category: 'roles',
 			},
 
-		// Berita permissions
-		{
-			name: 'berita.view',
-			displayName: 'View Berita',
-			description: 'Melihat berita',
-			category: 'berita',
-		},
-		{
-			name: 'berita.create',
-			displayName: 'Create Berita',
-			description: 'Membuat berita baru',
-			category: 'berita',
-		},
-		{
-			name: 'berita.edit',
-			displayName: 'Edit Berita',
-			description: 'Mengedit berita',
-			category: 'berita',
-		},
-		{
-			name: 'berita.delete',
-			displayName: 'Delete Berita',
-			description: 'Menghapus berita',
-			category: 'berita',
-		},
-		{
-			name: 'berita.publish',
-			displayName: 'Publish Berita',
-			description: 'Mempublikasikan berita',
-			category: 'berita',
-		},
-		{
-			name: 'berita.view_others',
-			displayName: 'View Others Berita',
-			description: 'Melihat berita dari user lain',
-			category: 'berita',
-		},
-		{
-			name: 'berita.edit_others',
-			displayName: 'Edit Others Berita',
-			description: 'Mengedit berita dari user lain',
-			category: 'berita',
-		},
-		{
-			name: 'berita.delete_others',
-			displayName: 'Delete Others Berita',
-			description: 'Menghapus berita dari user lain',
-			category: 'berita',
-		},
+			// Berita permissions
+			{
+				name: 'berita.view',
+				displayName: 'View Berita',
+				description: 'Melihat berita',
+				category: 'berita',
+			},
+			{
+				name: 'berita.create',
+				displayName: 'Create Berita',
+				description: 'Membuat berita baru',
+				category: 'berita',
+			},
+			{
+				name: 'berita.edit',
+				displayName: 'Edit Berita',
+				description: 'Mengedit berita',
+				category: 'berita',
+			},
+			{
+				name: 'berita.delete',
+				displayName: 'Delete Berita',
+				description: 'Menghapus berita',
+				category: 'berita',
+			},
+			{
+				name: 'berita.publish',
+				displayName: 'Publish Berita',
+				description: 'Mempublikasikan berita',
+				category: 'berita',
+			},
+			{
+				name: 'berita.view_others',
+				displayName: 'View Others Berita',
+				description: 'Melihat berita dari user lain',
+				category: 'berita',
+			},
+			{
+				name: 'berita.edit_others',
+				displayName: 'Edit Others Berita',
+				description: 'Mengedit berita dari user lain',
+				category: 'berita',
+			},
+			{
+				name: 'berita.delete_others',
+				displayName: 'Delete Others Berita',
+				description: 'Menghapus berita dari user lain',
+				category: 'berita',
+			},
 
 			// Library permissions
 			{
@@ -2345,191 +2537,197 @@ async function initializeDefaultPermissions() {
 				category: 'settings',
 			},
 
-		// Animation settings permission
-		{
-			name: 'settings.animations',
-			displayName: 'Manage Animation Settings',
-			description: 'Mengatur animasi pada halaman publik (mis. event auto-scroll)',
-			category: 'settings',
-		},
+			// Animation settings permission
+			{
+				name: 'settings.animations',
+				displayName: 'Manage Animation Settings',
+				description:
+					'Mengatur animasi pada halaman publik (mis. event auto-scroll)',
+				category: 'settings',
+			},
 
-		// Home page configuration permissions
-		{
-			name: 'home_settings.view',
-			displayName: 'View Home Settings',
-			description: 'Melihat pengaturan tampilan halaman beranda',
-			category: 'home_settings',
-		},
-		{
-			name: 'home_settings.edit',
-			displayName: 'Edit Home Settings',
-			description: 'Mengubah pengaturan tampilan halaman beranda (section & navbar)',
-			category: 'home_settings',
-		},
+			// Home page configuration permissions
+			{
+				name: 'home_settings.view',
+				displayName: 'View Home Settings',
+				description: 'Melihat pengaturan tampilan halaman beranda',
+				category: 'home_settings',
+			},
+			{
+				name: 'home_settings.edit',
+				displayName: 'Edit Home Settings',
+				description:
+					'Mengubah pengaturan tampilan halaman beranda (section & navbar)',
+				category: 'home_settings',
+			},
 
-		// Middleware management permissions (Owner only)
-		{
-			name: 'middleware.manage',
-			displayName: 'Manage Middleware',
-			description:
-				'Mengatur pengaktifan/nonaktifkan middleware (API protection, DDOS, SQL injection)',
-			category: 'system',
-		},
+			// Middleware management permissions (Owner only)
+			{
+				name: 'middleware.manage',
+				displayName: 'Manage Middleware',
+				description:
+					'Mengatur pengaktifan/nonaktifkan middleware (API protection, DDOS, SQL injection)',
+				category: 'system',
+			},
 
-		// Profil permissions
-		{
-			name: 'profil.view',
-			displayName: 'View Profil',
-			description: 'Melihat konten halaman profil',
-			category: 'profil',
-		},
-		{
-			name: 'profil.edit',
-			displayName: 'Edit Profil',
-			description: 'Mengedit konten halaman profil',
-			category: 'profil',
-		},
+			// Profil permissions
+			{
+				name: 'profil.view',
+				displayName: 'View Profil',
+				description: 'Melihat konten halaman profil',
+				category: 'profil',
+			},
+			{
+				name: 'profil.edit',
+				displayName: 'Edit Profil',
+				description: 'Mengedit konten halaman profil',
+				category: 'profil',
+			},
 
-		// Kelembagaan permissions
-		{
-			name: 'kelembagaan.view',
-			displayName: 'View Kelembagaan',
-			description: 'Melihat konten kelembagaan',
-			category: 'kelembagaan',
-		},
-		{
-			name: 'kelembagaan.edit',
-			displayName: 'Edit Kelembagaan',
-			description: 'Mengedit konten kelembagaan',
-			category: 'kelembagaan',
-		},
+			// Kelembagaan permissions
+			{
+				name: 'kelembagaan.view',
+				displayName: 'View Kelembagaan',
+				description: 'Melihat konten kelembagaan',
+				category: 'kelembagaan',
+			},
+			{
+				name: 'kelembagaan.edit',
+				displayName: 'Edit Kelembagaan',
+				description: 'Mengedit konten kelembagaan',
+				category: 'kelembagaan',
+			},
 
-		// Prodi permissions
-		{
-			name: 'prodi.view',
-			displayName: 'View Prodi',
-			description: 'Melihat konten halaman prodi',
-			category: 'prodi',
-		},
-		{
-			name: 'prodi.edit',
-			displayName: 'Edit Prodi',
-			description: 'Mengedit konten halaman prodi',
-			category: 'prodi',
-		},
-		{
-			name: 'prodi.sync',
-			displayName: 'Sync Prodi',
-			description: 'Menjalankan sinkronisasi konten prodi dari sumber eksternal',
-			category: 'prodi',
-		},
+			// Prodi permissions
+			{
+				name: 'prodi.view',
+				displayName: 'View Prodi',
+				description: 'Melihat konten halaman prodi',
+				category: 'prodi',
+			},
+			{
+				name: 'prodi.edit',
+				displayName: 'Edit Prodi',
+				description: 'Mengedit konten halaman prodi',
+				category: 'prodi',
+			},
+			{
+				name: 'prodi.sync',
+				displayName: 'Sync Prodi',
+				description:
+					'Menjalankan sinkronisasi konten prodi dari sumber eksternal',
+				category: 'prodi',
+			},
 
-		// Event permissions
-		{
-			name: 'events.view',
-			displayName: 'View Events',
-			description: 'Melihat daftar event',
-			category: 'events',
-		},
-		{
-			name: 'events.create',
-			displayName: 'Create Events',
-			description: 'Membuat event baru',
-			category: 'events',
-		},
-		{
-			name: 'events.edit',
-			displayName: 'Edit Events',
-			description: 'Mengedit event',
-			category: 'events',
-		},
-		{
-			name: 'events.delete',
-			displayName: 'Delete Events',
-			description: 'Menghapus event',
-			category: 'events',
-		},
-		{
-			name: 'events.publish',
-			displayName: 'Publish Events',
-			description: 'Mempublikasikan event',
-			category: 'events',
-		},
-		{
-			name: 'events.view_others',
-			displayName: 'View Others Events',
-			description: 'Melihat event dari user lain',
-			category: 'events',
-		},
-		{
-			name: 'events.edit_others',
-			displayName: 'Edit Others Events',
-			description: 'Mengedit event dari user lain',
-			category: 'events',
-		},
-		{
-			name: 'events.delete_others',
-			displayName: 'Delete Others Events',
-			description: 'Menghapus event dari user lain',
-			category: 'events',
-		},
-		{
-			name: 'events.years_admin',
-			displayName: 'Manage Event Years',
-			description: 'Membuat/menghapus tahun event dan mengatur tahun yang tampil di Home',
-			category: 'events',
-		},
+			// Event permissions
+			{
+				name: 'events.view',
+				displayName: 'View Events',
+				description: 'Melihat daftar event',
+				category: 'events',
+			},
+			{
+				name: 'events.create',
+				displayName: 'Create Events',
+				description: 'Membuat event baru',
+				category: 'events',
+			},
+			{
+				name: 'events.edit',
+				displayName: 'Edit Events',
+				description: 'Mengedit event',
+				category: 'events',
+			},
+			{
+				name: 'events.delete',
+				displayName: 'Delete Events',
+				description: 'Menghapus event',
+				category: 'events',
+			},
+			{
+				name: 'events.publish',
+				displayName: 'Publish Events',
+				description: 'Mempublikasikan event',
+				category: 'events',
+			},
+			{
+				name: 'events.view_others',
+				displayName: 'View Others Events',
+				description: 'Melihat event dari user lain',
+				category: 'events',
+			},
+			{
+				name: 'events.edit_others',
+				displayName: 'Edit Others Events',
+				description: 'Mengedit event dari user lain',
+				category: 'events',
+			},
+			{
+				name: 'events.delete_others',
+				displayName: 'Delete Others Events',
+				description: 'Menghapus event dari user lain',
+				category: 'events',
+			},
+			{
+				name: 'events.years_admin',
+				displayName: 'Manage Event Years',
+				description:
+					'Membuat/menghapus tahun event dan mengatur tahun yang tampil di Home',
+				category: 'events',
+			},
 
-		// Comment moderation permissions
-		{
-			name: 'comments.manage',
-			displayName: 'Manage Comments',
-			description: 'Menghapus komentar publik di berita, event, dan galeri',
-			category: 'comments',
-		},
+			// Comment moderation permissions
+			{
+				name: 'comments.manage',
+				displayName: 'Manage Comments',
+				description: 'Menghapus komentar publik di berita, event, dan galeri',
+				category: 'comments',
+			},
 
-		// Feedback permissions
-		{
-			name: 'feedback.view',
-			displayName: 'View Feedback',
-			description: 'Melihat daftar saran/kritik di dashboard',
-			category: 'feedback',
-		},
-		{
-			name: 'feedback.manage',
-			displayName: 'Manage Feedback',
-			description: 'Mengelola saran/kritik: edit, hapus, toggle tampil, dan membalas',
-			category: 'feedback',
-		},
+			// Feedback permissions
+			{
+				name: 'feedback.view',
+				displayName: 'View Feedback',
+				description: 'Melihat daftar saran/kritik di dashboard',
+				category: 'feedback',
+			},
+			{
+				name: 'feedback.manage',
+				displayName: 'Manage Feedback',
+				description:
+					'Mengelola saran/kritik: edit, hapus, toggle tampil, dan membalas',
+				category: 'feedback',
+			},
 
-		// Toko / katalog
-		{
-			name: 'toko.view',
-			displayName: 'View Toko',
-			description: 'Melihat dashboard toko dan katalog (baca)',
-			category: 'toko',
-		},
-		{
-			name: 'toko.manage',
-			displayName: 'Manage Toko',
-			description: 'Mengelola pengaturan toko, produk, layout, dan sharing',
-			category: 'toko',
-		},
+			// Toko / katalog
+			{
+				name: 'toko.view',
+				displayName: 'View Toko',
+				description: 'Melihat dashboard toko dan katalog (baca)',
+				category: 'toko',
+			},
+			{
+				name: 'toko.manage',
+				displayName: 'Manage Toko',
+				description: 'Mengelola pengaturan toko, produk, layout, dan sharing',
+				category: 'toko',
+			},
 
-		// Registration permissions
-		{
-			name: 'registration.view',
-			displayName: 'View Registration',
-			description: 'Melihat daftar kode registrasi dan komunitas terdaftar',
-			category: 'registration',
-		},
-		{
-			name: 'registration.manage',
-			displayName: 'Manage Registration',
-			description: 'Membuat, menghapus kode registrasi, dan mengelola komunitas terdaftar',
-			category: 'registration',
-		},
-	];
+			// Registration permissions
+			{
+				name: 'registration.view',
+				displayName: 'View Registration',
+				description: 'Melihat daftar kode registrasi dan komunitas terdaftar',
+				category: 'registration',
+			},
+			{
+				name: 'registration.manage',
+				displayName: 'Manage Registration',
+				description:
+					'Membuat, menghapus kode registrasi, dan mengelola komunitas terdaftar',
+				category: 'registration',
+			},
+		];
 
 		// Upsert: tambahkan permission yang belum ada (tidak hapus yang sudah ada)
 		let addedCount = 0;
@@ -2556,7 +2754,7 @@ async function initializeDefaultPermissions() {
 			{
 				permissions: allPermissionNames,
 				updatedAt: new Date(),
-			}
+			},
 		);
 
 		// Backward compatibility: kalau permission baru ditambahkan, role yang sudah punya
@@ -2587,12 +2785,14 @@ async function initializeDefaultPermissions() {
 			}
 		}
 		console.log(
-			`🔧 Updated owner role with ${allPermissionNames.length} permissions`
+			`🔧 Updated owner role with ${allPermissionNames.length} permissions`,
 		);
 
 		// Cleanup: hapus permission content.* yang sudah tidak digunakan lagi
 		try {
-			const contentPermsCount = await Permission.countDocuments({ name: { $regex: /^content\./ } });
+			const contentPermsCount = await Permission.countDocuments({
+				name: { $regex: /^content\./ },
+			});
 			if (contentPermsCount > 0) {
 				await Permission.deleteMany({ name: { $regex: /^content\./ } });
 				await Role.updateMany(
@@ -2605,7 +2805,10 @@ async function initializeDefaultPermissions() {
 				console.log('🧹 Cleaned up legacy content.* permissions from DB');
 			}
 		} catch (cleanupError) {
-			console.warn('Failed to cleanup legacy content.* permissions:', cleanupError);
+			console.warn(
+				'Failed to cleanup legacy content.* permissions:',
+				cleanupError,
+			);
 		}
 	} catch (error) {
 		console.error('Error initializing default permissions:', error);
@@ -2617,6 +2820,21 @@ async function initializeDefaultRoles() {
 	try {
 		const existingRoles = await Role.countDocuments();
 		if (existingRoles > 0) {
+			return;
+		}
+
+		// Role schema mewajibkan createdBy, jadi ambil kandidat user pertama yang valid.
+		const creator = (await User.findOne({ _id: { $exists: true } })
+			.select('_id role createdAt')
+			.sort({ createdAt: 1 })
+			.lean()) as any;
+		const creatorObjectId = creator?._id
+			? new mongoose.Types.ObjectId(String(creator._id))
+			: null;
+		if (!creatorObjectId) {
+			console.warn(
+				'⚠️ Skip initialize default roles: belum ada user untuk field createdBy.',
+			);
 			return;
 		}
 
@@ -2632,7 +2850,7 @@ async function initializeDefaultRoles() {
 				level: 1,
 				permissions: allPermissionNames, // All permissions
 				isActive: true,
-				createdBy: null, // Will be set later
+				createdBy: creatorObjectId,
 			},
 			{
 				name: 'admin',
@@ -2643,10 +2861,10 @@ async function initializeDefaultRoles() {
 					(p) =>
 						!p.includes('roles.delete') &&
 						!p.includes('users.delete') &&
-						!p.includes('settings.edit')
+						!p.includes('settings.edit'),
 				),
 				isActive: true,
-				createdBy: null,
+				createdBy: creatorObjectId,
 			},
 			{
 				name: 'chair',
@@ -2659,44 +2877,44 @@ async function initializeDefaultRoles() {
 					'dashboard.stats',
 					'users.view',
 					'users.view_others',
-'berita.view',
-				'berita.create',
-				'berita.edit',
-				'berita.publish',
-				'berita.view_others',
+					'berita.view',
+					'berita.create',
+					'berita.edit',
+					'berita.publish',
+					'berita.view_others',
 					'library.view',
 					'library.create',
 					'library.edit',
 					'library.view_others',
-				'organization.view',
-				'organization.edit',
-				'organization.manage_periods',
-				'organization.manage_positions',
-				'organization.manage_members',
-				'divisions.view',
-				'divisions.edit',
-				'settings.view',
-				'profil.view',
-				'profil.edit',
-				'kelembagaan.view',
-				'kelembagaan.edit',
-				'prodi.view',
-				'prodi.edit',
-				'prodi.sync',
-				'events.view',
-				'events.create',
-				'events.edit',
-				'events.delete',
-				'events.publish',
-				'events.view_others',
-				'events.edit_others',
-				'events.delete_others',
-			],
-			isActive: true,
-			createdBy: null,
-		},
-		{
-			name: 'vice_chair',
+					'organization.view',
+					'organization.edit',
+					'organization.manage_periods',
+					'organization.manage_positions',
+					'organization.manage_members',
+					'divisions.view',
+					'divisions.edit',
+					'settings.view',
+					'profil.view',
+					'profil.edit',
+					'kelembagaan.view',
+					'kelembagaan.edit',
+					'prodi.view',
+					'prodi.edit',
+					'prodi.sync',
+					'events.view',
+					'events.create',
+					'events.edit',
+					'events.delete',
+					'events.publish',
+					'events.view_others',
+					'events.edit_others',
+					'events.delete_others',
+				],
+				isActive: true,
+				createdBy: creatorObjectId,
+			},
+			{
+				name: 'vice_chair',
 				displayName: 'Vice Chair',
 				description: 'Vice chairperson with limited management access',
 				level: 4,
@@ -2714,25 +2932,25 @@ async function initializeDefaultRoles() {
 					'library.create',
 					'library.edit',
 					'library.view_others',
-				'organization.view',
-				'divisions.view',
-				'settings.view',
-				'profil.view',
-				'kelembagaan.view',
-				'prodi.view',
-				'events.view',
-				'events.create',
-				'events.edit',
-				'events.publish',
-				'events.view_others',
-				'events.edit_others',
-				'events.delete_others',
-			],
-			isActive: true,
-			createdBy: null,
-		},
-		{
-			name: 'bph',
+					'organization.view',
+					'divisions.view',
+					'settings.view',
+					'profil.view',
+					'kelembagaan.view',
+					'prodi.view',
+					'events.view',
+					'events.create',
+					'events.edit',
+					'events.publish',
+					'events.view_others',
+					'events.edit_others',
+					'events.delete_others',
+				],
+				isActive: true,
+				createdBy: creatorObjectId,
+			},
+			{
+				name: 'bph',
 				displayName: 'BPH',
 				description: 'Badan Pengurus Harian',
 				level: 5,
@@ -2750,25 +2968,25 @@ async function initializeDefaultRoles() {
 					'library.create',
 					'library.edit',
 					'library.view_others',
-				'organization.view',
-				'divisions.view',
-				'settings.view',
-				'profil.view',
-				'kelembagaan.view',
-				'prodi.view',
-				'events.view',
-				'events.create',
-				'events.edit',
-				'events.publish',
-				'events.view_others',
-				'events.edit_others',
-				'events.delete_others',
-			],
-			isActive: true,
-			createdBy: null,
-		},
-		{
-			name: 'division_head',
+					'organization.view',
+					'divisions.view',
+					'settings.view',
+					'profil.view',
+					'kelembagaan.view',
+					'prodi.view',
+					'events.view',
+					'events.create',
+					'events.edit',
+					'events.publish',
+					'events.view_others',
+					'events.edit_others',
+					'events.delete_others',
+				],
+				isActive: true,
+				createdBy: creatorObjectId,
+			},
+			{
+				name: 'division_head',
 				displayName: 'Division Head',
 				description: 'Division head with basic access',
 				level: 6,
@@ -2785,26 +3003,26 @@ async function initializeDefaultRoles() {
 					'library.create',
 					'library.edit',
 					'library.view_others',
-				'organization.view',
-				'divisions.view',
-				'settings.view',
-				'profil.view',
-				'kelembagaan.view',
-				'prodi.view',
-				'events.view',
-				'events.create',
-				'events.edit',
-				'events.publish',
-				'events.view_others',
-				'events.edit_others',
-				'events.delete_others',
-			],
-			isActive: true,
-			createdBy: null,
-		},
-	];
+					'organization.view',
+					'divisions.view',
+					'settings.view',
+					'profil.view',
+					'kelembagaan.view',
+					'prodi.view',
+					'events.view',
+					'events.create',
+					'events.edit',
+					'events.publish',
+					'events.view_others',
+					'events.edit_others',
+					'events.delete_others',
+				],
+				isActive: true,
+				createdBy: creatorObjectId,
+			},
+		];
 
-	await Role.insertMany(defaultRoles);
+		await Role.insertMany(defaultRoles);
 		console.log(`✅ Initialized ${defaultRoles.length} default roles`);
 	} catch (error) {
 		console.error('Error initializing default roles:', error);
@@ -2925,20 +3143,24 @@ async function getCommunityBySlug(slug: string) {
 	return Community.findOne({ slug }).lean();
 }
 async function getCommunityById(id: string) {
-	const oid = toObjectId(id); if (!oid) return null;
+	const oid = toObjectId(id);
+	if (!oid) return null;
 	return Community.findById(oid).lean();
 }
 async function createCommunity(data: any) {
-	data.createdAt = new Date(); data.updatedAt = new Date();
+	data.createdAt = new Date();
+	data.updatedAt = new Date();
 	return new Community(data).save();
 }
 async function updateCommunity(id: string, data: any) {
 	data.updatedAt = new Date();
-	const oid = toObjectId(id); if (!oid) return null;
+	const oid = toObjectId(id);
+	if (!oid) return null;
 	return Community.findByIdAndUpdate(oid, { $set: data }, { new: true }).lean();
 }
 async function deleteCommunity(id: string) {
-	const oid = toObjectId(id); if (!oid) return;
+	const oid = toObjectId(id);
+	if (!oid) return;
 	await Community.findByIdAndDelete(oid);
 }
 async function getCommunitiesCount() {
@@ -2950,7 +3172,8 @@ async function getAllCommunitiesWithRegistrationMeta() {
 		.sort({ createdAt: -1 })
 		.populate({
 			path: 'registrationCodeId',
-			select: 'code createdByName createdAt expiresAt maxUses currentUses status note type',
+			select:
+				'code createdByName createdAt expiresAt maxUses currentUses status note type',
 		})
 		.lean();
 }
@@ -2958,7 +3181,7 @@ async function getAllCommunitiesWithRegistrationMeta() {
 // ── Registration Code CRUD (main DB) ──
 function generateRandomRegistrationCodeString() {
 	return Array.from({ length: 4 }, () =>
-		Math.random().toString(36).substring(2, 6).toUpperCase()
+		Math.random().toString(36).substring(2, 6).toUpperCase(),
 	).join('-');
 }
 
@@ -2975,11 +3198,14 @@ function normalizeRegistrationCode(raw: string) {
 	return raw.trim().replace(/\s+/g, '').toUpperCase();
 }
 
-const REGISTRATION_CODE_FORMAT = /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+const REGISTRATION_CODE_FORMAT =
+	/^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
 function assertValidRegistrationCodeFormat(code: string) {
 	if (!REGISTRATION_CODE_FORMAT.test(code)) {
-		throw new Error('Format kode harus XXXX-XXXX-XXXX-XXXX (huruf atau angka per segmen)');
+		throw new Error(
+			'Format kode harus XXXX-XXXX-XXXX-XXXX (huruf atau angka per segmen)',
+		);
 	}
 }
 
@@ -3020,7 +3246,10 @@ async function patchRegistrationCode(
 		assertValidRegistrationCodeFormat(normalized);
 		if (normalized !== (existing as any).code) {
 			const clash = await getRegistrationCodeByCode(normalized);
-			if (clash && String((clash as any)._id) !== String((existing as any)._id)) {
+			if (
+				clash &&
+				String((clash as any)._id) !== String((existing as any)._id)
+			) {
 				throw new Error('Kode sudah dipakai');
 			}
 			updates.code = normalized;
@@ -3035,7 +3264,9 @@ async function patchRegistrationCode(
 		}
 		nextMaxUses = (existing as any).maxUses + inc;
 		if (nextMaxUses < (existing as any).currentUses) {
-			throw new Error('Max pemakaian tidak boleh kurang dari jumlah yang sudah terpakai');
+			throw new Error(
+				'Max pemakaian tidak boleh kurang dari jumlah yang sudah terpakai',
+			);
 		}
 		updates.maxUses = nextMaxUses;
 	}
@@ -3062,7 +3293,9 @@ async function patchRegistrationCode(
 	const merged = {
 		...existing,
 		...updates,
-		expiresAt: new Date((updates.expiresAt as Date) ?? (existing as any).expiresAt),
+		expiresAt: new Date(
+			(updates.expiresAt as Date) ?? (existing as any).expiresAt,
+		),
 		maxUses: Number(updates.maxUses ?? (existing as any).maxUses),
 		currentUses: (existing as any).currentUses,
 		status: (existing as any).status,
@@ -3079,23 +3312,36 @@ async function getRegistrationCodeByCode(code: string) {
 	return RegistrationCode.findOne({ code }).lean();
 }
 async function getRegistrationCodeById(id: string) {
-	const oid = toObjectId(id); if (!oid) return null;
+	const oid = toObjectId(id);
+	if (!oid) return null;
 	return RegistrationCode.findById(oid).lean();
 }
 async function createRegistrationCode(data: any) {
-	data.createdAt = new Date(); data.updatedAt = new Date();
+	data.createdAt = new Date();
+	data.updatedAt = new Date();
 	return new RegistrationCode(data).save();
 }
 async function updateRegistrationCode(id: string, data: any) {
 	data.updatedAt = new Date();
-	const oid = toObjectId(id); if (!oid) return null;
-	return RegistrationCode.findByIdAndUpdate(oid, { $set: data }, { new: true }).lean();
+	const oid = toObjectId(id);
+	if (!oid) return null;
+	return RegistrationCode.findByIdAndUpdate(
+		oid,
+		{ $set: data },
+		{ new: true },
+	).lean();
 }
 async function deleteRegistrationCode(id: string) {
-	const oid = toObjectId(id); if (!oid) return;
+	const oid = toObjectId(id);
+	if (!oid) return;
 	await RegistrationCode.findByIdAndDelete(oid);
 }
-async function redeemRegistrationCode(code: string, communityId: string, communityName: string, ownerEmail: string) {
+async function redeemRegistrationCode(
+	code: string,
+	communityId: string,
+	communityName: string,
+	ownerEmail: string,
+) {
 	const regCode = await RegistrationCode.findOne({ code, status: 'active' });
 	if (!regCode) return null;
 	if (regCode.expiresAt < new Date()) {
@@ -3109,7 +3355,12 @@ async function redeemRegistrationCode(code: string, communityId: string, communi
 		return null;
 	}
 	regCode.currentUses += 1;
-	(regCode as any).usedBy.push({ communityId, communityName, usedAt: new Date(), ownerEmail });
+	(regCode as any).usedBy.push({
+		communityId,
+		communityName,
+		usedAt: new Date(),
+		ownerEmail,
+	});
 	if (regCode.currentUses >= regCode.maxUses) regCode.status = 'used';
 	regCode.updatedAt = new Date();
 	await regCode.save();
