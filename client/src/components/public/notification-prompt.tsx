@@ -75,13 +75,20 @@ export default function NotificationPrompt() {
 		setMinimized(true);
 	}, []);
 
-	const subscribe = useCallback(async () => {
-		setSubscribing(true);
-		setErrorMsg(null);
+	const syncSubscription = useCallback(async (opts?: { requestPermission?: boolean; silent?: boolean }) => {
+		const shouldRequestPermission = opts?.requestPermission ?? false;
+		const silent = opts?.silent ?? false;
+
+		if (!silent) {
+			setSubscribing(true);
+			setErrorMsg(null);
+		}
 		try {
-			const permission = await Notification.requestPermission();
+			const permission = shouldRequestPermission
+				? await Notification.requestPermission()
+				: Notification.permission;
 			if (permission !== 'granted') {
-				dismiss();
+				if (!silent) dismiss();
 				return;
 			}
 
@@ -95,14 +102,15 @@ export default function NotificationPrompt() {
 			const vapidRes = await fetch('/api/notifications/webpush/vapid-key');
 			const { publicKey } = await vapidRes.json();
 			if (!publicKey) {
-				setErrorMsg('Server belum dikonfigurasi (VAPID key kosong).');
+				if (!silent) setErrorMsg('Server belum dikonfigurasi (VAPID key kosong).');
 				return;
 			}
 
 			const previousPublicKey = localStorage.getItem(VAPID_KEY_STORAGE);
 			let sub = await reg.pushManager.getSubscription();
 			// Auto-migrate subscription if VAPID public key changed on server.
-			if (sub && previousPublicKey && previousPublicKey !== publicKey) {
+			// Also migrate legacy subscriptions that existed before key-tracking was introduced.
+			if (sub && (!previousPublicKey || previousPublicKey !== publicKey)) {
 				try {
 					await sub.unsubscribe();
 				} catch {
@@ -145,11 +153,21 @@ export default function NotificationPrompt() {
 			setVisible(false);
 		} catch (err) {
 			console.error('Push subscription failed:', err);
-			setErrorMsg('Gagal mengaktifkan notifikasi. Coba lagi nanti.');
+			if (!silent) setErrorMsg('Gagal mengaktifkan notifikasi. Coba lagi nanti.');
 		} finally {
-			setSubscribing(false);
+			if (!silent) setSubscribing(false);
 		}
 	}, [dismiss]);
+
+	const subscribe = useCallback(async () => {
+		await syncSubscription({ requestPermission: true, silent: false });
+	}, [syncSubscription]);
+
+	useEffect(() => {
+		if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+		if (Notification.permission !== 'granted') return;
+		void syncSubscription({ requestPermission: false, silent: true });
+	}, [syncSubscription]);
 
 	if (!visible) return null;
 
