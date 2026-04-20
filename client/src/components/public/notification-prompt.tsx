@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getGuestIdentity } from '@/lib/guest-identity';
 
 const SW_PATH = '/sw-push.js';
+const VAPID_KEY_STORAGE = 'webpush_vapid_public_key';
 const PROMPT_DELAY_MS = 2000;
 const AUTO_MINIMIZE_MS = 5000;
 const REMIND_INTERVAL_MS = 60 * 60 * 1000;
@@ -98,7 +99,18 @@ export default function NotificationPrompt() {
 				return;
 			}
 
+			const previousPublicKey = localStorage.getItem(VAPID_KEY_STORAGE);
 			let sub = await reg.pushManager.getSubscription();
+			// Auto-migrate subscription if VAPID public key changed on server.
+			if (sub && previousPublicKey && previousPublicKey !== publicKey) {
+				try {
+					await sub.unsubscribe();
+				} catch {
+					// Ignore unsubscribe failure; we will still attempt fresh subscribe.
+				}
+				sub = null;
+			}
+
 			if (!sub) {
 				try {
 					sub = await withTimeout(
@@ -128,6 +140,7 @@ export default function NotificationPrompt() {
 					guestSecret: guest?.secret || '',
 				}),
 			});
+			localStorage.setItem(VAPID_KEY_STORAGE, publicKey);
 
 			setVisible(false);
 		} catch (err) {
