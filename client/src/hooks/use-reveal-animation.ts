@@ -5,6 +5,9 @@ export function useRevealAnimation(threshold = 0.05) {
 	const [isVisible, setIsVisible] = useState(false);
 
 	useEffect(() => {
+		// Keep this effect retrying until the target node exists, because some
+		// sections (e.g. store) render a loading skeleton first.
+		if (isVisible) return;
 		const node = ref.current;
 		if (!node) return;
 
@@ -20,7 +23,7 @@ export function useRevealAnimation(threshold = 0.05) {
 
 		observer.observe(node);
 		return () => observer.disconnect();
-	}, [threshold]);
+	}, [threshold, isVisible]);
 
 	return { ref, isVisible };
 }

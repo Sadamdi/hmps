@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
+import { isTrustedHost, isTrustedOrigin } from '../config/trusted-network';
 import { getTrustedClientIp } from '../lib/client-ip';
 import { getMiddlewareSettings } from '../models/middleware-settings';
-import { isTrustedHost, isTrustedOrigin } from '../config/trusted-network';
 
 function envInt(name: string, fallback: number): number {
 	const v = parseInt(process.env[name] || '', 10);
@@ -28,7 +28,8 @@ function isOfficialSiteApiTraffic(req: Request): boolean {
 	const hasAuthCookie = /(?:^|;\s*)authToken=/.test(req.headers.cookie || '');
 
 	const browserSameSiteToProd =
-		isTrustedHost(host) && (secSite === 'same-origin' || secSite === 'same-site');
+		isTrustedHost(host) &&
+		(secSite === 'same-origin' || secSite === 'same-site');
 
 	return (
 		fromTrustedOrigin ||
@@ -141,7 +142,7 @@ const TIER2_WINDOW_MS = 5 * 60 * 1000; // 5 menit
 const TIER2_BLOCK_DURATION_MS = 10 * 60 * 1000; // 10 menit
 
 // Tier 3: Quick Block 60 menit
-const TIER3_DEVICE_LIMIT = envInt('DDOS_TIER3_DEVICE_LIMIT', 3000);
+const TIER3_DEVICE_LIMIT = envInt('DDOS_TIER3_DEVICE_LIMIT', 5000);
 const TIER3_IP_LIMIT = envInt('DDOS_TIER3_IP_LIMIT', 10000);
 const TIER3_WINDOW_MS = 60 * 60 * 1000; // 60 menit
 const TIER3_BLOCK_DURATION_MS = 60 * 60 * 1000; // 60 menit
