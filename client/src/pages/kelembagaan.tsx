@@ -8,7 +8,6 @@ import { Suspense, useEffect } from 'react';
 import { useTenant } from '@/lib/tenant-context';
 
 export default function KelembagaanPage() {
-	const [, setLocation] = useLocation();
 	const { basePath } = useTenant();
 	const bp = basePath || '';
 

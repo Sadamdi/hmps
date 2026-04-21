@@ -2,7 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { getTrustedClientIp } from '../lib/client-ip';
 import { getMiddlewareSettings } from '../models/middleware-settings';
-import { isTrustedHost, isTrustedOrigin } from '../config/trusted-network';
+import { isTrustedOrigin } from '../config/trusted-network';
 
 function envInt(name: string, fallback: number): number {
 	const v = parseInt(process.env[name] || '', 10);
@@ -146,7 +146,7 @@ export const apiProtectionMiddleware = async (
 		const userAgent = req.get('User-Agent') || '';
 		const referer = req.get('Referer') || '';
 		const origin = req.get('Origin') || '';
-		const host = req.get('Host') || '';
+		const secFetchSite = req.get('Sec-Fetch-Site') || '';
 
 		// Skip jika bukan API route
 		if (!path.startsWith('/api/')) {
@@ -167,11 +167,13 @@ export const apiProtectionMiddleware = async (
 			userAgent.includes('Edge') ||
 			userAgent.includes('Opera');
 
-		// Cek apakah request dari frontend (production dan development)
+		// Request browser dianggap dari frontend kalau benar-benar datang dari origin/referer
+		// tepercaya atau ditandai same-site oleh browser (fetch/XHR dari halaman situs ini).
 		const isFromFrontend =
 			isTrustedOrigin(referer) ||
 			isTrustedOrigin(origin) ||
-			isTrustedHost(host);
+			secFetchSite === 'same-origin' ||
+			secFetchSite === 'same-site';
 
 		// Cek apakah ada authentication header atau session
 		const hasAuth =
@@ -186,13 +188,13 @@ export const apiProtectionMiddleware = async (
 			req.headers['x-requested-with'] === 'XMLHttpRequest' ||
 			req.headers['content-type']?.includes('application/json');
 
-		// ALLOW FRONTEND REQUESTS (relaxed protection for production)
+		// ALLOW FRONTEND REQUESTS (hanya dari browser situs sendiri / auth)
 		if (isBrowserRequest && (isFromFrontend || hasProperHeaders || hasAuth)) {
 			return next();
 		}
 
-		// BLOCK ONLY DIRECT BROWSER ACCESS TANPA REFERER DAN HEADERS
-		if (isBrowserRequest && !referer && !hasProperHeaders && !hasAuth) {
+		// BLOCK direct browser address-bar access (tanpa konteks frontend situs)
+		if (isBrowserRequest && !isFromFrontend && !hasProperHeaders && !hasAuth) {
 			return sendBeautifulApiError(
 				res,
 				403,
@@ -201,10 +203,11 @@ export const apiProtectionMiddleware = async (
 				{
 					path: path,
 					method: method,
-					reason: 'Direct browser access without proper referer',
+					reason: 'Direct browser access without trusted frontend context',
 					userAgent: userAgent,
 					referer: referer,
 					origin: origin,
+					secFetchSite,
 				},
 			);
 		}

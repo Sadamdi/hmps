@@ -149,11 +149,11 @@ const TIER3_BLOCK_DURATION_MS = 60 * 60 * 1000; // 60 menit
 // Concurrent connection limits (semua route yang tidak di-skip)
 const MAX_CONCURRENT_CONNECTIONS_PER_IP = envInt(
 	'DDOS_MAX_CONCURRENT_PER_IP',
-	55,
+	120,
 );
 const MAX_CONCURRENT_CONNECTIONS_PER_DEVICE = envInt(
 	'DDOS_MAX_CONCURRENT_PER_DEVICE',
-	18,
+	48,
 );
 
 // Special rate limits untuk sensitive endpoints
