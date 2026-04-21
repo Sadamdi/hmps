@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { getTrustedClientIp } from '../lib/client-ip';
+import { isTrustedHost, isTrustedOrigin } from '../config/trusted-network';
 
 /**
  * Dua lapis tanpa sentuh Mongo:
@@ -24,6 +25,39 @@ function shouldSkipLoadShed(req: Request): boolean {
 	if (req.method === 'OPTIONS') return true;
 	if (p.startsWith('/.well-known/')) return true;
 	return false;
+}
+
+/**
+ * Public SPA pages trigger multiple parallel GET /api/* calls during route changes.
+ * Those reads are already guarded by DDoS + rate-limit middlewares, so skip the
+ * early load-shedding gate here to avoid false 503 on normal user navigation.
+ */
+function isTrustedReadApiRequest(req: Request): boolean {
+	const p = req.path || '';
+	if (!p.startsWith('/api/')) return false;
+	if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+
+	const referer = req.get('Referer') || '';
+	const origin = req.get('Origin') || '';
+	const host = req.get('Host') || '';
+	const secSite = req.get('Sec-Fetch-Site') || '';
+	const ua = req.get('User-Agent') || '';
+
+	const browserLike =
+		ua.includes('Mozilla') ||
+		ua.includes('Chrome') ||
+		ua.includes('Safari') ||
+		ua.includes('Firefox') ||
+		ua.includes('Edge') ||
+		ua.includes('Opera');
+
+	if (!browserLike) return false;
+
+	if (isTrustedOrigin(referer) || isTrustedOrigin(origin) || isTrustedHost(host)) {
+		return true;
+	}
+
+	return secSite === 'same-origin' || secSite === 'same-site';
 }
 
 function sendPerIp503(req: Request, res: Response) {
@@ -76,7 +110,7 @@ export function loadSheddingMiddleware(
 	res: Response,
 	next: NextFunction,
 ) {
-	if (shouldSkipLoadShed(req)) {
+	if (shouldSkipLoadShed(req) || isTrustedReadApiRequest(req)) {
 		return next();
 	}
 
