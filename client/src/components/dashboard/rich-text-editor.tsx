@@ -139,8 +139,34 @@ export default function RichTextEditor({
 						}
 						p { margin-bottom: 16px; }
 						img { max-width: 100%; height: auto; }
+						img.hmps-img-rot-90,
+						img.hmps-img-rot-180,
+						img.hmps-img-rot-270,
+						img.hmps-img-fliph,
+						img.hmps-img-flipv {
+							display: inline-block;
+							transform-origin: center center;
+						}
+						img.hmps-img-rot-90 { transform: rotate(90deg); }
+						img.hmps-img-rot-180 { transform: rotate(180deg); }
+						img.hmps-img-rot-270 { transform: rotate(270deg); }
+						img.hmps-img-fliph { transform: scaleX(-1); }
+						img.hmps-img-flipv { transform: scaleY(-1); }
+						img.hmps-img-rot-90.hmps-img-fliph { transform: rotate(90deg) scaleX(-1); }
+						img.hmps-img-rot-90.hmps-img-flipv { transform: rotate(90deg) scaleY(-1); }
+						img.hmps-img-rot-180.hmps-img-fliph { transform: rotate(180deg) scaleX(-1); }
+						img.hmps-img-rot-180.hmps-img-flipv { transform: rotate(180deg) scaleY(-1); }
+						img.hmps-img-rot-270.hmps-img-fliph { transform: rotate(270deg) scaleX(-1); }
+						img.hmps-img-rot-270.hmps-img-flipv { transform: rotate(270deg) scaleY(-1); }
+						img.hmps-img-fliph.hmps-img-flipv { transform: scaleX(-1) scaleY(-1); }
+						img.hmps-img-rot-90.hmps-img-fliph.hmps-img-flipv { transform: rotate(90deg) scaleX(-1) scaleY(-1); }
+						img.hmps-img-rot-180.hmps-img-fliph.hmps-img-flipv { transform: rotate(180deg) scaleX(-1) scaleY(-1); }
+						img.hmps-img-rot-270.hmps-img-fliph.hmps-img-flipv { transform: rotate(270deg) scaleX(-1) scaleY(-1); }
 						.mce-content-body { min-height: 300px; }
 					`,
+
+					extended_valid_elements:
+						'img[src|alt|title|width|height|class|style|data*]',
 
 					// UI fixes untuk mencegah toolbar bugs
 					skin: 'oxide',
@@ -527,6 +553,13 @@ export default function RichTextEditor({
 					placeholder: placeholder,
 
 					setup: (editor: any) => {
+						const ROTATION_CLASSES = [
+							'hmps-img-rot-90',
+							'hmps-img-rot-180',
+							'hmps-img-rot-270',
+						];
+						const FLIP_CLASSES = ['hmps-img-fliph', 'hmps-img-flipv'];
+
 						const getSelectedImageNode = (): HTMLImageElement | null => {
 							const node = editor.selection?.getNode?.();
 							return node && node.nodeName === 'IMG'
@@ -535,15 +568,18 @@ export default function RichTextEditor({
 						};
 
 						const getCurrentTransformState = (img: HTMLImageElement) => {
-							const styleAttr = img.getAttribute('style') || '';
-							const rotationMatch = styleAttr.match(/rotate\((-?\d+(?:\.\d+)?)deg\)/i);
-							const scaleXMatch = styleAttr.match(/scaleX\((-?\d+(?:\.\d+)?)\)/i);
-							const scaleYMatch = styleAttr.match(/scaleY\((-?\d+(?:\.\d+)?)\)/i);
-
+							const className = img.className || '';
+							const rotation = className.includes('hmps-img-rot-270')
+								? 270
+								: className.includes('hmps-img-rot-180')
+									? 180
+									: className.includes('hmps-img-rot-90')
+										? 90
+										: 0;
 							return {
-								rotation: rotationMatch ? Number(rotationMatch[1]) : 0,
-								scaleX: scaleXMatch ? Number(scaleXMatch[1]) : 1,
-								scaleY: scaleYMatch ? Number(scaleYMatch[1]) : 1,
+								rotation,
+								scaleX: className.includes('hmps-img-fliph') ? -1 : 1,
+								scaleY: className.includes('hmps-img-flipv') ? -1 : 1,
 							};
 						};
 
@@ -551,17 +587,19 @@ export default function RichTextEditor({
 							img: HTMLImageElement,
 							next: { rotation: number; scaleX: number; scaleY: number },
 						) => {
-							const styleAttr = img.getAttribute('style') || '';
-							const styleWithoutTransform = styleAttr
-								.replace(/(?:^|;)\s*transform\s*:[^;]*/gi, '')
-								.replace(/^;\s*/, '')
-								.trim();
 							const normalizedRotation = ((next.rotation % 360) + 360) % 360;
-							const transform = `rotate(${normalizedRotation}deg) scaleX(${next.scaleX}) scaleY(${next.scaleY})`;
-							const rebuiltStyle = styleWithoutTransform
-								? `${styleWithoutTransform}; transform: ${transform};`
-								: `transform: ${transform};`;
-							editor.dom.setAttrib(img, 'style', rebuiltStyle);
+							ROTATION_CLASSES.forEach((cls) => editor.dom.removeClass(img, cls));
+							FLIP_CLASSES.forEach((cls) => editor.dom.removeClass(img, cls));
+
+							if (normalizedRotation === 90) editor.dom.addClass(img, 'hmps-img-rot-90');
+							if (normalizedRotation === 180)
+								editor.dom.addClass(img, 'hmps-img-rot-180');
+							if (normalizedRotation === 270)
+								editor.dom.addClass(img, 'hmps-img-rot-270');
+
+							if (next.scaleX < 0) editor.dom.addClass(img, 'hmps-img-fliph');
+							if (next.scaleY < 0) editor.dom.addClass(img, 'hmps-img-flipv');
+
 							editor.nodeChanged();
 						};
 

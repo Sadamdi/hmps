@@ -943,7 +943,25 @@ body {
 	margin: 2rem 0;
 	max-width: 100%;
 	height: auto;
+	display: inline-block;
+	transform-origin: center center;
 }
+
+.berita-content img.hmps-img-rot-90 { transform: rotate(90deg); }
+.berita-content img.hmps-img-rot-180 { transform: rotate(180deg); }
+.berita-content img.hmps-img-rot-270 { transform: rotate(270deg); }
+.berita-content img.hmps-img-fliph { transform: scaleX(-1); }
+.berita-content img.hmps-img-flipv { transform: scaleY(-1); }
+.berita-content img.hmps-img-rot-90.hmps-img-fliph { transform: rotate(90deg) scaleX(-1); }
+.berita-content img.hmps-img-rot-90.hmps-img-flipv { transform: rotate(90deg) scaleY(-1); }
+.berita-content img.hmps-img-rot-180.hmps-img-fliph { transform: rotate(180deg) scaleX(-1); }
+.berita-content img.hmps-img-rot-180.hmps-img-flipv { transform: rotate(180deg) scaleY(-1); }
+.berita-content img.hmps-img-rot-270.hmps-img-fliph { transform: rotate(270deg) scaleX(-1); }
+.berita-content img.hmps-img-rot-270.hmps-img-flipv { transform: rotate(270deg) scaleY(-1); }
+.berita-content img.hmps-img-fliph.hmps-img-flipv { transform: scaleX(-1) scaleY(-1); }
+.berita-content img.hmps-img-rot-90.hmps-img-fliph.hmps-img-flipv { transform: rotate(90deg) scaleX(-1) scaleY(-1); }
+.berita-content img.hmps-img-rot-180.hmps-img-fliph.hmps-img-flipv { transform: rotate(180deg) scaleX(-1) scaleY(-1); }
+.berita-content img.hmps-img-rot-270.hmps-img-fliph.hmps-img-flipv { transform: rotate(270deg) scaleX(-1) scaleY(-1); }
 
 .berita-content code {
 	background-color: #f1f5f9;
@@ -1197,7 +1215,25 @@ body {
 	margin: 2rem 0;
 	max-width: 100%;
 	height: auto;
+	display: inline-block;
+	transform-origin: center center;
 }
+
+.berita-content-dark img.hmps-img-rot-90 { transform: rotate(90deg); }
+.berita-content-dark img.hmps-img-rot-180 { transform: rotate(180deg); }
+.berita-content-dark img.hmps-img-rot-270 { transform: rotate(270deg); }
+.berita-content-dark img.hmps-img-fliph { transform: scaleX(-1); }
+.berita-content-dark img.hmps-img-flipv { transform: scaleY(-1); }
+.berita-content-dark img.hmps-img-rot-90.hmps-img-fliph { transform: rotate(90deg) scaleX(-1); }
+.berita-content-dark img.hmps-img-rot-90.hmps-img-flipv { transform: rotate(90deg) scaleY(-1); }
+.berita-content-dark img.hmps-img-rot-180.hmps-img-fliph { transform: rotate(180deg) scaleX(-1); }
+.berita-content-dark img.hmps-img-rot-180.hmps-img-flipv { transform: rotate(180deg) scaleY(-1); }
+.berita-content-dark img.hmps-img-rot-270.hmps-img-fliph { transform: rotate(270deg) scaleX(-1); }
+.berita-content-dark img.hmps-img-rot-270.hmps-img-flipv { transform: rotate(270deg) scaleY(-1); }
+.berita-content-dark img.hmps-img-fliph.hmps-img-flipv { transform: scaleX(-1) scaleY(-1); }
+.berita-content-dark img.hmps-img-rot-90.hmps-img-fliph.hmps-img-flipv { transform: rotate(90deg) scaleX(-1) scaleY(-1); }
+.berita-content-dark img.hmps-img-rot-180.hmps-img-fliph.hmps-img-flipv { transform: rotate(180deg) scaleX(-1) scaleY(-1); }
+.berita-content-dark img.hmps-img-rot-270.hmps-img-fliph.hmps-img-flipv { transform: rotate(270deg) scaleX(-1) scaleY(-1); }
 
 .berita-content-dark code {
 	background-color: #374151;
