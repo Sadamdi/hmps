@@ -236,6 +236,7 @@ export const ALL_NAVBAR_ITEMS: { id: string; label: string }[] = [
 	{ id: 'berita', label: 'Berita' },
 	{ id: 'library', label: 'Galeri' },
 	{ id: 'toko', label: 'Toko' },
+	{ id: 'komunitas', label: 'Komunitas' },
 ];
 
 export const DEFAULT_HOME_CONFIG: HomeConfig = {

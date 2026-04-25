@@ -4793,7 +4793,7 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 				continue;
 			}
 			rows.push({
-				rowId: n.id,
+				rowId: `item:${n.id}`,
 				type: 'item',
 				navId: n.id,
 				label: navLabel(n.id),
@@ -4863,7 +4863,9 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 				}
 			}
 		}
-		setFormNavbar(nextOrderIds.map((id) => navMap.get(id)).filter(Boolean) as HomeNavbarItem[]);
+		setFormNavbar(
+			nextOrderIds.map((id) => navMap.get(id)).filter(Boolean) as HomeNavbarItem[],
+		);
 	};
 
 	const toggleBlock = (id: string) => {

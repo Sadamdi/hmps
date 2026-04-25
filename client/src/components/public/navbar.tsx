@@ -547,10 +547,73 @@ export default function Navbar({
 			});
 		}
 
+		// Komunitas: situs utama = daftar komunitas; situs tenant = beranda Himatif dulu, lalu komunitas lain (+ aktif)
+		const communityList = Array.isArray(communities)
+			? (communities as any[])
+			: [];
+		const MAX_DROPDOWN = 10;
+		if (isTenant) {
+			const slotsForCommunities = Math.max(0, MAX_DROPDOWN - 1);
+			const rest = communityList.slice(0, slotsForCommunities);
+			const children: NavChildItem[] = [
+				{ id: 'community-main', label: MAIN_PORTAL_COMMUNITY_LABEL, href: '/' },
+				...rest.map((c: any) => ({
+					id: `community-${c.slug}`,
+					label: c.slug === tenantSlug ? `${c.name} (aktif)` : c.name,
+					href: `/${c.slug}`,
+				})),
+			];
+			if (communityList.length > slotsForCommunities) {
+				children.push({
+					id: 'community-all',
+					label: 'Lihat semua komunitas',
+					href: '/communities',
+				});
+			}
+			navItemMap.set('komunitas', {
+				id: 'komunitas',
+				label: 'Komunitas',
+				icon: <Building2 className="h-4 w-4" />,
+				homeSection: '',
+				children,
+			});
+		} else if (communityList.length > 0) {
+			const children: NavChildItem[] = communityList
+				.slice(0, MAX_DROPDOWN)
+				.map((c: any) => ({
+					id: `community-${c.slug}`,
+					label: c.name,
+					href: `/${c.slug}`,
+				}));
+			if (communityList.length > MAX_DROPDOWN) {
+				children.push({
+					id: 'community-all',
+					label: 'Lihat semua komunitas',
+					href: '/communities',
+				});
+			}
+			navItemMap.set('komunitas', {
+				id: 'komunitas',
+				label: 'Komunitas',
+				icon: <Building2 className="h-4 w-4" />,
+				homeSection: '',
+				children,
+			});
+		}
+
 		let orderedIds: string[] =
 			navCfgArr && navCfgArr.length > 0
 				? navCfgArr.map((n) => n.id)
-				: ['home', 'profil', 'kelembagaan', 'events', 'berita', 'library', 'toko'];
+				: [
+						'home',
+						'profil',
+						'kelembagaan',
+						'events',
+						'berita',
+						'library',
+						'toko',
+						'komunitas',
+					];
 		if (isTenant) {
 			orderedIds = orderedIds.filter((id) => id !== 'prodi');
 		}
@@ -560,50 +623,6 @@ export default function Navbar({
 			if (!isVisible(id)) continue;
 			const item = navItemMap.get(id);
 			if (item) result.push(item);
-		}
-
-		// Komunitas: situs utama = daftar komunitas; situs tenant = beranda Himatif dulu, lalu komunitas lain (+ aktif)
-		const communityList = Array.isArray(communities)
-			? (communities as any[])
-			: [];
-		const MAX_DROPDOWN = 10;
-		if (isTenant) {
-			const slotsForCommunities = Math.max(0, MAX_DROPDOWN - 1);
-			const rest = communityList.slice(0, slotsForCommunities);
-			const children: { label: string; href?: string }[] = [
-				{ label: MAIN_PORTAL_COMMUNITY_LABEL, href: '/' },
-				...rest.map((c: any) => ({
-					label: c.slug === tenantSlug ? `${c.name} (aktif)` : c.name,
-					href: `/${c.slug}`,
-				})),
-			];
-			if (communityList.length > slotsForCommunities) {
-				children.push({ label: 'Lihat semua komunitas', href: '/communities' });
-			}
-			result.push({
-				id: 'komunitas',
-				label: 'Komunitas',
-				icon: <Building2 className="h-4 w-4" />,
-				homeSection: '',
-				children,
-			});
-		} else if (communityList.length > 0) {
-			const children: { label: string; href?: string }[] = communityList
-				.slice(0, MAX_DROPDOWN)
-				.map((c: any) => ({
-					label: c.name,
-					href: `/${c.slug}`,
-				}));
-			if (communityList.length > MAX_DROPDOWN) {
-				children.push({ label: 'Lihat semua komunitas', href: '/communities' });
-			}
-			result.push({
-				id: 'komunitas',
-				label: 'Komunitas',
-				icon: <Building2 className="h-4 w-4" />,
-				homeSection: '',
-				children,
-			});
 		}
 
 		// Terapkan merge group dari dashboard.
