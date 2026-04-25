@@ -111,6 +111,7 @@ import {
 	TENANT_SECTION_BLOCKS,
 	type HomeBlockItem,
 	type HomeConfig,
+	type HomeNavbarGroup,
 	type HomeNavbarItem,
 } from '../../../../shared/schema';
 
@@ -4706,25 +4707,53 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 			);
 			const mergedNavbar = [...currentNavbar, ...missing];
 
+			const sourceGroups: HomeNavbarGroup[] = Array.isArray(
+				settings.homeConfig.navbarGroups,
+			)
+				? settings.homeConfig.navbarGroups
+				: [];
+			const navbarIdSet = new Set(prodiFilter(mergedNavbar).map((n) => n.id));
+			const sanitizedGroups: HomeNavbarGroup[] = sourceGroups.map((g) => ({
+				id: g.id,
+				label: g.label,
+				visible: g.visible !== false,
+				allowNestedChildren: g.allowNestedChildren !== false,
+				members: (g.members || []).filter((m) => navbarIdSet.has(m)),
+			}));
+
 			return {
 				blocks: prodiFilter(settings.homeConfig.blocks),
 				navbar: prodiFilter(mergedNavbar),
+				navbarGroups: sanitizedGroups,
 				showDashboardLink: settings.homeConfig.showDashboardLink ?? true,
 			};
 		}
 		return isTenant
-			? { blocks: TENANT_SECTION_BLOCKS.map((s) => ({ id: s.id, kind: 'section' as const, visible: true })), navbar: TENANT_NAVBAR_ITEMS.map((n) => ({ id: n.id, visible: true })), showDashboardLink: true }
+			? {
+					blocks: TENANT_SECTION_BLOCKS.map((s) => ({
+						id: s.id,
+						kind: 'section' as const,
+						visible: true,
+					})),
+					navbar: TENANT_NAVBAR_ITEMS.map((n) => ({ id: n.id, visible: true })),
+					navbarGroups: [],
+					showDashboardLink: true,
+				}
 			: DEFAULT_HOME_CONFIG;
 	}, [settings, isTenant]);
 
 	const [formBlocks, setFormBlocks] = useState<HomeBlockItem[]>([]);
 	const [formNavbar, setFormNavbar] = useState<HomeNavbarItem[]>([]);
+	const [formNavbarGroups, setFormNavbarGroups] = useState<HomeNavbarGroup[]>(
+		[],
+	);
 	const [formShowDashLink, setFormShowDashLink] = useState(true);
 
 	useEffect(() => {
 		const cfg = buildInitial();
 		setFormBlocks(cfg.blocks);
 		setFormNavbar(cfg.navbar);
+		setFormNavbarGroups(cfg.navbarGroups || []);
 		setFormShowDashLink(cfg.showDashboardLink);
 	}, [buildInitial]);
 
@@ -4788,6 +4817,91 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 		setFormNavbar((prev) =>
 			prev.map((n) => (n.id === id ? { ...n, visible: !n.visible } : n)),
 		);
+	};
+
+	const claimedMemberIds = useMemo(() => {
+		const set = new Set<string>();
+		for (const g of formNavbarGroups) {
+			for (const m of g.members) set.add(m);
+		}
+		return set;
+	}, [formNavbarGroups]);
+
+	const navbarOptionsForGroups = useMemo(
+		() =>
+			formNavbar
+				.map((n) => ({ id: n.id, label: navLabel(n.id) }))
+				.filter((n) => n.id !== 'home'),
+		[formNavbar],
+	);
+
+	const generateGroupId = useCallback(
+		(label: string) => {
+			const base =
+				label
+					.toLowerCase()
+					.replace(/[^a-z0-9]+/g, '-')
+					.replace(/^-+|-+$/g, '') || 'grup';
+			let candidate = `group-${base}`;
+			let counter = 2;
+			const existing = new Set(formNavbarGroups.map((g) => g.id));
+			while (existing.has(candidate)) {
+				candidate = `group-${base}-${counter++}`;
+			}
+			return candidate;
+		},
+		[formNavbarGroups],
+	);
+
+	const addNavbarGroup = (label: string, members: string[]) => {
+		if (!canEdit) return;
+		const cleanLabel = label.trim();
+		if (!cleanLabel) return;
+		const dedupMembers = Array.from(new Set(members)).filter(
+			(m) => !claimedMemberIds.has(m) && m !== 'home',
+		);
+		setFormNavbarGroups((prev) => [
+			...prev,
+			{
+				id: generateGroupId(cleanLabel),
+				label: cleanLabel,
+				visible: true,
+				allowNestedChildren: true,
+				members: dedupMembers,
+			},
+		]);
+	};
+
+	const updateNavbarGroup = (
+		id: string,
+		patch: Partial<HomeNavbarGroup>,
+	) => {
+		if (!canEdit) return;
+		setFormNavbarGroups((prev) =>
+			prev.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+		);
+	};
+
+	const toggleGroupMember = (groupId: string, memberId: string) => {
+		if (!canEdit) return;
+		setFormNavbarGroups((prev) =>
+			prev.map((g) => {
+				if (g.id !== groupId) return g;
+				if (g.members.includes(memberId)) {
+					return { ...g, members: g.members.filter((m) => m !== memberId) };
+				}
+				const claimedByOther = prev.some(
+					(other) => other.id !== groupId && other.members.includes(memberId),
+				);
+				if (claimedByOther) return g;
+				return { ...g, members: [...g.members, memberId] };
+			}),
+		);
+	};
+
+	const removeNavbarGroup = (id: string) => {
+		if (!canEdit) return;
+		setFormNavbarGroups((prev) => prev.filter((g) => g.id !== id));
 	};
 
 	const addBlock = (id: string, kind: 'section' | 'subItem') => {
@@ -5021,6 +5135,18 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 				</CardContent>
 			</Card>
 
+			<NavbarGroupsEditor
+				groups={formNavbarGroups}
+				options={navbarOptionsForGroups}
+				navOrder={formNavbar.map((n) => n.id)}
+				claimedMemberIds={claimedMemberIds}
+				canEdit={canEdit}
+				onAdd={addNavbarGroup}
+				onUpdate={updateNavbarGroup}
+				onToggleMember={toggleGroupMember}
+				onRemove={removeNavbarGroup}
+			/>
+
 			{canEdit && (
 				<div className="flex justify-end">
 					<Button
@@ -5028,6 +5154,7 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 							mutation.mutate({
 								blocks: formBlocks,
 								navbar: formNavbar,
+								navbarGroups: formNavbarGroups,
 								showDashboardLink: formShowDashLink,
 							})
 						}
@@ -5047,5 +5174,192 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 				</div>
 			)}
 		</div>
+	);
+}
+
+function NavbarGroupsEditor({
+	groups,
+	options,
+	navOrder,
+	claimedMemberIds,
+	canEdit,
+	onAdd,
+	onUpdate,
+	onToggleMember,
+	onRemove,
+}: {
+	groups: HomeNavbarGroup[];
+	options: { id: string; label: string }[];
+	navOrder: string[];
+	claimedMemberIds: Set<string>;
+	canEdit: boolean;
+	onAdd: (label: string, members: string[]) => void;
+	onUpdate: (id: string, patch: Partial<HomeNavbarGroup>) => void;
+	onToggleMember: (groupId: string, memberId: string) => void;
+	onRemove: (id: string) => void;
+}) {
+	const [labelDraft, setLabelDraft] = useState('');
+	const [memberDraft, setMemberDraft] = useState<string[]>([]);
+
+	const addDisabled = !canEdit || !labelDraft.trim();
+	const optionLabel = (id: string) => options.find((o) => o.id === id)?.label || id;
+	const previewRoot = useMemo(() => {
+		const memberToGroup = new Map<string, string>();
+		for (const g of groups) {
+			for (const m of g.members) {
+				if (!memberToGroup.has(m)) memberToGroup.set(m, g.label);
+			}
+		}
+		const root: string[] = [];
+		const seenGroup = new Set<string>();
+		for (const id of navOrder) {
+			const gLabel = memberToGroup.get(id);
+			if (gLabel) {
+				if (!seenGroup.has(gLabel)) {
+					seenGroup.add(gLabel);
+					root.push(gLabel);
+				}
+				continue;
+			}
+			root.push(optionLabel(id));
+		}
+		return root;
+	}, [groups, navOrder, options]);
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle>Merge Group Navbar</CardTitle>
+				<CardDescription>
+					Gabung beberapa item navbar menjadi satu parent dropdown (contoh:
+					Media). Item yang sudah dipakai grup lain tidak bisa dipilih ulang.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<div className="rounded-lg border p-3 space-y-3">
+					<Label>Tambah Grup Baru</Label>
+					<div className="grid grid-cols-1 md:grid-cols-[1fr_auto] gap-2">
+						<Input
+							value={labelDraft}
+							onChange={(e) => setLabelDraft(e.target.value)}
+							placeholder="Contoh: Media"
+							disabled={!canEdit}
+						/>
+						<Button
+							type="button"
+							disabled={addDisabled}
+							onClick={() => {
+								onAdd(labelDraft, memberDraft);
+								setLabelDraft('');
+								setMemberDraft([]);
+							}}>
+							<Plus className="h-4 w-4 mr-1" />
+							Tambah Grup
+						</Button>
+					</div>
+					<div className="flex flex-wrap gap-2">
+						{options.map((o) => {
+							const selected = memberDraft.includes(o.id);
+							const locked = claimedMemberIds.has(o.id) && !selected;
+							return (
+								<button
+									type="button"
+									key={`draft-${o.id}`}
+									disabled={!canEdit || locked}
+									onClick={() =>
+										setMemberDraft((prev) =>
+											prev.includes(o.id)
+												? prev.filter((x) => x !== o.id)
+												: [...prev, o.id],
+										)
+									}
+									className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${
+										selected
+											? 'bg-primary/10 text-primary border-primary/40'
+											: 'bg-muted/30 text-foreground/80 border-border'
+									} ${locked ? 'opacity-40 cursor-not-allowed' : ''}`}>
+									{o.label}
+								</button>
+							);
+						})}
+					</div>
+				</div>
+
+				{groups.length === 0 ? (
+					<p className="text-sm text-muted-foreground">
+						Belum ada grup merge. Tambahkan grup untuk merapikan navbar.
+					</p>
+				) : (
+					<div className="space-y-3">
+						{groups.map((g) => (
+							<div key={g.id} className="border rounded-lg p-3 space-y-3">
+								<div className="flex items-center gap-2">
+									<Input
+										value={g.label}
+										onChange={(e) =>
+											onUpdate(g.id, { label: e.target.value })
+										}
+										disabled={!canEdit}
+									/>
+									<div className="flex items-center gap-2">
+										<Label className="text-xs">Tampil</Label>
+										<Switch
+											checked={g.visible !== false}
+											onCheckedChange={(v) =>
+												onUpdate(g.id, { visible: v })
+											}
+											disabled={!canEdit}
+										/>
+									</div>
+									<div className="flex items-center gap-2">
+										<Label className="text-xs">Nested</Label>
+										<Switch
+											checked={g.allowNestedChildren !== false}
+											onCheckedChange={(v) =>
+												onUpdate(g.id, { allowNestedChildren: v })
+											}
+											disabled={!canEdit}
+										/>
+									</div>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										disabled={!canEdit}
+										onClick={() => onRemove(g.id)}>
+										<Trash2 className="h-3.5 w-3.5 mr-1" />
+										Hapus
+									</Button>
+								</div>
+								<div className="flex flex-wrap gap-2">
+									{options.map((o) => {
+										const selected = g.members.includes(o.id);
+										const locked =
+											claimedMemberIds.has(o.id) && !selected;
+										return (
+											<button
+												type="button"
+												key={`${g.id}-${o.id}`}
+												disabled={!canEdit || locked}
+												onClick={() => onToggleMember(g.id, o.id)}
+												className={`px-2.5 py-1 rounded-md text-xs border transition-colors ${
+													selected
+														? 'bg-primary/10 text-primary border-primary/40'
+														: 'bg-muted/30 text-foreground/80 border-border'
+												} ${locked ? 'opacity-40 cursor-not-allowed' : ''}`}>
+												{o.label}
+											</button>
+										);
+									})}
+								</div>
+							</div>
+						))}
+					</div>
+				)}
+				<div className="rounded-md border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+					Preview root navbar: {previewRoot.join(' -> ')}
+				</div>
+			</CardContent>
+		</Card>
 	);
 }

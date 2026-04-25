@@ -180,9 +180,29 @@ export interface HomeNavbarItem {
 	visible: boolean;
 }
 
+/**
+ * Grup merge navbar yang diatur dari Dashboard Settings Beranda.
+ * Beberapa item navbar bawaan (mis. `events`, `berita`, `library`) bisa
+ * digabung di bawah satu parent baru (mis. label `Media`).
+ *
+ * - `members` berisi id dari `ALL_NAVBAR_ITEMS` (root level) yang ingin diserap.
+ * - Saat aktif, member yang masuk grup dihapus dari level root navbar dan
+ *   dimunculkan sebagai sub-dropdown di dalam parent grup.
+ * - `allowNestedChildren` mengaktifkan tampilan nested submenu (panah)
+ *   bila member punya children sendiri (mis. Event punya bulan/tahun).
+ */
+export interface HomeNavbarGroup {
+	id: string;
+	label: string;
+	visible: boolean;
+	members: string[];
+	allowNestedChildren?: boolean;
+}
+
 export interface HomeConfig {
 	blocks: HomeBlockItem[];
 	navbar: HomeNavbarItem[];
+	navbarGroups?: HomeNavbarGroup[];
 	showDashboardLink: boolean;
 }
 
@@ -221,6 +241,7 @@ export const ALL_NAVBAR_ITEMS: { id: string; label: string }[] = [
 export const DEFAULT_HOME_CONFIG: HomeConfig = {
 	blocks: ALL_SECTION_BLOCKS.map((s) => ({ id: s.id, kind: 'section' as const, visible: true })),
 	navbar: ALL_NAVBAR_ITEMS.map((n) => ({ id: n.id, visible: true })),
+	navbarGroups: [],
 	showDashboardLink: true,
 };
 
@@ -230,6 +251,7 @@ export const TENANT_NAVBAR_ITEMS = ALL_NAVBAR_ITEMS.filter((n) => !PRODI_IDS.has
 export const DEFAULT_TENANT_HOME_CONFIG: HomeConfig = {
 	blocks: TENANT_SECTION_BLOCKS.map((s) => ({ id: s.id, kind: 'section' as const, visible: true })),
 	navbar: TENANT_NAVBAR_ITEMS.map((n) => ({ id: n.id, visible: true })),
+	navbarGroups: [],
 	showDashboardLink: true,
 };
 

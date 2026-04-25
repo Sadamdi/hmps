@@ -5439,7 +5439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		requirePermission('home_settings.edit'),
 		async (req, res) => {
 			try {
-				const { blocks, navbar, showDashboardLink } = req.body;
+				const { blocks, navbar, navbarGroups, showDashboardLink } = req.body;
 				const updatePayload: Record<string, any> = {};
 
 				if (Array.isArray(blocks)) {
@@ -5469,6 +5469,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							visible: typeof n.visible === 'boolean' ? n.visible : true,
 						}));
 					updatePayload['homeConfig.navbar'] = sanitized;
+				}
+
+				if (Array.isArray(navbarGroups)) {
+					const knownNavbarIds = new Set(
+						(Array.isArray(navbar)
+							? navbar
+									.filter((n: any) => n && typeof n.id === 'string')
+									.map((n: any) => String(n.id))
+							: []),
+					);
+					const seenGroupIds = new Set<string>();
+					const claimedMembers = new Set<string>();
+					const sanitized = navbarGroups
+						.filter(
+							(g: any) =>
+								g &&
+								typeof g.id === 'string' &&
+								g.id.trim().length > 0 &&
+								typeof g.label === 'string' &&
+								g.label.trim().length > 0 &&
+								Array.isArray(g.members),
+						)
+						.map((g: any) => {
+							const gid = String(g.id).trim();
+							const label = String(g.label).trim().slice(0, 60);
+							const visible =
+								typeof g.visible === 'boolean' ? g.visible : true;
+							const allowNestedChildren =
+								typeof g.allowNestedChildren === 'boolean'
+									? g.allowNestedChildren
+									: true;
+							const members: string[] = [];
+							for (const raw of g.members) {
+								if (typeof raw !== 'string') continue;
+								const mid = raw.trim();
+								if (!mid) continue;
+								if (knownNavbarIds.size > 0 && !knownNavbarIds.has(mid))
+									continue;
+								if (claimedMembers.has(mid)) continue;
+								if (members.includes(mid)) continue;
+								claimedMembers.add(mid);
+								members.push(mid);
+							}
+							return {
+								id: gid,
+								label,
+								visible,
+								allowNestedChildren,
+								members,
+							};
+						})
+						.filter((g) => {
+							if (seenGroupIds.has(g.id)) return false;
+							seenGroupIds.add(g.id);
+							return true;
+						});
+					updatePayload['homeConfig.navbarGroups'] = sanitized;
 				}
 
 				if (typeof showDashboardLink === 'boolean') {

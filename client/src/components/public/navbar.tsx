@@ -4,6 +4,9 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
@@ -27,6 +30,7 @@ import {
 	LogOut,
 	Menu,
 	Moon,
+	MoreHorizontal,
 	Settings,
 	ShoppingBag,
 	Sun,
@@ -53,23 +57,23 @@ interface NavbarSettings {
 	aboutPageLambang?: any[];
 }
 
-type NavItem =
-	| {
-			id: string;
-			label: string;
-			icon: React.ReactNode;
-			children?: undefined;
-			homeSection?: undefined;
-			externalHref?: string;
-	  }
-	| {
-			id: string;
-			label: string;
-			icon: React.ReactNode;
-			homeSection: string;
-			children: { label: string; href?: string; month?: number }[];
-			externalHref?: never;
-	  };
+type NavItem = {
+	id: string;
+	label: string;
+	icon: React.ReactNode;
+	homeSection?: string;
+	children?: NavChildItem[];
+	externalHref?: string;
+	mergedFromIds?: string[];
+};
+
+type NavChildItem = {
+	id?: string;
+	label: string;
+	href?: string;
+	month?: number;
+	children?: NavChildItem[];
+};
 
 // Peta item navbar → section beranda untuk scroll otomatis
 const MONTH_NAMES = [
@@ -450,6 +454,7 @@ export default function Navbar({
 	}, [eventsData]);
 
 	const navCfgArr: HomeNavbarItem[] | undefined = settings?.homeConfig?.navbar;
+	const navGroupsCfg = settings?.homeConfig?.navbarGroups ?? [];
 	const showDashLink = settings?.homeConfig?.showDashboardLink ?? true;
 
 	const hasTrackRecord = (settings?.aboutPageTrackRecord?.length ?? 0) > 0;
@@ -601,11 +606,68 @@ export default function Navbar({
 			});
 		}
 
+		// Terapkan merge group dari dashboard.
+		if (Array.isArray(navGroupsCfg) && navGroupsCfg.length > 0) {
+			const idSet = new Set(result.map((i) => i.id));
+			const groupMembers = new Set<string>();
+			const groups: NavItem[] = [];
+			for (const g of navGroupsCfg) {
+				if (!g || g.visible === false) continue;
+				const members = (g.members || []).filter((id) => idSet.has(id));
+				if (members.length === 0) continue;
+				for (const m of members) groupMembers.add(m);
+				const groupChildren: NavChildItem[] = members
+					.map((id) => result.find((x) => x.id === id))
+					.filter(Boolean)
+					.map((member) => {
+						const m = member as NavItem;
+						const homeTarget =
+							(m as any).homeSection || sectionMap[m.id] || m.id;
+						if ((m as any).children?.length) {
+							return {
+								id: m.id,
+								label: m.label,
+								href: bp ? `${bp}/#${homeTarget}` : `/#${homeTarget}`,
+								children:
+									g.allowNestedChildren === false
+										? undefined
+										: ((m as any).children as NavChildItem[]),
+							};
+						}
+						const ext = (m as any).externalHref as string | undefined;
+						return {
+							id: m.id,
+							label: m.label,
+							href: ext || (bp ? `${bp}/#${homeTarget}` : `/#${homeTarget}`),
+						};
+					});
+				groups.push({
+					id: g.id,
+					label: g.label,
+					icon: <MoreHorizontal className="h-4 w-4" />,
+					homeSection: members[0] || '',
+					mergedFromIds: members,
+					children: groupChildren,
+				});
+			}
+			const merged = result.filter((item) => !groupMembers.has(item.id));
+			for (const g of groups) {
+				const firstMember = g.mergedFromIds?.[0];
+				const idx = firstMember
+					? merged.findIndex((x) => x.id === firstMember)
+					: -1;
+				if (idx >= 0) merged.splice(idx, 0, g);
+				else merged.push(g);
+			}
+			return merged;
+		}
+
 		return result;
 	}, [
 		activeYears,
 		eventMonths,
 		navCfgArr,
+		navGroupsCfg,
 		communities,
 		isTenant,
 		bp,
@@ -614,6 +676,55 @@ export default function Navbar({
 		hasLambang,
 		storeNavSettings,
 	]);
+
+	const [desktopVisibleNavCount, setDesktopVisibleNavCount] = useState(7);
+	useEffect(() => {
+		const computeVisibleCount = () => {
+			const w = window.innerWidth;
+			// Estimasi aman agar area brand + aksi kanan tidak ketabrak.
+			if (w >= 1600) return 10;
+			if (w >= 1440) return 9;
+			if (w >= 1280) return 8;
+			if (w >= 1120) return 7;
+			if (w >= 980) return 6;
+			if (w >= 860) return 5;
+			return 4;
+		};
+		const apply = () => setDesktopVisibleNavCount(computeVisibleCount());
+		apply();
+		window.addEventListener('resize', apply);
+		return () => window.removeEventListener('resize', apply);
+	}, []);
+
+	const desktopNavItems = useMemo(
+		() => navItems.slice(0, Math.max(1, desktopVisibleNavCount)),
+		[navItems, desktopVisibleNavCount],
+	);
+	const desktopOverflowNavItems = useMemo(
+		() => navItems.slice(Math.max(1, desktopVisibleNavCount)),
+		[navItems, desktopVisibleNavCount],
+	);
+	const mobileRootLimit = 6;
+	const mobileNavItems = useMemo(() => {
+		const root = navItems.slice(0, mobileRootLimit);
+		const overflow = navItems.slice(mobileRootLimit);
+		if (overflow.length === 0) return root;
+		return [
+			...root,
+			{
+				id: 'mobile-more',
+				label: 'More',
+				icon: <MoreHorizontal className="h-4 w-4" />,
+				homeSection: '',
+				children: overflow.map((it) => ({
+					id: it.id,
+					label: it.label,
+					href: it.externalHref || (bp ? `${bp}/#${it.id}` : `/#${it.id}`),
+					children: it.children,
+				})),
+			} as NavItem,
+		];
+	}, [navItems, bp]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.
@@ -998,6 +1109,56 @@ export default function Navbar({
 		window.location.href = href;
 	};
 
+	const handleDropdownMonthClick = (month: number) => {
+		if (location !== '/') {
+			sessionStorage.setItem('eventsScrollToMonth', String(month));
+			window.location.href = bp ? `${bp}/#events` : '/#events';
+		} else {
+			programmaticScrollRef.current = true;
+			if (programmaticScrollTimerRef.current)
+				clearTimeout(programmaticScrollTimerRef.current);
+			programmaticScrollTimerRef.current = setTimeout(() => {
+				programmaticScrollRef.current = false;
+			}, 2000);
+			scrollToSection('events');
+			setTimeout(() => {
+				window.dispatchEvent(
+					new CustomEvent('events-scroll-to-month', { detail: { month } }),
+				);
+			}, 500);
+		}
+		openDropdownIdRef.current = null;
+		setOpenDropdownId(null);
+	};
+
+	const renderNavChildren = (children: NavChildItem[]) =>
+		children.map((child) => {
+			if (child.children && child.children.length > 0) {
+				return (
+					<DropdownMenuSub key={`sub-${child.id || child.label}`}>
+						<DropdownMenuSubTrigger>{child.label}</DropdownMenuSubTrigger>
+						<DropdownMenuSubContent className="w-52 border-border bg-card text-foreground z-50">
+							{renderNavChildren(child.children)}
+						</DropdownMenuSubContent>
+					</DropdownMenuSub>
+				);
+			}
+			return (
+				<DropdownMenuItem
+					key={child.href ?? `month-${child.month}-${child.label}`}
+					onClick={() => {
+						if (child.month != null) {
+							handleDropdownMonthClick(child.month);
+						} else if (child.href) {
+							handleChildNav(child.href);
+						}
+					}}
+					className="cursor-pointer">
+					{child.label}
+				</DropdownMenuItem>
+			);
+		});
+
 	return (
 		<>
 			{/* ============ DESKTOP HEADER BAR ============ */}
@@ -1028,7 +1189,7 @@ export default function Navbar({
 
 						{/* Desktop nav links */}
 						<nav className="hidden sm:flex items-center gap-1">
-							{navItems.map((item: NavItem) => {
+							{desktopNavItems.map((item: NavItem) => {
 								if (!('children' in item) && item.externalHref) {
 									return (
 										<Link
@@ -1068,7 +1229,8 @@ export default function Navbar({
 														handleDropdownParentClick(item, dropdownId)
 													}
 													className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
-														activeSection === item.id
+														activeSection === item.id ||
+														(item.mergedFromIds || []).includes(activeSection)
 															? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
 															: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
 													}`}>
@@ -1078,56 +1240,8 @@ export default function Navbar({
 											</DropdownMenuTrigger>
 											<DropdownMenuContent
 												align="center"
-												className="w-48 border-border bg-card text-foreground z-50">
-												{item.children.map(
-													(child: {
-														label: string;
-														href?: string;
-														month?: number;
-													}) => (
-														<DropdownMenuItem
-															key={child.href ?? `month-${child.month}`}
-															onClick={() => {
-																if (child.month != null) {
-																	if (location !== '/') {
-																		sessionStorage.setItem(
-																			'eventsScrollToMonth',
-																			String(child.month),
-																		);
-																		window.location.href = bp
-																			? `${bp}/#events`
-																			: '/#events';
-																	} else {
-																		programmaticScrollRef.current = true;
-																		if (programmaticScrollTimerRef.current)
-																			clearTimeout(
-																				programmaticScrollTimerRef.current,
-																			);
-																		programmaticScrollTimerRef.current =
-																			setTimeout(() => {
-																				programmaticScrollRef.current = false;
-																			}, 2000);
-																		scrollToSection('events');
-																		setTimeout(() => {
-																			window.dispatchEvent(
-																				new CustomEvent(
-																					'events-scroll-to-month',
-																					{ detail: { month: child.month } },
-																				),
-																			);
-																		}, 500);
-																	}
-																	openDropdownIdRef.current = null;
-																	setOpenDropdownId(null);
-																} else if (child.href) {
-																	handleChildNav(child.href);
-																}
-															}}
-															className="cursor-pointer">
-															{child.label}
-														</DropdownMenuItem>
-													),
-												)}
+												className="w-52 border-border bg-card text-foreground z-50">
+												{renderNavChildren(item.children)}
 											</DropdownMenuContent>
 										</DropdownMenu>
 									);
@@ -1144,6 +1258,7 @@ export default function Navbar({
 										}}
 										className={`px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
 											activeSection === item.id ||
+											(item.mergedFromIds || []).includes(activeSection) ||
 											(item.id === 'home' &&
 												(activeSection === '' || activeSection === 'home'))
 												? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
@@ -1153,6 +1268,66 @@ export default function Navbar({
 									</button>
 								);
 							})}
+							{desktopOverflowNavItems.length > 0 && (
+								<DropdownMenu
+									modal={false}
+									open={openDropdownId === 'desktop-more'}
+									onOpenChange={(nextOpen) => {
+										if (nextOpen) setOpenDropdownId('desktop-more');
+										else {
+											openDropdownIdRef.current = null;
+											setOpenDropdownId(null);
+										}
+									}}>
+									<DropdownMenuTrigger asChild>
+										<button
+											className={`flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium transition-all duration-200 ${
+												desktopOverflowNavItems.some(
+													(i) =>
+														activeSection === i.id ||
+														(i.mergedFromIds || []).includes(activeSection),
+												)
+													? 'bg-primary/10 text-primary shadow-[0_0_12px_rgba(37,99,235,0.12)]'
+													: 'text-foreground/70 hover:text-primary hover:bg-primary/8'
+											}`}>
+											More
+											<ChevronDown className="h-3 w-3 opacity-60" />
+										</button>
+									</DropdownMenuTrigger>
+									<DropdownMenuContent
+										align="center"
+										className="w-56 border-border bg-card text-foreground z-50">
+										{desktopOverflowNavItems.map((item) => {
+											if (item.children?.length) {
+												return (
+													<DropdownMenuSub key={`more-sub-${item.id}`}>
+														<DropdownMenuSubTrigger>{item.label}</DropdownMenuSubTrigger>
+														<DropdownMenuSubContent className="w-52 border-border bg-card text-foreground z-50">
+															{renderNavChildren(item.children)}
+														</DropdownMenuSubContent>
+													</DropdownMenuSub>
+												);
+											}
+											if (item.externalHref) {
+												return (
+													<DropdownMenuItem
+														key={`more-item-${item.id}`}
+														onClick={() => handleChildNav(item.externalHref || '/')}>
+														{item.label}
+													</DropdownMenuItem>
+												);
+											}
+											return (
+												<DropdownMenuItem
+													key={`more-item-${item.id}`}
+													onClick={() => handleNavClick(item.id)}>
+													{item.label}
+												</DropdownMenuItem>
+											);
+										})}
+									</DropdownMenuContent>
+								</DropdownMenu>
+							)}
 						</nav>
 
 						{/* Right side actions — desktop */}
@@ -1330,7 +1505,7 @@ export default function Navbar({
 						{/* All nav items with stagger animation */}
 						{(() => {
 							// Build flat list of all items including user/login at end
-							const allItems = [...navItems];
+							const allItems = [...mobileNavItems];
 
 							return (
 								<>
@@ -1411,7 +1586,8 @@ export default function Navbar({
 															className={`relative w-10 h-10 flex items-center justify-center rounded-xl
 														            transition-all duration-200 group ${iconClass}
 														            ${
-																					activeSection === item.id
+																					activeSection === item.id ||
+																					(item.mergedFromIds || []).includes(activeSection)
 																						? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
 																						: 'text-muted-foreground hover:bg-secondary hover:text-foreground'
 																				}`}>
@@ -1429,49 +1605,8 @@ export default function Navbar({
 													<DropdownMenuContent
 														side="left"
 														align="center"
-														className="w-48 border-border bg-card text-foreground z-50">
-														{item.children.map(
-															(child: {
-																label: string;
-																href?: string;
-																month?: number;
-															}) => (
-																<DropdownMenuItem
-																	key={child.href ?? `month-${child.month}`}
-																	onClick={() => {
-																		if (child.month != null) {
-																			if (location !== '/') {
-																				sessionStorage.setItem(
-																					'eventsScrollToMonth',
-																					String(child.month),
-																				);
-																				window.location.href = bp
-																					? `${bp}/#events`
-																					: '/#events';
-																			} else {
-																				scrollToSection('events');
-																				setTimeout(() => {
-																					window.dispatchEvent(
-																						new CustomEvent(
-																							'events-scroll-to-month',
-																							{
-																								detail: { month: child.month },
-																							},
-																						),
-																					);
-																				}, 500);
-																			}
-																			openDropdownIdRef.current = null;
-																			setOpenDropdownId(null);
-																		} else if (child.href) {
-																			handleChildNav(child.href);
-																		}
-																	}}
-																	className="cursor-pointer">
-																	{child.label}
-																</DropdownMenuItem>
-															),
-														)}
+														className="w-52 border-border bg-card text-foreground z-50">
+														{renderNavChildren(item.children)}
 													</DropdownMenuContent>
 												</DropdownMenu>
 											);
@@ -1491,6 +1626,7 @@ export default function Navbar({
 											            transition-all duration-200 group ${iconClass}
 											            ${
 																		activeSection === item.id ||
+																		(item.mergedFromIds || []).includes(activeSection) ||
 																		(item.id === 'home' && activeSection === '')
 																			? 'bg-primary/15 text-primary shadow-[0_0_10px_rgba(37,99,235,0.2)]'
 																			: 'text-muted-foreground hover:bg-secondary hover:text-foreground'

@@ -387,6 +387,18 @@ const settingsSchema = new mongoose.Schema({
 				visible: { type: Boolean, default: true },
 			},
 		],
+		navbarGroups: {
+			type: [
+				{
+					id: { type: String, required: true },
+					label: { type: String, required: true },
+					visible: { type: Boolean, default: true },
+					members: [{ type: String }],
+					allowNestedChildren: { type: Boolean, default: true },
+				},
+			],
+			default: [],
+		},
 		showDashboardLink: { type: Boolean, default: true },
 	},
 	// Halaman lengkap Tentang Kami (sejarah, track record, lambang)
