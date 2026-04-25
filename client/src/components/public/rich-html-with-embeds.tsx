@@ -11,7 +11,8 @@ type Segment =
 	| { kind: 'drive'; url: string }
 	| { kind: 'youtube'; embedSrc: string }
 	| { kind: 'drivefolder'; url: string }
-	| { kind: 'external'; url: string; host: string };
+	| { kind: 'external'; url: string; host: string }
+	| { kind: 'external_link'; url: string; host: string };
 
 const DEFAULT_EMBED_HOSTS = getDefaultEmbedHostSet();
 
@@ -44,6 +45,16 @@ function classifyUrl(url: string, allowedHosts?: Set<string>): Segment | null {
 	try {
 		const parsed = new URL(url);
 		const host = parsed.hostname.toLowerCase();
+		const directFileLike =
+			/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|7z|csv|txt|rtf|mp3|wav|ogg|mp4|webm|mov)(\?|$)/i.test(
+				parsed.pathname + parsed.search,
+			);
+
+		// URL file langsung sebaiknya fallback ke link, bukan iframe, agar tidak blank.
+		if (directFileLike) {
+			return { kind: 'external_link', url, host };
+		}
+
 		if (DEFAULT_EMBED_HOSTS.has(host) || allowedHosts?.has(host)) {
 			return { kind: 'external', url, host };
 		}
@@ -110,6 +121,7 @@ function embedDedupeKey(seg: Segment): string {
 	if (seg.kind === 'drive' || seg.kind === 'drivefolder')
 		return `gd:${seg.url}`;
 	if (seg.kind === 'external') return `ext:${seg.url}`;
+	if (seg.kind === 'external_link') return `extlink:${seg.url}`;
 	return '';
 }
 
@@ -291,6 +303,29 @@ export default function RichHtmlWithEmbeds({
 								rel="noopener noreferrer"
 								className="shrink-0 inline-flex items-center gap-1 rounded-md bg-amber-200 dark:bg-amber-900 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-800 transition-colors">
 								<ExternalLink className="h-3.5 w-3.5" /> Buka
+							</a>
+						</div>
+					);
+				}
+				if (seg.kind === 'external_link') {
+					return (
+						<div
+							key={i}
+							className="not-prose my-4 flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-sm">
+							<div className="min-w-0 flex-1">
+								<p className="font-medium text-foreground truncate">
+									File tidak bisa dipreview inline
+								</p>
+								<p className="text-muted-foreground text-xs truncate">
+									{seg.host}
+								</p>
+							</div>
+							<a
+								href={seg.url}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20 transition-colors">
+								<ExternalLink className="h-3.5 w-3.5" /> Buka / Download
 							</a>
 						</div>
 					);
