@@ -218,6 +218,8 @@ export default function Navbar({
 	> | null>(null);
 	// Track klik terakhir pada parent dropdown (id + timestamp) untuk mendeteksi \"klik kedua\"
 	const lastParentClickRef = useRef<{ id: string; time: number } | null>(null);
+	// Track klik terakhir pada nested sub-trigger (agar non-home tidak auto-direct di klik pertama)
+	const lastNestedClickRef = useRef<{ id: string; time: number } | null>(null);
 
 	// Mobile floating nav state
 	const [isMobileNavCollapsed, setIsMobileNavCollapsed] = useState(false);
@@ -756,6 +758,7 @@ export default function Navbar({
 		}
 		programmaticScrollRef.current = false;
 		lastParentClickRef.current = null;
+		lastNestedClickRef.current = null;
 	}, [location]);
 
 	useEffect(() => {
@@ -1151,18 +1154,37 @@ export default function Navbar({
 		setOpenDropdownId(null);
 	};
 
+	const handleNestedSubTriggerClick = (child: NavChildItem) => {
+		if (!child.href) return;
+		const now = Date.now();
+		const key = child.id || child.label;
+		if (location !== '/') {
+			if (
+				lastNestedClickRef.current &&
+				lastNestedClickRef.current.id === key &&
+				now - lastNestedClickRef.current.time < 1000
+			) {
+				handleChildNav(child.href);
+				lastNestedClickRef.current = null;
+				return;
+			}
+			lastNestedClickRef.current = { id: key, time: now };
+			return;
+		}
+		lastNestedClickRef.current = { id: key, time: now };
+	};
+
 	const renderNavChildren = (children: NavChildItem[]) =>
 		children.map((child) => {
 			if (child.children && child.children.length > 0) {
 				return (
 					<DropdownMenuSub key={`sub-${child.id || child.label}`}>
 						<DropdownMenuSubTrigger
-							onClick={() => {
-								if (child.href) handleChildNav(child.href);
-							}}>
-							{child.label}
+							className="max-w-[72vw] sm:max-w-none"
+							onClick={() => handleNestedSubTriggerClick(child)}>
+							<span className="truncate">{child.label}</span>
 						</DropdownMenuSubTrigger>
-						<DropdownMenuSubContent className="w-52 border-border bg-card text-foreground z-50">
+						<DropdownMenuSubContent className="w-56 max-w-[75vw] sm:max-w-none border-border bg-card text-foreground z-50">
 							{renderNavChildren(child.children)}
 						</DropdownMenuSubContent>
 					</DropdownMenuSub>
@@ -1178,8 +1200,8 @@ export default function Navbar({
 							handleChildNav(child.href);
 						}
 					}}
-					className="cursor-pointer">
-					{child.label}
+					className="cursor-pointer max-w-[72vw] sm:max-w-none whitespace-normal break-words">
+					<span className="break-words">{child.label}</span>
 				</DropdownMenuItem>
 			);
 		});
@@ -1265,7 +1287,7 @@ export default function Navbar({
 											</DropdownMenuTrigger>
 											<DropdownMenuContent
 												align="center"
-												className="w-52 border-border bg-card text-foreground z-50">
+												className="w-56 max-w-[75vw] sm:max-w-none border-border bg-card text-foreground z-50">
 												{renderNavChildren(item.children)}
 											</DropdownMenuContent>
 										</DropdownMenu>
@@ -1327,7 +1349,7 @@ export default function Navbar({
 												return (
 													<DropdownMenuSub key={`more-sub-${item.id}`}>
 														<DropdownMenuSubTrigger>{item.label}</DropdownMenuSubTrigger>
-														<DropdownMenuSubContent className="w-52 border-border bg-card text-foreground z-50">
+														<DropdownMenuSubContent className="w-56 max-w-[75vw] sm:max-w-none border-border bg-card text-foreground z-50">
 															{renderNavChildren(item.children)}
 														</DropdownMenuSubContent>
 													</DropdownMenuSub>
@@ -1630,7 +1652,7 @@ export default function Navbar({
 													<DropdownMenuContent
 														side="left"
 														align="center"
-														className="w-52 border-border bg-card text-foreground z-50">
+														className="w-56 max-w-[75vw] sm:max-w-none border-border bg-card text-foreground z-50">
 														{renderNavChildren(item.children)}
 													</DropdownMenuContent>
 												</DropdownMenu>
