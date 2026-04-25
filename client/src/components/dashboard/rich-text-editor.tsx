@@ -126,64 +126,19 @@ export default function RichTextEditor({
 					// CSS fixes untuk mencegah conflicts
 					content_style: `
 						body {
-							font-family: 'Georgia', 'Times New Roman', serif;
-							font-size: 18px;
-							line-height: 1.8;
-							margin: 24px;
-							color: #374151;
-							background: #ffffff;
+							font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+							font-size: 14px;
+							line-height: 1.6;
+							margin: 20px;
+							background: white;
 						}
 						h1, h2, h3, h4, h5, h6 {
-							font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-							font-weight: 700;
-							color: #1f2937;
-							margin-top: 2rem;
-							margin-bottom: 1rem;
-							line-height: 1.35;
+							color: #333;
+							margin-top: 20px;
+							margin-bottom: 10px;
 						}
-						h1 {
-							font-size: 2rem;
-							border-bottom: 3px solid #3b82f6;
-							padding-bottom: 0.5rem;
-							margin-bottom: 1.5rem;
-						}
-						h2 {
-							font-size: 1.6rem;
-							border-bottom: 2px solid #e5e7eb;
-							padding-bottom: 0.25rem;
-						}
-						h3 { font-size: 1.35rem; }
-						h4 { font-size: 1.2rem; }
-						h5 { font-size: 1.1rem; }
-						h6 { font-size: 1rem; }
-						p {
-							margin-bottom: 1.5rem;
-							text-align: justify;
-						}
-						ul, ol {
-							margin: 0 0 1.5rem 0;
-							padding-left: 1.5rem;
-						}
-						li {
-							margin-bottom: 0.5rem;
-						}
-						blockquote {
-							border-left: 4px solid #3b82f6;
-							padding: 1rem;
-							margin: 1.5rem 0;
-							border-radius: 0.5rem;
-							background-color: #f8fafc;
-							color: #6b7280;
-							font-style: italic;
-						}
-						img {
-							max-width: min(100%, 520px);
-							height: auto;
-							display: block;
-							margin: 1.75rem auto;
-							border-radius: 0.75rem;
-							box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.12);
-						}
+						p { margin-bottom: 16px; }
+						img { max-width: 100%; height: auto; }
 						img.hmps-img-rot-90,
 						img.hmps-img-rot-180,
 						img.hmps-img-rot-270,
@@ -207,36 +162,7 @@ export default function RichTextEditor({
 						img.hmps-img-rot-90.hmps-img-fliph.hmps-img-flipv { transform: rotate(90deg) scaleX(-1) scaleY(-1); }
 						img.hmps-img-rot-180.hmps-img-fliph.hmps-img-flipv { transform: rotate(180deg) scaleX(-1) scaleY(-1); }
 						img.hmps-img-rot-270.hmps-img-fliph.hmps-img-flipv { transform: rotate(270deg) scaleX(-1) scaleY(-1); }
-						table {
-							width: 100%;
-							border-collapse: collapse;
-							margin: 1.5rem 0;
-							border-radius: 0.5rem;
-							overflow: hidden;
-							box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-						}
-						th, td {
-							padding: 0.75rem 1rem;
-							text-align: left;
-							border-bottom: 1px solid #e5e7eb;
-						}
-						th {
-							background-color: #f8fafc;
-							font-weight: 600;
-							color: #374151;
-						}
-						a {
-							color: #3b82f6;
-							text-decoration: underline;
-							text-underline-offset: 2px;
-						}
-						a:hover {
-							color: #1d4ed8;
-						}
-						.mce-content-body {
-							min-height: 300px;
-							overflow-wrap: break-word;
-						}
+						.mce-content-body { min-height: 300px; }
 					`,
 
 					extended_valid_elements:
@@ -662,10 +588,13 @@ export default function RichTextEditor({
 							next: { rotation: number; scaleX: number; scaleY: number },
 						) => {
 							const normalizedRotation = ((next.rotation % 360) + 360) % 360;
-							ROTATION_CLASSES.forEach((cls) => editor.dom.removeClass(img, cls));
+							ROTATION_CLASSES.forEach((cls) =>
+								editor.dom.removeClass(img, cls),
+							);
 							FLIP_CLASSES.forEach((cls) => editor.dom.removeClass(img, cls));
 
-							if (normalizedRotation === 90) editor.dom.addClass(img, 'hmps-img-rot-90');
+							if (normalizedRotation === 90)
+								editor.dom.addClass(img, 'hmps-img-rot-90');
 							if (normalizedRotation === 180)
 								editor.dom.addClass(img, 'hmps-img-rot-180');
 							if (normalizedRotation === 270)
@@ -873,8 +802,10 @@ export default function RichTextEditor({
 					</div>
 					<p className="mb-2 text-amber-700 dark:text-amber-300">
 						Set environment variable{' '}
-						<code className="rounded bg-background px-1">VITE_TINYMCE_API_KEY</code> lalu
-						build ulang agar TinyMCE memuat dari Tiny Cloud.
+						<code className="rounded bg-background px-1">
+							VITE_TINYMCE_API_KEY
+						</code>{' '}
+						lalu build ulang agar TinyMCE memuat dari Tiny Cloud.
 					</p>
 					<div className="mb-2">
 						<button
@@ -923,7 +854,11 @@ export default function RichTextEditor({
 									input.readOnly = false;
 								});
 								buttons.forEach((button: any) => {
-									button.style.setProperty('pointer-events', 'auto', 'important');
+									button.style.setProperty(
+										'pointer-events',
+										'auto',
+										'important',
+									);
 								});
 								if (dialogs.length > 0) {
 									toast({
