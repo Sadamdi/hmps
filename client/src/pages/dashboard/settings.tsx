@@ -570,16 +570,12 @@ export default function SettingsPage() {
 		onSuccess: async (data) => {
 			// Immediately update the settings data in the cache
 			queryClient.setQueryData(['/api/settings'], data);
+			// Keep form state aligned with server response to avoid UI rollback.
+			setFormData(JSON.parse(JSON.stringify(data)));
 
 			// Also invalidate the query to ensure data consistency
 			queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/dashboard/stats'] });
-
-			// Force refetch to ensure UI is updated
-			refetchSettings();
-
-			// Force refresh all settings queries across the app
-			queryClient.refetchQueries({ queryKey: ['/api/settings'] });
 
 			// Log activity
 			try {

@@ -5413,6 +5413,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				const updatedSettings = await resolveStorage(req).updateSettings(body);
+				// Sinkronkan cache settings agar GET sesudah save tidak mengembalikan data lama.
+				try {
+					const cacheKey = `settings|${tenantCacheKey(req)}`;
+					await writePublicJsonCache(
+						settingsPublicCache,
+						cacheKey,
+						JSON.stringify(updatedSettings),
+						API_SETTINGS_CACHE_MS,
+					);
+				} catch (cacheErr) {
+					console.warn('settings cache update failed:', cacheErr);
+				}
 				res.json(updatedSettings);
 			} catch (error) {
 				console.error('Update settings error:', error);
