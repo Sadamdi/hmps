@@ -100,14 +100,15 @@ export default function BeritaEditor({
 	const [showAttachGalleryDialog, setShowAttachGalleryDialog] = useState(false);
 	const [attachGallerySearch, setAttachGallerySearch] = useState('');
 
-	// Attachment state (file uploads + link entries)
-	const [formAttachments, setFormAttachments] = useState<File[]>([]);
+	// Attachment state (uploaded file/url entries)
 	const [existingAttachments, setExistingAttachments] = useState<
 		BeritaAttachmentForm[]
 	>([]);
 	const [formAttachmentLinkName, setFormAttachmentLinkName] = useState('');
 	const [formAttachmentLinkUrl, setFormAttachmentLinkUrl] = useState('');
 	const attachmentFileInputRef = useRef<HTMLInputElement>(null);
+	const [isUploadingAttachments, setIsUploadingAttachments] = useState(false);
+	const draftBeritaIdRef = useRef(`temp-${Date.now()}`);
 
 	const escapeHtml = useCallback((value: string) => {
 		return value
@@ -145,7 +146,7 @@ export default function BeritaEditor({
 			});
 			return;
 		}
-		if (existingAttachments.length + formAttachments.length + 1 > 10) {
+		if (existingAttachments.length + 1 > 10) {
 			toast({
 				title: 'Maksimal 10 lampiran per berita',
 				variant: 'destructive',
@@ -179,30 +180,52 @@ export default function BeritaEditor({
 	}, [
 		detectDriveFileId,
 		existingAttachments.length,
-		formAttachments.length,
 		formAttachmentLinkName,
 		formAttachmentLinkUrl,
 		toast,
 	]);
 
 	const handleCopyAttachmentLink = useCallback(
-		async (url: string) => {
+		async (att: BeritaAttachmentForm) => {
 			try {
+				const safeName = escapeHtml(att.name || 'Lampiran');
+				const snippet = `<a href="${att.url}" data-attachment="berita" target="_blank" rel="noopener noreferrer">${safeName}</a>`;
 				if (navigator?.clipboard?.writeText) {
-					await navigator.clipboard.writeText(url);
-					toast({ title: 'Link lampiran disalin' });
+					await navigator.clipboard.writeText(snippet);
+					toast({ title: 'Snippet lampiran disalin' });
 					return;
 				}
 				throw new Error('Clipboard API unavailable');
 			} catch {
 				toast({
-					title: 'Gagal menyalin link',
+					title: 'Gagal menyalin snippet',
 					description: 'Silakan salin manual dari daftar lampiran.',
 					variant: 'destructive',
 				});
 			}
 		},
-		[toast],
+		[escapeHtml, toast],
+	);
+
+	const uploadAttachmentFile = useCallback(
+		async (file: File) => {
+			const beritaIdForUpload =
+				(berita as any)?._id || berita?.id || draftBeritaIdRef.current;
+			const body = new FormData();
+			body.append('file', file);
+			body.append('beritaId', String(beritaIdForUpload));
+			const response = await apiRequest('POST', '/api/upload/berita-attachment', body);
+			const data = await response.json();
+			const newAttachment: BeritaAttachmentForm = {
+				name: file.name,
+				url: String(data?.url || ''),
+				type: file.type || 'file',
+				source: 'local',
+			};
+			if (!newAttachment.url) throw new Error('URL lampiran tidak tersedia');
+			setExistingAttachments((prev) => [...prev, newAttachment]);
+		},
+		[berita],
 	);
 
 	const handleInsertAttachmentToContent = useCallback(
@@ -759,7 +782,7 @@ export default function BeritaEditor({
 			return;
 		}
 
-		const totalAttachments = finalAttachments.length + formAttachments.length;
+		const totalAttachments = finalAttachments.length;
 		if (totalAttachments > 10) {
 			toast({
 				title: `Maksimal 10 lampiran per berita. Saat ini ada ${totalAttachments} lampiran.`,
@@ -776,9 +799,6 @@ export default function BeritaEditor({
 		formData.append('tags', JSON.stringify(tags));
 		formData.append('relatedGalleryIds', JSON.stringify(selectedGalleryIds));
 		formData.append('attachments', JSON.stringify(finalAttachments));
-		for (const f of formAttachments) {
-			formData.append('attachmentFiles', f);
-		}
 
 		// Kirim Google Drive URL jika ada dan valid
 		if (gdriveUrl && isGdriveValid) {
@@ -799,7 +819,6 @@ export default function BeritaEditor({
 		setImagePreview('');
 		setSelectedFile(null); // Reset selected file
 		setExistingAttachments([]);
-		setFormAttachments([]);
 		setFormAttachmentLinkName('');
 		setFormAttachmentLinkUrl('');
 		toast({ title: 'Berhasil', description: 'Berita disimpan.' });
@@ -833,7 +852,6 @@ export default function BeritaEditor({
 							}))
 					: [],
 			);
-			setFormAttachments([]);
 			setFormAttachmentLinkName('');
 			setFormAttachmentLinkUrl('');
 
@@ -1217,7 +1235,7 @@ export default function BeritaEditor({
 					</div>
 				</div>
 				<span className="text-xs text-muted-foreground shrink-0">
-					{existingAttachments.length + formAttachments.length}/10 slot terpakai
+					{existingAttachments.length}/10 slot terpakai
 				</span>
 			</div>
 
@@ -1240,7 +1258,7 @@ export default function BeritaEditor({
 								size="sm"
 								type="button"
 								className="h-6 px-2 text-[11px]"
-								onClick={() => handleCopyAttachmentLink(att.url)}>
+								onClick={() => handleCopyAttachmentLink(att)}>
 								Copy Link
 							</Button>
 							<Button
@@ -1274,29 +1292,38 @@ export default function BeritaEditor({
 					type="file"
 					multiple
 					className="hidden"
-					onChange={(e) => {
+					onChange={async (e) => {
 						if (e.target.files && e.target.files.length > 0) {
 							const newFiles = Array.from(e.target.files);
-							const currentTotal =
-								existingAttachments.length + formAttachments.length;
-							const remaining = 10 - currentTotal;
+							const remaining = 10 - existingAttachments.length;
 							if (remaining <= 0) {
 								toast({
 									title: 'Maksimal 10 lampiran per berita',
 									variant: 'destructive',
 								});
-							} else if (newFiles.length > remaining) {
+								e.target.value = '';
+								return;
+							}
+							const acceptedFiles = newFiles.slice(0, remaining);
+							if (newFiles.length > remaining) {
 								toast({
 									title: `Hanya bisa menambah ${remaining} file lagi (maks 10 total)`,
 									variant: 'destructive',
 								});
-								setFormAttachments((prev) => [
-									...prev,
-									...newFiles.slice(0, remaining),
-								]);
-							} else {
-								setFormAttachments((prev) => [...prev, ...newFiles]);
 							}
+							setIsUploadingAttachments(true);
+							for (const file of acceptedFiles) {
+								try {
+									await uploadAttachmentFile(file);
+								} catch (err: any) {
+									toast({
+										title: `Gagal upload lampiran: ${file.name}`,
+										description: err?.message || 'Terjadi kesalahan saat upload.',
+										variant: 'destructive',
+									});
+								}
+							}
+							setIsUploadingAttachments(false);
 							e.target.value = '';
 						}
 					}}
@@ -1305,38 +1332,12 @@ export default function BeritaEditor({
 					type="button"
 					variant="outline"
 					size="sm"
+					disabled={isUploadingAttachments}
 					onClick={() => attachmentFileInputRef.current?.click()}>
 					<FileUp className="h-3.5 w-3.5 mr-1" />
-					Pilih File Lampiran
+					{isUploadingAttachments ? 'Mengunggah...' : 'Pilih File Lampiran'}
 				</Button>
 			</div>
-
-			{formAttachments.length > 0 && (
-				<div className="space-y-1 max-h-36 overflow-y-auto">
-					{formAttachments.map((file, idx) => (
-						<div
-							key={`new-${idx}-${file.name}`}
-							className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 rounded px-3 py-1 min-w-0">
-							<span className="flex-1 truncate min-w-0">{file.name}</span>
-							<span className="text-[10px] uppercase rounded px-1.5 py-0.5 bg-background border text-blue-600 dark:text-blue-400">
-								baru
-							</span>
-							<Button
-								variant="ghost"
-								size="sm"
-								type="button"
-								className="h-6 w-6 p-0 flex-shrink-0"
-								onClick={() =>
-									setFormAttachments((prev) =>
-										prev.filter((_, i) => i !== idx),
-									)
-								}>
-								<Trash2 className="h-3 w-3" />
-							</Button>
-						</div>
-					))}
-				</div>
-			)}
 
 			<div className="rounded-md border p-3 space-y-2">
 				<p className="text-xs font-medium">Tambah lampiran dari link online</p>

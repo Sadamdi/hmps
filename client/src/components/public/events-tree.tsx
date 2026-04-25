@@ -607,6 +607,12 @@ export default function EventsTree({
 			targetSpeedRef.current = BASE_SPEED_PPS;
 			lastViewedEventIdRef.current = null;
 		}
+
+		return () => {
+			if (typeof document !== 'undefined') {
+				document.documentElement.classList.remove('events-modal-open');
+			}
+		};
 	}, [selectedEvent, showSubEvents]);
 
 	const handleEventClick = useCallback((event: EventWithChildren) => {

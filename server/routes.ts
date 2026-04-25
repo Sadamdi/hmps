@@ -77,6 +77,7 @@ import {
 	resolveTenantPaths,
 	TEMP_UPLOAD_TTL_MS,
 	tenantCtxFromReq,
+	uploadBeritaAttachment,
 	uploadBeritaImage,
 	uploadFilosofiImage,
 	uploadHandler,
@@ -2414,6 +2415,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
+	// Upload attachment file for berita (supports draft temp ID for reserve link)
+	app.post(
+		'/api/upload/berita-attachment',
+		authenticate,
+		uploadMiddleware.single('file'),
+		async (req, res) => {
+			try {
+				if (!req.file) {
+					return res.status(400).json({ message: 'File is required' });
+				}
+				const beritaId = String(req.body.beritaId || '').trim();
+				if (!beritaId) {
+					return res.status(400).json({ message: 'Berita ID is required' });
+				}
+				const url = await uploadBeritaAttachment(
+					req.file,
+					beritaId,
+					tenantCtxFromReq(req),
+				);
+				return res.json({ url });
+			} catch (error) {
+				console.error('Upload berita attachment error:', error);
+				return res.status(500).json({ message: 'Internal server error' });
+			}
+		},
+	);
+
 	// Upload images for event content (description rich-text)
 	app.post(
 		'/api/upload/event-content-image',
@@ -3099,7 +3127,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 					// Upload attachment files (any type) into uploads/.../berita/{beritaId}/attachments
 					if (incomingAttachmentFiles.length > 0 && beritaId) {
-						const { uploadBeritaAttachment } = await import('./upload');
 						const merged = [...existingLinkAttachments];
 						for (const f of incomingAttachmentFiles) {
 							const url = await uploadBeritaAttachment(
@@ -3120,51 +3147,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						});
 					}
 
-					// Migrate temp content images to berita folder if any (replace URLs in content)
+					// Migrate temp draft assets (content images + attachment reserve links)
+					// into final berita folder, then rewrite URLs.
 					if (beritaId) {
 						try {
-							const tempIdMatch = (content || '').match(
-								/\/berita\/(temp-[^/]+)\//,
-							);
-							if (tempIdMatch && tempIdMatch[1]) {
-								const tempId = tempIdMatch[1];
-								const rTemp = resolveTenantPaths(
-									`berita/${tempId}`,
-									false,
-									tCtxBerita,
-								);
-								const rTarget = resolveTenantPaths(
-									`berita/${beritaId}`,
-									false,
-									tCtxBerita,
-								);
-								const tempDir = rTemp.dir;
-								const targetDir = rTarget.dir;
-								if (fs.existsSync(tempDir)) {
-									if (!fs.existsSync(targetDir))
-										fs.mkdirSync(targetDir, { recursive: true });
-									for (const f of fs.readdirSync(tempDir)) {
-										fs.renameSync(
-											path.join(tempDir, f),
-											path.join(targetDir, f),
-										);
-									}
-									try {
-										fs.rmdirSync(tempDir);
-									} catch {}
-								}
-
+							const tempIds = new Set<string>();
+							for (const m of (content || '').matchAll(/\/berita\/(temp-[^/]+)\//g)) {
+								if (m[1]) tempIds.add(m[1]);
+							}
+							const currentAttachments: any[] = Array.isArray((finalBerita as any)?.attachments)
+								? [...((finalBerita as any).attachments as any[])]
+								: [...existingLinkAttachments];
+							for (const att of currentAttachments) {
+								const m = String(att?.url || '').match(/\/berita\/(temp-[^/]+)\//);
+								if (m?.[1]) tempIds.add(m[1]);
+							}
+							if (tempIds.size > 0) {
 								const esc = (s: string) =>
 									s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-								const updatedContent = (content || '').replace(
-									new RegExp(`${esc(rTemp.urlPrefix)}/`, 'g'),
-									`${rTarget.urlPrefix}/`,
-								);
+								let updatedContent = content || '';
+								let updatedAttachments = currentAttachments.map((att) => ({
+									...att,
+									url: String(att?.url || ''),
+								}));
+								for (const tempId of tempIds) {
+									const rTemp = resolveTenantPaths(
+										`berita/${tempId}`,
+										false,
+										tCtxBerita,
+									);
+									const rTarget = resolveTenantPaths(
+										`berita/${beritaId}`,
+										false,
+										tCtxBerita,
+									);
+									const tempDir = rTemp.dir;
+									const targetDir = rTarget.dir;
+									if (fs.existsSync(tempDir)) {
+										if (!fs.existsSync(targetDir))
+											fs.mkdirSync(targetDir, { recursive: true });
+										for (const f of fs.readdirSync(tempDir)) {
+											fs.renameSync(
+												path.join(tempDir, f),
+												path.join(targetDir, f),
+											);
+										}
+										try {
+											fs.rmdirSync(tempDir);
+										} catch {}
+									}
+									updatedContent = updatedContent.replace(
+										new RegExp(`${esc(rTemp.urlPrefix)}/`, 'g'),
+										`${rTarget.urlPrefix}/`,
+									);
+									updatedAttachments = updatedAttachments.map((att: any) => ({
+										...att,
+										url: String(att.url || '').replace(
+											new RegExp(`^${esc(rTemp.urlPrefix)}/`),
+											`${rTarget.urlPrefix}/`,
+										),
+									}));
+								}
+								const patch: any = {};
 								if (updatedContent !== content) {
-									finalBerita = await storage.updateBerita(beritaId, {
-										content: updatedContent,
-									});
+									patch.content = updatedContent;
 									content = updatedContent;
+								}
+								if (
+									JSON.stringify(updatedAttachments) !==
+									JSON.stringify(currentAttachments)
+								) {
+									patch.attachments = updatedAttachments;
+								}
+								if (Object.keys(patch).length > 0) {
+									finalBerita = await storage.updateBerita(beritaId, patch);
 								}
 							}
 						} catch (migrateErr) {

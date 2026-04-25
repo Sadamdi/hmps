@@ -91,55 +91,6 @@ export default function BeritaDetail() {
 	const [attachmentPreview, setAttachmentPreview] =
 		useState<EventAttachmentPreviewItem | null>(null);
 
-	const normalizedAttachmentUrls = useMemo(() => {
-		const normalize = (input: string): string => {
-			const raw = String(input || '').trim();
-			if (!raw) return '';
-			try {
-				const u = new URL(raw, window.location.origin);
-				u.hash = '';
-				return decodeURIComponent(u.href).replace(/\/$/, '');
-			} catch {
-				return decodeURIComponent(raw).replace(/\/$/, '');
-			}
-		};
-		return new Map(
-			(berita?.attachments || [])
-				.filter((att) => !!att?.url)
-				.map((att) => [normalize(att.url), att] as const),
-		);
-	}, [berita?.attachments]);
-
-	const handleContentAttachmentClick = (
-		e: React.MouseEvent<HTMLDivElement>,
-	) => {
-		const target = e.target as HTMLElement | null;
-		const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
-		if (!anchor) return;
-		const hrefRaw = anchor.getAttribute('href');
-		if (!hrefRaw) return;
-		const normalize = (input: string): string => {
-			const raw = String(input || '').trim();
-			if (!raw) return '';
-			try {
-				const u = new URL(raw, window.location.origin);
-				u.hash = '';
-				return decodeURIComponent(u.href).replace(/\/$/, '');
-			} catch {
-				return decodeURIComponent(raw).replace(/\/$/, '');
-			}
-		};
-		const matched = normalizedAttachmentUrls.get(normalize(hrefRaw));
-		if (!matched) return;
-		e.preventDefault();
-		e.stopPropagation();
-		setAttachmentPreview({
-			name: matched.name,
-			url: matched.url,
-			type: matched.type,
-		});
-	};
-
 	const apiEndpoint = normalizedSlug
 		? `/api/berita/slug/${normalizedSlug}`
 		: fallbackId
@@ -199,6 +150,55 @@ export default function BeritaDetail() {
 		enabled: !!eventsEndpoint,
 		placeholderData: [],
 	});
+
+	const normalizedAttachmentUrls = useMemo(() => {
+		const normalize = (input: string): string => {
+			const raw = String(input || '').trim();
+			if (!raw) return '';
+			try {
+				const u = new URL(raw, window.location.origin);
+				u.hash = '';
+				return decodeURIComponent(u.href).replace(/\/$/, '');
+			} catch {
+				return decodeURIComponent(raw).replace(/\/$/, '');
+			}
+		};
+		return new Map(
+			(berita?.attachments || [])
+				.filter((att) => !!att?.url)
+				.map((att) => [normalize(att.url), att] as const),
+		);
+	}, [berita?.attachments]);
+
+	const handleContentAttachmentClick = (
+		e: React.MouseEvent<HTMLDivElement>,
+	) => {
+		const target = e.target as HTMLElement | null;
+		const anchor = target?.closest('a[href]') as HTMLAnchorElement | null;
+		if (!anchor) return;
+		const hrefRaw = anchor.getAttribute('href');
+		if (!hrefRaw) return;
+		const normalize = (input: string): string => {
+			const raw = String(input || '').trim();
+			if (!raw) return '';
+			try {
+				const u = new URL(raw, window.location.origin);
+				u.hash = '';
+				return decodeURIComponent(u.href).replace(/\/$/, '');
+			} catch {
+				return decodeURIComponent(raw).replace(/\/$/, '');
+			}
+		};
+		const matched = normalizedAttachmentUrls.get(normalize(hrefRaw));
+		if (!matched) return;
+		e.preventDefault();
+		e.stopPropagation();
+		setAttachmentPreview({
+			name: matched.name,
+			url: matched.url,
+			type: matched.type,
+		});
+	};
 
 	useEffect(() => {
 		// Normalize old /berita/:id/:slug links to /berita/:slug
