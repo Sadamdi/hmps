@@ -91,7 +91,6 @@ export default function RichTextEditor({
 						'lists',
 						'link',
 						'image',
-						'editimage', // rotasi/flip gambar (TinyMCE 6+)
 						'quickbars', // toolbar kontekstual saat gambar diklik
 						'charmap',
 						'anchor',
@@ -110,15 +109,12 @@ export default function RichTextEditor({
 						'undo redo | formatselect | bold italic underline strikethrough | ' +
 						'alignleft aligncenter alignright alignjustify | ' +
 						'bullist numlist outdent indent | link image table | ' +
-						'rotateleft rotateright | ' +
+						'imageRotateLeft imageRotateRight imageFlipHorizontal imageFlipVertical imageResetRotation | ' +
 						'forecolor backcolor | code fullscreen help',
 
-					// Toolbar kontekstual yang muncul saat gambar diklik agar user bisa
-					// memutar/membalik gambar tanpa mengubah orientasi mentah file.
-					editimage_toolbar:
-						'rotateleft rotateright | flipv fliph | editimage imageoptions',
+					// Non-premium image quick toolbar.
 					quickbars_image_toolbar:
-						'alignleft aligncenter alignright | rotateleft rotateright | imageoptions',
+						'alignleft aligncenter alignright | imageRotateLeft imageRotateRight imageFlipHorizontal imageFlipVertical imageResetRotation | imageoptions',
 					quickbars_insert_toolbar: false,
 					quickbars_selection_toolbar: false,
 
@@ -531,6 +527,124 @@ export default function RichTextEditor({
 					placeholder: placeholder,
 
 					setup: (editor: any) => {
+						const getSelectedImageNode = (): HTMLImageElement | null => {
+							const node = editor.selection?.getNode?.();
+							return node && node.nodeName === 'IMG'
+								? (node as HTMLImageElement)
+								: null;
+						};
+
+						const getCurrentTransformState = (img: HTMLImageElement) => {
+							const styleAttr = img.getAttribute('style') || '';
+							const rotationMatch = styleAttr.match(/rotate\((-?\d+(?:\.\d+)?)deg\)/i);
+							const scaleXMatch = styleAttr.match(/scaleX\((-?\d+(?:\.\d+)?)\)/i);
+							const scaleYMatch = styleAttr.match(/scaleY\((-?\d+(?:\.\d+)?)\)/i);
+
+							return {
+								rotation: rotationMatch ? Number(rotationMatch[1]) : 0,
+								scaleX: scaleXMatch ? Number(scaleXMatch[1]) : 1,
+								scaleY: scaleYMatch ? Number(scaleYMatch[1]) : 1,
+							};
+						};
+
+						const applyTransformState = (
+							img: HTMLImageElement,
+							next: { rotation: number; scaleX: number; scaleY: number },
+						) => {
+							const styleAttr = img.getAttribute('style') || '';
+							const styleWithoutTransform = styleAttr
+								.replace(/(?:^|;)\s*transform\s*:[^;]*/gi, '')
+								.replace(/^;\s*/, '')
+								.trim();
+							const normalizedRotation = ((next.rotation % 360) + 360) % 360;
+							const transform = `rotate(${normalizedRotation}deg) scaleX(${next.scaleX}) scaleY(${next.scaleY})`;
+							const rebuiltStyle = styleWithoutTransform
+								? `${styleWithoutTransform}; transform: ${transform};`
+								: `transform: ${transform};`;
+							editor.dom.setAttrib(img, 'style', rebuiltStyle);
+							editor.nodeChanged();
+						};
+
+						const mutateSelectedImage = (
+							mutator: (state: {
+								rotation: number;
+								scaleX: number;
+								scaleY: number;
+							}) => { rotation: number; scaleX: number; scaleY: number },
+						) => {
+							const img = getSelectedImageNode();
+							if (!img) {
+								toast({
+									title: 'Pilih gambar dulu',
+									description: 'Klik gambar yang ingin diputar atau dibalik.',
+									variant: 'destructive',
+								});
+								return;
+							}
+
+							editor.undoManager.transact(() => {
+								const currentState = getCurrentTransformState(img);
+								const nextState = mutator(currentState);
+								applyTransformState(img, nextState);
+							});
+						};
+
+						editor.ui.registry.addButton('imageRotateLeft', {
+							tooltip: 'Putar gambar 90° ke kiri',
+							text: 'RotL',
+							onAction: () => {
+								mutateSelectedImage((state) => ({
+									...state,
+									rotation: state.rotation - 90,
+								}));
+							},
+						});
+
+						editor.ui.registry.addButton('imageRotateRight', {
+							tooltip: 'Putar gambar 90° ke kanan',
+							text: 'RotR',
+							onAction: () => {
+								mutateSelectedImage((state) => ({
+									...state,
+									rotation: state.rotation + 90,
+								}));
+							},
+						});
+
+						editor.ui.registry.addButton('imageFlipHorizontal', {
+							tooltip: 'Balik horizontal',
+							text: 'FlipH',
+							onAction: () => {
+								mutateSelectedImage((state) => ({
+									...state,
+									scaleX: state.scaleX * -1,
+								}));
+							},
+						});
+
+						editor.ui.registry.addButton('imageFlipVertical', {
+							tooltip: 'Balik vertikal',
+							text: 'FlipV',
+							onAction: () => {
+								mutateSelectedImage((state) => ({
+									...state,
+									scaleY: state.scaleY * -1,
+								}));
+							},
+						});
+
+						editor.ui.registry.addButton('imageResetRotation', {
+							tooltip: 'Reset rotasi/balik gambar',
+							text: 'Reset',
+							onAction: () => {
+								mutateSelectedImage(() => ({
+									rotation: 0,
+									scaleX: 1,
+									scaleY: 1,
+								}));
+							},
+						});
+
 						editor.on('init', () => {
 							editor.setContent(value || '');
 						});
