@@ -1136,7 +1136,12 @@ export default function Navbar({
 			if (child.children && child.children.length > 0) {
 				return (
 					<DropdownMenuSub key={`sub-${child.id || child.label}`}>
-						<DropdownMenuSubTrigger>{child.label}</DropdownMenuSubTrigger>
+						<DropdownMenuSubTrigger
+							onClick={() => {
+								if (child.href) handleChildNav(child.href);
+							}}>
+							{child.label}
+						</DropdownMenuSubTrigger>
 						<DropdownMenuSubContent className="w-52 border-border bg-card text-foreground z-50">
 							{renderNavChildren(child.children)}
 						</DropdownMenuSubContent>

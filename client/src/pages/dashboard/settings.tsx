@@ -4616,12 +4616,14 @@ function SortableBlockRow({
 }
 
 function SortableNavRow({
-	item,
+	id,
+	visible,
 	label,
 	canEdit,
 	onToggle,
 }: {
-	item: HomeNavbarItem;
+	id: string;
+	visible: boolean;
 	label: string;
 	canEdit: boolean;
 	onToggle: () => void;
@@ -4633,7 +4635,7 @@ function SortableNavRow({
 		transform,
 		transition,
 		isDragging,
-	} = useSortable({ id: item.id });
+	} = useSortable({ id });
 	const style = {
 		transform: CSS.Transform.toString(transform),
 		transition,
@@ -4655,7 +4657,7 @@ function SortableNavRow({
 			</button>
 			<p className="flex-1 text-sm font-medium">{label}</p>
 			<Switch
-				checked={item.visible}
+				checked={visible}
 				onCheckedChange={onToggle}
 				disabled={!canEdit}
 			/>
@@ -4675,6 +4677,22 @@ const navLabel = (id: string): string => {
 	const n = ALL_NAVBAR_ITEMS.find((x) => x.id === id);
 	return n ? n.label : id;
 };
+
+type NavbarEditorRow =
+	| {
+			rowId: string;
+			type: 'item';
+			navId: string;
+			label: string;
+			visible: boolean;
+	  }
+	| {
+			rowId: string;
+			type: 'group';
+			groupId: string;
+			label: string;
+			visible: boolean;
+	  };
 
 function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: boolean }) {
 	const { toast } = useToast();
@@ -4749,6 +4767,42 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 	);
 	const [formShowDashLink, setFormShowDashLink] = useState(true);
 
+	const navbarRowsForEditor = useMemo<NavbarEditorRow[]>(() => {
+		const rows: NavbarEditorRow[] = [];
+		const memberToGroup = new Map<string, HomeNavbarGroup>();
+		for (const g of formNavbarGroups) {
+			for (const m of g.members) memberToGroup.set(m, g);
+		}
+		const emittedGroupIds = new Set<string>();
+		for (const n of formNavbar) {
+			const g = memberToGroup.get(n.id);
+			if (g) {
+				if (emittedGroupIds.has(g.id)) continue;
+				emittedGroupIds.add(g.id);
+				const membersText = g.members
+					.map((m) => navLabel(m))
+					.filter(Boolean)
+					.join(', ');
+				rows.push({
+					rowId: `group:${g.id}`,
+					type: 'group',
+					groupId: g.id,
+					label: `${g.label} (${membersText})`,
+					visible: g.visible !== false,
+				});
+				continue;
+			}
+			rows.push({
+				rowId: n.id,
+				type: 'item',
+				navId: n.id,
+				label: navLabel(n.id),
+				visible: n.visible,
+			});
+		}
+		return rows;
+	}, [formNavbar, formNavbarGroups]);
+
 	useEffect(() => {
 		const cfg = buildInitial();
 		setFormBlocks(cfg.blocks);
@@ -4791,11 +4845,25 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 	const handleNavDragEnd = (event: DragEndEvent) => {
 		const { active, over } = event;
 		if (!over || active.id === over.id) return;
-		setFormNavbar((prev) => {
-			const oldIdx = prev.findIndex((n) => n.id === active.id);
-			const newIdx = prev.findIndex((n) => n.id === over.id);
-			return arrayMove(prev, oldIdx, newIdx);
-		});
+		const rowIds = navbarRowsForEditor.map((r) => r.rowId);
+		const oldIdx = rowIds.indexOf(String(active.id));
+		const newIdx = rowIds.indexOf(String(over.id));
+		if (oldIdx < 0 || newIdx < 0) return;
+		const reorderedRows = arrayMove(navbarRowsForEditor, oldIdx, newIdx);
+		const navMap = new Map(formNavbar.map((n) => [n.id, n] as const));
+		const nextOrderIds: string[] = [];
+		for (const row of reorderedRows) {
+			if (row.type === 'item') {
+				nextOrderIds.push(row.navId);
+			} else {
+				const g = formNavbarGroups.find((x) => x.id === row.groupId);
+				if (!g) continue;
+				for (const m of g.members) {
+					if (navMap.has(m)) nextOrderIds.push(m);
+				}
+			}
+		}
+		setFormNavbar(nextOrderIds.map((id) => navMap.get(id)).filter(Boolean) as HomeNavbarItem[]);
 	};
 
 	const toggleBlock = (id: string) => {
@@ -5108,15 +5176,24 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 						collisionDetection={closestCenter}
 						onDragEnd={handleNavDragEnd}>
 						<SortableContext
-							items={formNavbar.map((n) => n.id)}
+							items={navbarRowsForEditor.map((r) => r.rowId)}
 							strategy={verticalListSortingStrategy}>
-							{formNavbar.map((navItem) => (
+							{navbarRowsForEditor.map((row) => (
 								<SortableNavRow
-									key={navItem.id}
-									item={navItem}
-									label={navLabel(navItem.id)}
+									key={row.rowId}
+									id={row.rowId}
+									visible={row.visible}
+									label={row.label}
 									canEdit={canEdit}
-									onToggle={() => toggleNav(navItem.id)}
+									onToggle={() => {
+										if (row.type === 'group') {
+											updateNavbarGroup(row.groupId, {
+												visible: !row.visible,
+											});
+										} else {
+											toggleNav(row.navId);
+										}
+									}}
 								/>
 							))}
 						</SortableContext>
