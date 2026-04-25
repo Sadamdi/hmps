@@ -190,15 +190,30 @@ export default function BeritaEditor({
 			try {
 				const safeName = escapeHtml(att.name || 'Lampiran');
 				const snippet = `<a href="${att.url}" data-attachment="berita" target="_blank" rel="noopener noreferrer">${safeName}</a>`;
+				// Prefer rich clipboard (HTML + plain text URL) so paste in TinyMCE
+				// becomes a clickable anchor, while non-rich targets still receive URL.
+				if (
+					typeof window !== 'undefined' &&
+					'ClipboardItem' in window &&
+					navigator?.clipboard?.write
+				) {
+					const item = new (window as any).ClipboardItem({
+						'text/html': new Blob([snippet], { type: 'text/html' }),
+						'text/plain': new Blob([att.url], { type: 'text/plain' }),
+					});
+					await navigator.clipboard.write([item]);
+					toast({ title: 'Link lampiran disalin (rich)' });
+					return;
+				}
 				if (navigator?.clipboard?.writeText) {
-					await navigator.clipboard.writeText(snippet);
-					toast({ title: 'Snippet lampiran disalin' });
+					await navigator.clipboard.writeText(att.url);
+					toast({ title: 'URL lampiran disalin' });
 					return;
 				}
 				throw new Error('Clipboard API unavailable');
 			} catch {
 				toast({
-					title: 'Gagal menyalin snippet',
+					title: 'Gagal menyalin link',
 					description: 'Silakan salin manual dari daftar lampiran.',
 					variant: 'destructive',
 				});
