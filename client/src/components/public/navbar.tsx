@@ -629,7 +629,7 @@ export default function Navbar({
 		if (Array.isArray(navGroupsCfg) && navGroupsCfg.length > 0) {
 			const idSet = new Set(result.map((i) => i.id));
 			const groupMembers = new Set<string>();
-			const groups: NavItem[] = [];
+			const groups: Array<{ item: NavItem; anchorIndex: number }> = [];
 			for (const g of navGroupsCfg) {
 				if (!g || g.visible === false) continue;
 				const members = (g.members || []).filter((id) => idSet.has(id));
@@ -660,23 +660,34 @@ export default function Navbar({
 							href: ext || (bp ? `${bp}/#${homeTarget}` : `/#${homeTarget}`),
 						};
 					});
+				const anchorIndex = result.findIndex((x) => x.id === members[0]);
 				groups.push({
-					id: g.id,
-					label: g.label,
-					icon: <MoreHorizontal className="h-4 w-4" />,
-					homeSection: members[0] || '',
-					mergedFromIds: members,
-					children: groupChildren,
+					anchorIndex: anchorIndex >= 0 ? anchorIndex : Number.MAX_SAFE_INTEGER,
+					item: {
+						id: g.id,
+						label: g.label,
+						icon: <MoreHorizontal className="h-4 w-4" />,
+						homeSection: members[0] || '',
+						mergedFromIds: members,
+						children: groupChildren,
+					},
 				});
 			}
 			const merged = result.filter((item) => !groupMembers.has(item.id));
-			for (const g of groups) {
-				const firstMember = g.mergedFromIds?.[0];
-				const idx = firstMember
-					? merged.findIndex((x) => x.id === firstMember)
-					: -1;
-				if (idx >= 0) merged.splice(idx, 0, g);
-				else merged.push(g);
+			const sortedGroups = [...groups].sort(
+				(a, b) => a.anchorIndex - b.anchorIndex,
+			);
+			for (const g of sortedGroups) {
+				// Sisipkan berdasarkan urutan anchor di hasil `result` awal agar sinkron dengan urutan drag yang tersimpan.
+				let insertAt = merged.length;
+				for (let i = 0; i < merged.length; i++) {
+					const idx = result.findIndex((x) => x.id === merged[i].id);
+					if (idx > g.anchorIndex) {
+						insertAt = i;
+						break;
+					}
+				}
+				merged.splice(insertAt, 0, g.item);
 			}
 			return merged;
 		}
