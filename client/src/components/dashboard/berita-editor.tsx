@@ -109,6 +109,15 @@ export default function BeritaEditor({
 	const [formAttachmentLinkUrl, setFormAttachmentLinkUrl] = useState('');
 	const attachmentFileInputRef = useRef<HTMLInputElement>(null);
 
+	const escapeHtml = useCallback((value: string) => {
+		return value
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+	}, []);
+
 	const detectDriveFileId = useCallback((url: string): string | null => {
 		if (!url) return null;
 		try {
@@ -175,6 +184,48 @@ export default function BeritaEditor({
 		formAttachmentLinkUrl,
 		toast,
 	]);
+
+	const handleCopyAttachmentLink = useCallback(
+		async (url: string) => {
+			try {
+				if (navigator?.clipboard?.writeText) {
+					await navigator.clipboard.writeText(url);
+					toast({ title: 'Link lampiran disalin' });
+					return;
+				}
+				throw new Error('Clipboard API unavailable');
+			} catch {
+				toast({
+					title: 'Gagal menyalin link',
+					description: 'Silakan salin manual dari daftar lampiran.',
+					variant: 'destructive',
+				});
+			}
+		},
+		[toast],
+	);
+
+	const handleInsertAttachmentToContent = useCallback(
+		(att: BeritaAttachmentForm) => {
+			const safeName = escapeHtml(att.name || 'Lampiran');
+			const safeUrl = String(att.url || '').replace(/"/g, '&quot;');
+			const snippet = `<p><a href="${safeUrl}" data-attachment="berita" target="_blank" rel="noopener noreferrer">${safeName}</a></p>`;
+			const tinyMce = (window as any)?.tinymce;
+			const activeEditor = tinyMce?.activeEditor;
+			if (activeEditor && typeof activeEditor.insertContent === 'function') {
+				activeEditor.focus();
+				activeEditor.insertContent(snippet);
+				setContent(activeEditor.getContent() || '');
+			} else {
+				setContent((prev) => `${prev || ''}\n${snippet}`);
+			}
+			toast({
+				title: 'Lampiran disisipkan ke konten',
+				description: 'Posisi mengikuti kursor editor (atau ditambah di akhir konten).',
+			});
+		},
+		[escapeHtml, toast],
+	);
 
 	const { data: libraryForBeritaLink = [] } = useQuery<
 		{ _id: string; title: string; published?: boolean }[]
@@ -1188,6 +1239,22 @@ export default function BeritaEditor({
 								variant="ghost"
 								size="sm"
 								type="button"
+								className="h-6 px-2 text-[11px]"
+								onClick={() => handleCopyAttachmentLink(att.url)}>
+								Copy Link
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								type="button"
+								className="h-6 px-2 text-[11px]"
+								onClick={() => handleInsertAttachmentToContent(att)}>
+								Sisipkan
+							</Button>
+							<Button
+								variant="ghost"
+								size="sm"
+								type="button"
 								className="h-6 w-6 p-0 flex-shrink-0"
 								onClick={() =>
 									setExistingAttachments((prev) =>
@@ -1301,6 +1368,11 @@ export default function BeritaEditor({
 						Tambah Link
 					</Button>
 				</div>
+				<p className="text-[11px] text-muted-foreground">
+					Setelah masuk daftar, klik <strong>Copy Link</strong> atau{' '}
+					<strong>Sisipkan</strong> untuk menaruh lampiran ke posisi bebas
+					di konten.
+				</p>
 			</div>
 		</div>
 
