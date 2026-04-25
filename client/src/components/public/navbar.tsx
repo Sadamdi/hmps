@@ -720,6 +720,7 @@ export default function Navbar({
 	]);
 
 	const [desktopVisibleNavCount, setDesktopVisibleNavCount] = useState(7);
+	const [isMobileViewport, setIsMobileViewport] = useState(false);
 	useEffect(() => {
 		const computeVisibleCount = () => {
 			const w = window.innerWidth;
@@ -733,6 +734,12 @@ export default function Navbar({
 			return 4;
 		};
 		const apply = () => setDesktopVisibleNavCount(computeVisibleCount());
+		apply();
+		window.addEventListener('resize', apply);
+		return () => window.removeEventListener('resize', apply);
+	}, []);
+	useEffect(() => {
+		const apply = () => setIsMobileViewport(window.innerWidth < 640);
 		apply();
 		window.addEventListener('resize', apply);
 		return () => window.removeEventListener('resize', apply);
@@ -1177,6 +1184,31 @@ export default function Navbar({
 	const renderNavChildren = (children: NavChildItem[]) =>
 		children.map((child) => {
 			if (child.children && child.children.length > 0) {
+				if (isMobileViewport) {
+					return (
+						<div key={`mobile-group-${child.id || child.label}`}>
+							<DropdownMenuItem
+								onClick={() => handleNestedSubTriggerClick(child)}
+								className="cursor-pointer font-medium max-w-[72vw] whitespace-normal break-words">
+								<span className="break-words">{child.label}</span>
+							</DropdownMenuItem>
+							{child.children.map((subChild) => (
+								<DropdownMenuItem
+									key={`mobile-sub-${subChild.href ?? subChild.label}`}
+									onClick={() => {
+										if (subChild.month != null) {
+											handleDropdownMonthClick(subChild.month);
+										} else if (subChild.href) {
+											handleChildNav(subChild.href);
+										}
+									}}
+									className="cursor-pointer pl-5 max-w-[72vw] whitespace-normal break-words">
+									<span className="break-words">{subChild.label}</span>
+								</DropdownMenuItem>
+							))}
+						</div>
+					);
+				}
 				return (
 					<DropdownMenuSub key={`sub-${child.id || child.label}`}>
 						<DropdownMenuSubTrigger
@@ -1184,7 +1216,7 @@ export default function Navbar({
 							onClick={() => handleNestedSubTriggerClick(child)}>
 							<span className="truncate">{child.label}</span>
 						</DropdownMenuSubTrigger>
-						<DropdownMenuSubContent className="w-56 max-w-[75vw] sm:max-w-none border-border bg-card text-foreground z-50">
+						<DropdownMenuSubContent className="w-[min(22rem,calc(100vw-2rem))] sm:w-56 border-border bg-card text-foreground z-50">
 							{renderNavChildren(child.children)}
 						</DropdownMenuSubContent>
 					</DropdownMenuSub>
@@ -1287,7 +1319,7 @@ export default function Navbar({
 											</DropdownMenuTrigger>
 											<DropdownMenuContent
 												align="center"
-												className="w-56 max-w-[75vw] sm:max-w-none border-border bg-card text-foreground z-50">
+												className="w-[min(22rem,calc(100vw-2rem))] sm:w-56 border-border bg-card text-foreground z-50">
 												{renderNavChildren(item.children)}
 											</DropdownMenuContent>
 										</DropdownMenu>
@@ -1349,7 +1381,7 @@ export default function Navbar({
 												return (
 													<DropdownMenuSub key={`more-sub-${item.id}`}>
 														<DropdownMenuSubTrigger>{item.label}</DropdownMenuSubTrigger>
-														<DropdownMenuSubContent className="w-56 max-w-[75vw] sm:max-w-none border-border bg-card text-foreground z-50">
+														<DropdownMenuSubContent className="w-[min(22rem,calc(100vw-2rem))] sm:w-56 border-border bg-card text-foreground z-50">
 															{renderNavChildren(item.children)}
 														</DropdownMenuSubContent>
 													</DropdownMenuSub>
@@ -1650,9 +1682,10 @@ export default function Navbar({
 														</button>
 													</DropdownMenuTrigger>
 													<DropdownMenuContent
-														side="left"
+														side={isMobileViewport ? 'left' : 'left'}
 														align="center"
-														className="w-56 max-w-[75vw] sm:max-w-none border-border bg-card text-foreground z-50">
+														sideOffset={8}
+														className="w-[min(22rem,calc(100vw-2rem))] sm:w-56 border-border bg-card text-foreground z-50">
 														{renderNavChildren(item.children)}
 													</DropdownMenuContent>
 												</DropdownMenu>
