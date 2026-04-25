@@ -660,7 +660,17 @@ export default function Navbar({
 							href: ext || (bp ? `${bp}/#${homeTarget}` : `/#${homeTarget}`),
 						};
 					});
-				const anchorIndex = result.findIndex((x) => x.id === members[0]);
+				let anchorIndex = result.findIndex((x) => x.id === members[0]);
+				if (anchorIndex < 0 && Array.isArray(navCfgArr) && navCfgArr.length > 0) {
+					// Fallback deterministik: cari member group yang paling awal
+					// berdasarkan urutan navbar config tersimpan.
+					let cfgMin = Number.MAX_SAFE_INTEGER;
+					for (const m of members) {
+						const cfgIdx = navCfgArr.findIndex((n) => n.id === m);
+						if (cfgIdx >= 0 && cfgIdx < cfgMin) cfgMin = cfgIdx;
+					}
+					if (cfgMin !== Number.MAX_SAFE_INTEGER) anchorIndex = cfgMin;
+				}
 				groups.push({
 					anchorIndex: anchorIndex >= 0 ? anchorIndex : Number.MAX_SAFE_INTEGER,
 					item: {
