@@ -1113,16 +1113,20 @@ async function copyEventToBerita(
 			: '') +
 		`</p>`;
 
+	const beritaAttachmentsFromEvent: any[] = [];
 	if (
 		options.copyAttachments &&
 		event.attachments &&
 		event.attachments.length > 0
 	) {
-		contentHeader += `<p><strong>Lampiran:</strong></p><ul>`;
 		for (const att of event.attachments) {
-			contentHeader += `<li><a href="${att.url}" target="_blank">${att.name}</a></li>`;
+			beritaAttachmentsFromEvent.push({
+				name: att.name,
+				url: att.url,
+				type: att.type || 'file',
+				source: att.source || 'local',
+			});
 		}
-		contentHeader += `</ul>`;
 	}
 
 	const content = contentHeader + (event.description || '');
@@ -1149,6 +1153,7 @@ async function copyEventToBerita(
 		authorId: uOid,
 		author: userDisplayName,
 		sourceEventId: event._id,
+		attachments: beritaAttachmentsFromEvent,
 		createdAt: event.startDate || new Date(),
 		updatedAt: new Date(),
 	};
@@ -1194,13 +1199,26 @@ async function copyBeritaToEvent(
 	const uOid = toObjectId(userId);
 
 	const attachments: any[] = [];
-	if (options.copyAttachments && item.image) {
-		attachments.push({
-			name: 'Gambar Berita',
-			url: item.image,
-			type: 'image',
-			source: item.imageSource || 'local',
-		});
+	if (options.copyAttachments) {
+		if (item.image) {
+			attachments.push({
+				name: 'Gambar Berita',
+				url: item.image,
+				type: 'image',
+				source: item.imageSource || 'local',
+			});
+		}
+		if (Array.isArray(item.attachments)) {
+			for (const att of item.attachments) {
+				if (!att?.url || !att?.name) continue;
+				attachments.push({
+					name: att.name,
+					url: att.url,
+					type: att.type || 'file',
+					source: att.source || 'local',
+				});
+			}
+		}
 	}
 
 	const eventData: any = {

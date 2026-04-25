@@ -1,5 +1,8 @@
 import AIChat from '@/components/public/ai-chat';
 import CommentThread from '@/components/public/comment-thread';
+import EventAttachmentPreviewDialog, {
+	type EventAttachmentPreviewItem,
+} from '@/components/public/event-attachment-preview-dialog';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
@@ -19,12 +22,15 @@ import {
 	BookOpen,
 	Calendar,
 	CalendarDays,
+	Download,
+	ExternalLink,
 	Images,
+	Paperclip,
 	Share2,
 	Tag,
 	User,
 } from 'lucide-react';
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 
 const TableOfContents = lazy(
@@ -46,6 +52,7 @@ interface BeritaItem {
 	slug?: string;
 	viewCount?: number;
 	relatedGalleryPreview?: { _id: string; title: string }[];
+	attachments?: { name: string; url: string; type?: string; source?: string }[];
 }
 
 interface RelatedBerita {
@@ -80,6 +87,9 @@ export default function BeritaDetail() {
 	const scrollToSection = (sectionId: string) => {
 		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
 	};
+
+	const [attachmentPreview, setAttachmentPreview] =
+		useState<EventAttachmentPreviewItem | null>(null);
 
 	const apiEndpoint = normalizedSlug
 		? `/api/berita/slug/${normalizedSlug}`
@@ -473,6 +483,50 @@ export default function BeritaDetail() {
 							</div>
 						)}
 
+						{/* Lampiran berita */}
+						{berita.attachments && berita.attachments.length > 0 && (
+							<div
+								className="mt-6 bg-card rounded-xl shadow-sm border border-border p-5"
+								data-aos="fade-up"
+								data-aos-delay="252">
+								<div className="flex items-center gap-2 mb-3">
+									<Paperclip className="w-4 h-4 text-primary" />
+									<h3 className="text-base font-semibold text-foreground">
+										Lampiran
+									</h3>
+								</div>
+								<div className="space-y-2">
+									{berita.attachments.map((att, idx) => (
+										<div
+											key={`${att.url}-${idx}`}
+											className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-background hover:bg-accent transition-colors">
+											<button
+												type="button"
+												onClick={() =>
+													setAttachmentPreview({
+														name: att.name,
+														url: att.url,
+														type: att.type,
+													})
+												}
+												className="flex flex-1 items-center gap-2 text-left min-w-0">
+												<Download className="h-4 w-4 flex-shrink-0 text-primary" />
+												<span className="flex-1 truncate">{att.name}</span>
+											</button>
+											<a
+												href={att.url}
+												target="_blank"
+												rel="noopener noreferrer"
+												className="flex-shrink-0 text-muted-foreground hover:text-primary transition-colors"
+												title="Buka di tab baru">
+												<ExternalLink className="h-3.5 w-3.5" />
+											</a>
+										</div>
+									))}
+								</div>
+							</div>
+						)}
+
 						{/* Galeri terkait */}
 						{berita.relatedGalleryPreview &&
 							berita.relatedGalleryPreview.length > 0 && (
@@ -659,6 +713,13 @@ export default function BeritaDetail() {
 			</div>
 
 			<Footer />
+
+			<EventAttachmentPreviewDialog
+				preview={attachmentPreview}
+				onOpenChange={(open) => {
+					if (!open) setAttachmentPreview(null);
+				}}
+			/>
 
 			{/* AI Chat dengan context berita yang sedang dibaca */}
 			<AIChat

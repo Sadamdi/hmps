@@ -17,7 +17,10 @@ import {
 } from './auth';
 import { invokeBannerRender } from './banner-render-invoke';
 import { DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
-import { normalizeEventAttachmentArray } from './event-attachments';
+import {
+	normalizeBeritaAttachmentArray,
+	normalizeEventAttachmentArray,
+} from './event-attachments';
 import { isProcessableImage, processImage } from './image-processor';
 import {
 	readPublicJsonCache,
@@ -2908,7 +2911,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.post(
 		'/api/berita',
 		authenticate,
-		uploadMiddleware.single('image'),
+		uploadMiddleware.fields([
+			{ name: 'image', maxCount: 1 },
+			{ name: 'attachmentFiles', maxCount: 10 },
+		]),
 		async (req, res) => {
 			try {
 				// Extract form data with proper validation
@@ -2918,6 +2924,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				let published = req.body.published;
 				let gdriveUrl = req.body.gdriveUrl || '';
 				let tags = [];
+				const reqFiles = req.files as
+					| { [fieldname: string]: Express.Multer.File[] }
+					| undefined;
+				const imageFile = reqFiles?.image?.[0];
 
 				// Parse tags from JSON string
 				if (req.body.tags) {
@@ -2937,6 +2947,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					} catch {
 						relatedGalleryIdsOnCreate = [];
 					}
+				}
+
+				let existingLinkAttachments: any[] = [];
+				if (req.body.attachments) {
+					try {
+						const parsed = JSON.parse(req.body.attachments);
+						const normalized = normalizeBeritaAttachmentArray(parsed);
+						if (!normalized.ok) {
+							return res.status(400).json({ message: normalized.message });
+						}
+						existingLinkAttachments = normalized.attachments;
+					} catch {
+						return res
+							.status(400)
+							.json({ message: 'Format attachments tidak valid.' });
+					}
+				}
+
+				const incomingAttachmentFiles = reqFiles?.attachmentFiles || [];
+				const totalAttachmentsBefore =
+					existingLinkAttachments.length + incomingAttachmentFiles.length;
+				if (totalAttachmentsBefore > 10) {
+					return res.status(400).json({
+						message: `Maksimal 10 lampiran per berita. Saat ini ada ${totalAttachmentsBefore} lampiran.`,
+					});
 				}
 
 				// Check create permission
@@ -3036,6 +3071,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					published: published === 'true',
 					authorId,
 					author: authorName,
+					attachments: existingLinkAttachments,
 				});
 
 				const beritaId = (newBerita._id || newBerita.id)?.toString();
@@ -3045,9 +3081,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				try {
 					// If local file uploaded (not GDrive), process thumbnail into uploads/.../berita/{beritaId}
-					if (!gdriveUrl && req.file && beritaId) {
+					if (!gdriveUrl && imageFile && beritaId) {
 						const processedThumbUrl = await uploadBeritaImage(
-							req.file,
+							imageFile,
 							undefined,
 							beritaId,
 							false,
@@ -3059,6 +3095,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							imageSource: 'local',
 						});
 						imageUrl = processedThumbUrl;
+					}
+
+					// Upload attachment files (any type) into uploads/.../berita/{beritaId}/attachments
+					if (incomingAttachmentFiles.length > 0 && beritaId) {
+						const { uploadBeritaAttachment } = await import('./upload');
+						const merged = [...existingLinkAttachments];
+						for (const f of incomingAttachmentFiles) {
+							const url = await uploadBeritaAttachment(
+								f,
+								beritaId,
+								tCtxBerita,
+							);
+							rollbackUrls.push(url);
+							merged.push({
+								name: f.originalname,
+								url,
+								type: f.mimetype || 'file',
+								source: 'local' as const,
+							});
+						}
+						finalBerita = await storage.updateBerita(beritaId, {
+							attachments: merged,
+						});
 					}
 
 					// Migrate temp content images to berita folder if any (replace URLs in content)
@@ -3199,7 +3258,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.put(
 		'/api/berita/:id',
 		authenticate,
-		uploadMiddleware.single('image'),
+		uploadMiddleware.fields([
+			{ name: 'image', maxCount: 1 },
+			{ name: 'attachmentFiles', maxCount: 10 },
+		]),
 		async (req, res) => {
 			try {
 				const beritaId = req.params.id;
@@ -3289,8 +3351,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 
+				const reqFilesEdit = req.files as
+					| { [fieldname: string]: Express.Multer.File[] }
+					| undefined;
+				const imageFileEdit = reqFilesEdit?.image?.[0];
+				const attachmentFilesEdit = reqFilesEdit?.attachmentFiles || [];
+				const tCtxEdit = tenantCtxFromReq(req);
+
 				// Process image if uploaded (store inside uploads/berita/{beritaId})
-				if (req.file) {
+				if (imageFileEdit) {
 					// Hapus gambar lama jika ada dan berbeda dari default
 					const oldImageUrl =
 						existingBerita.image !== DEFAULT_BERITA_IMAGE_PATH
@@ -3298,14 +3367,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							: undefined;
 
 					const imageUrl = await uploadBeritaImage(
-						req.file,
+						imageFileEdit,
 						oldImageUrl,
 						beritaId,
 						false,
-						tenantCtxFromReq(req),
+						tCtxEdit,
 					);
 					updates.image = imageUrl;
 					updates.imageSource = 'local';
+				}
+
+				// Process attachments JSON payload (existing + link entries)
+				let nextAttachments: any[] | undefined;
+				if (req.body.attachments !== undefined) {
+					try {
+						const parsed = JSON.parse(req.body.attachments);
+						const normalized = normalizeBeritaAttachmentArray(parsed);
+						if (!normalized.ok) {
+							return res.status(400).json({ message: normalized.message });
+						}
+						nextAttachments = normalized.attachments;
+					} catch {
+						return res
+							.status(400)
+							.json({ message: 'Format attachments tidak valid.' });
+					}
+				}
+
+				// Upload new attachment files
+				if (attachmentFilesEdit.length > 0) {
+					const { uploadBeritaAttachment } = await import('./upload');
+					if (!nextAttachments) {
+						nextAttachments = ((existingBerita as any).attachments || []).map(
+							(a: any) => ({
+								name: a.name,
+								url: a.url,
+								type: a.type || 'file',
+								source: a.source || 'local',
+							}),
+						);
+					}
+					const totalAfterUpload =
+						nextAttachments.length + attachmentFilesEdit.length;
+					if (totalAfterUpload > 10) {
+						return res.status(400).json({
+							message: `Maksimal 10 lampiran per berita. Saat ini ada ${totalAfterUpload} lampiran.`,
+						});
+					}
+					for (const f of attachmentFilesEdit) {
+						const url = await uploadBeritaAttachment(f, beritaId, tCtxEdit);
+						nextAttachments.push({
+							name: f.originalname,
+							url,
+							type: f.mimetype || 'file',
+							source: 'local' as const,
+						});
+					}
+				}
+
+				if (nextAttachments) {
+					if (nextAttachments.length > 10) {
+						return res.status(400).json({
+							message: `Maksimal 10 lampiran per berita. Saat ini ada ${nextAttachments.length} lampiran.`,
+						});
+					}
+					updates.attachments = nextAttachments;
+				}
+
+				// Hapus file local attachment yang tidak lagi direferensikan
+				if (nextAttachments) {
+					const keptUrls = new Set(
+						nextAttachments.map((a: any) => String(a.url || '')).filter(Boolean),
+					);
+					for (const att of (existingBerita as any).attachments || []) {
+						if (
+							att?.source === 'local' &&
+							att?.url &&
+							!keptUrls.has(String(att.url))
+						) {
+							try {
+								await deleteFile(String(att.url));
+							} catch {
+								/* ignore */
+							}
+						}
+					}
 				}
 
 				// Update berita
@@ -3422,8 +3568,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			// Delete berita
 			await storage.deleteBerita(beritaId);
 
-			// Cleanup entire berita folder (uploads/berita/{beritaId})
-			await cleanupBeritaImages(beritaId, [], tenantCtxFromReq(req)); // Empty array means delete all
+			// Cleanup entire berita folder (uploads/berita/{beritaId}) including attachments
+			const tCtxDel = tenantCtxFromReq(req);
+			await cleanupBeritaImages(beritaId, [], tCtxDel);
+			try {
+				const { deleteBeritaFileTree } = await import('./upload');
+				await deleteBeritaFileTree(beritaId, tCtxDel);
+			} catch (e) {
+				console.warn('deleteBeritaFileTree failed:', e);
+			}
 
 			// Also cleanup attached_assets/berita/{beritaId} if exists (legacy/misplaced)
 			try {

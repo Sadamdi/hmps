@@ -24,9 +24,16 @@ import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
-import { CalendarDays, Copy, Image, Link2, Loader2, Plus, Search, Upload, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { CalendarDays, Copy, FileUp, Image, Link2, Loader2, Paperclip, Plus, Search, Trash2, Upload, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import RichTextEditor from './rich-text-editor';
+
+type BeritaAttachmentForm = {
+	name: string;
+	url: string;
+	type: string;
+	source: 'local' | 'gdrive' | 'url';
+};
 
 /** Radix Select melarang SelectItem dengan value=""; gunakan sentinel untuk opsi "event utama baru". */
 const COPY_TO_EVENT_NO_PARENT_VALUE = '__no_parent_event__';
@@ -43,6 +50,7 @@ interface BeritaData {
 	createdAt: string;
 	tags?: string[];
 	relatedGalleryIds?: string[];
+	attachments?: BeritaAttachmentForm[];
 }
 
 interface BeritaEditorProps {
@@ -91,6 +99,82 @@ export default function BeritaEditor({
 	const [selectedGalleryIds, setSelectedGalleryIds] = useState<string[]>([]);
 	const [showAttachGalleryDialog, setShowAttachGalleryDialog] = useState(false);
 	const [attachGallerySearch, setAttachGallerySearch] = useState('');
+
+	// Attachment state (file uploads + link entries)
+	const [formAttachments, setFormAttachments] = useState<File[]>([]);
+	const [existingAttachments, setExistingAttachments] = useState<
+		BeritaAttachmentForm[]
+	>([]);
+	const [formAttachmentLinkName, setFormAttachmentLinkName] = useState('');
+	const [formAttachmentLinkUrl, setFormAttachmentLinkUrl] = useState('');
+	const attachmentFileInputRef = useRef<HTMLInputElement>(null);
+
+	const detectDriveFileId = useCallback((url: string): string | null => {
+		if (!url) return null;
+		try {
+			const parsed = new URL(url);
+			const host = parsed.hostname.toLowerCase();
+			if (!host.includes('drive.google.com')) return null;
+			const parts = parsed.pathname.split('/').filter(Boolean);
+			const dIdx = parts.findIndex((p) => p === 'd');
+			if (dIdx >= 0 && parts[dIdx + 1]) return parts[dIdx + 1];
+			const idParam = parsed.searchParams.get('id');
+			if (idParam) return idParam;
+			return null;
+		} catch {
+			return null;
+		}
+	}, []);
+
+	const handleAddAttachmentLink = useCallback(() => {
+		const name = formAttachmentLinkName.trim();
+		const rawUrl = formAttachmentLinkUrl.trim();
+		if (!name || !rawUrl) {
+			toast({
+				title: 'Nama dan URL lampiran wajib diisi',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (existingAttachments.length + formAttachments.length + 1 > 10) {
+			toast({
+				title: 'Maksimal 10 lampiran per berita',
+				variant: 'destructive',
+			});
+			return;
+		}
+		let parsed: URL;
+		try {
+			parsed = new URL(rawUrl);
+		} catch {
+			toast({ title: 'URL lampiran tidak valid', variant: 'destructive' });
+			return;
+		}
+		if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+			toast({
+				title: 'URL lampiran harus http/https',
+				variant: 'destructive',
+			});
+			return;
+		}
+		const driveFileId = detectDriveFileId(rawUrl);
+		const source: BeritaAttachmentForm['source'] = driveFileId
+			? 'gdrive'
+			: 'url';
+		setExistingAttachments((prev) => [
+			...prev,
+			{ name, url: rawUrl, type: 'link', source },
+		]);
+		setFormAttachmentLinkName('');
+		setFormAttachmentLinkUrl('');
+	}, [
+		detectDriveFileId,
+		existingAttachments.length,
+		formAttachments.length,
+		formAttachmentLinkName,
+		formAttachmentLinkUrl,
+		toast,
+	]);
 
 	const { data: libraryForBeritaLink = [] } = useQuery<
 		{ _id: string; title: string; published?: boolean }[]
@@ -587,6 +671,52 @@ export default function BeritaEditor({
 			return;
 		}
 
+		// Tambahan attachment dari input link yang belum ditekan "Tambah Link"
+		let finalAttachments = [...existingAttachments];
+		const pendingLinkName = formAttachmentLinkName.trim();
+		const pendingLinkUrl = formAttachmentLinkUrl.trim();
+		if (pendingLinkName && pendingLinkUrl) {
+			try {
+				const parsed = new URL(pendingLinkUrl);
+				if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+					toast({
+						title: 'URL lampiran harus http/https',
+						variant: 'destructive',
+					});
+					return;
+				}
+				const driveFileId = detectDriveFileId(pendingLinkUrl);
+				const source: BeritaAttachmentForm['source'] = driveFileId
+					? 'gdrive'
+					: 'url';
+				finalAttachments.push({
+					name: pendingLinkName,
+					url: pendingLinkUrl,
+					type: 'link',
+					source,
+				});
+			} catch {
+				toast({ title: 'URL lampiran tidak valid', variant: 'destructive' });
+				return;
+			}
+		} else if (pendingLinkName || pendingLinkUrl) {
+			toast({
+				title:
+					'Nama dan URL lampiran wajib diisi lengkap, atau kosongkan keduanya',
+				variant: 'destructive',
+			});
+			return;
+		}
+
+		const totalAttachments = finalAttachments.length + formAttachments.length;
+		if (totalAttachments > 10) {
+			toast({
+				title: `Maksimal 10 lampiran per berita. Saat ini ada ${totalAttachments} lampiran.`,
+				variant: 'destructive',
+			});
+			return;
+		}
+
 		const formData = new FormData();
 		formData.append('title', title);
 		formData.append('excerpt', excerpt);
@@ -594,6 +724,10 @@ export default function BeritaEditor({
 		formData.append('published', isPublished.toString());
 		formData.append('tags', JSON.stringify(tags));
 		formData.append('relatedGalleryIds', JSON.stringify(selectedGalleryIds));
+		formData.append('attachments', JSON.stringify(finalAttachments));
+		for (const f of formAttachments) {
+			formData.append('attachmentFiles', f);
+		}
 
 		// Kirim Google Drive URL jika ada dan valid
 		if (gdriveUrl && isGdriveValid) {
@@ -613,6 +747,10 @@ export default function BeritaEditor({
 		setContent('');
 		setImagePreview('');
 		setSelectedFile(null); // Reset selected file
+		setExistingAttachments([]);
+		setFormAttachments([]);
+		setFormAttachmentLinkName('');
+		setFormAttachmentLinkUrl('');
 		toast({ title: 'Berhasil', description: 'Berita disimpan.' });
 	};
 
@@ -629,6 +767,24 @@ export default function BeritaEditor({
 				(berita.relatedGalleryIds || []).map((x) => String(x)),
 			);
 			setAttachGallerySearch('');
+			setExistingAttachments(
+				Array.isArray(berita.attachments)
+					? berita.attachments
+							.filter((a): a is BeritaAttachmentForm => !!a && !!a.url && !!a.name)
+							.map((a) => ({
+								name: a.name,
+								url: a.url,
+								type: a.type || 'file',
+								source:
+									a.source === 'gdrive' || a.source === 'url'
+										? a.source
+										: 'local',
+							}))
+					: [],
+			);
+			setFormAttachments([]);
+			setFormAttachmentLinkName('');
+			setFormAttachmentLinkUrl('');
 
 			if (berita.image && !berita.image.startsWith('blob:')) {
 				setImagePreview(berita.image);
@@ -994,6 +1150,158 @@ export default function BeritaEditor({
 					})}
 				</div>
 			)}
+		</div>
+
+		<div className="border rounded-lg p-4 space-y-3">
+			<div className="flex items-center justify-between gap-2">
+				<div className="flex items-center gap-2 min-w-0">
+					<Paperclip className="h-4 w-4 text-primary shrink-0" />
+					<div className="min-w-0">
+						<h3 className="font-medium text-sm">Lampiran Berita</h3>
+						<p className="text-[11px] text-muted-foreground leading-tight mt-0.5">
+							Tambahkan dokumen, media, atau link pendukung. Bisa juga ditempel
+							inline di konten — lampiran berikut tampil sebagai daftar di bawah
+							artikel publik.
+						</p>
+					</div>
+				</div>
+				<span className="text-xs text-muted-foreground shrink-0">
+					{existingAttachments.length + formAttachments.length}/10 slot terpakai
+				</span>
+			</div>
+
+			{existingAttachments.length > 0 && (
+				<div className="space-y-1 max-h-36 overflow-y-auto">
+					{existingAttachments.map((att, idx) => (
+						<div
+							key={`existing-${idx}-${att.url}`}
+							className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1 min-w-0">
+							<span className="flex-1 truncate min-w-0">{att.name}</span>
+							<span className="text-[10px] uppercase rounded px-1.5 py-0.5 bg-background border text-muted-foreground">
+								{att.source === 'gdrive'
+									? 'gdrive'
+									: att.source === 'url'
+										? 'link'
+										: 'file'}
+							</span>
+							<Button
+								variant="ghost"
+								size="sm"
+								type="button"
+								className="h-6 w-6 p-0 flex-shrink-0"
+								onClick={() =>
+									setExistingAttachments((prev) =>
+										prev.filter((_, i) => i !== idx),
+									)
+								}>
+								<Trash2 className="h-3 w-3" />
+							</Button>
+						</div>
+					))}
+				</div>
+			)}
+
+			<div>
+				<input
+					ref={attachmentFileInputRef}
+					type="file"
+					multiple
+					className="hidden"
+					onChange={(e) => {
+						if (e.target.files && e.target.files.length > 0) {
+							const newFiles = Array.from(e.target.files);
+							const currentTotal =
+								existingAttachments.length + formAttachments.length;
+							const remaining = 10 - currentTotal;
+							if (remaining <= 0) {
+								toast({
+									title: 'Maksimal 10 lampiran per berita',
+									variant: 'destructive',
+								});
+							} else if (newFiles.length > remaining) {
+								toast({
+									title: `Hanya bisa menambah ${remaining} file lagi (maks 10 total)`,
+									variant: 'destructive',
+								});
+								setFormAttachments((prev) => [
+									...prev,
+									...newFiles.slice(0, remaining),
+								]);
+							} else {
+								setFormAttachments((prev) => [...prev, ...newFiles]);
+							}
+							e.target.value = '';
+						}
+					}}
+				/>
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={() => attachmentFileInputRef.current?.click()}>
+					<FileUp className="h-3.5 w-3.5 mr-1" />
+					Pilih File Lampiran
+				</Button>
+			</div>
+
+			{formAttachments.length > 0 && (
+				<div className="space-y-1 max-h-36 overflow-y-auto">
+					{formAttachments.map((file, idx) => (
+						<div
+							key={`new-${idx}-${file.name}`}
+							className="flex items-center gap-2 text-sm bg-blue-50 dark:bg-blue-950/30 rounded px-3 py-1 min-w-0">
+							<span className="flex-1 truncate min-w-0">{file.name}</span>
+							<span className="text-[10px] uppercase rounded px-1.5 py-0.5 bg-background border text-blue-600 dark:text-blue-400">
+								baru
+							</span>
+							<Button
+								variant="ghost"
+								size="sm"
+								type="button"
+								className="h-6 w-6 p-0 flex-shrink-0"
+								onClick={() =>
+									setFormAttachments((prev) =>
+										prev.filter((_, i) => i !== idx),
+									)
+								}>
+								<Trash2 className="h-3 w-3" />
+							</Button>
+						</div>
+					))}
+				</div>
+			)}
+
+			<div className="rounded-md border p-3 space-y-2">
+				<p className="text-xs font-medium">Tambah lampiran dari link online</p>
+				<div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+					<Input
+						value={formAttachmentLinkName}
+						onChange={(e) => setFormAttachmentLinkName(e.target.value)}
+						placeholder="Nama lampiran (mis. Rilis PDF)"
+						className="sm:col-span-1"
+					/>
+					<Input
+						value={formAttachmentLinkUrl}
+						onChange={(e) => setFormAttachmentLinkUrl(e.target.value)}
+						placeholder="https://... (URL file online)"
+						className="sm:col-span-2"
+					/>
+				</div>
+				<div className="flex items-center justify-between gap-2">
+					<p className="text-[11px] text-muted-foreground">
+						Mendukung URL umum + Google Drive single-file (bukan folder). URL
+						akan dinormalisasi otomatis saat disimpan.
+					</p>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						onClick={handleAddAttachmentLink}>
+						<Link2 className="h-3.5 w-3.5 mr-1" />
+						Tambah Link
+					</Button>
+				</div>
+			</div>
 		</div>
 
 		<div className="flex justify-end space-x-4">

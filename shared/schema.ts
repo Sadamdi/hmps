@@ -18,6 +18,14 @@ export interface UserWithRole {
 	updatedAt?: Date;
 }
 
+// Berita Attachment Type
+export interface BeritaAttachment {
+	name: string;
+	url: string;
+	type: string;
+	source: 'local' | 'gdrive' | 'url';
+}
+
 // Berita Types
 export interface Berita {
 	_id: string;
@@ -33,6 +41,7 @@ export interface Berita {
 	author: string;
 	sourceEventId?: string | null;
 	relatedGalleryIds?: string[];
+	attachments?: BeritaAttachment[];
 	createdAt: Date;
 	updatedAt: Date;
 }

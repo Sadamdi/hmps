@@ -14,6 +14,14 @@ export interface NormalizedEventAttachment {
 	source: EventAttachmentSource;
 }
 
+/**
+ * Berita reuses the same attachment normalization rules as event so the
+ * dashboard UX, viewer popup, and server cleanup all behave consistently.
+ */
+export type BeritaAttachmentSource = EventAttachmentSource;
+export type BeritaAttachmentInput = EventAttachmentInput;
+export type NormalizedBeritaAttachment = NormalizedEventAttachment;
+
 function parseDriveFileId(inputUrl: URL): string | null {
 	const host = inputUrl.hostname.toLowerCase();
 	if (!host.includes('drive.google.com')) return null;
@@ -111,4 +119,16 @@ export function normalizeEventAttachmentArray(
 	}
 
 	return { ok: true, attachments: normalized };
+}
+
+/**
+ * Berita-specific normalizer that delegates to the event normalizer to keep
+ * a single source of truth for attachment validation.
+ */
+export function normalizeBeritaAttachmentArray(
+	raw: unknown,
+):
+	| { ok: true; attachments: NormalizedBeritaAttachment[] }
+	| { ok: false; message: string } {
+	return normalizeEventAttachmentArray(raw);
 }

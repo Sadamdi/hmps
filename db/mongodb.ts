@@ -164,6 +164,18 @@ const beritaSchema = new mongoose.Schema({
 		default: null,
 	},
 	relatedGalleryIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Library' }],
+	attachments: [
+		{
+			name: { type: String, required: true },
+			url: { type: String, required: true },
+			type: { type: String, default: 'file' },
+			source: {
+				type: String,
+				enum: ['local', 'gdrive', 'url'],
+				default: 'local',
+			},
+		},
+	],
 	createdAt: { type: Date, default: Date.now },
 	updatedAt: { type: Date, default: Date.now },
 });

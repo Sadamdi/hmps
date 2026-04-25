@@ -1071,6 +1071,122 @@ export async function deleteFile(fileUrl: string): Promise<void> {
 }
 
 /**
+ * Upload an attachment for a berita article, stored under berita/{beritaId}/attachments/.
+ * Files are saved as-is so any MIME type (PDF, ZIP, video, image) is preserved.
+ */
+export async function uploadBeritaAttachment(
+	file: Express.Multer.File,
+	beritaId: string,
+	tenant?: TenantPathContext,
+): Promise<string> {
+	const timestamp = Date.now();
+	const randomName = crypto.randomBytes(8).toString('hex');
+	const ext = path.extname(file.originalname);
+	const safeOriginalName = file.originalname
+		.replace(/[^a-zA-Z0-9.]/g, '_')
+		.substring(0, 20);
+	const fileName = `${timestamp}_${safeOriginalName}_${randomName}${ext}`;
+
+	const sub = `berita/${beritaId}/attachments`;
+	const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+		? resolveTenantPaths(sub, false, tenant)
+		: (() => {
+			const d = path.join(uploadDir, sub);
+			if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+			return { dir: d, urlPrefix: `/uploads/${sub}` };
+		})();
+
+	const filePath = path.join(categoryDir, fileName);
+	await writeFile(filePath, file.buffer);
+	const fileUrl = `${urlPrefix}/${fileName}`;
+	registerUploadedFile({
+		url: fileUrl,
+		diskPath: filePath,
+		originalName: file.originalname,
+		mimeType: file.mimetype,
+		size: file.size,
+		category: 'berita-attachment',
+		tenantSlug: tenant?.tenantSlug,
+	});
+	return fileUrl;
+}
+
+/**
+ * Cleanup unused attachment files from berita/{beritaId}/attachments folder.
+ * Compares disk files vs incoming "still used" attachment URLs.
+ */
+export async function cleanupBeritaAttachments(
+	beritaId: string,
+	usedAttachmentUrls: string[],
+	tenant?: TenantPathContext,
+): Promise<void> {
+	const sub = `berita/${beritaId}/attachments`;
+	const { dir, urlPrefix } =
+		tenant?.isTenant && tenant.tenantSlug
+			? resolveTenantPaths(sub, false, tenant)
+			: {
+				dir: path.join(uploadDir, sub),
+				urlPrefix: `/uploads/${sub}`,
+			};
+
+	try {
+		if (!fs.existsSync(dir)) return;
+		const files = fs.readdirSync(dir);
+
+		if (usedAttachmentUrls.length === 0) {
+			for (const file of files) {
+				await promisify(fs.unlink)(path.join(dir, file)).catch(() => {});
+			}
+		} else {
+			const pathMarker = `${urlPrefix}/`;
+			const usedFilenames = usedAttachmentUrls
+				.filter((url) => url.includes(pathMarker))
+				.map((url) => path.basename(url));
+			for (const file of files) {
+				if (!usedFilenames.includes(file)) {
+					await promisify(fs.unlink)(path.join(dir, file)).catch(() => {});
+				}
+			}
+		}
+
+		const remaining = fs.readdirSync(dir);
+		if (remaining.length === 0) {
+			fs.rmdirSync(dir);
+		}
+	} catch (e) {
+		console.warn(`cleanupBeritaAttachments(${beritaId}):`, e);
+	}
+}
+
+/**
+ * Hapus seluruh folder file berita (`uploads/berita/{beritaId}` atau path tenant)
+ * termasuk gambar konten, thumbnail (jika ada di folder), dan attachments.
+ * Dipanggil ketika berita dihapus permanen.
+ */
+export async function deleteBeritaFileTree(
+	beritaId: string,
+	tenant?: TenantPathContext,
+): Promise<void> {
+	const sub = `berita/${beritaId}`;
+	const resolveDir = (t?: TenantPathContext) => {
+		if (t?.isTenant && t.tenantSlug) {
+			const safe = sanitizeSlug(t.tenantSlug);
+			return path.join(uploadDir, 'community', safe, sub);
+		}
+		return path.join(uploadDir, sub);
+	};
+
+	const dir = resolveDir(tenant);
+	try {
+		if (fs.existsSync(dir)) {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
+	} catch (e) {
+		console.warn(`deleteBeritaFileTree(${beritaId}):`, e);
+	}
+}
+
+/**
  * Cleanup unused images from berita folder (main DB or tenant community path).
  */
 export async function cleanupBeritaImages(
