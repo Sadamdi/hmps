@@ -91,6 +91,8 @@ export default function RichTextEditor({
 						'lists',
 						'link',
 						'image',
+						'editimage', // rotasi/flip gambar (TinyMCE 6+)
+						'quickbars', // toolbar kontekstual saat gambar diklik
 						'charmap',
 						'anchor',
 						'searchreplace',
@@ -108,7 +110,22 @@ export default function RichTextEditor({
 						'undo redo | formatselect | bold italic underline strikethrough | ' +
 						'alignleft aligncenter alignright alignjustify | ' +
 						'bullist numlist outdent indent | link image table | ' +
+						'rotateleft rotateright | ' +
 						'forecolor backcolor | code fullscreen help',
+
+					// Toolbar kontekstual yang muncul saat gambar diklik agar user bisa
+					// memutar/membalik gambar tanpa mengubah orientasi mentah file.
+					editimage_toolbar:
+						'rotateleft rotateright | flipv fliph | editimage imageoptions',
+					quickbars_image_toolbar:
+						'alignleft aligncenter alignright | rotateleft rotateright | imageoptions',
+					quickbars_insert_toolbar: false,
+					quickbars_selection_toolbar: false,
+
+					// Aspect ratio gambar tidak boleh dipaksa berubah saat resize manual.
+					image_advtab: true,
+					image_dimensions: true,
+					object_resizing: 'img',
 
 					// CSS fixes untuk mencegah conflicts
 					content_style: `

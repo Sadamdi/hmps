@@ -36,3 +36,15 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 2. Use `detect_changes` for code review.
 3. Use `get_affected_flows` to understand impact.
 4. Use `query_graph` pattern="tests_for" to check coverage.
+
+### Graph UI behavior (project preference)
+
+- Keep a `Reset` control in `.code-review-graph/graph.html` that restores full visibility:
+  - show all node kinds
+  - show all edge kinds (`CALLS`, `IMPORTS_FROM`, `INHERITS`, `CONTAINS`, etc.)
+  - clear flow selection, search, collapse state, and community hides
+- `Flows` dropdown must act as a strict render filter:
+  - when a flow is selected, show only the selected flow subgraph
+  - hide non-related nodes/edges (do not only reduce opacity)
+  - when flow selection is cleared, show full graph again
+- If `code-review-graph visualize` regenerates `graph.html` and removes these behaviors, re-apply them after generation.

@@ -31,17 +31,20 @@ export async function processImage(
 	} = options;
 
 	try {
-		let processor = sharp(inputBuffer);
+		// `rotate()` tanpa argumen menerapkan auto-orientasi EXIF, sehingga foto portrait
+		// dari kamera HP (yang menyimpan piksel landscape + tag Orientation) tetap tampil
+		// dalam orientasi yang benar setelah dikonversi ke WebP/JPEG/PNG.
+		let processor = sharp(inputBuffer, { failOn: 'none' }).rotate();
 
-		// Dapatkan metadata gambar untuk menentukan apakah perlu resize
+		// Metadata diambil dari processor yang sudah di-rotate agar width/height
+		// merefleksikan dimensi visual akhir (bukan piksel mentah pre-EXIF).
 		const metadata = await processor.metadata();
 
-		// Resize jika gambar lebih besar dari dimensi maksimum
 		if (metadata.width && metadata.height) {
 			if (metadata.width > maxWidth || metadata.height > maxHeight) {
 				processor = processor.resize(maxWidth, maxHeight, {
-					fit: 'inside', // Menjaga aspect ratio
-					withoutEnlargement: true, // Tidak memperbesar gambar kecil
+					fit: 'inside',
+					withoutEnlargement: true,
 				});
 			}
 		}

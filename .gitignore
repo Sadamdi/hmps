@@ -3,6 +3,9 @@ logs/
 **/logs/
 node_modules
 dist
+client/.vite
+client/dist
+client/node_modules/.vite
 .DS_Store
 .cursor
 .claude

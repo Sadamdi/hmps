@@ -2,7 +2,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
-import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { apiRequest } from '@/lib/queryClient';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
@@ -31,8 +30,6 @@ export default function TokoSection() {
 	const productsUrl = useApiUrl('/store/public/products');
 	const cartItemsUrl = useApiUrl('/store/cart/items');
 	const cartUrl = useApiUrl('/store/cart');
-
-	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
 
 	const [showAll, setShowAll] = useState(false);
 	const [isMobile, setIsMobile] = useState(false);
@@ -138,22 +135,12 @@ export default function TokoSection() {
 	return (
 		<section id="toko" className="py-16 bg-background scroll-mt-20">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div ref={headingRef} className="text-center mb-12">
-					<h2
-						className={`text-3xl font-bold text-foreground mb-4 ${
-							headingVisible ? 'reveal-heading' : 'opacity-0'
-						}`}>
+				<div className="text-center mb-12">
+					<h2 className="text-3xl font-bold text-foreground mb-4">
 						{storeLabel}
 					</h2>
-					<div
-						className={`w-20 h-1 bg-primary mx-auto mb-4 ${
-							headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'
-						}`}
-					/>
-					<p
-						className={`text-muted-foreground max-w-2xl mx-auto ${
-							headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'
-						}`}>
+					<div className="w-20 h-1 bg-primary mx-auto mb-4" />
+					<p className="text-muted-foreground max-w-2xl mx-auto">
 						Lihat katalog terbaru dan lanjutkan pembelian via WhatsApp.
 					</p>
 				</div>
