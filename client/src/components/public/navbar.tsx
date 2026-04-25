@@ -744,27 +744,7 @@ export default function Navbar({
 		() => navItems.slice(Math.max(1, desktopVisibleNavCount)),
 		[navItems, desktopVisibleNavCount],
 	);
-	const mobileRootLimit = 6;
-	const mobileNavItems = useMemo(() => {
-		const root = navItems.slice(0, mobileRootLimit);
-		const overflow = navItems.slice(mobileRootLimit);
-		if (overflow.length === 0) return root;
-		return [
-			...root,
-			{
-				id: 'mobile-more',
-				label: 'More',
-				icon: <MoreHorizontal className="h-4 w-4" />,
-				homeSection: '',
-				children: overflow.map((it) => ({
-					id: it.id,
-					label: it.label,
-					href: it.externalHref || (bp ? `${bp}/#${it.id}` : `/#${it.id}`),
-					children: it.children,
-				})),
-			} as NavItem,
-		];
-	}, [navItems, bp]);
+	const mobileNavItems = useMemo(() => navItems, [navItems]);
 
 	// Reset state dropdown ketika berpindah halaman supaya klik pertama
 	// di halaman baru tidak langsung dianggap sebagai klik kedua.

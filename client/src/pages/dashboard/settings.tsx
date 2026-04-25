@@ -67,6 +67,7 @@ import {
 } from '@dnd-kit/core';
 import {
 	arrayMove,
+	horizontalListSortingStrategy,
 	SortableContext,
 	sortableKeyboardCoordinates,
 	useSortable,
@@ -4974,6 +4975,23 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 		setFormNavbarGroups((prev) => prev.filter((g) => g.id !== id));
 	};
 
+	const reorderGroupMembers = (
+		groupId: string,
+		activeMemberId: string,
+		overMemberId: string,
+	) => {
+		if (!canEdit || activeMemberId === overMemberId) return;
+		setFormNavbarGroups((prev) =>
+			prev.map((g) => {
+				if (g.id !== groupId) return g;
+				const oldIdx = g.members.indexOf(activeMemberId);
+				const newIdx = g.members.indexOf(overMemberId);
+				if (oldIdx < 0 || newIdx < 0) return g;
+				return { ...g, members: arrayMove(g.members, oldIdx, newIdx) };
+			}),
+		);
+	};
+
 	const addBlock = (id: string, kind: 'section' | 'subItem') => {
 		if (!canEdit) return;
 		if (formBlocks.some((b) => b.id === id)) return;
@@ -5223,6 +5241,7 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 				onAdd={addNavbarGroup}
 				onUpdate={updateNavbarGroup}
 				onToggleMember={toggleGroupMember}
+				onReorderMembers={reorderGroupMembers}
 				onRemove={removeNavbarGroup}
 			/>
 
@@ -5265,6 +5284,7 @@ function NavbarGroupsEditor({
 	onAdd,
 	onUpdate,
 	onToggleMember,
+	onReorderMembers,
 	onRemove,
 }: {
 	groups: HomeNavbarGroup[];
@@ -5275,8 +5295,19 @@ function NavbarGroupsEditor({
 	onAdd: (label: string, members: string[]) => void;
 	onUpdate: (id: string, patch: Partial<HomeNavbarGroup>) => void;
 	onToggleMember: (groupId: string, memberId: string) => void;
+	onReorderMembers: (
+		groupId: string,
+		activeMemberId: string,
+		overMemberId: string,
+	) => void;
 	onRemove: (id: string) => void;
 }) {
+	const memberDnDSensors = useSensors(
+		useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+		useSensor(KeyboardSensor, {
+			coordinateGetter: sortableKeyboardCoordinates,
+		}),
+	);
 	const [labelDraft, setLabelDraft] = useState('');
 	const [memberDraft, setMemberDraft] = useState<string[]>([]);
 
@@ -5410,6 +5441,11 @@ function NavbarGroupsEditor({
 										Hapus
 									</Button>
 								</div>
+								{g.members.length > 1 && (
+									<div className="text-[11px] text-muted-foreground">
+										Urutan member (drag chip): {g.members.map(optionLabel).join(' -> ')}
+									</div>
+								)}
 								<div className="flex flex-wrap gap-2">
 									{options.map((o) => {
 										const selected = g.members.includes(o.id);
@@ -5431,6 +5467,35 @@ function NavbarGroupsEditor({
 										);
 									})}
 								</div>
+								{g.members.length > 0 && (
+									<DndContext
+										sensors={memberDnDSensors}
+										collisionDetection={closestCenter}
+										onDragEnd={(event) => {
+											const { active, over } = event;
+											if (!over) return;
+											onReorderMembers(
+												g.id,
+												String(active.id),
+												String(over.id),
+											);
+										}}>
+										<SortableContext
+											items={g.members}
+											strategy={horizontalListSortingStrategy}>
+											<div className="flex flex-wrap gap-2">
+												{g.members.map((mid) => (
+													<SortableGroupMemberChip
+														key={`${g.id}-member-${mid}`}
+														memberId={mid}
+														label={optionLabel(mid)}
+														disabled={!canEdit}
+													/>
+												))}
+											</div>
+										</SortableContext>
+									</DndContext>
+								)}
 							</div>
 						))}
 					</div>
@@ -5440,5 +5505,38 @@ function NavbarGroupsEditor({
 				</div>
 			</CardContent>
 		</Card>
+	);
+}
+
+function SortableGroupMemberChip({
+	memberId,
+	label,
+	disabled,
+}: {
+	memberId: string;
+	label: string;
+	disabled: boolean;
+}) {
+	const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+		useSortable({
+			id: memberId,
+			disabled,
+		});
+
+	return (
+		<div
+			ref={setNodeRef}
+			style={{
+				transform: CSS.Transform.toString(transform),
+				transition,
+				opacity: isDragging ? 0.6 : 1,
+			}}
+			{...attributes}
+			{...listeners}
+			className={`px-2.5 py-1 rounded-md text-xs border bg-primary/10 text-primary border-primary/40 ${
+				disabled ? 'cursor-default' : 'cursor-grab active:cursor-grabbing'
+			}`}>
+			{label}
+		</div>
 	);
 }
