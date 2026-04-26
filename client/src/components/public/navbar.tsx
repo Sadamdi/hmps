@@ -1622,7 +1622,7 @@ export default function Navbar({
 																	}`}>
 													{item.icon}
 													<span
-														className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+														className="hidden sm:block absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
 														           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
 														           bg-foreground/90 text-background
 														           opacity-0 pointer-events-none group-hover:opacity-100
@@ -1672,7 +1672,7 @@ export default function Navbar({
 																				}`}>
 															{item.icon}
 															<span
-																className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+																className="hidden sm:block absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
 															           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
 															           bg-foreground/90 text-background
 															           opacity-0 pointer-events-none group-hover:opacity-100
@@ -1682,10 +1682,11 @@ export default function Navbar({
 														</button>
 													</DropdownMenuTrigger>
 													<DropdownMenuContent
-														side={isMobileViewport ? 'left' : 'left'}
-														align="center"
-														sideOffset={8}
-														className="w-[min(22rem,calc(100vw-2rem))] sm:w-56 border-border bg-card text-foreground z-50">
+														side="left"
+														align={isMobileViewport ? 'start' : 'center'}
+														sideOffset={isMobileViewport ? 10 : 8}
+														collisionPadding={isMobileViewport ? 8 : 12}
+														className="w-[min(19rem,calc(100vw-5.5rem))] sm:w-56 max-h-[65vh] overflow-y-auto overscroll-contain border-border bg-card text-foreground z-50">
 														{renderNavChildren(item.children)}
 													</DropdownMenuContent>
 												</DropdownMenu>
@@ -1713,7 +1714,7 @@ export default function Navbar({
 																	}`}>
 												{item.icon}
 												<span
-													className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+													className="hidden sm:block absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
 												           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
 												           bg-foreground/90 text-background
 												           opacity-0 pointer-events-none group-hover:opacity-100
@@ -1781,7 +1782,7 @@ export default function Navbar({
 															</AvatarFallback>
 														</Avatar>
 														<span
-															className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+															className="hidden sm:block absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
 														           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
 														           bg-foreground/90 text-background
 														           opacity-0 pointer-events-none group-hover:opacity-100
@@ -1793,7 +1794,9 @@ export default function Navbar({
 												<DropdownMenuContent
 													side="left"
 													align="end"
-													className="w-48 border-border bg-card text-foreground z-50">
+													sideOffset={10}
+													collisionPadding={8}
+													className="w-[min(18rem,calc(100vw-5.5rem))] sm:w-48 max-h-[65vh] overflow-y-auto overscroll-contain border-border bg-card text-foreground z-50">
 													<div className="px-3 py-2">
 														<p className="text-sm font-medium">
 															{user.name || user.username}
@@ -1887,7 +1890,7 @@ export default function Navbar({
 											           transition-all duration-200 group ${userIconClass}`}>
 													<LogIn className="h-4 w-4" />
 													<span
-														className="absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+														className="hidden sm:block absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
 												           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
 												           bg-foreground/90 text-background
 												           opacity-0 pointer-events-none group-hover:opacity-100
