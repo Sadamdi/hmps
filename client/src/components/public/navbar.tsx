@@ -44,6 +44,10 @@ interface NavbarProps {
 	scrollToSection: (id: string) => void;
 }
 
+import {
+	DEFAULT_HOME_CONFIG,
+	DEFAULT_TENANT_HOME_CONFIG,
+} from '../../../../shared/schema';
 import type {
 	HomeBlockItem,
 	HomeConfig,
@@ -105,6 +109,20 @@ function prefixHref(href: string, basePath: string): string {
 	if (href === '/') return href;
 	if (href.startsWith(basePath + '/') || href === basePath) return href;
 	return basePath + href;
+}
+
+/** Blok beranda untuk resolver scroll: pakai settings jika ada entri; jika []/undefined (umum di komunitas belum disimpan), pakai default tenant/utama. */
+function effectiveHomeBlocks(
+	blocks: HomeBlockItem[] | undefined,
+	isTenantContext: boolean,
+): HomeBlockItem[] {
+	if (blocks && blocks.length > 0) {
+		return blocks.filter((b) => b.visible);
+	}
+	const fallback = isTenantContext
+		? DEFAULT_TENANT_HOME_CONFIG.blocks
+		: DEFAULT_HOME_CONFIG.blocks;
+	return fallback.filter((b) => b.visible);
 }
 
 const baseNavItemsWithoutEvents: NavItem[] = [
@@ -962,8 +980,10 @@ export default function Navbar({
 	 */
 	const resolveHomeTargetForDropdownParent = useCallback(
 		(itemId: string, item: NavItem): string | null => {
-			const visibleBlocks: HomeBlockItem[] =
-				settings?.homeConfig?.blocks?.filter((b) => b.visible) ?? [];
+			const visibleBlocks = effectiveHomeBlocks(
+				settings?.homeConfig?.blocks,
+				isTenant,
+			);
 			const isVisible = (id: string, kind?: 'section' | 'subItem') => {
 				const b = visibleBlocks.find(
 					(x) => x.id === id && (!kind || x.kind === kind),
@@ -1030,7 +1050,7 @@ export default function Navbar({
 
 			return item.homeSection ?? null;
 		},
-		[settings?.homeConfig?.blocks],
+		[isTenant, settings?.homeConfig?.blocks],
 	);
 
 	/**
