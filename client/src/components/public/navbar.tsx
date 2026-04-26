@@ -1051,7 +1051,7 @@ export default function Navbar({
 		const target = resolveHomeTargetForDropdownParent(item.id, item);
 
 		// Di halaman lain: gunakan pola "double click" berbasis waktu
-		if (location !== '/') {
+		if (!isHomeLikePath) {
 			if (
 				lastParentClickRef.current &&
 				lastParentClickRef.current.id === item.id &&
@@ -1072,8 +1072,8 @@ export default function Navbar({
 		openDropdownIdRef.current = dropdownId;
 		setOpenDropdownId(dropdownId);
 
-		// Jika di beranda dan ada target anchor visible, scroll ke section tersebut
-		if (location === '/' && target) {
+		// Jika di beranda (utama atau root komunitas) dan ada target anchor visible, scroll ke section tersebut
+		if (isHomeLikePath && target) {
 			programmaticScrollRef.current = true;
 			if (programmaticScrollTimerRef.current)
 				clearTimeout(programmaticScrollTimerRef.current);
@@ -1086,7 +1086,7 @@ export default function Navbar({
 	};
 
 	const handleNavClick = (id: string) => {
-		if (location !== '/') {
+		if (!isHomeLikePath) {
 			if (id === 'home') {
 				navigate('/');
 			} else {
@@ -1130,7 +1130,7 @@ export default function Navbar({
 
 		// Skenario 2: Target adalah beranda (/) dengan hash section
 		// → jika sudah di beranda, cukup smooth scroll via scrollToSection
-		if (targetPath === '/' && targetHash && location === '/') {
+		if (targetPath === '/' && targetHash && isHomeLikePath) {
 			scrollToSection(targetHash.slice(1));
 			return;
 		}
@@ -1140,7 +1140,7 @@ export default function Navbar({
 	};
 
 	const handleDropdownMonthClick = (month: number) => {
-		if (location !== '/') {
+		if (!isHomeLikePath) {
 			sessionStorage.setItem('eventsScrollToMonth', String(month));
 			window.location.href = bp ? `${bp}/#events` : '/#events';
 		} else {
@@ -1165,15 +1165,15 @@ export default function Navbar({
 		if (!child.href) return;
 		const now = Date.now();
 		const key = child.id || child.label;
-		// Di root beranda: klik sekali langsung jalankan auto-scroll/navigasi hash.
-		if (location === '/') {
+		// Di root beranda (utama atau komunitas): klik sekali langsung jalankan auto-scroll/navigasi hash.
+		if (isHomeLikePath) {
 			handleChildNav(child.href);
 			lastNestedClickRef.current = { id: key, time: now };
 			return;
 		}
 
 		// Di halaman non-root: klik pertama hanya buka submenu, klik kedua baru direct.
-		if (location !== '/') {
+		if (!isHomeLikePath) {
 			if (
 				lastNestedClickRef.current &&
 				lastNestedClickRef.current.id === key &&
