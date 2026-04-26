@@ -1167,7 +1167,25 @@ export default function Navbar({
 		const key = child.id || child.label;
 		// Di root beranda (utama atau komunitas): klik sekali langsung jalankan auto-scroll/navigasi hash.
 		if (isHomeLikePath) {
-			handleChildNav(child.href);
+			try {
+				const url = new URL(child.href, window.location.origin);
+				const hash = url.hash?.replace('#', '');
+				if (hash) {
+					programmaticScrollRef.current = true;
+					if (programmaticScrollTimerRef.current)
+						clearTimeout(programmaticScrollTimerRef.current);
+					programmaticScrollTimerRef.current = setTimeout(() => {
+						programmaticScrollRef.current = false;
+					}, 2000);
+					scrollToSection(hash);
+				} else {
+					handleChildNav(child.href);
+				}
+			} catch {
+				handleChildNav(child.href);
+			}
+			openDropdownIdRef.current = null;
+			setOpenDropdownId(null);
 			lastNestedClickRef.current = { id: key, time: now };
 			return;
 		}
