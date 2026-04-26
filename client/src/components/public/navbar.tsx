@@ -1165,6 +1165,14 @@ export default function Navbar({
 		if (!child.href) return;
 		const now = Date.now();
 		const key = child.id || child.label;
+		// Di root beranda: klik sekali langsung jalankan auto-scroll/navigasi hash.
+		if (location === '/') {
+			handleChildNav(child.href);
+			lastNestedClickRef.current = { id: key, time: now };
+			return;
+		}
+
+		// Di halaman non-root: klik pertama hanya buka submenu, klik kedua baru direct.
 		if (location !== '/') {
 			if (
 				lastNestedClickRef.current &&
@@ -1178,7 +1186,6 @@ export default function Navbar({
 			lastNestedClickRef.current = { id: key, time: now };
 			return;
 		}
-		lastNestedClickRef.current = { id: key, time: now };
 	};
 
 	const renderNavChildren = (children: NavChildItem[]) =>
