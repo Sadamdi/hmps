@@ -3170,7 +3170,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									...att,
 									url: String(att?.url || ''),
 								}));
-								for (const tempId of tempIds) {
+								for (const tempId of Array.from(tempIds)) {
 									const rTemp = resolveTenantPaths(
 										`berita/${tempId}`,
 										false,
@@ -3453,18 +3453,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Upload new attachment files
 				if (attachmentFilesEdit.length > 0) {
 					const { uploadBeritaAttachment } = await import('./upload');
-					if (!nextAttachments) {
-						nextAttachments = ((existingBerita as any).attachments || []).map(
-							(a: any) => ({
-								name: a.name,
-								url: a.url,
-								type: a.type || 'file',
-								source: a.source || 'local',
-							}),
-						);
-					}
-					const totalAfterUpload =
-						nextAttachments.length + attachmentFilesEdit.length;
+					const atts: any[] =
+						nextAttachments ??
+						((existingBerita as any).attachments || []).map((a: any) => ({
+							name: a.name,
+							url: a.url,
+							type: a.type || 'file',
+							source: a.source || 'local',
+						}));
+					const totalAfterUpload = atts.length + attachmentFilesEdit.length;
 					if (totalAfterUpload > 10) {
 						return res.status(400).json({
 							message: `Maksimal 10 lampiran per berita. Saat ini ada ${totalAfterUpload} lampiran.`,
@@ -3472,13 +3469,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 					for (const f of attachmentFilesEdit) {
 						const url = await uploadBeritaAttachment(f, beritaId, tCtxEdit);
-						nextAttachments.push({
+						atts.push({
 							name: f.originalname,
 							url,
 							type: f.mimetype || 'file',
 							source: 'local' as const,
 						});
 					}
+					nextAttachments = atts;
 				}
 
 				if (nextAttachments) {

@@ -109,7 +109,7 @@ export function normalizePriceTiersInput(raw: unknown, max = 12): StorePriceTier
 		byMin.set(minQty, { minQty, unitPrice, applyMultiples: !!applyMultiples });
 		if (byMin.size >= max) break;
 	}
-	return [...byMin.entries()]
+	return Array.from(byMin.entries())
 		.sort((a, b) => a[0] - b[0])
 		.map(([, t]) => t);
 }

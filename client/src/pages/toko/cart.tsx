@@ -19,6 +19,20 @@ import { Link, useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency';
 
+function lineKeyOfCartItem(it: { lineKey?: string; lineKind?: string; bundleId?: string; productId?: string }): string {
+	if (it?.lineKey) return String(it.lineKey);
+	if (it?.lineKind === 'bundle' || it?.bundleId) return `b:${it.bundleId}`;
+	return `p:${it.productId}`;
+}
+
+function buildCheckoutItemsFromCart(items: any[]) {
+	return items.map((it: any) =>
+		it.lineKind === 'bundle' || it.bundleId
+			? { bundleId: it.bundleId, qty: it.qty }
+			: { productId: it.productId, qty: it.qty },
+	);
+}
+
 function storeOrderStatusLabel(status: string): string {
 	switch (status) {
 		case 'pending':
@@ -46,12 +60,14 @@ export default function TokoCartPage() {
 
 	const cartUrl = useApiUrl('/store/cart');
 	const checkoutUrl = useApiUrl('/store/checkout');
+	const shippingQuoteUrl = useApiUrl('/store/shipping/quote');
 	const myOrdersUrl = useApiUrl('/store/my-orders');
 	const settingsUrl = useApiUrl('/store/public/settings');
 	const { data: storeSettings } = useQuery<{
 		navbarPath?: string;
 		navbarLabel?: string;
 		defaultCurrency?: string;
+		shipping?: { enabled: boolean; hasGlobalOrigin: boolean };
 	}>({
 		queryKey: [settingsUrl],
 		queryFn: async () => {
@@ -107,15 +123,22 @@ export default function TokoCartPage() {
 	const [phone, setPhone] = useState('');
 	const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>('pickup');
 	const [address, setAddress] = useState('');
-	const [selectedById, setSelectedById] = useState<Record<string, boolean>>({});
+	const [destVillage, setDestVillage] = useState('');
+	const [selectedCourier, setSelectedCourier] = useState('');
+	const [quotedShipping, setQuotedShipping] = useState<{
+		cost: number;
+		etd: string;
+		code: string;
+	} | null>(null);
+	const [selectedByKey, setSelectedByKey] = useState<Record<string, boolean>>({});
 
 	useEffect(() => {
-		const items = (cart as { items?: { productId: string }[] } | undefined)?.items || [];
-		setSelectedById((prev) => {
+		const items = (cart as { items?: any[] } | undefined)?.items || [];
+		setSelectedByKey((prev) => {
 			const out: Record<string, boolean> = {};
 			for (const it of items) {
-				const id = String(it.productId);
-				out[id] = prev[id] !== false;
+				const k = lineKeyOfCartItem(it);
+				out[k] = prev[k] !== false;
 			}
 			return out;
 		});
@@ -123,8 +146,8 @@ export default function TokoCartPage() {
 
 	const selectedItems = useMemo(() => {
 		const items = (cart as { items?: any[] } | undefined)?.items || [];
-		return items.filter((it: any) => selectedById[String(it.productId)] !== false);
-	}, [cart, selectedById]);
+		return items.filter((it: any) => selectedByKey[lineKeyOfCartItem(it)] !== false);
+	}, [cart, selectedByKey]);
 
 	const selectedSummary = useMemo(() => {
 		let sub = 0;
@@ -138,21 +161,25 @@ export default function TokoCartPage() {
 		const taxEnabled = !!(cart as { taxEnabled?: boolean } | undefined)?.taxEnabled;
 		const taxPercent = Number((cart as { taxPercent?: number } | undefined)?.taxPercent || 0);
 		const tax = taxEnabled ? Math.round((sub * taxPercent) / 100) : 0;
-		return { subtotal: sub, tax, total: sub + tax, taxPercent, taxEnabled };
-	}, [selectedItems, cart]);
+		const ship =
+			fulfillment === 'delivery' && storeSettings?.shipping?.enabled && quotedShipping
+				? quotedShipping.cost
+				: 0;
+		return { subtotal: sub, tax, total: sub + tax + ship, taxPercent, taxEnabled, shipping: ship };
+	}, [selectedItems, cart, fulfillment, storeSettings, quotedShipping]);
 
 	const allSelected =
 		(cart?.items?.length ?? 0) > 0 &&
-		(cart?.items || []).every((it: any) => selectedById[String(it.productId)] !== false);
+		(cart?.items || []).every((it: any) => selectedByKey[lineKeyOfCartItem(it)] !== false);
 
 	const toggleAll = useCallback(
 		(checked: boolean) => {
-			const items = (cart as { items?: { productId: string }[] } | undefined)?.items || [];
+			const items = (cart as { items?: any[] } | undefined)?.items || [];
 			const out: Record<string, boolean> = {};
 			for (const it of items) {
-				out[String(it.productId)] = checked;
+				out[lineKeyOfCartItem(it)] = checked;
 			}
-			setSelectedById(out);
+			setSelectedByKey(out);
 		},
 		[cart],
 	);
@@ -164,14 +191,13 @@ export default function TokoCartPage() {
 	const checkoutMutation = useMutation({
 		mutationFn: async () => {
 			const res = await apiRequest('POST', checkoutUrl, {
-				items: selectedItems.map((it: any) => ({
-					productId: it.productId,
-					qty: it.qty,
-				})),
+				items: buildCheckoutItemsFromCart(selectedItems),
 				customerName: name.trim(),
 				customerPhone: phone.trim(),
 				fulfillment,
 				shippingAddress: fulfillment === 'delivery' ? address.trim() : '',
+				destinationVillageCode: fulfillment === 'delivery' ? destVillage.trim() : '',
+				shippingCourierCode: fulfillment === 'delivery' ? (selectedCourier || quotedShipping?.code || '') : '',
 			});
 			return res.json();
 		},
@@ -187,22 +213,54 @@ export default function TokoCartPage() {
 	});
 
 	const cartItemsUrlBase = useApiUrl('/store/cart/items');
+	const cartBundlesUrlBase = useApiUrl('/store/cart/bundles');
 
-	const onRemove = (productId: string) => {
-		apiRequest('DELETE', `${cartItemsUrlBase}/${productId}`).then(() => {
+	const onRemove = (it: any) => {
+		const isB = it.lineKind === 'bundle' || it.bundleId;
+		const url = isB ? `${cartBundlesUrlBase}/${it.bundleId}` : `${cartItemsUrlBase}/${it.productId}`;
+		apiRequest('DELETE', url).then(() => {
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
 		});
 	};
 
-	const setItemQty = (productId: string, nextQty: number) => {
+	const setItemQty = (it: any, nextQty: number) => {
 		if (nextQty < 1) {
-			onRemove(productId);
+			onRemove(it);
 			return;
 		}
-		apiRequest('PATCH', `${cartItemsUrlBase}/${productId}`, { qty: nextQty }).then(() => {
+		const isB = it.lineKind === 'bundle' || it.bundleId;
+		const url = isB ? `${cartBundlesUrlBase}/${it.bundleId}` : `${cartItemsUrlBase}/${it.productId}`;
+		apiRequest('PATCH', url, { qty: nextQty }).then(() => {
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
 		});
 	};
+
+	const fetchQuote = useCallback(() => {
+		if (fulfillment !== 'delivery' || !storeSettings?.shipping?.enabled) {
+			setQuotedShipping(null);
+			return;
+		}
+		if (!/^\d{10}$/.test(destVillage.trim()) || selectedItems.length === 0) return;
+		apiRequest('POST', shippingQuoteUrl, {
+			destinationVillageCode: destVillage.trim(),
+			items: buildCheckoutItemsFromCart(selectedItems),
+		} as any)
+			.then((r) => r.json())
+			.then((j: any) => {
+				const c = j?.cheapest;
+				if (c) {
+					setSelectedCourier(c.courierCode);
+					setQuotedShipping({ cost: c.price, etd: c.etd, code: c.courierCode });
+				} else {
+					setQuotedShipping(null);
+				}
+			})
+			.catch(() => setQuotedShipping(null));
+	}, [fulfillment, storeSettings, destVillage, selectedItems, shippingQuoteUrl]);
+
+	useEffect(() => {
+		fetchQuote();
+	}, [fetchQuote]);
 
 	return (
 		<div className="min-h-screen flex flex-col bg-background">
@@ -242,26 +300,33 @@ export default function TokoCartPage() {
 							const unit = typeof it.unitPrice === 'number' ? it.unitPrice : Number(it.price) || 0;
 							const cur = it.currency || cartCurrency;
 							const maxQ = it.stockAvailable != null ? it.stockAvailable : 999999;
-							const pid = String(it.productId);
-							const checked = selectedById[pid] !== false;
+							const lkey = lineKeyOfCartItem(it);
+							const checked = selectedByKey[lkey] !== false;
 							return (
-								<Card key={it.productId}>
+								<Card key={lkey}>
 									<CardContent className="p-4 flex flex-col sm:flex-row justify-between gap-4">
 										<div className="flex gap-3 flex-1 min-w-0">
 											<div className="pt-0.5">
 												<Checkbox
 													checked={checked}
 													onCheckedChange={(v) =>
-														setSelectedById((prev) => ({
+														setSelectedByKey((prev) => ({
 															...prev,
-															[pid]: v === true,
+															[lkey]: v === true,
 														}))
 													}
 													aria-label={`Pilih ${it.name}`}
 												/>
 											</div>
 											<div className="flex-1 min-w-0">
-											<div className="font-medium">{it.name}</div>
+											<div className="font-medium">
+												{it.lineKind === 'bundle' || it.bundleId ? (
+													<span className="text-xs rounded bg-primary/10 text-primary px-1.5 py-0.5 mr-1">
+														Bundel
+													</span>
+												) : null}
+												{it.name}
+											</div>
 											<div className="text-sm text-muted-foreground mt-1">
 												{formatStoreMoney(unit, cur)} × {it.qty}
 											</div>
@@ -276,7 +341,7 @@ export default function TokoCartPage() {
 													variant="ghost"
 													size="icon"
 													className="h-8 w-8"
-													onClick={() => setItemQty(it.productId, it.qty - 1)}>
+													onClick={() => setItemQty(it, it.qty - 1)}>
 													<Minus className="h-4 w-4" />
 												</Button>
 												<span className="w-8 text-center text-sm tabular-nums">{it.qty}</span>
@@ -285,11 +350,11 @@ export default function TokoCartPage() {
 													size="icon"
 													className="h-8 w-8"
 													disabled={it.qty >= maxQ}
-													onClick={() => setItemQty(it.productId, it.qty + 1)}>
+													onClick={() => setItemQty(it, it.qty + 1)}>
 													<Plus className="h-4 w-4" />
 												</Button>
 											</div>
-											<Button variant="ghost" size="icon" onClick={() => onRemove(it.productId)}>
+											<Button variant="ghost" size="icon" onClick={() => onRemove(it)}>
 												<Trash2 className="h-4 w-4 text-destructive" />
 											</Button>
 										</div>
@@ -314,6 +379,16 @@ export default function TokoCartPage() {
 									<div className="flex justify-between">
 										<span>Pajak ({selectedSummary.taxPercent}%)</span>
 										<span>{formatStoreMoney(selectedSummary.tax, cartCurrency)}</span>
+									</div>
+								)}
+								{fulfillment === 'delivery' && storeSettings?.shipping?.enabled && (
+									<div className="flex justify-between text-muted-foreground">
+										<span>Ongkos kirim (estimasi)</span>
+										<span>
+											{quotedShipping
+												? formatStoreMoney(quotedShipping.cost, cartCurrency)
+												: '—'}
+										</span>
 									</div>
 								)}
 								<div className="flex justify-between font-bold text-base pt-2 border-t">
@@ -358,6 +433,23 @@ export default function TokoCartPage() {
 										<Textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} />
 									</div>
 								)}
+								{fulfillment === 'delivery' && storeSettings?.shipping?.enabled && (
+									<div className="space-y-2">
+										<Label>Kode kelurahan tujuan (10 digit)</Label>
+										<Input
+											inputMode="numeric"
+											placeholder="Dari peta wilayah Indonesia / admin toko"
+											value={destVillage}
+											onChange={(e) => setDestVillage(e.target.value.replace(/\D/g, '').slice(0, 10))}
+										/>
+										<p className="text-xs text-muted-foreground">
+									Ongkir dihitung otomatis. Isi 10 digit kode desa/kelurahan tujuan.
+										</p>
+										<Button type="button" variant="secondary" size="sm" onClick={fetchQuote}>
+											Hitung ulang ongkir
+										</Button>
+									</div>
+								)}
 								<Button
 									className="w-full"
 									size="lg"
@@ -380,6 +472,14 @@ export default function TokoCartPage() {
 												title: 'Alamat wajib diisi',
 												variant: 'destructive',
 											});
+											return;
+										}
+										if (
+											fulfillment === 'delivery' &&
+											storeSettings?.shipping?.enabled &&
+											!/^\d{10}$/.test(destVillage.trim())
+										) {
+											toast({ title: 'Kode kelurahan 10 digit wajib', variant: 'destructive' });
 											return;
 										}
 										checkoutMutation.mutate();

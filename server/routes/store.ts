@@ -18,11 +18,26 @@ import {
 	normalizePriceTiersInput,
 } from '../../shared/store-pricing';
 import {
+	computeDiscountedSubtotal,
+	computeDiscountedBundleSubtotal,
+	isPreOrderOrderable,
+	isPreOrderInWindow,
+	shouldSkipStockDecrementForPreOrder,
+	parseCartLinesFromBody,
+	ensureCartLineKey,
+	totalShippingWeightGrams,
+	resolveOriginVillageForLines,
+	resolveShippingForCheckout,
+	type StoreCampaignLike,
+} from './store-logic';
+import {
 	uploadMiddleware,
 	uploadStoreProductImage,
 	tenantCtxFromReq,
 	deleteFile,
 } from '../upload';
+import { fetchShippingCost, type ShippingCourierOption } from '../services/shipping-api-co-id';
+import { regionalFetch } from '../services/regional-api-co-id';
 
 const router = Router();
 
@@ -218,6 +233,115 @@ async function ensureSettings(req: Request) {
 	return doc;
 }
 
+async function listActiveCampaigns(req: Request): Promise<StoreCampaignLike[]> {
+	const { StoreDiscountCampaign } = resolveModels(req);
+	return (await StoreDiscountCampaign.find({ isActive: true }).sort({ priority: -1 }).lean()) as StoreCampaignLike[];
+}
+
+function normalizeStoreShippingInDoc(s: any) {
+	if (!s || typeof s !== 'object') {
+		return {
+			enabled: false,
+			globalOriginVillageCode: '',
+			defaultWeightGrams: 1000,
+			defaultCouriers: [] as string[],
+		};
+	}
+	const d = s.shipping;
+	if (!d || typeof d !== 'object') {
+		return {
+			enabled: false,
+			globalOriginVillageCode: '',
+			defaultWeightGrams: 1000,
+			defaultCouriers: [] as string[],
+		};
+	}
+	return {
+		enabled: !!d.enabled,
+		globalOriginVillageCode: String(d.globalOriginVillageCode || '').trim(),
+		defaultWeightGrams: Math.max(1, Math.floor(Number(d.defaultWeightGrams) || 1000)),
+		defaultCouriers: Array.isArray(d.defaultCouriers) ? d.defaultCouriers.map((x: any) => String(x)) : [],
+	};
+}
+
+function parseProductDiscountFromBody(body: any): any {
+	if (!body || !body.discountOverride || typeof body.discountOverride !== 'object') return undefined;
+	return body.discountOverride;
+}
+
+function maxProductOrderQty(p: any, now: Date): number {
+	if (!isPreOrderOrderable(p, now)) return 0;
+	const preWin =
+		p.isPreOrder &&
+		isPreOrderInWindow(
+			{
+				isPreOrder: true,
+				preOrderOpenAt: p.preOrderOpenAt,
+				preOrderCloseAt: p.preOrderCloseAt,
+			},
+			now,
+		);
+	if (preWin) {
+		if (isStoreStockUnlimited(p.stock)) return 9999;
+		const a = getStoreStockAvailable(p.stock);
+		if (a === null) return 9999;
+		if (a === 0) return 99;
+		return a;
+	}
+	if (isStoreStockUnlimited(p.stock)) return 9999;
+	return getStoreStockAvailable(p.stock) ?? 0;
+}
+
+async function maxBundleQty(req: Request, b: any, now: Date): Promise<number> {
+	const { StoreProduct } = resolveModels(req);
+	let m = 9999;
+	for (const it of b.items || []) {
+		const p = await StoreProduct.findById(it.productId).lean();
+		if (!p || !p.published) return 0;
+		const need = Math.max(1, Math.floor(Number(it.qty) || 1));
+		const maxEach = Math.floor(maxProductOrderQty(p, now) / need);
+		m = Math.min(m, maxEach);
+	}
+	return m;
+}
+
+function mergeStockOpsByProduct(ops: { id: any; qty: number; skip: boolean }[]) {
+	const m = new Map<string, { id: any; qty: number; skip: boolean }>();
+	for (const o of ops) {
+		const k = String(o.id);
+		const ex = m.get(k);
+		if (ex) {
+			ex.qty += o.qty;
+			ex.skip = ex.skip && o.skip;
+		} else {
+			m.set(k, { id: o.id, qty: o.qty, skip: o.skip });
+		}
+	}
+	return Array.from(m.values());
+}
+
+function parsePreOrderFromBody(body: any) {
+	return {
+		isPreOrder: body.isPreOrder === true,
+		preOrderOpenAt: body.preOrderOpenAt ? new Date(String(body.preOrderOpenAt)) : null,
+		preOrderCloseAt: body.preOrderCloseAt ? new Date(String(body.preOrderCloseAt)) : null,
+		estimatedReadyAt: body.estimatedReadyAt ? new Date(String(body.estimatedReadyAt)) : null,
+		preOrderDiscountPercent: Math.min(100, Math.max(0, Number(body.preOrderDiscountPercent) || 0)),
+		preOrderAllowAfterClose: body.preOrderAllowAfterClose === true,
+		preOrderTimeline: Array.isArray(body.preOrderTimeline)
+			? body.preOrderTimeline
+					.filter((r: any) => r && typeof r === 'object')
+					.map((r: any) => ({
+						key: String(r.key || ''),
+						label: String(r.label || ''),
+						at: r.at ? new Date(String(r.at)) : null,
+						note: String(r.note || ''),
+					}))
+					.slice(0, 20)
+			: [],
+	};
+}
+
 async function getOrCreateGuestSession(req: Request, res: Response) {
 	const { GuestStoreSession } = resolveModels(req);
 	let token = req.cookies?.[COOKIE_NAME] as string | undefined;
@@ -402,6 +526,7 @@ router.get('/public/settings', async (req, res) => {
 	try {
 		const doc: any = await ensureSettings(req);
 		const s = doc || {};
+		const ship = normalizeStoreShippingInDoc(s);
 		res.json({
 			navbarLabel: s.navbarLabel || 'Toko',
 			navbarPath: s.navbarPath || '/toko',
@@ -411,6 +536,10 @@ router.get('/public/settings', async (req, res) => {
 			storeAddress: s.storeAddress || '',
 			defaultCurrency: normalizeStoreCurrency(s.defaultCurrency),
 			layoutBlocks: Array.isArray(s.layoutBlocks) ? s.layoutBlocks : defaultLayoutBlocks(),
+			shipping: {
+				enabled: ship.enabled,
+				hasGlobalOrigin: !!ship.globalOriginVillageCode,
+			},
 		});
 	} catch (e) {
 		console.error(e);
@@ -429,6 +558,154 @@ router.get('/public/categories', async (req, res) => {
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal memuat kategori' });
+	}
+});
+
+// Wilayah (proxy) — hanya panggil jika ONGKIR_API terset
+router.get('/public/regional/provinces', async (_req, res) => {
+	try {
+		if (!(process.env.ONGKIR_API || '').trim()) {
+			return res.json({ is_success: true, data: { provinces: [] } });
+		}
+		const j = await regionalFetch('/regional/indonesia/provinces');
+		return res.json(j);
+	} catch (e: any) {
+		console.error(e);
+		return res.status(500).json({ message: e?.message || 'Wilayah: gagal' });
+	}
+});
+router.get('/public/regional/provinces/:code/regencies', async (req, res) => {
+	try {
+		if (!(process.env.ONGKIR_API || '').trim()) return res.json({ data: { regencies: [] } });
+		const j = await regionalFetch(`/regional/indonesia/provinces/${encodeURIComponent(req.params.code)}/regencies`);
+		return res.json(j);
+	} catch (e: any) {
+		console.error(e);
+		return res.status(500).json({ message: e?.message || 'Gagal' });
+	}
+});
+router.get('/public/regional/regencies/:code/districts', async (req, res) => {
+	try {
+		if (!(process.env.ONGKIR_API || '').trim()) return res.json({ data: { districts: [] } });
+		const j = await regionalFetch(`/regional/indonesia/regencies/${encodeURIComponent(req.params.code)}/districts`);
+		return res.json(j);
+	} catch (e: any) {
+		console.error(e);
+		return res.status(500).json({ message: e?.message || 'Gagal' });
+	}
+});
+router.get('/public/regional/districts/:code/villages', async (req, res) => {
+	try {
+		if (!(process.env.ONGKIR_API || '').trim()) return res.json({ data: { villages: [] } });
+		const j = await regionalFetch(`/regional/indonesia/districts/${encodeURIComponent(req.params.code)}/villages`);
+		return res.json(j);
+	} catch (e: any) {
+		console.error(e);
+		return res.status(500).json({ message: e?.message || 'Gagal' });
+	}
+});
+
+/** Estimasi ongkir: body destinationVillageCode + item lines (sama format checkout) */
+router.post('/shipping/quote', async (req, res) => {
+	try {
+		const { StoreProduct, StoreBundle } = resolveModels(req);
+		const settings: any = await ensureSettings(req);
+		const sh = normalizeStoreShippingInDoc(settings);
+		const b = req.body || {};
+		const dest = String(b.destinationVillageCode || '').trim();
+		const parsed = parseCartLinesFromBody(b.items);
+		if (!parsed.ok) return res.status(400).json({ message: parsed.message });
+		if (!/^\d{10}$/.test(dest)) {
+			return res.status(400).json({ message: 'Kode kelurahan tujuan 10 digit wajib' });
+		}
+		const w = await totalShippingWeightGrams(parsed.lines, {
+			StoreProduct,
+			StoreBundle,
+			defaultWeightGrams: sh.defaultWeightGrams,
+		});
+		if (w <= 0) {
+			return res.json({ cost: 0, couriers: [], weightGrams: 0, etd: '' });
+		}
+		const pMap = new Map<string, any>();
+		const bMap = new Map<string, any>();
+		for (const l of parsed.lines) {
+			if (l.lineKind === 'product') {
+				const p = await StoreProduct.findById(l.productId).lean();
+				if (p) pMap.set(String(p._id), p);
+			} else {
+				const u = await StoreBundle.findById(l.bundleId).lean();
+				if (u) bMap.set(String(u._id), u);
+			}
+		}
+		const origin = resolveOriginVillageForLines(parsed.lines, pMap, bMap, sh.globalOriginVillageCode);
+		if (!/^\d{10}$/.test(origin)) {
+			return res.status(400).json({ message: 'Kode kelurahan asal toko belum diatur' });
+		}
+		const r = await fetchShippingCost({
+			originVillageCode: origin,
+			destinationVillageCode: dest,
+			weightGrams: w,
+		});
+		let list: ShippingCourierOption[] = r.couriers;
+		if (sh.defaultCouriers.length) {
+			const allow = sh.defaultCouriers.map((c: string) => c.toLowerCase());
+			const f = list.filter((c) => allow.includes(c.courierCode.toLowerCase()));
+			if (f.length) list = f;
+		}
+		return res.json({
+			weightGrams: w,
+			originVillageCode: origin,
+			couriers: list,
+			cheapest: list.length ? list.reduce((a, c) => (c.price < a.price ? c : a)) : null,
+		});
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal estimasi ongkir' });
+	}
+});
+
+/** Kampanye diskon aktif — dipakai storefront untuk tampilkan harga promo (tanpa usage sensitif) */
+router.get('/public/campaigns', async (req, res) => {
+	try {
+		const { StoreDiscountCampaign } = resolveModels(req);
+		const list = await StoreDiscountCampaign.find({ isActive: true })
+			.sort({ priority: -1, createdAt: -1 })
+			.select(
+				'name scope productIds mode discountType discountValue startAt endAt dailyStart dailyEnd usageLimit usageCount oneTimeCompleted priority isActive',
+			)
+			.lean();
+		return res.json(list);
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal memuat promo' });
+	}
+});
+
+router.get('/public/bundles', async (req, res) => {
+	try {
+		const { StoreBundle } = resolveModels(req);
+		const list = await StoreBundle.find({ published: true, isActive: true })
+			.sort({ sortOrder: 1, createdAt: -1 })
+			.limit(50)
+			.select('slug name shortDescription bundlePrice thumbnail items sortOrder')
+			.lean();
+		return res.json({ items: list });
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal memuat bundling' });
+	}
+});
+router.get('/public/bundles/:slug', async (req, res) => {
+	try {
+		const { StoreBundle, StoreProduct } = resolveModels(req);
+		const b = await StoreBundle.findOne({ slug: req.params.slug, published: true, isActive: true })
+			.populate('items.productId', 'name slug price thumbnail')
+			.lean();
+		if (!b) return res.status(404).json({ message: 'Bundling tidak ditemukan' });
+		return res.json(b);
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal memuat bundling' });
 	}
 });
 
@@ -480,7 +757,7 @@ router.get('/public/products', async (req, res) => {
 			.limit(limit)
 			.populate({ path: 'categoryId', select: 'name slug' })
 			.select(
-				'slug name shortDescription price priceTiers priceTierMultiples stock currency thumbnail published createdAt updatedAt categoryId',
+				'slug name shortDescription price priceTiers priceTierMultiples stock currency thumbnail published createdAt updatedAt categoryId isPreOrder preOrderOpenAt preOrderCloseAt estimatedReadyAt preOrderDiscountPercent preOrderAllowAfterClose isFreeShipping originVillageCodeOverride shippingWeightGrams disableGlobalDiscount discountOverride preOrderTimeline',
 			)
 			.lean();
 		res.json({ items: list, total, page, limit });
@@ -704,6 +981,15 @@ router.put('/admin/settings', authenticate, requireTokoManage, async (req, res) 
 				}
 			}
 		}
+		if (body.shipping !== undefined && typeof body.shipping === 'object') {
+			const sh = body.shipping as Record<string, unknown>;
+			update.shipping = {
+				enabled: !!sh.enabled,
+				globalOriginVillageCode: String(sh.globalOriginVillageCode || '').trim(),
+				defaultWeightGrams: Math.max(1, Math.floor(Number(sh.defaultWeightGrams) || 1000)),
+				defaultCouriers: Array.isArray(sh.defaultCouriers) ? sh.defaultCouriers.map((x) => String(x)) : [],
+			};
+		}
 		if (layoutBlocks) update.layoutBlocks = layoutBlocks;
 
 		const doc = await StoreSettings.findOneAndUpdate(
@@ -721,6 +1007,248 @@ router.put('/admin/settings', authenticate, requireTokoManage, async (req, res) 
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal menyimpan pengaturan' });
+	}
+});
+
+// ── Admin: diskon kampanye ──
+router.get('/admin/campaigns', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreDiscountCampaign } = resolveModels(req);
+		const list = await StoreDiscountCampaign.find({}).sort({ priority: -1, createdAt: -1 }).lean();
+		return res.json(list);
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal memuat campaign' });
+	}
+});
+router.post('/admin/campaigns', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreDiscountCampaign } = resolveModels(req);
+		const b = req.body || {};
+		const name = String(b.name || '').trim();
+		if (!name) return res.status(400).json({ message: 'Nama wajib' });
+		const mode = b.mode;
+		if (!['recurring_daily_window', 'scheduled_range', 'one_time_flash'].includes(String(mode))) {
+			return res.status(400).json({ message: 'Mode tidak valid' });
+		}
+		const scope = b.scope === 'product' ? 'product' : 'global';
+		const pids = Array.isArray(b.productIds) ? b.productIds : [];
+		const oids: mongoose.Types.ObjectId[] = [];
+		for (const id of pids) {
+			if (mongoose.Types.ObjectId.isValid(String(id))) oids.push(new mongoose.Types.ObjectId(String(id)));
+		}
+		if (scope === 'product' && !oids.length) {
+			return res.status(400).json({ message: 'Pilih produk untuk scope produk' });
+		}
+		const doc = await StoreDiscountCampaign.create({
+			name,
+			scope,
+			productIds: oids,
+			mode,
+			discountType: b.discountType === 'fixed' ? 'fixed' : 'percent',
+			discountValue: Math.max(0, Number(b.discountValue) || 0),
+			startAt: b.startAt ? new Date(String(b.startAt)) : null,
+			endAt: b.endAt ? new Date(String(b.endAt)) : null,
+			dailyStart: String(b.dailyStart || ''),
+			dailyEnd: String(b.dailyEnd || ''),
+			usageLimit: b.usageLimit != null && b.usageLimit !== '' ? Math.max(0, Math.floor(Number(b.usageLimit))) : null,
+			usageCount: 0,
+			oneTimeCompleted: false,
+			priority: Math.floor(Number(b.priority) || 0),
+			isActive: b.isActive !== false,
+		});
+		return res.status(201).json(doc.toObject());
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal membuat campaign' });
+	}
+});
+router.patch('/admin/campaigns/:id', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreDiscountCampaign } = resolveModels(req);
+		const c = await StoreDiscountCampaign.findById(req.params.id);
+		if (!c) return res.status(404).json({ message: 'Tidak ditemukan' });
+		const b = req.body || {};
+		if (b.name !== undefined) c.name = String(b.name).trim();
+		if (b.isActive !== undefined) c.isActive = !!b.isActive;
+		if (b.mode !== undefined && ['recurring_daily_window', 'scheduled_range', 'one_time_flash'].includes(String(b.mode))) {
+			c.mode = b.mode;
+		}
+		if (b.scope === 'product' || b.scope === 'global') c.scope = b.scope;
+		if (b.productIds !== undefined) {
+			const pids = Array.isArray(b.productIds) ? b.productIds : [];
+			c.productIds = pids
+				.map((x: any) => (mongoose.Types.ObjectId.isValid(String(x)) ? new mongoose.Types.ObjectId(String(x)) : null))
+				.filter(Boolean) as any;
+		}
+		if (b.discountType !== undefined) c.discountType = b.discountType === 'fixed' ? 'fixed' : 'percent';
+		if (b.discountValue !== undefined) c.discountValue = Math.max(0, Number(b.discountValue) || 0);
+		if (b.startAt !== undefined) c.startAt = b.startAt ? new Date(String(b.startAt)) : null;
+		if (b.endAt !== undefined) c.endAt = b.endAt ? new Date(String(b.endAt)) : null;
+		if (b.dailyStart !== undefined) c.dailyStart = String(b.dailyStart);
+		if (b.dailyEnd !== undefined) c.dailyEnd = String(b.dailyEnd);
+		if (b.priority !== undefined) c.priority = Math.floor(Number(b.priority) || 0);
+		if (b.usageLimit !== undefined) c.usageLimit = b.usageLimit != null && b.usageLimit !== '' ? Math.max(0, Math.floor(Number(b.usageLimit))) : null;
+		if (b.oneTimeCompleted !== undefined) c.oneTimeCompleted = !!b.oneTimeCompleted;
+		await c.save();
+		return res.json(c.toObject());
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal memperbarui campaign' });
+	}
+});
+router.delete('/admin/campaigns/:id', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreDiscountCampaign } = resolveModels(req);
+		const r = await StoreDiscountCampaign.findByIdAndDelete(req.params.id);
+		if (!r) return res.status(404).json({ message: 'Tidak ditemukan' });
+		return res.json({ ok: true });
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal hapus' });
+	}
+});
+
+// ── Admin: bundling ──
+router.get('/admin/bundles', authenticate, requireStoreDashboard, async (req, res) => {
+	try {
+		const { StoreBundle } = resolveModels(req);
+		const list = await StoreBundle.find({})
+			.sort({ sortOrder: 1, createdAt: -1 })
+			.populate('items.productId', 'name slug published stock')
+			.lean();
+		return res.json(list);
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal memuat bundling' });
+	}
+});
+router.get('/admin/bundles/:id', authenticate, requireStoreDashboard, async (req, res) => {
+	try {
+		const { StoreBundle } = resolveModels(req);
+		const b = await StoreBundle.findById(req.params.id).populate('items.productId').lean();
+		if (!b) return res.status(404).json({ message: 'Tidak ditemukan' });
+		return res.json(b);
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal' });
+	}
+});
+router.post('/admin/bundles', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreBundle, StoreProduct } = resolveModels(req);
+		const b = req.body || {};
+		const name = String(b.name || '').trim();
+		if (!name) return res.status(400).json({ message: 'Nama wajib' });
+		let baseSlug = slugify(String(b.slug || name));
+		let slug = baseSlug;
+		let n = 0;
+		while (await StoreBundle.findOne({ slug }).lean()) {
+			n += 1;
+			slug = `${baseSlug}-${n}`;
+		}
+		const bundlePrice = Number(b.bundlePrice);
+		if (!Number.isFinite(bundlePrice) || bundlePrice < 0) {
+			return res.status(400).json({ message: 'Harga bundle tidak valid' });
+		}
+		const itemsIn = Array.isArray(b.items) ? b.items : [];
+		if (!itemsIn.length) return res.status(400).json({ message: 'Pilih isi bundling' });
+		const items: { productId: mongoose.Types.ObjectId; qty: number }[] = [];
+		for (const row of itemsIn) {
+			if (!row || typeof row !== 'object') continue;
+			const pid = (row as any).productId;
+			const q = Math.max(1, Math.floor(Number((row as any).qty) || 1));
+			if (!mongoose.Types.ObjectId.isValid(String(pid))) continue;
+			const p = await StoreProduct.findById(pid).lean();
+			if (!p) continue;
+			if (!p.published) return res.status(400).json({ message: `Produk belum terbit: ${p.name}` });
+			items.push({ productId: p._id as any, qty: q });
+		}
+		if (!items.length) return res.status(400).json({ message: 'Tidak ada item valid' });
+		const maxSort = (await StoreBundle.findOne().sort({ sortOrder: -1 }).select('sortOrder').lean()) as {
+			sortOrder?: number;
+		} | null;
+		const nextSort = typeof maxSort?.sortOrder === 'number' ? maxSort.sortOrder + 1 : Date.now();
+		const doc = await StoreBundle.create({
+			slug,
+			name,
+			shortDescription: String(b.shortDescription || '').slice(0, 500),
+			bundlePrice,
+			items,
+			weightGramsOverride: b.weightGramsOverride != null ? Math.max(1, Math.floor(Number(b.weightGramsOverride))) : null,
+			isFreeShipping: !!b.isFreeShipping,
+			published: !!b.published,
+			isActive: b.isActive !== false,
+			thumbnail: String(b.thumbnail || '').trim(),
+			sortOrder: nextSort,
+			authorId: req.user!._id,
+		});
+		return res.status(201).json(doc.toObject());
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal membuat bundling' });
+	}
+});
+router.patch('/admin/bundles/:id', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreBundle, StoreProduct } = resolveModels(req);
+		const doc = await StoreBundle.findById(req.params.id);
+		if (!doc) return res.status(404).json({ message: 'Tidak ditemukan' });
+		const b = req.body || {};
+		if (b.slug !== undefined) {
+			let ns = slugify(String(b.slug));
+			const clash = await StoreBundle.findOne({ slug: ns, _id: { $ne: doc._id } }).lean();
+			if (clash) return res.status(400).json({ message: 'Slug terpakai' });
+			doc.slug = ns;
+		}
+		if (b.name !== undefined) doc.name = String(b.name).trim();
+		if (b.shortDescription !== undefined) doc.shortDescription = String(b.shortDescription).slice(0, 500);
+		if (b.bundlePrice !== undefined) {
+			const x = Number(b.bundlePrice);
+			if (Number.isFinite(x) && x >= 0) doc.bundlePrice = x;
+		}
+		if (b.items !== undefined) {
+			const itemsIn = Array.isArray(b.items) ? b.items : [];
+			const items: { productId: mongoose.Types.ObjectId; qty: number }[] = [];
+			for (const row of itemsIn) {
+				if (!row || typeof row !== 'object') continue;
+				const pid = (row as any).productId;
+				const q = Math.max(1, Math.floor(Number((row as any).qty) || 1));
+				if (!mongoose.Types.ObjectId.isValid(String(pid))) continue;
+				const p = await StoreProduct.findById(pid).lean();
+				if (!p) continue;
+				if (!p.published) return res.status(400).json({ message: `Produk belum terbit: ${p.name}` });
+				items.push({ productId: p._id as any, qty: q });
+			}
+			if (items.length) doc.items = items as any;
+		}
+		if (b.published !== undefined) doc.published = !!b.published;
+		if (b.isActive !== undefined) doc.isActive = !!b.isActive;
+		if (b.isFreeShipping !== undefined) doc.isFreeShipping = !!b.isFreeShipping;
+		if (b.thumbnail !== undefined) doc.thumbnail = String(b.thumbnail || '');
+		if (b.weightGramsOverride !== undefined) {
+			doc.weightGramsOverride =
+				b.weightGramsOverride != null && b.weightGramsOverride !== ''
+					? Math.max(1, Math.floor(Number(b.weightGramsOverride)))
+					: null;
+		}
+		doc.updatedAt = new Date();
+		await doc.save();
+		return res.json(doc.toObject());
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal memperbarui bundling' });
+	}
+});
+router.delete('/admin/bundles/:id', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreBundle } = resolveModels(req);
+		const r = await StoreBundle.findByIdAndDelete(req.params.id);
+		if (!r) return res.status(404).json({ message: 'Tidak ditemukan' });
+		return res.json({ ok: true });
+	} catch (e) {
+		console.error(e);
+		return res.status(500).json({ message: 'Gagal hapus' });
 	}
 });
 
@@ -854,6 +1382,8 @@ router.post('/admin/products', authenticate, requireTokoManage, async (req, res)
 		const nextSortOrder =
 			typeof maxSort?.sortOrder === 'number' ? maxSort.sortOrder + 1 : Date.now();
 
+		const po = parsePreOrderFromBody(body);
+		const dOv = parseProductDiscountFromBody(body);
 		const doc = await StoreProduct.create({
 			slug,
 			name,
@@ -864,6 +1394,21 @@ router.post('/admin/products', authenticate, requireTokoManage, async (req, res)
 			stock,
 			categoryId,
 			currency: normalizeProductCurrencyOverride(body.currency),
+			shippingWeightGrams:
+				body.shippingWeightGrams != null && body.shippingWeightGrams !== ''
+					? Math.max(1, Math.floor(Number(body.shippingWeightGrams)))
+					: null,
+			originVillageCodeOverride: String(body.originVillageCodeOverride || '').trim(),
+			isFreeShipping: !!body.isFreeShipping,
+			disableGlobalDiscount: !!body.disableGlobalDiscount,
+			discountOverride: dOv || null,
+			isPreOrder: po.isPreOrder,
+			preOrderOpenAt: po.preOrderOpenAt,
+			preOrderCloseAt: po.preOrderCloseAt,
+			estimatedReadyAt: po.estimatedReadyAt,
+			preOrderDiscountPercent: po.preOrderDiscountPercent,
+			preOrderAllowAfterClose: po.preOrderAllowAfterClose,
+			preOrderTimeline: po.preOrderTimeline,
 			thumbnail,
 			thumbnailSource: body.thumbnailSource === 'gdrive' ? 'gdrive' : 'local',
 			thumbnailGdriveFileId: String(body.thumbnailGdriveFileId || ''),
@@ -919,6 +1464,16 @@ router.patch('/admin/products/:id', authenticate, requireStoreDashboard, async (
 				'storeAddressOverride',
 				'published',
 				'categoryId',
+				'shippingWeightGrams',
+				'originVillageCodeOverride',
+				'isFreeShipping',
+				'isPreOrder',
+				'preOrderOpenAt',
+				'preOrderCloseAt',
+				'estimatedReadyAt',
+				'preOrderDiscountPercent',
+				'preOrderAllowAfterClose',
+				'preOrderTimeline',
 			]);
 			for (const k of Object.keys(body)) {
 				if (!allowedFields.has(k)) delete (body as any)[k];
@@ -977,6 +1532,40 @@ router.patch('/admin/products/:id', authenticate, requireStoreDashboard, async (
 		}
 		if (body.storeAddressOverride !== undefined) p.storeAddressOverride = String(body.storeAddressOverride || '');
 		if (body.published !== undefined) p.published = !!body.published;
+		if (body.shippingWeightGrams !== undefined) {
+			p.shippingWeightGrams =
+				body.shippingWeightGrams != null && body.shippingWeightGrams !== ''
+					? Math.max(1, Math.floor(Number(body.shippingWeightGrams)))
+					: null;
+		}
+		if (body.originVillageCodeOverride !== undefined) {
+			p.originVillageCodeOverride = String(body.originVillageCodeOverride || '').trim();
+		}
+		if (body.isFreeShipping !== undefined) p.isFreeShipping = !!body.isFreeShipping;
+		if (body.disableGlobalDiscount !== undefined) p.disableGlobalDiscount = !!body.disableGlobalDiscount;
+		if (body.discountOverride !== undefined) {
+			p.discountOverride = parseProductDiscountFromBody({ discountOverride: body.discountOverride });
+		}
+		const preKeys = new Set([
+			'isPreOrder',
+			'preOrderOpenAt',
+			'preOrderCloseAt',
+			'estimatedReadyAt',
+			'preOrderDiscountPercent',
+			'preOrderAllowAfterClose',
+			'preOrderTimeline',
+		]);
+		if (Object.keys(body).some((k) => preKeys.has(k))) {
+			const merged = { ...p.toObject(), ...body };
+			const po = parsePreOrderFromBody(merged);
+			p.isPreOrder = po.isPreOrder;
+			p.preOrderOpenAt = po.preOrderOpenAt;
+			p.preOrderCloseAt = po.preOrderCloseAt;
+			p.estimatedReadyAt = po.estimatedReadyAt;
+			p.preOrderDiscountPercent = po.preOrderDiscountPercent;
+			p.preOrderAllowAfterClose = po.preOrderAllowAfterClose;
+			p.preOrderTimeline = po.preOrderTimeline;
+		}
 
 		p.updatedAt = new Date();
 		await p.save();
@@ -1129,30 +1718,66 @@ router.delete('/admin/orders', authenticate, requireTokoManage, async (req, res)
 
 router.get('/cart', async (req, res) => {
 	try {
-		const { GuestStoreSession, StoreProduct } = resolveModels(req);
+		const { GuestStoreSession, StoreProduct, StoreBundle } = resolveModels(req);
 		const { doc } = await getOrCreateGuestSession(req, res);
 		const settings: any = await ensureSettings(req);
 		const defCur = normalizeStoreCurrency(settings?.defaultCurrency);
+		const now = new Date();
+		const campaigns = await listActiveCampaigns(req);
 		const items: any[] = [];
 		for (const row of doc.cartItems || []) {
-			const p = await StoreProduct.findById(row.productId).lean();
-			if (!p || !p.published) continue;
-			const cur = effectiveProductCurrency(p, defCur);
 			const qty = Math.max(1, Math.floor(Number(row.qty) || 1));
-			const lineSubtotal = lineSubtotalForProduct(p, qty);
-			const unitPrice = lineSubtotal / qty;
-			items.push({
-				productId: String(p._id),
-				slug: p.slug,
-				name: p.name,
-				price: unitPrice,
-				unitPrice,
-				lineSubtotal,
-				currency: cur,
-				thumbnail: p.thumbnail,
-				qty,
-				stockAvailable: getStoreStockAvailable(p.stock),
-			});
+			const lineKind = row.lineKind === 'bundle' || row.bundleId ? 'bundle' : 'product';
+			if (lineKind === 'bundle') {
+				const b = await StoreBundle.findById(row.bundleId || null).lean();
+				if (!b || !b.published || !b.isActive) continue;
+				const cur = defCur;
+				const pr = computeDiscountedBundleSubtotal(String(b._id), b.bundlePrice, qty, campaigns, now);
+				const unitPrice = pr.lineSubtotal / qty;
+				items.push({
+					lineKind: 'bundle',
+					lineKey: ensureCartLineKey({ ...row, lineKind: 'bundle', bundleId: b._id }),
+					bundleId: String(b._id),
+					slug: b.slug,
+					name: b.name,
+					price: unitPrice,
+					unitPrice,
+					lineSubtotal: pr.lineSubtotal,
+					compareSubtotal: pr.compareSubtotal,
+					promoApplied: pr.applied,
+					currency: cur,
+					thumbnail: b.thumbnail || '',
+					qty,
+					stockAvailable: await maxBundleQty(req, b, now),
+				});
+			} else {
+				const p = await StoreProduct.findById(row.productId).lean();
+				if (!p || !p.published) continue;
+				if (!isPreOrderOrderable(p, now)) continue;
+				const cur = effectiveProductCurrency(p, defCur);
+				const pr = computeDiscountedSubtotal(p as any, qty, campaigns, now);
+				const unitPrice = pr.lineSubtotal / qty;
+				items.push({
+					lineKind: 'product',
+					lineKey: ensureCartLineKey({ ...row, lineKind: 'product', productId: p._id }),
+					productId: String(p._id),
+					slug: p.slug,
+					name: p.name,
+					price: unitPrice,
+					unitPrice,
+					lineSubtotal: pr.lineSubtotal,
+					compareSubtotal: pr.compareSubtotal,
+					promoApplied: pr.applied,
+					currency: cur,
+					thumbnail: p.thumbnail,
+					qty,
+					stockAvailable: maxProductOrderQty(p, now),
+					isPreOrder: !!p.isPreOrder,
+					preOrder: p.isPreOrder
+						? { estimatedReadyAt: p.estimatedReadyAt, timeline: p.preOrderTimeline }
+						: null,
+				});
+			}
 		}
 		const subtotal = items.reduce((s, it) => s + (it.lineSubtotal ?? 0), 0);
 		const taxPercent = settings?.taxEnabled ? Number(settings.taxPercent || 0) : 0;
@@ -1183,13 +1808,24 @@ router.post('/cart/items', async (req, res) => {
 		const qty = Math.max(1, parseInt(String(req.body?.qty || '1'), 10) || 1);
 		const p = await StoreProduct.findById(productId).lean();
 		if (!p || !p.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
+		const now = new Date();
+		if (!isPreOrderOrderable(p, now)) {
+			return res.status(400).json({ message: 'Produk tidak tersedia untuk dipesan' });
+		}
 
 		const settings: any = await ensureSettings(req);
 		const defCur = normalizeStoreCurrency(settings?.defaultCurrency);
 		const newCur = effectiveProductCurrency(p, defCur);
 		const cart = doc.cartItems || [];
 		if (cart.length) {
-			const first = await StoreProduct.findById(cart[0].productId).lean();
+			const r0 = cart[0];
+			const isB = r0.lineKind === 'bundle' || r0.bundleId;
+			if (isB) {
+				return res.status(400).json({
+					message: 'Kosongkan bundling dulu sebelum menambah produk satuan, atau selesaikan checkout.',
+				});
+			}
+			const first = await StoreProduct.findById(r0.productId).lean();
 			if (first) {
 				const firstCur = effectiveProductCurrency(first, defCur);
 				if (firstCur !== newCur) {
@@ -1201,21 +1837,30 @@ router.post('/cart/items', async (req, res) => {
 			}
 		}
 
-		const idx = cart.findIndex((c: any) => String(c.productId) === String(productId));
+		const idx = cart.findIndex(
+			(c: any) => !c.bundleId && c.lineKind !== 'bundle' && String(c.productId) === String(productId),
+		);
 		const mergedQty = idx >= 0 ? cart[idx].qty + qty : qty;
-		const capped = capQtyByStock(p.stock, mergedQty);
-		const avail = getStoreStockAvailable(p.stock);
-		if (avail !== null && capped < 1) {
-			return res.status(400).json({ message: 'Stok habis untuk produk ini' });
+		const cap = maxProductOrderQty(p, now);
+		const nextQty = Math.max(1, Math.min(mergedQty, cap));
+		if (nextQty < mergedQty) {
+			return res.status(400).json({ message: `Jumlah maksimum yang bisa dipesan: ${cap}` });
 		}
-		if (capped < mergedQty) {
-			return res.status(400).json({
-				message: `Stok hanya tersisa ${avail}`,
-			});
+		if (idx >= 0) {
+			cart[idx].lineKind = 'product';
+			cart[idx].productId = p._id;
+			(cart[idx] as any).bundleId = null;
+			cart[idx].qty = nextQty;
+			(cart[idx] as any).lineKey = `p:${p._id}`;
+		} else {
+			cart.push({
+				lineKind: 'product',
+				productId: p._id,
+				bundleId: null,
+				qty: nextQty,
+				lineKey: `p:${p._id}`,
+			} as any);
 		}
-		const nextQty = Math.max(1, capped);
-		if (idx >= 0) cart[idx].qty = nextQty;
-		else cart.push({ productId: p._id, qty: nextQty });
 
 		doc.cartItems = cart;
 		await doc.save();
@@ -1226,30 +1871,95 @@ router.post('/cart/items', async (req, res) => {
 	}
 });
 
+router.post('/cart/bundles', async (req, res) => {
+	try {
+		const { GuestStoreSession, StoreBundle, StoreProduct } = resolveModels(req);
+		const { doc } = await getOrCreateGuestSession(req, res);
+		const bid = req.body?.bundleId;
+		const qty = Math.max(1, parseInt(String(req.body?.qty || '1'), 10) || 1);
+		const b = await StoreBundle.findById(bid).lean();
+		if (!b || !b.published || !b.isActive) {
+			return res.status(400).json({ message: 'Bundling tidak tersedia' });
+		}
+		const now = new Date();
+		const settings: any = await ensureSettings(req);
+		const defCur = normalizeStoreCurrency(settings?.defaultCurrency);
+		const cart = doc.cartItems || [];
+		if (cart.length) {
+			const r0 = cart[0];
+			const isB = r0.lineKind === 'bundle' || r0.bundleId;
+			if (!isB) {
+				return res.status(400).json({
+					message: 'Kosongkan produk di keranjang dulu bila ingin membeli bundling.',
+				});
+			}
+		}
+		for (const it of b.items || []) {
+			const p = await StoreProduct.findById(it.productId).lean();
+			if (!p || !p.published) {
+				return res.status(400).json({ message: 'Isi bundling tidak valid' });
+			}
+		}
+		const cap = await maxBundleQty(req, b, now);
+		const idx = cart.findIndex((c: any) => String(c.bundleId) === String(b._id));
+		const mergedQty = idx >= 0 ? cart[idx].qty + qty : qty;
+		const nextQty = Math.max(1, Math.min(mergedQty, cap));
+		if (nextQty < mergedQty) {
+			return res.status(400).json({ message: `Jumlah maksimum bundling: ${cap}` });
+		}
+		if (idx >= 0) {
+			cart[idx].lineKind = 'bundle';
+			(cart[idx] as any).bundleId = b._id;
+			(cart[idx] as any).productId = null;
+			cart[idx].qty = nextQty;
+			(cart[idx] as any).lineKey = `b:${b._id}`;
+		} else {
+			cart.push({
+				lineKind: 'bundle',
+				bundleId: b._id,
+				productId: null,
+				qty: nextQty,
+				lineKey: `b:${b._id}`,
+			} as any);
+		}
+		doc.cartItems = cart;
+		await doc.save();
+		res.json({ ok: true });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal menambah bundling' });
+	}
+});
+
 router.patch('/cart/items/:productId', async (req, res) => {
 	try {
 		const { GuestStoreSession, StoreProduct } = resolveModels(req);
 		const { doc } = await getOrCreateGuestSession(req, res);
 		const qtyRaw = parseInt(String(req.body?.qty ?? '1'), 10);
 		const cart = doc.cartItems || [];
-		const idx = cart.findIndex((c: any) => String(c.productId) === req.params.productId);
+		const idx = cart.findIndex(
+			(c: any) => !c.bundleId && c.lineKind !== 'bundle' && String(c.productId) === req.params.productId,
+		);
 		if (idx < 0) return res.status(404).json({ message: 'Item tidak ada di keranjang' });
 		if (!Number.isFinite(qtyRaw) || qtyRaw < 1) {
-			doc.cartItems = cart.filter((c: any) => String(c.productId) !== req.params.productId);
+			doc.cartItems = cart.filter(
+				(c: any) => !(c.lineKind !== 'bundle' && String(c.productId) === req.params.productId),
+			);
 			await doc.save();
 			return res.json({ ok: true });
 		}
 		const p = await StoreProduct.findById(req.params.productId).lean();
 		if (!p || !p.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
-		const capped = capQtyByStock(p.stock, qtyRaw);
-		const avail = getStoreStockAvailable(p.stock);
-		if (avail !== null && capped < 1) {
-			return res.status(400).json({ message: 'Stok habis untuk produk ini' });
+		const now = new Date();
+		if (!isPreOrderOrderable(p, now)) {
+			return res.status(400).json({ message: 'Produk tidak tersedia' });
 		}
-		if (capped < qtyRaw) {
-			return res.status(400).json({ message: `Stok hanya tersisa ${capped}` });
+		const cap = maxProductOrderQty(p, now);
+		const nextQty = Math.max(1, Math.min(qtyRaw, cap));
+		if (nextQty < qtyRaw) {
+			return res.status(400).json({ message: `Jumlah maksimum: ${cap}` });
 		}
-		cart[idx].qty = Math.max(1, capped);
+		cart[idx].qty = nextQty;
 		doc.cartItems = cart;
 		await doc.save();
 		res.json({ ok: true });
@@ -1264,13 +1974,63 @@ router.delete('/cart/items/:productId', async (req, res) => {
 		const { GuestStoreSession } = resolveModels(req);
 		const { doc } = await getOrCreateGuestSession(req, res);
 		doc.cartItems = (doc.cartItems || []).filter(
-			(c: any) => String(c.productId) !== req.params.productId,
+			(c: any) => c.lineKind === 'bundle' || c.bundleId || String(c.productId) !== req.params.productId,
 		);
 		await doc.save();
 		res.json({ ok: true });
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal menghapus item' });
+	}
+});
+
+router.patch('/cart/bundles/:bundleId', async (req, res) => {
+	try {
+		const { GuestStoreSession, StoreBundle } = resolveModels(req);
+		const { doc } = await getOrCreateGuestSession(req, res);
+		const qtyRaw = parseInt(String(req.body?.qty ?? '1'), 10);
+		const cart = doc.cartItems || [];
+		const idx = cart.findIndex(
+			(c: any) => c.lineKind === 'bundle' || (c.bundleId && String(c.bundleId) === req.params.bundleId),
+		);
+		if (idx < 0) return res.status(404).json({ message: 'Item tidak ada di keranjang' });
+		if (!Number.isFinite(qtyRaw) || qtyRaw < 1) {
+			doc.cartItems = cart.filter(
+				(c: any) => String(c.bundleId) !== String(req.params.bundleId),
+			);
+			await doc.save();
+			return res.json({ ok: true });
+		}
+		const b = await StoreBundle.findById(req.params.bundleId).lean();
+		if (!b || !b.published) return res.status(400).json({ message: 'Bundling tidak tersedia' });
+		const now = new Date();
+		const cap = await maxBundleQty(req, b, now);
+		const nextQty = Math.max(1, Math.min(qtyRaw, cap));
+		if (nextQty < qtyRaw) {
+			return res.status(400).json({ message: `Jumlah maksimum: ${cap}` });
+		}
+		cart[idx].qty = nextQty;
+		doc.cartItems = cart;
+		await doc.save();
+		res.json({ ok: true });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memperbarui bundling' });
+	}
+});
+
+router.delete('/cart/bundles/:bundleId', async (req, res) => {
+	try {
+		const { GuestStoreSession } = resolveModels(req);
+		const { doc } = await getOrCreateGuestSession(req, res);
+		doc.cartItems = (doc.cartItems || []).filter(
+			(c: any) => String(c.bundleId) !== String(req.params.bundleId),
+		);
+		await doc.save();
+		res.json({ ok: true });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal menghapus' });
 	}
 });
 
@@ -1284,6 +2044,9 @@ router.post('/cart/draft', async (req, res) => {
 			customerPhone: String(b.customerPhone || ''),
 			fulfillment: b.fulfillment === 'delivery' ? 'delivery' : b.fulfillment === 'pickup' ? 'pickup' : '',
 			shippingAddress: String(b.shippingAddress || ''),
+			destinationVillageCode: String(b.destinationVillageCode || '').trim(),
+			shippingCourierCode: String(b.shippingCourierCode || '').trim(),
+			shippingServiceLabel: String(b.shippingServiceLabel || '').trim(),
 		};
 		await doc.save();
 		res.json({ ok: true });
@@ -1301,7 +2064,7 @@ router.get('/my-orders', async (req, res) => {
 			.sort({ createdAt: -1 })
 			.limit(50)
 			.select(
-				'orderNo invoiceAccessToken items subtotal total taxAmount taxPercent fulfillment customerName customerPhone shippingAddress status createdAt',
+				'orderNo invoiceAccessToken items subtotal total taxAmount taxPercent shippingCost fulfillment customerName customerPhone shippingAddress status createdAt',
 			)
 			.lean();
 		res.json(list);
@@ -1339,17 +2102,21 @@ router.get('/orders/:orderNo', async (req, res) => {
 
 // ── Checkout & WA ──
 
-router.post('/checkout', async (req, res) => {
+async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Record<string, unknown>) {
 	try {
-		const { StoreProduct, StoreOrder } = resolveModels(req);
-		const body = req.body || {};
+		const { StoreProduct, StoreOrder, StoreBundle, StoreDiscountCampaign } = resolveModels(req);
+		const body = _body || {};
+		const now = new Date();
 		const itemsIn = Array.isArray(body.items) ? body.items : [];
-		if (!itemsIn.length) return res.status(400).json({ message: 'Keranjang kosong' });
+		const parsed = parseCartLinesFromBody(itemsIn);
+		if (!parsed.ok) return res.status(400).json({ message: parsed.message });
 
 		const customerName = String(body.customerName || '').trim();
 		const customerPhone = String(body.customerPhone || '').trim();
 		const fulfillment = body.fulfillment === 'delivery' ? 'delivery' : 'pickup';
 		const shippingAddress = String(body.shippingAddress || '').trim();
+		const destinationVillageCode = String(body.destinationVillageCode || '').trim();
+		const shippingCourierCode = String(body.shippingCourierCode || '').trim();
 
 		if (!customerName || !customerPhone) {
 			return res.status(400).json({ message: 'Nama dan nomor WA wajib' });
@@ -1359,70 +2126,152 @@ router.post('/checkout', async (req, res) => {
 		}
 
 		const settings: any = await ensureSettings(req);
+		const sh = normalizeStoreShippingInDoc(settings);
 		const globalWa = normalizeWaDigits(settings.whatsappPhone || '');
 		if (!globalWa) return res.status(400).json({ message: 'Nomor WhatsApp toko belum diatur' });
-
+		if (fulfillment === 'delivery' && sh.enabled) {
+			if (!/^\d{10}$/.test(destinationVillageCode)) {
+				return res.status(400).json({ message: 'Kode kelurahan tujuan 10 digit wajib (ongkir)' });
+			}
+		}
 		const defCur = normalizeStoreCurrency(settings.defaultCurrency);
-
-		const lines: any[] = [];
+		const campaigns = await listActiveCampaigns(req);
+		const campaignIds = new Set<string>();
+		const orderLines: any[] = [];
+		const stockOps: { id: any; qty: number; skip: boolean }[] = [];
 		let subtotal = 0;
-		for (const row of itemsIn) {
-			const pid = row.productId;
-			const qty = Math.max(1, parseInt(String(row.qty || 1), 10) || 1);
-			const p = await StoreProduct.findById(pid).lean();
-			if (!p || !p.published) continue;
-			const currency = effectiveProductCurrency(p, defCur);
-			const lineSubtotal = lineSubtotalForProduct(p, qty);
-			const unitPrice = lineSubtotal / qty;
-			subtotal += lineSubtotal;
-			lines.push({
-				productId: p._id,
-				name: p.name,
-				slug: p.slug,
-				qty,
-				unitPrice,
-				lineSubtotal,
-				currency,
-				_stock: p.stock,
-			});
-		}
-		if (!lines.length) return res.status(400).json({ message: 'Tidak ada produk valid' });
 
-		const decremented: { id: any; qty: number }[] = [];
-		try {
-			for (const line of lines) {
-				if (isStoreStockUnlimited(line._stock)) continue;
-				const r = await StoreProduct.updateOne(
-					{ _id: line.productId, stock: { $gte: line.qty } },
-					{ $inc: { stock: -line.qty } },
-				);
-				if (r.modifiedCount !== 1) {
-					throw new Error('STOCK');
+		const pMap = new Map<string, any>();
+		const bMap = new Map<string, any>();
+		for (const l of parsed.lines) {
+			if (l.lineKind === 'product') {
+				const p = await StoreProduct.findById(l.productId).lean();
+				if (p) pMap.set(String(p._id), p);
+			} else {
+				const b = await StoreBundle.findById(l.bundleId).lean();
+				if (b) bMap.set(String(b._id), b);
+			}
+		}
+
+		for (const l of parsed.lines) {
+			if (l.lineKind === 'product') {
+				const p = await StoreProduct.findById(l.productId).lean();
+				if (!p || !p.published) continue;
+				if (!isPreOrderOrderable(p, now)) continue;
+				const qty = l.qty;
+				const pr = computeDiscountedSubtotal(p as any, qty, campaigns, now);
+				for (const a of pr.applied) {
+					if (a.id) campaignIds.add(a.id);
 				}
-				decremented.push({ id: line.productId, qty: line.qty });
+				const unitPrice = pr.lineSubtotal / qty;
+				const cur = effectiveProductCurrency(p, defCur);
+				subtotal += pr.lineSubtotal;
+				const preSnap = p.isPreOrder
+					? {
+							wasPreOrder: isPreOrderInWindow(
+								{
+									isPreOrder: true,
+									preOrderOpenAt: p.preOrderOpenAt,
+									preOrderCloseAt: p.preOrderCloseAt,
+								},
+								now,
+							),
+							estimatedReadyAt: p.estimatedReadyAt || null,
+						}
+					: { wasPreOrder: false, estimatedReadyAt: null };
+				orderLines.push({
+					lineKind: 'product',
+					productId: p._id,
+					bundleId: null,
+					name: p.name,
+					slug: p.slug,
+					qty,
+					unitPrice,
+					lineSubtotal: pr.lineSubtotal,
+					currency: cur,
+					bundleComponentSnapshot: [],
+					preOrderSnapshot: preSnap,
+				});
+				stockOps.push({
+					id: p._id,
+					qty,
+					skip: shouldSkipStockDecrementForPreOrder(p, now),
+				});
+			} else {
+				const b = await StoreBundle.findById(l.bundleId).lean();
+				if (!b || !b.published || !b.isActive) continue;
+				const qty = l.qty;
+				const pr = computeDiscountedBundleSubtotal(String(b._id), b.bundlePrice, qty, campaigns, now);
+				for (const a of pr.applied) {
+					if (a.id) campaignIds.add(a.id);
+				}
+				const unitPrice = pr.lineSubtotal / qty;
+				subtotal += pr.lineSubtotal;
+				const comps: { name: string; slug: string; qty: number }[] = [];
+				for (const it of b.items || []) {
+					const p = await StoreProduct.findById(it.productId).lean();
+					if (!p || !p.published) continue;
+					const need = Math.max(1, Math.floor(Number(it.qty) || 1)) * qty;
+					comps.push({ name: p.name, slug: p.slug, qty: need });
+					stockOps.push({
+						id: p._id,
+						qty: need,
+						skip: shouldSkipStockDecrementForPreOrder(p, now),
+					});
+				}
+				orderLines.push({
+					lineKind: 'bundle',
+					productId: null,
+					bundleId: b._id,
+					name: b.name,
+					slug: b.slug,
+					qty,
+					unitPrice,
+					lineSubtotal: pr.lineSubtotal,
+					currency: defCur,
+					bundleComponentSnapshot: comps,
+					preOrderSnapshot: { wasPreOrder: false, estimatedReadyAt: null },
+				});
 			}
-		} catch (e) {
-			for (const d of decremented.reverse()) {
-				await StoreProduct.updateOne({ _id: d.id }, { $inc: { stock: d.qty } });
-			}
-			if ((e as Error).message === 'STOCK') {
-				return res.status(400).json({ message: 'Stok tidak mencukupi untuk salah satu produk' });
-			}
-			throw e;
 		}
+		if (!orderLines.length) return res.status(400).json({ message: 'Tidak ada produk valid' });
 
-		const orderCurrencies = new Set(lines.map((l) => l.currency));
+		const orderCurrencies = new Set(orderLines.map((l) => l.currency));
 		if (orderCurrencies.size > 1) {
 			return res.status(400).json({
-				message:
-					'Checkout memakai beberapa mata uang sekaligus. Kosongkan keranjang dan beli per mata uang.',
+				message: 'Beberapa mata uang. Kosongkan keranjang dan coba lagi.',
 			});
 		}
-		const orderCur = lines[0].currency || defCur;
+		const orderCur = orderLines[0].currency || defCur;
+
+		const wGrams = await totalShippingWeightGrams(parsed.lines, {
+			StoreProduct,
+			StoreBundle,
+			defaultWeightGrams: sh.defaultWeightGrams,
+		});
+		const origin = resolveOriginVillageForLines(parsed.lines, pMap, bMap, sh.globalOriginVillageCode);
+		const shipRes = await resolveShippingForCheckout({
+			fulfillment,
+			shippingSettings: {
+				enabled: sh.enabled,
+				globalOriginVillageCode: sh.globalOriginVillageCode,
+				defaultWeightGrams: sh.defaultWeightGrams,
+				defaultCouriers: sh.defaultCouriers,
+			},
+			destinationVillageCode,
+			weightGrams: wGrams,
+			originVillageCode: origin,
+			selectedCourierCode: shippingCourierCode,
+		});
+		if (!shipRes.ok) return res.status(400).json({ message: shipRes.message });
+		const shippingCost = shipRes.cost;
+		const shippingEtd = shipRes.courier?.etd || '';
+		const shipCourier = shipRes.courier?.courierCode || shippingCourierCode;
+		const shipLabel = shipRes.courier ? `${shipRes.courier.courierName}` : '';
 
 		const taxPercent = settings.taxEnabled ? Number(settings.taxPercent || 0) : 0;
 		const taxAmount = settings.taxEnabled ? Math.round((subtotal * taxPercent) / 100) : 0;
-		const total = subtotal + taxAmount;
+		const total = subtotal + taxAmount + shippingCost;
 
 		const orderNo = `ORD-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex')}`;
 		const invoiceAccessToken = crypto.randomBytes(24).toString('hex');
@@ -1430,19 +2279,21 @@ router.post('/checkout', async (req, res) => {
 		const base = publicBaseUrl(req);
 		const storePath = normalizeStorePath(settings?.navbarPath);
 		const invoiceUrl = `${base}${storePath}/order/${encodeURIComponent(orderNo)}?inv=${encodeURIComponent(invoiceAccessToken)}`;
-		const itemsText = lines
+		const itemsText = orderLines
 			.map(
 				(l) =>
 					`• ${l.name} x${l.qty} — ${formatStoreMoney(l.lineSubtotal, l.currency)} (${base}${storePath}/${l.slug})`,
 			)
 			.join('\n');
 
-		const storeAddr =
-			lines.length === 1
-				? String((await StoreProduct.findById(lines[0].productId).lean())?.storeAddressOverride || '') ||
-					settings.storeAddress ||
-					''
-				: settings.storeAddress || '';
+		const storeAddr = settings.storeAddress || '';
+
+		let waUsed = globalWa;
+		if (orderLines.length === 1 && orderLines[0].lineKind === 'product' && orderLines[0].productId) {
+			const p0 = await StoreProduct.findById(orderLines[0].productId).lean();
+			const w = normalizeWaDigits(p0?.whatsappPhoneOverride || '');
+			if (w) waUsed = w;
+		}
 
 		const tplBase = String(settings.checkoutMessageTemplate || '');
 		const tpl = tplBase.includes('{{invoiceUrl}}')
@@ -1453,12 +2304,11 @@ router.post('/checkout', async (req, res) => {
 			subtotal: formatStoreMoney(subtotal, orderCur),
 			taxPercent: String(taxPercent),
 			tax: formatStoreMoney(taxAmount, orderCur),
+			shippingCost: formatStoreMoney(shippingCost, orderCur),
 			total: formatStoreMoney(total, orderCur),
 			fulfillment: fulfillment === 'delivery' ? 'Diantar' : 'Ambil di tempat',
 			address:
-				fulfillment === 'delivery'
-					? shippingAddress
-					: storeAddr || '(ambil di toko)',
+				fulfillment === 'delivery' ? shippingAddress : storeAddr || '(ambil di toko)',
 			customerName,
 			customerPhone,
 			orderNo,
@@ -1466,41 +2316,98 @@ router.post('/checkout', async (req, res) => {
 		});
 
 		const { doc: sessDoc, sessionKeyHash } = await getOrCreateGuestSession(req, res);
+		const decremented: { id: any; qty: number }[] = [];
+		const stockMerged = mergeStockOpsByProduct(stockOps);
+		try {
+			for (const o of stockMerged) {
+				if (o.skip) continue;
+				const pdoc = await StoreProduct.findById(o.id).lean();
+				if (!pdoc || isStoreStockUnlimited(pdoc.stock)) continue;
+				const r = await StoreProduct.updateOne(
+					{ _id: o.id, stock: { $gte: o.qty } },
+					{ $inc: { stock: -o.qty } },
+				);
+				if (r.modifiedCount !== 1) throw new Error('STOCK');
+				decremented.push({ id: o.id, qty: o.qty });
+			}
+		} catch (e) {
+			for (const d of decremented.reverse()) {
+				await StoreProduct.updateOne({ _id: d.id }, { $inc: { stock: d.qty } });
+			}
+			if ((e as Error).message === 'STOCK') {
+				return res.status(400).json({ message: 'Stok tidak mencukupi' });
+			}
+			throw e;
+		}
 
-		const orderItems = lines.map(({ _stock, ...rest }: any) => rest);
 		const order = await StoreOrder.create({
 			orderNo,
 			invoiceAccessToken,
 			guestSessionKeyHash: sessionKeyHash,
-			items: orderItems,
+			items: orderLines,
 			subtotal,
 			taxPercent,
 			taxAmount,
+			shippingCost,
+			shippingCourierCode: shipCourier,
+			shippingServiceLabel: shipLabel,
+			shippingEtd,
+			destinationVillageCode: fulfillment === 'delivery' ? destinationVillageCode : '',
 			total,
 			fulfillment,
 			customerName,
 			customerPhone,
 			shippingAddress: fulfillment === 'delivery' ? shippingAddress : '',
 			storeAddressSnapshot: storeAddr,
-			whatsappPhoneUsed: globalWa,
+			whatsappPhoneUsed: waUsed,
 			whatsappMessageSnapshot: msg,
 			status: 'pending',
+			appliedCampaignIds: Array.from(campaignIds)
+				.filter((x) => mongoose.Types.ObjectId.isValid(x))
+				.map((x) => new mongoose.Types.ObjectId(x)),
 		});
 
+		for (const id of Array.from(campaignIds)) {
+			if (!mongoose.Types.ObjectId.isValid(id)) continue;
+			await StoreDiscountCampaign.updateOne({ _id: id }, { $inc: { usageCount: 1 } });
+		}
+		for (const id of Array.from(campaignIds)) {
+			if (!mongoose.Types.ObjectId.isValid(id)) continue;
+			const c = await StoreDiscountCampaign.findById(id).lean();
+			if (c && c.mode === 'one_time_flash' && c.usageLimit != null && c.usageCount >= c.usageLimit) {
+				await StoreDiscountCampaign.updateOne(
+					{ _id: id },
+					{ $set: { oneTimeCompleted: true, isActive: false } },
+				);
+			}
+		}
+
 		const cart = sessDoc.cartItems || [];
-		for (const line of lines) {
-			const pid = String(line.productId);
-			const q = Math.max(1, Math.floor(Number(line.qty) || 1));
-			const idx = cart.findIndex((c: any) => String(c.productId) === pid);
-			if (idx < 0) continue;
-			cart[idx].qty = Math.max(0, Math.floor(Number(cart[idx].qty) || 0) - q);
-			if (cart[idx].qty <= 0) cart.splice(idx, 1);
+		for (const l of parsed.lines) {
+			if (l.lineKind === 'product') {
+				const pid = String(l.productId);
+				const q = l.qty;
+				const idx = cart.findIndex(
+					(c: any) => !c.bundleId && c.lineKind !== 'bundle' && String(c.productId) === pid,
+				);
+				if (idx < 0) continue;
+				cart[idx].qty = Math.max(0, Math.floor(Number(cart[idx].qty) || 0) - q);
+				if (cart[idx].qty <= 0) cart.splice(idx, 1);
+			} else {
+				const bid = String(l.bundleId);
+				const q = l.qty;
+				const idx = cart.findIndex(
+					(c: any) => c.lineKind === 'bundle' || (c.bundleId && String(c.bundleId) === bid),
+				);
+				if (idx < 0) continue;
+				cart[idx].qty = Math.max(0, Math.floor(Number(cart[idx].qty) || 0) - q);
+				if (cart[idx].qty <= 0) cart.splice(idx, 1);
+			}
 		}
 		sessDoc.cartItems = cart;
 		await sessDoc.save();
 
-		const waUrl = `https://wa.me/${globalWa}?text=${encodeURIComponent(msg)}`;
-
+		const waUrl = `https://wa.me/${waUsed}?text=${encodeURIComponent(msg)}`;
 		res.json({
 			order: stripInvoiceTokenFromOrder(order.toObject()),
 			whatsappUrl: waUrl,
@@ -1510,142 +2417,23 @@ router.post('/checkout', async (req, res) => {
 		console.error(e);
 		res.status(500).json({ message: 'Checkout gagal' });
 	}
+}
+
+router.post('/checkout', (req, res) => {
+	return runStoreCheckoutFromBody(req, res, (req.body || {}) as Record<string, unknown>);
 });
 
-router.post('/direct-checkout', async (req, res) => {
-	try {
-		const { StoreProduct, StoreOrder } = resolveModels(req);
-		const body = req.body || {};
-		const productId = body.productId;
-		const qty = Math.max(1, parseInt(String(body.qty || 1), 10) || 1);
-
-		const customerName = String(body.customerName || '').trim();
-		const customerPhone = String(body.customerPhone || '').trim();
-		const fulfillment = body.fulfillment === 'delivery' ? 'delivery' : 'pickup';
-		const shippingAddress = String(body.shippingAddress || '').trim();
-
-		if (!customerName || !customerPhone) {
-			return res.status(400).json({ message: 'Nama dan nomor WA wajib' });
-		}
-		if (fulfillment === 'delivery' && !shippingAddress) {
-			return res.status(400).json({ message: 'Alamat pengiriman wajib untuk pengiriman' });
-		}
-
-		const p = await StoreProduct.findById(productId).lean();
-		if (!p || !p.published) {
-			return res.status(400).json({ message: 'Produk tidak tersedia' });
-		}
-
-		const settings: any = await ensureSettings(req);
-		const itemWa = normalizeWaDigits(p.whatsappPhoneOverride || '');
-		const globalWa = normalizeWaDigits(settings.whatsappPhone || '');
-		const waNumber = itemWa || globalWa;
-		if (!waNumber) {
-			return res.status(400).json({ message: 'Nomor WhatsApp belum diatur' });
-		}
-
-		const defCur = normalizeStoreCurrency(settings.defaultCurrency);
-		const currency = effectiveProductCurrency(p, defCur);
-		const lineSubtotal = lineSubtotalForProduct(p, qty);
-		const unitPrice = lineSubtotal / qty;
-		const subtotal = lineSubtotal;
-
-		if (!isStoreStockUnlimited(p.stock)) {
-			const r = await StoreProduct.updateOne(
-				{ _id: p._id, stock: { $gte: qty } },
-				{ $inc: { stock: -qty } },
-			);
-			if (r.modifiedCount !== 1) {
-				return res.status(400).json({ message: 'Stok tidak mencukupi' });
-			}
-		}
-
-		const taxPercent = settings.taxEnabled ? Number(settings.taxPercent || 0) : 0;
-		const taxAmount = settings.taxEnabled ? Math.round((subtotal * taxPercent) / 100) : 0;
-		const total = subtotal + taxAmount;
-
-		const orderNo = `ORD-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString('hex')}`;
-		const invoiceAccessToken = crypto.randomBytes(24).toString('hex');
-
-		const base = publicBaseUrl(req);
-		const storePath = normalizeStorePath(settings?.navbarPath);
-		const invoiceUrl = `${base}${storePath}/order/${encodeURIComponent(orderNo)}?inv=${encodeURIComponent(invoiceAccessToken)}`;
-		const productUrl = `${base}${storePath}/${p.slug}`;
-		const itemsText = `• ${p.name} x${qty} — ${formatStoreMoney(lineSubtotal, currency)} (${productUrl})`;
-
-		const storeAddr = String(p.storeAddressOverride || '').trim() || settings.storeAddress || '';
-
-		const tplBase = String(settings.checkoutMessageTemplate || '');
-		const tpl = tplBase.includes('{{invoiceUrl}}')
-			? tplBase
-			: `${tplBase}${tplBase.trim() ? '\n\n' : ''}Lihat invoice: {{invoiceUrl}}`;
-		const msg = applyTemplate(tpl, {
-			items: itemsText,
-			subtotal: formatStoreMoney(subtotal, currency),
-			taxPercent: String(taxPercent),
-			tax: formatStoreMoney(taxAmount, currency),
-			total: formatStoreMoney(total, currency),
-			fulfillment: fulfillment === 'delivery' ? 'Diantar' : 'Ambil di tempat',
-			address:
-				fulfillment === 'delivery'
-					? shippingAddress
-					: storeAddr || '(ambil di toko)',
-			customerName,
-			customerPhone,
-			orderNo,
-			invoiceUrl,
-		});
-
-		const { doc: sessDoc, sessionKeyHash } = await getOrCreateGuestSession(req, res);
-
-		const order = await StoreOrder.create({
-			orderNo,
-			invoiceAccessToken,
-			guestSessionKeyHash: sessionKeyHash,
-			items: [
-				{
-					productId: p._id,
-					name: p.name,
-					slug: p.slug,
-					qty,
-					unitPrice,
-					lineSubtotal,
-					currency,
-				},
-			],
-			subtotal,
-			taxPercent,
-			taxAmount,
-			total,
-			fulfillment,
-			customerName,
-			customerPhone,
-			shippingAddress: fulfillment === 'delivery' ? shippingAddress : '',
-			storeAddressSnapshot: storeAddr,
-			whatsappPhoneUsed: waNumber,
-			whatsappMessageSnapshot: msg,
-			status: 'pending',
-		});
-
-		sessDoc.checkoutDraft = {
-			customerName,
-			customerPhone,
-			fulfillment,
-			shippingAddress: fulfillment === 'delivery' ? shippingAddress : '',
-		};
-		await sessDoc.save();
-
-		const waUrl = `https://wa.me/${waNumber}?text=${encodeURIComponent(msg)}`;
-
-		res.json({
-			order: stripInvoiceTokenFromOrder(order.toObject()),
-			whatsappUrl: waUrl,
-			invoiceUrl,
-		});
-	} catch (e) {
-		console.error(e);
-		res.status(500).json({ message: 'Checkout langsung gagal' });
+/** Checkout satuan: body.productId atau body.bundleId + field sama seperti /checkout */
+router.post('/direct-checkout', (req, res) => {
+	const body = (req.body || {}) as Record<string, unknown> & { productId?: string; bundleId?: string; qty?: number };
+	const qty = Math.max(1, parseInt(String(body.qty || 1), 10) || 1);
+	if (body.bundleId) {
+		return runStoreCheckoutFromBody(req, res, { ...body, items: [{ bundleId: String(body.bundleId), qty }] });
 	}
+	if (body.productId) {
+		return runStoreCheckoutFromBody(req, res, { ...body, items: [{ productId: String(body.productId), qty }] });
+	}
+	return res.status(400).json({ message: 'Pilih productId atau bundleId' });
 });
 
 router.post('/buy-link', async (req, res) => {
@@ -1672,7 +2460,9 @@ router.post('/buy-link', async (req, res) => {
 
 		const defCur = normalizeStoreCurrency(settings.defaultCurrency);
 		const itemCur = effectiveProductCurrency(p, defCur);
-		const lineTotal = lineSubtotalForProduct(p, qty);
+		const campaigns = await listActiveCampaigns(req);
+		const pr = computeDiscountedSubtotal(p as any, qty, campaigns, new Date());
+		const lineTotal = pr.lineSubtotal;
 		const unitPrice = lineTotal / qty;
 		const priceLabel =
 			qty > 1

@@ -1,10 +1,12 @@
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
+import MediaDisplay from '@/components/MediaDisplay';
 import Navbar from '@/components/public/navbar';
 import StoreProductCard from '@/components/public/store-product-card';
 import { StorePublicHeaderRow } from '@/components/public/store-public-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -12,10 +14,11 @@ import { apiRequest } from '@/lib/queryClient';
 import { useApiUrl } from '@/lib/tenant-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, Loader2, Search } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, Loader2, Package, Search, ShoppingCart } from 'lucide-react';
 import { useTenant } from '@/lib/tenant-context';
 import { useEffect, useMemo, useState } from 'react';
-import { normalizeStoreCurrency } from '@shared/store-currency';
+import { computeDiscountedBundleSubtotal, computeDiscountedSubtotal } from '@shared/store-discounts';
+import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency';
 
 type StoreCategory = { _id: string; name: string; slug: string };
 
@@ -33,6 +36,9 @@ export default function TokoIndexPage() {
 	const categoriesUrl = useApiUrl('/store/public/categories');
 	const cartItemsUrl = useApiUrl('/store/cart/items');
 	const cartUrl = useApiUrl('/store/cart');
+	const cartBundlesUrl = useApiUrl('/store/cart/bundles');
+	const publicCampaignsUrl = useApiUrl('/store/public/campaigns');
+	const publicBundlesUrl = useApiUrl('/store/public/bundles');
 
 	const { data: storeSettings, isLoading: loadingSettings } = useQuery({
 		queryKey: [settingsUrl],
@@ -51,6 +57,25 @@ export default function TokoIndexPage() {
 			return r.json();
 		},
 	});
+
+	const { data: publicCampaigns = [] } = useQuery({
+		queryKey: [publicCampaignsUrl],
+		queryFn: async () => {
+			const r = await fetch(publicCampaignsUrl, { credentials: 'include' });
+			if (!r.ok) return [];
+			return r.json() as Promise<any[]>;
+		},
+	});
+
+	const { data: bundlesPayload } = useQuery<{ items: any[] }>({
+		queryKey: [publicBundlesUrl],
+		queryFn: async () => {
+			const r = await fetch(publicBundlesUrl, { credentials: 'include' });
+			if (!r.ok) return { items: [] };
+			return r.json();
+		},
+	});
+	const bundleList = bundlesPayload?.items ?? [];
 
 	const storeBasePath = useMemo(() => {
 		const raw = String(storeSettings?.navbarPath || '/toko').trim();
@@ -113,6 +138,24 @@ export default function TokoIndexPage() {
 			toast({
 				title: 'Gagal menambah ke keranjang',
 				description: 'Cek stok atau coba lagi.',
+				variant: 'destructive',
+			}),
+	});
+
+	const addBundleMutation = useMutation({
+		mutationFn: async (vars: { bundleId: string; fromEl?: HTMLElement | null }) => {
+			const r = await apiRequest('POST', cartBundlesUrl, { bundleId: vars.bundleId, qty: 1 });
+			if (!r.ok) throw new Error('cart');
+		},
+		onSuccess: (_d, vars) => {
+			queryClient.invalidateQueries({ queryKey: [cartUrl] });
+			toast({ title: 'Paket bundel ditambahkan' });
+			if (vars.fromEl) flyStoreCartIcon(vars.fromEl);
+		},
+		onError: () =>
+			toast({
+				title: 'Gagal menambah bundel',
+				description: 'Coba lagi atau cek stok isi paket.',
 				variant: 'destructive',
 			}),
 	});
@@ -209,6 +252,77 @@ export default function TokoIndexPage() {
 						</div>
 					)}
 
+					{bundleList.length > 0 && !loadingSettings && (
+						<section className="space-y-3">
+							<div className="flex items-center gap-2">
+								<Package className="h-5 w-5 text-primary" />
+								<h2 className="text-lg font-semibold">Bundling</h2>
+							</div>
+							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+								{bundleList.map((b: any) => {
+									const bPr = computeDiscountedBundleSubtotal(
+										String(b._id),
+										Number(b.bundlePrice) || 0,
+										1,
+										publicCampaigns,
+									);
+									return (
+										<Card key={b._id} className="overflow-hidden">
+											<div className="aspect-[16/9] bg-muted">
+												{b.thumbnail ? (
+													<MediaDisplay
+														src={b.thumbnail}
+														alt={b.name}
+														className="w-full h-full object-cover"
+													/>
+												) : (
+													<div className="w-full h-full flex items-center justify-center text-muted-foreground">
+														<Package className="h-10 w-10 opacity-50" />
+													</div>
+												)}
+											</div>
+											<CardContent className="p-4 space-y-2">
+												<p className="font-semibold line-clamp-2">{b.name}</p>
+												{b.shortDescription && (
+													<p className="text-sm text-muted-foreground line-clamp-2">
+														{b.shortDescription}
+													</p>
+												)}
+												<div className="flex items-center justify-between gap-2 pt-1">
+													<div>
+														{bPr.compareSubtotal > bPr.lineSubtotal && (
+															<p className="text-xs text-muted-foreground line-through">
+																{formatStoreMoney(bPr.compareSubtotal, defaultCur)}
+															</p>
+														)}
+														<p className="text-primary font-bold">
+															{formatStoreMoney(bPr.lineSubtotal, defaultCur)}
+														</p>
+													</div>
+													<Button
+														type="button"
+														size="icon"
+														variant="secondary"
+														className="shrink-0"
+														disabled={addBundleMutation.isPending}
+														aria-label="Tambah bundel"
+														onClick={(e) =>
+															addBundleMutation.mutate({
+																bundleId: String(b._id),
+																fromEl: e.currentTarget,
+															})
+														}>
+														<ShoppingCart className="h-4 w-4" />
+													</Button>
+												</div>
+											</CardContent>
+										</Card>
+									);
+								})}
+							</div>
+						</section>
+					)}
+
 					{loadingSettings ? (
 						<Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
 					) : (
@@ -238,18 +352,24 @@ export default function TokoIndexPage() {
 										) : (
 											<>
 											<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-												{products.map((p: any) => (
-													<StoreProductCard
-														key={p._id}
-														product={p}
-														detailHref={prefix(`${storeBasePath}/${p.slug}`)}
-														defaultCurrency={defaultCur}
-														quickAddDisabled={quickAddMutation.isPending}
-														onQuickAdd={(productId, fromEl) =>
-															quickAddMutation.mutate({ productId, fromEl })
-														}
-													/>
-												))}
+												{products.map((p: any) => {
+													const pr = computeDiscountedSubtotal(p, 1, publicCampaigns);
+													return (
+														<StoreProductCard
+															key={p._id}
+															product={p}
+															detailHref={prefix(`${storeBasePath}/${p.slug}`)}
+															defaultCurrency={defaultCur}
+															displayAmount={pr.lineSubtotal}
+															compareAtAmount={pr.compareSubtotal}
+															promoLabels={pr.applied.map((a) => a.label)}
+															quickAddDisabled={quickAddMutation.isPending}
+															onQuickAdd={(productId, fromEl) =>
+																quickAddMutation.mutate({ productId, fromEl })
+															}
+														/>
+													);
+												})}
 											</div>
 											{totalPages > 1 && (
 												<div className="flex items-center justify-center gap-4 mt-8">

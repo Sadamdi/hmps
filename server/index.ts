@@ -7,6 +7,7 @@ import path from 'path';
 import { connectDB } from '../db/mongodb';
 import { connectBackupMongoIfConfigured } from '../db/mongodb-backup';
 import { registerRoutes } from './routes';
+import { setupSwagger } from './swagger';
 import { ChatService } from './services/chat-service';
 import { log, serveStatic, setupVite } from './vite';
 
@@ -511,6 +512,7 @@ setInterval(
 	runBackupIfNeeded().catch(() => {});
 
 	const server = await registerRoutes(app);
+	setupSwagger(app);
 
 	// ==================== ERROR HANDLING ====================
 	app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {

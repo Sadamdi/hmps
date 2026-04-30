@@ -26,6 +26,8 @@ export interface TenantModels {
 	StoreProductCategory: Model<any>;
 	StoreProduct: Model<any>;
 	StoreProductShare: Model<any>;
+	StoreDiscountCampaign: Model<any>;
+	StoreBundle: Model<any>;
 	GuestStoreSession: Model<any>;
 	StoreOrder: Model<any>;
 }
@@ -66,6 +68,8 @@ function createModelsForConnection(conn: Connection): TenantModels {
 		StoreProductCategory: getOrCreateModel(conn, 'StoreProductCategory', allSchemas.storeProductCategory),
 		StoreProduct: getOrCreateModel(conn, 'StoreProduct', allSchemas.storeProduct),
 		StoreProductShare: getOrCreateModel(conn, 'StoreProductShare', allSchemas.storeProductShare),
+		StoreDiscountCampaign: getOrCreateModel(conn, 'StoreDiscountCampaign', allSchemas.storeDiscountCampaign),
+		StoreBundle: getOrCreateModel(conn, 'StoreBundle', allSchemas.storeBundle),
 		GuestStoreSession: getOrCreateModel(conn, 'GuestStoreSession', allSchemas.guestStoreSession),
 		StoreOrder: getOrCreateModel(conn, 'StoreOrder', allSchemas.storeOrder),
 	};

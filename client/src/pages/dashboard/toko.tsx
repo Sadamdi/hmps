@@ -66,6 +66,7 @@ import {
 	Minus,
 	Package,
 	Pencil,
+	Percent,
 	Plus,
 	Settings2,
 	Share2,
@@ -177,9 +178,14 @@ export default function DashboardToko() {
 	const adminSharesBase = useApiUrl('/store/admin/shares');
 	const publicStoreSettingsKey = useApiUrl('/store/public/settings');
 	const publicProductsKey = useApiUrl('/store/public/products');
+	const publicCampaignsKey = useApiUrl('/store/public/campaigns');
+	const publicBundlesKey = useApiUrl('/store/public/bundles');
 	const productsReorderUrl = useApiUrl('/store/admin/products/reorder');
 	const storeUploadImageUrl = useApiUrl('/store/admin/upload-product-image');
 	const storeCleanupUploadUrl = useApiUrl('/store/admin/uploads/cleanup');
+	const adminCampaignsUrl = useApiUrl('/store/admin/campaigns');
+	const adminBundlesUrl = useApiUrl('/store/admin/bundles');
+	const adminProductsAllUrl = useMemo(() => `${productsUrl}?forReorder=1`, [productsUrl]);
 	const thumbFileRef = useRef<HTMLInputElement>(null);
 	const galleryFileRef = useRef<HTMLInputElement>(null);
 
@@ -295,6 +301,37 @@ export default function DashboardToko() {
 		enabled: !!access?.canOpenDashboard && canManage,
 	});
 
+	const { data: storeCampaigns = [], isLoading: campaignsLoading } = useQuery<any[]>({
+		queryKey: [adminCampaignsUrl],
+		queryFn: async () => {
+			const res = await fetch(adminCampaignsUrl, { credentials: 'include' });
+			if (!res.ok) throw new Error('campaigns');
+			return res.json();
+		},
+		enabled: !!access?.canOpenDashboard && canManage,
+	});
+
+	const { data: storeBundles = [], isLoading: bundlesLoading } = useQuery<any[]>({
+		queryKey: [adminBundlesUrl],
+		queryFn: async () => {
+			const res = await fetch(adminBundlesUrl, { credentials: 'include' });
+			if (!res.ok) throw new Error('bundles');
+			return res.json();
+		},
+		enabled: !!access?.canOpenDashboard && canManage,
+	});
+
+	const { data: allProductsForPicker } = useQuery<AdminProductsPage>({
+		queryKey: ['store-admin-all-products', adminProductsAllUrl],
+		queryFn: async () => {
+			const res = await fetch(adminProductsAllUrl, { credentials: 'include' });
+			if (!res.ok) throw new Error('products');
+			return res.json();
+		},
+		enabled: !!access?.canOpenDashboard && canManage,
+	});
+	const pickProducts = allProductsForPicker?.items ?? [];
+
 	const [layoutBlocks, setLayoutBlocks] = useState<any[]>([]);
 	useEffect(() => {
 		if (settings?.layoutBlocks?.length) setLayoutBlocks(settings.layoutBlocks);
@@ -334,6 +371,33 @@ export default function DashboardToko() {
 	};
 
 	const [tokoTab, setTokoTab] = useState('products');
+	const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
+	const [campaignEditId, setCampaignEditId] = useState<string | null>(null);
+	const [campaignForm, setCampaignForm] = useState({
+		name: '',
+		mode: 'scheduled_range' as 'recurring_daily_window' | 'scheduled_range' | 'one_time_flash',
+		scope: 'global' as 'global' | 'product',
+		productIds: [] as string[],
+		discountType: 'percent' as 'percent' | 'fixed',
+		discountValue: 0,
+		startAt: '',
+		endAt: '',
+		dailyStart: '10:00',
+		dailyEnd: '18:00',
+		usageLimit: '',
+		priority: 0,
+		isActive: true,
+	});
+	const [bundleDialogOpen, setBundleDialogOpen] = useState(false);
+	const [bundleEditId, setBundleEditId] = useState<string | null>(null);
+	const [bundleForm, setBundleForm] = useState({
+		name: '',
+		shortDescription: '',
+		bundlePrice: 0,
+		published: true,
+		isActive: true,
+		items: [] as { productId: string; qty: number }[],
+	});
 	const [productOpen, setProductOpen] = useState(false);
 	const [editingId, setEditingId] = useState<string | null>(null);
 	const [form, setForm] = useState({
@@ -557,6 +621,105 @@ export default function DashboardToko() {
 		},
 	});
 
+	const saveCampaignMutation = useMutation({
+		mutationFn: async () => {
+			const body: Record<string, unknown> = {
+				name: campaignForm.name.trim(),
+				mode: campaignForm.mode,
+				scope: campaignForm.scope,
+				productIds: campaignForm.scope === 'product' ? campaignForm.productIds : [],
+				discountType: campaignForm.discountType,
+				discountValue: Number(campaignForm.discountValue) || 0,
+				dailyStart: campaignForm.dailyStart,
+				dailyEnd: campaignForm.dailyEnd,
+				priority: Math.floor(Number(campaignForm.priority) || 0),
+				isActive: campaignForm.isActive,
+			};
+			if (campaignForm.startAt) body.startAt = campaignForm.startAt;
+			if (campaignForm.endAt) body.endAt = campaignForm.endAt;
+			if (campaignForm.usageLimit.trim() !== '') {
+				body.usageLimit = Math.max(0, parseInt(campaignForm.usageLimit, 10) || 0);
+			} else {
+				body.usageLimit = null;
+			}
+			if (campaignEditId) {
+				return apiRequest('PATCH', `${adminCampaignsUrl}/${campaignEditId}`, body);
+			}
+			return apiRequest('POST', adminCampaignsUrl, body);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: [adminCampaignsUrl] });
+			queryClient.invalidateQueries({ queryKey: [publicCampaignsKey] });
+			queryClient.invalidateQueries({ queryKey: [publicProductsKey] });
+			setCampaignDialogOpen(false);
+			setCampaignEditId(null);
+			toast({ title: 'Kampanye disimpan' });
+		},
+		onError: () => toast({ title: 'Gagal menyimpan kampanye', variant: 'destructive' }),
+	});
+
+	const deleteCampaignMutation = useMutation({
+		mutationFn: (id: string) => apiRequest('DELETE', `${adminCampaignsUrl}/${id}`),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: [adminCampaignsUrl] });
+			queryClient.invalidateQueries({ queryKey: [publicCampaignsKey] });
+			queryClient.invalidateQueries({ queryKey: [publicProductsKey] });
+			toast({ title: 'Kampanye dihapus' });
+		},
+		onError: () => toast({ title: 'Gagal menghapus', variant: 'destructive' }),
+	});
+
+	const patchCampaignMutation = useMutation({
+		mutationFn: (vars: { id: string; body: Record<string, unknown> }) =>
+			apiRequest('PATCH', `${adminCampaignsUrl}/${vars.id}`, vars.body),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: [adminCampaignsUrl] });
+			queryClient.invalidateQueries({ queryKey: [publicCampaignsKey] });
+			queryClient.invalidateQueries({ queryKey: [publicProductsKey] });
+		},
+		onError: () => toast({ title: 'Gagal memperbarui', variant: 'destructive' }),
+	});
+
+	const saveBundleMutation = useMutation({
+		mutationFn: async () => {
+			const body = {
+				name: bundleForm.name.trim(),
+				shortDescription: bundleForm.shortDescription,
+				bundlePrice: Number(bundleForm.bundlePrice) || 0,
+				published: bundleForm.published,
+				isActive: bundleForm.isActive,
+				items: bundleForm.items
+					.filter((r) => r.productId)
+					.map((r) => ({ productId: r.productId, qty: Math.max(1, r.qty) })),
+			};
+			if (bundleEditId) {
+				return apiRequest('PATCH', `${adminBundlesUrl}/${bundleEditId}`, body);
+			}
+			return apiRequest('POST', adminBundlesUrl, body);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: [adminBundlesUrl] });
+			queryClient.invalidateQueries({ queryKey: [publicProductsKey] });
+			queryClient.invalidateQueries({ queryKey: [publicBundlesKey] });
+			setBundleDialogOpen(false);
+			setBundleEditId(null);
+			toast({ title: bundleEditId ? 'Bundling disimpan' : 'Bundling dibuat' });
+		},
+		onError: (e: Error) =>
+			toast({ title: e?.message || 'Gagal menyimpan bundling', variant: 'destructive' }),
+	});
+
+	const deleteBundleMutation = useMutation({
+		mutationFn: (id: string) => apiRequest('DELETE', `${adminBundlesUrl}/${id}`),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: [adminBundlesUrl] });
+			queryClient.invalidateQueries({ queryKey: [publicProductsKey] });
+			queryClient.invalidateQueries({ queryKey: [publicBundlesKey] });
+			toast({ title: 'Bundling dihapus' });
+		},
+		onError: () => toast({ title: 'Gagal menghapus', variant: 'destructive' }),
+	});
+
 	const reorderProductsMutation = useMutation({
 		mutationFn: (orderedIds: string[]) =>
 			apiRequest('PATCH', productsReorderUrl, { orderedIds }).then((r) => {
@@ -776,7 +939,11 @@ export default function DashboardToko() {
 								? 'Panduan tab Pengaturan toko'
 								: tokoTab === 'orders'
 									? 'Panduan tab Pesanan'
-									: 'Panduan tab Kategori'
+									: tokoTab === 'diskon'
+										? 'Panduan tab Diskon'
+										: tokoTab === 'bundling'
+											? 'Panduan tab Bundling'
+											: 'Panduan tab Kategori'
 					}
 					description="Petunjuk ini berubah mengikuti tab yang aktif. Status buka/tutup disimpan per tab."
 					variant="blue"
@@ -898,6 +1065,26 @@ export default function DashboardToko() {
 								</section>
 							</>
 						)}
+						{tokoTab === 'diskon' && canManage && (
+							<section>
+								<p className="font-semibold text-foreground mb-1">Kampanye harga</p>
+								<p>
+									Pilih mode waktu (harian, rentang, flash), lalu tipe persen/tetap. Produk
+									tertentu bisa lewat <strong>scope</strong> produk — pilih checkboxes. Prioritas
+									lebih tinggi menang jika banyak kampanye; override per produk tetap di form
+									produk bila tersedia di API.
+								</p>
+							</section>
+						)}
+						{tokoTab === 'bundling' && canManage && (
+							<section>
+								<p className="font-semibold text-foreground mb-1">Paket harga</p>
+								<p>
+									Tambah beberapa baris produk terbit + harga paket. Paket tampil di beranda toko
+									bila <strong>Tampil di toko</strong> dan <strong>Aktif</strong>.
+								</p>
+							</section>
+						)}
 						{tokoTab === 'categories' && canManage && (
 							<>
 								<section>
@@ -939,6 +1126,18 @@ export default function DashboardToko() {
 							<TabsTrigger value="categories" className="gap-2">
 								<Tag className="h-4 w-4" />
 								Kategori
+							</TabsTrigger>
+						)}
+						{canManage && (
+							<TabsTrigger value="diskon" className="gap-2">
+								<Percent className="h-4 w-4" />
+								Diskon
+							</TabsTrigger>
+						)}
+						{canManage && (
+							<TabsTrigger value="bundling" className="gap-2">
+								<Package className="h-4 w-4" />
+								Bundling
 							</TabsTrigger>
 						)}
 					</TabsList>
@@ -1274,6 +1473,53 @@ export default function DashboardToko() {
 												placeholder="Contoh: Jl. Ganesha No. 10, Bandung — untuk ditampilkan di pesan ambil di tempat"
 											/>
 										</div>
+										<div className="sm:col-span-2 rounded-lg border p-3 space-y-2 bg-muted/20">
+											<div className="font-medium">Ongkos kirim (api.co.id)</div>
+											<div className="flex items-center gap-2">
+												<Switch
+													checked={!!(s as any).shipping?.enabled}
+													onCheckedChange={(v) =>
+														setSettingsDraft((prev: any) => ({
+															...prev,
+															shipping: { ...((prev as any).shipping || {}), enabled: v },
+														}))
+													}
+												/>
+												<span className="text-sm">Aktifkan cek ongkir otomatis (ONGKIR_API)</span>
+											</div>
+											<div className="space-y-1 max-w-md">
+												<Label className="text-xs">Kode kelurahan asal (10 digit)</Label>
+												<Input
+													value={String((s as any).shipping?.globalOriginVillageCode || '')}
+													onChange={(e) =>
+														setSettingsDraft((prev: any) => ({
+															...prev,
+															shipping: {
+																...((prev as any).shipping || {}),
+																globalOriginVillageCode: e.target.value.replace(/\D/g, '').slice(0, 10),
+															},
+														}))
+													}
+												/>
+											</div>
+											<div className="space-y-1 max-w-md">
+												<Label className="text-xs">Berat default per item (gram)</Label>
+												<Input
+													type="number"
+													min={1}
+													value={Number((s as any).shipping?.defaultWeightGrams) || 1000}
+													onChange={(e) =>
+														setSettingsDraft((prev: any) => ({
+															...prev,
+															shipping: {
+																...((prev as any).shipping || {}),
+																defaultWeightGrams: Math.max(1, parseInt(e.target.value, 10) || 1000),
+															},
+														}))
+													}
+												/>
+											</div>
+										</div>
 										<div className="sm:col-span-2">
 											<Button
 												type="button"
@@ -1593,8 +1839,617 @@ export default function DashboardToko() {
 							</Card>
 						</TabsContent>
 					)}
+
+					{canManage && (
+						<TabsContent value="diskon" className="mt-6">
+							<Card>
+								<CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+									<div>
+										<CardTitle>Promo & kampanye</CardTitle>
+										<CardDescription>
+											Mode: harian, rentang jadwal, atau flash. Scope global atau per produk.
+										</CardDescription>
+									</div>
+									<Button
+										type="button"
+										size="sm"
+										onClick={() => {
+											setCampaignEditId(null);
+											setCampaignForm({
+												name: '',
+												mode: 'scheduled_range',
+												scope: 'global',
+												productIds: [],
+												discountType: 'percent',
+												discountValue: 10,
+												startAt: '',
+												endAt: '',
+												dailyStart: '10:00',
+												dailyEnd: '18:00',
+												usageLimit: '',
+												priority: 0,
+												isActive: true,
+											});
+											setCampaignDialogOpen(true);
+										}}>
+										<Plus className="h-4 w-4 mr-1" />
+										Baru
+									</Button>
+								</CardHeader>
+								<CardContent>
+									{campaignsLoading ? (
+										<Loader2 className="h-6 w-6 animate-spin mx-auto my-6" />
+									) : storeCampaigns.length === 0 ? (
+										<p className="text-sm text-muted-foreground">Belum ada kampanye.</p>
+									) : (
+										<div className="overflow-x-auto border rounded-lg text-sm">
+											<table className="w-full text-left">
+												<thead>
+													<tr className="border-b bg-muted/40">
+														<th className="p-2 font-medium">Nama</th>
+														<th className="p-2 font-medium">Mode</th>
+														<th className="p-2 font-medium">Diskon</th>
+														<th className="p-2 font-medium">Aktif</th>
+														<th className="p-2 w-40" />
+													</tr>
+												</thead>
+												<tbody>
+													{storeCampaigns.map((c: any) => (
+														<tr key={String(c._id)} className="border-b last:border-0">
+															<td className="p-2 font-medium">{c.name}</td>
+															<td className="p-2 text-muted-foreground text-xs">{c.mode}</td>
+															<td className="p-2">
+																{c.discountType === 'fixed'
+																	? `${c.discountValue} (tetap)`
+																	: `${c.discountValue}%`}
+															</td>
+															<td className="p-2">
+																<Switch
+																	checked={!!c.isActive}
+																	onCheckedChange={(v) =>
+																		patchCampaignMutation.mutate({
+																			id: String(c._id),
+																			body: { isActive: v },
+																		})
+																	}
+																/>
+															</td>
+															<td className="p-2 flex flex-wrap gap-1 justify-end">
+																<Button
+																	variant="outline"
+																	size="sm"
+																	type="button"
+																	onClick={() => {
+																		setCampaignEditId(String(c._id));
+																		setCampaignForm({
+																			name: c.name || '',
+																			mode: c.mode,
+																			scope: c.scope || 'global',
+																			productIds: Array.isArray(c.productIds)
+																				? c.productIds.map((x: any) => String(x))
+																				: [],
+																			discountType: c.discountType || 'percent',
+																			discountValue: Number(c.discountValue) || 0,
+																			startAt: c.startAt
+																				? new Date(c.startAt).toISOString().slice(0, 16)
+																				: '',
+																			endAt: c.endAt
+																				? new Date(c.endAt).toISOString().slice(0, 16)
+																				: '',
+																			dailyStart: c.dailyStart || '10:00',
+																			dailyEnd: c.dailyEnd || '18:00',
+																			usageLimit:
+																				c.usageLimit != null ? String(c.usageLimit) : '',
+																			priority: Number(c.priority) || 0,
+																			isActive: !!c.isActive,
+																		});
+																		setCampaignDialogOpen(true);
+																	}}>
+																	<Pencil className="h-3.5 w-3.5" />
+																</Button>
+																<Button
+																	variant="ghost"
+																	size="sm"
+																	type="button"
+																	className="text-destructive"
+																	onClick={() => {
+																		if (confirm('Hapus kampanye ini?')) {
+																			deleteCampaignMutation.mutate(String(c._id));
+																		}
+																	}}>
+																	<Trash2 className="h-3.5 w-3.5" />
+																</Button>
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</CardContent>
+							</Card>
+						</TabsContent>
+					)}
+
+					{canManage && (
+						<TabsContent value="bundling" className="mt-6">
+							<Card>
+								<CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0">
+									<div>
+										<CardTitle>Paket bundling</CardTitle>
+										<CardDescription>
+											Hanya produk yang sudah <strong>terbit</strong> yang bisa dimasukkan ke dalam
+											paket.
+										</CardDescription>
+									</div>
+									<Button
+										type="button"
+										size="sm"
+										onClick={() => {
+											setBundleEditId(null);
+											setBundleForm({
+												name: '',
+												shortDescription: '',
+												bundlePrice: 0,
+												published: true,
+												isActive: true,
+												items: [{ productId: '', qty: 1 }],
+											});
+											setBundleDialogOpen(true);
+										}}>
+										<Plus className="h-4 w-4 mr-1" />
+										Baru
+									</Button>
+								</CardHeader>
+								<CardContent>
+									{bundlesLoading ? (
+										<Loader2 className="h-6 w-6 animate-spin mx-auto my-6" />
+									) : storeBundles.length === 0 ? (
+										<p className="text-sm text-muted-foreground">Belum ada bundling.</p>
+									) : (
+										<div className="overflow-x-auto border rounded-lg text-sm">
+											<table className="w-full text-left">
+												<thead>
+													<tr className="border-b bg-muted/40">
+														<th className="p-2 font-medium">Nama</th>
+														<th className="p-2 font-medium">Harga paket</th>
+														<th className="p-2 font-medium">Publik</th>
+														<th className="p-2 font-medium">Aktif</th>
+														<th className="p-2 w-32" />
+													</tr>
+												</thead>
+												<tbody>
+													{storeBundles.map((b: any) => (
+														<tr key={String(b._id)} className="border-b last:border-0">
+															<td className="p-2 font-medium">{b.name}</td>
+															<td className="p-2 tabular-nums">
+																{formatStoreMoney(
+																	Number(b.bundlePrice) || 0,
+																	defaultStoreCurrency,
+																)}
+															</td>
+															<td className="p-2">{b.published ? 'Ya' : 'Tidak'}</td>
+															<td className="p-2">{b.isActive ? 'Ya' : 'Tidak'}</td>
+															<td className="p-2 flex flex-wrap gap-1 justify-end">
+																<Button
+																	variant="outline"
+																	size="sm"
+																	type="button"
+																	onClick={() => {
+																		setBundleEditId(String(b._id));
+																		const its = Array.isArray(b.items)
+																			? b.items.map((row: any) => ({
+																					productId: row?.productId
+																						? String(
+																								typeof row.productId === 'object'
+																									? row.productId._id
+																									: row.productId,
+																							)
+																						: '',
+																					qty: Math.max(1, Number(row?.qty) || 1),
+																				}))
+																			: [];
+																		setBundleForm({
+																			name: b.name || '',
+																			shortDescription: b.shortDescription || '',
+																			bundlePrice: Number(b.bundlePrice) || 0,
+																			published: !!b.published,
+																			isActive: b.isActive !== false,
+																			items: its.length ? its : [{ productId: '', qty: 1 }],
+																		});
+																		setBundleDialogOpen(true);
+																	}}>
+																	<Pencil className="h-3.5 w-3.5" />
+																</Button>
+																<Button
+																	variant="ghost"
+																	size="sm"
+																	type="button"
+																	className="text-destructive"
+																	onClick={() => {
+																		if (confirm('Hapus bundling ini?')) {
+																			deleteBundleMutation.mutate(String(b._id));
+																		}
+																	}}>
+																	<Trash2 className="h-3.5 w-3.5" />
+																</Button>
+															</td>
+														</tr>
+													))}
+												</tbody>
+											</table>
+										</div>
+									)}
+								</CardContent>
+							</Card>
+						</TabsContent>
+					)}
 				</Tabs>
 			</div>
+
+			<Dialog open={campaignDialogOpen} onOpenChange={setCampaignDialogOpen}>
+				<DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle>{campaignEditId ? 'Edit kampanye' : 'Kampanye baru'}</DialogTitle>
+					</DialogHeader>
+					<div className="grid gap-3 py-2">
+						<div className="space-y-1">
+							<Label>Nama</Label>
+							<Input
+								value={campaignForm.name}
+								onChange={(e) => setCampaignForm((f) => ({ ...f, name: e.target.value }))}
+							/>
+						</div>
+						<div className="grid grid-cols-2 gap-2">
+							<div className="space-y-1">
+								<Label>Mode</Label>
+								<Select
+									value={campaignForm.mode}
+									onValueChange={(v) =>
+										setCampaignForm((f) => ({ ...f, mode: v as typeof f.mode }))
+									}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="recurring_daily_window">Harian (jam)</SelectItem>
+										<SelectItem value="scheduled_range">Rentang tanggal</SelectItem>
+										<SelectItem value="one_time_flash">Flash / kuota</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-1">
+								<Label>Scope</Label>
+								<Select
+									value={campaignForm.scope}
+									onValueChange={(v) =>
+										setCampaignForm((f) => ({ ...f, scope: v as 'global' | 'product' }))
+									}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="global">Semua produk</SelectItem>
+										<SelectItem value="product">Produk tertentu</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+						</div>
+						{campaignForm.scope === 'product' && (
+							<div className="space-y-2 max-h-40 overflow-y-auto border rounded-md p-2">
+								<Label className="text-xs">Pilih produk (terbit)</Label>
+								{pickProducts.filter((p: any) => p.published).map((p: any) => (
+									<div key={String(p._id)} className="flex items-center gap-2 text-sm">
+										<Checkbox
+											checked={campaignForm.productIds.includes(String(p._id))}
+											onCheckedChange={(chk) => {
+												const id = String(p._id);
+												setCampaignForm((f) => ({
+													...f,
+													productIds: chk
+														? Array.from(new Set([...f.productIds, id]))
+														: f.productIds.filter((x) => x !== id),
+												}));
+											}}
+										/>
+										<span className="line-clamp-1">{p.name}</span>
+									</div>
+								))}
+							</div>
+						)}
+						<div className="grid grid-cols-2 gap-2">
+							<div className="space-y-1">
+								<Label>Tipe</Label>
+								<Select
+									value={campaignForm.discountType}
+									onValueChange={(v) =>
+										setCampaignForm((f) => ({ ...f, discountType: v as 'percent' | 'fixed' }))
+									}>
+									<SelectTrigger>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="percent">Persen</SelectItem>
+										<SelectItem value="fixed">Nominal</SelectItem>
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-1">
+								<Label>Nilai</Label>
+								<Input
+									type="number"
+									min={0}
+									value={campaignForm.discountValue}
+									onChange={(e) =>
+										setCampaignForm((f) => ({
+											...f,
+											discountValue: parseFloat(e.target.value) || 0,
+										}))
+									}
+								/>
+							</div>
+						</div>
+						{campaignForm.mode === 'recurring_daily_window' && (
+							<div className="grid grid-cols-2 gap-2">
+								<div className="space-y-1">
+									<Label>Mulai (HH:MM)</Label>
+									<Input
+										placeholder="10:00"
+										value={campaignForm.dailyStart}
+										onChange={(e) =>
+											setCampaignForm((f) => ({ ...f, dailyStart: e.target.value }))
+										}
+									/>
+								</div>
+								<div className="space-y-1">
+									<Label>Selesai (HH:MM)</Label>
+									<Input
+										placeholder="18:00"
+										value={campaignForm.dailyEnd}
+										onChange={(e) => setCampaignForm((f) => ({ ...f, dailyEnd: e.target.value }))}
+									/>
+								</div>
+							</div>
+						)}
+						{(campaignForm.mode === 'scheduled_range' || campaignForm.mode === 'one_time_flash') && (
+							<div className="grid grid-cols-2 gap-2">
+								<div className="space-y-1">
+									<Label>Mulai (lokal)</Label>
+									<Input
+										type="datetime-local"
+										value={campaignForm.startAt}
+										onChange={(e) => setCampaignForm((f) => ({ ...f, startAt: e.target.value }))}
+									/>
+								</div>
+								<div className="space-y-1">
+									<Label>Selesai (lokal)</Label>
+									<Input
+										type="datetime-local"
+										value={campaignForm.endAt}
+										onChange={(e) => setCampaignForm((f) => ({ ...f, endAt: e.target.value }))}
+									/>
+								</div>
+							</div>
+						)}
+						{campaignForm.mode === 'one_time_flash' && (
+							<div className="space-y-1">
+								<Label>Batas penggunaan (opsional, kosong = tak terbatas)</Label>
+								<Input
+									type="number"
+									min={0}
+									value={campaignForm.usageLimit}
+									onChange={(e) =>
+										setCampaignForm((f) => ({ ...f, usageLimit: e.target.value }))
+									}
+								/>
+							</div>
+						)}
+						<div className="grid grid-cols-2 gap-2">
+							<div className="space-y-1">
+								<Label>Prioritas</Label>
+								<Input
+									type="number"
+									value={campaignForm.priority}
+									onChange={(e) =>
+										setCampaignForm((f) => ({
+											...f,
+											priority: parseInt(e.target.value, 10) || 0,
+										}))
+									}
+								/>
+							</div>
+							<div className="flex items-end gap-2 pb-1">
+								<Switch
+									checked={campaignForm.isActive}
+									onCheckedChange={(v) => setCampaignForm((f) => ({ ...f, isActive: v }))}
+								/>
+								<span className="text-sm">Aktif</span>
+							</div>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => {
+								setCampaignDialogOpen(false);
+								setCampaignEditId(null);
+							}}>
+							Batal
+						</Button>
+						<Button
+							type="button"
+							disabled={saveCampaignMutation.isPending}
+							onClick={() => {
+								if (!campaignForm.name.trim()) {
+									toast({ title: 'Nama wajib diisi', variant: 'destructive' });
+									return;
+								}
+								if (campaignForm.scope === 'product' && !campaignForm.productIds.length) {
+									toast({ title: 'Pilih minimal satu produk', variant: 'destructive' });
+									return;
+								}
+								saveCampaignMutation.mutate();
+							}}>
+							Simpan
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog open={bundleDialogOpen} onOpenChange={setBundleDialogOpen}>
+				<DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+					<DialogHeader>
+						<DialogTitle>{bundleEditId ? 'Edit bundling' : 'Bundling baru'}</DialogTitle>
+					</DialogHeader>
+					<div className="grid gap-3 py-2">
+						<div className="space-y-1">
+							<Label>Nama paket</Label>
+							<Input
+								value={bundleForm.name}
+								onChange={(e) => setBundleForm((f) => ({ ...f, name: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-1">
+							<Label>Deskripsi singkat</Label>
+							<Textarea
+								rows={2}
+								value={bundleForm.shortDescription}
+								onChange={(e) => setBundleForm((f) => ({ ...f, shortDescription: e.target.value }))}
+							/>
+						</div>
+						<div className="space-y-1">
+							<Label>Harga paket ({defaultStoreCurrency})</Label>
+							<Input
+								type="number"
+								min={0}
+								value={bundleForm.bundlePrice}
+								onChange={(e) =>
+									setBundleForm((f) => ({
+										...f,
+										bundlePrice: parseFloat(e.target.value) || 0,
+									}))
+								}
+							/>
+						</div>
+						<div className="space-y-2">
+							<Label>Isi paket</Label>
+							{bundleForm.items.map((row, idx) => (
+								<div key={idx} className="flex flex-wrap items-end gap-2">
+									<div className="flex-1 min-w-[12rem] space-y-1">
+										<Select
+											value={row.productId || undefined}
+											onValueChange={(v) => {
+												const next = [...bundleForm.items];
+												next[idx] = { ...next[idx], productId: v };
+												setBundleForm((f) => ({ ...f, items: next }));
+											}}>
+											<SelectTrigger>
+												<SelectValue placeholder="Pilih produk" />
+											</SelectTrigger>
+											<SelectContent>
+												{pickProducts
+													.filter((p: any) => p.published)
+													.map((p: any) => (
+														<SelectItem key={String(p._id)} value={String(p._id)}>
+															{p.name}
+														</SelectItem>
+													))}
+											</SelectContent>
+										</Select>
+									</div>
+									<div className="w-20 space-y-1">
+										<Label className="text-xs">Qty</Label>
+										<Input
+											type="number"
+											min={1}
+											value={row.qty}
+											onChange={(e) => {
+												const next = [...bundleForm.items];
+												next[idx] = {
+													...next[idx],
+													qty: Math.max(1, parseInt(e.target.value, 10) || 1),
+												};
+												setBundleForm((f) => ({ ...f, items: next }));
+											}}
+										/>
+									</div>
+									<Button
+										type="button"
+										variant="ghost"
+										size="icon"
+										className="shrink-0"
+										aria-label="Hapus baris"
+										onClick={() => {
+											setBundleForm((f) => ({
+												...f,
+												items: f.items.filter((_, j) => j !== idx),
+											}));
+										}}>
+										<Minus className="h-4 w-4" />
+									</Button>
+								</div>
+							))}
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() =>
+									setBundleForm((f) => ({
+										...f,
+										items: [...f.items, { productId: '', qty: 1 }],
+									}))
+								}>
+								<Plus className="h-4 w-4 mr-1" />
+								Baris
+							</Button>
+						</div>
+						<div className="flex flex-wrap gap-4">
+							<div className="flex items-center gap-2">
+								<Switch
+									checked={bundleForm.published}
+									onCheckedChange={(v) => setBundleForm((f) => ({ ...f, published: v }))}
+								/>
+								<span className="text-sm">Tampil di toko</span>
+							</div>
+							<div className="flex items-center gap-2">
+								<Switch
+									checked={bundleForm.isActive}
+									onCheckedChange={(v) => setBundleForm((f) => ({ ...f, isActive: v }))}
+								/>
+								<span className="text-sm">Aktif</span>
+							</div>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() => {
+								setBundleDialogOpen(false);
+								setBundleEditId(null);
+							}}>
+							Batal
+						</Button>
+						<Button
+							type="button"
+							disabled={saveBundleMutation.isPending}
+							onClick={() => {
+								if (!bundleForm.name.trim()) {
+									toast({ title: 'Nama wajib', variant: 'destructive' });
+									return;
+								}
+								if (!bundleForm.items.some((i) => i.productId)) {
+									toast({ title: 'Pilih produk isi paket', variant: 'destructive' });
+									return;
+								}
+								saveBundleMutation.mutate();
+							}}>
+							Simpan
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 
 			<AlertDialog open={!!categoryToDelete} onOpenChange={(open) => !open && setCategoryToDelete(null)}>
 				<AlertDialogContent>

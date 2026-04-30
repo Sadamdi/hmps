@@ -32,6 +32,7 @@ interface OrderData {
 	}[];
 	subtotal: number;
 	total: number;
+	shippingCost?: number;
 	taxAmount?: number;
 	taxPercent?: number;
 	fulfillment: string;
@@ -209,6 +210,12 @@ export default function TokoOrderInvoicePage() {
 										<div className="flex justify-between text-muted-foreground">
 											<span>Pajak ({order.taxPercent ?? 0}%)</span>
 											<span>{formatStoreMoney(order.taxAmount ?? 0, orderCur)}</span>
+										</div>
+									)}
+									{(order.shippingCost ?? 0) > 0 && (
+										<div className="flex justify-between text-muted-foreground">
+											<span>Ongkos kirim</span>
+											<span>{formatStoreMoney(order.shippingCost ?? 0, orderCur)}</span>
 										</div>
 									)}
 									<div className="flex justify-between font-semibold text-base pt-1">

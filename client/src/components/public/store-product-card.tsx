@@ -8,12 +8,18 @@ import {
 	formatStoreMoney,
 } from '@shared/store-currency';
 import { getStoreStockAvailable } from '@shared/store-pricing';
+import { Badge } from '@/components/ui/badge';
 
 export interface StoreProductCardProps {
 	product: any;
 	/** Full href ke halaman detail produk (sudah dipadukan dengan basePath/navbarPath). */
 	detailHref: string;
 	defaultCurrency: string;
+	/** Jika diset, menggantikan tampilan harga dari harga katalog (mis. setelah hitung diskon) */
+	displayAmount?: number;
+	/** Harga perbandingan (coret) bila &gt; displayAmount */
+	compareAtAmount?: number;
+	promoLabels?: string[];
 	quickAddDisabled?: boolean;
 	onQuickAdd?: (productId: string, fromEl: HTMLElement) => void;
 	aosDelay?: number;
@@ -23,6 +29,9 @@ export function StoreProductCard({
 	product,
 	detailHref,
 	defaultCurrency,
+	displayAmount,
+	compareAtAmount,
+	promoLabels = [],
 	quickAddDisabled = false,
 	onQuickAdd,
 	aosDelay,
@@ -36,6 +45,11 @@ export function StoreProductCard({
 			? (product.categoryId as { name: string }).name
 			: null;
 
+	const showPromo = typeof compareAtAmount === 'number' && typeof displayAmount === 'number' && compareAtAmount > displayAmount;
+	const priceMain =
+		typeof displayAmount === 'number'
+			? displayAmount
+			: Number(product.price) || 0;
 	return (
 		<Card
 			className="h-full overflow-hidden hover:border-primary/40 transition-colors group"
@@ -51,11 +65,18 @@ export function StoreProductCard({
 				</div>
 			</Link>
 			<CardContent className="p-4">
-				<Link href={detailHref}>
-					<h3 className="font-semibold line-clamp-2 hover:text-primary">
-						{product.name}
-					</h3>
-				</Link>
+				<div className="flex items-start justify-between gap-2">
+					<Link href={detailHref} className="min-w-0 flex-1">
+						<h3 className="font-semibold line-clamp-2 hover:text-primary">
+							{product.name}
+						</h3>
+					</Link>
+					{product.isPreOrder ? (
+						<Badge variant="secondary" className="text-[10px] shrink-0">
+							Pre-order
+						</Badge>
+					) : null}
+				</div>
 				{categoryName && (
 					<p className="text-xs text-muted-foreground mt-1">{categoryName}</p>
 				)}
@@ -64,13 +85,28 @@ export function StoreProductCard({
 						{product.shortDescription}
 					</p>
 				)}
+				{promoLabels.length > 0 && (
+					<div className="flex flex-wrap gap-1 mt-1">
+						{promoLabels.slice(0, 2).map((l) => (
+							<Badge key={l} variant="outline" className="text-[10px] font-normal line-clamp-1 max-w-full">
+								{l}
+							</Badge>
+						))}
+					</div>
+				)}
 				<div className="flex items-center justify-between gap-2 mt-3">
-					<p className="text-primary font-bold">
-						{formatStoreMoney(
-							product.price,
-							effectiveProductCurrency(product, defaultCurrency),
-						)}
-					</p>
+					<div className="min-w-0">
+						<div className="flex items-baseline flex-wrap gap-x-2 gap-y-0.5">
+							{showPromo && (
+								<p className="text-sm text-muted-foreground line-through tabular-nums">
+									{formatStoreMoney(compareAtAmount, effectiveProductCurrency(product, defaultCurrency))}
+								</p>
+							)}
+							<p className="text-primary font-bold tabular-nums">
+								{formatStoreMoney(priceMain, effectiveProductCurrency(product, defaultCurrency))}
+							</p>
+						</div>
+					</div>
 					{onQuickAdd && (
 						<Button
 							type="button"
