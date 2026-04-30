@@ -13,9 +13,7 @@
     "generate-sitemap": "node scripts/generate-sitemap.js",
     "generate-favicon": "bash scripts/generate-favicon.sh",
     "deploy-seo": "bash scripts/deploy-seo.sh",
-    "docs:api-html": "node scripts/generate-api-docs-html.mjs",
-    "org:photos:2026:dry": "node scripts/sync-org-photos-2026-2027.mjs",
-    "org:photos:2026:apply": "node scripts/sync-org-photos-2026-2027.mjs --apply"
+    "docs:api-html": "node scripts/generate-api-docs-html.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

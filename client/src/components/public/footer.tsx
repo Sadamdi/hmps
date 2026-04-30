@@ -712,6 +712,18 @@ export default function Footer() {
 
 				<div className="mt-12 pt-8 border-t border-border text-center text-muted-foreground dark:text-slate-300/70 text-sm" data-aos="fade-up" data-aos-delay="500">
 					<p>{footerText}</p>
+					<p className="mt-2 text-xs text-muted-foreground/80 dark:text-slate-400/70">
+						Designed and Developed by{' '}
+						<a
+							href="https://github.com/Sadamdi"
+							target="_blank"
+							rel="noopener noreferrer"
+							className="underline-offset-4 hover:underline hover:text-foreground dark:hover:text-slate-200 transition-colors"
+						>
+							Adam
+						</a>{' '}
+						· MedInfo 2025-2026
+					</p>
 				</div>
 			</div>
 
