@@ -948,7 +948,7 @@ export default function DashboardToko() {
 					description="Petunjuk ini berubah mengikuti tab yang aktif. Status buka/tutup disimpan per tab."
 					variant="blue"
 					storageKey={`dashboard-toko-hint-${tokoTab}`}
-					defaultOpen>
+					defaultOpen={false}>
 					<div className="space-y-4 text-sm text-foreground/90 leading-relaxed">
 						{tokoTab === 'products' && (
 							<>
