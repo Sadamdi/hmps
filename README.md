@@ -1,4 +1,4 @@
-﻿# ðŸŽ“ HMPS Project - HIMATIF ENCODER
+# 🎓 HMPS Project - HIMATIF ENCODER
 
 <div align="center">
 
@@ -17,7 +17,7 @@
 
 ---
 
-## ðŸ“– Tentang Project
+## 📖 Tentang Project
 
 Project ini adalah **aplikasi web fullstack** yang dibangun untuk Himpunan Mahasiswa Program Studi (HMPS) Teknik Informatika UIN Malang. Aplikasi ini merupakan platform informasi resmi **HIMATIF ENCODER** yang menyediakan berbagai informasi seputar kegiatan, prestasi, dan perkembangan Program Studi Teknik Informatika UIN Malang.
 
@@ -25,53 +25,53 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 
 ---
 
-## âœ¨ Fitur Unggulan
+## ✨ Fitur Unggulan
 
 <table>
 <tr>
 <td width="50%">
 
-### ðŸ” **Sistem Autentikasi & Autorisasi**
-- ðŸ‘¤ Login multi-role
-- ðŸ›¡ï¸ Manajemen profil pengguna lengkap
-- ðŸ”‘ Sistem reset password terintegrasi
-- ðŸŽ« JWT-based authentication token dengan session tracking & revocation
-- ðŸš§ Role-based access control yang ketat
+### **Sistem Autentikasi & Autorisasi**
+- 👤 Login multi-role
+- 🛡 Manajemen profil pengguna lengkap
+- 🔑 Sistem reset password terintegrasi
+- 🎫 JWT-based authentication token dengan session tracking & revocation
+- 🚧 Role-based access control yang ketat
 
-### ðŸ“Š **Dashboard Admin Real-time**
-- ðŸ“ˆ Statistik dan analitik kegiatan live
-- ðŸ‘¥ Manajemen pengguna advanced
-- ðŸ” Monitoring aktivitas sistem real-time
-- âš™ï¸ Pengaturan sistem yang fleksibel
-- ðŸ“ Log aktivitas terperinci dengan timeline
+### 📊 **Dashboard Admin Real-time**
+- 📈 Statistik dan analitik kegiatan live
+- 👥 Manajemen pengguna advanced
+- Monitoring aktivitas sistem real-time
+- ⚙ Pengaturan sistem yang fleksibel
+- Log aktivitas terperinci dengan timeline
 
-### ðŸ‘¨â€ðŸŽ“ **Manajemen Organisasi**
-- âž• Pengelolaan struktur organisasi
-- âœ… Sistem verifikasi anggota
-- ðŸ“š Riwayat keanggotaan lengkap
-- ðŸ·ï¸ Status dan badge keanggotaan
+### 🎓 **Manajemen Organisasi**
+- ➕ Pengelolaan struktur organisasi
+- ✅ Sistem verifikasi anggota
+- 📚 Riwayat keanggotaan lengkap
+- Status dan badge keanggotaan
 
 </td>
 <td width="50%">
 
-### ðŸ“° **Sistem Konten & Media**
-- ðŸ“ Editor berita dengan TinyMCE WYSIWYG
-- ðŸ“¸ Upload dan manajemen media library
-- ðŸ” Pencarian konten yang powerful
-- ðŸ—ƒï¸ Arsip digital terorganisir
+### 📰 **Sistem Konten & Media**
+- Editor berita dengan TinyMCE WYSIWYG
+- 📸 Upload dan manajemen media library
+- Pencarian konten yang powerful
+- 🗃 Arsip digital terorganisir
 
-### ðŸŽ¨ **User Experience Modern**
-- ðŸ“± Responsive design untuk semua device
-- âš¡ Loading yang cepat dengan caching
-- ðŸ”” Notifikasi real-time
-- ðŸŽ¯ Navigation yang intuitif
+### 🎨 **User Experience Modern**
+- 📱 Responsive design untuk semua device
+- ⚡ Loading yang cepat dengan caching
+- 🔔 Notifikasi real-time
+- 🎯 Navigation yang intuitif
 
-### ðŸ”§ **Fitur Developer**
-- ðŸ“š API documentation lengkap
-- ðŸ› ï¸ Backup otomatis
-- ðŸ“Š Performance monitoring
-- ðŸ”’ Security middleware comprehensive
-- ðŸ¤– Integrasi AI Chat (Gemini + tool-calling berbasis permission)
+### 🔧 **Fitur Developer**
+- 📚 API documentation lengkap
+- 🛠 Backup otomatis
+- 📊 Performance monitoring
+- 🔒 Security middleware comprehensive
+- 🤖 Integrasi AI Chat (Gemini + tool-calling berbasis permission)
 
 </td>
 </tr>
@@ -79,92 +79,92 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 
 ---
 
-## ðŸ—ï¸ Arsitektur Teknologi
+## Arsitektur Teknologi
 
-### ðŸŽ¨ **Frontend Stack**
+### 🎨 **Frontend Stack**
 ```javascript
 // Modern React dengan TypeScript
-â”œâ”€â”€ React 18 + TypeScript
-â”œâ”€â”€ React Query (TanStack Query) - State Management
-â”œâ”€â”€ Wouter - Lightweight Routing
-â”œâ”€â”€ Radix UI - Accessible Components
-â”œâ”€â”€ Tailwind CSS - Utility-first CSS
-â”œâ”€â”€ React Hook Form - Form Handling
-â”œâ”€â”€ Zod - Schema Validation
-â”œâ”€â”€ Lucide React - Beautiful Icons
-â””â”€â”€ Vite - Ultra Fast Build Tool
+├── React 18 + TypeScript
+├── React Query (TanStack Query) - State Management
+├── Wouter - Lightweight Routing
+├── Radix UI - Accessible Components
+├── Tailwind CSS - Utility-first CSS
+├── React Hook Form - Form Handling
+├── Zod - Schema Validation
+├── Lucide React - Beautiful Icons
+└── Vite - Ultra Fast Build Tool
 ```
 
-### âš™ï¸ **Backend Stack**
+### ⚙ **Backend Stack**
 ```javascript
 // Robust Express.js Backend
-â”œâ”€â”€ Express.js + TypeScript
-â”œâ”€â”€ MongoDB + Mongoose (ODM) - Primary Database
-â”œâ”€â”€ JWT (cookie) + session tracking (`sid`) - Authentication & Authorization
-â”œâ”€â”€ Multer - File Upload Handling
-â”œâ”€â”€ bcryptjs - Password Hashing
-â”œâ”€â”€ Nodemailer + OTP - Forgot/Reset Password Flow
-â”œâ”€â”€ Helmet/HPP + anti-spoofing + anti-injection - Security Middleware
-â”œâ”€â”€ Multi-tenant resolver (`/api/c/:slug/*`) + tenant storage
-â”œâ”€â”€ Rate Limiting - API Protection
-â”œâ”€â”€ Google Drive integration (api/gdrive) - Media sources
-â””â”€â”€ ESBuild - Fast Production Build
+├── Express.js + TypeScript
+├── MongoDB + Mongoose (ODM) - Primary Database
+├── JWT (cookie) + session tracking (`sid`) - Authentication & Authorization
+├── Multer - File Upload Handling
+├── bcryptjs - Password Hashing
+├── Nodemailer + OTP - Forgot/Reset Password Flow
+├── Helmet/HPP + anti-spoofing + anti-injection - Security Middleware
+├── Multi-tenant resolver (`/api/c/:slug/*`) + tenant storage
+├── Rate Limiting - API Protection
+├── Google Drive integration (api/gdrive) - Media sources
+└── ESBuild - Fast Production Build
 ```
 
-### ðŸ—„ï¸ **Database & Infrastructure**
+### 🗄 **Database & Infrastructure**
 ```javascript
 // Scalable Database Design
-â”œâ”€â”€ MongoDB - Document Database
-â”œâ”€â”€ Mongoose Schemas - Struktur & validasi data
-â”œâ”€â”€ Indexes untuk query (contoh: `slug`)
-â”œâ”€â”€ Snapshot backup bulanan (cluster backup)
-â”œâ”€â”€ Rollback/Restore via OTP (backup restore)
-â”œâ”€â”€ Scheduled job (cron) untuk sync & maintenance
-â””â”€â”€ Isolated tenant databases untuk komunitas
+├── MongoDB - Document Database
+├── Mongoose Schemas - Struktur & validasi data
+├── Indexes untuk query (contoh: `slug`)
+├── Snapshot backup bulanan (cluster backup)
+├── Rollback/Restore via OTP (backup restore)
+├── Scheduled job (cron) untuk sync & maintenance
+└── Isolated tenant databases untuk komunitas
 ```
 
 ---
 
-## ðŸ“ Struktur Project
+## Struktur Project
 
 ```
-ðŸ“¦ HMPS Project
-â”œâ”€â”€ ðŸŽ¨ client/                     # Frontend React Application
-â”‚   â”œâ”€â”€ ðŸ“‚ src/
-â”‚   â”‚   â”œâ”€â”€ ðŸ§© components/        # Reusable UI Components
-â”‚   â”‚   â”‚   â”œâ”€â”€ ðŸŽ›ï¸ dashboard/    # Dashboard Components
-â”‚   â”‚   â”‚   â”œâ”€â”€ ðŸŒ public/       # Public Site Components
-â”‚   â”‚   â”‚   â””â”€â”€ ðŸŽ¨ ui/           # Base UI Components (Radix)
-â”‚   â”‚   â”œâ”€â”€ ðŸ“„ pages/            # Page Components & Routes
-â”‚   â”‚   â”œâ”€â”€ ðŸª hooks/            # Custom React Hooks
-â”‚   â”‚   â”œâ”€â”€ ðŸ› ï¸ lib/             # Utility Libraries
-â”‚   â”‚   â”œâ”€â”€ ðŸŽ¯ utils/            # Helper Functions
-â”‚   â”‚   â””â”€â”€ ðŸ“Š main.tsx          # App Entry Point
-â”œâ”€â”€ âš™ï¸ server/                    # Backend Express Application
-â”‚   â”œâ”€â”€ âš¡ index.ts              # Server Entry Point
-â”‚   â”œâ”€â”€ ðŸŽ® routes.ts             # API Routes Definition
-â”‚   â”œâ”€â”€ ðŸ” auth.ts               # Authentication + session logic
-â”‚   â”œâ”€â”€ ðŸ›¡ï¸ security.ts          # Helmet/HPP + validation + sanitization
-â”‚   â”œâ”€â”€ ðŸ§  mongo-storage.ts      # Data access layer (storage)
-â”‚   â”œâ”€â”€ ðŸ§‘â€ðŸ’» services/          # Business logic (backup, OTP, sync, chat, etc.)
-â”‚   â”œâ”€â”€ ðŸ› ï¸ middleware/          # Custom security middleware
-â”‚   â”œâ”€â”€ ðŸŒ routes/              # Modular routes (chat/comments/feedback/sharing)
-â”‚   â”œâ”€â”€ ðŸ§¾ upload.ts            # Upload handlers + image processing
-â”‚   â”œâ”€â”€ ðŸ“¦ models/             # Mongo-related models/schemas
-â”‚   â””â”€â”€ âš™ï¸ config/             # External service configs (Gemini keys)
-â”œâ”€â”€ ðŸ—„ï¸ db/                       # Database & seeding
-â”‚   â”œâ”€â”€ ðŸ”— mongodb.ts            # Mongoose connection + schema models
-â”‚   â”œâ”€â”€ ðŸ§¾ mongodb-backup.ts    # Backup cluster client (snapshot job)
-â”‚   â””â”€â”€ ðŸŒ± mongo-seed.ts        # Seed script (contoh: akun default)
-â”œâ”€â”€ ðŸ¤ shared/                   # Shared Code (Frontend + Backend)
-â”‚   â”œâ”€â”€ ðŸ“ schema.ts             # Shared Type Definitions
-â”‚   â”œâ”€â”€ ðŸ› ï¸ utils.ts             # Shared Utilities
-â”‚   â””â”€â”€ ðŸ“Ž mediaUtils.ts        # Shared media helpers
-â”œâ”€â”€ ðŸŒ public/                   # Static assets (SEO files, favicon, etc.)
-â”œâ”€â”€ ðŸ“ attached_assets/          # Asset yang dipakai di frontend
-â”œâ”€â”€ ðŸ“¦ uploads/                  # Upload hasil proses (image/video)
-â”œâ”€â”€ ðŸ§  db/tenant.ts              # Layer schema & koneksi multi-tenant
-â””â”€â”€ ðŸŒ nginx-himatif-encoder.conf # Reverse proxy & hardening production
+📦 HMPS Project
+├── 🎨 client/                     # Frontend React Application
+│   ├── 📂 src/
+│   │   ├── 🧩 components/        # Reusable UI Components
+│   │   │   ├── 🎛 dashboard/    # Dashboard Components
+│   │   │   ├──  public/       # Public Site Components
+│   │   │   └── 🎨 ui/           # Base UI Components (Radix)
+│   │   ├── 📄 pages/            # Page Components & Routes
+│   │   ├──  hooks/            # Custom React Hooks
+│   │   ├── 🛠 lib/             # Utility Libraries
+│   │   ├── 🎯 utils/            # Helper Functions
+│   │   └── 📊 main.tsx          # App Entry Point
+├── ⚙ server/                    # Backend Express Application
+│   ├── ⚡ index.ts              # Server Entry Point
+│   ├── 🎮 routes.ts             # API Routes Definition
+│   ├──  auth.ts               # Authentication + session logic
+│   ├── 🛡 security.ts          # Helmet/HPP + validation + sanitization
+│   ├── 🧠 mongo-storage.ts      # Data access layer (storage)
+│   ├── 🧑‍💻 services/          # Business logic (backup, OTP, sync, chat, etc.)
+│   ├── 🛠 middleware/          # Custom security middleware
+│   ├──  routes/              # Modular routes (chat/comments/feedback/sharing)
+│   ├── 🧾 upload.ts            # Upload handlers + image processing
+│   ├── 📦 models/             # Mongo-related models/schemas
+│   └── ⚙ config/             # External service configs (Gemini keys)
+├── 🗄 db/                       # Database & seeding
+│   ├── 🔗 mongodb.ts            # Mongoose connection + schema models
+│   ├── 🧾 mongodb-backup.ts    # Backup cluster client (snapshot job)
+│   └── 🌱 mongo-seed.ts        # Seed script (contoh: akun default)
+├──  shared/                   # Shared Code (Frontend + Backend)
+│   ├──  schema.ts             # Shared Type Definitions
+│   ├── 🛠 utils.ts             # Shared Utilities
+│   └── 📎 mediaUtils.ts        # Shared media helpers
+├──  public/                   # Static assets (SEO files, favicon, etc.)
+├──  attached_assets/          # Asset yang dipakai di frontend
+├── 📦 uploads/                  # Upload hasil proses (image/video)
+├── 🧠 db/tenant.ts              # Layer schema & koneksi multi-tenant
+└──  nginx-himatif-encoder.conf # Reverse proxy & hardening production
 ```
 
 ---
@@ -181,7 +181,12 @@ Dokumentasi HMPS sekarang dipisahkan berdasarkan fungsi agar developer tidak per
 | Alur development | [`docs/SOP/01-development-workflow.md`](./docs/SOP/01-development-workflow.md) | Sebelum membuat fitur, refactor, endpoint, atau docs baru |
 | Standar kode | [`docs/SOP/02-code-standards.md`](./docs/SOP/02-code-standards.md) | Naming, TypeScript style, frontend/backend conventions |
 | API design | [`docs/SOP/06-api-design.md`](./docs/SOP/06-api-design.md) | Saat membuat/mengubah endpoint Express |
-| Error handling | [`docs/SOP/08-error-handling.md`](./docs/SOP/08-error-handling.md) | Saat menangani async error, validation error, auth error, atau service error |`n| Frontend architecture | [`docs/SOP/09-frontend-architecture.md`](./docs/SOP/09-frontend-architecture.md) | Saat mengubah React pages, components, hooks, tenant UI, atau client utils |`n| Backend service/storage | [`docs/SOP/10-backend-service-storage.md`](./docs/SOP/10-backend-service-storage.md) | Saat mengubah Express routes, services, storage, models, atau runtime helpers |`n| Documentation maintenance | [`docs/SOP/11-documentation-maintenance.md`](./docs/SOP/11-documentation-maintenance.md) | Saat update docs/features/API/OpenAPI/README/skills |`n| Runtime security/ops | [`docs/SOP/12-runtime-security-operations.md`](./docs/SOP/12-runtime-security-operations.md) | Saat mengubah middleware, scheduler, cache, backup, web push, Swagger, runtime config |`n| Arsitektur aplikasi | [`docs/architecture/application-architecture.md`](./docs/architecture/application-architecture.md) | Memahami struktur React + Express + MongoDB + tenant |
+| Error handling | [`docs/SOP/08-error-handling.md`](./docs/SOP/08-error-handling.md) | Saat menangani async error, validation error, auth error, atau service error |
+| Frontend architecture | [`docs/SOP/09-frontend-architecture.md`](./docs/SOP/09-frontend-architecture.md) | Saat mengubah React pages, components, hooks, tenant UI, atau client utils |
+| Backend service/storage | [`docs/SOP/10-backend-service-storage.md`](./docs/SOP/10-backend-service-storage.md) | Saat mengubah Express routes, services, storage, models, atau runtime helpers |
+| Documentation maintenance | [`docs/SOP/11-documentation-maintenance.md`](./docs/SOP/11-documentation-maintenance.md) | Saat update docs/features/API/OpenAPI/README/skills |
+| Runtime security/ops | [`docs/SOP/12-runtime-security-operations.md`](./docs/SOP/12-runtime-security-operations.md) | Saat mengubah middleware, scheduler, cache, backup, web push, Swagger, runtime config |
+| Arsitektur aplikasi | [`docs/architecture/application-architecture.md`](./docs/architecture/application-architecture.md) | Memahami struktur React + Express + MongoDB + tenant |
 | Struktur project | [`docs/architecture/project-structure.md`](./docs/architecture/project-structure.md) | Menentukan file/folder yang tepat untuk perubahan |
 | Multi-tenant | [`docs/architecture/multi-tenant.md`](./docs/architecture/multi-tenant.md) | Semua fitur yang berjalan di `/api/c/:slug/*` atau community shell |
 | Dependency graph | [`docs/architecture/dependency-graph.md`](./docs/architecture/dependency-graph.md) | Impact analysis dan penggunaan code-review graph |
@@ -220,37 +225,38 @@ Wajib update minimal:
 - [`docs/features/feature-summary.md`](./docs/features/feature-summary.md).
 - [`docs/api/endpoints.md`](./docs/api/endpoints.md) dan OpenAPI bila endpoint berubah.
 - SOP/architecture docs bila ada perubahan pola kerja atau arsitektur.
-## ðŸš€ Quick Start
 
-### ðŸ“‹ Prerequisites
+## 🚀 Quick Start
+
+### 📋 Prerequisites
 
 Pastikan Anda telah menginstall:
 - **Node.js** (v18.0.0 atau lebih tinggi)
 - **npm** (lockfile project: `package-lock.json`)
 - **MongoDB** (local atau cloud)
 
-### âš¡ Installation
+### ⚡ Installation
 
 ```bash
-# 1ï¸âƒ£ Clone repository
+# 1⃣ Clone repository
 git clone https://github.com/Sadamdi/hmps.git
 cd hmps
 
-# 2ï¸âƒ£ Install dependencies
+# 2⃣ Install dependencies
 npm install
 
-# 3ï¸âƒ£ Setup environment variables
-# Buat file `.env` di root project (lihat bagian `ðŸŒ Environment Variables` di bawah)
+# 3⃣ Setup environment variables
+# Buat file `.env` di root project (lihat bagian `Environment Variables` di bawah)
 # Edit `.env` dengan konfigurasi Anda
 
-# 4ï¸âƒ£ Setup database
+# 4. Setup database
 npx tsx db/mongo-seed.ts
 
-# 5ï¸âƒ£ Start development server
+# 5⃣ Start development server
 npm run dev
 ```
 
-### ðŸŒ Environment Variables
+### Environment Variables
 
 ```env
 # Database
@@ -274,7 +280,7 @@ EMAIL_PW=your-email-password/app-password
 GUEST_KEY_PEPPER=hmps-comment-pepper
 
 # Gemini (chat di fitur /api/chat)
-# Tambahkan GEMINI_API_KEY_1 â€¦ GEMINI_API_KEY_N sesuai kebutuhan.
+# Tambahkan GEMINI_API_KEY_1 … GEMINI_API_KEY_N sesuai kebutuhan.
 GEMINI_API_KEY_1=...
 GEMINI_API_KEY_2=...
 # Opsional: batas indeks slot yang discan (default 100; bisa sampai 1000)
@@ -297,52 +303,52 @@ NODE_ENV=development
 
 ---
 
-## ðŸ”§ Available Scripts
+## 🔧 Available Scripts
 
 | Script | Description | Usage |
 |--------|-------------|-------|
-| `npm run dev` | ðŸš€ Start development server | Development |
-| `npm run build` | ðŸ“¦ Build for production | Production |
-| `npm start` | â–¶ï¸ Start production server | Production |
-| `npm run check` | ðŸ” TypeScript type checking | Development |
-| `npm run generate-sitemap` | ðŸ—ºï¸ Generate sitemap (file) | SEO |
-| `npm run generate-favicon` | ðŸ§· Generate favicon assets | SEO |
-| `npm run deploy-seo` | ðŸš€ Deploy SEO assets | SEO |
+| `npm run dev` | 🚀 Start development server | Development |
+| `npm run build` | 📦 Build for production | Production |
+| `npm start` | ▶ Start production server | Production |
+| `npm run check` | TypeScript type checking | Development |
+| `npm run generate-sitemap` | 🗺 Generate sitemap (file) | SEO |
+| `npm run generate-favicon` | 🧷 Generate favicon assets | SEO |
+| `npm run deploy-seo` | 🚀 Deploy SEO assets | SEO |
  
-ðŸŒ± Seed database (akun default, kalau koleksi masih kosong): `npx tsx db/mongo-seed.ts`
+🌱 Seed database (akun default, kalau koleksi masih kosong): `npx tsx db/mongo-seed.ts`
 
-> âš ï¸ Catatan: script SEO lama (`generate-sitemap`, `generate-favicon`, `deploy-seo`) **sudah tidak dipakai di repo ini**.  
+> ⚠ Catatan: script SEO lama (`generate-sitemap`, `generate-favicon`, `deploy-seo`) **sudah tidak dipakai di repo ini**.  
 > Sitemap sekarang digenerate dinamis via endpoint server `/sitemap.xml`.
 ---
 
-## ðŸ” Security Features
+## Security Features
 
 <div align="center">
 
 | Feature | Implementation | Status |
 |---------|---------------|--------|
-| ðŸ” **Authentication (JWT)** | JWT di cookie `authToken` + session check (`sid`) + revocation via `tokenVersion` | âœ… Active |
-| ðŸ›¡ï¸ **Password Security** | bcryptjs hash | âœ… Active |
-| â›‘ï¸ **Security Middleware** | `helmet`/`hpp` + anti-spoofing + anti-DDoS + DNS layer protection | âœ… Active |
-| â° **Rate Limiting** | express-rate-limit + limiter khusus (login/upload/OTP) | âœ… Active |
-| âœ… **Input Validation** | Zod schema validation (`validateInput`) | âœ… Active |
-| ðŸ§¼ **Sanitization (anti-XSS sederhana)** | `sanitizeInput` (strip script/javascript handler) | âœ… Active |
-| ðŸ”’ **File Upload Security** | allowed mimetype + max 100MB + proses gambar (WebP) | âœ… Active |
-| ðŸ“ **Audit Logging** | `securityLogger` + aktivitas dashboard | âœ… Active |
+|  **Authentication (JWT)** | JWT di cookie `authToken` + session check (`sid`) + revocation via `tokenVersion` | ✅ Active |
+| 🛡 **Password Security** | bcryptjs hash | ✅ Active |
+| ⛑ **Security Middleware** | `helmet`/`hpp` + anti-spoofing + anti-DDoS + DNS layer protection | ✅ Active |
+|  **Rate Limiting** | express-rate-limit + limiter khusus (login/upload/OTP) | ✅ Active |
+| ✅ **Input Validation** | Zod schema validation (`validateInput`) | ✅ Active |
+| 🧼 **Sanitization (anti-XSS sederhana)** | `sanitizeInput` (strip script/javascript handler) | ✅ Active |
+| 🔒 **File Upload Security** | allowed mimetype + max 100MB + proses gambar (WebP) | ✅ Active |
+|  **Audit Logging** | `securityLogger` + aktivitas dashboard | ✅ Active |
 
 </div>
 
 ---
 
-## ðŸ“¡ Dokumentasi API
+## 📡 Dokumentasi API
 
 Berikut daftar endpoint aktif (method + path) berdasarkan route server saat ini.  
 Catatan:
-- ðŸ”’ Endpoint tertentu butuh login + permission.
-- ðŸ‘¤ Endpoint guest/public tertentu pakai header `x-guest-key`.
-- ðŸ˜ï¸ Semua endpoint di bawah juga bisa berjalan pada konteks komunitas via prefix: `/api/c/:slug/...`.
+- 🔒 Endpoint tertentu butuh login + permission.
+- 👤 Endpoint guest/public tertentu pakai header `x-guest-key`.
+-  Semua endpoint di bawah juga bisa berjalan pada konteks komunitas via prefix: `/api/c/:slug/...`.
 
-### ðŸ” Authentication & Session
+### Authentication & Session
 - `POST /api/auth/login`
 - `POST /api/auth/logout`
 - `POST /api/auth/revoke-all-sessions`
@@ -361,7 +367,7 @@ Catatan:
 - `GET /api/auth/permissions`
 - `POST /api/auth/refresh-permissions`
 
-### ðŸ‘¤ Users, Roles, Permissions & Divisions
+### 👤 Users, Roles, Permissions & Divisions
 - `GET /api/users`
 - `POST /api/users`
 - `PUT /api/users/:id`
@@ -389,7 +395,7 @@ Catatan:
 - `GET /api/users/:id/permission-overrides`
 - `PUT /api/users/:id/permission-overrides`
 
-### ðŸ“° Berita
+### 📰 Berita
 - `GET /api/berita`
 - `GET /api/berita/manage`
 - `GET /api/berita/:id`
@@ -407,7 +413,7 @@ Catatan:
 - `POST /api/berita/:id/attach-event`
 - `DELETE /api/berita/:id/attach-event/:eventId`
 
-### ðŸ—ƒï¸ Library
+### 🗃 Library
 - `GET /api/library`
 - `GET /api/library/manage`
 - `GET /api/library/:id`
@@ -417,7 +423,7 @@ Catatan:
 - `PUT /api/library/:id`
 - `DELETE /api/library/:id`
 
-### ðŸ—“ï¸ Events
+### 🗓 Events
 - `GET /api/event-years`
 - `GET /api/event-years/:id/events-count`
 - `POST /api/event-years`
@@ -438,7 +444,7 @@ Catatan:
 - `POST /api/events/:id/attach-berita`
 - `DELETE /api/events/:id/attach-berita/:beritaId`
 
-### ðŸ¢ Organization
+### Organization
 - `GET /api/organization/periods`
 - `POST /api/organization/periods`
 - `DELETE /api/organization/periods/:period`
@@ -457,7 +463,7 @@ Catatan:
 - `PUT /api/organization/members/:id`
 - `DELETE /api/organization/members/:id`
 
-### ðŸ‘¨â€ðŸŽ“ Prodi & Akademik
+### 🎓 Prodi & Akademik
 - `GET /api/prodi`
 - `GET /api/prodi/preview`
 - `GET /api/prodi/manage`
@@ -469,7 +475,7 @@ Catatan:
 - `POST /api/prodi/upload/photo/org-structure`
 - `POST /api/prodi/sync/run`
 
-### âš™ï¸ Settings, Home Images & Middleware Settings
+### ⚙ Settings, Home Images & Middleware Settings
 - `GET /api/settings`
 - `PUT /api/settings`
 - `PUT /api/settings/home-config`
@@ -490,13 +496,13 @@ Catatan:
 - `GET /api/settings/middleware`
 - `PUT /api/settings/middleware`
 
-### ðŸ§¾ Dashboard, Statistik & Aktivitas
+### 🧾 Dashboard, Statistik & Aktivitas
 - `GET /api/stats`
 - `GET /api/dashboard/stats`
 - `GET /api/dashboard/activities`
 - `POST /api/dashboard/log-activity`
 
-### ðŸ“¦ Upload, Media & Integrasi Google Drive
+### 📦 Upload, Media & Integrasi Google Drive
 - `POST /api/upload/content-image`
 - `POST /api/upload/event-content-image`
 - `POST /api/upload/filosofi`
@@ -506,7 +512,7 @@ Catatan:
 - `POST /api/gdrive/folder-contents`
 - `GET /api/test/protection`
 
-### ðŸ˜ï¸ Community Registration
+### Community Registration
 - `GET /api/communities`
 - `GET /api/registration/codes`
 - `POST /api/registration/codes`
@@ -524,22 +530,22 @@ Catatan:
 - `POST /api/registration/communities/:id/request-delete-otp`
 - `POST /api/registration/communities/:id/verify-delete-otp`
 
-### ðŸ§© Community Lifecycle (Owner)
+### 🧩 Community Lifecycle (Owner)
 - `POST /api/community/request-delete-otp`
 - `POST /api/community/verify-delete-otp`
 - `DELETE /api/community`
 
-### ðŸ§° Admin Maintenance Utilities
+### 🧰 Admin Maintenance Utilities
 - `POST /api/assets/cleanup-orphans`
 - `POST /api/admin/migrate-community-media`
 
-### ðŸ—‚ï¸ Backup & Restore
+### 🗂 Backup & Restore
 - `GET /api/backups/monthly`
 - `POST /api/backups/now`
 - `POST /api/backups/restore/request-otp`
 - `POST /api/backups/restore/confirm`
 
-### ðŸ’¬ Chat (Gemini)
+### 💬 Chat (Gemini)
 - `GET /api/chat/all`
 - `POST /api/chat/new`
 - `DELETE /api/chat/:id`
@@ -548,7 +554,7 @@ Catatan:
 - `POST /api/chat/message`
 - `DELETE /api/chat`
 
-### ðŸ’¬ Komentar
+### 💬 Komentar
 - `GET /api/comments`
 - `GET /api/comments/count`
 - `GET /api/comments/manage`
@@ -556,7 +562,7 @@ Catatan:
 - `PATCH /api/comments/:id`
 - `DELETE /api/comments/:id`
 
-### ðŸ“¨ Feedback
+### 📨 Feedback
 - `POST /api/feedback`
 - `GET /api/feedback/public`
 - `GET /api/feedback/ratings`
@@ -570,7 +576,7 @@ Catatan:
 - `PATCH /api/feedback/manage/:id`
 - `DELETE /api/feedback/manage/:id`
 
-### ðŸ¤ Sharing
+### Sharing
 - `POST /api/sharing/:entityType/:entityId/invite`
 - `POST /api/sharing/:entityType/:entityId/request`
 - `POST /api/sharing/decision/:sharingId`
@@ -584,49 +590,49 @@ Catatan:
 
 ---
 
-## ðŸ§  Flow Penting Sistem (Wajib Tau)
+## 🧠 Flow Penting Sistem (Wajib Tau)
 
-### ðŸ§­ Frontend Routing Matrix
+### 🧭 Frontend Routing Matrix
 - **Public main**: `/`, `/berita`, `/profil`, `/kelembagaan`, `/prodi`, `/events`, `/library`, `/communities`.
 - **Auth pages**: `/login`, `/register`, `/forgot-password`.
 - **Dashboard main (protected)**: `/dashboard` + subroute `berita`, `library`, `users`, `roles`, `settings`, `profil`, `kelembagaan`, `prodi`, `events`, `feedback`, `registration`.
 - **Community shell**: `/:slug` dan `/:slug/*` untuk publik + dashboard tenant (fitur global-only tidak semua tersedia di tenant).
 
-### ðŸ˜ï¸ Multi-tenant Community
+### Multi-tenant Community
 - API tenant pakai pola `/api/c/:slug/...` lalu di-resolve middleware jadi context komunitas.
 - Tenant pakai database terpisah tapi schema setara dengan main app.
 - Frontend community route pakai shell `/:slug/*` untuk halaman publik + dashboard komunitas.
 - API request dari halaman tenant otomatis di-rewrite ke `/api/c/:slug/*`.
 
-### ðŸ—‚ï¸ Backup, Restore & OTP Safety
+### 🗂 Backup, Restore & OTP Safety
 - Snapshot backup bulanan ke backup cluster (jika `MONGODB_URI_BACKUP` diset).
 - Restore backup wajib OTP (request OTP dulu, baru confirm restore).
 - Ada endpoint manual backup (`POST /api/backups/now`) untuk kebutuhan operasional mendadak.
 - Saat startup, server juga auto-check snapshot bulan aktif (bukan hanya nunggu cron).
 
-### â° Scheduler Otomatis
+### Scheduler Otomatis
 - Cron backup bulanan: setiap tanggal 1 jam 02:00.
 - Cron prodi auto-sync: setiap tanggal 1 jam 03:00 (jika auto-sync aktif).
 - Job maintenance lain: cleanup data proteksi + cleanup temp upload + cleanup chat files.
 
-### ðŸ¤– AI Chat (Gemini) + Permission-aware Tools
+### 🤖 AI Chat (Gemini) + Permission-aware Tools
 - Endpoint chat ada di `/api/chat/*`.
 - Chat menyimpan histori per `userId` cookie + `contextScope` (main/tenant).
 - Tool-calling AI dibatasi permission user dari server (bukan trust dari client).
 - Mendukung upload gambar di message (`multipart/form-data`) dan fallback API key slot.
 
-### ðŸ’¬ Komentar, Feedback, Sharing (Kolaborasi)
+### 💬 Komentar, Feedback, Sharing (Kolaborasi)
 - **Komentar**: threaded comment untuk berita/event/library, guest ownership via `x-guest-key`, plus dashboard moderation.
 - **Feedback**: publik bisa kirim feedback + rating + media, admin bisa reply/decision, email notifikasi terkirim untuk non-anonim.
 - **Sharing**: invite/request akses view/edit, approval flow, revoke akses, dan notification center user.
 
-### ðŸ”’ Security Runtime Notes
+### 🔒 Security Runtime Notes
 - Middleware security bisa di-toggle via setting middleware (apply bertahap karena ada cache runtime).
 - API protection bisa menolak hit API langsung dari browser kalau request tidak sesuai policy.
 - `JWT_SECRET` **wajib diisi** di production (jangan andalkan fallback default).
 - Seed account default hanya untuk bootstrap lokal; wajib ganti password sebelum deploy.
 
-### ðŸŒ Runtime & Infrastruktur Notes
+### Runtime & Infrastruktur Notes
 - Server aplikasi berjalan pada port tetap `5000` (listen `0.0.0.0`) di balik reverse proxy.
 - Nginx menyediakan endpoint healthcheck non-API: `/health`.
 - `sitemap.xml` digenerate dinamis saat request.
@@ -634,20 +640,20 @@ Catatan:
 
 ---
 
-## ðŸŽ¨ UI Components Library
+## 🎨 UI Components Library
 
 Project ini menggunakan komponen dari **Radix UI** yang telah di-styling dengan **Tailwind CSS**:
 
 <details>
-<summary>ðŸ“‹ <strong>Lihat Semua Components</strong></summary>
+<summary>📋 <strong>Lihat Semua Components</strong></summary>
 
-### ðŸŽ›ï¸ **Navigation & Layout**
+### 🎛 **Navigation & Layout**
 - `Header` - App Header dengan Notifications
 - `Sidebar` - Navigation Sidebar
 - `Breadcrumb` - Navigation Breadcrumbs
 - `Navigation Menu` - Complex Navigation
 
-### ðŸ“ **Forms & Inputs**
+### **Forms & Inputs**
 - `Form` - Comprehensive Form Handling
 - `Input` - Text Input dengan Validation
 - `Textarea` - Multi-line Text Input
@@ -656,7 +662,7 @@ Project ini menggunakan komponen dari **Radix UI** yang telah di-styling dengan 
 - `Radio Group` - Single Selection
 - `Switch` - Toggle Input
 
-### ðŸ’¬ **Feedback & Overlays**
+### 💬 **Feedback & Overlays**
 - `Dialog` - Modal Dialogs
 - `Alert Dialog` - Confirmation Dialogs
 - `Toast` - Notification Messages
@@ -664,7 +670,7 @@ Project ini menggunakan komponen dari **Radix UI** yang telah di-styling dengan 
 - `Popover` - Floating Content
 - `Hover Card` - Rich Hover Content
 
-### ðŸ“Š **Data Display**
+### 📊 **Data Display**
 - `Table` - Data Tables dengan Sorting
 - `Card` - Content Cards
 - `Badge` - Status Indicators
@@ -672,7 +678,7 @@ Project ini menggunakan komponen dari **Radix UI** yang telah di-styling dengan 
 - `Accordion` - Collapsible Content
 - `Tabs` - Tabbed Interface
 
-### ðŸŽ¯ **Media & Rich Content**
+### 🎯 **Media & Rich Content**
 - `Rich Text Editor` - TinyMCE Integration
 - `Image Upload` - Drag & Drop Upload
 - `Media Display` - Image/Video Display
@@ -683,30 +689,30 @@ Project ini menggunakan komponen dari **Radix UI** yang telah di-styling dengan 
 
 ---
 
-## ðŸ“Š Performance & Monitoring
+## 📊 Performance & Monitoring
 
-- âš¡ **Fast Loading**: Optimized bundle dengan code splitting
-- ðŸ“± **Mobile Optimized**: Responsive design untuk semua device
-- ðŸ’¾ **Smart Caching**: React Query untuk efficient data fetching
-- ðŸ—ºï¸ **SEO & Sitemap**: sitemap dinamis + injeksi meta/canonical saat production
-- ðŸ§¹ **Maintenance Scheduler**: cleanup gambar/chat + cleanup data protection terjadwal
-- ðŸ“ˆ **Monitoring (admin)**: aktivitas terbaru via endpoint dashboard + log security/error
+- ⚡ **Fast Loading**: Optimized bundle dengan code splitting
+- 📱 **Mobile Optimized**: Responsive design untuk semua device
+- 💾 **Smart Caching**: React Query untuk efficient data fetching
+- 🗺 **SEO & Sitemap**: sitemap dinamis + injeksi meta/canonical saat production
+- 🧹 **Maintenance Scheduler**: cleanup gambar/chat + cleanup data protection terjadwal
+- 📈 **Monitoring (admin)**: aktivitas terbaru via endpoint dashboard + log security/error
 
 ---
 
-## ðŸ¤ Contributing
+## Contributing
 
 Kami sangat menghargai kontribusi dari komunitas! Berikut cara untuk berkontribusi:
 
-### ðŸŽ¯ **Quick Contribution Guide**
+### 🎯 **Quick Contribution Guide**
 
-1. **ðŸ´ Fork** repository ini
-2. **ðŸŒ¿ Create** branch fitur (`git checkout -b feature/AmazingFeature`)
-3. **ðŸ’» Commit** perubahan (`git commit -m 'Add some AmazingFeature'`)
-4. **ðŸ“¤ Push** ke branch (`git push origin feature/AmazingFeature`)
-5. **ðŸ”„ Create** Pull Request
+1. **Fork** repository ini
+2. **🌿 Create** branch fitur (`git checkout -b feature/AmazingFeature`)
+3. **💻 Commit** perubahan (`git commit -m 'Add some AmazingFeature'`)
+4. **📤 Push** ke branch (`git push origin feature/AmazingFeature`)
+5. **🔄 Create** Pull Request
 
-### ðŸ“ **Contribution Guidelines**
+### **Contribution Guidelines**
 
 - Pastikan kode mengikuti **ESLint** dan **Prettier** configuration
 - Tulis **test** untuk fitur baru (jika ada)
@@ -715,11 +721,11 @@ Kami sangat menghargai kontribusi dari komunitas! Berikut cara untuk berkontribu
 
 ---
 
-## ðŸ‘¥ Team & Contributors
+## 👥 Team & Contributors
 
 <div align="center">
 
-### ðŸ† **Core Team**
+### **Core Team**
 
 <table>
 <tr>
@@ -728,14 +734,14 @@ Kami sangat menghargai kontribusi dari komunitas! Berikut cara untuk berkontribu
 <br />
 <strong>Sulthan Adam Rahmadi</strong>
 <br />
-<sub>ðŸš€ <strong>Owner & Lead Developer</strong></sub>
+<sub>🚀 <strong>Owner & Lead Developer</strong></sub>
 <br />
 <sub>
-ðŸ“‹ Project Manager<br/>
-ðŸ’» Full-stack Developer<br/>
-âš™ï¸ Backend Developer<br/>
-ðŸ—ï¸ System Architect<br/>
-ðŸ” Security Engineer<br/>
+📋 Project Manager<br/>
+💻 Full-stack Developer<br/>
+⚙ Backend Developer<br/>
+ System Architect<br/>
+ Security Engineer<br/>
 </sub>
 <br />
 <a href="https://github.com/Sadamdi">GitHub</a>
@@ -745,14 +751,14 @@ Kami sangat menghargai kontribusi dari komunitas! Berikut cara untuk berkontribu
 <br />
 <strong>Muhammad Alif Mujaddid</strong>
 <br />
-<sub>âš¡ <strong>Core Developer</strong></sub>
+<sub>⚡ <strong>Core Developer</strong></sub>
 <br />
 <sub>
-ðŸ’» Admin System Developer<br/>
-ðŸŽ¨ Frontend Developer<br/>
-âš™ï¸ Backend Developer<br/>
-ðŸŽ¯ UI/UX Designer<br/>
-ðŸ§ª QA Engineer<br/>
+💻 Admin System Developer<br/>
+🎨 Frontend Developer<br/>
+⚙ Backend Developer<br/>
+🎯 UI/UX Designer<br/>
+🧪 QA Engineer<br/>
 </sub>
 <br />
 <a href="https://github.com/addid-cloud">GitHub</a>
@@ -764,29 +770,29 @@ Kami sangat menghargai kontribusi dari komunitas! Berikut cara untuk berkontribu
 
 ---
 
-## ðŸ“œ License
+## 📜 License
 
 <div align="center">
 
-**MIT License** ðŸ“„
+**MIT License** 📄
 
 Project ini dilisensikan di bawah MIT License - lihat file [LICENSE](LICENSE) untuk detail.
 
 ---
 
-### ðŸ“ž **Contact & Support**
+### 📞 **Contact & Support**
 
-ðŸŒ **Website**: [himatif.encoder.com](https://himatif.encoder.com)  
-ðŸ“§ **Email**: ti@uin-malang.ac.id  
-ðŸ“± **Instagram**: [@himatif.encoder](https://www.instagram.com/himatif.encoder/)  
+**Website**: [himatif.encoder.com](https://himatif.encoder.com)  
+📧 **Email**: ti@uin-malang.ac.id  
+📱 **Instagram**: [@himatif.encoder](https://www.instagram.com/himatif.encoder/)  
 
 ---
 
-<sub>Dibuat dengan â¤ï¸ oleh Tim HIMATIF ENCODER untuk kemajuan Program Studi Teknik Informatika UIN Malang</sub>
+<sub>Dibuat dengan ❤️ oleh Tim HIMATIF ENCODER untuk kemajuan Program Studi Teknik Informatika UIN Malang</sub>
 
 </div> 
 
 
-> Documentation update: feature docs now include **12 categories** with Runtime Infrastructure coverage for middleware, config, database bootstrap/backup clients, backend helpers, and frontend constants/utilities.
+> Documentation update: feature docs now include **11 categories** with Runtime Infrastructure coverage for middleware, config, database bootstrap/backup clients, backend helpers, and frontend constants/utilities.
 
 

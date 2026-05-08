@@ -1,23 +1,30 @@
-﻿# 11 — Auxiliary Runtime Features
+# Auxiliary Runtime
 
-**Status**: Active | **Contract Confidence**: Partial from code  | **Category**: auxiliary discovered features
+## Purpose
 
----
+Auxiliary Runtime feature category for HMPS. This README is the local index for feature docs, OpenAPI endpoint families, source references, and maintenance rules.
 
-Features discovered during whole-project audit that are not primary CRUD/API modules but affect runtime behavior.
+## Feature Documents
 
+| File | Scope |
+|------|-------|
+| [01-error-not-found-pages.md](./01-error-not-found-pages.md) | 01-error-not-found-pages.md |
+| [02-artikel-detail-alias.md](./02-artikel-detail-alias.md) | 02-artikel-detail-alias.md |
+| [03-store-pricing-utilities.md](./03-store-pricing-utilities.md) | 03-store-pricing-utilities.md |
+| [04-embed-media-utils.md](./04-embed-media-utils.md) | 04-embed-media-utils.md |
+| [05-dashboard-spyro-context.md](./05-dashboard-spyro-context.md) | 05-dashboard-spyro-context.md |
+| [06-frontend-route-inventory.md](./06-frontend-route-inventory.md) | Frontend Route & Page Inventory |
+| [07-frontend-auth-guards.md](./07-frontend-auth-guards.md) | Frontend Auth Guards & Session UI |
+| [08-dashboard-shell-components.md](./08-dashboard-shell-components.md) | Dashboard Shell & Editor Components |
+| [09-public-ui-components.md](./09-public-ui-components.md) | Public UI Components |
+| [10-client-hooks-utilities.md](./10-client-hooks-utilities.md) | Client Hooks & Utilities |
+## Source References
 
+See the feature documents and [OpenAPI Endpoint Coverage](./99-openapi-endpoint-coverage.md) for file-level references and route contracts.
 
+## Maintenance Checklist
 
-## Additional Coverage Docs
-
-- [06 - Frontend Route & Page Inventory](./06-frontend-route-inventory.md)
-
-
-## Frontend Support Layer Docs
-
-- [07 - Frontend Auth Guards & Session UI](./07-frontend-auth-guards.md)
-- [08 - Dashboard Shell & Editor Components](./08-dashboard-shell-components.md)
-- [09 - Public UI Components](./09-public-ui-components.md)
-- [10 - Client Hooks & Utilities](./10-client-hooks-utilities.md)
-
+- [ ] Add/update feature doc when endpoint/page/service behavior changes.
+- [ ] Keep this README endpoint family table aligned with `docs/openapi.json`.
+- [ ] Update `../feature-summary.md` when feature count or category scope changes.
+- [ ] Do not include secrets, OTP values, tokens, or credential contents.
