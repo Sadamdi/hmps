@@ -71,7 +71,7 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 - 🛠 Backup otomatis
 - 📊 Performance monitoring
 - 🔒 Security middleware comprehensive
-- 🤖 Integrasi AI Chat (Gemini + tool-calling berbasis permission)
+- 🤖 Integrasi AI Chat (provider utama + Gemini fallback + tool-calling berbasis permission)
 
 </td>
 </tr>
@@ -151,7 +151,7 @@ Melalui platform ini, kami berupaya untuk memberikan akses informasi yang **tran
 │   ├──  routes/              # Modular routes (chat/comments/feedback/sharing)
 │   ├── 🧾 upload.ts            # Upload handlers + image processing
 │   ├── 📦 models/             # Mongo-related models/schemas
-│   └── ⚙ config/             # External service configs (Gemini keys)
+│   └── ⚙ config/             # External service configs (Gemini keys, provider env)
 ├── 🗄 db/                       # Database & seeding
 │   ├── 🔗 mongodb.ts            # Mongoose connection + schema models
 │   ├── 🧾 mongodb-backup.ts    # Backup cluster client (snapshot job)
@@ -279,8 +279,12 @@ EMAIL_PW=your-email-password/app-password
 # default: hmps-comment-pepper
 GUEST_KEY_PEPPER=hmps-comment-pepper
 
-# Gemini (chat di fitur /api/chat)
-# Tambahkan GEMINI_API_KEY_1 … GEMINI_API_KEY_N sesuai kebutuhan.
+# AI Chat (/api/chat)
+# Provider utama memakai konfigurasi OpenAI-compatible. Gemini key slots dipakai sebagai fallback.
+OPENAI_API_KEY=...
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODELS=gpt-4o-mini
+# Tambahkan GEMINI_API_KEY_1 … GEMINI_API_KEY_N sesuai kebutuhan fallback.
 GEMINI_API_KEY_1=...
 GEMINI_API_KEY_2=...
 # Opsional: batas indeks slot yang discan (default 100; bisa sampai 1000)
@@ -545,7 +549,7 @@ Catatan:
 - `POST /api/backups/restore/request-otp`
 - `POST /api/backups/restore/confirm`
 
-### 💬 Chat (Gemini)
+### 💬 Chat (AI provider + Gemini fallback)
 - `GET /api/chat/all`
 - `POST /api/chat/new`
 - `DELETE /api/chat/:id`
@@ -615,11 +619,12 @@ Catatan:
 - Cron prodi auto-sync: setiap tanggal 1 jam 03:00 (jika auto-sync aktif).
 - Job maintenance lain: cleanup data proteksi + cleanup temp upload + cleanup chat files.
 
-### 🤖 AI Chat (Gemini) + Permission-aware Tools
+### 🤖 AI Chat + Permission-aware Tools
 - Endpoint chat ada di `/api/chat/*`.
 - Chat menyimpan histori per `userId` cookie + `contextScope` (main/tenant).
+- Provider utama memakai konfigurasi OpenAI-compatible; jika semua model gagal, service fallback ke Gemini key slots dan permission-aware tool-calling.
 - Tool-calling AI dibatasi permission user dari server (bukan trust dari client).
-- Mendukung upload gambar di message (`multipart/form-data`) dan fallback API key slot.
+- Mendukung upload gambar di message (`multipart/form-data`) dengan konversi base64 untuk provider vision.
 
 ### 💬 Komentar, Feedback, Sharing (Kolaborasi)
 - **Komentar**: threaded comment untuk berita/event/library, guest ownership via `x-guest-key`, plus dashboard moderation.

@@ -19,6 +19,7 @@ import {
 } from '../config/gemini-keys';
 import { ApiKeyUsage, Chat } from '../models/chat';
 import { executeToolCall, getToolsForPermissions } from './ai-tools';
+import { runOpenAiChat } from './openai-service';
 
 type GeminiLoopSuccess = {
 	ok: true;
@@ -252,7 +253,7 @@ export class ChatService {
 			} catch (error) {
 				lastError = error as Error;
 				if (isQuotaLikeError(error)) sawQuotaLike = true;
-				console.warn(`Model ${modelName} failed, trying fallback...`, error);
+				console.warn(`[AI][Gemini] Failed model: ${modelName} - ${lastError.message}`);
 			}
 		}
 
@@ -378,119 +379,128 @@ export class ChatService {
 		let responseText = '';
 		let currentModel = GEMINI_MODEL;
 
-		for (let slotAttempt = 0; slotAttempt < maxSlotSwitches; slotAttempt++) {
-			let slot = chat.apiKeySlot;
-			let secret = resolveSecret(slot);
-			if (!secret) {
-				const records = await this.getUsageRecordsForPicker();
-				const picked = pickLeastUsedSlot(records, new Date(), excludeSlots);
-				if (picked == null) {
-					throw new Error(
-						'No Gemini API key configured or resolvable for this chat slot'
-					);
-				}
-				slot = picked;
-				chat.apiKeySlot = slot;
-				secret = resolveSecret(slot);
-			}
-			if (!secret) {
-				throw new Error(`GEMINI_API_KEY_${slot} is missing in environment`);
-			}
-
-			const gemini = initGeminiClient(secret);
-			const loopResult = await this.runGeminiAgenticLoop(
-				gemini,
-				history,
-				permissions,
-				authUserId,
-				pagePath,
-				geminiTools,
-				tenantDbName,
-				isTenantContext
-			);
-
-			if (loopResult.ok) {
-				responseText = loopResult.responseText;
-				currentModel = loopResult.modelName;
-
-				if (
-					this.shouldForceWebToolRetry(
-						responseText,
-						loopResult.usedToolNames,
-						allowedTools
-					)
-				) {
-					const retryInstruction =
-						'INSTRUKSI TAMBAHAN WAJIB: Jawaban Anda sebelumnya belum memadai karena belum menggunakan tool web. Sekarang WAJIB panggil internet_search lalu WAJIB panggil fetch_website_content pada hasil yang paling relevan, kemudian berikan jawaban final dengan menyebut sumber URL secara eksplisit.';
-					const retryHistory: Content[] = [
-						...history,
-						{ role: 'user', parts: [{ text: retryInstruction }] },
-					];
-					const retryResult = await this.runGeminiAgenticLoop(
-						gemini,
-						retryHistory,
-						permissions,
-						authUserId,
-						pagePath,
-						geminiTools,
-						tenantDbName,
-						isTenantContext
-					);
-					if (retryResult.ok) {
-						responseText = retryResult.responseText;
-						currentModel = retryResult.modelName;
-					}
-				}
-
-				console.log(
-					`Successfully used model: ${currentModel} for user: ${userId}`
-				);
-				break;
-			}
-
-			if (loopResult.sawQuotaLike) {
-				const cooldownUntil = new Date(Date.now() + getKeyCooldownMs());
-				await ApiKeyUsage.updateOne(
-					{ slot: chat.apiKeySlot },
-					{ $set: { cooldownUntil } }
-				);
-				excludeSlots.add(chat.apiKeySlot);
-
-				const nextSlot = pickLeastUsedSlot(
-					await this.getUsageRecordsForPicker(),
-					new Date(),
-					excludeSlots
-				);
-				if (nextSlot == null) {
-					throw new Error(
-						'Maaf, kuota Gemini sedang penuh untuk semua kunci. Silakan coba lagi nanti.'
-					);
-				}
-
-				await ApiKeyUsage.findOneAndUpdate(
-					{ slot: nextSlot },
-					{ $inc: { usageCount: 1 }, $set: { lastUsed: new Date() } }
-				);
-				chat.apiKeySlot = nextSlot;
-
-				if (slotAttempt === maxSlotSwitches - 1) {
-					throw new Error(
-						loopResult.lastError?.message ||
-							'Semua model Gemini gagal setelah mencoba semua kunci API.'
-					);
-				}
-				continue;
-			}
-
-			throw new Error(
-				`All models failed. Last error: ${
-					loopResult.lastError?.message || 'Unknown error'
-				}`
+		const openAiResult = await runOpenAiChat({ history });
+		if (openAiResult.ok) {
+			responseText = openAiResult.responseText;
+			currentModel = openAiResult.modelName;
+		} else {
+			console.warn(
+				`[AI][Fallback] OpenAI-compatible provider exhausted, switching to Gemini - ${openAiResult.lastError?.message || 'unknown error'}`
 			);
 		}
 
 		if (!responseText) {
-			throw new Error('Gemini returned empty response');
+			for (let slotAttempt = 0; slotAttempt < maxSlotSwitches; slotAttempt++) {
+				let slot = chat.apiKeySlot;
+				let secret = resolveSecret(slot);
+				if (!secret) {
+					const records = await this.getUsageRecordsForPicker();
+					const picked = pickLeastUsedSlot(records, new Date(), excludeSlots);
+					if (picked == null) {
+						throw new Error(
+							'No Gemini API key configured or resolvable for this chat slot'
+						);
+					}
+					slot = picked;
+					chat.apiKeySlot = slot;
+					secret = resolveSecret(slot);
+				}
+				if (!secret) {
+					throw new Error(`GEMINI_API_KEY_${slot} is missing in environment`);
+				}
+
+				const gemini = initGeminiClient(secret);
+				const loopResult = await this.runGeminiAgenticLoop(
+					gemini,
+					history,
+					permissions,
+					authUserId,
+					pagePath,
+					geminiTools,
+					tenantDbName,
+					isTenantContext
+				);
+
+				if (loopResult.ok) {
+					responseText = loopResult.responseText;
+					currentModel = loopResult.modelName;
+
+					if (
+						this.shouldForceWebToolRetry(
+							responseText,
+							loopResult.usedToolNames,
+							allowedTools
+						)
+					) {
+						const retryInstruction =
+							'INSTRUKSI TAMBAHAN WAJIB: Jawaban Anda sebelumnya belum memadai karena belum menggunakan tool web. Sekarang WAJIB panggil internet_search lalu WAJIB panggil fetch_website_content pada hasil yang paling relevan, kemudian berikan jawaban final dengan menyebut sumber URL secara eksplisit.';
+						const retryHistory: Content[] = [
+							...history,
+							{ role: 'user', parts: [{ text: retryInstruction }] },
+						];
+						const retryResult = await this.runGeminiAgenticLoop(
+							gemini,
+							retryHistory,
+							permissions,
+							authUserId,
+							pagePath,
+							geminiTools,
+							tenantDbName,
+							isTenantContext
+						);
+						if (retryResult.ok) {
+							responseText = retryResult.responseText;
+							currentModel = retryResult.modelName;
+						}
+					}
+
+					break;
+				}
+
+				if (loopResult.sawQuotaLike) {
+					const cooldownUntil = new Date(Date.now() + getKeyCooldownMs());
+					await ApiKeyUsage.updateOne(
+						{ slot: chat.apiKeySlot },
+						{ $set: { cooldownUntil } }
+					);
+					excludeSlots.add(chat.apiKeySlot);
+
+					const nextSlot = pickLeastUsedSlot(
+						await this.getUsageRecordsForPicker(),
+						new Date(),
+						excludeSlots
+					);
+					if (nextSlot == null) {
+						throw new Error(
+							'Maaf, kuota Gemini sedang penuh untuk semua kunci. Silakan coba lagi nanti.'
+						);
+					}
+
+					await ApiKeyUsage.findOneAndUpdate(
+						{ slot: nextSlot },
+						{ $inc: { usageCount: 1 }, $set: { lastUsed: new Date() } }
+					);
+					chat.apiKeySlot = nextSlot;
+
+					if (slotAttempt === maxSlotSwitches - 1) {
+						throw new Error(
+							loopResult.lastError?.message ||
+								'Semua model Gemini gagal setelah mencoba semua kunci API.'
+						);
+					}
+					continue;
+				}
+
+				throw new Error(
+					`All models failed. Last error: ${
+						loopResult.lastError?.message || 'Unknown error'
+					}`
+				);
+			}
+		}
+
+		if (!responseText) {
+			throw new Error('All AI providers returned empty response');
 		}
 
 		// Tambahkan respons assistant ke chat (tanpa personalisasi)
@@ -515,7 +525,6 @@ export class ChatService {
 			const imagePath = ChatService.resolveUploadDiskPath(imageUrl);
 			try {
 				await fs.promises.unlink(imagePath);
-				console.log(`Deleted image: ${imagePath}`);
 			} catch (error) {
 				console.error(`Error deleting image ${imagePath}:`, error);
 			}
