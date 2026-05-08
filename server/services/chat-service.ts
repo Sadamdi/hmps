@@ -270,7 +270,8 @@ export class ChatService {
 		permissions?: string[],
 		authUserId?: string,
 		tenantDbName?: string | null,
-		contextScope = 'main'
+		contextScope = 'main',
+		fileMimeType?: string
 	) {
 		let chat;
 		if (chatId) {
@@ -284,6 +285,7 @@ export class ChatService {
 			role: 'user',
 			content,
 			imageUrl,
+			fileMimeType,
 			timestamp: new Date(),
 		});
 		// Gabungkan seluruh history chat (user & assistant)
@@ -323,7 +325,7 @@ export class ChatService {
 						const imageData = fs.readFileSync(imagePath);
 						parts.push({
 							inlineData: {
-								mimeType: 'image/jpeg',
+								mimeType: msg.fileMimeType || 'image/jpeg',
 								data: imageData.toString('base64'),
 							},
 						});
@@ -343,7 +345,7 @@ export class ChatService {
 						{ text: content },
 						{
 							inlineData: {
-								mimeType: 'image/jpeg',
+								mimeType: fileMimeType || 'image/jpeg',
 								data: fs
 									.readFileSync(
 										ChatService.resolveUploadDiskPath(
@@ -379,10 +381,43 @@ export class ChatService {
 		let responseText = '';
 		let currentModel = GEMINI_MODEL;
 
-		const openAiResult = await runOpenAiChat({ history });
+		const openAiResult = await runOpenAiChat({
+			history,
+			tools: allowedTools,
+			executeTool: (name, args) => executeToolCall(
+				name,
+				args,
+				permissions || [],
+				authUserId,
+				pagePath,
+				tenantDbName,
+				isTenantContext
+			),
+		});
 		if (openAiResult.ok) {
 			responseText = openAiResult.responseText;
 			currentModel = openAiResult.modelName;
+			if (this.shouldForceWebToolRetry(responseText, openAiResult.usedToolNames, allowedTools)) {
+				const retryInstruction =
+					'INSTRUKSI TAMBAHAN WAJIB: Jawaban Anda sebelumnya belum memadai karena belum menggunakan tool web. Sekarang WAJIB panggil internet_search lalu WAJIB panggil fetch_website_content pada hasil yang paling relevan, kemudian berikan jawaban final dengan menyebut sumber URL secara eksplisit.';
+				const retryResult = await runOpenAiChat({
+					history: [...history, { role: 'user', parts: [{ text: retryInstruction }] }],
+					tools: allowedTools,
+					executeTool: (name, args) => executeToolCall(
+						name,
+						args,
+						permissions || [],
+						authUserId,
+						pagePath,
+						tenantDbName,
+						isTenantContext
+					),
+				});
+				if (retryResult.ok) {
+					responseText = retryResult.responseText;
+					currentModel = retryResult.modelName;
+				}
+			}
 		} else {
 			console.warn(
 				`[AI][Fallback] OpenAI-compatible provider exhausted, switching to Gemini - ${openAiResult.lastError?.message || 'unknown error'}`

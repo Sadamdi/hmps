@@ -6,9 +6,20 @@ type OpenAiMessageContentPart =
 	| { type: 'text'; text: string }
 	| { type: 'image_url'; image_url: { url: string } };
 
+type OpenAiToolCall = {
+	id: string;
+	type: 'function';
+	function: {
+		name: string;
+		arguments: string;
+	};
+};
+
 type OpenAiMessage = {
-	role: 'system' | 'user' | 'assistant';
-	content: string | OpenAiMessageContentPart[];
+	role: 'system' | 'user' | 'assistant' | 'tool';
+	content?: string | OpenAiMessageContentPart[] | null;
+	tool_call_id?: string;
+	tool_calls?: OpenAiToolCall[];
 };
 
 type OpenAiCache = {
@@ -20,12 +31,16 @@ type OpenAiChatOptions = {
 	history: Content[];
 	temperature?: number;
 	maxTokens?: number;
+	tools?: Record<string, unknown>[];
+	executeTool?: (name: string, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+	maxToolIterations?: number;
 };
 
 type OpenAiChatSuccess = {
 	ok: true;
 	responseText: string;
 	modelName: string;
+	usedToolNames: string[];
 };
 
 type OpenAiChatFailure = {
@@ -87,8 +102,28 @@ function orderOpenAiModels(): string[] {
 }
 
 function normalizeMimeType(mimeType?: string): string {
-	if (mimeType?.startsWith('image/')) return mimeType;
-	return 'image/jpeg';
+	return mimeType?.trim() || 'application/octet-stream';
+}
+
+function decodeInlineText(data: string): string | null {
+	try {
+		const decoded = Buffer.from(data, 'base64').toString('utf8').replace(/\0/g, '').trim();
+		if (!decoded) return null;
+		const controlChars = decoded.match(/[\u0001-\u0008\u000B\u000C\u000E-\u001F]/g)?.length || 0;
+		if (controlChars > Math.max(12, decoded.length * 0.08)) return null;
+		return decoded.slice(0, 12000);
+	} catch {
+		return null;
+	}
+}
+
+function formatInlineFileAsText(mimeType: string, data: string): string {
+	const decoded = mimeType.startsWith('text/') || mimeType.includes('json') || mimeType.includes('xml') || mimeType.includes('csv')
+		? decodeInlineText(data)
+		: null;
+	const sizeBytes = Math.floor((data.length * 3) / 4);
+	if (decoded) return `[Uploaded file: ${mimeType}, ${sizeBytes} bytes]\n${decoded}`;
+	return `[Uploaded file: ${mimeType}, ${sizeBytes} bytes, base64 omitted for this provider]`;
 }
 
 function convertPart(part: Record<string, unknown>): OpenAiMessageContentPart[] {
@@ -99,12 +134,15 @@ function convertPart(part: Record<string, unknown>): OpenAiMessageContentPart[] 
 	const inlineData = part.inlineData as { mimeType?: string; data?: string } | undefined;
 	if (inlineData?.data) {
 		const mimeType = normalizeMimeType(inlineData.mimeType);
-		return [
-			{
-				type: 'image_url',
-				image_url: { url: `data:${mimeType};base64,${inlineData.data}` },
-			},
-		];
+		if (mimeType.startsWith('image/')) {
+			return [
+				{
+					type: 'image_url',
+					image_url: { url: `data:${mimeType};base64,${inlineData.data}` },
+				},
+			];
+		}
+		return [{ type: 'text', text: formatInlineFileAsText(mimeType, inlineData.data) }];
 	}
 
 	return [];
@@ -128,6 +166,18 @@ function convertHistoryToOpenAiMessages(history: Content[]): OpenAiMessage[] {
 	return messages;
 }
 
+function convertTools(tools?: Record<string, unknown>[]): Record<string, unknown>[] | undefined {
+	if (!tools?.length) return undefined;
+	return tools.map((tool) => ({
+		type: 'function',
+		function: {
+			name: tool.name,
+			description: tool.description,
+			parameters: tool.parameters,
+		},
+	}));
+}
+
 function extractOpenAiText(payload: unknown): string {
 	const data = payload as {
 		choices?: Array<{
@@ -148,9 +198,72 @@ function extractOpenAiText(payload: unknown): string {
 	return choice?.delta?.content || choice?.text || data.output_text || data.text || '';
 }
 
+function extractOpenAiToolCalls(payload: unknown): OpenAiToolCall[] {
+	const data = payload as {
+		choices?: Array<{
+			message?: { tool_calls?: OpenAiToolCall[]; function_call?: { name?: string; arguments?: string } };
+		}>;
+	};
+	const message = data.choices?.[0]?.message;
+	if (Array.isArray(message?.tool_calls)) return message.tool_calls;
+	if (message?.function_call?.name) {
+		return [
+			{
+				id: `call_${Date.now()}`,
+				type: 'function',
+				function: {
+					name: message.function_call.name,
+					arguments: message.function_call.arguments || '{}',
+				},
+			},
+		];
+	}
+	return [];
+}
+
+function parseToolArguments(raw: string): Record<string, unknown> {
+	try {
+		const parsed = JSON.parse(raw || '{}');
+		return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+	} catch {
+		return {};
+	}
+}
+
 function formatOpenAiError(model: string, status: number, body: string): Error {
 	const safeBody = body.replace(/Bearer\s+[^\s"']+/gi, 'Bearer [REDACTED]').slice(0, 500);
 	return new Error(`OpenAI-compatible model ${model} failed with HTTP ${status}: ${safeBody}`);
+}
+
+async function requestOpenAiCompletion(model: string, apiKey: string, messages: OpenAiMessage[], options: OpenAiChatOptions): Promise<unknown> {
+	const tools = convertTools(options.tools);
+	const body: Record<string, unknown> = {
+		model,
+		messages,
+		temperature: options.temperature ?? 0.7,
+		max_tokens: options.maxTokens ?? 4096,
+		stream: false,
+	};
+	if (tools?.length) {
+		body.tools = tools;
+		body.tool_choice = 'auto';
+	}
+
+	const response = await fetch(`${getOpenAiBaseUrl()}/chat/completions`, {
+		method: 'POST',
+		headers: {
+			Authorization: `Bearer ${apiKey}`,
+			'Content-Type': 'application/json',
+		},
+		body: JSON.stringify(body),
+		signal: AbortSignal.timeout(120_000),
+	});
+
+	const raw = await response.text();
+	if (!response.ok) {
+		throw formatOpenAiError(model, response.status, raw);
+	}
+	return JSON.parse(raw) as unknown;
 }
 
 export async function runOpenAiChat(options: OpenAiChatOptions): Promise<OpenAiChatResult> {
@@ -159,41 +272,55 @@ export async function runOpenAiChat(options: OpenAiChatOptions): Promise<OpenAiC
 		return { ok: false, lastError: new Error('OPENAI_API_KEY is not configured') };
 	}
 
-	const messages = convertHistoryToOpenAiMessages(options.history);
-	if (messages.length === 0) {
+	const baseMessages = convertHistoryToOpenAiMessages(options.history);
+	if (baseMessages.length === 0) {
 		return { ok: false, lastError: new Error('OpenAI-compatible request has no messages') };
 	}
 
 	let lastError: Error | null = null;
 	for (const model of orderOpenAiModels()) {
 		try {
-			const response = await fetch(`${getOpenAiBaseUrl()}/chat/completions`, {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${apiKey}`,
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({
-					model,
-					messages,
-					temperature: options.temperature ?? 0.7,
-					max_tokens: options.maxTokens ?? 4096,
-					stream: false,
-				}),
-				signal: AbortSignal.timeout(120_000),
-			});
+			const messages = [...baseMessages];
+			const usedToolNames = new Set<string>();
+			let responseText = '';
 
-			const raw = await response.text();
-			if (!response.ok) {
-				throw formatOpenAiError(model, response.status, raw);
+			for (let iteration = 0; iteration < (options.maxToolIterations ?? 5); iteration++) {
+				const parsed = await requestOpenAiCompletion(model, apiKey, messages, options);
+				const toolCalls = options.executeTool ? extractOpenAiToolCalls(parsed) : [];
+
+				if (toolCalls.length === 0) {
+					responseText = extractOpenAiText(parsed).trim();
+					break;
+				}
+
+				messages.push({
+					role: 'assistant',
+					content: extractOpenAiText(parsed) || null,
+					tool_calls: toolCalls,
+				});
+
+				const executeTool = options.executeTool;
+				if (!executeTool) {
+					responseText = extractOpenAiText(parsed).trim();
+					break;
+				}
+
+				for (const call of toolCalls) {
+					const name = call.function.name;
+					usedToolNames.add(name);
+					const result = await executeTool(name, parseToolArguments(call.function.arguments));
+					messages.push({
+						role: 'tool',
+						tool_call_id: call.id,
+						content: JSON.stringify(result),
+					});
+				}
 			}
 
-			const parsed = JSON.parse(raw) as unknown;
-			const responseText = extractOpenAiText(parsed).trim();
-			if (!responseText) throw new Error(`OpenAI-compatible model ${model} returned empty response`);
+			if (!responseText) responseText = 'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
 
 			await writeCachedModel(model);
-			return { ok: true, responseText, modelName: model };
+			return { ok: true, responseText, modelName: model, usedToolNames: Array.from(usedToolNames) };
 		} catch (error) {
 			lastError = error as Error;
 			console.warn(`[AI][OpenAI] Failed model: ${model} - ${lastError.message}`);

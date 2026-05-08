@@ -174,6 +174,7 @@ router.post(
 
 			const { message, chatId } = req.body;
 			const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
+			const fileMimeType = req.file?.mimetype;
 
 			// Resolve server-side permissions (authoritative, not from client)
 			let serverPermissions: string[] = [];
@@ -265,7 +266,8 @@ router.post(
 				serverPermissions,
 				authUserId,
 				req.tenantDbName,
-				contextScope
+				contextScope,
+				fileMimeType
 			);
 			// Remove sensitive data before sending response
 			const { apiKeySlot, apiKey, ...safeChat } = updatedChat.toObject() as any;

@@ -29,6 +29,10 @@ const chatSchema = new mongoose.Schema({
 				type: String,
 				required: false,
 			},
+			fileMimeType: {
+				type: String,
+				required: false,
+			},
 			timestamp: {
 				type: Date,
 				default: Date.now,
