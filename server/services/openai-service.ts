@@ -308,6 +308,15 @@ export async function runOpenAiChat(options: OpenAiChatOptions): Promise<OpenAiC
 				for (const call of toolCalls) {
 					const name = call.function.name;
 					usedToolNames.add(name);
+				}
+
+				console.log(
+					`[AI Agent][OpenAI] Iteration ${iteration + 1}: executing tools:`,
+					Array.from(new Set(toolCalls.map((call) => call.function.name))).join(', ')
+				);
+
+				for (const call of toolCalls) {
+					const name = call.function.name;
 					const result = await executeTool(name, parseToolArguments(call.function.arguments));
 					messages.push({
 						role: 'tool',
