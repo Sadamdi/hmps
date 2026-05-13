@@ -7,7 +7,6 @@ Sitemap: https://himatif-encoder.com/sitemap.xml
 # Disallow private/admin areas
 Disallow: /admin/
 Disallow: /dashboard/
-Disallow: /api/
 Disallow: /private/
 Disallow: /uploads/admin/
 Disallow: /_next/
@@ -28,6 +27,22 @@ Allow: /kelembagaan
 Allow: /kelembagaan/
 Allow: /attached_assets/
 Allow: /uploads/berita/
+
+# AI / LLM crawlers: same public access policy as regular users
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: CCBot
+Allow: /
 
 # Crawl delay
 Crawl-delay: 1
