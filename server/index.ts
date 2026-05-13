@@ -7,8 +7,8 @@ import path from 'path';
 import { connectDB } from '../db/mongodb';
 import { connectBackupMongoIfConfigured } from '../db/mongodb-backup';
 import { registerRoutes } from './routes';
-import { setupSwagger } from './swagger';
 import { ChatService } from './services/chat-service';
+import { setupSwagger } from './swagger';
 import { log, serveStatic, setupVite } from './vite';
 
 // Import security middleware
@@ -139,7 +139,7 @@ app.get('/sitemap.xml', async (_req, res) => {
 				.replace(/^-+|-+$/g, '')
 				.substring(0, 80);
 
-		// Always include base URLs
+		// Always include base URLs (only real pages; avoid fragment/hash URLs)
 		const baseUrls = [
 			{ loc: `${host}/`, changefreq: 'daily', priority: '1.0', lastmod: now },
 			{
@@ -176,31 +176,6 @@ app.get('/sitemap.xml', async (_req, res) => {
 				loc: `${host}/prodi`,
 				changefreq: 'monthly',
 				priority: '0.9',
-				lastmod: now,
-			},
-			// Sections beranda yang bersifat publik (untuk crawling bot)
-			{
-				loc: `${host}/#profil`,
-				changefreq: 'monthly',
-				priority: '0.7',
-				lastmod: now,
-			},
-			{
-				loc: `${host}/#visi-misi`,
-				changefreq: 'monthly',
-				priority: '0.7',
-				lastmod: now,
-			},
-			{
-				loc: `${host}/#struktur`,
-				changefreq: 'monthly',
-				priority: '0.7',
-				lastmod: now,
-			},
-			{
-				loc: `${host}/#library`,
-				changefreq: 'weekly',
-				priority: '0.8',
 				lastmod: now,
 			},
 		];
@@ -301,17 +276,21 @@ app.get('/sitemap.xml', async (_req, res) => {
 		}
 
 		const urls = [...baseUrls, ...beritaUrls, ...eventUrls, ...libraryUrls];
+		// Deduplicate URLs to avoid duplicate sitemap entries when data collides.
+		const dedupedUrls = urls.filter(
+			(item, idx, arr) => arr.findIndex((x) => x.loc === item.loc) === idx,
+		);
 
-		console.log(`🌐 Generated ${urls.length} total URLs for sitemap`);
+		console.log(`🌐 Generated ${dedupedUrls.length} total URLs for sitemap`);
 		console.log(
 			'📋 URLs:',
-			urls.map((u) => u.loc),
+			dedupedUrls.map((u) => u.loc),
 		);
 
 		const xml =
 			`<?xml version="1.0" encoding="UTF-8"?>\n` +
 			`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n` +
-			urls
+			dedupedUrls
 				.map(
 					(u) =>
 						`  <url>\n    <loc>${u.loc}</loc>\n    <lastmod>${
@@ -546,6 +525,24 @@ setInterval(
 	} else {
 		console.log('📦 Setting up static files (production mode)');
 
+		const defaultOgImage =
+			'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
+		const esc = (s: string) =>
+			String(s)
+				.replace(/&/g, '&amp;')
+				.replace(/"/g, '&quot;')
+				.replace(/</g, '&lt;')
+				.replace(/>/g, '&gt;');
+		const toUrlSlug = (value: string) =>
+			(value || '')
+				.toLowerCase()
+				.trim()
+				.replace(/[^\w\s-]/g, '')
+				.replace(/[\s_]+/g, '-')
+				.replace(/-+/g, '-')
+				.replace(/^-+|-+$/g, '')
+				.substring(0, 80);
+
 		// ==================== BERITA 301 REDIRECT: old /berita/:id/:slug → /berita/:slug ====================
 		app.get('/berita/:id/:slug', async (req, res) => {
 			const qs = req.originalUrl.includes('?')
@@ -553,6 +550,78 @@ setInterval(
 				: '';
 			return res.redirect(301, `/berita/${req.params.slug}${qs}`);
 		});
+
+		const injectArticleMeta = (
+			html: string,
+			opts: {
+				title: string;
+				description: string;
+				canonicalUrl: string;
+				ogImage: string;
+				jsonLd?: Record<string, unknown>;
+			},
+		) => {
+			let out = html
+				.replace(
+					/<title>[\s\S]*?<\/title>/,
+					`<title>${esc(opts.title)}</title>`,
+				)
+				.replace(
+					/<meta\s[^>]*name="title"[^>]*>/,
+					`<meta name="title" content="${esc(opts.title)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*name="description"[^>]*>/,
+					`<meta name="description" content="${esc(opts.description)}" />`,
+				)
+				.replace(
+					/<link\s[^>]*rel="canonical"[^>]*>/,
+					`<link rel="canonical" href="${opts.canonicalUrl}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:type"[^>]*>/,
+					`<meta property="og:type" content="article" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:url"[^>]*>/,
+					`<meta property="og:url" content="${opts.canonicalUrl}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:title"[^>]*>/,
+					`<meta property="og:title" content="${esc(opts.title)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:description"[^>]*>/,
+					`<meta property="og:description" content="${esc(opts.description)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="og:image"[^>]*>/,
+					`<meta property="og:image" content="${opts.ogImage}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="twitter:url"[^>]*>/,
+					`<meta property="twitter:url" content="${opts.canonicalUrl}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="twitter:title"[^>]*>/,
+					`<meta property="twitter:title" content="${esc(opts.title)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="twitter:description"[^>]*>/,
+					`<meta property="twitter:description" content="${esc(opts.description)}" />`,
+				)
+				.replace(
+					/<meta\s[^>]*property="twitter:image"[^>]*>/,
+					`<meta property="twitter:image" content="${opts.ogImage}" />`,
+				);
+			if (opts.jsonLd) {
+				out = out.replace(
+					'</head>',
+					`<script type="application/ld+json">${JSON.stringify(opts.jsonLd)}</script>\n</head>`,
+				);
+			}
+			return out;
+		};
 
 		// ==================== BERITA SEO PRERENDER MIDDLEWARE (slug-only) ====================
 		app.get('/berita/:slugOrId', async (req, res, next) => {
@@ -598,78 +667,18 @@ setInterval(
 				let html = fs.readFileSync(htmlPath, 'utf-8');
 
 				if (beritaItem) {
-					const esc = (s: string) =>
-						String(s)
-							.replace(/&/g, '&amp;')
-							.replace(/"/g, '&quot;')
-							.replace(/</g, '&lt;')
-							.replace(/>/g, '&gt;');
-
 					const title = `${beritaItem.title} | Himatif Encoder`;
 					const description = String(
 						beritaItem.excerpt ||
 							'Berita dari Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 					).slice(0, 160);
 					const canonicalUrl = `https://himatif-encoder.com/berita/${beritaItem.slug}`;
-					const defaultOgImage =
-						'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
 					const ogImage =
 						beritaItem.image && String(beritaItem.image).startsWith('http')
 							? beritaItem.image
 							: beritaItem.image
 								? `https://himatif-encoder.com${beritaItem.image}`
 								: defaultOgImage;
-
-					html = html
-						.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
-						.replace(
-							/<meta\s[^>]*name="title"[^>]*>/,
-							`<meta name="title" content="${esc(title)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*name="description"[^>]*>/,
-							`<meta name="description" content="${esc(description)}" />`,
-						)
-						.replace(
-							/<link\s[^>]*rel="canonical"[^>]*>/,
-							`<link rel="canonical" href="${canonicalUrl}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:type"[^>]*>/,
-							`<meta property="og:type" content="article" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:url"[^>]*>/,
-							`<meta property="og:url" content="${canonicalUrl}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:title"[^>]*>/,
-							`<meta property="og:title" content="${esc(title)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:description"[^>]*>/,
-							`<meta property="og:description" content="${esc(description)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:image"[^>]*>/,
-							`<meta property="og:image" content="${ogImage}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="twitter:url"[^>]*>/,
-							`<meta property="twitter:url" content="${canonicalUrl}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="twitter:title"[^>]*>/,
-							`<meta property="twitter:title" content="${esc(title)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="twitter:description"[^>]*>/,
-							`<meta property="twitter:description" content="${esc(description)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="twitter:image"[^>]*>/,
-							`<meta property="twitter:image" content="${ogImage}" />`,
-						);
 
 					const beritaSchema = JSON.stringify({
 						'@context': 'https://schema.org',
@@ -694,11 +703,13 @@ setInterval(
 						mainEntityOfPage: { '@type': 'WebPage', '@id': canonicalUrl },
 						url: canonicalUrl,
 					});
-
-					html = html.replace(
-						'</head>',
-						`<script type="application/ld+json">${beritaSchema}</script>\n</head>`,
-					);
+					html = injectArticleMeta(html, {
+						title,
+						description,
+						canonicalUrl,
+						ogImage,
+						jsonLd: JSON.parse(beritaSchema),
+					});
 				}
 
 				res.set('Content-Type', 'text/html');
@@ -727,12 +738,6 @@ setInterval(
 				let html = fs.readFileSync(htmlPath, 'utf-8');
 
 				if (product) {
-					const esc = (s: string) =>
-						String(s)
-							.replace(/&/g, '&amp;')
-							.replace(/"/g, '&quot;')
-							.replace(/</g, '&lt;')
-							.replace(/>/g, '&gt;');
 					const host = req.get('host') || 'localhost';
 					const proto =
 						(req.headers['x-forwarded-proto'] as string) ||
@@ -742,14 +747,12 @@ setInterval(
 						product.shortDescription || product.name || 'Produk',
 					).slice(0, 160);
 					const canonicalUrl = `${proto}://${host}/toko/${product.slug}`;
-					const defaultOg =
-						'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
 					const ogImage =
 						product.thumbnail && String(product.thumbnail).startsWith('http')
 							? product.thumbnail
 							: product.thumbnail
 								? `${proto}://${host}${product.thumbnail}`
-								: defaultOg;
+								: defaultOgImage;
 
 					html = html
 						.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
@@ -830,9 +833,7 @@ setInterval(
 					.replace(/</g, '&lt;')
 					.replace(/>/g, '&gt;');
 			const { title, description, canonicalUrl, ogImage, robots } = opts;
-			const img =
-				ogImage ||
-				'https://himatif-encoder.com/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp';
+			const img = ogImage || defaultOgImage;
 			let out = html
 				.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
 				.replace(
@@ -897,6 +898,7 @@ setInterval(
 			description: string;
 			canonicalUrl: string;
 			robots?: string;
+			jsonLd?: Record<string, unknown>;
 		}) => {
 			return async (_req: Request, res: Response, next: NextFunction) => {
 				try {
@@ -905,6 +907,12 @@ setInterval(
 					if (!fs.existsSync(htmlPath)) return next();
 					let html = fs.readFileSync(htmlPath, 'utf-8');
 					html = injectPageMeta(html, opts);
+					if (opts.jsonLd) {
+						html = html.replace(
+							'</head>',
+							`<script type="application/ld+json">${JSON.stringify(opts.jsonLd)}</script>\n</head>`,
+						);
+					}
 					res.set('Content-Type', 'text/html');
 					return res.send(html);
 				} catch (err) {
@@ -913,6 +921,173 @@ setInterval(
 				}
 			};
 		};
+
+		const resolveOgImage = (raw?: string): string => {
+			if (!raw || typeof raw !== 'string') return defaultOgImage;
+			if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+			return `https://himatif-encoder.com${raw}`;
+		};
+
+		const isObjectId = (v: string) => /^[0-9a-fA-F]{24}$/.test(v);
+
+		app.get('/events/:year/:eventId', async (req, res, next) => {
+			try {
+				const year = parseInt(String(req.params.year || ''), 10);
+				const eventId = String(req.params.eventId || '').trim();
+				if (Number.isNaN(year) || !eventId) return next();
+
+				const distPath = path.resolve(process.cwd(), 'dist', 'public');
+				const htmlPath = path.join(distPath, 'index.html');
+				if (!fs.existsSync(htmlPath)) return next();
+
+				const { Event, EventYear } = await import('../db/mongodb');
+				let eventDoc: any = null;
+				if (isObjectId(eventId)) {
+					eventDoc = await Event.findById(eventId)
+						.select(
+							'title description thumbnail startDate endDate updatedAt createdAt published yearId',
+						)
+						.populate('yearId', 'year')
+						.lean();
+				} else {
+					const yearDoc = (await EventYear.findOne({ year })
+						.select('_id')
+						.lean()) as any;
+					if (yearDoc?._id) {
+						const events = await Event.find({
+							yearId: (yearDoc as any)._id,
+							published: true,
+						})
+							.select(
+								'title description thumbnail startDate endDate updatedAt createdAt published yearId',
+							)
+							.populate('yearId', 'year')
+							.lean();
+						eventDoc = (events || []).find(
+							(ev: any) => toUrlSlug(String(ev?.title || '')) === eventId,
+						);
+					}
+				}
+
+				let html = fs.readFileSync(htmlPath, 'utf-8');
+				if (eventDoc && eventDoc.published !== false) {
+					const canonicalSlug =
+						toUrlSlug(String(eventDoc.title || '')) || eventId;
+					const canonicalUrl = `https://himatif-encoder.com/events/${year}/${canonicalSlug}`;
+					const textDesc = String(eventDoc.description || '')
+						.replace(/<[^>]*>/g, ' ')
+						.replace(/\s+/g, ' ')
+						.trim();
+					const description = (
+						textDesc ||
+						`Event Himatif Encoder tahun ${year} - Himpunan Mahasiswa Teknik Informatika UIN Malang.`
+					).slice(0, 160);
+					const title = `${eventDoc.title} | Event Himatif Encoder`;
+					const ogImage = resolveOgImage(eventDoc.thumbnail);
+
+					html = injectArticleMeta(html, {
+						title,
+						description,
+						canonicalUrl,
+						ogImage,
+						jsonLd: {
+							'@context': 'https://schema.org',
+							'@type': 'Event',
+							name: String(eventDoc.title || ''),
+							description,
+							startDate: eventDoc.startDate,
+							endDate: eventDoc.endDate,
+							image: ogImage,
+							url: canonicalUrl,
+							organizer: {
+								'@type': 'Organization',
+								name: 'Himatif Encoder TI UIN Malang',
+								url: 'https://himatif-encoder.com',
+							},
+						},
+					});
+				}
+
+				res.set('Content-Type', 'text/html');
+				return res.send(html);
+			} catch (err) {
+				console.log('Event prerender error, falling back to SPA:', err);
+				return next();
+			}
+		});
+
+		app.get('/library/:id', async (req, res, next) => {
+			try {
+				const id = String(req.params.id || '').trim();
+				if (!id) return next();
+
+				const distPath = path.resolve(process.cwd(), 'dist', 'public');
+				const htmlPath = path.join(distPath, 'index.html');
+				if (!fs.existsSync(htmlPath)) return next();
+
+				const { Library } = await import('../db/mongodb');
+				let libDoc: any = null;
+				if (isObjectId(id)) {
+					libDoc = await Library.findById(id)
+						.select(
+							'title description fullDescription images published updatedAt createdAt',
+						)
+						.lean();
+				} else {
+					const libs = await Library.find({ published: true })
+						.select(
+							'title description fullDescription images published updatedAt createdAt',
+						)
+						.lean();
+					libDoc = (libs || []).find(
+						(it: any) => toUrlSlug(String(it?.title || '')) === id,
+					);
+				}
+
+				let html = fs.readFileSync(htmlPath, 'utf-8');
+				if (libDoc && libDoc.published !== false) {
+					const canonicalSlug = toUrlSlug(String(libDoc.title || '')) || id;
+					const canonicalUrl = `https://himatif-encoder.com/library/${canonicalSlug}`;
+					const textDesc = String(
+						libDoc.fullDescription || libDoc.description || '',
+					)
+						.replace(/<[^>]*>/g, ' ')
+						.replace(/\s+/g, ' ')
+						.trim();
+					const description = (
+						textDesc ||
+						'Galeri dokumentasi kegiatan Himatif Encoder dan mahasiswa Teknik Informatika UIN Malang.'
+					).slice(0, 160);
+					const title = `${libDoc.title} | Galeri Himatif Encoder`;
+					const ogImage = resolveOgImage(
+						Array.isArray(libDoc.images) && libDoc.images[0]
+							? String(libDoc.images[0])
+							: '',
+					);
+
+					html = injectArticleMeta(html, {
+						title,
+						description,
+						canonicalUrl,
+						ogImage,
+						jsonLd: {
+							'@context': 'https://schema.org',
+							'@type': 'ImageGallery',
+							name: String(libDoc.title || ''),
+							description,
+							url: canonicalUrl,
+							image: ogImage,
+						},
+					});
+				}
+
+				res.set('Content-Type', 'text/html');
+				return res.send(html);
+			} catch (err) {
+				console.log('Library prerender error, falling back to SPA:', err);
+				return next();
+			}
+		});
 
 		app.get(
 			'/profil',
@@ -944,6 +1119,59 @@ setInterval(
 				description:
 					'Daftar berita dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.',
 				canonicalUrl: 'https://himatif-encoder.com/berita',
+			}),
+		);
+
+		app.get(
+			'/events',
+			serveHtmlWithMeta({
+				title: 'Event Teknik Informatika UIN Malang | Himatif Encoder',
+				description:
+					'Daftar event, kegiatan, seminar, workshop, dan agenda Himatif Encoder mahasiswa Teknik Informatika UIN Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/events',
+				jsonLd: {
+					'@context': 'https://schema.org',
+					'@type': 'CollectionPage',
+					name: 'Event Himatif Encoder',
+					description:
+						'Kumpulan event dan kegiatan Himatif Encoder Teknik Informatika UIN Malang.',
+					url: 'https://himatif-encoder.com/events',
+				},
+			}),
+		);
+
+		app.get(
+			'/library',
+			serveHtmlWithMeta({
+				title:
+					'Galeri Kegiatan Teknik Informatika UIN Malang | Himatif Encoder',
+				description:
+					'Galeri foto dan dokumentasi kegiatan Himatif Encoder, himpunan mahasiswa Teknik Informatika UIN Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/library',
+				jsonLd: {
+					'@context': 'https://schema.org',
+					'@type': 'CollectionPage',
+					name: 'Galeri Himatif Encoder',
+					description:
+						'Kumpulan dokumentasi kegiatan, event, dan aktivitas Himatif Encoder.',
+					url: 'https://himatif-encoder.com/library',
+				},
+			}),
+		);
+
+		app.get(
+			'/prodi',
+			serveHtmlWithMeta({
+				title: 'Prodi S1 Teknik Informatika UIN Malang | Himatif Encoder',
+				description:
+					'Informasi Program Studi S1 Teknik Informatika UIN Maulana Malik Ibrahim Malang: profil, dosen, kurikulum, dan laboratorium.',
+				canonicalUrl: 'https://himatif-encoder.com/prodi',
+				jsonLd: {
+					'@context': 'https://schema.org',
+					'@type': 'CollegeOrUniversity',
+					name: 'Teknik Informatika UIN Maulana Malik Ibrahim Malang',
+					url: 'https://himatif-encoder.com/prodi',
+				},
 			}),
 		);
 

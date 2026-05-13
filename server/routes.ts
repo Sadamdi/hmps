@@ -50,6 +50,7 @@ import {
 	deriveBannerColorsFromTheme,
 } from './services/banner-theme-derive';
 import { registerUpload } from './services/file-scanner';
+import { pingIndexNowForContent } from './services/indexnow';
 import {
 	applyOrganizationStructureAutoFill,
 	previewOrganizationStructureAutoFill,
@@ -3129,11 +3130,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					if (incomingAttachmentFiles.length > 0 && beritaId) {
 						const merged = [...existingLinkAttachments];
 						for (const f of incomingAttachmentFiles) {
-							const url = await uploadBeritaAttachment(
-								f,
-								beritaId,
-								tCtxBerita,
-							);
+							const url = await uploadBeritaAttachment(f, beritaId, tCtxBerita);
 							rollbackUrls.push(url);
 							merged.push({
 								name: f.originalname,
@@ -3152,14 +3149,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					if (beritaId) {
 						try {
 							const tempIds = new Set<string>();
-							for (const m of (content || '').matchAll(/\/berita\/(temp-[^/]+)\//g)) {
+							for (const m of (content || '').matchAll(
+								/\/berita\/(temp-[^/]+)\//g,
+							)) {
 								if (m[1]) tempIds.add(m[1]);
 							}
-							const currentAttachments: any[] = Array.isArray((finalBerita as any)?.attachments)
+							const currentAttachments: any[] = Array.isArray(
+								(finalBerita as any)?.attachments,
+							)
 								? [...((finalBerita as any).attachments as any[])]
 								: [...existingLinkAttachments];
 							for (const att of currentAttachments) {
-								const m = String(att?.url || '').match(/\/berita\/(temp-[^/]+)\//);
+								const m = String(att?.url || '').match(
+									/\/berita\/(temp-[^/]+)\//,
+								);
 								if (m?.[1]) tempIds.add(m[1]);
 							}
 							if (tempIds.size > 0) {
@@ -3285,6 +3288,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							);
 						} catch (notifErr) {
 							console.error('News publish broadcast failed:', notifErr);
+						}
+						try {
+							await pingIndexNowForContent({
+								source: 'berita',
+								slugOrPath: slug,
+							});
+						} catch (indexNowErr) {
+							console.error(
+								'IndexNow ping (berita create) failed:',
+								indexNowErr,
+							);
 						}
 					}
 				} catch (postErr) {
@@ -3491,7 +3505,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Hapus file local attachment yang tidak lagi direferensikan
 				if (nextAttachments) {
 					const keptUrls = new Set(
-						nextAttachments.map((a: any) => String(a.url || '')).filter(Boolean),
+						nextAttachments
+							.map((a: any) => String(a.url || ''))
+							.filter(Boolean),
 					);
 					for (const att of (existingBerita as any).attachments || []) {
 						if (
@@ -3581,6 +3597,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						);
 					} catch (notifErr) {
 						console.error('News publish broadcast (update) failed:', notifErr);
+					}
+					try {
+						const slugNow = String(
+							(updatedBerita as any)?.slug ||
+								(existingBerita as any)?.slug ||
+								'',
+						).trim();
+						if (slugNow) {
+							await pingIndexNowForContent({
+								source: 'berita',
+								slugOrPath: slugNow,
+							});
+						}
+					} catch (indexNowErr) {
+						console.error('IndexNow ping (berita update) failed:', indexNowErr);
 					}
 				}
 			} catch (error) {
@@ -4213,6 +4244,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				attachLibraryDisplayFields(newItem as Record<string, unknown>);
 				res.status(201).json(newItem);
+
+				if (published) {
+					try {
+						const libSlug = toUrlSlug(String(title || ''));
+						if (libSlug) {
+							await pingIndexNowForContent({
+								source: 'library',
+								slugOrPath: libSlug,
+							});
+						}
+					} catch (indexNowErr) {
+						console.error(
+							'IndexNow ping (library create) failed:',
+							indexNowErr,
+						);
+					}
+				}
 			} catch (error) {
 				console.error('Create library item error:', error);
 				res.status(500).json({ message: 'Internal server error' });
@@ -4538,6 +4586,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					(updatedItem || {}) as Record<string, unknown>,
 				);
 				res.json(updatedItem);
+
+				try {
+					const wasDraft = (existingItem as any).published === false;
+					const isNowPublished = (updatedItem as any)?.published !== false;
+					if (wasDraft && isNowPublished) {
+						const libSlug = toUrlSlug(
+							String((updatedItem as any)?.title || title || ''),
+						);
+						if (libSlug) {
+							await pingIndexNowForContent({
+								source: 'library',
+								slugOrPath: libSlug,
+							});
+						}
+					}
+				} catch (indexNowErr) {
+					console.error('IndexNow ping (library update) failed:', indexNowErr);
+				}
 			} catch (error) {
 				console.error('Update library item error:', error);
 				res.status(500).json({ message: 'Internal server error' });
@@ -5471,11 +5537,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				if (Array.isArray(navbarGroups)) {
 					const knownNavbarIds = new Set(
-						(Array.isArray(navbar)
+						Array.isArray(navbar)
 							? navbar
 									.filter((n: any) => n && typeof n.id === 'string')
 									.map((n: any) => String(n.id))
-							: []),
+							: [],
 					);
 					const seenGroupIds = new Set<string>();
 					const claimedMembers = new Set<string>();
@@ -5492,8 +5558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						.map((g: any) => {
 							const gid = String(g.id).trim();
 							const label = String(g.label).trim().slice(0, 60);
-							const visible =
-								typeof g.visible === 'boolean' ? g.visible : true;
+							const visible = typeof g.visible === 'boolean' ? g.visible : true;
 							const allowNestedChildren =
 								typeof g.allowNestedChildren === 'boolean'
 									? g.allowNestedChildren
@@ -8780,6 +8845,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					} catch (notifErr) {
 						console.error('Event ongoing broadcast (create) failed:', notifErr);
 					}
+					try {
+						const evtSlug = toUrlSlug(String(eventData.title || ''));
+						const y = new Date(eventData.startDate).getFullYear();
+						if (evtSlug && Number.isFinite(y)) {
+							await pingIndexNowForContent({
+								source: 'event',
+								year: y,
+								eventSlug: evtSlug,
+							});
+						}
+					} catch (indexNowErr) {
+						console.error('IndexNow ping (event create) failed:', indexNowErr);
+					}
 				}
 			} catch (error) {
 				console.error('Error creating event:', error);
@@ -9051,6 +9129,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						}
 					} catch (notifErr) {
 						console.error('Event ongoing broadcast (update) failed:', notifErr);
+					}
+					try {
+						const eTitle = String(
+							(event as any).title || (existingEvent as any).title || '',
+						);
+						const eStart = new Date(
+							(event as any).startDate || (existingEvent as any).startDate,
+						);
+						const evtSlug = toUrlSlug(eTitle);
+						const y = eStart.getFullYear();
+						if (evtSlug && Number.isFinite(y)) {
+							await pingIndexNowForContent({
+								source: 'event',
+								year: y,
+								eventSlug: evtSlug,
+							});
+						}
+					} catch (indexNowErr) {
+						console.error('IndexNow ping (event update) failed:', indexNowErr);
 					}
 				}
 			} catch (error) {

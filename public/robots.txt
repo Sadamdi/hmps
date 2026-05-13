@@ -4,7 +4,7 @@ Allow: /
 # Sitemap
 Sitemap: https://himatif-encoder.com/sitemap.xml
 
-# Disallow admin areas
+# Disallow private/admin areas
 Disallow: /admin/
 Disallow: /dashboard/
 Disallow: /api/
@@ -13,16 +13,21 @@ Disallow: /uploads/admin/
 Disallow: /_next/
 Disallow: /node_modules/
 
-# Allow semua halaman dan section publik
+# Explicitly allow important public paths
+Allow: /berita
 Allow: /berita/
-Allow: /uploads/berita/
-Allow: /attached_assets/
-Allow: /#profil
+Allow: /events
+Allow: /events/
+Allow: /library
+Allow: /library/
+Allow: /prodi
+Allow: /prodi/
+Allow: /profil
+Allow: /profil/
 Allow: /kelembagaan
-Allow: /#visi-misi
-Allow: /#struktur
-Allow: /#library
-Allow: /#berita
+Allow: /kelembagaan/
+Allow: /attached_assets/
+Allow: /uploads/berita/
 
 # Crawl delay
 Crawl-delay: 1
