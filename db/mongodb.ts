@@ -1343,6 +1343,7 @@ const systemErrorSchema = new mongoose.Schema(
 		functionName: { type: String, default: '' },
 		// Konteks request / lokasi
 		route: { type: String, default: '' }, // path API atau route client
+		page: { type: String, default: '' }, // halaman tempat error terjadi (Referer / route client)
 		httpMethod: { type: String, default: '' },
 		statusCode: { type: Number, default: 0 },
 		// Identitas pengguna (null bila tamu)
@@ -1357,6 +1358,7 @@ const systemErrorSchema = new mongoose.Schema(
 		browser: { type: String, default: '' },
 		os: { type: String, default: '' },
 		// Tenant
+		isTenant: { type: Boolean, default: false },
 		communitySlug: { type: String, default: '' },
 		communityName: { type: String, default: '' },
 		// Agregasi kemunculan
@@ -1380,6 +1382,7 @@ systemErrorSchema.index({ fingerprint: 1 });
 systemErrorSchema.index({ status: 1, lastSeenAt: -1 });
 systemErrorSchema.index({ severity: 1, lastSeenAt: -1 });
 systemErrorSchema.index({ source: 1, lastSeenAt: -1 });
+systemErrorSchema.index({ communitySlug: 1, lastSeenAt: -1 });
 
 // Model Comment — komentar publik pada berita/event/library dengan reply bertingkat
 const commentSchema = new mongoose.Schema(

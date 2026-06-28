@@ -1796,6 +1796,12 @@ export default function FeedbackPage() {
 																{err.count > 1 && (
 																	<Badge variant="outline" className="text-amber-600">×{err.count}</Badge>
 																)}
+																{err.statusCode > 0 && (
+																	<Badge variant="outline" className="font-mono text-[10px]">{err.statusCode}</Badge>
+																)}
+																<Badge variant="outline" className="text-[10px]">
+																	{err.isTenant ? `Tenant: ${err.communityName || err.communitySlug}` : 'Web Utama'}
+																</Badge>
 																<span className="text-xs text-muted-foreground">
 																	{new Date(err.lastSeenAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
 																</span>
@@ -1854,10 +1860,14 @@ export default function FeedbackPage() {
 															<div><span className="text-muted-foreground">Email: </span>{err.userEmail || '-'}</div>
 															<div><span className="text-muted-foreground">IP: </span>{err.ip || '-'}</div>
 															<div><span className="text-muted-foreground">Perangkat: </span>{[err.device, err.os, err.browser].filter(Boolean).join(' · ') || '-'}</div>
-															<div><span className="text-muted-foreground">Komunitas: </span>{err.communityName || (err.communitySlug ? err.communitySlug : 'Web Utama')}</div>
+															<div><span className="text-muted-foreground">Konteks: </span>{err.isTenant ? `Tenant — ${err.communityName || err.communitySlug}` : 'Web Utama (bukan tenant)'}</div>
 															<div><span className="text-muted-foreground">Lingkungan: </span>{err.environment || '-'}</div>
+															<div className="sm:col-span-2"><span className="text-muted-foreground">Endpoint: </span>{err.route ? `${err.httpMethod ? err.httpMethod + ' ' : ''}${err.route}${err.statusCode ? ` → ${err.statusCode}` : ''}` : '-'}</div>
+															<div className="sm:col-span-2"><span className="text-muted-foreground">Halaman (page): </span>{err.page || '-'}</div>
+															<div><span className="text-muted-foreground">File:Baris: </span>{err.file ? `${err.file}${err.line ? `:${err.line}` : ''}` : '-'}</div>
 															<div><span className="text-muted-foreground">Fungsi: </span>{err.functionName || '-'}</div>
 															<div><span className="text-muted-foreground">Pertama terlihat: </span>{new Date(err.firstSeenAt).toLocaleString('id-ID')}</div>
+															<div><span className="text-muted-foreground">Terakhir terlihat: </span>{new Date(err.lastSeenAt).toLocaleString('id-ID')}</div>
 														</div>
 
 														{err.stack && (

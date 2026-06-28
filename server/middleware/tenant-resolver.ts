@@ -7,10 +7,12 @@ declare global {
 	namespace Express {
 		interface Request {
 			tenantSlug?: string;
+			tenantName?: string;
 			tenantDbName?: string;
 			tenantModels?: TenantModels;
 			isTenantRequest?: boolean;
 			tenantStorage?: TenantStorageType;
+			_sysErrCaptured?: boolean;
 		}
 	}
 }
@@ -62,6 +64,7 @@ export function tenantApiResolver(req: Request, res: Response, next: NextFunctio
 			}
 
 			req.tenantSlug = slug;
+			req.tenantName = (community as { name?: string }).name || slug;
 			req.tenantDbName = community.dbName;
 			const models = getTenantModels(community.dbName);
 			req.tenantModels = models;

@@ -142,7 +142,10 @@ function deriveSeverity(input: {
 }): 'low' | 'medium' | 'high' | 'critical' {
 	const name = (input.name || '').toLowerCase();
 	if (input.source === 'server') {
-		if ((input.statusCode || 0) >= 500) return 'high';
+		const code = input.statusCode || 0;
+		if (code >= 500) return 'high'; // kegagalan server nyata
+		if (code === 404 || code === 410) return 'medium'; // endpoint hilang
+		if (code >= 400) return 'low'; // 408/409/413/422/... konflik/validasi
 		return 'medium';
 	}
 	// client
@@ -177,11 +180,13 @@ interface RequestContext {
 	os: string;
 	browser: string;
 	route: string;
+	page: string;
 	httpMethod: string;
 	userId: string | null;
 	username: string;
 	userRole: string;
 	userEmail: string;
+	isTenant: boolean;
 	communitySlug: string;
 	communityName: string;
 }
@@ -194,11 +199,13 @@ function extractRequestContext(req?: Request): RequestContext {
 		os: '',
 		browser: '',
 		route: '',
+		page: '',
 		httpMethod: '',
 		userId: null,
 		username: '',
 		userRole: '',
 		userEmail: '',
+		isTenant: false,
 		communitySlug: '',
 		communityName: '',
 	};
@@ -207,6 +214,7 @@ function extractRequestContext(req?: Request): RequestContext {
 		const ua = String(req.headers?.['user-agent'] || '');
 		const parsed = parseUa(ua);
 		const user = (req as any).user;
+		const slug = (req as any).tenantSlug || '';
 		return {
 			ip: getTrustedClientIp(req),
 			userAgent: clamp(ua, 500),
@@ -214,12 +222,15 @@ function extractRequestContext(req?: Request): RequestContext {
 			os: parsed.os,
 			browser: parsed.browser,
 			route: clamp((req as any).originalUrl || req.url || '', 300),
+			// Halaman tempat user berada saat request gagal (Referer).
+			page: clamp(String(req.headers?.['referer'] || req.headers?.['referrer'] || ''), 300),
 			httpMethod: String(req.method || ''),
 			userId: user?._id ? String(user._id) : null,
 			username: user?.username || '',
 			userRole: user?.role || '',
 			userEmail: user?.email || '',
-			communitySlug: (req as any).tenantSlug || '',
+			isTenant: Boolean((req as any).isTenantRequest || slug),
+			communitySlug: slug,
 			communityName: (req as any).tenantName || '',
 		};
 	} catch {
@@ -254,11 +265,45 @@ async function upsertAndMaybeAnalyze(doc: Record<string, unknown>): Promise<void
 	}
 }
 
-// ==================== API PUBLIK ====================
+// ==================== FILTER STATUS ====================
 
-/** Status request yang BUKAN bug aplikasi (jangan ditangkap). */
-function isIgnorableStatus(status: number): boolean {
-	return status < 500; // hanya 5xx yang dianggap kegagalan nyata
+// 4xx yang umumnya "wajar"/keamanan/validasi user → jangan dianggap bug.
+const EXPECTED_SKIP_STATUS = new Set([400, 401, 403, 405, 429, 451]);
+// Pola path probe bot/scanner — bukan bug aplikasi nyata.
+const SCANNER_PATH_RE = /\.(php|aspx?|jsp|env|git|sql|bak|ini)|wp-admin|wp-login|phpmyadmin|xmlrpc/i;
+
+/** Normalisasi route untuk fingerprint: buang query, ganti id (hex24/angka/uuid) → :id. */
+function normalizeRouteForFingerprint(route: string): string {
+	const r = (route || '').split('?')[0];
+	return r
+		.replace(/\/[0-9a-fA-F]{24}(?=\/|$)/g, '/:id')
+		.replace(/\/\d+(?=\/|$)/g, '/:id')
+		.replace(/\/[0-9a-fA-F-]{16,}(?=\/|$)/g, '/:id')
+		.slice(0, 200);
+}
+
+/**
+ * Status response yang dianggap bug & layak masuk dashboard.
+ *  - 5xx: kegagalan nyata (kecuali 503 = load shedding sementara).
+ *  - 404: hanya untuk endpoint `/api/*` (frontend memanggil endpoint yang harusnya ada).
+ *  - 4xx lain: ditangkap KECUALI yang wajar/keamanan (400/401/403/405/429/451).
+ *  - Probe scanner diabaikan.
+ */
+function shouldCaptureHttpStatus(status: number, req?: Request): boolean {
+	if (status >= 500) return status !== 503;
+	if (status < 400) return false;
+	if (EXPECTED_SKIP_STATUS.has(status)) return false;
+
+	const url = String((req as any)?.originalUrl || req?.url || '');
+	const path = url.split('?')[0];
+	if (SCANNER_PATH_RE.test(path)) return false;
+
+	if (status === 404) {
+		// 404 "yang harusnya ada tapi tidak ada": endpoint API yang dipanggil tapi hilang.
+		// 404 halaman/aset acak (benar-benar tidak ada) tidak ditangkap.
+		return path.startsWith('/api/');
+	}
+	return true; // 408/409/410/413/422/423/... yang tidak di-skip
 }
 
 function isAbortError(err: any): boolean {
@@ -276,8 +321,11 @@ export async function captureServerError(
 	try {
 		if (!isMonitorEnabled()) return;
 		const status = extra?.statusCode || err?.status || err?.statusCode || 500;
-		if (isIgnorableStatus(status)) return;
+		if (!shouldCaptureHttpStatus(status, req)) return;
 		if (isAbortError(err)) return;
+		// Tandai agar middleware res.on('finish') tidak menangkap ulang error yang sama
+		// (versi thrown ini lebih kaya: punya stack/file/baris).
+		if (req) (req as any)._sysErrCaptured = true;
 
 		const stack = clamp(err?.stack || '', MAX_STACK_LEN);
 		const message = clamp(err?.message || String(err) || 'Unknown server error', MAX_MESSAGE_LEN);
@@ -298,6 +346,7 @@ export async function captureServerError(
 			column: frame.column,
 			functionName: frame.functionName,
 			route: ctx.route,
+			page: ctx.page,
 			httpMethod: ctx.httpMethod,
 			statusCode: status,
 			userId: ctx.userId,
@@ -309,6 +358,7 @@ export async function captureServerError(
 			device: ctx.device,
 			os: ctx.os,
 			browser: ctx.browser,
+			isTenant: ctx.isTenant,
 			communitySlug: ctx.communitySlug,
 			communityName: ctx.communityName,
 			environment: process.env.NODE_ENV || 'development',
@@ -317,6 +367,64 @@ export async function captureServerError(
 		});
 	} catch (e) {
 		console.warn('[error-monitor] captureServerError failed:', (e as Error)?.message);
+	}
+}
+
+/**
+ * Tangkap error berbasis STATUS RESPONSE untuk SEMUA endpoint (main + tenant),
+ * termasuk yang handler-nya membalas `res.status(...)` tanpa melempar error
+ * (jadi tidak melewati global error handler). Tidak punya stack/file/baris.
+ * Dipanggil dari middleware `res.on('finish')`.
+ */
+export async function captureHttpError(req: Request, status: number): Promise<void> {
+	try {
+		if (!isMonitorEnabled()) return;
+		if (!shouldCaptureHttpStatus(status, req)) return;
+
+		const ctx = extractRequestContext(req);
+		const routeNorm = normalizeRouteForFingerprint(ctx.route);
+		const name = `HTTP${status}`;
+		const message = `HTTP ${status} ${ctx.httpMethod} ${routeNorm}`;
+		const fingerprint = computeFingerprint({
+			source: 'server',
+			name,
+			message,
+			frame: { file: '', line: 0, column: 0, functionName: '' },
+		});
+
+		await upsertAndMaybeAnalyze({
+			fingerprint,
+			source: 'server',
+			severity: deriveSeverity({ source: 'server', statusCode: status, name }),
+			name,
+			message,
+			stack: '',
+			file: '',
+			line: 0,
+			column: 0,
+			functionName: '',
+			route: ctx.route,
+			page: ctx.page,
+			httpMethod: ctx.httpMethod,
+			statusCode: status,
+			userId: ctx.userId,
+			username: ctx.username,
+			userRole: ctx.userRole,
+			userEmail: ctx.userEmail,
+			ip: ctx.ip,
+			userAgent: ctx.userAgent,
+			device: ctx.device,
+			os: ctx.os,
+			browser: ctx.browser,
+			isTenant: ctx.isTenant,
+			communitySlug: ctx.communitySlug,
+			communityName: ctx.communityName,
+			environment: process.env.NODE_ENV || 'development',
+			status: 'new',
+			metadata: {},
+		});
+	} catch (e) {
+		console.warn('[error-monitor] captureHttpError failed:', (e as Error)?.message);
 	}
 }
 
@@ -358,6 +466,7 @@ export async function captureClientError(
 			column: frame.column,
 			functionName: frame.functionName,
 			route,
+			page: clamp(payload?.route || payload?.url || ctx.page, 300),
 			httpMethod: '',
 			statusCode: 0,
 			userId: ctx.userId,
@@ -369,6 +478,7 @@ export async function captureClientError(
 			device: ctx.device,
 			os: ctx.os,
 			browser: ctx.browser,
+			isTenant: ctx.isTenant,
 			communitySlug: ctx.communitySlug,
 			communityName: ctx.communityName,
 			environment: process.env.NODE_ENV || 'development',
@@ -423,12 +533,16 @@ function buildAnalysisPrompt(doc: any): string {
 		`Tipe error: ${doc.name}`,
 		`Pesan: ${doc.message}`,
 		`Lokasi: ${doc.file || '-'}:${doc.line || '-'} fungsi ${doc.functionName || '-'}`,
-		`Route: ${doc.route || '-'} ${doc.httpMethod || ''} status ${doc.statusCode || '-'}`,
+		`Endpoint/Route: ${doc.route || '-'} ${doc.httpMethod || ''} status ${doc.statusCode || '-'}`,
+		`Halaman (page): ${doc.page || '-'}`,
+		`Konteks: ${doc.isTenant ? `tenant komunitas "${doc.communityName || doc.communitySlug}"` : 'web utama (bukan tenant)'}`,
+		`Environment: ${doc.environment || '-'}`,
 		'',
-		'Stack trace:',
-		clamp(doc.stack, 3000),
+		'Pada suggestedFix, sebutkan langkah perbaikan konkret (file/route yang perlu diubah bila terlihat).',
+		doc.stack ? 'Stack trace:' : '',
+		doc.stack ? clamp(doc.stack, 3000) : '',
 		codeCtx ? '\nKonteks kode di sekitar lokasi error:\n' + codeCtx : '',
-	].join('\n');
+	].filter(Boolean).join('\n');
 }
 
 function parseAiJson(text: string): {
@@ -505,7 +619,7 @@ export async function analyzeError(id: string, force = false): Promise<void> {
 		if (!doc) return;
 
 		const prompt = buildAnalysisPrompt(doc);
-		// OpenAI-compatible (tokito) sebagai utama, Gemini sebagai fallback.
+		// OpenAI-compatible sebagai utama, Gemini sebagai fallback.
 		let ai = await runOpenAiAnalysis(prompt);
 		if (!ai) ai = await runGeminiAnalysis(prompt);
 		if (!ai) return;
