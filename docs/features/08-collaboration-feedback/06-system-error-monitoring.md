@@ -9,7 +9,7 @@
 
 **System Error Monitoring** adalah pelaporan bug **otomatis oleh sistem** — pelengkap fitur [Bug Reports](./04-bug-reports.md) yang dikirim manual oleh user. Ketika terjadi bug **nyata** di server (kegagalan 5xx) atau di tampilan/browser (runtime error, unhandled promise rejection, atau crash render React), sistem secara otomatis membuat laporan lengkap ke koleksi `SystemError` dan menampilkannya di dashboard owner (`/dashboard/feedback` → tab **Bug Otomatis**).
 
-Setiap laporan berisi: IP klien, akun (bila login), peran, email, perangkat/OS/browser, route, file:baris, fungsi, stack trace, environment, komunitas/tenant, jumlah kemunculan, dan **analisis AI** (ringkasan, dugaan penyebab, saran perbaikan) yang dihasilkan pipeline Gemini → OpenAI yang sudah ada.
+Setiap laporan berisi: IP klien, akun (bila login), peran, email, perangkat/OS/browser, route, file:baris, fungsi, stack trace, environment, komunitas/tenant, jumlah kemunculan, dan **analisis AI** (ringkasan, dugaan penyebab, saran perbaikan) yang dihasilkan pipeline OpenAI-compatible → Gemini yang sudah ada.
 
 Cakupan sengaja dibatasi agar dashboard tidak banjir:
 - **Server**: hanya status `>= 500` (kegagalan nyata). 4xx, 429, 503, dan request abort **diabaikan**.
@@ -38,7 +38,7 @@ Cakupan sengaja dibatasi agar dashboard tidak banjir:
 1. Sebuah handler melempar error → global error handler (`server/index.ts`) menangkapnya.
 2. `captureServerError(err, req, { statusCode })` dipanggil best-effort; difilter `status >= 500`.
 3. Fingerprint dihitung; dilakukan `findOneAndUpdate` upsert (dedup).
-4. Bila dokumen **baru**, `analyzeError()` berjalan fire-and-forget (Gemini → OpenAI).
+4. Bila dokumen **baru**, `analyzeError()` berjalan fire-and-forget (OpenAI → Gemini).
 
 Selain global error handler, listener `unhandledRejection` juga menangkap promise rejection yang tak tertangani. Handler `uncaughtException` **sengaja tidak dipasang** agar tidak mengubah perilaku crash bawaan Node (menelan exception sinkron bisa meninggalkan proses dalam keadaan tak menentu).
 
@@ -100,8 +100,8 @@ Source: `analyzeError()` di `server/services/error-monitor.ts`.
 1. Hanya jalan pada **kemunculan pertama** (dokumen baru) atau saat owner klik **Analisis ulang**.
 2. Di-gate `ERROR_MONITOR_AI_ENABLED`, di-throttle (maks 8 panggilan / menit) untuk hemat kuota.
 3. Membaca ±15 baris di sekitar `file:line` (best-effort, hanya file lokal di dalam project, bukan `node_modules`) sebagai konteks kode nyata.
-4. Memanggil **Gemini** (`gemini-2.5-flash`, rotasi beberapa key via `getConfiguredSlots()`); bila gagal, fallback **`runOpenAiChat`** (provider OpenAI-compatible).
-5. Output dipaksa JSON `{ summary, likelyCause, suggestedFix, severity }`; bila severity valid, `severity` dokumen ikut diperbarui.
+4. Memanggil **`runOpenAiChat`** (provider OpenAI-compatible / tokito) sebagai utama; bila gagal, fallback **Gemini** (`gemini-2.5-flash`, rotasi beberapa key via `getConfiguredSlots()`).
+5. Output dipaksa JSON `{ summary, likelyCause, suggestedFix, severity }`. AI hanya boleh **menaikkan** severity dokumen (escalate-only), tidak menurunkan, agar kegagalan server nyata (5xx = `high`) tidak tersembunyi bila AI salah menilai ringan.
 
 ---
 
@@ -143,7 +143,7 @@ Menggunakan kembali key `GEMINI_API_KEY_*` dan `OPENAI_API_KEY`/`OPENAI_BASE_URL
 |---|----------|--------------|-----------------|
 | 1 | Capture server 5xx | handler throw → 500 | 1 dokumen `SystemError` (source=server) berisi file:baris & konteks |
 | 2 | Dedup | error sama dipicu 2× | tetap 1 dokumen, `count=2` |
-| 3 | Analisis AI | dokumen baru | `aiAnalysis` terisi (Gemini, fallback OpenAI) |
+| 3 | Analisis AI | dokumen baru | `aiAnalysis` terisi (OpenAI, fallback Gemini) |
 | 4 | Filter 4xx | handler 400/404 | tidak ada dokumen dibuat |
 | 5 | Client error | `window.onerror` / crash React | `POST /report` → dokumen source=client |
 | 6 | Owner-guard | non-owner GET `/list` | `403` |
