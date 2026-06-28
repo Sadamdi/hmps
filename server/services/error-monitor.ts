@@ -3,7 +3,7 @@
  *
  * Menangkap bug NYATA secara otomatis lalu menyimpannya ke koleksi `SystemError`
  * (main DB) agar muncul di dashboard owner — lengkap dengan IP, akun (bila login),
- * lokasi akses, waktu, file/baris, route, dan analisis AI (Gemini → OpenAI).
+ * lokasi akses, waktu, file/baris, route, dan analisis AI (OpenAI → Gemini).
  *
  * Cakupan (sesuai keputusan):
  *   - Server: hanya error 5xx (kegagalan nyata). 4xx / 429 / 503 / abort diabaikan.
@@ -490,19 +490,24 @@ async function runOpenAiAnalysis(prompt: string): Promise<{ text: string; model:
 	return null;
 }
 
-/** Jalankan analisis AI untuk satu SystemError dan simpan hasilnya. */
-export async function analyzeError(id: string): Promise<void> {
+/**
+ * Jalankan analisis AI untuk satu SystemError dan simpan hasilnya.
+ * `force` (mis. dari tombol "Analisis ulang" owner) melewati throttle per-menit;
+ * auto-analisis kemunculan pertama tetap dibatasi agar tidak menghabiskan kuota.
+ */
+export async function analyzeError(id: string, force = false): Promise<void> {
 	if (!isMonitorEnabled() || !isAiEnabled()) return;
 	if (analyzingNow.has(id)) return;
-	if (!canRunAi()) return;
+	if (!force && !canRunAi()) return;
 	analyzingNow.add(id);
 	try {
 		const doc: any = await (SystemError as any).findById(id).lean();
 		if (!doc) return;
 
 		const prompt = buildAnalysisPrompt(doc);
-		let ai = await runGeminiAnalysis(prompt);
-		if (!ai) ai = await runOpenAiAnalysis(prompt);
+		// OpenAI-compatible (tokito) sebagai utama, Gemini sebagai fallback.
+		let ai = await runOpenAiAnalysis(prompt);
+		if (!ai) ai = await runGeminiAnalysis(prompt);
 		if (!ai) return;
 
 		const parsed = parseAiJson(ai.text);
@@ -516,9 +521,13 @@ export async function analyzeError(id: string): Promise<void> {
 		};
 
 		const update: Record<string, unknown> = { aiAnalysis: analysis };
-		// Bila AI yakin tingkat keparahannya, ikuti (selama valid).
-		if (['low', 'medium', 'high', 'critical'].includes(analysis.severity)) {
-			update.severity = analysis.severity;
+		// AI hanya boleh MENAIKKAN severity, tidak menurunkan — agar kegagalan server
+		// nyata (5xx = high) tidak tersembunyi bila AI salah menilai ringan.
+		const RANK = { low: 0, medium: 1, high: 2, critical: 3 } as const;
+		const aiSev = analysis.severity as keyof typeof RANK;
+		const curSev = (doc.severity as keyof typeof RANK) || 'medium';
+		if (aiSev in RANK && RANK[aiSev] > (RANK[curSev] ?? 1)) {
+			update.severity = aiSev;
 		}
 		await (SystemError as any).findByIdAndUpdate(id, { $set: update });
 	} catch (err) {

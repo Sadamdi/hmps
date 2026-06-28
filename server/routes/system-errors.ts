@@ -157,7 +157,7 @@ router.post('/:id/analyze', authenticate, async (req, res) => {
 		if (!requireOwner(req, res)) return;
 		const exists = await SystemError.exists({ _id: req.params.id });
 		if (!exists) return res.status(404).json({ message: 'Bug tidak ditemukan' });
-		await analyzeError(String(req.params.id));
+		await analyzeError(String(req.params.id), true);
 		const updated = await SystemError.findById(req.params.id).lean();
 		res.json(updated);
 	} catch (error) {

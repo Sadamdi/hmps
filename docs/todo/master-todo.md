@@ -293,7 +293,7 @@
 | ✅ | Feedback public/ratings | Public feedback form, rating system |
 | ✅ | Feedback moderation/config | Admin moderation, feedback config |
 | ✅ | Bug reports | Bug report submission & management (manual oleh user) |
-| ✅ | System error monitoring (Bug Otomatis) | Capture otomatis server 5xx + error client, dedup, analisis AI Gemini→OpenAI. `GET/PATCH/POST/DELETE /api/system-errors/*` |
+| ✅ | System error monitoring (Bug Otomatis) | Capture otomatis server 5xx + error client, dedup, analisis AI OpenAI→Gemini. `GET/PATCH/POST/DELETE /api/system-errors/*` |
 | ✅ | Sharing workflow | Share content (berita/events/library) antar user, approve/reject |
 | ✅ | Sharing notifications | Notification on share actions |
 

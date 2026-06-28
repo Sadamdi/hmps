@@ -1310,7 +1310,7 @@ bugReportSchema.index({ status: 1, createdAt: -1 });
 bugReportSchema.index({ reporterUserId: 1 });
 
 // Model SystemError — laporan bug OTOMATIS dari sistem (server 5xx + error tampilan client).
-// Dikelompokkan/dedup berdasarkan fingerprint; dianalisis AI (Gemini→OpenAI). Owner-only.
+// Dikelompokkan/dedup berdasarkan fingerprint; dianalisis AI (OpenAI→Gemini). Owner-only.
 const systemErrorAiAnalysisSchema = new mongoose.Schema(
 	{
 		summary: { type: String, default: '' },

@@ -8,7 +8,7 @@ Mengikuti gaya [Keep a Changelog](https://keepachangelog.com/). Tanggal format `
 
 ### Added — System Error Monitoring (Bug Otomatis)
 - **Model baru** `SystemError` (`db/mongodb.ts`) + tipe `SystemErrorItem` (`shared/schema.ts`) untuk menyimpan bug yang ditangkap otomatis (server 5xx + error tampilan client), dengan dedup berbasis fingerprint dan agregasi `count`/`firstSeenAt`/`lastSeenAt`.
-- **Service** `server/services/error-monitor.ts`: `captureServerError`, `captureClientError`, dan `analyzeError` (analisis AI Gemini → fallback OpenAI, membaca konteks kode di sekitar `file:line`).
+- **Service** `server/services/error-monitor.ts`: `captureServerError`, `captureClientError`, dan `analyzeError` (analisis AI OpenAI-compatible → fallback Gemini, membaca konteks kode di sekitar `file:line`).
 - **Hook server**: global error handler + listener `unhandledRejection` di `server/index.ts` (best-effort, tidak mengganggu request; `uncaughtException` sengaja tidak dipasang agar perilaku crash bawaan tak berubah).
 - **Capture client**: `client/src/lib/error-monitor.ts` (listener `error` + `unhandledrejection`, throttle & dedup) dan `ErrorBoundary` (`client/src/components/error-boundary.tsx`) dipasang di `client/src/main.tsx`.
 - **REST API** `/api/system-errors/*`: `POST /report` (publik + optional auth, rate-limited), serta owner-only `GET /list`, `GET /count`, `GET /:id`, `PATCH /:id/status`, `POST /:id/analyze`, `DELETE /:id`.
