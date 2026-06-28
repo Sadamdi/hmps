@@ -68,17 +68,17 @@ mindmap
 | 05 | [Community Tenant](./05-community-tenant/00-README.md) | 7 | 19 | `communities`, `community`, `register`, `registration` |
 | 06 | [Store / Toko](./06-store-toko/00-README.md) | 11 | 57 | `store` |
 | 07 | [Media & Assets](./07-media-assets/00-README.md) | 10 | 21 | `assets`, `gdrive`, `home-images`, `upload` |
-| 08 | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 7 | 29 | `comments`, `feedback` |
+| 08 | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 8 | 36 | `comments`, `feedback`, `system-errors` |
 | 09 | [AI Chat & Notifications](./09-ai-notifications/00-README.md) | 8 | 16 | `chat`, `notifications` |
 | 10 | [Ops, Security & Maintenance](./10-ops-security/00-README.md) | 7 | 7 | `admin`, `backups`, `test` |
 | 11 | [Auxiliary Runtime](./11-auxiliary-runtime/00-README.md) | 10 | 0 | - |
 | 12 | [Runtime Infrastructure](./12-runtime-infrastructure/00-README.md) | 8 | 0 | - |
 
 Total feature category folders: **12**  
-Total markdown docs in `docs/features`: **111**  
-Total numbered feature docs: **97**  
-Total OpenAPI operations: **271**  
-Total OpenAPI tags: **30**
+Total markdown docs in `docs/features`: **112**  
+Total numbered feature docs: **98**  
+Total OpenAPI operations: **278**  
+Total OpenAPI tags: **31**
 
 ---
 
@@ -111,6 +111,7 @@ Total OpenAPI tags: **30**
 | `upload` | [Media & Assets](./07-media-assets/00-README.md) | 5 |
 | `comments` | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 6 |
 | `feedback` | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 23 |
+| `system-errors` | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 7 |
 | `chat` | [AI Chat & Notifications](./09-ai-notifications/00-README.md) | 8 |
 | `notifications` | [AI Chat & Notifications](./09-ai-notifications/00-README.md) | 8 |
 | `admin` | [Ops, Security & Maintenance](./10-ops-security/00-README.md) | 2 |

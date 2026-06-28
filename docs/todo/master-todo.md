@@ -292,7 +292,8 @@
 | ✅ | Comments | CRUD comments untuk berita, events, library |
 | ✅ | Feedback public/ratings | Public feedback form, rating system |
 | ✅ | Feedback moderation/config | Admin moderation, feedback config |
-| ✅ | Bug reports | Bug report submission & management |
+| ✅ | Bug reports | Bug report submission & management (manual oleh user) |
+| ✅ | System error monitoring (Bug Otomatis) | Capture otomatis server 5xx + error client, dedup, analisis AI Gemini→OpenAI. `GET/PATCH/POST/DELETE /api/system-errors/*` |
 | ✅ | Sharing workflow | Share content (berita/events/library) antar user, approve/reject |
 | ✅ | Sharing notifications | Notification on share actions |
 
@@ -367,7 +368,7 @@
 |--------|-------|------------|
 | ❌ | Health check endpoint | `GET /api/health` — status service + DB |
 | ❌ | Performance monitoring (APM) | Belum ada integration (New Relic / Sentry / etc) |
-| ❌ | Error tracking dashboard | Belum ada Sentry/equivalent |
+| ✅ | Error tracking dashboard | Bug Otomatis (`SystemError`) — capture server 5xx + error client, dedup, analisis AI, dashboard owner di `/dashboard/feedback` |
 | ❌ | Rate limit dashboard | Belum bisa lihat rate limit stats |
 | ❌ | Automated DB migration versioning | Belum ada migration version tracking system |
 | ❌ | CI/CD pipeline | Belum ada GitHub Actions / CI pipeline |
@@ -464,13 +465,13 @@
 
 | Metrik | Jumlah |
 |--------|--------|
-| Total fitur yang sudah ada (✅) | **97+** |
+| Total fitur yang sudah ada (✅) | **99+** |
 | Total fitur yang perlu upgrade (🔧) | **9** |
-| Total fitur yang belum ada (❌) | **45+** |
+| Total fitur yang belum ada (❌) | **43+** |
 | Total category folders | **12** |
-| Total feature docs | **97** |
-| Total OpenAPI operations | **271** |
-| Total OpenAPI tags | **30** |
+| Total feature docs | **98** |
+| Total OpenAPI operations | **278** |
+| Total OpenAPI tags | **31** |
 | Frontend routes (public) | **20+** |
 | Dashboard routes (protected) | **13** |
 | Backend route files | **7** |
@@ -479,4 +480,4 @@
 
 ---
 
-*Terakhir diperbarui: 2026-05-08*
+*Terakhir diperbarui: 2026-06-28*

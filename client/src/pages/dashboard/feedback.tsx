@@ -47,6 +47,7 @@ import { cn } from '@/lib/utils';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import {
+	AlertTriangle,
 	ArrowDown,
 	ArrowUp,
 	BookOpen,
@@ -61,8 +62,12 @@ import {
 	LayoutPanelLeft,
 	Loader2,
 	MessageSquareReply,
+	Monitor,
 	Plus,
+	RefreshCw,
+	Server,
 	Settings2,
+	Sparkles,
 	Star,
 	Trash2,
 	XCircle,
@@ -78,6 +83,7 @@ import type {
 	FeedbackRatingDimension,
 	FeedbackFieldKind,
 	BugReportItem,
+	SystemErrorItem,
 } from '@shared/schema';
 import { DEFAULT_FEEDBACK_FORM_CONFIG, feedbackDecisionTypeIds } from '@shared/schema';
 import { useTenant } from '@/lib/tenant-context';
@@ -1014,6 +1020,73 @@ export default function FeedbackPage() {
 		onError: () => toast({ title: 'Gagal menghapus', variant: 'destructive' }),
 	});
 
+	// ── Bug Otomatis (SystemError) state & queries (owner-only) ──
+	const [sysStatusFilter, setSysStatusFilter] = useState<string>('all');
+	const [sysSourceFilter, setSysSourceFilter] = useState<string>('all');
+	const [expandedSysId, setExpandedSysId] = useState<string | null>(null);
+
+	const { data: sysData, isLoading: sysLoading } = useQuery<{ items: SystemErrorItem[]; total: number }>({
+		queryKey: ['/api/system-errors/list', sysStatusFilter, sysSourceFilter],
+		queryFn: async () => {
+			const params = new URLSearchParams();
+			if (sysStatusFilter !== 'all') params.set('status', sysStatusFilter);
+			if (sysSourceFilter !== 'all') params.set('source', sysSourceFilter);
+			const qs = params.toString() ? `?${params.toString()}` : '';
+			const res = await fetch(`/api/system-errors/list${qs}`, { credentials: 'include' });
+			if (!res.ok) throw new Error('Forbidden');
+			return res.json();
+		},
+		enabled: isOwner,
+		staleTime: 5000,
+	});
+
+	const { data: sysCount } = useQuery<{ total: number; new: number; investigating: number; resolved: number; ignored: number; critical: number; high: number }>({
+		queryKey: ['/api/system-errors/count'],
+		queryFn: async () => {
+			const res = await fetch('/api/system-errors/count', { credentials: 'include' });
+			if (!res.ok) return { total: 0, new: 0, investigating: 0, resolved: 0, ignored: 0, critical: 0, high: 0 };
+			return res.json();
+		},
+		enabled: isOwner,
+		staleTime: 10000,
+	});
+
+	const sysStatusMut = useMutation({
+		mutationFn: async ({ id, status }: { id: string; status: string }) => {
+			await apiRequest('PATCH', `/api/system-errors/${id}/status`, { status });
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/system-errors/list'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/system-errors/count'] });
+			toast({ title: 'Status bug diperbarui' });
+		},
+		onError: () => toast({ title: 'Gagal memperbarui status', variant: 'destructive' }),
+	});
+
+	const sysAnalyzeMut = useMutation({
+		mutationFn: async (id: string) => {
+			await apiRequest('POST', `/api/system-errors/${id}/analyze`, {});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/system-errors/list'] });
+			toast({ title: 'Analisis AI diperbarui' });
+		},
+		onError: () => toast({ title: 'Gagal menjalankan analisis AI', variant: 'destructive' }),
+	});
+
+	const sysDeleteMut = useMutation({
+		mutationFn: async (id: string) => {
+			await apiRequest('DELETE', `/api/system-errors/${id}`);
+		},
+		onSuccess: (_data, deletedId) => {
+			if (expandedSysId === deletedId) setExpandedSysId(null);
+			queryClient.invalidateQueries({ queryKey: ['/api/system-errors/list'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/system-errors/count'] });
+			toast({ title: 'Bug otomatis dihapus' });
+		},
+		onError: () => toast({ title: 'Gagal menghapus', variant: 'destructive' }),
+	});
+
 	const feedbackPageDataForSpyro = useMemo(() => {
 		if (!user || isPermLoading) {
 			return buildSimpleSpyroPageData(
@@ -1080,6 +1153,17 @@ export default function FeedbackPage() {
 							{bugCount && bugCount.open > 0 && (
 								<Badge variant="destructive" className="ml-1.5 h-5 px-1.5 text-[10px]">
 									{bugCount.open}
+								</Badge>
+							)}
+						</TabsTrigger>
+					)}
+					{isOwner && (
+						<TabsTrigger value="system-bugs" className="text-amber-600 data-[state=active]:text-amber-700">
+							<AlertTriangle className="h-4 w-4 mr-1" />
+							Bug Otomatis
+							{sysCount && sysCount.new > 0 && (
+								<Badge variant="destructive" className="ml-1.5 h-5 px-1.5 text-[10px]">
+									{sysCount.new}
 								</Badge>
 							)}
 						</TabsTrigger>
@@ -1619,6 +1703,188 @@ export default function FeedbackPage() {
 															>
 																<Trash2 className="h-4 w-4 mr-1" />
 																Hapus
+															</Button>
+														</div>
+													</CardContent>
+												)}
+											</Card>
+										);
+									})}
+								</div>
+							)}
+						</div>
+					</TabsContent>
+				)}
+
+				{isOwner && (
+					<TabsContent value="system-bugs">
+						<div className="space-y-6">
+							<DashboardHintCard
+								title="Bug Otomatis (Sistem)"
+								variant="amber"
+								storageKey="dashboard-system-errors"
+								description="Laporan bug yang dibuat OTOMATIS oleh sistem — bukan dari user.">
+								<ul className="list-disc list-inside space-y-1 text-sm">
+									<li>Sistem menangkap error server (5xx) dan error tampilan/runtime di browser.</li>
+									<li>Tiap laporan dilengkapi IP, akun (bila login), perangkat, waktu, route, dan file:baris.</li>
+									<li>Error yang sama dikelompokkan otomatis (lihat jumlah kemunculan), dan dianalisis AI.</li>
+								</ul>
+							</DashboardHintCard>
+
+							<div className="flex flex-wrap gap-2">
+								{([
+									['all', `Semua (${sysCount?.total ?? 0})`],
+									['new', `Baru (${sysCount?.new ?? 0})`],
+									['investigating', `Diteliti (${sysCount?.investigating ?? 0})`],
+									['resolved', `Selesai (${sysCount?.resolved ?? 0})`],
+									['ignored', `Diabaikan (${sysCount?.ignored ?? 0})`],
+								] as const).map(([val, label]) => (
+									<Button
+										key={val}
+										variant={sysStatusFilter === val ? 'default' : 'outline'}
+										size="sm"
+										onClick={() => setSysStatusFilter(val)}
+									>
+										{label}
+									</Button>
+								))}
+							</div>
+
+							<div className="flex flex-wrap gap-2">
+								{([
+									['all', 'Semua sumber'],
+									['server', 'Server'],
+									['client', 'Tampilan/Client'],
+								] as const).map(([val, label]) => (
+									<Button
+										key={val}
+										variant={sysSourceFilter === val ? 'secondary' : 'ghost'}
+										size="sm"
+										onClick={() => setSysSourceFilter(val)}
+									>
+										{val === 'server' ? <Server className="h-3.5 w-3.5 mr-1" /> : val === 'client' ? <Monitor className="h-3.5 w-3.5 mr-1" /> : null}
+										{label}
+									</Button>
+								))}
+							</div>
+
+							{sysLoading ? (
+								<div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+							) : !sysData?.items?.length ? (
+								<Card><CardContent className="py-12 text-center text-muted-foreground">Belum ada bug otomatis tercatat. 🎉</CardContent></Card>
+							) : (
+								<div className="space-y-4">
+									{sysData.items.map((err: SystemErrorItem) => {
+										const isExpanded = expandedSysId === err._id;
+										const sevVariant = err.severity === 'critical' || err.severity === 'high'
+											? 'destructive'
+											: err.severity === 'medium' ? 'default' : 'secondary';
+										return (
+											<Card key={err._id} className="shadow-sm">
+												<CardHeader className="pb-3 cursor-pointer" onClick={() => setExpandedSysId(isExpanded ? null : err._id)}>
+													<div className="flex items-start justify-between gap-4">
+														<div className="min-w-0 flex-1">
+															<div className="flex items-center gap-2 flex-wrap mb-1">
+																<Badge variant={sevVariant as any} className="uppercase text-[10px]">{err.severity}</Badge>
+																<Badge variant="outline" className="gap-1">
+																	{err.source === 'server' ? <Server className="h-3 w-3" /> : <Monitor className="h-3 w-3" />}
+																	{err.source === 'server' ? 'Server' : 'Client'}
+																</Badge>
+																<Badge variant={err.status === 'new' ? 'destructive' : err.status === 'resolved' ? 'secondary' : 'default'}>
+																	{err.status === 'new' ? 'Baru' : err.status === 'investigating' ? 'Diteliti' : err.status === 'resolved' ? 'Selesai' : 'Diabaikan'}
+																</Badge>
+																{err.count > 1 && (
+																	<Badge variant="outline" className="text-amber-600">×{err.count}</Badge>
+																)}
+																<span className="text-xs text-muted-foreground">
+																	{new Date(err.lastSeenAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+																</span>
+															</div>
+															<div className="text-sm font-medium truncate">
+																<span className="text-red-600">{err.name}</span>: {err.message}
+															</div>
+															{(err.file || err.route) && (
+																<div className="text-xs text-muted-foreground mt-0.5 truncate">
+																	{err.file ? `${err.file}${err.line ? `:${err.line}` : ''}` : ''}
+																	{err.file && err.route ? ' · ' : ''}
+																	{err.route ? `${err.httpMethod ? err.httpMethod + ' ' : ''}${err.route}` : ''}
+																</div>
+															)}
+														</div>
+														<ChevronsUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+													</div>
+												</CardHeader>
+
+												{isExpanded && (
+													<CardContent className="space-y-4 pt-0">
+														{/* Analisis AI */}
+														<div className="rounded-md border border-violet-200 dark:border-violet-900 bg-violet-50/60 dark:bg-violet-950/20 p-3 space-y-2">
+															<div className="flex items-center justify-between gap-2">
+																<Label className="text-xs font-semibold text-violet-700 dark:text-violet-300 flex items-center gap-1">
+																	<Sparkles className="h-3.5 w-3.5" /> Analisis AI
+																</Label>
+																<Button
+																	size="sm"
+																	variant="ghost"
+																	className="h-7 px-2 text-xs"
+																	disabled={sysAnalyzeMut.isPending}
+																	onClick={() => sysAnalyzeMut.mutate(err._id)}
+																>
+																	{sysAnalyzeMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+																	Analisis ulang
+																</Button>
+															</div>
+															{err.aiAnalysis ? (
+																<div className="space-y-1.5 text-sm">
+																	{err.aiAnalysis.summary && <p><span className="font-medium">Ringkasan: </span>{err.aiAnalysis.summary}</p>}
+																	{err.aiAnalysis.likelyCause && <p><span className="font-medium">Dugaan penyebab: </span>{err.aiAnalysis.likelyCause}</p>}
+																	{err.aiAnalysis.suggestedFix && <p><span className="font-medium">Saran perbaikan: </span>{err.aiAnalysis.suggestedFix}</p>}
+																	{err.aiAnalysis.model && (
+																		<p className="text-[11px] text-muted-foreground">Model: {err.aiAnalysis.model}{err.aiAnalysis.analyzedAt ? ` · ${new Date(err.aiAnalysis.analyzedAt).toLocaleString('id-ID')}` : ''}</p>
+																	)}
+																</div>
+															) : (
+																<p className="text-xs text-muted-foreground">Belum ada analisis AI. Klik "Analisis ulang" untuk menjalankan.</p>
+															)}
+														</div>
+
+														{/* Detail konteks */}
+														<div className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2 text-sm">
+															<div><span className="text-muted-foreground">Akun: </span>{err.username ? `${err.username} (${err.userRole || '-'})` : 'Tamu / tidak login'}</div>
+															<div><span className="text-muted-foreground">Email: </span>{err.userEmail || '-'}</div>
+															<div><span className="text-muted-foreground">IP: </span>{err.ip || '-'}</div>
+															<div><span className="text-muted-foreground">Perangkat: </span>{[err.device, err.os, err.browser].filter(Boolean).join(' · ') || '-'}</div>
+															<div><span className="text-muted-foreground">Komunitas: </span>{err.communityName || (err.communitySlug ? err.communitySlug : 'Web Utama')}</div>
+															<div><span className="text-muted-foreground">Lingkungan: </span>{err.environment || '-'}</div>
+															<div><span className="text-muted-foreground">Fungsi: </span>{err.functionName || '-'}</div>
+															<div><span className="text-muted-foreground">Pertama terlihat: </span>{new Date(err.firstSeenAt).toLocaleString('id-ID')}</div>
+														</div>
+
+														{err.stack && (
+															<div className="space-y-1">
+																<Label className="text-xs font-medium">Stack trace</Label>
+																<pre className="text-[11px] bg-muted/60 rounded-md p-3 overflow-x-auto whitespace-pre-wrap max-h-64">{err.stack}</pre>
+															</div>
+														)}
+
+														<div className="flex flex-wrap gap-2 pt-2 border-t">
+															{err.status !== 'investigating' && (
+																<Button size="sm" variant="outline" onClick={() => sysStatusMut.mutate({ id: err._id, status: 'investigating' })}>
+																	<Eye className="h-4 w-4 mr-1" /> Tandai diteliti
+																</Button>
+															)}
+															{err.status !== 'resolved' && (
+																<Button size="sm" variant="outline" onClick={() => sysStatusMut.mutate({ id: err._id, status: 'resolved' })}>
+																	<CheckCircle2 className="h-4 w-4 mr-1" /> Selesai
+																</Button>
+															)}
+															{err.status !== 'ignored' && (
+																<Button size="sm" variant="ghost" onClick={() => sysStatusMut.mutate({ id: err._id, status: 'ignored' })}>
+																	<XCircle className="h-4 w-4 mr-1" /> Abaikan
+																</Button>
+															)}
+															<Button size="sm" variant="destructive" onClick={() => sysDeleteMut.mutate(err._id)}>
+																<Trash2 className="h-4 w-4 mr-1" /> Hapus
 															</Button>
 														</div>
 													</CardContent>

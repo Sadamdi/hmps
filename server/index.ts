@@ -8,6 +8,7 @@ import { connectDB } from '../db/mongodb';
 import { connectBackupMongoIfConfigured } from '../db/mongodb-backup';
 import { registerRoutes } from './routes';
 import { ChatService } from './services/chat-service';
+import { captureServerError } from './services/error-monitor';
 import { setupSwagger } from './swagger';
 import { log, serveStatic, setupVite } from './vite';
 
@@ -455,6 +456,19 @@ setInterval(
 	5 * 60 * 1000,
 );
 
+// Bug monitoring otomatis untuk unhandled promise rejection (best-effort).
+// Sengaja TIDAK memasang handler `uncaughtException`: menangkapnya tanpa keluar
+// akan menelan crash bawaan dan meninggalkan proses dalam keadaan tak menentu.
+// Error sinkron yang lolos tetap dibiarkan crash seperti semula.
+process.on('unhandledRejection', (reason: any) => {
+	try {
+		const err = reason instanceof Error ? reason : new Error(String(reason));
+		void captureServerError(err, undefined, { statusCode: 500 });
+	} catch {
+		/* abaikan */
+	}
+});
+
 (async () => {
 	// Connect to MongoDB
 	try {
@@ -494,13 +508,21 @@ setInterval(
 	setupSwagger(app);
 
 	// ==================== ERROR HANDLING ====================
-	app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+	app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
 		const status = err.status || err.statusCode || 500;
 		const message = err.message || 'Internal Server Error';
 
 		// Log security-related errors
 		if (status === 403 || status === 429 || status === 503) {
 			console.log(`🚨 Security Error: ${status} - ${message}`);
+		}
+
+		// Bug monitoring otomatis: tangkap kegagalan server nyata (5xx).
+		// Best-effort — tidak boleh mengganggu response.
+		try {
+			void captureServerError(err, req, { statusCode: status });
+		} catch {
+			/* abaikan */
 		}
 
 		res.status(status).json({ message });

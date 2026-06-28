@@ -42,6 +42,7 @@ Public SSR  : http://localhost:5000/<route>
 | Chat | `/api/chat` | Gemini chat |
 | Comments | `/api/comments` | public/manage comments |
 | Feedback | `/api/feedback` | feedback, moderation, bug reports |
+| System Errors | `/api/system-errors` | bug otomatis (capture server/client, owner dashboard) |
 | Sharing | `/api/sharing` | invite/request/access notifications |
 | Notifications | `/api/notifications` | SSE/preferences/webpush |
 | Ops | `/api/backups`, `/api/assets`, `/api/admin` | backup, cleanup, migration |
@@ -370,6 +371,15 @@ PATCH /bug-report/:id/status
 POST /bug-report/:id/reply
 DELETE /bug-report/:id
 
+# /api/system-errors  (Bug Otomatis)
+POST   /report            # publik + optional auth, rate-limited (lapor dari client)
+GET    /list              # owner: filter status/severity/source/page/limit
+GET    /count             # owner: ringkasan status & severity
+GET    /:id               # owner: detail
+PATCH  /:id/status        # owner: new|investigating|resolved|ignored
+POST   /:id/analyze       # owner: jalankan ulang analisis AI
+DELETE /:id               # owner: hapus
+
 # /api/sharing
 POST /:entityType/:entityId/invite
 POST /:entityType/:entityId/request
@@ -429,4 +439,4 @@ GET /^\/dashboard(\/.*)?$/
 
 ---
 
-*Terakhir diperbarui: 2026-05-08*
+*Terakhir diperbarui: 2026-06-28*

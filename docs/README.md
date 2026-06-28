@@ -32,6 +32,7 @@ docs/
 │   └── swagger-guide.md
 ├── todo/
 │   └── master-todo.md
+├── CHANGELOG.md
 ├── openapi.json
 ├── api-docs.html
 └── swagger-ui/
@@ -69,7 +70,9 @@ docs/
 | [Multi Tenant](./architecture/multi-tenant.md) | Aturan community tenant `/api/c/:slug/*` |
 | [Feature Summary](./features/feature-summary.md) | Ringkasan fitur yang ada |
 | [API Endpoints](./api/endpoints.md) | Daftar endpoint utama |
+| [System Error Monitoring](./features/08-collaboration-feedback/06-system-error-monitoring.md) | Bug otomatis (capture server/client + analisis AI) |
 | [Master To-Do](./todo/master-todo.md) | Checklist dokumentasi dan maintenance |
+| [Changelog](./CHANGELOG.md) | Riwayat versi & perubahan dokumentasi |
 
 ---
 
@@ -83,4 +86,4 @@ docs/
 
 ---
 
-*Terakhir diperbarui: 2026-05-08*
+*Terakhir diperbarui: 2026-06-28*
