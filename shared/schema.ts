@@ -826,6 +826,57 @@ export interface BugReportItem {
 	updatedAt: Date;
 }
 
+// ── Automatic system error monitoring ──
+export type SystemErrorSource = 'server' | 'client';
+export type SystemErrorSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type SystemErrorStatus = 'new' | 'investigating' | 'resolved' | 'ignored';
+
+export interface SystemErrorAiAnalysis {
+	summary: string;
+	likelyCause: string;
+	suggestedFix: string;
+	severity: string;
+	model: string;
+	analyzedAt: Date | null;
+}
+
+export interface SystemErrorItem {
+	_id: string;
+	fingerprint: string;
+	source: SystemErrorSource;
+	severity: SystemErrorSeverity;
+	name: string;
+	message: string;
+	stack: string;
+	file: string;
+	line: number;
+	column: number;
+	functionName: string;
+	route: string;
+	httpMethod: string;
+	statusCode: number;
+	userId: string | null;
+	username: string;
+	userRole: string;
+	userEmail: string;
+	ip: string;
+	userAgent: string;
+	device: string;
+	browser: string;
+	os: string;
+	communitySlug: string;
+	communityName: string;
+	count: number;
+	firstSeenAt: Date;
+	lastSeenAt: Date;
+	status: SystemErrorStatus;
+	environment: string;
+	metadata?: Record<string, unknown>;
+	aiAnalysis: SystemErrorAiAnalysis | null;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
 export interface UserNotification {
 	_id: string;
 	userId: string;

@@ -14,6 +14,7 @@ Collaboration, Feedback & Sharing feature category for HMPS. This README is the 
 | [04-bug-reports.md](./04-bug-reports.md) | 04-bug-reports.md |
 | [05-sharing-workflow.md](./05-sharing-workflow.md) | 05-sharing-workflow.md |
 | [06-sharing-notifications-summary.md](./06-sharing-notifications-summary.md) | Sharing Notifications & Summary |
+| [06-system-error-monitoring.md](./06-system-error-monitoring.md) | System Error Monitoring (Bug Otomatis) — tag `system-errors` |
 | [99-openapi-endpoint-coverage.md](./99-openapi-endpoint-coverage.md) | OpenAPI Endpoint Coverage — Collaboration, Feedback & Sharing |
 
 ## OpenAPI Tag Mapping
@@ -22,6 +23,7 @@ Collaboration, Feedback & Sharing feature category for HMPS. This README is the 
 |-----|------------|-----------------|
 | `comments` | 6 | Comment public/admin management and count endpoints. |
 | `feedback` | 23 | Feedback public/own/manage/config/rating/bug-report flows. |
+| `system-errors` | 7 | Automatic bug monitoring: client report + owner list/count/detail/status/analyze/delete. |
 
 ## Endpoint Family Coverage
 
@@ -63,6 +65,18 @@ Collaboration, Feedback & Sharing feature category for HMPS. This README is the 
 | `PATCH` | `/api/feedback/own/{id}` |
 | `GET` | `/api/feedback/public` |
 | `GET` | `/api/feedback/ratings` |
+
+### system-errors
+
+| Method | Path |
+|--------|------|
+| `POST` | `/api/system-errors/report` |
+| `GET` | `/api/system-errors/list` |
+| `GET` | `/api/system-errors/count` |
+| `GET` | `/api/system-errors/{id}` |
+| `PATCH` | `/api/system-errors/{id}/status` |
+| `POST` | `/api/system-errors/{id}/analyze` |
+| `DELETE` | `/api/system-errors/{id}` |
 
 ## Source References
 

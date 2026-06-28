@@ -1309,6 +1309,78 @@ const bugReportSchema = new mongoose.Schema(
 bugReportSchema.index({ status: 1, createdAt: -1 });
 bugReportSchema.index({ reporterUserId: 1 });
 
+// Model SystemError — laporan bug OTOMATIS dari sistem (server 5xx + error tampilan client).
+// Dikelompokkan/dedup berdasarkan fingerprint; dianalisis AI (Gemini→OpenAI). Owner-only.
+const systemErrorAiAnalysisSchema = new mongoose.Schema(
+	{
+		summary: { type: String, default: '' },
+		likelyCause: { type: String, default: '' },
+		suggestedFix: { type: String, default: '' },
+		severity: { type: String, default: '' },
+		model: { type: String, default: '' },
+		analyzedAt: { type: Date, default: null },
+	},
+	{ _id: false },
+);
+
+const systemErrorSchema = new mongoose.Schema(
+	{
+		// Identitas & pengelompokan
+		fingerprint: { type: String, required: true },
+		source: { type: String, enum: ['server', 'client'], required: true },
+		severity: {
+			type: String,
+			enum: ['low', 'medium', 'high', 'critical'],
+			default: 'medium',
+		},
+		// Detail error
+		name: { type: String, default: '' }, // mis. TypeError, ReferenceError
+		message: { type: String, default: '' },
+		stack: { type: String, default: '' },
+		file: { type: String, default: '' },
+		line: { type: Number, default: 0 },
+		column: { type: Number, default: 0 },
+		functionName: { type: String, default: '' },
+		// Konteks request / lokasi
+		route: { type: String, default: '' }, // path API atau route client
+		httpMethod: { type: String, default: '' },
+		statusCode: { type: Number, default: 0 },
+		// Identitas pengguna (null bila tamu)
+		userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+		username: { type: String, default: '' },
+		userRole: { type: String, default: '' },
+		userEmail: { type: String, default: '' },
+		// Jaringan & perangkat
+		ip: { type: String, default: '' },
+		userAgent: { type: String, default: '' },
+		device: { type: String, default: '' },
+		browser: { type: String, default: '' },
+		os: { type: String, default: '' },
+		// Tenant
+		communitySlug: { type: String, default: '' },
+		communityName: { type: String, default: '' },
+		// Agregasi kemunculan
+		count: { type: Number, default: 1 },
+		firstSeenAt: { type: Date, default: Date.now },
+		lastSeenAt: { type: Date, default: Date.now },
+		// Pengelolaan
+		status: {
+			type: String,
+			enum: ['new', 'investigating', 'resolved', 'ignored'],
+			default: 'new',
+		},
+		environment: { type: String, default: '' },
+		metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+		aiAnalysis: { type: systemErrorAiAnalysisSchema, default: null },
+	},
+	{ timestamps: true },
+);
+
+systemErrorSchema.index({ fingerprint: 1 });
+systemErrorSchema.index({ status: 1, lastSeenAt: -1 });
+systemErrorSchema.index({ severity: 1, lastSeenAt: -1 });
+systemErrorSchema.index({ source: 1, lastSeenAt: -1 });
+
 // Model Comment — komentar publik pada berita/event/library dengan reply bertingkat
 const commentSchema = new mongoose.Schema(
 	{
@@ -1843,6 +1915,10 @@ const StoreOrder =
 const BugReport =
 	mongoose.models.BugReport || mongoose.model('BugReport', bugReportSchema);
 
+const SystemError =
+	mongoose.models.SystemError ||
+	mongoose.model('SystemError', systemErrorSchema);
+
 // Create Position model
 export const Position =
 	mongoose.models.Position || mongoose.model('Position', positionSchema);
@@ -2099,6 +2175,7 @@ export {
 	StoreSettings,
 	StoreDiscountCampaign,
 	StoreBundle,
+	SystemError,
 	TempUpload,
 	User,
 	UserNotification,
