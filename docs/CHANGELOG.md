@@ -15,6 +15,14 @@ Mengikuti gaya [Keep a Changelog](https://keepachangelog.com/). Tanggal format `
 - **Dashboard**: tab **Bug Otomatis (Sistem)** di `/dashboard/feedback` (owner-only) dengan filter status/sumber, badge severity, jumlah kemunculan, panel analisis AI, dan kontrol status.
 - **Konfigurasi**: env `ERROR_MONITOR_ENABLED`, `ERROR_MONITOR_AI_ENABLED` (default aktif).
 
+### Changed — cakupan diperluas & log lebih lengkap
+- **Capture berbasis status response** (`captureHttpError` + middleware `res.on('finish')` di `server/index.ts`): menangkap bug di **semua endpoint `/api`** (main & tenant) walau handler membalas `res.status(...)` tanpa melempar error.
+- **Status diperluas**: tidak hanya 5xx — kini juga `404` untuk endpoint `/api/*` (endpoint hilang) dan 4xx lain (408/409/410/413/422/…), kecuali yang wajar/keamanan (`400/401/403/405/429/451`), `503`, dan probe scanner.
+- **Field baru**: `page` (halaman/Referer), `isTenant` (+ `communityName` lewat `req.tenantName` di `tenant-resolver`). Dashboard menampilkan badge tenant, status code, endpoint, halaman, dan file:baris.
+- **AI prompt** kini menyertakan konteks tenant/halaman/endpoint dan diminta memberi langkah perbaikan konkret.
+- **Anti-dobel**: jalur thrown menandai `req._sysErrCaptured` agar jalur status tidak menyimpan duplikat error yang sama.
+- Fingerprint route dinormalisasi (`/api/berita/123` → `/api/berita/:id`).
+
 ### Docs
 - Dokumen fitur baru: `docs/features/08-collaboration-feedback/06-system-error-monitoring.md`.
 - Pembaruan: `docs/features/08-collaboration-feedback/00-README.md`, `docs/features/feature-summary.md`, `docs/api/endpoints.md`, `docs/todo/master-todo.md`.

@@ -7,14 +7,18 @@
 
 ## Deskripsi
 
-**System Error Monitoring** adalah pelaporan bug **otomatis oleh sistem** — pelengkap fitur [Bug Reports](./04-bug-reports.md) yang dikirim manual oleh user. Ketika terjadi bug **nyata** di server (kegagalan 5xx) atau di tampilan/browser (runtime error, unhandled promise rejection, atau crash render React), sistem secara otomatis membuat laporan lengkap ke koleksi `SystemError` dan menampilkannya di dashboard owner (`/dashboard/feedback` → tab **Bug Otomatis**).
+**System Error Monitoring** adalah pelaporan bug **otomatis oleh sistem** — pelengkap fitur [Bug Reports](./04-bug-reports.md) yang dikirim manual oleh user. Ketika terjadi bug **nyata** di server (semua endpoint **main maupun tenant**) atau di tampilan/browser, sistem secara otomatis membuat laporan lengkap ke koleksi `SystemError` dan menampilkannya di dashboard owner (`/dashboard/feedback` → tab **Bug Otomatis**). Karena dilihat oleh owner global, laporan mencakup **semua tenant** sekaligus.
 
-Setiap laporan berisi: IP klien, akun (bila login), peran, email, perangkat/OS/browser, route, file:baris, fungsi, stack trace, environment, komunitas/tenant, jumlah kemunculan, dan **analisis AI** (ringkasan, dugaan penyebab, saran perbaikan) yang dihasilkan pipeline OpenAI-compatible → Gemini yang sudah ada.
+Setiap laporan berisi kategori lengkap: apakah ini **tenant** (dan tenant apa), **halaman (page)** tempat user berada, **endpoint + method + status code**, **file:baris + fungsi**, stack trace, IP, akun (bila login) + peran + email, perangkat/OS/browser, environment, jumlah kemunculan, dan **analisis AI** (ringkasan, dugaan penyebab, **saran perbaikan konkret**) dari pipeline OpenAI-compatible → Gemini.
 
-Cakupan sengaja dibatasi agar dashboard tidak banjir:
-- **Server**: hanya status `>= 500` (kegagalan nyata). 4xx, 429, 503, dan request abort **diabaikan**.
+Cakupan (luas tapi tetap menyaring noise agar dashboard tidak banjir):
+- **Server (error yang dilempar)**: ditangkap via global error handler — punya stack/file/baris.
+- **Server (berbasis status response)**: middleware `res.on('finish')` di semua `/api` (termasuk tenant) menangkap bug walau handler membalas `res.status(...)` tanpa melempar. Status yang ditangkap:
+  - `5xx` (kecuali `503` load shedding) → kegagalan nyata.
+  - `404` **hanya untuk endpoint `/api/*`** (endpoint yang harusnya ada tapi hilang); 404 halaman/aset acak yang memang tidak ada **tidak** ditangkap.
+  - `4xx` lain (408/409/410/413/422/…) ditangkap, **kecuali** yang wajar/keamanan: `400/401/403/405/429/451`. Probe scanner (`.php`, `wp-admin`, dst) diabaikan.
 - **Client**: runtime error, unhandled rejection, dan crash render React.
-- Error identik **dikelompokkan** (dedup) berdasarkan fingerprint; kemunculan berulang hanya menambah `count` + `lastSeenAt`.
+- Error identik **dikelompokkan** (dedup) berdasarkan fingerprint (route dinormalisasi: `/api/berita/123` → `/api/berita/:id`); kemunculan berulang hanya menambah `count` + `lastSeenAt`.
 
 ---
 
@@ -32,15 +36,15 @@ Cakupan sengaja dibatasi agar dashboard tidak banjir:
 |------|-------|
 | UI routes/surfaces | `/dashboard/feedback` → tab **Bug Otomatis** (owner-only) |
 | Frontend source | `client/src/pages/dashboard/feedback.tsx`, `client/src/lib/error-monitor.ts`, `client/src/components/error-boundary.tsx`, `client/src/main.tsx` |
-| Backend source | `server/services/error-monitor.ts`, `server/routes/system-errors.ts`, `server/index.ts` (global error handler + process listeners) |
+| Backend source | `server/services/error-monitor.ts`, `server/routes/system-errors.ts`, `server/index.ts` (global error handler + `res.on('finish')` middleware + `unhandledRejection`) |
 
-**Flow server (otomatis):**
-1. Sebuah handler melempar error → global error handler (`server/index.ts`) menangkapnya.
-2. `captureServerError(err, req, { statusCode })` dipanggil best-effort; difilter `status >= 500`.
-3. Fingerprint dihitung; dilakukan `findOneAndUpdate` upsert (dedup).
+**Flow server (otomatis) — dua jalur:**
+1. **Jalur thrown** (`captureServerError`): handler melempar error → global error handler (`server/index.ts`) menangkapnya, menandai `req._sysErrCaptured`, menyimpan versi kaya (stack/file/baris).
+2. **Jalur status response** (`captureHttpError`): middleware `app.use('/api', … res.on('finish'))` memeriksa `res.statusCode` untuk **semua** request `/api` (main + tenant). Bila `req._sysErrCaptured` sudah diset, dilewati (hindari dobel); selain itu difilter `shouldCaptureHttpStatus` lalu disimpan (tanpa stack).
+3. Fingerprint dihitung (route dinormalisasi); `findOneAndUpdate` upsert (dedup).
 4. Bila dokumen **baru**, `analyzeError()` berjalan fire-and-forget (OpenAI → Gemini).
 
-Selain global error handler, listener `unhandledRejection` juga menangkap promise rejection yang tak tertangani. Handler `uncaughtException` **sengaja tidak dipasang** agar tidak mengubah perilaku crash bawaan Node (menelan exception sinkron bisa meninggalkan proses dalam keadaan tak menentu).
+Listener `unhandledRejection` juga menangkap promise rejection tak tertangani. Handler `uncaughtException` **sengaja tidak dipasang** agar tidak mengubah perilaku crash bawaan Node (menelan exception sinkron bisa meninggalkan proses dalam keadaan tak menentu).
 
 **Flow client (otomatis):**
 1. `installGlobalErrorMonitor()` di `main.tsx` memasang listener `error` + `unhandledrejection`; `ErrorBoundary` membungkus `<App/>`.
@@ -78,17 +82,19 @@ Source: `db/mongodb.ts` (`systemErrorSchema`), tipe `SystemErrorItem` di `shared
 | `severity` | `'low'\|'medium'\|'high'\|'critical'` | diturunkan otomatis; bisa diperbarui AI |
 | `name` / `message` / `stack` | string | tipe error, pesan, stack (di-cap 2KB/8KB) |
 | `file` / `line` / `column` / `functionName` | string/number | frame teratas hasil parsing stack |
-| `route` / `httpMethod` / `statusCode` | string/number | konteks request/route |
+| `route` / `httpMethod` / `statusCode` | string/number | endpoint, method, status code |
+| `page` | string | halaman tempat error terjadi (Referer untuk server, route untuk client) |
 | `userId` / `username` / `userRole` / `userEmail` | nullable | akun bila login; null untuk tamu |
 | `ip` / `userAgent` / `device` / `browser` / `os` | string | jaringan & perangkat |
-| `communitySlug` / `communityName` | string | tenant asal |
+| `isTenant` | boolean | apakah error terjadi di konteks tenant komunitas |
+| `communitySlug` / `communityName` | string | tenant asal (slug + nama) |
 | `count` / `firstSeenAt` / `lastSeenAt` | number/Date | agregasi kemunculan |
 | `status` | `'new'\|'investigating'\|'resolved'\|'ignored'` | pengelolaan owner |
 | `environment` | string | `NODE_ENV` |
 | `metadata` | object | breadcrumb / componentStack (client) |
 | `aiAnalysis` | object \| null | `{ summary, likelyCause, suggestedFix, severity, model, analyzedAt }` |
 
-Indeks: `{ fingerprint }`, `{ status, lastSeenAt }`, `{ severity, lastSeenAt }`, `{ source, lastSeenAt }`.
+Indeks: `{ fingerprint }`, `{ status, lastSeenAt }`, `{ severity, lastSeenAt }`, `{ source, lastSeenAt }`, `{ communitySlug, lastSeenAt }`.
 Catatan: koleksi disimpan **hanya di main DB** (monitoring global), bukan per-tenant.
 
 ---
@@ -100,7 +106,7 @@ Source: `analyzeError()` di `server/services/error-monitor.ts`.
 1. Hanya jalan pada **kemunculan pertama** (dokumen baru) atau saat owner klik **Analisis ulang**.
 2. Di-gate `ERROR_MONITOR_AI_ENABLED`, di-throttle (maks 8 panggilan / menit) untuk hemat kuota.
 3. Membaca ±15 baris di sekitar `file:line` (best-effort, hanya file lokal di dalam project, bukan `node_modules`) sebagai konteks kode nyata.
-4. Memanggil **`runOpenAiChat`** (provider OpenAI-compatible / tokito) sebagai utama; bila gagal, fallback **Gemini** (`gemini-2.5-flash`, rotasi beberapa key via `getConfiguredSlots()`).
+4. Memanggil **`runOpenAiChat`** (provider OpenAI-compatible) sebagai utama; bila gagal, fallback **Gemini** (`gemini-2.5-flash`, rotasi beberapa key via `getConfiguredSlots()`).
 5. Output dipaksa JSON `{ summary, likelyCause, suggestedFix, severity }`. AI hanya boleh **menaikkan** severity dokumen (escalate-only), tidak menurunkan, agar kegagalan server nyata (5xx = `high`) tidak tersembunyi bila AI salah menilai ringan.
 
 ---
@@ -118,11 +124,12 @@ Menggunakan kembali key `GEMINI_API_KEY_*` dan `OPENAI_API_KEY`/`OPENAI_BASE_URL
 
 ## Business Rules From Code
 
-1. Server: hanya `status >= 500` ditangkap; abort (`ECONNABORTED`/`ECONNRESET`/`AbortError`) diabaikan.
-2. Monitoring **tidak pernah** melempar error ke jalur request — semua dibungkus try/catch best-effort.
-3. Endpoint `/report` selalu balas `202` (soft-success) agar browser tidak retry agresif / membuat loop error.
-4. Dedup berbasis fingerprint: error sama → `count++` + `lastSeenAt`, konteks pertama dipertahankan.
-5. Throttle ganda: client (10/menit + dedup 5 menit) dan AI server (8/menit).
+1. Server ditangkap dari dua jalur (thrown + status response) untuk **semua** endpoint `/api` (main & tenant). Status: 5xx (kecuali 503), 404 khusus `/api/*`, 4xx lain kecuali 400/401/403/405/429/451; abort & probe scanner diabaikan.
+2. Jalur thrown menandai `req._sysErrCaptured` agar jalur status tidak menyimpan dobel untuk error yang sama.
+3. Monitoring **tidak pernah** melempar error ke jalur request — semua dibungkus try/catch best-effort.
+4. Endpoint `/report` selalu balas `202` (soft-success) agar browser tidak retry agresif / membuat loop error.
+5. Dedup berbasis fingerprint (route dinormalisasi `:id`): error sama → `count++` + `lastSeenAt`, konteks pertama dipertahankan.
+6. Throttle ganda: client (10/menit + dedup 5 menit) dan AI server (8/menit; tombol "Analisis ulang" owner melewati throttle).
 
 ---
 
@@ -144,11 +151,13 @@ Menggunakan kembali key `GEMINI_API_KEY_*` dan `OPENAI_API_KEY`/`OPENAI_BASE_URL
 | 1 | Capture server 5xx | handler throw → 500 | 1 dokumen `SystemError` (source=server) berisi file:baris & konteks |
 | 2 | Dedup | error sama dipicu 2× | tetap 1 dokumen, `count=2` |
 | 3 | Analisis AI | dokumen baru | `aiAnalysis` terisi (OpenAI, fallback Gemini) |
-| 4 | Filter 4xx | handler 400/404 | tidak ada dokumen dibuat |
-| 5 | Client error | `window.onerror` / crash React | `POST /report` → dokumen source=client |
-| 6 | Owner-guard | non-owner GET `/list` | `403` |
+| 4 | Status response 500 tenant | `res.status(500)` di route tenant | dokumen `isTenant=true`, `communityName`, `page`, endpoint terekam |
+| 5 | 404 endpoint API | GET `/api/x` yang tidak ada | dokumen severity `medium` terekam |
+| 6 | Filter noise | 403 / 200 / probe `.php` | tidak ada dokumen dibuat |
+| 7 | Client error | `window.onerror` / crash React | `POST /report` → dokumen source=client |
+| 8 | Owner-guard | non-owner GET `/list` | `403` |
 
-> Pipeline #1–#3 diverifikasi via skrip self-test sementara (capture → dedup → Gemini `gemini-2.5-flash` → cleanup) sebelum rilis.
+> Pipeline #1–#6 diverifikasi via skrip self-test sementara (capture thrown & status-response, dedup, filter 403/200, field tenant/page, OpenAI→Gemini) sebelum rilis; semua skrip uji dihapus setelahnya.
 
 ---
 
@@ -156,9 +165,10 @@ Menggunakan kembali key `GEMINI_API_KEY_*` dan `OPENAI_API_KEY`/`OPENAI_BASE_URL
 
 - `db/mongodb.ts` — `systemErrorSchema`, model `SystemError`
 - `shared/schema.ts` — `SystemErrorItem`, `SystemErrorAiAnalysis`
-- `server/services/error-monitor.ts` — capture, dedup, analisis AI
+- `server/services/error-monitor.ts` — `captureServerError`, `captureHttpError`, `captureClientError`, dedup, analisis AI, filter status
 - `server/routes/system-errors.ts` — REST endpoints
-- `server/index.ts` — hook global error handler + listener `unhandledRejection`
+- `server/index.ts` — global error handler + middleware `res.on('finish')` + listener `unhandledRejection`
+- `server/middleware/tenant-resolver.ts` — set `req.tenantName` untuk pelabelan tenant
 - `client/src/lib/error-monitor.ts` — capture client + throttle/dedup
 - `client/src/components/error-boundary.tsx` — fallback crash render React
 - `client/src/pages/dashboard/feedback.tsx` — tab **Bug Otomatis**

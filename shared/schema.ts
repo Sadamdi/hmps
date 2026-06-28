@@ -853,6 +853,7 @@ export interface SystemErrorItem {
 	column: number;
 	functionName: string;
 	route: string;
+	page: string;
 	httpMethod: string;
 	statusCode: number;
 	userId: string | null;
@@ -864,6 +865,7 @@ export interface SystemErrorItem {
 	device: string;
 	browser: string;
 	os: string;
+	isTenant: boolean;
 	communitySlug: string;
 	communityName: string;
 	count: number;

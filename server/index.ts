@@ -8,7 +8,7 @@ import { connectDB } from '../db/mongodb';
 import { connectBackupMongoIfConfigured } from '../db/mongodb-backup';
 import { registerRoutes } from './routes';
 import { ChatService } from './services/chat-service';
-import { captureServerError } from './services/error-monitor';
+import { captureServerError, captureHttpError } from './services/error-monitor';
 import { setupSwagger } from './swagger';
 import { log, serveStatic, setupVite } from './vite';
 
@@ -83,6 +83,22 @@ app.use(sanitizeInput);
 
 // Apply security logging
 app.use(securityLogger);
+
+// Bug monitoring: tangkap error berbasis status response untuk SEMUA endpoint /api
+// (main + tenant, termasuk handler yang membalas res.status(...) tanpa throw).
+// Berjalan setelah tenant resolver agar konteks tenant ikut terekam.
+app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+	res.on('finish', () => {
+		try {
+			// Lewati bila error sudah ditangkap versi "thrown" (punya stack/file/baris).
+			if ((req as Request & { _sysErrCaptured?: boolean })._sysErrCaptured) return;
+			void captureHttpError(req, res.statusCode);
+		} catch {
+			/* abaikan */
+		}
+	});
+	next();
+});
 
 // ==================== BASIC MIDDLEWARE ====================
 app.use(express.json({ limit: '100mb' }));
