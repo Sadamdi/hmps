@@ -77,6 +77,7 @@ Script otomatis backup media → reset ke GitHub → restore media.
 | `HMPS_BACKUP_ROOT` | `/var/backups/hmps-deploy` | Lokasi backup deploy |
 | `HMPS_SERVER` | `root@Himatif-EncoderWeb` | SSH target sync media |
 | `HMPS_REMOTE_DIR` | `/var/www/hmps` | Path app di server |
+| `HMPS_PM2_APPS` | `hmps-app himatif-banner` | PM2 apps di-restart setelah build |
 
 ---
 
