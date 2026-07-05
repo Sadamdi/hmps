@@ -89,12 +89,20 @@ fi
 npm run build
 
 if command -v pm2 >/dev/null 2>&1; then
-	if pm2 describe hmps >/dev/null 2>&1; then
-		pm2 restart hmps
-	elif pm2 describe rest-express >/dev/null 2>&1; then
-		pm2 restart rest-express
-	else
-		log "pm2 ada tapi app 'hmps' tidak ketemu — restart manual: pm2 list"
+	# Production: hmps-app + himatif-banner. Jangan restart hmps-auto-deploy (watcher).
+	PM2_APPS="${HMPS_PM2_APPS:-hmps-app himatif-banner}"
+	restarted=0
+	for app in $PM2_APPS; do
+		if pm2 describe "$app" >/dev/null 2>&1; then
+			pm2 restart "$app"
+			log "pm2 restart: $app"
+			restarted=1
+		else
+			log "pm2 skip (tidak ada): $app"
+		fi
+	done
+	if [[ "$restarted" -eq 0 ]]; then
+		log "Tidak ada pm2 app yang di-restart — cek: pm2 list"
 	fi
 elif systemctl is-active --quiet hmps 2>/dev/null; then
 	sudo systemctl restart hmps
