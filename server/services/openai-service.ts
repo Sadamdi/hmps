@@ -1,6 +1,7 @@
 import type { Content } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
+import { sanitizeAiAssistantText } from '@shared/ai-response-sanitize';
 
 type OpenAiMessageContentPart =
 	| { type: 'text'; text: string }
@@ -56,6 +57,9 @@ export type OpenAiChatResult = OpenAiChatSuccess | OpenAiChatFailure;
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 const DEFAULT_OPENAI_MODELS = ['auto'];
 const OPENAI_CACHE_FILE = path.join(process.cwd(), 'openai-working.json');
+const MAX_TOOL_RESULT_CHARS = 4000;
+const GENERIC_FALLBACK_TEXT =
+	'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
 
 function getOpenAiApiKey(): string | null {
 	return (process.env.OPENAI_API_KEY || '').trim() || null;
@@ -212,7 +216,10 @@ function convertTools(
 function extractOpenAiText(payload: unknown): string {
 	const data = payload as {
 		choices?: Array<{
-			message?: { content?: string | Array<{ text?: string; type?: string }> };
+			message?: {
+				content?: string | Array<{ text?: string; type?: string }>;
+				reasoning_content?: string;
+			};
 			delta?: { content?: string };
 			text?: string;
 		}>;
@@ -222,20 +229,25 @@ function extractOpenAiText(payload: unknown): string {
 
 	const choice = data.choices?.[0];
 	const content = choice?.message?.content;
-	if (typeof content === 'string') return content;
-	if (Array.isArray(content)) {
-		return content
+	let raw = '';
+	if (typeof content === 'string') raw = content;
+	else if (Array.isArray(content)) {
+		raw = content
 			.map((part) => part.text || '')
 			.join('')
 			.trim();
+	} else {
+		raw =
+			choice?.delta?.content ||
+			choice?.text ||
+			data.output_text ||
+			data.text ||
+			'';
 	}
-	return (
-		choice?.delta?.content ||
-		choice?.text ||
-		data.output_text ||
-		data.text ||
-		''
-	);
+
+	// reasoning_content hanya untuk internal model — jangan gabung ke jawaban user
+
+	return sanitizeAiAssistantText(raw);
 }
 
 function extractOpenAiToolCalls(payload: unknown): OpenAiToolCall[] {
@@ -265,14 +277,35 @@ function extractOpenAiToolCalls(payload: unknown): OpenAiToolCall[] {
 }
 
 function parseToolArguments(raw: string): Record<string, unknown> {
+	const result = parseToolArgumentsSafe(raw);
+	return result.ok ? result.args : {};
+}
+
+function parseToolArgumentsSafe(
+	raw: string,
+): { ok: true; args: Record<string, unknown> } | { ok: false; error: string } {
 	try {
 		const parsed = JSON.parse(raw || '{}');
-		return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-			? (parsed as Record<string, unknown>)
-			: {};
+		if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+			return { ok: true, args: parsed as Record<string, unknown> };
+		}
+		return { ok: false, error: 'Tool arguments must be a JSON object' };
 	} catch {
-		return {};
+		return { ok: false, error: 'Invalid JSON in tool arguments' };
 	}
+}
+
+function serializeToolResult(result: Record<string, unknown>): string {
+	let json = JSON.stringify(result);
+	if (json.length > MAX_TOOL_RESULT_CHARS) {
+		json = `${json.slice(0, MAX_TOOL_RESULT_CHARS - 24)}...[truncated]`;
+		console.warn('[AI][OpenAI] Tool result truncated for context limit');
+	}
+	return json;
+}
+
+export function isGenericOpenAiFallbackText(text: string): boolean {
+	return text.trim() === GENERIC_FALLBACK_TEXT;
 }
 
 function formatOpenAiError(model: string, status: number, body: string): Error {
@@ -289,8 +322,9 @@ async function requestOpenAiCompletion(
 	apiKey: string,
 	messages: OpenAiMessage[],
 	options: OpenAiChatOptions,
+	withTools = true,
 ): Promise<unknown> {
-	const tools = convertTools(options.tools);
+	const tools = withTools ? convertTools(options.tools) : undefined;
 	const body: Record<string, unknown> = {
 		model,
 		messages,
@@ -392,21 +426,49 @@ export async function runOpenAiChat(
 
 				for (const call of toolCalls) {
 					const name = call.function.name;
-					const result = await executeTool(
-						name,
-						parseToolArguments(call.function.arguments),
-					);
+					const parsedArgs = parseToolArgumentsSafe(call.function.arguments);
+					const result = parsedArgs.ok
+						? await executeTool(name, parsedArgs.args)
+						: { error: parsedArgs.error };
 					messages.push({
 						role: 'tool',
 						tool_call_id: call.id,
-						content: JSON.stringify(result),
+						content: serializeToolResult(result),
 					});
 				}
 			}
 
-			if (!responseText)
-				responseText =
-					'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
+			if (
+				!responseText &&
+				usedToolNames.size > 0 &&
+				options.executeTool
+			) {
+				messages.push({
+					role: 'user',
+					content:
+						'Berdasarkan hasil tool di atas, berikan jawaban final lengkap untuk pengguna dalam Bahasa Indonesia. Jangan panggil tool lagi.',
+				});
+				const finalParsed = await requestOpenAiCompletion(
+					model,
+					apiKey,
+					messages,
+					options,
+					false,
+				);
+				responseText = extractOpenAiText(finalParsed).trim();
+			}
+
+			if (
+				!responseText ||
+				responseText === GENERIC_FALLBACK_TEXT
+			) {
+				lastError = new Error(
+					responseText
+						? 'OpenAI returned generic fallback after tool loop'
+						: 'OpenAI returned empty response after tool loop',
+				);
+				continue;
+			}
 
 			await writeCachedModel(model);
 			return {

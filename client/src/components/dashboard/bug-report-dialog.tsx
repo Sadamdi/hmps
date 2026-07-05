@@ -13,6 +13,7 @@ import { queryClient } from '@/lib/queryClient';
 import { Bug, Download, Eye, FileText, Loader2, Plus, Trash2, Upload, X } from 'lucide-react';
 import { useCallback, useRef, useState } from 'react';
 import RichTextEditor from './rich-text-editor';
+import { ContentEnhanceButton } from './content-enhance-button';
 
 interface BugReportDialogProps {
 	open: boolean;
@@ -195,6 +196,16 @@ export default function BugReportDialog({ open, onOpenChange }: BugReportDialogP
 								onChange={setDescription}
 								placeholder="Jelaskan bug yang Anda temukan..."
 								height={250}
+							/>
+							<ContentEnhanceButton
+								entityType="bug_report"
+								fields={[{ key: 'description', label: 'Deskripsi Bug' }]}
+								values={{ description }}
+								onApply={(partial) => {
+									if (partial.description !== undefined) {
+										setDescription(partial.description);
+									}
+								}}
 							/>
 						</div>
 

@@ -2,6 +2,7 @@ import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import OrganizationStructureEditor from '@/components/dashboard/organization-structure-editor';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -246,6 +247,16 @@ export default function DashboardKelembagaan() {
 * [Dan seterusnya...]`}
 												</pre>
 											</DashboardHintCard>
+											<ContentEnhanceButton
+												entityType="kelembagaan"
+												fields={[{ key: 'visionMission', label: 'Visi & Misi' }]}
+												values={{ visionMission }}
+												onApply={(partial) => {
+													if (partial.visionMission !== undefined) {
+														setVisionMission(partial.visionMission);
+													}
+												}}
+											/>
 											<RichTextEditor
 												value={visionMission}
 												onChange={setVisionMission}

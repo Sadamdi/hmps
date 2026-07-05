@@ -18,8 +18,16 @@ import {
 	type ApiKeyUsageSlotRecord,
 } from '../config/gemini-keys';
 import { ApiKeyUsage, Chat } from '../models/chat';
+import {
+	sanitizeAiAssistantText,
+	scrubThinkingFromChatMessages,
+} from '@shared/ai-response-sanitize';
 import { executeToolCall, getToolsForPermissions } from './ai-tools';
-import { runOpenAiChat } from './openai-service';
+import {
+	buildWriteToolStyleHint,
+	getContentStyleProfile,
+} from './content-style-profile';
+import { isGenericOpenAiFallbackText, runOpenAiChat } from './openai-service';
 
 type GeminiLoopSuccess = {
 	ok: true;
@@ -60,6 +68,47 @@ export class ChatService {
 			`- Timestamp ISO: ${now.toISOString()}`,
 			'- Saat user bertanya tanggal/jam/hari ini, gunakan konteks waktu sistem ini.',
 		].join('\n');
+	}
+
+	private static isWeakOpenAiResponse(
+		responseText: string,
+		usedToolNames: string[],
+	): boolean {
+		if (!responseText.trim()) return true;
+		if (isGenericOpenAiFallbackText(responseText)) return true;
+		if (usedToolNames.length > 0 && responseText.trim().length < 50) {
+			return true;
+		}
+		return false;
+	}
+
+	private static async appendContentStyleHints(
+		history: Content[],
+		allowedTools: Record<string, unknown>[],
+		tenantDbName?: string | null,
+	): Promise<void> {
+		const names = new Set(allowedTools.map((t) => String(t.name || '')));
+		const hints: string[] = [];
+		const add = async (
+			entity: 'berita' | 'event' | 'library',
+			predicate: (n: string) => boolean,
+		) => {
+			if (!Array.from(names).some(predicate)) return;
+			const profile = await getContentStyleProfile(entity, tenantDbName);
+			hints.push(buildWriteToolStyleHint(entity, profile));
+		};
+		await add('berita', (n) => n.includes('berita'));
+		await add('event', (n) => n.includes('event'));
+		await add('library', (n) => n.includes('library'));
+		if (!hints.length) return;
+		history.push({
+			role: 'user',
+			parts: [
+				{
+					text: `PANDUAN GAYA KONTEN HMPS (internal, untuk tool tulis):\n${hints.join('\n\n')}`,
+				},
+			],
+		});
 	}
 
 	private static hasTool(
@@ -244,6 +293,16 @@ export class ChatService {
 						'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
 				}
 
+				responseText = sanitizeAiAssistantText(responseText);
+
+				if (
+					usedToolNames.size > 0 &&
+					isGenericOpenAiFallbackText(responseText)
+				) {
+					lastError = new Error('Gemini generic fallback after tool loop');
+					continue;
+				}
+
 				return {
 					ok: true,
 					responseText,
@@ -280,6 +339,10 @@ export class ChatService {
 		if (!chat) {
 			chat = await this.getOrCreateChat(userId, false, contextScope);
 		}
+		if (scrubThinkingFromChatMessages(chat.messages)) {
+			chat.markModified('messages');
+			await chat.save();
+		}
 		// Tambahkan pesan user
 		chat.messages.push({
 			role: 'user',
@@ -301,6 +364,8 @@ export class ChatService {
 			parts: [{ text: this.buildTemporalContextPrompt() }],
 		});
 
+		const pagePath = pageContext?.path;
+
 		// Tambahkan konteks halaman jika tersedia
 		const contextPrompt = buildPageContextPrompt(pageContext);
 		if (contextPrompt) {
@@ -309,6 +374,12 @@ export class ChatService {
 				parts: [{ text: contextPrompt }],
 			});
 		}
+
+		const allowedTools = getToolsForPermissions(
+			permissions || [],
+			pagePath
+		);
+		await this.appendContentStyleHints(history, allowedTools, tenantDbName);
 
 		history.push(
 			...recentMessages.map((msg: any) => {
@@ -359,12 +430,7 @@ export class ChatService {
 				: [{ text: content }],
 		});
 
-		const pagePath = pageContext?.path;
 		const isTenantContext = pageContext?.isTenant === true;
-		const allowedTools = getToolsForPermissions(
-			permissions || [],
-			pagePath
-		);
 		const geminiTools: FunctionDeclarationsTool[] = [
 			{
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -394,7 +460,7 @@ export class ChatService {
 				isTenantContext
 			),
 		});
-		if (openAiResult.ok) {
+		if (openAiResult.ok && !this.isWeakOpenAiResponse(openAiResult.responseText, openAiResult.usedToolNames)) {
 			responseText = openAiResult.responseText;
 			currentModel = openAiResult.modelName;
 			if (this.shouldForceWebToolRetry(responseText, openAiResult.usedToolNames, allowedTools)) {
@@ -418,6 +484,10 @@ export class ChatService {
 					currentModel = retryResult.modelName;
 				}
 			}
+		} else if (openAiResult.ok) {
+			console.warn(
+				'[AI][Fallback] OpenAI response weak/empty after tools, switching to Gemini',
+			);
 		} else {
 			console.warn(
 				`[AI][Fallback] OpenAI-compatible provider exhausted, switching to Gemini - ${openAiResult.lastError?.message || 'unknown error'}`
@@ -536,6 +606,11 @@ export class ChatService {
 
 		if (!responseText) {
 			throw new Error('All AI providers returned empty response');
+		}
+
+		responseText = sanitizeAiAssistantText(responseText);
+		if (!responseText.trim()) {
+			throw new Error('All AI providers returned empty response after sanitization');
 		}
 
 		// Tambahkan respons assistant ke chat (tanpa personalisasi)

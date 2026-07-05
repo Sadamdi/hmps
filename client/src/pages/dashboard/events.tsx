@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import { Badge } from '@/components/ui/badge';
 import { usePermissionGuardWithSharing } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
@@ -1465,6 +1466,19 @@ export default function DashboardEvents() {
 							<Switch checked={formPublished} onCheckedChange={setFormPublished} />
 							<Label>Publikasikan (tampil di Home)</Label>
 						</div>
+						<ContentEnhanceButton
+							entityType="event"
+							className="w-full justify-center"
+							fields={[
+								{ key: 'title', label: 'Judul' },
+								{ key: 'description', label: 'Deskripsi' },
+							]}
+							values={{ title: formTitle, description: formDesc }}
+							onApply={(partial) => {
+								if (partial.title !== undefined) setFormTitle(partial.title);
+								if (partial.description !== undefined) setFormDesc(partial.description);
+							}}
+						/>
 						<Button
 							className="w-full"
 							onClick={handleSaveEvent}

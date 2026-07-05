@@ -1,5 +1,6 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
+import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -651,7 +652,21 @@ export default function DashboardRegistration() {
 							</Select>
 						</div>
 					</div>
-					<DialogFooter>
+					<DialogFooter className="flex-wrap gap-2">
+						<ContentEnhanceButton
+							entityType="community"
+							fields={[
+								{ key: 'name', label: 'Nama Komunitas' },
+								{ key: 'description', label: 'Deskripsi' },
+							]}
+							values={{
+								name: editForm.name,
+								description: editForm.description,
+							}}
+							onApply={(partial) => {
+								setEditForm((f) => ({ ...f, ...partial }));
+							}}
+						/>
 						<Button variant="outline" onClick={() => setEditCommunity(null)}>Batal</Button>
 						<Button onClick={() => editMutation.mutate()} disabled={editMutation.isPending}>
 							{editMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}

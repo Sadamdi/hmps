@@ -40,6 +40,7 @@ import {
 } from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage';
 import chatRouter from './routes/chat';
+import aiEnhanceRouter from './routes/ai-enhance';
 import commentRouter from './routes/comments';
 import feedbackRouter from './routes/feedback';
 import notificationRouter from './routes/notifications';
@@ -7373,6 +7374,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	app.use('/api/chat', chatRouter);
+	app.use('/api/ai', aiEnhanceRouter);
 	app.use('/api/comments', commentRouter);
 	app.use('/api/feedback', feedbackRouter);
 	app.use('/api/system-errors', systemErrorRouter);

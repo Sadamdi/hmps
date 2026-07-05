@@ -338,6 +338,9 @@ POST /message
 DELETE /
 GET /debug/apikeys
 
+# /api/ai
+POST /enhance-content   # auth + permission: perbaiki teks form dashboard (before/after JSON)
+
 # /api/comments
 GET /
 GET /count

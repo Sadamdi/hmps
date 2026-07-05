@@ -1,4 +1,5 @@
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -702,7 +703,23 @@ export default function MediaUploader({
 						<span className="text-sm font-medium">Terbit</span>
 					</div>
 				</div>
-				<div className="flex justify-end gap-3">
+				<div className="flex flex-wrap justify-end gap-3 items-center">
+					<ContentEnhanceButton
+						entityType="library"
+						fields={[
+							{ key: 'title', label: 'Judul' },
+							{ key: 'description', label: 'Deskripsi singkat' },
+							{ key: 'fullDescription', label: 'Deskripsi lengkap' },
+						]}
+						values={{ title, description, fullDescription }}
+						onApply={(partial) => {
+							if (partial.title !== undefined) setTitle(partial.title);
+							if (partial.description !== undefined) setDescription(partial.description);
+							if (partial.fullDescription !== undefined) {
+								setFullDescription(partial.fullDescription);
+							}
+						}}
+					/>
 					<Button variant="outline" onClick={onCancel}>
 						Batal
 					</Button>

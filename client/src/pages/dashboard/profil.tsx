@@ -3,6 +3,7 @@ import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { TenantOwnerDeleteAccountSection } from '@/components/dashboard/tenant-owner-delete-account-section';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -732,13 +733,23 @@ export default function DashboardProfil() {
 										</div>
 									)}
 									{isEditing ? (
-										<RichTextEditor
+										<>
+											<ContentEnhanceButton
+												entityType="profil"
+												fields={[{ key: 'aboutUs', label: 'Tentang Kami' }]}
+												values={{ aboutUs }}
+												onApply={(partial) => {
+													if (partial.aboutUs !== undefined) setAboutUs(partial.aboutUs);
+												}}
+											/>
+											<RichTextEditor
 											value={aboutUs}
 											onChange={setAboutUs}
 											placeholder="Tulis konten tentang kami di sini..."
 											height={400}
 											beritaId="about-us-content"
 										/>
+										</>
 									) : settings?.aboutUs ? (
 										<div className="prose max-w-none border rounded-md p-4 bg-muted/30">
 											<div dangerouslySetInnerHTML={{ __html: settings.aboutUs }} />
