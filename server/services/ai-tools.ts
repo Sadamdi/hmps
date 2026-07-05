@@ -472,7 +472,7 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 				content: {
 					type: 'string',
 					description:
-						'Konten lengkap berita dalam format HTML. Ikuti gaya penulisan berita Himatif Encoder.',
+						'Konten lengkap berita dalam format HTML (<p>, <h2>/<h3> bila perlu, <ul><li>). Ikuti gaya penulisan berita Himatif Encoder yang sudah dipublikasikan.',
 				},
 				tags: {
 					type: 'array',

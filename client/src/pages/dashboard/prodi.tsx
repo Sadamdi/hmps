@@ -1,6 +1,7 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -903,6 +904,26 @@ function ProdiLabPhotoSlots({
 function ProfileEditor({ data, onChange, readOnly }: { data: any; onChange: (f: string, v: any) => void; readOnly: boolean }) {
 	return (
 		<div className="space-y-6">
+			{!readOnly && (
+				<ContentEnhanceButton
+					entityType="prodi"
+					fields={[
+						{ key: 'history', label: 'Sejarah' },
+						{ key: 'vision', label: 'Visi' },
+						{ key: 'strategy', label: 'Strategi' },
+					]}
+					values={{
+						history: data.history || '',
+						vision: data.vision || '',
+						strategy: data.strategy || '',
+					}}
+					onApply={(partial) => {
+						for (const [k, v] of Object.entries(partial)) {
+							onChange(k, v);
+						}
+					}}
+				/>
+			)}
 			<Card>
 				<CardHeader>
 					<CardTitle>Sejarah</CardTitle>

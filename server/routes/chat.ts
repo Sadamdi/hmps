@@ -3,6 +3,10 @@ import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
+import {
+	sanitizeChatMessagesForClient,
+	scrubThinkingFromChatMessages,
+} from '@shared/ai-response-sanitize';
 import { authenticateOptional } from '../auth';
 import { Chat } from '../models/chat';
 import { mongoStorage } from '../mongo-storage';
@@ -128,11 +132,15 @@ router.get('/:id/messages', async (req, res) => {
 				.status(400)
 				.json({ error: 'No user ID or chat ID found' });
 		}
-		const chat = await Chat.findOne({ _id: chatId, userId, contextScope }).lean();
+		const chat = await Chat.findOne({ _id: chatId, userId, contextScope });
 		if (!chat) {
 			return res.status(404).json({ error: 'Chat not found' });
 		}
-		res.json({ messages: (chat as any).messages || [] });
+		if (scrubThinkingFromChatMessages(chat.messages)) {
+			chat.markModified('messages');
+			await chat.save();
+		}
+		res.json({ messages: chat.messages || [] });
 	} catch (error) {
 		console.error('Error getting chat messages:', error);
 		res.status(500).json({ error: 'Internal server error' });
@@ -149,6 +157,10 @@ router.get('/history', async (req, res) => {
 		}
 
 		const chat = await Chat.findOne({ userId, contextScope }).sort({ createdAt: -1 });
+		if (chat && scrubThinkingFromChatMessages(chat.messages)) {
+			chat.markModified('messages');
+			await chat.save();
+		}
 		const history = chat ? chat.messages : [];
 		// Don't send chat object, only messages history
 		res.json({ history });
@@ -271,6 +283,9 @@ router.post(
 			);
 			// Remove sensitive data before sending response
 			const { apiKeySlot, apiKey, ...safeChat } = updatedChat.toObject() as any;
+			if (Array.isArray(safeChat.messages)) {
+				safeChat.messages = sanitizeChatMessagesForClient(safeChat.messages);
+			}
 			res.json({ chat: safeChat });
 		} catch (error) {
 			console.error('Error sending message:', error);

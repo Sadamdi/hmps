@@ -2,6 +2,7 @@ import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import MediaDisplay from '@/components/MediaDisplay';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -3149,7 +3150,23 @@ export default function DashboardToko() {
 							</div>
 						</div>
 					</div>
-					<DialogFooter>
+					<DialogFooter className="flex-wrap gap-2">
+						<ContentEnhanceButton
+							entityType="store_product"
+							fields={[
+								{ key: 'name', label: 'Nama' },
+								{ key: 'shortDescription', label: 'Deskripsi singkat' },
+								{ key: 'descriptionHtml', label: 'Deskripsi lengkap' },
+							]}
+							values={{
+								name: form.name,
+								shortDescription: form.shortDescription,
+								descriptionHtml: form.descriptionHtml,
+							}}
+							onApply={(partial) => {
+								setForm((f) => ({ ...f, ...partial }));
+							}}
+						/>
 						<Button variant="outline" onClick={() => void closeProductDialog()}>
 							Batal
 						</Button>

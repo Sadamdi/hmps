@@ -27,6 +27,7 @@ import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { CalendarDays, Copy, FileUp, Image, Link2, Loader2, Paperclip, Plus, Search, Trash2, Upload, X } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import RichTextEditor from './rich-text-editor';
+import { ContentEnhanceButton } from './content-enhance-button';
 
 type BeritaAttachmentForm = {
 	name: string;
@@ -1392,7 +1393,21 @@ export default function BeritaEditor({
 			</div>
 		</div>
 
-		<div className="flex justify-end space-x-4">
+		<div className="flex flex-wrap justify-end items-center gap-2">
+			<ContentEnhanceButton
+				entityType="berita"
+				fields={[
+					{ key: 'title', label: 'Judul' },
+					{ key: 'excerpt', label: 'Excerpt' },
+					{ key: 'content', label: 'Konten' },
+				]}
+				values={{ title, excerpt, content }}
+				onApply={(partial) => {
+					if (partial.title !== undefined) setTitle(partial.title);
+					if (partial.excerpt !== undefined) setExcerpt(partial.excerpt);
+					if (partial.content !== undefined) setContent(partial.content);
+				}}
+			/>
 			<Button
 				variant="outline"
 				onClick={onCancel}>

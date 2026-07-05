@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
+import { sanitizeAiAssistantText } from '@shared/ai-response-sanitize';
 import {
 	ArrowRight,
 	Clock,
@@ -147,9 +148,10 @@ function parseMessageActions(text: string): {
 	navActions: NavAction[];
 	linkActions: ExternalLinkAction[];
 } {
+	const sanitized = sanitizeAiAssistantText(text);
 	const navActions: NavAction[] = [];
 	const linkActions: ExternalLinkAction[] = [];
-	const withoutNav = text.replace(NAV_REGEX, (_, jsonStr) => {
+	const withoutNav = sanitized.replace(NAV_REGEX, (_, jsonStr) => {
 		try {
 			const parsed = JSON.parse(jsonStr);
 			if (typeof parsed.path === 'string' && typeof parsed.label === 'string') {

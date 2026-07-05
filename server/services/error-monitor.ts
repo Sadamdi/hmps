@@ -18,6 +18,7 @@ import fs from 'fs';
 import path from 'path';
 import type { Request } from 'express';
 import type { Content } from '@google/generative-ai';
+import { sanitizeAiAssistantText } from '@shared/ai-response-sanitize';
 import { SystemError } from '../../db/mongodb';
 import { getTrustedClientIp } from '../lib/client-ip';
 import { initGeminiClient, GEMINI_MODELS } from '../config/gemini-config';
@@ -583,7 +584,9 @@ async function runGeminiAnalysis(prompt: string): Promise<{ text: string; model:
 			const model = client.getGenerativeModel({ model: GEMINI_MODELS[0] });
 			const result = await model.generateContent({ contents });
 			const text = result.response.text();
-			if (text && text.trim()) return { text, model: GEMINI_MODELS[0] };
+			if (text && text.trim()) {
+				return { text: sanitizeAiAssistantText(text), model: GEMINI_MODELS[0] };
+			}
 		} catch (err) {
 			console.warn('[error-monitor] Gemini analysis failed on a key:', (err as Error)?.message);
 		}

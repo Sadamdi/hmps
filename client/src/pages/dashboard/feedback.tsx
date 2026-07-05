@@ -1,6 +1,7 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import FeedbackFormPreview from '@/components/dashboard/feedback-form-preview';
+import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -505,6 +506,23 @@ function ConfigEditor({ config, onSave, isSaving }: { config: FeedbackFormConfig
 													</Button>
 												</div>
 											</div>
+
+											<ContentEnhanceButton
+												entityType="feedback"
+												fields={[
+													{ key: 'label', label: 'Judul pertanyaan' },
+													{ key: 'placeholder', label: 'Placeholder' },
+													{ key: 'helpText', label: 'Petunjuk' },
+												]}
+												values={{
+													label: selectedField.label || '',
+													placeholder: selectedField.placeholder || '',
+													helpText: selectedField.helpText || '',
+												}}
+												onApply={(partial) => {
+													updateField(selectedField.id, partial);
+												}}
+											/>
 
 											<div className="grid gap-4 sm:grid-cols-2">
 												<div className="space-y-1.5">
