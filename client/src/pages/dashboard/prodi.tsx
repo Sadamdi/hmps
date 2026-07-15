@@ -104,6 +104,37 @@ export default function DashboardProdi() {
 
 	const [pendingSyncScope, setPendingSyncScope] = useState<string | null>(null);
 	const [confirmOverwrite, setConfirmOverwrite] = useState<{ years: number[]; scope: string } | null>(null);
+	const [calendarUploadYear, setCalendarUploadYear] = useState('2026');
+	const calendarFileRef = useRef<HTMLInputElement>(null);
+
+	const calendarUploadMutation = useMutation({
+		mutationFn: async (params: { yearStart: number; file: File }) => {
+			const formData = new FormData();
+			formData.append('yearStart', String(params.yearStart));
+			formData.append('yearEnd', String(params.yearStart + 1));
+			formData.append('file', params.file);
+			const res = await apiRequest('POST', '/api/prodi/calendar/upload', formData);
+			return res.json();
+		},
+		onSuccess: (data: any) => {
+			toast({
+				title: 'PDF kalender terunggah',
+				description: data?.pdfUrl
+					? `Tersimpan di ${data.pdfUrl}`
+					: 'File tersimpan di server production.',
+			});
+			queryClient.invalidateQueries({ queryKey: ['/api/prodi/manage'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/prodi'] });
+			if (calendarFileRef.current) calendarFileRef.current.value = '';
+		},
+		onError: (err: any) => {
+			toast({
+				title: 'Upload gagal',
+				description: err?.message || 'Gagal mengunggah PDF kalender',
+				variant: 'destructive',
+			});
+		},
+	});
 
 	const syncMutation = useMutation({
 		mutationFn: async (params: { scope: string; overwrite?: boolean }) => {
@@ -524,7 +555,9 @@ export default function DashboardProdi() {
 								<li>
 									Klik <strong>Sync Kalender Akademik</strong> (atau Sync Semua) setelah deploy.
 								</li>
-								<li>Jika unduh 404, sync ulang — sistem akan mengisi ulang file yang hilang di disk.</li>
+								<li>
+									Jika sync gagal unduh dari Odoo (mis. IP production diblok), unggah PDF manual di bawah.
+								</li>
 							</ul>
 						</DashboardHintCard>
 						<Card>
@@ -568,6 +601,68 @@ export default function DashboardProdi() {
 								)}
 							</CardContent>
 						</Card>
+						{canSync && (
+							<Card>
+								<CardHeader>
+									<CardTitle className="text-base">Upload PDF manual</CardTitle>
+									<CardDescription>
+										Untuk tahun yang gagal diunduh otomatis (mis. 2026). File harus PDF valid.
+									</CardDescription>
+								</CardHeader>
+								<CardContent className="flex flex-col sm:flex-row gap-3 sm:items-end">
+									<div className="space-y-1.5 w-full sm:w-32">
+										<Label htmlFor="cal-year">Tahun mulai</Label>
+										<Input
+											id="cal-year"
+											type="number"
+											min={2000}
+											max={2100}
+											value={calendarUploadYear}
+											onChange={(e) => setCalendarUploadYear(e.target.value)}
+										/>
+									</div>
+									<div className="space-y-1.5 flex-1">
+										<Label htmlFor="cal-pdf">File PDF</Label>
+										<Input
+											id="cal-pdf"
+											ref={calendarFileRef}
+											type="file"
+											accept="application/pdf,.pdf"
+										/>
+									</div>
+									<Button
+										disabled={calendarUploadMutation.isPending}
+										onClick={() => {
+											const file = calendarFileRef.current?.files?.[0];
+											const yearStart = parseInt(calendarUploadYear, 10);
+											if (!file) {
+												toast({
+													title: 'File wajib',
+													description: 'Pilih PDF kalender terlebih dahulu',
+													variant: 'destructive',
+												});
+												return;
+											}
+											if (!Number.isFinite(yearStart) || yearStart < 2000) {
+												toast({
+													title: 'Tahun tidak valid',
+													variant: 'destructive',
+												});
+												return;
+											}
+											calendarUploadMutation.mutate({ yearStart, file });
+										}}>
+										{calendarUploadMutation.isPending ? (
+											<>
+												<Loader2 className="h-4 w-4 mr-2 animate-spin" /> Mengunggah…
+											</>
+										) : (
+											'Unggah PDF'
+										)}
+									</Button>
+								</CardContent>
+							</Card>
+						)}
 					</TabsContent>
 
 					<TabsContent value="portal" className="space-y-6 mt-6">

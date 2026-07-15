@@ -196,6 +196,7 @@ POST /api/prodi/upload/photo/member
 POST /api/prodi/upload/photo/lab
 POST /api/prodi/upload/photo/org-structure
 POST /api/prodi/sync/run
+POST /api/prodi/calendar/upload
 ```
 
 ## Settings, Home Images, Dashboard

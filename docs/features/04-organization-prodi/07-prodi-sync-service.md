@@ -15,7 +15,8 @@ Student resources gagal secara terisolasi — tidak menggagalkan sync profil/kur
 ### Kalender PDF
 - File disimpan di `uploads/prodi/calendar/` (path relatif project root / `uploadDir`, bukan `cwd`).
 - Sync di **server production** wajib agar unduh/pratinjau tidak 404.
-- Jika `pdfUrl` di Mongo ada tapi file hilang, sync mengunduh ulang. UI fallback ke `sourcePdfUrl`.
+- Jika `pdfUrl` di Mongo ada tapi file hilang, sync mengunduh ulang. UI publik HEAD-check lokal lalu fallback ke `sourcePdfUrl`.
+- Jika unduh Odoo gagal (IP/token), unggah manual via dashboard atau `POST /api/prodi/calendar/upload` (`prodi.sync`, multipart `file` + `yearStart`).
 
 ### Pengumuman
 - Kategori: `thesis | wisuda | ukt | kalender | lainnya`.
@@ -37,6 +38,7 @@ Student resources gagal secara terisolasi — tidak menggagalkan sync profil/kur
 | Method | Endpoint | Source | Observed Input | Observed Response |
 |--------|----------|--------|----------------|-------------------|
 | POST | `/api/prodi/sync/run` | `server/routes.ts` | `{ scope, overwrite? }` | sync result / needsConfirm |
+| POST | `/api/prodi/calendar/upload` | `server/routes.ts` | multipart `file`, `yearStart`, `yearEnd?` | `{ ok, pdfUrl, yearStart, yearEnd }` |
 | GET | `/api/prodi` | public | — | content + `studentHub` defaults |
 
 ---
