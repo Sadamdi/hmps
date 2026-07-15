@@ -1311,6 +1311,13 @@ async function getProdiContentPublic(): Promise<any> {
 		const obj = entry.toObject?.() ?? entry;
 		content.curriculumByYear[obj.academicYear] = obj;
 	}
+	// Ensure student hub defaults for public page (guides/portals) without requiring sync
+	try {
+		const { buildDefaultStudentHub } = await import('../shared/prodi-student-hub');
+		content.studentHub = buildDefaultStudentHub(content.studentHub || {});
+	} catch {
+		/* ignore */
+	}
 	return content;
 }
 

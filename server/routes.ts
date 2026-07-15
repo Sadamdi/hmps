@@ -6062,6 +6062,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					'curriculum',
 					'labs',
 					'accreditation',
+					'academicCalendar',
+					'studentResources',
 				];
 				if (!validScopes.includes(scope)) {
 					return res.status(400).json({

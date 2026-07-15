@@ -1,3 +1,9 @@
+import {
+	HubResourceSection,
+	KalenderSection,
+	PengumumanSection,
+	PortalSection,
+} from '@/components/prodi/student-hub-sections';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -13,12 +19,17 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useQuery } from '@tanstack/react-query';
 import {
+	BookMarked,
 	BookOpen,
+	Briefcase,
+	CalendarDays,
 	ChevronDown,
 	ExternalLink,
 	FlaskConical,
 	GraduationCap,
+	Link2,
 	Loader2,
+	Megaphone,
 	ShieldCheck,
 	Users,
 } from 'lucide-react';
@@ -32,7 +43,30 @@ function slugFromProfileUrl(profileUrl: string): string {
 	return (parts[parts.length - 1] || '').toLowerCase().trim();
 }
 
-type ProdiTabValue = 'profil' | 'dosen' | 'kurikulum' | 'laboratorium' | 'akreditasi';
+type ProdiTabValue =
+	| 'profil'
+	| 'dosen'
+	| 'kurikulum'
+	| 'laboratorium'
+	| 'akreditasi'
+	| 'kalender'
+	| 'portal'
+	| 'skripsi'
+	| 'pkl'
+	| 'pengumuman';
+
+const PRODI_TABS: ProdiTabValue[] = [
+	'profil',
+	'dosen',
+	'kurikulum',
+	'laboratorium',
+	'akreditasi',
+	'kalender',
+	'portal',
+	'skripsi',
+	'pkl',
+	'pengumuman',
+];
 
 /** Samakan dengan galeri/event: URL Drive (termasuk open?id=) dinormalisasi ke /preview. */
 function resolveDrivePreviewUrl(url: string): string {
@@ -112,7 +146,7 @@ function toAccreditationIframeSrc(
 
 function readTabFromUrl(): ProdiTabValue {
 	const raw = new URLSearchParams(window.location.search).get('tab')?.toLowerCase()?.trim();
-	if (raw === 'kurikulum' || raw === 'laboratorium' || raw === 'dosen' || raw === 'akreditasi') return raw;
+	if (raw && (PRODI_TABS as string[]).includes(raw)) return raw as ProdiTabValue;
 	return 'profil';
 }
 
@@ -193,8 +227,17 @@ export default function ProdiPage() {
 	const accreditation = data?.accreditation;
 	const curriculumMeta = data?.curriculumMeta;
 	const curriculumByYear = data?.curriculumByYear;
+	const studentHub = data?.studentHub || {};
 
-	const hasContent = profile || lecturers || curriculum || laboratories || accreditation;
+	const hasContent =
+		profile ||
+		lecturers ||
+		curriculum ||
+		laboratories ||
+		accreditation ||
+		studentHub?.portals?.length ||
+		studentHub?.guides?.length ||
+		Object.keys(studentHub?.academicCalendars || {}).length > 0;
 	const lecturerCount =
 		(lecturers?.headAndSecretary?.length ?? 0) +
 		(lecturers?.staff?.length ?? 0) +
@@ -252,21 +295,36 @@ export default function ProdiPage() {
 						value={activeTab}
 						onValueChange={(v) => setActiveTab(v as ProdiTabValue)}
 						className="w-full">
-						<TabsList className="mb-8 flex h-auto min-h-11 w-full flex-wrap items-center justify-center gap-2 rounded-md bg-muted p-2 text-muted-foreground md:gap-1">
-							<TabsTrigger value="profil" className="gap-2 px-4 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+						<TabsList className="mb-8 flex h-auto min-h-11 w-full items-center justify-start gap-1 overflow-x-auto rounded-md bg-muted p-2 text-muted-foreground sm:flex-wrap sm:justify-center md:gap-1">
+							<TabsTrigger value="profil" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<GraduationCap className="h-4 w-4 shrink-0" /> Profil
 							</TabsTrigger>
-							<TabsTrigger value="dosen" className="gap-2 px-4 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+							<TabsTrigger value="dosen" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<Users className="h-4 w-4 shrink-0" /> Dosen
 							</TabsTrigger>
-							<TabsTrigger value="kurikulum" className="gap-2 px-4 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+							<TabsTrigger value="kurikulum" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<BookOpen className="h-4 w-4 shrink-0" /> Kurikulum
 							</TabsTrigger>
-							<TabsTrigger value="laboratorium" className="gap-2 px-4 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+							<TabsTrigger value="laboratorium" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<FlaskConical className="h-4 w-4 shrink-0" /> Laboratorium
 							</TabsTrigger>
-							<TabsTrigger value="akreditasi" className="gap-2 px-4 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+							<TabsTrigger value="akreditasi" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<ShieldCheck className="h-4 w-4 shrink-0" /> Akreditasi
+							</TabsTrigger>
+							<TabsTrigger value="kalender" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+								<CalendarDays className="h-4 w-4 shrink-0" /> Kalender
+							</TabsTrigger>
+							<TabsTrigger value="portal" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+								<Link2 className="h-4 w-4 shrink-0" /> Portal
+							</TabsTrigger>
+							<TabsTrigger value="skripsi" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+								<BookMarked className="h-4 w-4 shrink-0" /> Skripsi
+							</TabsTrigger>
+							<TabsTrigger value="pkl" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+								<Briefcase className="h-4 w-4 shrink-0" /> PKL
+							</TabsTrigger>
+							<TabsTrigger value="pengumuman" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+								<Megaphone className="h-4 w-4 shrink-0" /> Pengumuman
 							</TabsTrigger>
 						</TabsList>
 
@@ -290,6 +348,29 @@ export default function ProdiPage() {
 						</TabsContent>
 						<TabsContent value="akreditasi" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
 							{accreditation && <AccreditationSection data={accreditation} />}
+						</TabsContent>
+						<TabsContent value="kalender" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
+							<KalenderSection calendars={studentHub.academicCalendars || {}} />
+						</TabsContent>
+						<TabsContent value="portal" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
+							<PortalSection portals={studentHub.portals || []} guides={studentHub.guides || []} />
+						</TabsContent>
+						<TabsContent value="skripsi" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
+							<HubResourceSection
+								title="Skripsi (S1)"
+								hub={studentHub.skripsiHub}
+								emptyHint="Hub skripsi belum tersinkron. Jalankan sync Student Resources di dashboard."
+							/>
+						</TabsContent>
+						<TabsContent value="pkl" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
+							<HubResourceSection
+								title="PKL / Internship"
+								hub={studentHub.pklHub}
+								emptyHint="Hub PKL belum tersinkron. Jalankan sync Student Resources di dashboard."
+							/>
+						</TabsContent>
+						<TabsContent value="pengumuman" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
+							<PengumumanSection items={studentHub.announcements || []} />
 						</TabsContent>
 					</Tabs>
 				</div>

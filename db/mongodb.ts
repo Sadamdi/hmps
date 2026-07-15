@@ -1147,6 +1147,8 @@ const prodiContentSchema = new mongoose.Schema(
 				s3ManualUrl: { type: String, default: '' },
 				lastSyncAt: { type: Date, default: null },
 			},
+			/** Student hub: calendars, portals, guides, skripsi/PKL, announcements */
+			studentHub: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
 		},
 
 		curriculumByYear: [curriculumYearEntrySchema],
