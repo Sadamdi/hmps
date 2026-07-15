@@ -159,6 +159,17 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 			{ label: 'Kurikulum', href: '/prodi?tab=kurikulum' },
 			{ label: 'Laboratorium', href: '/prodi?tab=laboratorium' },
 			{ label: 'Akreditasi', href: '/prodi?tab=akreditasi' },
+			{
+				id: 'prodi-layanan',
+				label: 'Layanan Mahasiswa',
+				children: [
+					{ label: 'Kalender Akademik', href: '/prodi?tab=kalender' },
+					{ label: 'Portal & Panduan', href: '/prodi?tab=portal' },
+					{ label: 'Skripsi', href: '/prodi?tab=skripsi' },
+					{ label: 'PKL', href: '/prodi?tab=pkl' },
+					{ label: 'Pengumuman', href: '/prodi?tab=pengumuman' },
+				],
+			},
 		],
 	},
 	{

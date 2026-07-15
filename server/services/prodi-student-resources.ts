@@ -8,18 +8,18 @@ import {
 	DEFAULT_STUDENT_PORTALS,
 	buildDefaultStudentHub,
 } from '../../shared/prodi-student-hub';
+import { uploadDir } from '../upload';
 
 const UA =
 	'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
 const SIAKAD = 'https://siakad.uin-malang.ac.id/index.php';
-const PENGUMUMAN_INDEX = 'https://uin-malang.ac.id/blog/pengumuman-3';
 const TI_PENGUMUMAN_FEED = 'https://informatika.uin-malang.ac.id/category/pengumuman/feed/';
 const UIN_PENGUMUMAN_FEED = 'https://uin-malang.ac.id/blog/pengumuman-3/feed';
 const TI_SKRIPSI = 'https://informatika.uin-malang.ac.id/thesis-skripsi-s1/';
 const TI_PKL = 'https://informatika.uin-malang.ac.id/internship-pkl/';
 
-const UPLOADS_CALENDAR = path.join(process.cwd(), 'uploads', 'prodi', 'calendar');
+const UPLOADS_CALENDAR = path.join(uploadDir, 'prodi', 'calendar');
 
 /** Curated university-wide calendar PDF mirrors (audited). Key = start year. */
 const CURATED_CALENDAR_PDFS: Record<number, { academicYear: string; url: string; sourceKind: string }> = {
@@ -57,6 +57,17 @@ export type AcademicCalendarEntry = {
 	syncedAt: string;
 };
 
+export type AnnouncementCategory = 'thesis' | 'wisuda' | 'ukt' | 'kalender' | 'lainnya';
+
+export type StudentAnnouncement = {
+	title: string;
+	url: string;
+	source: string;
+	publishedAt: string;
+	category: AnnouncementCategory;
+	excerpt?: string;
+};
+
 export type StudentHubSyncResult = {
 	ok: boolean;
 	error?: string;
@@ -87,6 +98,18 @@ function absUrl(href: string, base: string): string {
 
 function ensureCalendarDir() {
 	if (!fs.existsSync(UPLOADS_CALENDAR)) fs.mkdirSync(UPLOADS_CALENDAR, { recursive: true });
+}
+
+function calendarDiskPathFromUrl(pdfUrl: string): string | null {
+	if (!pdfUrl?.startsWith('/uploads/')) return null;
+	const rel = pdfUrl.replace(/^\/uploads\//, '').replace(/\.\./g, '');
+	return path.join(uploadDir, rel);
+}
+
+export function localCalendarFileExists(pdfUrl?: string): boolean {
+	if (!pdfUrl) return false;
+	const disk = calendarDiskPathFromUrl(pdfUrl);
+	return !!(disk && fs.existsSync(disk) && fs.statSync(disk).size > 10_000);
 }
 
 async function downloadPdfToLocal(remoteUrl: string, yearStart: number, yearEnd: number): Promise<string | null> {
@@ -124,47 +147,34 @@ async function discoverFromSiakad(): Promise<{
 	const highlights: string[] = [];
 	let announcementUrl: string | undefined;
 	let academicYearLabel: string | undefined;
-
-	$('a').each((_, el) => {
+	$('a[href]').each((_, el) => {
 		const text = $(el).text().replace(/\s+/g, ' ').trim();
-		const href = $(el).attr('href') || '';
-		const parentText = $(el).parent().text().replace(/\s+/g, ' ').trim();
-		if (/kalender akademik/i.test(text) || /kalender akademik/i.test(parentText)) {
+		const href = ($(el).attr('href') || '').replace(/&amp;/g, '&');
+		if (/kalender akademik/i.test(text)) {
 			if (href && !announcementUrl) {
 				announcementUrl = absUrl(href, SIAKAD);
+				academicYearLabel = text;
 			}
-			const years = parseYearFromAcademicLabel(parentText || text);
-			if (years) academicYearLabel = years.label;
+		}
+		if (/wisuda|herregistrasi|ukt|yudisium|semester/i.test(text) && text.length < 120) {
+			highlights.push(text);
 		}
 	});
-
-	$('.berita_login li, .quote-phrase').each((_, el) => {
-		const t = $(el).text().replace(/\s+/g, ' ').trim();
-		if (t.length > 20 && t.length < 500) highlights.push(t.replace(/^"+|"+$/g, ''));
-	});
-
 	return { announcementUrl, highlights: highlights.slice(0, 12), academicYearLabel };
 }
 
 async function discoverAnnouncementUrls(): Promise<{ url: string; label: string }[]> {
-	const found: { url: string; label: string }[] = [];
-	const pages = [PENGUMUMAN_INDEX, `${PENGUMUMAN_INDEX}/page/2`];
-	for (const page of pages) {
-		try {
-			const html = await fetchText(page);
-			const $ = cheerio.load(html);
-			$('a[href*="kalender-akademik"]').each((_, el) => {
-				const href = absUrl($(el).attr('href') || '', page);
-				const label = $(el).text().replace(/\s+/g, ' ').trim() || href;
-				if (/kalender-akademik-tahun-akademik/i.test(href) && !found.some((f) => f.url === href)) {
-					found.push({ url: href.replace('/post/', '/'), label });
-				}
-			});
-		} catch (err) {
-			console.warn('Pengumuman index scrape failed:', page, err);
+	const html = await fetchText('https://uin-malang.ac.id/blog/pengumuman-3');
+	const $ = cheerio.load(html);
+	const out: { url: string; label: string }[] = [];
+	$('a[href]').each((_, el) => {
+		const text = $(el).text().replace(/\s+/g, ' ').trim();
+		const href = absUrl(($(el).attr('href') || '').replace(/&amp;/g, '&'), 'https://uin-malang.ac.id/');
+		if (/kalender akademik/i.test(text) && /pengumuman/i.test(href)) {
+			out.push({ url: href, label: text });
 		}
-	}
-	return found;
+	});
+	return out.slice(0, 8);
 }
 
 async function extractPdfFromAnnouncement(announcementUrl: string): Promise<{
@@ -174,27 +184,19 @@ async function extractPdfFromAnnouncement(announcementUrl: string): Promise<{
 }> {
 	const html = await fetchText(announcementUrl);
 	const $ = cheerio.load(html);
-	const title = $('h1').first().text().replace(/\s+/g, ' ').trim() || 'Kalender Akademik';
-	let rectorDecision: string | undefined;
-	const bodyText = $('.o_wblog_post_content_field, article, main').text();
-	const dec = bodyText.match(/Nomor\s*:\s*([^\n]+)/i);
-	if (dec) rectorDecision = dec[1].replace(/\s+/g, ' ').trim();
-
+	const title = $('h1, .entry-title, title').first().text().replace(/\s+/g, ' ').trim() || 'Kalender Akademik';
 	let pdfUrl: string | undefined;
+	let rectorDecision: string | undefined;
 	$('a[href]').each((_, el) => {
-		if (pdfUrl) return;
-		const href = ($(el).attr('href') || '').replace(/&amp;/g, '&');
-		if (!href) return;
-		const full = absUrl(href, announcementUrl);
-		if (
-			/\.pdf(\?|$)/i.test(full) ||
-			/old\.uin-malang\.ac\.id/i.test(full) ||
-			(/\/web\/content\//i.test(full) && /download=true/i.test(full)) ||
-			/uin-malang\.ac\.id\/\+\/c\//i.test(full)
-		) {
-			pdfUrl = full;
+		const href = absUrl(($(el).attr('href') || '').replace(/&amp;/g, '&'), announcementUrl);
+		const text = $(el).text().replace(/\s+/g, ' ').trim();
+		if (!pdfUrl && (/kalender/i.test(text) || /\.pdf/i.test(href) || /download/i.test(text))) {
+			if (/\.pdf|content\/\d+|old\.uin-malang|drive\.google/i.test(href)) pdfUrl = href;
 		}
 	});
+	const body = $('article, .entry-content, main').first().text().replace(/\s+/g, ' ').trim();
+	const m = body.match(/Keputusan\s+Rektor[^.…]{0,120}/i) || body.match(/Nomor\s*[:.]?\s*\d+[^.…]{0,80}/i);
+	if (m) rectorDecision = m[0].slice(0, 200);
 	return { pdfUrl, title, rectorDecision };
 }
 
@@ -212,9 +214,29 @@ async function upsertCalendarEntry(
 		sourceKind: string;
 	},
 ): Promise<boolean> {
-	const local = await downloadPdfToLocal(opts.sourcePdfUrl, opts.start, opts.end);
-	if (!local) return false;
 	const key = String(opts.start);
+	const existing = map[key];
+	if (existing?.pdfUrl && localCalendarFileExists(existing.pdfUrl) && existing.sourcePdfUrl === opts.sourcePdfUrl) {
+		return true;
+	}
+	const local = await downloadPdfToLocal(opts.sourcePdfUrl, opts.start, opts.end);
+	if (!local) {
+		// Keep metadata with source URL so UI can fall back to remote download
+		if (opts.sourcePdfUrl) {
+			map[key] = {
+				academicYear: opts.label,
+				title: opts.title,
+				announcementUrl: opts.announcementUrl,
+				sourcePdfUrl: opts.sourcePdfUrl,
+				pdfUrl: existing?.pdfUrl && localCalendarFileExists(existing.pdfUrl) ? existing.pdfUrl : '',
+				highlights: opts.highlights || existing?.highlights || [],
+				rectorDecision: opts.rectorDecision || existing?.rectorDecision,
+				sourceKind: opts.sourceKind,
+				syncedAt: new Date().toISOString(),
+			};
+		}
+		return false;
+	}
 	map[key] = {
 		academicYear: opts.label,
 		title: opts.title,
@@ -229,12 +251,44 @@ async function upsertCalendarEntry(
 	return true;
 }
 
+async function repairMissingLocalPdfs(map: Record<string, AcademicCalendarEntry>): Promise<number[]> {
+	const repaired: number[] = [];
+	for (const [key, entry] of Object.entries(map)) {
+		if (!entry?.sourcePdfUrl) continue;
+		if (entry.pdfUrl && localCalendarFileExists(entry.pdfUrl)) continue;
+		const years = parseYearFromAcademicLabel(entry.academicYear) || {
+			start: Number(key),
+			end: Number(key) + 1,
+			label: entry.academicYear,
+		};
+		const ok = await upsertCalendarEntry(map, {
+			start: years.start,
+			end: years.end,
+			label: years.label,
+			title: entry.title,
+			sourcePdfUrl: entry.sourcePdfUrl,
+			announcementUrl: entry.announcementUrl,
+			highlights: entry.highlights,
+			rectorDecision: entry.rectorDecision,
+			sourceKind: entry.sourceKind || 'repair',
+		});
+		if (ok) repaired.push(years.start);
+	}
+	return repaired;
+}
+
 export async function syncAcademicCalendars(
 	existing: Record<string, AcademicCalendarEntry> = {},
 ): Promise<{ map: Record<string, AcademicCalendarEntry>; found: number[]; skipped: number[] }> {
 	const map: Record<string, AcademicCalendarEntry> = { ...existing };
 	const found: number[] = [];
 	const attempted = new Set<number>();
+
+	try {
+		found.push(...(await repairMissingLocalPdfs(map)));
+	} catch (err) {
+		console.warn('Calendar repair pass failed:', err);
+	}
 
 	let highlights: string[] = [];
 	try {
@@ -294,7 +348,7 @@ export async function syncAcademicCalendars(
 
 	for (const [yearStr, curated] of Object.entries(CURATED_CALENDAR_PDFS)) {
 		const start = Number(yearStr);
-		if (map[String(start)]?.pdfUrl) continue;
+		if (map[String(start)]?.pdfUrl && localCalendarFileExists(map[String(start)].pdfUrl)) continue;
 		attempted.add(start);
 		const end = start + 1;
 		try {
@@ -321,9 +375,17 @@ export async function syncAcademicCalendars(
 	return { map, found: Array.from(new Set(found)).sort((a, b) => a - b), skipped };
 }
 
-function parseRssItems(xml: string, source: 'ti' | 'uin'): { title: string; url: string; source: string; publishedAt: string }[] {
+function categorizeAnnouncement(title: string): AnnouncementCategory {
+	if (/thesis|skripsi|seminar|sidang|kompre|periodization|ujian/i.test(title)) return 'thesis';
+	if (/wisuda/i.test(title)) return 'wisuda';
+	if (/ukt|uang kuliah|herregistrasi|bebas tanggungan/i.test(title)) return 'ukt';
+	if (/kalender akademik/i.test(title)) return 'kalender';
+	return 'lainnya';
+}
+
+function parseRssItems(xml: string, source: 'ti' | 'uin'): StudentAnnouncement[] {
 	const $ = cheerio.load(xml, { xmlMode: true });
-	const items: { title: string; url: string; source: string; publishedAt: string }[] = [];
+	const items: StudentAnnouncement[] = [];
 	$('item, entry').each((_, el) => {
 		const title = $(el).find('title').first().text().replace(/\s+/g, ' ').trim();
 		let url =
@@ -334,23 +396,39 @@ function parseRssItems(xml: string, source: 'ti' | 'uin'): { title: string; url:
 		url = url.trim();
 		const publishedAt =
 			$(el).find('pubDate, published, updated').first().text().trim() || new Date().toISOString();
-		if (title && url) items.push({ title, url, source, publishedAt });
+		const excerpt = $(el)
+			.find('description, summary, content')
+			.first()
+			.text()
+			.replace(/<[^>]+>/g, ' ')
+			.replace(/\s+/g, ' ')
+			.trim()
+			.slice(0, 280);
+		if (title && url) {
+			items.push({
+				title,
+				url,
+				source,
+				publishedAt,
+				category: categorizeAnnouncement(title),
+				excerpt: excerpt || undefined,
+			});
+		}
 	});
 	return items;
 }
 
-function filterAnnouncements(items: { title: string; url: string; source: string; publishedAt: string }[]) {
-	const tiRe = /thesis|periodization|seminar|skripsi|sidang|kompre|ujian/i;
-	const uinRe = /wisuda|kalender akademik|ukt|uang kuliah/i;
+function filterAnnouncements(items: StudentAnnouncement[]): StudentAnnouncement[] {
+	const tiRe = /thesis|periodization|seminar|skripsi|sidang|kompre|ujian|pkl|internship/i;
+	const uinRe = /wisuda|kalender akademik|ukt|uang kuliah|herregistrasi|yudisium/i;
 	return items
-		.filter((i) => (i.source === 'ti' ? tiRe.test(i.title) : uinRe.test(i.title)))
-		.slice(0, 20);
+		.filter((i) => (i.source === 'ti' ? tiRe.test(i.title) : uinRe.test(i.title) || i.category !== 'lainnya'))
+		.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+		.slice(0, 40);
 }
 
-export async function syncAnnouncementsFeed(): Promise<
-	{ title: string; url: string; source: string; publishedAt: string }[]
-> {
-	const all: { title: string; url: string; source: string; publishedAt: string }[] = [];
+export async function syncAnnouncementsFeed(): Promise<StudentAnnouncement[]> {
+	const all: StudentAnnouncement[] = [];
 	try {
 		const tiXml = await fetchText(TI_PENGUMUMAN_FEED);
 		all.push(...parseRssItems(tiXml, 'ti'));
@@ -366,19 +444,60 @@ export async function syncAnnouncementsFeed(): Promise<
 	return filterAnnouncements(all);
 }
 
+function extractPageSections($: cheerio.CheerioAPI, base: string) {
+	const sections: { heading: string; body: string; links: { label: string; url: string }[] }[] = [];
+	$('h2, h3').each((_, el) => {
+		const heading = $(el).text().replace(/\s+/g, ' ').trim();
+		if (!heading || heading.length > 120) return;
+		const bodyParts: string[] = [];
+		const links: { label: string; url: string }[] = [];
+		let node = $(el).next();
+		let guard = 0;
+		while (node.length && !node.is('h2, h3') && guard < 12) {
+			const text = node.text().replace(/\s+/g, ' ').trim();
+			if (text && text.length < 500) bodyParts.push(text);
+			node.find('a[href]').addBack('a[href]').each((__, a) => {
+				const label = $(a).text().replace(/\s+/g, ' ').trim() || 'Tautan';
+				const url = absUrl(($(a).attr('href') || '').replace(/&amp;/g, '&'), base);
+				if (url && !links.some((l) => l.url === url)) links.push({ label: label.slice(0, 100), url });
+			});
+			node = node.next();
+			guard++;
+		}
+		if (heading) {
+			sections.push({
+				heading,
+				body: bodyParts.join(' ').slice(0, 600),
+				links: links.slice(0, 10),
+			});
+		}
+	});
+	return sections.slice(0, 12);
+}
+
 export async function syncSkripsiHub(existing?: any) {
-	const hub = { ...DEFAULT_SKRIPSI_HUB, ...(existing || {}) };
+	const hub: any = { ...DEFAULT_SKRIPSI_HUB, ...(existing || {}) };
 	try {
 		const html = await fetchText(TI_SKRIPSI);
 		const $ = cheerio.load(html);
-		const pdfs: string[] = [];
+		const docs: { name: string; url: string }[] = [];
+		const links: { label: string; url: string }[] = [];
 		$('a[href]').each((_, el) => {
+			const label = $(el).text().replace(/\s+/g, ' ').trim() || 'Dokumen';
 			const href = absUrl(($(el).attr('href') || '').replace(/&amp;/g, '&'), TI_SKRIPSI);
-			if (/drive\.google\.com|docs\.google\.com|\.pdf/i.test(href)) pdfs.push(href);
+			if (/drive\.google\.com|docs\.google\.com|\.pdf/i.test(href)) {
+				if (!docs.some((d) => d.url === href)) docs.push({ name: label.slice(0, 100), url: href });
+			} else if (/periodization|seminar|thesis|skripsi|registration|daftar|form/i.test(label + href)) {
+				if (!links.some((l) => l.url === href)) links.push({ label: label.slice(0, 100), url: href });
+			}
 		});
-		if (pdfs[0] && !hub.sopPdf) hub.sopPdf = pdfs[0];
+		if (docs[0]) hub.sopPdf = docs[0].url;
+		if (docs.length) hub.documents = docs.slice(0, 15);
+		if (links.length) hub.actionLinks = links.slice(0, 15);
+		hub.sections = extractPageSections($, TI_SKRIPSI);
 		hub.hubUrl = TI_SKRIPSI;
 		hub.syncedAt = new Date().toISOString();
+		delete hub.syncError;
 	} catch (err) {
 		console.warn('Skripsi hub scrape failed:', err);
 		hub.syncedAt = new Date().toISOString();
@@ -388,7 +507,7 @@ export async function syncSkripsiHub(existing?: any) {
 }
 
 export async function syncPklHub(existing?: any) {
-	const hub = {
+	const hub: any = {
 		...DEFAULT_PKL_HUB,
 		...(existing || {}),
 		templates: [...(existing?.templates || [])],
@@ -399,14 +518,20 @@ export async function syncPklHub(existing?: any) {
 		const templates: { name: string; url: string }[] = [];
 		$('a[href]').each((_, el) => {
 			const href = absUrl(($(el).attr('href') || '').replace(/&amp;/g, '&'), TI_PKL);
-			const name = $(el).text().replace(/\s+/g, ' ').trim() || 'Dokumen';
-			if (/drive\.google\.com|docs\.google\.com/i.test(href)) {
-				if (!templates.some((t) => t.url === href)) templates.push({ name: name.slice(0, 80), url: href });
+			let name = $(el).text().replace(/\s+/g, ' ').trim();
+			if (/^download here$/i.test(name) || !name) {
+				const parentText = $(el).parent().text().replace(/\s+/g, ' ').trim();
+				name = parentText.slice(0, 80) || 'Dokumen PKL';
+			}
+			if (/drive\.google\.com|docs\.google\.com|\.pdf/i.test(href)) {
+				if (!templates.some((t) => t.url === href)) templates.push({ name: name.slice(0, 100), url: href });
 			}
 		});
-		if (templates.length) hub.templates = templates.slice(0, 12);
+		if (templates.length) hub.templates = templates.slice(0, 20);
+		hub.sections = extractPageSections($, TI_PKL);
 		hub.hubUrl = TI_PKL;
 		hub.syncedAt = new Date().toISOString();
+		delete hub.syncError;
 	} catch (err) {
 		console.warn('PKL hub scrape failed:', err);
 		hub.syncedAt = new Date().toISOString();
@@ -463,9 +588,15 @@ export async function runStudentResourcesSync(existingHub?: any): Promise<{
 		console.warn('PKL sync error:', err);
 	}
 
-	// Refresh static portals + guides from code defaults (katalog NIM / panduan)
 	hub.portals = DEFAULT_STUDENT_PORTALS;
 	hub.guides = DEFAULT_STUDENT_GUIDES;
 
 	return { hub, summary };
+}
+
+/** Lightweight announcements-only sync for daily cron */
+export async function runAnnouncementsOnlySync(existingHub?: any) {
+	const hub = buildDefaultStudentHub(existingHub);
+	hub.announcements = await syncAnnouncementsFeed();
+	return hub;
 }

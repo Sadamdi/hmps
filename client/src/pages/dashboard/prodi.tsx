@@ -38,12 +38,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
 	AlertCircle,
 	BookOpen,
+	CalendarDays,
 	CheckCircle2,
 	ChevronDown,
 	ExternalLink,
 	FlaskConical,
 	GraduationCap,
 	ImageIcon,
+	Link2,
 	Loader2,
 	Pencil,
 	Plus,
@@ -71,6 +73,7 @@ export default function DashboardProdi() {
 	});
 
 	const [autoSync, setAutoSync] = useState(true);
+	const [announcementIntervalDays, setAnnouncementIntervalDays] = useState(1);
 	const [localContent, setLocalContent] = useState<any>(null);
 	const [dirty, setDirty] = useState(false);
 	const [selectedCurriculumYear, setSelectedCurriculumYear] = useState<number | null>(null);
@@ -78,6 +81,7 @@ export default function DashboardProdi() {
 	useEffect(() => {
 		if (doc) {
 			setAutoSync(doc.autoSyncEnabled ?? true);
+			setAnnouncementIntervalDays(doc.announcementSyncIntervalDays ?? 1);
 			setLocalContent(doc.content ? JSON.parse(JSON.stringify(doc.content)) : {});
 		}
 	}, [doc]);
@@ -152,7 +156,10 @@ export default function DashboardProdi() {
 
 	const handleSave = useCallback(() => {
 		if (!canEdit) return;
-		const payload: any = { autoSyncEnabled: autoSync };
+		const payload: any = {
+			autoSyncEnabled: autoSync,
+			announcementSyncIntervalDays: announcementIntervalDays,
+		};
 		if (localContent) payload.content = localContent;
 		const activeYear = doc?.activeAcademicYear ?? new Date().getFullYear();
 		const years: number[] = doc?.curriculumYears ?? [];
@@ -161,7 +168,7 @@ export default function DashboardProdi() {
 			payload.curriculumYear = curYear;
 		}
 		saveMutation.mutate(payload);
-	}, [canEdit, autoSync, localContent, saveMutation, selectedCurriculumYear, doc]);
+	}, [canEdit, autoSync, announcementIntervalDays, localContent, saveMutation, selectedCurriculumYear, doc]);
 
 	const handleToggleAutoSync = useCallback((checked: boolean) => {
 		setAutoSync(checked);
@@ -340,7 +347,7 @@ export default function DashboardProdi() {
 
 				{/* Content editor tabs */}
 				<Tabs defaultValue="profil" className="w-full">
-					<TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
+					<TabsList className="flex flex-wrap w-full h-auto gap-1 justify-start">
 						<TabsTrigger value="profil" className="gap-2">
 							<GraduationCap className="h-4 w-4" /> Profil
 						</TabsTrigger>
@@ -355,6 +362,21 @@ export default function DashboardProdi() {
 						</TabsTrigger>
 						<TabsTrigger value="akreditasi" className="gap-2">
 							<ShieldCheck className="h-4 w-4" /> Akreditasi
+						</TabsTrigger>
+						<TabsTrigger value="kalender" className="gap-2">
+							<CalendarDays className="h-4 w-4" /> Kalender
+						</TabsTrigger>
+						<TabsTrigger value="portal" className="gap-2">
+							<Link2 className="h-4 w-4" /> Portal
+						</TabsTrigger>
+						<TabsTrigger value="skripsi" className="gap-2">
+							Skripsi
+						</TabsTrigger>
+						<TabsTrigger value="pkl" className="gap-2">
+							PKL
+						</TabsTrigger>
+						<TabsTrigger value="pengumuman" className="gap-2">
+							Pengumuman
 						</TabsTrigger>
 					</TabsList>
 
@@ -490,6 +512,175 @@ export default function DashboardProdi() {
 							onChange={(field, val) => updateField('accreditation', field, val)}
 							readOnly={!canEdit}
 						/>
+					</TabsContent>
+
+					<TabsContent value="kalender" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Kalender Akademik"
+							variant="green"
+							storageKey="dashboard-prodi-tab-kalender"
+							description="PDF kalender di-cache ke /uploads/prodi/calendar di server. Sync harus dijalankan di production agar file tersedia untuk unduh/pratinjau.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>
+									Klik <strong>Sync Kalender Akademik</strong> (atau Sync Semua) setelah deploy.
+								</li>
+								<li>Jika unduh 404, sync ulang — sistem akan mengisi ulang file yang hilang di disk.</li>
+							</ul>
+						</DashboardHintCard>
+						<Card>
+							<CardHeader>
+								<CardTitle className="text-base">Tahun tersinkron</CardTitle>
+								<CardDescription>
+									{(Object.keys(localContent?.studentHub?.academicCalendars || {}).length || 0)} tahun
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-2 text-sm">
+								{Object.entries(localContent?.studentHub?.academicCalendars || {})
+									.sort(([a], [b]) => Number(b) - Number(a))
+									.map(([y, c]: any) => (
+										<div key={y} className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-2">
+											<span>
+												{c.academicYear || y} — {c.title || 'Kalender'}
+											</span>
+											<span className="text-xs text-muted-foreground">
+												{c.pdfUrl ? 'PDF lokal' : 'hanya sumber remote'}
+												{c.sourcePdfUrl ? (
+													<>
+														{' · '}
+														<a className="text-primary" href={c.sourcePdfUrl} target="_blank" rel="noreferrer">
+															sumber
+														</a>
+													</>
+												) : null}
+											</span>
+										</div>
+									))}
+								{!Object.keys(localContent?.studentHub?.academicCalendars || {}).length && (
+									<p className="text-muted-foreground">Belum ada data. Jalankan Sync Kalender.</p>
+								)}
+								{canSync && (
+									<Button
+										variant="outline"
+										className="mt-2"
+										onClick={() => setPendingSyncScope('academicCalendar')}>
+										<RefreshCw className="h-4 w-4 mr-2" /> Sync Kalender Sekarang
+									</Button>
+								)}
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					<TabsContent value="portal" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Portal"
+							variant="green"
+							storageKey="dashboard-prodi-tab-portal"
+							description="Portal & panduan (termasuk decoder NIM) diisi dari defaults + sync Student Resources.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>Preview publik: /prodi?tab=portal</li>
+							</ul>
+						</DashboardHintCard>
+						<Card>
+							<CardContent className="pt-6 space-y-2 text-sm">
+								<p>
+									Portal: {(localContent?.studentHub?.portals || []).length} tautan · Panduan:{' '}
+									{(localContent?.studentHub?.guides || []).length} item
+								</p>
+								{(localContent?.studentHub?.portals || []).slice(0, 8).map((p: any) => (
+									<div key={p.url} className="text-muted-foreground">
+										{p.label} — {p.url}
+									</div>
+								))}
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					<TabsContent value="skripsi" className="space-y-6 mt-6">
+						<Card>
+							<CardHeader>
+								<CardTitle className="text-base">Hub Skripsi (hasil scrape)</CardTitle>
+								<CardDescription>{localContent?.studentHub?.skripsiHub?.hubUrl}</CardDescription>
+							</CardHeader>
+							<CardContent className="text-sm space-y-2">
+								<p>Dokumen: {(localContent?.studentHub?.skripsiHub?.documents || []).length}</p>
+								<p>Sections: {(localContent?.studentHub?.skripsiHub?.sections || []).length}</p>
+								{canSync && (
+									<Button variant="outline" onClick={() => setPendingSyncScope('studentResources')}>
+										Sync Portal / Skripsi / PKL / Pengumuman
+									</Button>
+								)}
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					<TabsContent value="pkl" className="space-y-6 mt-6">
+						<Card>
+							<CardHeader>
+								<CardTitle className="text-base">Hub PKL (hasil scrape)</CardTitle>
+								<CardDescription>{localContent?.studentHub?.pklHub?.hubUrl}</CardDescription>
+							</CardHeader>
+							<CardContent className="text-sm space-y-2">
+								<p>Template: {(localContent?.studentHub?.pklHub?.templates || []).length}</p>
+								{(localContent?.studentHub?.pklHub?.templates || []).slice(0, 8).map((t: any) => (
+									<div key={t.url} className="text-muted-foreground truncate">
+										{t.name}
+									</div>
+								))}
+							</CardContent>
+						</Card>
+					</TabsContent>
+
+					<TabsContent value="pengumuman" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Pengumuman"
+							variant="green"
+							storageKey="dashboard-prodi-tab-pengumuman"
+							description="Feed RSS TI + UIN dikategorikan (thesis, wisuda, UKT, kalender). Auto-fetch default setiap 1 hari; bisa diubah di bawah.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>Ubah interval → Simpan. Cron cek tiap jam apakah sudah jatuh tempo.</li>
+							</ul>
+						</DashboardHintCard>
+						<Card>
+							<CardHeader>
+								<CardTitle className="text-base">Interval auto-fetch</CardTitle>
+							</CardHeader>
+							<CardContent className="space-y-3">
+								<div className="flex flex-wrap items-end gap-3">
+									<div className="space-y-1">
+										<Label htmlFor="ann-interval">Setiap (hari)</Label>
+										<Input
+											id="ann-interval"
+											type="number"
+											min={1}
+											max={30}
+											className="w-28"
+											value={announcementIntervalDays}
+											disabled={!canEdit}
+											onChange={(e) => {
+												setAnnouncementIntervalDays(
+													Math.min(30, Math.max(1, parseInt(e.target.value, 10) || 1)),
+												);
+												setDirty(true);
+											}}
+										/>
+									</div>
+									<p className="text-xs text-muted-foreground">
+										Terakhir:{' '}
+										{doc?.lastAnnouncementSyncAt
+											? new Date(doc.lastAnnouncementSyncAt).toLocaleString('id-ID')
+											: 'belum pernah'}
+									</p>
+								</div>
+								<p className="text-sm">
+									Item tersimpan: {(localContent?.studentHub?.announcements || []).length}
+								</p>
+								{canSync && (
+									<Button variant="outline" onClick={() => setPendingSyncScope('studentResources')}>
+										Sync Pengumuman Sekarang
+									</Button>
+								)}
+							</CardContent>
+						</Card>
 					</TabsContent>
 				</Tabs>
 			</div>

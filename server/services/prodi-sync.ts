@@ -2052,6 +2052,16 @@ export async function runProdiSyncScoped(
 			await mongoStorage.applyAutoSyncData(crawledContent, { forceFields });
 		}
 
+		if (doStudentResources) {
+			try {
+				const fresh = await mongoStorage.getProdiContent();
+				(fresh as any).lastAnnouncementSyncAt = new Date();
+				await fresh.save();
+			} catch {
+				/* ignore */
+			}
+		}
+
 		const validation = validateCrawledContent(profile, lecturerData, curriculum, teachingLabs, researchLabs);
 
 		if (validation.criticalMissing.length > 0 && scope === 'all') {
