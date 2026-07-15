@@ -5,6 +5,7 @@ import { Berita, Comment, Event, Library } from '../../db/mongodb';
 import { authenticate, authenticateOptional, requirePermission } from '../auth';
 import { commentRateLimiter } from '../middleware/public-rate-limit';
 import { mongoStorage } from '../mongo-storage';
+import { sanitizePlainText } from '../utils/input-sanitize';
 
 const router = Router();
 
@@ -157,6 +158,10 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 		const user = req.user as any;
 		let userId = null;
 		let guestKeyHash = null;
+		const bodyCheck = sanitizePlainText(String(body || ''), 2000);
+		if (!bodyCheck.ok) return res.status(400).json({ message: bodyCheck.message });
+		if (!bodyCheck.value) return res.status(400).json({ message: 'body is required' });
+
 		let finalDisplayName: string;
 
 		if (user) {
@@ -170,7 +175,11 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 				return res.status(400).json({ message: 'displayName is required for non-anonymous guest comments' });
 			}
 			guestKeyHash = hashGuestKey(guestSecret);
-			finalDisplayName = isAnonymous ? 'Anonim' : displayName.trim();
+			const nameCheck = isAnonymous
+				? { ok: true as const, value: 'Anonim' }
+				: sanitizePlainText(String(displayName || ''), 80);
+			if (!nameCheck.ok) return res.status(400).json({ message: nameCheck.message });
+			finalDisplayName = isAnonymous ? 'Anonim' : nameCheck.value;
 		}
 
 		const comment = await models.Comment.create({
@@ -181,7 +190,7 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 			guestKeyHash,
 			displayName: finalDisplayName,
 			isAnonymous: !!isAnonymous,
-			body: body.trim(),
+			body: bodyCheck.value,
 		});
 
 		if (parentId) {
@@ -201,7 +210,7 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 						{ userId: parentComment.userId.toString(), isAnonymous: parentComment.isAnonymous, tenantSlug },
 						{
 							title: `${finalDisplayName} membalas komentar Anda`,
-							description: body.trim().slice(0, 200),
+							description: bodyCheck.value.slice(0, 200),
 							actionUrl: `/${pathPrefix}/${targetId}`,
 							entityType: targetType,
 							entityId: targetId,
@@ -217,7 +226,7 @@ router.post('/', commentRateLimiter, authenticateOptional, async (req, res) => {
 						parentComment.guestKeyHash,
 						{
 							title: `${finalDisplayName} membalas komentar Anda`,
-							description: body.trim().slice(0, 200),
+							description: bodyCheck.value.slice(0, 200),
 							actionUrl: `/${pathPrefix}/${targetId}`,
 							entityType: targetType,
 							entityId: targetId,
@@ -249,7 +258,9 @@ router.patch('/:id', commentRateLimiter, authenticateOptional, async (req, res) 
 		const { id } = req.params;
 		const { body, guestSecret } = req.body;
 
-		if (!body?.trim()) {
+		const bodyCheck = sanitizePlainText(String(body || ''), 2000);
+		if (!bodyCheck.ok) return res.status(400).json({ message: bodyCheck.message });
+		if (!bodyCheck.value) {
 			return res.status(400).json({ message: 'body is required' });
 		}
 
@@ -272,7 +283,7 @@ router.patch('/:id', commentRateLimiter, authenticateOptional, async (req, res) 
 			return res.status(403).json({ message: 'Not authorized to edit this comment' });
 		}
 
-		comment.body = body.trim();
+		comment.body = bodyCheck.value;
 		comment.editedAt = new Date();
 		await comment.save();
 

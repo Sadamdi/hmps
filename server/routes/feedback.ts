@@ -16,6 +16,13 @@ import {
 	type FeedbackFieldDefinition,
 	type FeedbackFieldKind,
 } from '@shared/schema';
+import {
+	getRequestClientIp,
+	hashIp,
+	sanitizePlainText,
+	sanitizeRichHtml,
+	stripUnsafeHtml,
+} from '../utils/input-sanitize';
 
 const router = Router();
 
@@ -24,6 +31,7 @@ function resolveStorage(req: Request): any {
 }
 
 const GUEST_PEPPER = process.env.GUEST_KEY_PEPPER || 'hmps-comment-pepper';
+const PUBLIC_CARDS_LIMIT = 40;
 
 function hashGuestKey(secret: string): string {
 	return crypto.createHmac('sha256', GUEST_PEPPER).update(secret).digest('hex');
@@ -43,13 +51,6 @@ const FIELD_KINDS = new Set<FeedbackFieldKind>([
 	'multi_select',
 	'file',
 ] as FeedbackFieldKind[]);
-
-function stripUnsafeHtml(html: string): string {
-	if (!html || typeof html !== 'string') return '';
-	return html
-		.replace(/<script\b[\s\S]*?<\/script>/gi, '')
-		.replace(/\s(on\w+|javascript:)\s*=/gi, ' data-stripped=');
-}
 
 function findTypeConfig(dest: FeedbackDestination | undefined, typeId: string) {
 	return dest?.types.find((t) => t.id === typeId);
@@ -102,13 +103,21 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 
 		const sortedFields = [...dest.fields].sort((a, b) => a.order - b.order);
 		const sanitizedExtra: Record<string, unknown> = {};
-		let bodyText = typeof bodyRaw === 'string' ? bodyRaw.trim() : '';
+		let bodyText = '';
+		if (typeof bodyRaw === 'string' && bodyRaw.trim()) {
+			const plain = sanitizePlainText(bodyRaw, 2000);
+			if (!plain.ok) return res.status(400).json({ message: plain.message });
+			bodyText = plain.value;
+		}
 
 		for (const field of sortedFields) {
 			const rawVal = extraFields[field.id];
 
 			if (field.kind === 'short_text' || field.kind === 'select') {
-				const s = typeof rawVal === 'string' ? rawVal.trim() : '';
+				const raw = typeof rawVal === 'string' ? rawVal : '';
+				const plain = sanitizePlainText(raw, 500);
+				if (!plain.ok) return res.status(400).json({ message: plain.message });
+				const s = plain.value;
 				if (field.required && !s) {
 					return res.status(400).json({ message: `Field "${field.label}" wajib diisi` });
 				}
@@ -120,7 +129,10 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 			}
 
 			if (field.kind === 'textarea') {
-				const s = typeof rawVal === 'string' ? rawVal.trim() : '';
+				const raw = typeof rawVal === 'string' ? rawVal : '';
+				const plain = sanitizePlainText(raw, 5000);
+				if (!plain.ok) return res.status(400).json({ message: plain.message });
+				const s = plain.value;
 				if (field.required && !s) {
 					return res.status(400).json({ message: `Field "${field.label}" wajib diisi` });
 				}
@@ -130,7 +142,7 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 
 			if (field.kind === 'rich_html') {
 				const s = typeof rawVal === 'string' ? rawVal : '';
-				const cleaned = stripUnsafeHtml(s).trim();
+				const cleaned = sanitizeRichHtml(s, 50_000).trim();
 				if (field.required && !cleaned) {
 					return res.status(400).json({ message: `Field "${field.label}" wajib diisi` });
 				}
@@ -320,7 +332,8 @@ router.post('/', feedbackRateLimiter, uploadMiddleware.any(), async (req, res) =
 			gdriveLinks,
 			mediaLinks,
 			guestKeyHash,
-			isVisibleCard: true,
+			isVisibleCard: false,
+			ipHash: hashIp(getRequestClientIp(req)),
 		});
 
 		res.status(201).json({ message: 'Feedback berhasil dikirim', _id: feedback._id });
@@ -336,7 +349,9 @@ router.get('/public', async (req, res) => {
 		const settings: any = await storage.getSettings();
 		const typeFilterIds: string[] = settings?.feedbackPublicTypeFilterIds || [];
 		const legacyFilter = settings?.feedbackPublicTypeFilter || 'all';
-		const cards = await storage.getVisibleFeedbackCardsFiltered(legacyFilter, typeFilterIds);
+		const limitRaw = parseInt(String(req.query.limit || PUBLIC_CARDS_LIMIT), 10);
+		const limit = Math.min(100, Math.max(1, Number.isFinite(limitRaw) ? limitRaw : PUBLIC_CARDS_LIMIT));
+		const cards = await storage.getVisibleFeedbackCardsFiltered(legacyFilter, typeFilterIds, limit);
 
 		const guestKey = req.headers['x-guest-key'] as string | undefined;
 		const guestHash = guestKey ? hashGuestKey(guestKey) : null;
@@ -400,7 +415,11 @@ router.patch('/own/:id', feedbackRateLimiter, async (req, res) => {
 
 		const { body } = req.body;
 		const updateData: any = {};
-		if (body !== undefined) updateData.body = body.trim();
+		if (body !== undefined) {
+			const plain = sanitizePlainText(String(body), 2000);
+			if (!plain.ok) return res.status(400).json({ message: plain.message });
+			updateData.body = plain.value;
+		}
 
 		const updated = await storage.updateFeedback(req.params.id, updateData);
 		res.json(updated);
@@ -440,13 +459,14 @@ router.get(
 	async (req, res) => {
 		try {
 			const { target, type, hasReply, page, limit } = req.query;
-			const options: any = {};
+			const options: any = {
+				page: Math.max(1, parseInt(String(page || '1'), 10) || 1),
+				limit: Math.min(100, Math.max(1, parseInt(String(limit || '20'), 10) || 20)),
+			};
 			if (target) options.target = target as string;
 			if (type) options.type = type as string;
 			if (hasReply === 'true') options.hasReply = true;
 			if (hasReply === 'false') options.hasReply = false;
-			if (page) options.page = parseInt(page as string, 10);
-			if (limit) options.limit = parseInt(limit as string, 10);
 
 			const storage = resolveStorage(req);
 			const feedback = await storage.getAllFeedback(options);
@@ -925,7 +945,7 @@ router.post(
 			}
 
 			const bugReport = new BugReport({
-				description: stripUnsafeHtml(description),
+				description: sanitizeRichHtml(description),
 				attachments,
 				gdriveLinks,
 				reporterUserId: user._id,

@@ -1,6 +1,6 @@
 # Master To-Do — HMPS Project
 
-> Terakhir diperbarui: 2026-05-08
+> Terakhir diperbarui: 2026-07-15
 
 ---
 
@@ -290,8 +290,8 @@
 | Status | Fitur | Keterangan |
 |--------|-------|------------|
 | ✅ | Comments | CRUD comments untuk berita, events, library |
-| ✅ | Feedback public/ratings | Public feedback form, rating system |
-| ✅ | Feedback moderation/config | Admin moderation, feedback config |
+| ✅ | Feedback public/ratings | Public form + ratings; XSS reject; cards not auto-published; public list capped |
+| ✅ | Feedback moderation/config | Admin moderation + pagination; footer display toggles |
 | ✅ | Bug reports | Bug report submission & management (manual oleh user) |
 | ✅ | System error monitoring (Bug Otomatis) | Capture otomatis server 5xx + error client, dedup, analisis AI OpenAI→Gemini. `GET/PATCH/POST/DELETE /api/system-errors/*` |
 | ✅ | Sharing workflow | Share content (berita/events/library) antar user, approve/reject |
@@ -355,8 +355,8 @@
 
 | Status | Fitur | Keterangan |
 |--------|-------|------------|
-| ✅ | Security middleware | Helmet, HPP, rate limit, anti-spoofing, CORS |
-| ✅ | Runtime middleware settings | Dynamic middleware config (maintenance mode, etc) |
+| ✅ | Security middleware | Helmet, HPP, post-body sanitize, public RL (guestKey), anti-spoof/dns toggles |
+| ✅ | Runtime middleware settings | Owner-only GET/PUT; `allEnabled` master + per-module flags |
 | ✅ | Backup & restore | MongoDB backup/restore via API & scheduler |
 | ✅ | Cleanup & migration | DB cleanup, temp file cleanup, migration scripts |
 | ✅ | API docs / Swagger | OpenAPI JSON + generated HTML docs |

@@ -1541,6 +1541,7 @@ async function getFeedbackById(id: string): Promise<any | null> {
 async function getVisibleFeedbackCards(): Promise<any[]> {
 	return await Feedback.find({ isVisibleCard: true })
 		.sort({ createdAt: -1 })
+		.limit(40)
 		.lean();
 }
 
@@ -1682,6 +1683,7 @@ async function decideSuggestion(
 async function getVisibleFeedbackCardsFiltered(
 	typeFilter: string = 'all',
 	typeFilterIds: string[] = [],
+	limit = 40,
 ): Promise<any[]> {
 	const filter: any = { isVisibleCard: true };
 	if (typeFilterIds.length > 0) {
@@ -1689,7 +1691,8 @@ async function getVisibleFeedbackCardsFiltered(
 	} else if (typeFilter !== 'all') {
 		filter.type = typeFilter;
 	}
-	return await Feedback.find(filter).sort({ createdAt: -1 }).lean();
+	const safeLimit = Math.min(100, Math.max(1, limit || 40));
+	return await Feedback.find(filter).sort({ createdAt: -1 }).limit(safeLimit).lean();
 }
 
 async function getFeedbackCount(filter?: {

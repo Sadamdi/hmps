@@ -205,7 +205,10 @@ export const sqlInjectionProtectionMiddleware = async (
 		const settings = await getCachedSqlMiddlewareSettings();
 
 		// Skip middleware if disabled
-		if (!settings.sqlInjectionProtectionEnabled) {
+		if (
+			settings.allEnabled === false ||
+			!settings.sqlInjectionProtectionEnabled
+		) {
 			return next();
 		}
 		// Skip protection untuk frontend files dan static routes
@@ -244,7 +247,8 @@ export const sqlInjectionProtectionMiddleware = async (
 			req.path.startsWith('/dashboard/') ||
 			req.path.startsWith('/login') ||
 			req.path.startsWith('/error') ||
-			// Skip untuk semua API routes
+			// API JSON/multipart bodies are empty here (this MW runs before express.json).
+			// XSS on public API writes is enforced by postBodySanitizeMiddleware after parsers.
 			req.path.startsWith('/api/') ||
 			req.path.startsWith('/.well-known/')
 		) {
@@ -481,7 +485,10 @@ export const noSqlInjectionProtectionMiddleware = async (
 		const settings = await getCachedSqlMiddlewareSettings();
 
 		// Skip middleware if disabled
-		if (!settings.noSqlInjectionProtectionEnabled) {
+		if (
+			settings.allEnabled === false ||
+			!settings.noSqlInjectionProtectionEnabled
+		) {
 			return next();
 		}
 		// Skip protection untuk frontend files dan error page
@@ -520,7 +527,8 @@ export const noSqlInjectionProtectionMiddleware = async (
 			req.path.startsWith('/dashboard/') ||
 			req.path.startsWith('/login') ||
 			req.path.startsWith('/error') ||
-			// Skip untuk semua API routes
+			// API JSON/multipart bodies are empty here (this MW runs before express.json).
+			// XSS on public API writes is enforced by postBodySanitizeMiddleware after parsers.
 			req.path.startsWith('/api/') ||
 			req.path.startsWith('/.well-known/')
 		) {

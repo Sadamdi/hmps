@@ -618,8 +618,10 @@ export const dnsLayerProtectionMiddleware = async (
 	try {
 		const settings = await getCachedDnsLayerMiddlewareSettings();
 
-		// Skip middleware if disabled
-		if (!settings.apiProtectionEnabled) {
+		if (
+			settings.allEnabled === false ||
+			!settings.dnsLayerProtectionEnabled
+		) {
 			return next();
 		}
 
@@ -845,8 +847,10 @@ export const dnsCachePoisoningProtectionMiddleware = async (
 	try {
 		const settings = await getCachedDnsLayerMiddlewareSettings();
 
-		// Skip middleware if disabled
-		if (!settings.apiProtectionEnabled) {
+		if (
+			settings.allEnabled === false ||
+			!settings.dnsLayerProtectionEnabled
+		) {
 			return next();
 		}
 

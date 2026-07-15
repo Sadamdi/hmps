@@ -40,14 +40,15 @@ Flow umum:
 
 | Method | Endpoint | Source | Observed Input | Observed Response |
 |--------|----------|--------|----------------|-------------------|
-| GET | `/api/settings/middleware` | `server/routes.ts#L6975` | none observed in handler window | 500, 200/json |
-| PUT | `/api/settings/middleware` | `server/routes.ts#L7023` | body: updatedBy, ...settingsData | 500, 200/json |
+| GET | `/api/settings/middleware` | `server/routes.ts` | none (owner + `middleware.manage`) | 403 if non-owner, 500, 200/json |
+| PUT | `/api/settings/middleware` | `server/routes.ts` | body: settings flags (server sets `updatedBy` from session) | 403 if non-owner, 500, 200/json |
 
 ---
 
 ## Observed Request Shape
 
-- `PUT /api/settings/middleware` body fields observed: `updatedBy`
+- `PUT /api/settings/middleware` body flags: `allEnabled`, `apiProtectionEnabled`, `apiRateLimitEnabled`, `ddosProtectionEnabled`, `sqlInjectionProtectionEnabled`, `noSqlInjectionProtectionEnabled`, `antiSpoofingProtectionEnabled`, `dnsLayerProtectionEnabled`, `portScanningProtectionEnabled`
+- `updatedBy` from client is ignored; server uses authenticated user id
 
 > [!IMPORTANT]
 > Field di atas adalah hasil static scan sekitar route handler. Untuk perubahan implementasi, buka source file dan line yang tercantum untuk memastikan validasi lengkap, default value, dan transformasi data.
@@ -110,11 +111,11 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 
 | Concern | Required Handling |
 |---------|-------------------|
-| Auth | Verify handler/middleware in source lines listed above |
-| Permission | Verify permission key/check in handler before changing behavior |
-| Tenant | Use `/api/c/:slug/*` resolver/storage when feature is tenant-aware |
-| Upload | Validate MIME/size/path and cleanup temporary files |
-| Logging | Log user/resource/tenant/action without secrets |
+| Auth | `mainOnly` + authenticate |
+| Permission | Hard-require `role === 'owner'` (API + UI); also `middleware.manage` |
+| Tenant | Middleware settings are main-site only |
+| Master toggle | `allEnabled === false` disables protected modules that check it |
+| Cache | Updating settings clears API protection cache + public rate-limit settings cache |
 
 ---
 
@@ -122,20 +123,18 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 
 | # | Scenario | Input/Action | Expected Output |
 |---|----------|--------------|-----------------|
-| 1 | Happy path | valid UI/API request | handler returns success response shown by source |
-| 2 | Validation error | missing/invalid observed fields | safe 400/validation-style error if handler validates |
-| 3 | Unauthorized | no/invalid session on protected route | 401 or 403 based on handler/middleware |
-| 4 | Not found | invalid id/slug | 404 or safe message based on handler |
-| 5 | Tenant boundary | wrong community slug/context | no cross-tenant data access |
-| 6 | Regression | `npm run check` | TypeScript passes |
+| 1 | Owner GET/PUT | owner session | 200 with settings |
+| 2 | Non-owner | admin/member with or without `middleware.manage` | 403 |
+| 3 | Tenant path | `/api/c/:slug/settings/middleware` | not available (`mainOnly`) |
+| 4 | Regression | `npm run check` | TypeScript passes |
 
 ---
 
 ## Source References
 
 - Feature doc: `10-ops-security/02-runtime-middleware-settings.md`
-- UI: `/dashboard/settings`
-- Endpoint sources: `server/routes.ts`
+- UI: `/dashboard/settings` (Middleware tab, owner-only)
+- Endpoint sources: `server/routes.ts`, `server/models/middleware-settings.ts`
 - Endpoint inventory: `docs/api/endpoints.md`
 - Feature summary: `docs/features/feature-summary.md`
 

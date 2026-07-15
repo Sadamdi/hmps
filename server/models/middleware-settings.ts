@@ -2,6 +2,7 @@ import { model, Schema } from 'mongoose';
 
 // Import cache clearing function
 import { clearMiddlewareSettingsCache } from '../middleware/api-protection';
+import { clearPublicRateLimitSettingsCache } from '../middleware/public-rate-limit';
 
 export interface IMiddlewareSettings {
 	_id?: string;
@@ -215,10 +216,12 @@ export async function updateMiddlewareSettings(
 
 		// Clear middleware cache to ensure fresh settings are used
 		clearMiddlewareSettingsCache();
+		clearPublicRateLimitSettingsCache();
 
 		// Force clear cache again to ensure it's really cleared
 		setTimeout(() => {
 			clearMiddlewareSettingsCache();
+			clearPublicRateLimitSettingsCache();
 		}, 100);
 
 		return savedSettings;

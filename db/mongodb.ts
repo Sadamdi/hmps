@@ -1211,6 +1211,7 @@ const feedbackSchema = new mongoose.Schema(
 		senderEmail: { type: String, default: '' },
 		isVisibleCard: { type: Boolean, default: false },
 		guestKeyHash: { type: String, default: null },
+		ipHash: { type: String, default: null },
 		media: [
 			{
 				url: { type: String, required: true },

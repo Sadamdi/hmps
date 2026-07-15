@@ -755,6 +755,8 @@ export default function FeedbackPage() {
 	const [filterType, setFilterType] = useState<string>('all');
 	const [filterReply, setFilterReply] = useState<string>('all');
 	const [listDestOpen, setListDestOpen] = useState(false);
+	const [listPage, setListPage] = useState(1);
+	const LIST_PAGE_SIZE = 20;
 
 	const [replyDialogOpen, setReplyDialogOpen] = useState(false);
 	const [replyFeedbackId, setReplyFeedbackId] = useState<string | null>(null);
@@ -827,9 +829,11 @@ export default function FeedbackPage() {
 	if (listDestTab !== 'all') queryParams.set('target', listDestTab);
 	if (filterType !== 'all') queryParams.set('type', filterType);
 	if (filterReply !== 'all') queryParams.set('hasReply', filterReply);
+	queryParams.set('page', String(listPage));
+	queryParams.set('limit', String(LIST_PAGE_SIZE));
 
 	const { data, isLoading } = useQuery<{ items: FeedbackItem[]; total: number }>({
-		queryKey: ['/api/feedback/manage', listDestTab, filterType, filterReply],
+		queryKey: ['/api/feedback/manage', listDestTab, filterType, filterReply, listPage],
 		queryFn: async () => {
 			const res = await fetch(`/api/feedback/manage?${queryParams.toString()}`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Failed to fetch feedback');
@@ -1244,12 +1248,12 @@ export default function FeedbackPage() {
 													<CommandList>
 														<CommandEmpty>Tidak ditemukan</CommandEmpty>
 														<CommandGroup>
-															<CommandItem value="Semua" onSelect={() => { setListDestTab('all'); setListDestOpen(false); }}>
+															<CommandItem value="Semua" onSelect={() => { setListDestTab('all'); setListPage(1); setListDestOpen(false); }}>
 																<Check className={cn('mr-2 h-4 w-4', listDestTab === 'all' ? 'opacity-100' : 'opacity-0')} />
 																Semua ({counts._all ?? '—'})
 															</CommandItem>
 															{[...config.destinations].sort((a, b) => a.order - b.order).map((d) => (
-																<CommandItem key={d.id} value={d.label} onSelect={() => { setListDestTab(d.id); setListDestOpen(false); }}>
+																<CommandItem key={d.id} value={d.label} onSelect={() => { setListDestTab(d.id); setListPage(1); setListDestOpen(false); }}>
 																	<Check className={cn('mr-2 h-4 w-4', listDestTab === d.id ? 'opacity-100' : 'opacity-0')} />
 																	{d.label} ({counts[d.id] ?? 0})
 																</CommandItem>
@@ -1262,7 +1266,7 @@ export default function FeedbackPage() {
 									</div>
 									<div className="w-40">
 										<Label className="text-xs mb-1 block">Jenis</Label>
-										<Select value={filterType} onValueChange={setFilterType}>
+										<Select value={filterType} onValueChange={(v) => { setFilterType(v); setListPage(1); }}>
 											<SelectTrigger><SelectValue /></SelectTrigger>
 											<SelectContent>
 												<SelectItem value="all">Semua</SelectItem>
@@ -1274,7 +1278,7 @@ export default function FeedbackPage() {
 									</div>
 									<div className="w-40">
 										<Label className="text-xs mb-1 block">Balasan</Label>
-										<Select value={filterReply} onValueChange={setFilterReply}>
+										<Select value={filterReply} onValueChange={(v) => { setFilterReply(v); setListPage(1); }}>
 											<SelectTrigger><SelectValue /></SelectTrigger>
 											<SelectContent>
 												<SelectItem value="all">Semua</SelectItem>
@@ -1365,7 +1369,7 @@ export default function FeedbackPage() {
 																	return (
 																		<div key={k}>
 																			<span className="font-medium text-muted-foreground">{flMap[k] || k}: </span>
-																			<div className="prose prose-sm dark:prose-invert max-w-none border rounded p-2 mt-1" dangerouslySetInnerHTML={{ __html: v }} />
+																			<pre className="text-xs whitespace-pre-wrap border rounded p-2 mt-1 bg-muted/40 font-mono">{v}</pre>
 																		</div>
 																	);
 																}
@@ -1450,6 +1454,31 @@ export default function FeedbackPage() {
 												</div>
 											);
 										})}
+									</div>
+								)}
+								{(data?.total ?? 0) > LIST_PAGE_SIZE && (
+									<div className="flex items-center justify-between gap-2 pt-4 border-t mt-4">
+										<p className="text-sm text-muted-foreground">
+											Halaman {listPage} / {Math.max(1, Math.ceil((data?.total ?? 0) / LIST_PAGE_SIZE))}
+										</p>
+										<div className="flex gap-2">
+											<Button
+												variant="outline"
+												size="sm"
+												disabled={listPage <= 1}
+												onClick={() => setListPage((p) => Math.max(1, p - 1))}
+											>
+												Sebelumnya
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												disabled={listPage >= Math.ceil((data?.total ?? 0) / LIST_PAGE_SIZE)}
+												onClick={() => setListPage((p) => p + 1)}
+											>
+												Berikutnya
+											</Button>
+										</div>
 									</div>
 								)}
 							</CardContent>
@@ -1632,9 +1661,9 @@ export default function FeedbackPage() {
 
 												{isExpanded && (
 													<CardContent className="space-y-4 pt-0">
-														<div className="prose prose-sm max-w-none dark:prose-invert"
-															dangerouslySetInnerHTML={{ __html: bug.description }}
-														/>
+														<div className="text-sm whitespace-pre-wrap">
+															{bug.description?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim() || '—'}
+														</div>
 
 														{bug.attachments.length > 0 && (
 															<div className="space-y-2">

@@ -3,6 +3,7 @@
  * but operating on a specific tenant's models/database.
  */
 import mongoose from 'mongoose';
+import { DEFAULT_TENANT_HOME_CONFIG } from '@shared/schema';
 import { FileUpload } from '../db/mongodb';
 import { TenantModels } from '../db/tenant';
 import { hashPassword } from './auth';
@@ -214,6 +215,12 @@ export function createTenantStorage(models: TenantModels) {
 		enableRegistration: false,
 		maintenanceMode: false,
 		feedbackCardsEnabled: false,
+		homeConfig: {
+			blocks: [...DEFAULT_TENANT_HOME_CONFIG.blocks],
+			navbar: [...DEFAULT_TENANT_HOME_CONFIG.navbar],
+			navbarGroups: [...(DEFAULT_TENANT_HOME_CONFIG.navbarGroups || [])],
+			showDashboardLink: DEFAULT_TENANT_HOME_CONFIG.showDashboardLink !== false,
+		},
 		socialLinks: { facebook: '', tiktok: '', instagram: '', youtube: '' },
 		links: { uinMalang: '', fakultasSainsTeknologi: '', jurusanTeknikInformatika: '', perpustakaan: '' },
 		quickLinks: [],
@@ -250,7 +257,7 @@ export function createTenantStorage(models: TenantModels) {
 			siteName: communityData.siteName,
 			siteTagline: communityData.siteTagline || communityData.siteName,
 			siteDescription: communityData.siteDescription || communityData.siteName,
-			navbarBrand: communityData.navbarBrand || communityData.siteName.substring(0, 10),
+			navbarBrand: communityData.navbarBrand || communityData.siteName,
 			contactEmail: communityData.contactEmail || '',
 			address: communityData.address || '',
 			footerText: `© ${new Date().getFullYear()} ${communityData.siteName}. All rights reserved.`,
@@ -992,14 +999,15 @@ export function createTenantStorage(models: TenantModels) {
 		if (filter?.type) q.type = filter.type;
 		return Feedback.countDocuments(q);
 	}
-	async function getVisibleFeedbackCardsFiltered(typeFilter: string = 'all', typeFilterIds: string[] = []) {
+	async function getVisibleFeedbackCardsFiltered(typeFilter: string = 'all', typeFilterIds: string[] = [], limit = 40) {
 		const filter: any = { isVisibleCard: true };
 		if (typeFilterIds.length > 0) {
 			filter.type = { $in: typeFilterIds };
 		} else if (typeFilter !== 'all') {
 			filter.type = typeFilter;
 		}
-		return Feedback.find(filter).sort({ createdAt: -1 }).lean();
+		const safeLimit = Math.min(100, Math.max(1, limit || 40));
+		return Feedback.find(filter).sort({ createdAt: -1 }).limit(safeLimit).lean();
 	}
 	async function toggleFeedbackVisibility(id: string, visible: boolean) {
 		const oid = toObjectId(id); if (!oid) return null;

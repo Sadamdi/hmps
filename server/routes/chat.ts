@@ -35,7 +35,7 @@ function normalizePathForTenant(pathValue: unknown, tenantSlug?: string): string
 	if (p === base || p.startsWith(`${base}/`)) return p;
 	return `${base}${p === '/' ? '' : p}`;
 }
-import { chatUploadRateLimiter } from '../middleware/public-rate-limit';
+import { chatSessionRateLimiter, chatUploadRateLimiter } from '../middleware/public-rate-limit';
 import { ChatService } from '../services/chat-service';
 dotenv.config();
 
@@ -83,7 +83,7 @@ router.get('/all', async (req, res) => {
 });
 
 // New chat
-router.post('/new', async (req, res) => {
+router.post('/new', chatSessionRateLimiter, async (req, res) => {
 	try {
 		const userId = req.cookies.userId || uuidv4();
 		const contextScope = getContextScope(req);
@@ -101,7 +101,7 @@ router.post('/new', async (req, res) => {
 });
 
 // Delete chat by id
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', chatSessionRateLimiter, async (req, res) => {
 	try {
 		const userId = req.cookies.userId;
 		const chatId = req.params.id;
@@ -295,7 +295,7 @@ router.post(
 );
 
 // Menghapus semua chat user (opsional)
-router.delete('/', async (req, res) => {
+router.delete('/', chatSessionRateLimiter, async (req, res) => {
 	try {
 		const userId = req.cookies.userId;
 		const contextScope = getContextScope(req);
