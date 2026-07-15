@@ -63,6 +63,9 @@ export function KalenderSection({ calendars }: { calendars: Record<string, any> 
 
 	const effectiveYear = year && calendars[year] ? year : String(years[0]);
 	const data = calendars[effectiveYear];
+	const localPdf = data?.pdfUrl && String(data.pdfUrl).startsWith('/uploads/') ? data.pdfUrl : '';
+	const downloadHref = localPdf || data?.sourcePdfUrl || '';
+	const previewHref = localPdf || '';
 
 	return (
 		<div className="space-y-6">
@@ -99,7 +102,9 @@ export function KalenderSection({ calendars }: { calendars: Record<string, any> 
 					<div>
 						<h3 className="font-semibold text-lg">{data.title || `Kalender ${data.academicYear}`}</h3>
 						{data.rectorDecision && (
-							<p className="text-sm text-muted-foreground mt-1">Keputusan: {data.rectorDecision}</p>
+							<p className="text-sm text-muted-foreground mt-1 line-clamp-3">
+								Keputusan: {data.rectorDecision}
+							</p>
 						)}
 						<p className="text-xs text-muted-foreground mt-1">
 							Sumber: {data.sourceKind || 'sync'}
@@ -116,16 +121,16 @@ export function KalenderSection({ calendars }: { calendars: Record<string, any> 
 					)}
 
 					<div className="flex flex-wrap gap-3">
-						{data.pdfUrl && (
+						{downloadHref && (
 							<a
-								href={data.pdfUrl}
+								href={downloadHref}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90">
 								<FileText className="h-4 w-4" /> Unduh PDF
 							</a>
 						)}
-						{data.pdfUrl && (
+						{previewHref && (
 							<button
 								type="button"
 								onClick={() => setShowPreview((v) => !v)}
@@ -133,14 +138,20 @@ export function KalenderSection({ calendars }: { calendars: Record<string, any> 
 								{showPreview ? 'Sembunyikan pratinjau' : 'Pratinjau PDF'}
 							</button>
 						)}
+						{!previewHref && data.sourcePdfUrl && (
+							<p className="text-xs text-amber-700 dark:text-amber-400 w-full">
+								Pratinjau lokal belum tersedia — gunakan Unduh PDF (sumber resmi) atau sync ulang dari
+								dashboard.
+							</p>
+						)}
 						{data.announcementUrl && (
 							<ExtLink href={data.announcementUrl}>Sumber resmi</ExtLink>
 						)}
 					</div>
 
-					{showPreview && data.pdfUrl && (
+					{showPreview && previewHref && (
 						<div className="hidden md:block rounded-md border border-border overflow-hidden bg-muted/30">
-							<iframe title="Kalender PDF" src={data.pdfUrl} className="w-full h-[70vh]" />
+							<iframe title="Kalender PDF" src={previewHref} className="w-full h-[70vh]" />
 						</div>
 					)}
 					{showPreview && (
@@ -393,7 +404,7 @@ export function HubResourceSection({
 	hub: any;
 	emptyHint: string;
 }) {
-	if (!hub?.hubUrl && !hub?.templates?.length && !hub?.pedomanPdf) {
+	if (!hub?.hubUrl && !hub?.templates?.length && !hub?.pedomanPdf && !hub?.documents?.length) {
 		return <p className="text-center text-muted-foreground py-12">{emptyHint}</p>;
 	}
 	return (
@@ -406,6 +417,9 @@ export function HubResourceSection({
 					<p className="text-sm text-muted-foreground mt-1">
 						Sumber:{' '}
 						<ExtLink href={hub.hubUrl}>{hub.hubUrl.replace(/^https?:\/\//, '')}</ExtLink>
+						{hub.syncedAt
+							? ` · sync ${new Date(hub.syncedAt).toLocaleDateString('id-ID')}`
+							: ''}
 					</p>
 				)}
 			</div>
@@ -422,6 +436,27 @@ export function HubResourceSection({
 						<li key={i}>{h}</li>
 					))}
 				</ul>
+			)}
+			{Array.isArray(hub.sections) && hub.sections.length > 0 && (
+				<div className="space-y-3">
+					{hub.sections.map((sec: any, i: number) => (
+						<details key={i} className="rounded-lg border border-border bg-card p-4">
+							<summary className="cursor-pointer font-medium">{sec.heading}</summary>
+							{sec.body && (
+								<p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">{sec.body}</p>
+							)}
+							{Array.isArray(sec.links) && sec.links.length > 0 && (
+								<ul className="mt-2 space-y-1 text-sm">
+									{sec.links.map((l: any, j: number) => (
+										<li key={j}>
+											<ExtLink href={l.url}>{l.label}</ExtLink>
+										</li>
+									))}
+								</ul>
+							)}
+						</details>
+					))}
+				</div>
 			)}
 			<div className="flex flex-wrap gap-3">
 				{hub.hubUrl && (
@@ -452,11 +487,12 @@ export function HubResourceSection({
 					</a>
 				)}
 			</div>
-			{Array.isArray(hub.templates) && hub.templates.length > 0 && (
+			{(Array.isArray(hub.documents) && hub.documents.length > 0) ||
+			(Array.isArray(hub.templates) && hub.templates.length > 0) ? (
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-					{hub.templates.map((t: { name: string; url: string }) => (
+					{(hub.documents || hub.templates || []).map((t: { name: string; url: string }, i: number) => (
 						<a
-							key={t.url}
+							key={(t.url || '') + i}
 							href={t.url}
 							target="_blank"
 							rel="noopener noreferrer"
@@ -465,12 +501,37 @@ export function HubResourceSection({
 						</a>
 					))}
 				</div>
+			) : null}
+			{Array.isArray(hub.actionLinks) && hub.actionLinks.length > 0 && (
+				<ul className="space-y-1 text-sm">
+					{hub.actionLinks.map((l: any, i: number) => (
+						<li key={i}>
+							<ExtLink href={l.url}>{l.label}</ExtLink>
+						</li>
+					))}
+				</ul>
 			)}
 		</div>
 	);
 }
 
+const ANNOUNCEMENT_CATS: { id: string; label: string }[] = [
+	{ id: 'all', label: 'Semua' },
+	{ id: 'thesis', label: 'Skripsi / Thesis' },
+	{ id: 'wisuda', label: 'Wisuda' },
+	{ id: 'ukt', label: 'UKT / Registrasi' },
+	{ id: 'kalender', label: 'Kalender' },
+	{ id: 'lainnya', label: 'Lainnya' },
+];
+
 export function PengumumanSection({ items }: { items: any[] }) {
+	const [cat, setCat] = useState('all');
+	const filtered = useMemo(() => {
+		const list = items || [];
+		if (cat === 'all') return list;
+		return list.filter((i) => (i.category || 'lainnya') === cat);
+	}, [items, cat]);
+
 	if (!items?.length) {
 		return (
 			<p className="text-center text-muted-foreground py-12">
@@ -482,10 +543,27 @@ export function PengumumanSection({ items }: { items: any[] }) {
 		<div className="space-y-4">
 			<h2 className="text-xl font-semibold">Pengumuman penting</h2>
 			<p className="text-sm text-muted-foreground">
-				Filter dari feed resmi TI (skripsi/sidang) dan UIN (wisuda, UKT, kalender).
+				Filter dari feed resmi TI (skripsi/sidang) dan UIN (wisuda, UKT, kalender). Auto-refresh harian
+				dari dashboard.
 			</p>
+			<div className="flex flex-wrap gap-2">
+				{ANNOUNCEMENT_CATS.map((c) => (
+					<button
+						key={c.id}
+						type="button"
+						onClick={() => setCat(c.id)}
+						className={cn(
+							'rounded-md border px-3 py-1.5 text-xs sm:text-sm transition-colors',
+							cat === c.id
+								? 'border-primary bg-primary/10 text-primary'
+								: 'border-border text-muted-foreground hover:bg-muted',
+						)}>
+						{c.label}
+					</button>
+				))}
+			</div>
 			<ul className="divide-y divide-border rounded-lg border border-border bg-card">
-				{items.map((item, i) => (
+				{filtered.map((item, i) => (
 					<li key={(item.url || '') + i} className="p-4 hover:bg-muted/30">
 						<a
 							href={item.url}
@@ -497,10 +575,19 @@ export function PengumumanSection({ items }: { items: any[] }) {
 						</a>
 						<p className="text-xs text-muted-foreground mt-1">
 							{item.source === 'ti' ? 'Teknik Informatika' : 'UIN Malang'}
+							{item.category ? ` · ${item.category}` : ''}
 							{item.publishedAt ? ` · ${new Date(item.publishedAt).toLocaleDateString('id-ID')}` : ''}
 						</p>
+						{item.excerpt && (
+							<p className="text-sm text-muted-foreground mt-2 line-clamp-3">{item.excerpt}</p>
+						)}
 					</li>
 				))}
+				{!filtered.length && (
+					<li className="p-6 text-center text-sm text-muted-foreground">
+						Tidak ada pengumuman di kategori ini.
+					</li>
+				)}
 			</ul>
 		</div>
 	);

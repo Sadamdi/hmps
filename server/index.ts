@@ -460,6 +460,39 @@ cron.schedule('0 3 1 * *', async () => {
 	}
 });
 
+// Schedule: student announcements RSS — check hourly; default interval 1 day
+cron.schedule('15 * * * *', async () => {
+	try {
+		const { mongoStorage } = await import('./mongo-storage');
+		const doc = await mongoStorage.getProdiContent();
+		const intervalDays = Math.min(
+			30,
+			Math.max(1, Number(doc.announcementSyncIntervalDays) || 1),
+		);
+		const last = doc.lastAnnouncementSyncAt
+			? new Date(doc.lastAnnouncementSyncAt).getTime()
+			: 0;
+		const dueMs = intervalDays * 24 * 60 * 60 * 1000;
+		if (Date.now() - last < dueMs) return;
+
+		const { runAnnouncementsOnlySync } = await import('./services/prodi-student-resources');
+		const existingHub = (doc.content as any)?.studentHub || {};
+		const hub = await runAnnouncementsOnlySync(existingHub);
+		await mongoStorage.applyAutoSyncData(
+			{ studentHub: { ...existingHub, announcements: hub.announcements } },
+			{ forceFields: ['studentHub.announcements'] },
+		);
+		const fresh = await mongoStorage.getProdiContent();
+		fresh.lastAnnouncementSyncAt = new Date();
+		await fresh.save();
+		console.log(
+			`✅ Announcement sync done (${hub.announcements?.length || 0} items, interval=${intervalDays}d)`,
+		);
+	} catch (err) {
+		console.error('Scheduled announcement sync error:', err);
+	}
+});
+
 // ==================== SECURITY MONITORING ====================
 // Security monitoring akan ditampilkan saat server start
 

@@ -12,6 +12,15 @@ Scope sync: `all | profile | lecturers | curriculum | labs | accreditation | aca
 
 Student resources gagal secara terisolasi — tidak menggagalkan sync profil/kurikulum.
 
+### Kalender PDF
+- File disimpan di `uploads/prodi/calendar/` (path relatif project root / `uploadDir`, bukan `cwd`).
+- Sync di **server production** wajib agar unduh/pratinjau tidak 404.
+- Jika `pdfUrl` di Mongo ada tapi file hilang, sync mengunduh ulang. UI fallback ke `sourcePdfUrl`.
+
+### Pengumuman
+- Kategori: `thesis | wisuda | ukt | kalender | lainnya`.
+- Auto-fetch: cron per jam; interval default **1 hari** (`announcementSyncIntervalDays`, dapat diubah di dashboard Prodi → tab Pengumuman).
+
 ---
 
 ## User Stories

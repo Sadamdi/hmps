@@ -1098,6 +1098,9 @@ const prodiContentSchema = new mongoose.Schema(
 		autoSyncEnabled: { type: Boolean, default: true },
 		lastAutoSyncAt: { type: Date, default: null },
 		lastManualSyncAt: { type: Date, default: null },
+		/** How often to refresh student announcements (RSS). Default 1 day. */
+		announcementSyncIntervalDays: { type: Number, default: 1, min: 1, max: 30 },
+		lastAnnouncementSyncAt: { type: Date, default: null },
 		syncStatus: {
 			type: String,
 			enum: ['idle', 'syncing', 'error'],

@@ -1325,6 +1325,12 @@ async function updateProdiContent(data: any): Promise<any> {
 	const doc = await getProdiContent();
 	if (data.autoSyncEnabled !== undefined)
 		doc.autoSyncEnabled = data.autoSyncEnabled;
+	if (data.announcementSyncIntervalDays !== undefined) {
+		const n = parseInt(String(data.announcementSyncIntervalDays), 10);
+		doc.announcementSyncIntervalDays = Number.isFinite(n)
+			? Math.min(30, Math.max(1, n))
+			: 1;
+	}
 	if (data.content) {
 		for (const section of Object.keys(data.content)) {
 			for (const field of Object.keys(data.content[section])) {
