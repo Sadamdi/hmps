@@ -130,10 +130,10 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 
 | Concern | Required Handling |
 |---------|-------------------|
-| Auth | Verify handler/middleware in source lines listed above |
-| Permission | Verify permission key/check in handler before changing behavior |
-| Tenant | Use `/api/c/:slug/*` resolver/storage when feature is tenant-aware |
-| Upload | Validate MIME/size/path and cleanup temporary files |
+| Auth | Manage endpoints require authenticate + `feedback.view` / `feedback.manage` |
+| Permission | Publish to footer = visibility toggle; create path no longer auto-publishes |
+| Tenant | Same routes under `/api/c/:slug/feedback/*` |
+| Admin UI | `/dashboard/feedback` paginates list (`page`/`limit`); renders user HTML as text (no `dangerouslySetInnerHTML` for user payloads) |
 | Logging | Log user/resource/tenant/action without secrets |
 
 ---
@@ -147,15 +147,16 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 | 3 | Unauthorized | no/invalid session on protected route | 401 or 403 based on handler/middleware |
 | 4 | Not found | invalid id/slug | 404 or safe message based on handler |
 | 5 | Tenant boundary | wrong community slug/context | no cross-tenant data access |
-| 6 | Regression | `npm run check` | TypeScript passes |
+| 6 | Pagination | `GET /manage?page=1&limit=20` | only one page of items + total |
+| 7 | Regression | `npm run check` | TypeScript passes |
 
 ---
 
 ## Source References
 
 - Feature doc: `08-collaboration-feedback/03-feedback-moderation-config.md`
-- UI: `/dashboard/feedback`
-- Endpoint sources: `server/routes.ts`, `server/routes/comments.ts`, `server/routes/feedback.ts`
+- UI: `/dashboard/feedback` — `client/src/pages/dashboard/feedback.tsx`
+- Endpoint sources: `server/routes/feedback.ts`
 - Endpoint inventory: `docs/api/endpoints.md`
 - Feature summary: `docs/features/feature-summary.md`
 

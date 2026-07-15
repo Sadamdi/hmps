@@ -329,14 +329,20 @@ export default function Footer() {
 
 	const guestSecret = getOrCreateGuestSecret();
 
+	const submitEnabled = settings?.feedbackSubmitEnabled !== false;
+	const cardsEnabled = settings?.feedbackCardsEnabled !== false;
+	const autoScrollEnabled = settings?.feedbackCardsAutoScrollEnabled !== false;
+	const showCards = submitEnabled && cardsEnabled;
+
 	const { data: feedbackCards = [] } = useQuery<PublicFeedbackCard[]>({
 		queryKey: ['/api/feedback/public'],
 		queryFn: async () => {
-			const res = await fetch('/api/feedback/public', { headers: { 'x-guest-key': guestSecret } });
+			const res = await fetch('/api/feedback/public?limit=40', { headers: { 'x-guest-key': guestSecret } });
 			if (!res.ok) throw new Error('Failed');
 			return res.json();
 		},
 		staleTime: 30000,
+		enabled: showCards,
 	});
 
 	const { data: fbConfig } = useQuery<FeedbackFormConfig>({
@@ -383,10 +389,6 @@ export default function Footer() {
 			{ label: 'Jurusan Teknik Informatika', url: oldLinks.jurusanTeknikInformatika },
 			{ label: 'Perpustakaan', url: oldLinks.perpustakaan },
 		].filter((l) => l.url);
-	const submitEnabled = settings?.feedbackSubmitEnabled !== false;
-	const cardsEnabled = settings?.feedbackCardsEnabled !== false;
-	const autoScrollEnabled = settings?.feedbackCardsAutoScrollEnabled !== false;
-	const showCards = submitEnabled && cardsEnabled;
 
 	const [formOpen, setFormOpen] = useState(false);
 	const [deleteFeedbackOpen, setDeleteFeedbackOpen] = useState(false);

@@ -136,8 +136,8 @@ export const apiProtectionMiddleware = async (
 	try {
 		const settings = await getCachedMiddlewareSettings();
 
-		// If API Protection is completely disabled, allow ALL requests
-		if (!settings.apiProtectionEnabled) {
+		// Master toggle + dedicated flag
+		if (settings.allEnabled === false || !settings.apiProtectionEnabled) {
 			return next();
 		}
 
@@ -273,7 +273,7 @@ export const apiRateLimitMiddleware = async (
 ) => {
 	try {
 		const settings = await getCachedMiddlewareSettings();
-		if (!settings.apiRateLimitEnabled) {
+		if (settings.allEnabled === false || !settings.apiRateLimitEnabled) {
 			return next();
 		}
 		return apiLimiterCore(req, res, next);

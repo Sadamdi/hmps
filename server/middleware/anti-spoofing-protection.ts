@@ -359,8 +359,10 @@ export const antiSpoofingProtectionMiddleware = async (
 	try {
 		const settings = await getCachedAntiSpoofingMiddlewareSettings();
 
-		// Skip middleware if disabled
-		if (!settings.apiProtectionEnabled) {
+		if (
+			settings.allEnabled === false ||
+			!settings.antiSpoofingProtectionEnabled
+		) {
 			return next();
 		}
 
@@ -620,8 +622,10 @@ export const portScanningProtectionMiddleware = async (
 	try {
 		const settings = await getCachedAntiSpoofingMiddlewareSettings();
 
-		// Skip middleware if disabled
-		if (!settings.apiProtectionEnabled) {
+		if (
+			settings.allEnabled === false ||
+			!settings.antiSpoofingProtectionEnabled
+		) {
 			return next();
 		}
 

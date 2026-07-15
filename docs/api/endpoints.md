@@ -206,8 +206,8 @@ PUT    /api/settings
 PUT    /api/settings/home-config
 PUT    /api/settings/home-image-slots
 POST   /api/settings/reset
-GET    /api/settings/middleware
-PUT    /api/settings/middleware
+GET    /api/settings/middleware   # mainOnly + owner only (+ middleware.manage)
+PUT    /api/settings/middleware   # mainOnly + owner only; toggles allEnabled + per-module flags
 GET    /api/home-images/active
 GET    /api/home-images
 POST   /api/home-images
@@ -345,17 +345,17 @@ POST /enhance-content   # auth + permission: perbaiki teks form dashboard (befor
 GET /
 GET /count
 GET /manage
-POST /
-PATCH /:id
+POST /                 # commentRateLimiter; body/displayName plain-text sanitized (XSS reject)
+PATCH /:id             # body sanitized
 DELETE /:id
 
 # /api/feedback
-POST /
-GET /public
+POST /                 # public + feedbackRateLimiter; body/extraFields XSS-rejected; isVisibleCard default false; stores ipHash
+GET /public            # query: limit (default 40, max 100); only isVisibleCard=true
 GET /ratings
-PATCH /own/:id
+PATCH /own/:id         # guest key; body plain-text sanitized
 DELETE /own/:id
-GET /manage
+GET /manage            # auth feedback.view; query page/limit default 1/20 (max 100)
 GET /manage/ratings
 GET /manage/counts-by-target
 PATCH /manage/:id/visibility

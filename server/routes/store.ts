@@ -17,6 +17,8 @@ import {
 	lineSubtotalForProduct,
 	normalizePriceTiersInput,
 } from '../../shared/store-pricing';
+import { storeCheckoutRateLimiter } from '../middleware/public-rate-limit';
+import { sanitizeRichHtml } from '../utils/input-sanitize';
 import {
 	computeDiscountedSubtotal,
 	computeDiscountedBundleSubtotal,
@@ -1388,7 +1390,7 @@ router.post('/admin/products', authenticate, requireTokoManage, async (req, res)
 			slug,
 			name,
 			shortDescription: String(body.shortDescription || '').slice(0, 500),
-			descriptionHtml: String(body.descriptionHtml || ''),
+			descriptionHtml: sanitizeRichHtml(String(body.descriptionHtml || '')),
 			price,
 			priceTiers,
 			stock,
@@ -1488,7 +1490,7 @@ router.patch('/admin/products/:id', authenticate, requireStoreDashboard, async (
 		}
 		if (body.name !== undefined) p.name = String(body.name).trim();
 		if (body.shortDescription !== undefined) p.shortDescription = String(body.shortDescription).slice(0, 500);
-		if (body.descriptionHtml !== undefined) p.descriptionHtml = String(body.descriptionHtml);
+		if (body.descriptionHtml !== undefined) p.descriptionHtml = sanitizeRichHtml(String(body.descriptionHtml));
 		if (body.price !== undefined) {
 			const price = Number(body.price);
 			if (!Number.isFinite(price) || price < 0) return res.status(400).json({ message: 'Harga tidak valid' });
@@ -2419,12 +2421,12 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 	}
 }
 
-router.post('/checkout', (req, res) => {
+router.post('/checkout', storeCheckoutRateLimiter, (req, res) => {
 	return runStoreCheckoutFromBody(req, res, (req.body || {}) as Record<string, unknown>);
 });
 
 /** Checkout satuan: body.productId atau body.bundleId + field sama seperti /checkout */
-router.post('/direct-checkout', (req, res) => {
+router.post('/direct-checkout', storeCheckoutRateLimiter, (req, res) => {
 	const body = (req.body || {}) as Record<string, unknown> & { productId?: string; bundleId?: string; qty?: number };
 	const qty = Math.max(1, parseInt(String(body.qty || 1), 10) || 1);
 	if (body.bundleId) {
@@ -2436,7 +2438,7 @@ router.post('/direct-checkout', (req, res) => {
 	return res.status(400).json({ message: 'Pilih productId atau bundleId' });
 });
 
-router.post('/buy-link', async (req, res) => {
+router.post('/buy-link', storeCheckoutRateLimiter, async (req, res) => {
 	try {
 		const { StoreProduct } = resolveModels(req);
 		const productId = req.body?.productId;

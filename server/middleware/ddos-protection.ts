@@ -400,7 +400,7 @@ export const ddosProtectionMiddleware = async (
 		const settings = await getCachedDdosMiddlewareSettings();
 
 		// Skip middleware if disabled
-		if (!settings.ddosProtectionEnabled) {
+		if (settings.allEnabled === false || !settings.ddosProtectionEnabled) {
 			return next();
 		}
 		const clientIP = getTrustedClientIp(req);

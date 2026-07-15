@@ -17,6 +17,7 @@ import {
 } from './auth';
 import { invokeBannerRender } from './banner-render-invoke';
 import { DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
+import { gdriveProxyRateLimiter } from './middleware/public-rate-limit';
 import {
 	normalizeBeritaAttachmentArray,
 	normalizeEventAttachmentArray,
@@ -810,7 +811,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	}
 
 	// Google Drive API routes
-	app.post('/api/gdrive/check-access', async (req, res) => {
+	app.post('/api/gdrive/check-access', gdriveProxyRateLimiter, async (req, res) => {
 		try {
 			const { url } = req.body;
 
@@ -859,7 +860,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	app.post('/api/gdrive/media-url', async (req, res) => {
+	app.post('/api/gdrive/media-url', gdriveProxyRateLimiter, async (req, res) => {
 		try {
 			const { fileId, url, mediaType: userSpecifiedType } = req.body;
 
@@ -7046,6 +7047,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res, next) => {
 			try {
 				const { user } = req as any;
+				if (user.role !== 'owner') {
+					return res.status(403).json({ message: 'Hanya owner yang dapat mengakses pengaturan middleware' });
+				}
 				if (user.role === 'owner') {
 					const userRole = await mongoStorage.getRoleByName('owner');
 					const allPermissions = await mongoStorage.getAllPermissions();
@@ -7094,6 +7098,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res, next) => {
 			try {
 				const { user } = req as any;
+				if (user.role !== 'owner') {
+					return res.status(403).json({ message: 'Hanya owner yang dapat mengubah pengaturan middleware' });
+				}
 				if (user.role === 'owner') {
 					const userRole = await mongoStorage.getRoleByName('owner');
 					const allPermissions = await mongoStorage.getAllPermissions();
@@ -7312,7 +7319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	);
 
 	// Folder contents endpoint - kept for potential future use
-	app.post('/api/gdrive/folder-contents', async (req, res) => {
+	app.post('/api/gdrive/folder-contents', gdriveProxyRateLimiter, async (req, res) => {
 		try {
 			const { folderId, url } = req.body;
 

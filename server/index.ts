@@ -78,10 +78,7 @@ app.use(dnsLayerProtectionMiddleware);
 import { tenantApiResolver } from './middleware/tenant-resolver';
 app.use(tenantApiResolver);
 
-// Apply input sanitization
-app.use(sanitizeInput);
-
-// Apply security logging
+// Apply security logging (before body parse is fine — logs method/path)
 app.use(securityLogger);
 
 // Bug monitoring: tangkap error berbasis status response untuk SEMUA endpoint /api
@@ -103,6 +100,12 @@ app.use('/api', (req: Request, res: Response, next: NextFunction) => {
 // ==================== BASIC MIDDLEWARE ====================
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: false, limit: '100mb' }));
+
+// Sanitize AFTER body parsers so JSON/urlencoded fields are present.
+// (Previously sanitizeInput ran before parsers and was a no-op for API JSON.)
+import { postBodySanitizeMiddleware } from './middleware/post-body-sanitize';
+app.use(sanitizeInput);
+app.use(postBodySanitizeMiddleware);
 
 // File access guard: block infected files from being served
 const fileAccessGuard = async (req: any, res: any, next: any) => {

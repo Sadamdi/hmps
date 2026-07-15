@@ -52,11 +52,11 @@ Flow umum:
 | GET | `/api/store/public/bundles/:slug` | `server/routes/store.ts#L698` | params: slug | 404, 500, 200/json |
 | GET | `/api/store/public/products` | `server/routes/store.ts#L712` | query: q, category, page, limit, sort | 500, 200/json |
 | GET | `/api/store/public/products/:slug` | `server/routes/store.ts#L770` | params: slug | 404, 500, 200/json |
-| GET | `/public` | `server/routes/feedback.ts#L333` | none observed in handler window | 500, 200/json |
-| GET | `/ratings` | `server/routes/feedback.ts#L376` | none observed in handler window | 500, 200/json |
-| PATCH | `/own/:id` | `server/routes/feedback.ts#L388` | params: id; body: body | 401, 404, 403, 500, 200/json |
-| DELETE | `/own/:id` | `server/routes/feedback.ts#L413` | params: id | 401, 404, 403, 500, 200/json |
-| GET | `/manage/ratings` | `server/routes/feedback.ts#L483` | none observed in handler window | 500, 200/json |
+| GET | `/public` | `server/routes/feedback.ts` | query: `limit` (optional, default 40) | 500, 200/json array |
+| GET | `/ratings` | `server/routes/feedback.ts` | none observed in handler window | 500, 200/json |
+| PATCH | `/own/:id` | `server/routes/feedback.ts` | params: id; body: body; header `x-guest-key` | 400, 401, 404, 403, 500, 200/json |
+| DELETE | `/own/:id` | `server/routes/feedback.ts` | params: id; header `x-guest-key` | 401, 404, 403, 500, 200/json |
+| GET | `/manage/ratings` | `server/routes/feedback.ts` | auth | 500, 200/json |
 
 ---
 
@@ -125,11 +125,15 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 
 | Concern | Required Handling |
 |---------|-------------------|
-| Auth | Verify handler/middleware in source lines listed above |
-| Permission | Verify permission key/check in handler before changing behavior |
-| Tenant | Use `/api/c/:slug/*` resolver/storage when feature is tenant-aware |
-| Upload | Validate MIME/size/path and cleanup temporary files |
-| Logging | Log user/resource/tenant/action without secrets |
+| Auth | Public submit/public cards; manage requires `feedback.view` / `feedback.manage` |
+| Permission | Visibility publish is admin-only; new submits start with `isVisibleCard: false` |
+| Tenant | Same handlers via `/api/c/:slug/feedback/*` |
+| Upload | Feedback media validated via upload helpers |
+| Input security | `sanitizePlainText` / `sanitizeRichHtml` on write; post-body sanitize middleware rejects XSS probes on public writes |
+| Rate limit | `feedbackRateLimiter`: IP + device (no IP in fingerprint) + guestKey caps (~20/IP/h, ~10/guestKey/h) |
+| Public list | `GET /public` capped (default 40); footer fetch skipped when cards disabled |
+| Admin list | Dashboard always sends `page`/`limit` (default 20) |
+| Logging | `ipHash` stored on create (HMAC), not raw IP |
 
 ---
 
@@ -142,15 +146,17 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 | 3 | Unauthorized | no/invalid session on protected route | 401 or 403 based on handler/middleware |
 | 4 | Not found | invalid id/slug | 404 or safe message based on handler |
 | 5 | Tenant boundary | wrong community slug/context | no cross-tenant data access |
-| 6 | Regression | `npm run check` | TypeScript passes |
+| 6 | XSS probe submit | body/extraFields with `alert(` / event handlers | 400 `XSS_REJECTED` / pola tidak diizinkan |
+| 7 | Guest-key flood | same `x-guest-key`, rotating IP | 429 after guestKey window cap |
+| 8 | Regression | `npm run check` | TypeScript passes |
 
 ---
 
 ## Source References
 
 - Feature doc: `08-collaboration-feedback/02-feedback-public-ratings.md`
-- UI: `feedback widgets`
-- Endpoint sources: `server/routes/feedback.ts`, `server/routes/store.ts`
+- UI: `client/src/components/public/footer.tsx`
+- Endpoint sources: `server/routes/feedback.ts`, `server/utils/input-sanitize.ts`, `server/middleware/public-rate-limit.ts`
 - Endpoint inventory: `docs/api/endpoints.md`
 - Feature summary: `docs/features/feature-summary.md`
 

@@ -23,7 +23,8 @@ import {
 	useState,
 } from 'react';
 import { useLocation } from 'wouter';
-import { ALL_SUBITEM_BLOCKS, DEFAULT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
+import { ALL_SUBITEM_BLOCKS, DEFAULT_HOME_CONFIG, DEFAULT_TENANT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
+import { useTenant } from '@/lib/tenant-context';
 import { ArrowRight } from 'lucide-react';
 
 interface Settings {
@@ -71,8 +72,13 @@ const HOME_SCROLL_UNLOCK_KEY = 'hmps-home-scroll-unlocked';
 const DESKTOP_SCROLL_LOCK_MQ = '(min-width: 1024px)';
 
 export default function Home() {
+	const { isTenant } = useTenant();
 	const { isLoading, completeLoading, forceComplete, assetsLoaded } =
 		useAppLoading();
+
+	const defaultHomeBlocks = isTenant
+		? DEFAULT_TENANT_HOME_CONFIG.blocks
+		: DEFAULT_HOME_CONFIG.blocks;
 
 	// heroReady diset saat loading screen mulai exit (onExitStart),
 	// bukan setelah selesai — agar Hero animation berjalan bersamaan dengan loading screen fade out
@@ -209,7 +215,7 @@ export default function Home() {
 		if (!isDesktopViewport || isLoading || homeScrollUnlocked) return;
 		const blocks: HomeBlockItem[] = settings?.homeConfig?.blocks?.length
 			? settings.homeConfig.blocks
-			: DEFAULT_HOME_CONFIG.blocks;
+			: defaultHomeBlocks;
 		const hasHero = blocks.filter((b) => b.visible).some((b) => b.id === 'hero');
 		if (!hasHero) handleHeroIntroSettled();
 	}, [
@@ -218,6 +224,7 @@ export default function Home() {
 		homeScrollUnlocked,
 		settings?.homeConfig,
 		handleHeroIntroSettled,
+		defaultHomeBlocks,
 	]);
 
 	// Pada SPA navigation/reload, section ber-data-aos bisa render ulang setelah init.
@@ -342,7 +349,7 @@ export default function Home() {
 
 	const blocks: HomeBlockItem[] = settings?.homeConfig?.blocks?.length
 		? settings.homeConfig.blocks
-		: DEFAULT_HOME_CONFIG.blocks;
+		: defaultHomeBlocks;
 
 	const visibleBlocks = blocks.filter((b) => b.visible);
 
