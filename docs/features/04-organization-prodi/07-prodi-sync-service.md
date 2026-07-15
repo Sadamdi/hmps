@@ -6,7 +6,11 @@
 
 ## Deskripsi
 
-Sinkronisasi data prodi dari sumber remote/internal untuk dosen, curriculum, lab, dan media akademik.
+Sinkronisasi data prodi dari sumber remote/internal untuk dosen, curriculum, lab, akreditasi, **kalender akademik UIN**, hub skripsi/PKL TI, feed pengumuman, serta seed panduan portal mahasiswa (NIM, email, SKKM, SKPI, Ma'had).
+
+Scope sync: `all | profile | lecturers | curriculum | labs | accreditation | academicCalendar | studentResources`.
+
+Student resources gagal secara terisolasi — tidak menggagalkan sync profil/kurikulum.
 
 ---
 
@@ -15,6 +19,7 @@ Sinkronisasi data prodi dari sumber remote/internal untuk dosen, curriculum, lab
 1. Sebagai user/admin HMPS, saya ingin memakai **Prodi Sync Service** sesuai flow aplikasi.
 2. Sebagai maintainer, saya ingin source file dan endpoint fitur ini eksplisit agar tidak hilang saat refactor.
 3. Sebagai reviewer, saya ingin contract yang belum pasti ditandai partial, bukan dikarang.
+4. Sebagai mahasiswa TI, saya ingin kalender akademik, portal, skripsi/PKL, dan panduan NIM di halaman Prodi.
 
 ---
 
@@ -22,26 +27,34 @@ Sinkronisasi data prodi dari sumber remote/internal untuk dosen, curriculum, lab
 
 | Method | Endpoint | Source | Observed Input | Observed Response |
 |--------|----------|--------|----------------|-------------------|
-| POST | `/api/prodi/sync/run` | `server/routes.ts` | sync trigger body if any | sync result |
+| POST | `/api/prodi/sync/run` | `server/routes.ts` | `{ scope, overwrite? }` | sync result / needsConfirm |
+| GET | `/api/prodi` | public | — | content + `studentHub` defaults |
 
 ---
 
 ## Observed Request Shape
 
-Verify exact trigger options in route.
+```json
+{ "scope": "studentResources", "overwrite": false }
+```
+
+Valid scopes: all, profile, lecturers, curriculum, labs, accreditation, academicCalendar, studentResources.
 
 ---
 
 ## Observed Response Shape
 
-Returns sync summary/result or safe external fetch error.
+Returns sync summary including `calendarYears`, `announcementCount`, `pklTemplates`, `studentResourcesOk` when relevant.
 
 ---
 
 ## Technical Design / Sources
 
 - `server/services/prodi-sync.ts`
-- `server/routes.ts`
+- `server/services/prodi-student-resources.ts`
+- `shared/prodi-student-hub.ts`
+- `client/src/pages/prodi.tsx`
+- `client/src/components/prodi/student-hub-sections.tsx`
 - `client/src/pages/dashboard/prodi.tsx`
 
 ---

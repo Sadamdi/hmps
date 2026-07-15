@@ -122,8 +122,12 @@ export default function DashboardProdi() {
 				return;
 			}
 			const s = data.summary;
+			const calPart =
+				s?.calendarYears?.length != null
+					? ` Kalender: ${s.calendarYears.length} tahun, pengumuman ${s.announcementCount ?? 0}, template PKL ${s.pklTemplates ?? 0}.`
+					: '';
 			const desc = s
-				? `Sejarah ~${s.profileHistoryLen ?? 0} karakter, dosen ${s.lecturerLinks ?? 0}, semester ${s.semestersCount ?? 0}, MK pilihan ${s.optionalSubjectsCount ?? 0}, lab ${(s.teachingLabs ?? 0) + (s.researchLabs ?? 0)}.`
+				? `Sejarah ~${s.profileHistoryLen ?? 0} karakter, dosen ${s.lecturerLinks ?? 0}, semester ${s.semestersCount ?? 0}, MK pilihan ${s.optionalSubjectsCount ?? 0}, lab ${(s.teachingLabs ?? 0) + (s.researchLabs ?? 0)}.${calPart}`
 				: (data.message ?? 'Selesai');
 			toast({ title: data.message || 'Sinkronisasi selesai', description: desc });
 			queryClient.invalidateQueries({ queryKey: ['/api/prodi/manage'] });
@@ -243,6 +247,12 @@ export default function DashboardProdi() {
 								</DropdownMenuItem>
 								<DropdownMenuItem onClick={() => setPendingSyncScope('accreditation')}>
 									Sync Akreditasi
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setPendingSyncScope('academicCalendar')}>
+									Sync Kalender Akademik
+								</DropdownMenuItem>
+								<DropdownMenuItem onClick={() => setPendingSyncScope('studentResources')}>
+									Sync Portal / Skripsi / PKL / Pengumuman
 								</DropdownMenuItem>
 							</DropdownMenuContent>
 							</DropdownMenu>

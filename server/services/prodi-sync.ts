@@ -1735,7 +1735,15 @@ function findOldLecturerPhotoUrl(existingContent: any, slug: string): string | u
 
 // ─── Scoped sync types ───
 
-export type ProdiSyncScope = 'all' | 'profile' | 'lecturers' | 'curriculum' | 'labs' | 'accreditation';
+export type ProdiSyncScope =
+	| 'all'
+	| 'profile'
+	| 'lecturers'
+	| 'curriculum'
+	| 'labs'
+	| 'accreditation'
+	| 'academicCalendar'
+	| 'studentResources';
 
 export type ProdiSyncScopedResult = ProdiSyncSummary & {
 	curriculumYearAction?: 'created' | 'overwritten' | 'needs_confirm';
@@ -1744,6 +1752,11 @@ export type ProdiSyncScopedResult = ProdiSyncSummary & {
 	curriculumCreatedYears?: number[];
 	curriculumOverwrittenYears?: number[];
 	curriculumNeedsConfirmYears?: number[];
+	calendarYears?: number[];
+	calendarSkipped?: number[];
+	announcementCount?: number;
+	pklTemplates?: number;
+	studentResourcesOk?: boolean;
 };
 
 // ─── Scoped sync orchestrator ───
@@ -1782,6 +1795,14 @@ export async function runProdiSyncScoped(
 	const doCurriculum = scope === 'all' || scope === 'curriculum';
 	const doLabs = scope === 'all' || scope === 'labs';
 	const doAccreditation = scope === 'all' || scope === 'accreditation';
+	const doStudentResources =
+		scope === 'all' || scope === 'academicCalendar' || scope === 'studentResources';
+
+	let calendarYears: number[] = [];
+	let calendarSkipped: number[] = [];
+	let announcementCount = 0;
+	let pklTemplates = 0;
+	let studentResourcesOk = true;
 
 	try {
 		await mongoStorage.setProdiSyncStatus('syncing');
@@ -1913,6 +1934,43 @@ export async function runProdiSyncScoped(
 			crawledContent.accreditation = accreditation;
 		}
 
+		// Student hub (calendar / portals / guides / skripsi / PKL / RSS) — isolated failures
+		if (doStudentResources) {
+			try {
+				const { runStudentResourcesSync } = await import('./prodi-student-resources');
+				const existingHub = existingContent?.studentHub || {};
+				const { hub, summary: hubSummary } = await runStudentResourcesSync(existingHub);
+				if (scope === 'academicCalendar') {
+					crawledContent.studentHub = {
+						...existingHub,
+						academicCalendars: hub.academicCalendars,
+						portals: existingHub.portals?.length ? existingHub.portals : hub.portals,
+						guides: existingHub.guides?.length ? existingHub.guides : hub.guides,
+					};
+				} else {
+					crawledContent.studentHub = hub;
+				}
+				forceFields.push(
+					'studentHub.academicCalendars',
+					'studentHub.portals',
+					'studentHub.guides',
+					'studentHub.announcements',
+					'studentHub.skripsiHub',
+					'studentHub.pklHub',
+				);
+				calendarYears = hubSummary.calendarYears || [];
+				calendarSkipped = hubSummary.calendarSkipped || [];
+				announcementCount = hubSummary.announcementCount || 0;
+				pklTemplates = hubSummary.pklTemplates || 0;
+				studentResourcesOk = hubSummary.ok !== false;
+				if (hubSummary.error) console.warn('Student resources warning:', hubSummary.error);
+			} catch (err: any) {
+				console.error('Student resources sync isolated failure:', err);
+				studentResourcesOk = false;
+				// Do not fail the whole sync
+			}
+		}
+
 		// Curriculum goes through year-based storage
 		if (doCurriculum && curriculumByYearParsed.length) {
 			const sortedByYear = [...curriculumByYearParsed].sort((a, b) => a.year - b.year);
@@ -1982,6 +2040,11 @@ export async function runProdiSyncScoped(
 				curriculumCreatedYears,
 				curriculumOverwrittenYears,
 				curriculumNeedsConfirmYears,
+				calendarYears,
+				calendarSkipped,
+				announcementCount,
+				pklTemplates,
+				studentResourcesOk,
 			};
 		}
 
@@ -2003,6 +2066,11 @@ export async function runProdiSyncScoped(
 				curriculumCreatedYears,
 				curriculumOverwrittenYears,
 				curriculumNeedsConfirmYears,
+				calendarYears,
+				calendarSkipped,
+				announcementCount,
+				pklTemplates,
+				studentResourcesOk,
 			};
 		}
 
@@ -2017,6 +2085,11 @@ export async function runProdiSyncScoped(
 			curriculumCreatedYears,
 			curriculumOverwrittenYears,
 			curriculumNeedsConfirmYears,
+			calendarYears,
+			calendarSkipped,
+			announcementCount,
+			pklTemplates,
+			studentResourcesOk,
 		};
 	} catch (error: any) {
 		console.error('Prodi sync failed:', error);
@@ -2030,6 +2103,11 @@ export async function runProdiSyncScoped(
 			curriculumCreatedYears,
 			curriculumOverwrittenYears,
 			curriculumNeedsConfirmYears,
+			calendarYears,
+			calendarSkipped,
+			announcementCount,
+			pklTemplates,
+			studentResourcesOk: false,
 		};
 	} finally {
 		syncing = false;
