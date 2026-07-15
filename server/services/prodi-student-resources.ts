@@ -254,8 +254,21 @@ async function upsertCalendarEntry(
 async function repairMissingLocalPdfs(map: Record<string, AcademicCalendarEntry>): Promise<number[]> {
 	const repaired: number[] = [];
 	for (const [key, entry] of Object.entries(map)) {
-		if (!entry?.sourcePdfUrl) continue;
-		if (entry.pdfUrl && localCalendarFileExists(entry.pdfUrl)) continue;
+		if (entry?.pdfUrl && localCalendarFileExists(entry.pdfUrl)) continue;
+		let sourcePdfUrl = entry?.sourcePdfUrl || '';
+		let title = entry?.title;
+		let rectorDecision = entry?.rectorDecision;
+		if (entry?.announcementUrl) {
+			try {
+				const meta = await extractPdfFromAnnouncement(entry.announcementUrl);
+				if (meta.pdfUrl) sourcePdfUrl = meta.pdfUrl;
+				if (meta.title) title = meta.title;
+				if (meta.rectorDecision) rectorDecision = meta.rectorDecision;
+			} catch (err) {
+				console.warn('Refresh calendar PDF from announcement failed:', entry.announcementUrl, err);
+			}
+		}
+		if (!sourcePdfUrl) continue;
 		const years = parseYearFromAcademicLabel(entry.academicYear) || {
 			start: Number(key),
 			end: Number(key) + 1,
@@ -265,11 +278,11 @@ async function repairMissingLocalPdfs(map: Record<string, AcademicCalendarEntry>
 			start: years.start,
 			end: years.end,
 			label: years.label,
-			title: entry.title,
-			sourcePdfUrl: entry.sourcePdfUrl,
+			title: title || entry.title,
+			sourcePdfUrl,
 			announcementUrl: entry.announcementUrl,
 			highlights: entry.highlights,
-			rectorDecision: entry.rectorDecision,
+			rectorDecision,
 			sourceKind: entry.sourceKind || 'repair',
 		});
 		if (ok) repaired.push(years.start);
