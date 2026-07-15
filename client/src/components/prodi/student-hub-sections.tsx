@@ -24,7 +24,7 @@ import {
 	GraduationCap,
 	Link2,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 function ExtLink({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) {
@@ -63,9 +63,39 @@ export function KalenderSection({ calendars }: { calendars: Record<string, any> 
 
 	const effectiveYear = year && calendars[year] ? year : String(years[0]);
 	const data = calendars[effectiveYear];
-	const localPdf = data?.pdfUrl && String(data.pdfUrl).startsWith('/uploads/') ? data.pdfUrl : '';
-	const downloadHref = localPdf || data?.sourcePdfUrl || '';
-	const previewHref = localPdf || '';
+	const [downloadHref, setDownloadHref] = useState('');
+	const [previewHref, setPreviewHref] = useState('');
+
+	useEffect(() => {
+		let cancelled = false;
+		const localCandidate =
+			data?.pdfUrl && String(data.pdfUrl).startsWith('/uploads/') ? String(data.pdfUrl) : '';
+		const remoteFallback = data?.sourcePdfUrl || data?.announcementUrl || '';
+		(async () => {
+			if (localCandidate) {
+				try {
+					const res = await fetch(localCandidate, { method: 'HEAD' });
+					const ct = (res.headers.get('content-type') || '').toLowerCase();
+					if (res.ok && (ct.includes('pdf') || ct.includes('octet-stream'))) {
+						if (!cancelled) {
+							setDownloadHref(localCandidate);
+							setPreviewHref(localCandidate);
+						}
+						return;
+					}
+				} catch {
+					/* fall through */
+				}
+			}
+			if (!cancelled) {
+				setDownloadHref(remoteFallback);
+				setPreviewHref('');
+			}
+		})();
+		return () => {
+			cancelled = true;
+		};
+	}, [data?.pdfUrl, data?.sourcePdfUrl, data?.announcementUrl, effectiveYear]);
 
 	return (
 		<div className="space-y-6">

@@ -6045,6 +6045,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	);
 
 	app.post(
+		'/api/prodi/calendar/upload',
+		authenticate,
+		requirePermission('prodi.sync'),
+		uploadMiddleware.single('file'),
+		async (req, res) => {
+			try {
+				const yearStart = parseInt(String(req.body?.yearStart || ''), 10);
+				const yearEnd = parseInt(String(req.body?.yearEnd || yearStart + 1), 10);
+				if (!Number.isFinite(yearStart) || yearStart < 2000 || yearStart > 2100) {
+					return res.status(400).json({ message: 'yearStart tidak valid' });
+				}
+				const file = req.file;
+				if (!file?.buffer?.length) {
+					return res.status(400).json({ message: 'File PDF wajib' });
+				}
+				const head = file.buffer.subarray(0, 5).toString('utf8');
+				if (!head.startsWith('%PDF')) {
+					return res.status(400).json({ message: 'File harus PDF valid' });
+				}
+				const { uploadDir } = await import('./upload');
+				const dir = path.join(uploadDir, 'prodi', 'calendar');
+				fs.mkdirSync(dir, { recursive: true });
+				const filename = `kalender-${yearStart}-${yearEnd}.pdf`;
+				fs.writeFileSync(path.join(dir, filename), file.buffer);
+				const pdfUrl = `/uploads/prodi/calendar/${filename}`;
+
+				const doc = await resolveStorage(req).getProdiContent();
+				if (!(doc as any).content) (doc as any).content = {};
+				if (!(doc as any).content.studentHub) (doc as any).content.studentHub = {};
+				const hub = (doc as any).content.studentHub;
+				if (!hub.academicCalendars) hub.academicCalendars = {};
+				const key = String(yearStart);
+				const prev = hub.academicCalendars[key] || {};
+				hub.academicCalendars[key] = {
+					...prev,
+					academicYear: prev.academicYear || `${yearStart}/${yearEnd}`,
+					title: prev.title || `Kalender Akademik ${yearStart}/${yearEnd}`,
+					pdfUrl,
+					sourcePdfUrl: prev.sourcePdfUrl || pdfUrl,
+					sourceKind: prev.sourceKind || 'manual_upload',
+					syncedAt: new Date().toISOString(),
+					highlights: prev.highlights || [],
+				};
+				doc.markModified('content');
+				await doc.save();
+				res.json({ ok: true, pdfUrl, yearStart, yearEnd });
+			} catch (error: any) {
+				console.error('Calendar PDF upload error:', error);
+				res.status(500).json({ message: error?.message || 'Gagal upload PDF kalender' });
+			}
+		},
+	);
+
+	app.post(
 		'/api/prodi/sync/run',
 		authenticate,
 		requirePermission('prodi.sync'),

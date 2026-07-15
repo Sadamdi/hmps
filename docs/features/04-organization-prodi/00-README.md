@@ -59,6 +59,7 @@ Organization & Prodi feature category for HMPS. This README is the local index f
 | `PUT` | `/api/prodi/manage` |
 | `GET` | `/api/prodi/preview` |
 | `POST` | `/api/prodi/sync/run` |
+| `POST` | `/api/prodi/calendar/upload` |
 | `POST` | `/api/prodi/upload/photo/lab` |
 | `POST` | `/api/prodi/upload/photo/member` |
 | `POST` | `/api/prodi/upload/photo/org-structure` |
