@@ -7,9 +7,11 @@ import {
 	SelectValue,
 } from '@/components/ui/select';
 import {
-	decodeTiNim,
+	decodeUinMalangNim,
 	PRODI_EXAMPLE_EMAIL,
 	PRODI_EXAMPLE_NIM,
+	UIN_CAMPUS_PROGRAM_CATALOG,
+	UIN_FACULTY_CODES,
 	type NimDecodeResult,
 	type ProdiPortalLink,
 	type ProdiStudentGuide,
@@ -160,7 +162,20 @@ export function PortalSection({
 	guides: ProdiStudentGuide[];
 }) {
 	const [nimInput, setNimInput] = useState('');
-	const decoded: NimDecodeResult = useMemo(() => decodeTiNim(nimInput), [nimInput]);
+	const decoded: NimDecodeResult = useMemo(() => decodeUinMalangNim(nimInput), [nimInput]);
+	const facultyList = useMemo(
+		() => Object.values(UIN_FACULTY_CODES).sort((a, b) => a.code.localeCompare(b.code)),
+		[],
+	);
+	const catalogByFaculty = useMemo(() => {
+		const map = new Map<string, typeof UIN_CAMPUS_PROGRAM_CATALOG>();
+		for (const p of UIN_CAMPUS_PROGRAM_CATALOG) {
+			const list = map.get(p.facultyCode) || [];
+			list.push(p);
+			map.set(p.facultyCode, list);
+		}
+		return map;
+	}, []);
 
 	const groups: { key: string; label: string }[] = [
 		{ key: 'daily', label: 'Portal harian' },
@@ -223,22 +238,84 @@ export function PortalSection({
 					/>
 					{nimInput && (
 						<div className="text-sm space-y-1 rounded-md bg-muted/40 p-3">
-							<p>{decoded.message}</p>
+							<p className="font-medium">{decoded.message}</p>
 							{decoded.ok && (
 								<ul className="list-disc list-inside text-muted-foreground">
 									<li>Angkatan: {decoded.year}</li>
 									<li>
 										Fakultas ({decoded.facultyCode}): {decoded.facultyName}
+										{decoded.knownFaculty === false ? ' — tidak ditemukan' : ''}
 									</li>
 									<li>
 										Prodi ({decoded.prodiCode}): {decoded.prodiName}
+										{decoded.knownProdi === false ? ' — tidak ditemukan' : ''}
 									</li>
-									<li>Segmen program: {decoded.programSegment}</li>
+									<li>
+										Jenjang (digit 7): {decoded.jenjangDigit}
+										{decoded.jenjang ? ` — ${decoded.jenjang}` : ''}
+									</li>
+									<li>
+										Semester masuk (digit 8): {decoded.semesterDigit}
+										{decoded.semesterLabel ? ` — ${decoded.semesterLabel}` : ''}
+									</li>
 									<li>Nomor urut: {decoded.serial}</li>
+									{decoded.isTiModern && (
+										<li className="text-primary">Ini pola NIM S1 Teknik Informatika.</li>
+									)}
 								</ul>
+							)}
+							{decoded.notes?.map((n, i) => (
+								<p key={i} className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+									{n}
+								</p>
+							))}
+							{!!decoded.relatedPrograms?.length && (
+								<div className="mt-2 text-xs text-muted-foreground">
+									<p className="font-medium text-foreground">Program kampus terkait unit ini:</p>
+									<ul className="list-disc list-inside mt-1">
+										{decoded.relatedPrograms.slice(0, 12).map((p) => (
+											<li key={`${p.facultyCode}-${p.jenjang}-${p.name}`}>
+												[{p.jenjang}] {p.name}
+												{p.prodiCode ? ` (PP ${p.prodiCode})` : ' (kode digit belum publik)'}
+											</li>
+										))}
+									</ul>
+								</div>
 							)}
 						</div>
 					)}
+
+					<details className="rounded-md border border-border p-3 text-sm">
+						<summary className="cursor-pointer font-medium">
+							Katalog lengkap fakultas & prodi UIN Malang (S1–S3 + profesi)
+						</summary>
+						<div className="mt-3 space-y-4 max-h-96 overflow-y-auto">
+							<p className="text-xs text-muted-foreground">
+								Format: <code className="bg-muted px-1 rounded">YY FF PP J S NNNN</code> (J=jenjang,
+								S=semester). Sumber daftar: PMB + MSAA + Pedoman Pascasarjana 2026. Digit PP S1
+								terkonfirmasi MSAA; S2/S3/profesi tanpa angka publik ditandai “kode belum publik”.
+							</p>
+							{facultyList.map((fac) => {
+								const programs = catalogByFaculty.get(fac.code) || [];
+								return (
+									<div key={fac.code}>
+										<p className="font-medium">
+											{fac.code} — {fac.shortName}
+										</p>
+										<ul className="mt-1 text-muted-foreground list-disc list-inside">
+											{programs.map((p) => (
+												<li key={`${p.facultyCode}-${p.jenjang}-${p.name}`}>
+													[{p.jenjang}] {p.name}
+													{p.prodiCode ? ` · PP ${p.prodiCode}` : ' · kode digit belum publik'}
+												</li>
+											))}
+											{!programs.length && <li>Belum ada entri katalog</li>}
+										</ul>
+									</div>
+								);
+							})}
+						</div>
+					</details>
 				</div>
 
 				<div className="space-y-3">

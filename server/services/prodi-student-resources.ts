@@ -463,9 +463,9 @@ export async function runStudentResourcesSync(existingHub?: any): Promise<{
 		console.warn('PKL sync error:', err);
 	}
 
-	// Always ensure portals + guides present
-	if (!hub.portals?.length) hub.portals = DEFAULT_STUDENT_PORTALS;
-	if (!hub.guides?.length) hub.guides = DEFAULT_STUDENT_GUIDES;
+	// Refresh static portals + guides from code defaults (katalog NIM / panduan)
+	hub.portals = DEFAULT_STUDENT_PORTALS;
+	hub.guides = DEFAULT_STUDENT_GUIDES;
 
 	return { hub, summary };
 }
