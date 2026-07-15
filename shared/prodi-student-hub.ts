@@ -1,5 +1,16 @@
 /** Static student hub defaults for Prodi page (TI UIN Malang). */
 
+export type { NimDecodeResult, CampusProgram, UinJenjang } from './uin-nim-codes';
+export {
+	decodeUinMalangNim,
+	decodeTiNim,
+	UIN_FACULTY_CODES,
+	UIN_PRODI_CODES,
+	UIN_CAMPUS_PROGRAM_CATALOG,
+	listProdiByFaculty,
+	listCampusPrograms,
+} from './uin-nim-codes';
+
 export type ProdiPortalLink = {
 	label: string;
 	url: string;
@@ -183,15 +194,22 @@ export const DEFAULT_STUDENT_GUIDES: ProdiStudentGuide[] = [
 	},
 	{
 		id: 'nim-decoder',
-		title: 'Arti digit NIM (S1 TI)',
+		title: 'Arti digit NIM (UIN Malang — S1 hingga S3)',
 		summary:
-			'NIM modern S1 Teknik Informatika UIN Malang umumnya 12 digit. Decoder di halaman Portal memecah angkatan, fakultas, prodi, dan nomor urut secara lokal di browser.',
-		audience: 'Semua mahasiswa TI',
+			'NIM modern 12 digit (Pedoman Pascasarjana 2026 + observasi S1 MSAA): YY + FF (fakultas/Pascasarjana) + PP (prodi) + digit jenjang (1=S1, 2=S2, 3=S3) + digit semester masuk + NNNN. Katalog di Portal memuat semua prodi kampus (S1, magister fakultas, Pascasarjana, doktor, profesi). Kode digit PP S2/S3/profesi yang belum publik ditandai “tidak ditemukan / belum terpetakan”.',
+		audience: 'Semua mahasiswa UIN (S1–S3 & profesi)',
 		nimExample: PRODI_EXAMPLE_NIM,
 		tips: [
-			`Contoh: ${PRODI_EXAMPLE_NIM} → angkatan 2024, SAINTEK (06), TI (05), segmen 11, urut 0000.`,
-			'Format NIM lama (8 digit) mungkin berbeda; decoder utama untuk 12 digit modern.',
-			'NIM tidak dikirim ke server HMPS saat kamu mengetik di decoder.',
+			`S1 TI: ${PRODI_EXAMPLE_NIM} → 2024 · SAINTEK (06) · TI (05) · jenjang 1 · semester 1 · urut 0000.`,
+			'Fakultas FF: 01 FITK, 02 Syariah, 03 Humaniora, 04 Psikologi, 05 Ekonomi, 06 SAINTEK, 07 FKIK, 08 Pascasarjana, 09 Teknik.',
+			'Jika FF tidak ada di 01–09 → “Fakultas tidak ditemukan”. Jika PP tidak cocok → “Prodi tidak ditemukan” + daftar program unit tersebut.',
+			'Magister fakultas, S2/S3 Pascasarjana, PPG, Profesi Dokter/Apoteker ada di katalog; konfirmasi digit resmi di SIAKAD bila PP belum terpetakan.',
+			'NIM tidak dikirim ke server HMPS saat mengetik di decoder (hanya di browser).',
+		],
+		links: [
+			{ label: 'PMB — Program Studi', url: 'https://pmb.uin-malang.ac.id/program-studi/', desc: 'Daftar resmi S1/S2/S3/profesi' },
+			{ label: 'Pascasarjana UIN Malang', url: 'https://pasca.uin-malang.ac.id/', desc: 'Unit Pascasarjana (Kampus 2)' },
+			{ label: 'SIAKAD', url: 'https://siakad.uin-malang.ac.id/', desc: 'Sumber kebenaran data mahasiswa' },
 		],
 	},
 	{
@@ -275,59 +293,6 @@ export const DEFAULT_STUDENT_GUIDES: ProdiStudentGuide[] = [
 		tips: ['Jika diminta login institusi, gunakan email mahasiswa / akses kampus.'],
 	},
 ];
-
-export type NimDecodeResult = {
-	ok: boolean;
-	raw: string;
-	year?: number;
-	facultyCode?: string;
-	facultyName?: string;
-	prodiCode?: string;
-	prodiName?: string;
-	programSegment?: string;
-	serial?: string;
-	isTiModern?: boolean;
-	message?: string;
-};
-
-/** Client-safe NIM decoder for modern 12-digit TI pattern YY060511NNNN */
-export function decodeTiNim(input: string): NimDecodeResult {
-	const raw = (input || '').replace(/\D/g, '');
-	if (!raw) return { ok: false, raw: '', message: 'Masukkan NIM (angka).' };
-	if (raw.length !== 12) {
-		return {
-			ok: false,
-			raw,
-			message:
-				raw.length < 12
-					? 'NIM modern biasanya 12 digit. Format lama (lebih pendek) tidak di-decode penuh.'
-					: 'Panjang NIM tidak sesuai pola 12 digit modern.',
-		};
-	}
-	const year = Number(raw.slice(0, 2));
-	const facultyCode = raw.slice(2, 4);
-	const prodiCode = raw.slice(4, 6);
-	const programSegment = raw.slice(6, 8);
-	const serial = raw.slice(8, 12);
-	const isTiModern = facultyCode === '06' && prodiCode === '05';
-	return {
-		ok: true,
-		raw,
-		year: 2000 + year,
-		facultyCode,
-		facultyName:
-			facultyCode === '06' ? 'Fakultas Sains dan Teknologi (SAINTEK)' : `Kode fakultas ${facultyCode}`,
-		prodiCode,
-		prodiName:
-			prodiCode === '05' ? 'Teknik Informatika' : `Kode prodi ${prodiCode}`,
-		programSegment,
-		serial,
-		isTiModern,
-		message: isTiModern
-			? 'Pola cocok dengan NIM S1 TI modern (terobservasi dari data publik prodi).'
-			: 'Bukan pola TI modern (06+05). Segmen tetap ditampilkan apa adanya.',
-	};
-}
 
 export const DEFAULT_SKRIPSI_HUB = {
 	hubUrl: 'https://informatika.uin-malang.ac.id/thesis-skripsi-s1/',
