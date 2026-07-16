@@ -340,18 +340,31 @@ async function scrapeYoutubeTabHtml(
 	const items: SocialFeedItem[] = [];
 	const seen = new Set<string>();
 
-	// Lockup / rich item patterns in ytInitialData
-	const titleIdRe =
-		/"videoId"\s*:\s*"([\w-]{11})"[\s\S]{0,400}?"title"\s*:\s*\{"runs":\[\{"text":"([^"]+)"\}/g;
+	// LockupView (modern YT): contentId + metadata.title.content
+	const lockupRe =
+		/"contentId"\s*:\s*"([\w-]{11})"([\s\S]{0,1200}?)(?="contentId"|"content_id"|$)/g;
 	let m: RegExpExecArray | null;
-	while ((m = titleIdRe.exec(html)) && items.length < maxItems) {
+	while ((m = lockupRe.exec(html)) && items.length < maxItems * 2) {
 		const id = m[1];
 		if (seen.has(id)) continue;
+		const chunk = m[2] || '';
+		const titleMatch =
+			chunk.match(/"title"\s*:\s*\{\s*"content"\s*:\s*"([^"]+)"/) ||
+			chunk.match(/"label"\s*:\s*"([^"]{8,160})"/);
+		let title = titleMatch?.[1] || '';
+		title = title
+			.replace(/\\u0026/g, '&')
+			.replace(/\s+\d+\s+menit.*$/i, '')
+			.replace(/\s+\d+\s+detik.*$/i, '')
+			.trim();
+		if (!title || /tonton nanti|ditambahkan|antrean|tindakan/i.test(title)) {
+			title = kind === 'short' ? `Short ${id}` : kind === 'live' ? `Live ${id}` : `Video ${id}`;
+		}
 		seen.add(id);
 		items.push({
 			id: `yt-${id}`,
 			platform: 'youtube',
-			title: m[2].replace(/\\u0026/g, '&').slice(0, 140),
+			title: title.slice(0, 140),
 			url:
 				kind === 'short'
 					? `https://www.youtube.com/shorts/${id}`
@@ -363,9 +376,7 @@ async function scrapeYoutubeTabHtml(
 
 	if (!items.length) {
 		const idRe =
-			tab === 'shorts'
-				? /\/shorts\/([\w-]{11})/g
-				: /"videoId"\s*:\s*"([\w-]{11})"/g;
+			tab === 'shorts' ? /\/shorts\/([\w-]{11})/g : /"videoId"\s*:\s*"([\w-]{11})"/g;
 		while ((m = idRe.exec(html)) && items.length < maxItems) {
 			const id = m[1];
 			if (seen.has(id)) continue;
@@ -384,7 +395,7 @@ async function scrapeYoutubeTabHtml(
 		}
 	}
 
-	return items;
+	return items.slice(0, maxItems);
 }
 
 export async function syncYoutubeFeed(
