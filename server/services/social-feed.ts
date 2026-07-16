@@ -6,6 +6,7 @@ import {
 	DEFAULT_SOCIAL_FEED_CONFIG,
 	filterInstagramItems,
 	filterYoutubeItems,
+	mixSocialItemsByKind,
 	normalizeSocialFeedConfig,
 	type SocialFeedCache,
 	type SocialFeedConfig,
@@ -225,6 +226,109 @@ async function enrichYoutubeThumbs(items: SocialFeedItem[]): Promise<SocialFeedI
 	return out;
 }
 
+function parseDurationBadge(badge?: string): number | null {
+	if (!badge) return null;
+	const parts = String(badge)
+		.trim()
+		.split(':')
+		.map((p) => parseInt(p, 10));
+	if (parts.some((n) => !Number.isFinite(n))) return null;
+	if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+	if (parts.length === 2) return parts[0] * 60 + parts[1];
+	if (parts.length === 1) return parts[0];
+	return null;
+}
+
+function mapYtLockup(v: any, kind: 'video' | 'short' | 'live'): SocialFeedItem | null {
+	const id = v?.content_id;
+	if (!id) return null;
+	const title = String(v?.metadata?.title?.text || `YouTube ${id}`).replace(/\s+/g, ' ').trim();
+	const thumb =
+		v?.content_image?.image?.[0]?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
+	const badge = v?.content_image?.overlays
+		?.flatMap((o: any) => o?.badges || [])
+		?.map((b: any) => b?.text)
+		?.find((t: any) => !!t);
+	const durationSec = parseDurationBadge(badge);
+	const url =
+		kind === 'short'
+			? `https://www.youtube.com/shorts/${id}`
+			: `https://www.youtube.com/watch?v=${id}`;
+	return {
+		id: `yt-${id}`,
+		platform: 'youtube',
+		title: title.slice(0, 140),
+		url,
+		thumbnailUrl: thumb,
+		kind,
+		...(durationSec != null ? { publishedAt: undefined } : {}),
+	};
+}
+
+async function fetchYoutubeViaInnertube(
+	channelId: string,
+	content: SocialFeedConfig['youtube']['content'],
+	maxItems: number,
+): Promise<{ pools: { video: SocialFeedItem[]; short: SocialFeedItem[]; live: SocialFeedItem[] } }> {
+	const { Innertube } = await import('youtubei.js');
+	const yt = await Innertube.create({ generate_session_locally: true });
+	const channel = await yt.getChannel(channelId);
+	const pools = {
+		video: [] as SocialFeedItem[],
+		short: [] as SocialFeedItem[],
+		live: [] as SocialFeedItem[],
+	};
+	const take = Math.max(maxItems * 4, 12);
+
+	if (content.videos || content.shorts) {
+		const tab = await channel.getVideos();
+		const list = Array.isArray(tab?.videos) ? tab.videos : [];
+		for (const raw of list.slice(0, take) as any[]) {
+			const badge = raw?.content_image?.overlays
+				?.flatMap((o: any) => o?.badges || [])
+				?.map((b: any) => b?.text)
+				?.find((t: any) => !!t);
+			const dur = parseDurationBadge(badge);
+			const asShort = content.shorts && dur != null && dur > 0 && dur <= 60;
+			if (asShort) {
+				const item = mapYtLockup(raw, 'short');
+				if (item) pools.short.push(item);
+			} else if (content.videos) {
+				const item = mapYtLockup(raw, 'video');
+				if (item) pools.video.push(item);
+			}
+		}
+	}
+
+	if (content.shorts) {
+		try {
+			const tab = await channel.getShorts();
+			const list = Array.isArray(tab?.videos) ? tab.videos : [];
+			for (const raw of list.slice(0, take) as any[]) {
+				const item = mapYtLockup(raw, 'short');
+				if (item && !pools.short.some((x) => x.id === item.id)) pools.short.push(item);
+			}
+		} catch {
+			/* channel tanpa tab Shorts — sudah diisi heuristic ≤60s */
+		}
+	}
+
+	if (content.live) {
+		try {
+			const tab = await (channel as any).getLiveStreams();
+			const list = Array.isArray(tab?.videos) ? tab.videos : [];
+			for (const raw of list.slice(0, take) as any[]) {
+				const item = mapYtLockup(raw, 'live');
+				if (item) pools.live.push(item);
+			}
+		} catch (err) {
+			console.warn('YouTube live tab scrape failed:', err);
+		}
+	}
+
+	return { pools };
+}
+
 export async function syncYoutubeFeed(
 	config: SocialFeedConfig['youtube'],
 ): Promise<{ items: SocialFeedItem[]; live: SocialFeedLiveState['youtube'] }> {
@@ -234,28 +338,35 @@ export async function syncYoutubeFeed(
 	const channelId = await resolveYoutubeChannelId(channelUrl);
 	if (!channelId) throw new Error('YouTube channelId tidak ditemukan untuk @HimatifEncoder');
 
-	const collected: SocialFeedItem[] = [];
-	const byId = new Map<string, SocialFeedItem>();
-
-	const pushUnique = (list: SocialFeedItem[]) => {
-		for (const it of list) {
-			if (byId.has(it.id)) continue;
-			byId.set(it.id, it);
-			collected.push(it);
-		}
+	let pools = {
+		video: [] as SocialFeedItem[],
+		short: [] as SocialFeedItem[],
+		live: [] as SocialFeedItem[],
 	};
 
-	if (config.content.videos || config.content.shorts) {
-		const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
-		const xml = await fetchText(rssUrl);
-		pushUnique(parseYoutubeRss(xml, Math.max(maxItems * 3, 12)));
-	}
-
-	if (config.content.shorts && handle) {
-		try {
-			pushUnique(await scrapeYoutubeShorts(handle, Math.max(maxItems * 2, 8)));
-		} catch (err) {
-			console.warn('YouTube Shorts scrape failed:', err);
+	try {
+		const innertube = await fetchYoutubeViaInnertube(channelId, config.content, maxItems);
+		pools = innertube.pools;
+	} catch (err) {
+		console.warn('youtubei.js failed, falling back to RSS/HTML:', err);
+		// Fallback RSS (videos only) + HTML shorts
+		if (config.content.videos || config.content.shorts) {
+			const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
+			const xml = await fetchText(rssUrl);
+			const rss = parseYoutubeRss(xml, Math.max(maxItems * 3, 12));
+			for (const it of rss) {
+				if (it.kind === 'short' && config.content.shorts) pools.short.push(it);
+				else if (config.content.videos) pools.video.push({ ...it, kind: 'video' });
+			}
+		}
+		if (config.content.shorts && handle) {
+			try {
+				for (const it of await scrapeYoutubeShorts(handle, Math.max(maxItems * 2, 8))) {
+					if (!pools.short.some((x) => x.id === it.id)) pools.short.push(it);
+				}
+			} catch (e) {
+				console.warn('YouTube Shorts HTML scrape failed:', e);
+			}
 		}
 	}
 
@@ -304,27 +415,32 @@ export async function syncYoutubeFeed(
 					kind: 'live',
 					publishedAt: new Date().toISOString(),
 				};
-				byId.delete(`yt-${vid}`);
-				pushUnique([liveItem]);
+				pools.live = [liveItem, ...pools.live.filter((x) => x.id !== `yt-${vid}`)];
 			}
 		} catch (err) {
 			console.warn('YouTube live check failed:', err);
 		}
 	}
 
-	let filtered = filterYoutubeItems(collected, config.content);
-	filtered.sort((a, b) => {
-		const ta = a.publishedAt ? Date.parse(a.publishedAt) : 0;
-		const tb = b.publishedAt ? Date.parse(b.publishedAt) : 0;
-		if (a.isLive && !b.isLive) return -1;
-		if (!a.isLive && b.isLive) return 1;
-		return tb - ta;
-	});
-	filtered = filtered.slice(0, maxItems);
+	const order: Array<'live' | 'video' | 'short'> = [];
+	if (config.content.live) order.push('live');
+	if (config.content.videos) order.push('video');
+	if (config.content.shorts) order.push('short');
+
+	let filtered = mixSocialItemsByKind(pools, order, maxItems);
+	if (!filtered.length) {
+		// single-type edge: just take from enabled pools
+		filtered = filterYoutubeItems(
+			[...pools.live, ...pools.video, ...pools.short],
+			config.content,
+		).slice(0, maxItems);
+	}
 	filtered = await enrichYoutubeThumbs(filtered);
 
 	if (!filtered.length && !live.isLive) {
-		throw new Error('Tidak menemukan video/Shorts YouTube dari channel');
+		throw new Error(
+			'Tidak menemukan konten YouTube sesuai filter (Video / Shorts / Live). Channel @HimatifEncoder tidak punya tab Shorts — aktifkan Video atau Live.',
+		);
 	}
 
 	return { items: filtered, live };
@@ -392,22 +508,61 @@ function extractThumbCandidates(html: string): string[] {
 	return urls;
 }
 
+let igCookieJar = '';
+
+async function seedInstagramCookies(): Promise<string> {
+	if (igCookieJar) return igCookieJar;
+	try {
+		const res = await fetch('https://www.instagram.com/', {
+			redirect: 'follow',
+			headers: {
+				'User-Agent': UA_DESKTOP,
+				Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+				'Accept-Language': 'en-US,en;q=0.9,id;q=0.8',
+			},
+		});
+		const raw = typeof (res as any).headers?.getSetCookie === 'function'
+			? (res as any).headers.getSetCookie()
+			: [];
+		const fromHeader = Array.isArray(raw) ? raw : [];
+		const single = res.headers.get('set-cookie');
+		const parts = [
+			...fromHeader,
+			...(single ? [single] : []),
+		]
+			.map((c: string) => c.split(';')[0])
+			.filter(Boolean);
+		const session = process.env.INSTAGRAM_SESSION_ID?.trim();
+		const csrf = process.env.INSTAGRAM_CSRF_TOKEN?.trim();
+		if (session) parts.push(`sessionid=${session}`);
+		if (csrf) parts.push(`csrftoken=${csrf}`);
+		igCookieJar = Array.from(new Set(parts)).join('; ');
+	} catch {
+		const session = process.env.INSTAGRAM_SESSION_ID?.trim();
+		igCookieJar = session ? `sessionid=${session}` : '';
+	}
+	return igCookieJar;
+}
+
 async function fetchIgWebProfileInfo(username: string): Promise<any | null> {
 	try {
+		const cookies = await seedInstagramCookies();
 		const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
-		const session = process.env.INSTAGRAM_SESSION_ID?.trim();
-		const csrf = process.env.INSTAGRAM_CSRF_TOKEN?.trim() || '';
+		const csrf =
+			process.env.INSTAGRAM_CSRF_TOKEN?.trim() ||
+			cookies.match(/csrftoken=([^;]+)/)?.[1] ||
+			'';
 		const headers: Record<string, string> = {
 			'User-Agent': UA_DESKTOP,
 			'X-IG-App-ID': '936619743392459',
 			Accept: '*/*',
 			Referer: `https://www.instagram.com/${username}/`,
 			'X-Requested-With': 'XMLHttpRequest',
+			'X-ASBD-ID': '359341',
+			'X-IG-WWW-Claim': '0',
 		};
-		if (session) {
-			headers.Cookie = `sessionid=${session}${csrf ? `; csrftoken=${csrf}` : ''}; ds_user_id=1`;
-			if (csrf) headers['X-CSRFToken'] = csrf;
-		}
+		if (cookies) headers.Cookie = cookies;
+		if (csrf) headers['X-CSRFToken'] = csrf;
 		const text = await fetchText(url, 20000, headers);
 		if (!text || text.length < 20) return null;
 		return JSON.parse(text);
@@ -573,6 +728,7 @@ export async function syncInstagramFeed(
 	}
 
 	// 2) HTML profile + reels tab scrape (URL shape: /username/p/CODE)
+	const cookies = await seedInstagramCookies();
 	const pages = [pageUrl, `https://www.instagram.com/${encodeURIComponent(username)}/reels/`];
 	let html = '';
 	for (const page of pages) {
@@ -580,15 +736,7 @@ export async function syncInstagramFeed(
 			const body = await fetchText(page, 25000, {
 				'User-Agent': UA_MOBILE,
 				Referer: 'https://www.instagram.com/',
-				...(process.env.INSTAGRAM_SESSION_ID?.trim()
-					? {
-							Cookie: `sessionid=${process.env.INSTAGRAM_SESSION_ID.trim()}${
-								process.env.INSTAGRAM_CSRF_TOKEN?.trim()
-									? `; csrftoken=${process.env.INSTAGRAM_CSRF_TOKEN.trim()}`
-									: ''
-							}`,
-						}
-					: {}),
+				...(cookies ? { Cookie: cookies } : {}),
 			});
 			if (body.length > html.length) html = body;
 			const shortcodes = extractIgShortcodes(body);
@@ -596,6 +744,9 @@ export async function syncInstagramFeed(
 			for (let i = 0; i < shortcodes.length; i++) {
 				const { code, kind } = shortcodes[i];
 				const pathKind = kind === 'reel' ? 'reel' : 'p';
+				// Respect content filters early when only one type enabled
+				if (kind === 'reel' && !config.content.reels) continue;
+				if (kind === 'p' && !config.content.posts) continue;
 				pushUnique([
 					{
 						id: `ig-${code}`,
@@ -699,14 +850,21 @@ export async function syncInstagramFeed(
 	}
 
 	let filtered = filterInstagramItems(collected, config.content);
-	filtered.sort((a, b) => {
-		if (a.isLive && !b.isLive) return -1;
-		if (!a.isLive && b.isLive) return 1;
-		const ta = a.publishedAt ? Date.parse(a.publishedAt) : 0;
-		const tb = b.publishedAt ? Date.parse(b.publishedAt) : 0;
-		return tb - ta;
-	});
-	filtered = filtered.slice(0, config.maxItems);
+	const pools = {
+		post: filtered.filter((i) => (i.kind || 'post') === 'post'),
+		reel: filtered.filter((i) => i.kind === 'reel'),
+		story: filtered.filter((i) => i.kind === 'story'),
+		live: filtered.filter((i) => i.kind === 'live' || i.isLive),
+	};
+	const order: Array<'live' | 'post' | 'reel' | 'story'> = [];
+	if (config.content.live) order.push('live');
+	if (config.content.posts) order.push('post');
+	if (config.content.reels) order.push('reel');
+	if (config.content.stories) order.push('story');
+	filtered = mixSocialItemsByKind(pools, order, config.maxItems);
+	if (!filtered.length) {
+		filtered = filterInstagramItems(collected, config.content).slice(0, config.maxItems);
+	}
 
 	if (!filtered.length) {
 		throw new Error(
