@@ -329,6 +329,64 @@ async function fetchYoutubeViaInnertube(
 	return { pools };
 }
 
+async function scrapeYoutubeTabHtml(
+	handle: string,
+	tab: 'videos' | 'streams' | 'shorts',
+	kind: 'video' | 'live' | 'short',
+	maxItems: number,
+): Promise<SocialFeedItem[]> {
+	const url = `https://www.youtube.com/@${encodeURIComponent(handle)}/${tab}`;
+	const html = await fetchText(url, 25000, { 'User-Agent': UA_DESKTOP });
+	const items: SocialFeedItem[] = [];
+	const seen = new Set<string>();
+
+	// Lockup / rich item patterns in ytInitialData
+	const titleIdRe =
+		/"videoId"\s*:\s*"([\w-]{11})"[\s\S]{0,400}?"title"\s*:\s*\{"runs":\[\{"text":"([^"]+)"\}/g;
+	let m: RegExpExecArray | null;
+	while ((m = titleIdRe.exec(html)) && items.length < maxItems) {
+		const id = m[1];
+		if (seen.has(id)) continue;
+		seen.add(id);
+		items.push({
+			id: `yt-${id}`,
+			platform: 'youtube',
+			title: m[2].replace(/\\u0026/g, '&').slice(0, 140),
+			url:
+				kind === 'short'
+					? `https://www.youtube.com/shorts/${id}`
+					: `https://www.youtube.com/watch?v=${id}`,
+			thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+			kind,
+		});
+	}
+
+	if (!items.length) {
+		const idRe =
+			tab === 'shorts'
+				? /\/shorts\/([\w-]{11})/g
+				: /"videoId"\s*:\s*"([\w-]{11})"/g;
+		while ((m = idRe.exec(html)) && items.length < maxItems) {
+			const id = m[1];
+			if (seen.has(id)) continue;
+			seen.add(id);
+			items.push({
+				id: `yt-${id}`,
+				platform: 'youtube',
+				title: kind === 'short' ? `Short ${id}` : `Video ${id}`,
+				url:
+					kind === 'short'
+						? `https://www.youtube.com/shorts/${id}`
+						: `https://www.youtube.com/watch?v=${id}`,
+				thumbnailUrl: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+				kind,
+			});
+		}
+	}
+
+	return items;
+}
+
 export async function syncYoutubeFeed(
 	config: SocialFeedConfig['youtube'],
 ): Promise<{ items: SocialFeedItem[]; live: SocialFeedLiveState['youtube'] }> {
@@ -344,29 +402,73 @@ export async function syncYoutubeFeed(
 		live: [] as SocialFeedItem[],
 	};
 
+	// 1) Prefer youtubei.js InnerTube (accurate tabs)
+	let innertubeOk = false;
 	try {
 		const innertube = await fetchYoutubeViaInnertube(channelId, config.content, maxItems);
 		pools = innertube.pools;
+		innertubeOk =
+			pools.video.length + pools.short.length + pools.live.length > 0;
 	} catch (err) {
-		console.warn('youtubei.js failed, falling back to RSS/HTML:', err);
-		// Fallback RSS (videos only) + HTML shorts
-		if (config.content.videos || config.content.shorts) {
-			const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
-			const xml = await fetchText(rssUrl);
-			const rss = parseYoutubeRss(xml, Math.max(maxItems * 3, 12));
-			for (const it of rss) {
-				if (it.kind === 'short' && config.content.shorts) pools.short.push(it);
-				else if (config.content.videos) pools.video.push({ ...it, kind: 'video' });
-			}
-		}
-		if (config.content.shorts && handle) {
-			try {
-				for (const it of await scrapeYoutubeShorts(handle, Math.max(maxItems * 2, 8))) {
-					if (!pools.short.some((x) => x.id === it.id)) pools.short.push(it);
+		console.warn('youtubei.js failed:', err);
+	}
+
+	// 2) HTML tab scrape (reliable on VPS when InnerTube blocked)
+	if (handle && (!innertubeOk || pools.video.length + pools.live.length < maxItems)) {
+		try {
+			if (config.content.videos) {
+				const vids = await scrapeYoutubeTabHtml(
+					handle,
+					'videos',
+					'video',
+					Math.max(maxItems * 3, 12),
+				);
+				for (const it of vids) {
+					if (!pools.video.some((x) => x.id === it.id) && !pools.short.some((x) => x.id === it.id)) {
+						pools.video.push(it);
+					}
 				}
-			} catch (e) {
-				console.warn('YouTube Shorts HTML scrape failed:', e);
 			}
+			if (config.content.live) {
+				const lives = await scrapeYoutubeTabHtml(
+					handle,
+					'streams',
+					'live',
+					Math.max(maxItems * 3, 12),
+				);
+				for (const it of lives) {
+					if (!pools.live.some((x) => x.id === it.id)) pools.live.push(it);
+				}
+			}
+			if (config.content.shorts) {
+				try {
+					const shorts = await scrapeYoutubeTabHtml(
+						handle,
+						'shorts',
+						'short',
+						Math.max(maxItems * 2, 8),
+					);
+					for (const it of shorts) {
+						if (!pools.short.some((x) => x.id === it.id)) pools.short.push(it);
+					}
+				} catch {
+					/* no shorts tab */
+				}
+			}
+		} catch (err) {
+			console.warn('YouTube HTML tab scrape failed:', err);
+		}
+	}
+
+	// 3) Last-resort RSS (mark live-looking titles)
+	if (pools.video.length + pools.short.length + pools.live.length === 0) {
+		const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
+		const xml = await fetchText(rssUrl);
+		for (const it of parseYoutubeRss(xml, Math.max(maxItems * 3, 12))) {
+			const liveTitle = /^live\b|^live\s*\|\|/i.test(it.title);
+			if (liveTitle && config.content.live) pools.live.push({ ...it, kind: 'live' });
+			else if (it.kind === 'short' && config.content.shorts) pools.short.push(it);
+			else if (config.content.videos) pools.video.push({ ...it, kind: 'video' });
 		}
 	}
 
@@ -429,7 +531,6 @@ export async function syncYoutubeFeed(
 
 	let filtered = mixSocialItemsByKind(pools, order, maxItems);
 	if (!filtered.length) {
-		// single-type edge: just take from enabled pools
 		filtered = filterYoutubeItems(
 			[...pools.live, ...pools.video, ...pools.short],
 			config.content,
@@ -911,11 +1012,23 @@ export async function runSocialFeedSync(
 
 	if (config.instagram.enabled) {
 		try {
-			const ig = await syncInstagramFeed(config.instagram);
+			const seeded = {
+				...config.instagram,
+				manualUrls: [
+					...(config.instagram.manualUrls || []),
+					...((prev.instagram || []).map((i) => i.url).filter(Boolean) as string[]),
+				].slice(0, 12),
+			};
+			const ig = await syncInstagramFeed(seeded);
 			next.instagram = ig.items;
 			next.live.instagram = ig.live;
 		} catch (err: any) {
-			errors.push(`instagram: ${err?.message || err}`);
+			const msg = err?.message || String(err);
+			if ((prev.instagram || []).length) {
+				errors.push(`instagram(keep-cache): ${msg}`);
+			} else {
+				errors.push(`instagram: ${msg}`);
+			}
 			console.warn('Instagram social sync failed:', err);
 		}
 	} else {
@@ -926,8 +1039,9 @@ export async function runSocialFeedSync(
 	if (errors.length) next.lastError = errors.join('; ');
 	else delete next.lastError;
 
+	const hardFail = errors.some((e) => !e.includes('keep-cache'));
 	return {
-		ok: errors.length === 0,
+		ok: !hardFail,
 		cache: next,
 		error: errors.length ? errors.join('; ') : undefined,
 	};
