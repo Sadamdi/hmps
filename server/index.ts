@@ -460,7 +460,7 @@ cron.schedule('0 3 1 * *', async () => {
 	}
 });
 
-// Schedule: student announcements RSS — check hourly; default interval 1 day
+// Schedule: student hub refresh (announcements + skripsi + PKL + calendar) — check hourly; default interval 1 day
 cron.schedule('15 * * * *', async () => {
 	try {
 		const { mongoStorage } = await import('./mongo-storage');
@@ -475,21 +475,30 @@ cron.schedule('15 * * * *', async () => {
 		const dueMs = intervalDays * 24 * 60 * 60 * 1000;
 		if (Date.now() - last < dueMs) return;
 
-		const { runAnnouncementsOnlySync } = await import('./services/prodi-student-resources');
+		const { runStudentResourcesSync } = await import('./services/prodi-student-resources');
 		const existingHub = (doc.content as any)?.studentHub || {};
-		const hub = await runAnnouncementsOnlySync(existingHub);
+		const { hub, summary } = await runStudentResourcesSync(existingHub);
 		await mongoStorage.applyAutoSyncData(
-			{ studentHub: { ...existingHub, announcements: hub.announcements } },
-			{ forceFields: ['studentHub.announcements'] },
+			{ studentHub: hub },
+			{
+				forceFields: [
+					'studentHub.academicCalendars',
+					'studentHub.portals',
+					'studentHub.guides',
+					'studentHub.announcements',
+					'studentHub.skripsiHub',
+					'studentHub.pklHub',
+				],
+			},
 		);
 		const fresh = await mongoStorage.getProdiContent();
 		fresh.lastAnnouncementSyncAt = new Date();
 		await fresh.save();
 		console.log(
-			`✅ Announcement sync done (${hub.announcements?.length || 0} items, interval=${intervalDays}d)`,
+			`✅ Student hub daily sync done (announcements=${summary.announcementCount}, pkl=${summary.pklTemplates}, calendars=${summary.calendarYears?.length || 0}, interval=${intervalDays}d)`,
 		);
 	} catch (err) {
-		console.error('Scheduled announcement sync error:', err);
+		console.error('Scheduled student hub sync error:', err);
 	}
 });
 

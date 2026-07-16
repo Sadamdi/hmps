@@ -691,38 +691,45 @@ export default function DashboardProdi() {
 					</TabsContent>
 
 					<TabsContent value="skripsi" className="space-y-6 mt-6">
-						<Card>
-							<CardHeader>
-								<CardTitle className="text-base">Hub Skripsi (hasil scrape)</CardTitle>
-								<CardDescription>{localContent?.studentHub?.skripsiHub?.hubUrl}</CardDescription>
-							</CardHeader>
-							<CardContent className="text-sm space-y-2">
-								<p>Dokumen: {(localContent?.studentHub?.skripsiHub?.documents || []).length}</p>
-								<p>Sections: {(localContent?.studentHub?.skripsiHub?.sections || []).length}</p>
-								{canSync && (
-									<Button variant="outline" onClick={() => setPendingSyncScope('studentResources')}>
-										Sync Portal / Skripsi / PKL / Pengumuman
-									</Button>
-								)}
-							</CardContent>
-						</Card>
+						<DashboardHintCard
+							title="Panduan tab: Skripsi"
+							variant="green"
+							storageKey="dashboard-prodi-tab-skripsi"
+							description="Sync mengambil dokumen/tautan dari situs TI. Hasil bisa diedit manual lalu Simpan. Sections sampah tema (MIU Login, Powered By, dll) otomatis dibuang.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>Sync → cek dokumen → edit nama/URL bila perlu → Simpan.</li>
+							</ul>
+						</DashboardHintCard>
+						<StudentHubResourceEditor
+							title="Hub Skripsi"
+							hub={localContent?.studentHub?.skripsiHub}
+							mode="skripsi"
+							canEdit={canEdit}
+							canSync={canSync}
+							onChange={(next) => updateField('studentHub', 'skripsiHub', next)}
+							onSync={() => setPendingSyncScope('studentResources')}
+						/>
 					</TabsContent>
 
 					<TabsContent value="pkl" className="space-y-6 mt-6">
-						<Card>
-							<CardHeader>
-								<CardTitle className="text-base">Hub PKL (hasil scrape)</CardTitle>
-								<CardDescription>{localContent?.studentHub?.pklHub?.hubUrl}</CardDescription>
-							</CardHeader>
-							<CardContent className="text-sm space-y-2">
-								<p>Template: {(localContent?.studentHub?.pklHub?.templates || []).length}</p>
-								{(localContent?.studentHub?.pklHub?.templates || []).slice(0, 8).map((t: any) => (
-									<div key={t.url} className="text-muted-foreground truncate">
-										{t.name}
-									</div>
-								))}
-							</CardContent>
-						</Card>
+						<DashboardHintCard
+							title="Panduan tab: PKL"
+							variant="green"
+							storageKey="dashboard-prodi-tab-pkl"
+							description="Template PKL dari scrape + edit manual. Sections tema/login otomatis dibersihkan.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>Edit nama template agar ramah mahasiswa, lalu Simpan.</li>
+							</ul>
+						</DashboardHintCard>
+						<StudentHubResourceEditor
+							title="Hub PKL"
+							hub={localContent?.studentHub?.pklHub}
+							mode="pkl"
+							canEdit={canEdit}
+							canSync={canSync}
+							onChange={(next) => updateField('studentHub', 'pklHub', next)}
+							onSync={() => setPendingSyncScope('studentResources')}
+						/>
 					</TabsContent>
 
 					<TabsContent value="pengumuman" className="space-y-6 mt-6">
@@ -730,14 +737,18 @@ export default function DashboardProdi() {
 							title="Panduan tab: Pengumuman"
 							variant="green"
 							storageKey="dashboard-prodi-tab-pengumuman"
-							description="Feed RSS TI + UIN dikategorikan (thesis, wisuda, UKT, kalender). Auto-fetch default setiap 1 hari; bisa diubah di bawah.">
+							description="Feed RSS TI + UIN. Max 50/kategori. Publik: 10/halaman + pagination. Auto-fetch default 1 hari untuk seluruh student hub (kalender, skripsi, PKL, pengumuman).">
 							<ul className="list-disc list-inside space-y-1.5 text-sm">
 								<li>Ubah interval → Simpan. Cron cek tiap jam apakah sudah jatuh tempo.</li>
+								<li>Hapus item yang tidak relevan, lalu Simpan.</li>
 							</ul>
 						</DashboardHintCard>
 						<Card>
 							<CardHeader>
-								<CardTitle className="text-base">Interval auto-fetch</CardTitle>
+								<CardTitle className="text-base">Interval auto-fetch student hub</CardTitle>
+								<CardDescription>
+									Berlaku untuk pengumuman + skripsi + PKL + kalender (bukan hanya RSS).
+								</CardDescription>
 							</CardHeader>
 							<CardContent className="space-y-3">
 								<div className="flex flex-wrap items-end gap-3">
@@ -766,16 +777,18 @@ export default function DashboardProdi() {
 											: 'belum pernah'}
 									</p>
 								</div>
-								<p className="text-sm">
-									Item tersimpan: {(localContent?.studentHub?.announcements || []).length}
-								</p>
 								{canSync && (
 									<Button variant="outline" onClick={() => setPendingSyncScope('studentResources')}>
-										Sync Pengumuman Sekarang
+										Sync Student Hub Sekarang
 									</Button>
 								)}
 							</CardContent>
 						</Card>
+						<AnnouncementsEditor
+							items={localContent?.studentHub?.announcements || []}
+							canEdit={canEdit}
+							onChange={(next) => updateField('studentHub', 'announcements', next)}
+						/>
 					</TabsContent>
 				</Tabs>
 			</div>
@@ -2755,5 +2768,199 @@ function JsonEditor({ value, onChange, readOnly, label }: {
 			/>
 			{error && <p className="text-xs text-destructive">{error}</p>}
 		</div>
+	);
+}
+
+function StudentHubResourceEditor({
+	title,
+	hub,
+	mode,
+	canEdit,
+	canSync,
+	onChange,
+	onSync,
+}: {
+	title: string;
+	hub: any;
+	mode: 'skripsi' | 'pkl';
+	canEdit: boolean;
+	canSync: boolean;
+	onChange: (next: any) => void;
+	onSync: () => void;
+}) {
+	const data = hub || {};
+	const docsKey = mode === 'skripsi' ? 'documents' : 'templates';
+	const docs: { name: string; url: string }[] = Array.isArray(data[docsKey]) ? data[docsKey] : [];
+
+	const patch = (partial: Record<string, any>) => onChange({ ...data, ...partial });
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-base">{title}</CardTitle>
+				<CardDescription>{data.hubUrl || 'Belum ada URL hub'}</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-4 text-sm">
+				<div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div className="space-y-1">
+						<Label>URL hub</Label>
+						<Input
+							value={data.hubUrl || ''}
+							disabled={!canEdit}
+							onChange={(e) => patch({ hubUrl: e.target.value })}
+						/>
+					</div>
+					{mode === 'skripsi' && (
+						<div className="space-y-1">
+							<Label>Pedoman / SOP PDF</Label>
+							<Input
+								value={data.pedomanPdf || data.sopPdf || ''}
+								disabled={!canEdit}
+								onChange={(e) => patch({ pedomanPdf: e.target.value, sopPdf: e.target.value })}
+							/>
+						</div>
+					)}
+				</div>
+
+				{mode === 'skripsi' && (
+					<div className="space-y-1">
+						<Label>Tahapan (satu baris per tahap)</Label>
+						<Textarea
+							rows={5}
+							disabled={!canEdit}
+							value={(data.steps || []).join('\n')}
+							onChange={(e) =>
+								patch({
+									steps: e.target.value
+										.split('\n')
+										.map((s) => s.trim())
+										.filter(Boolean),
+								})
+							}
+						/>
+					</div>
+				)}
+
+				<div className="space-y-2">
+					<div className="flex items-center justify-between gap-2">
+						<Label>{mode === 'skripsi' ? 'Dokumen' : 'Template'} ({docs.length})</Label>
+						{canEdit && (
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								onClick={() =>
+									patch({
+										[docsKey]: [...docs, { name: 'Dokumen baru', url: 'https://' }],
+									})
+								}>
+								<Plus className="h-3.5 w-3.5 mr-1" /> Tambah
+							</Button>
+						)}
+					</div>
+					{docs.map((d, idx) => (
+						<div key={idx} className="grid grid-cols-1 sm:grid-cols-[1fr_1.4fr_auto] gap-2">
+							<Input
+								placeholder="Nama"
+								value={d.name || ''}
+								disabled={!canEdit}
+								onChange={(e) => {
+									const next = docs.map((x, i) =>
+										i === idx ? { ...x, name: e.target.value } : x,
+									);
+									patch({ [docsKey]: next });
+								}}
+							/>
+							<Input
+								placeholder="URL"
+								value={d.url || ''}
+								disabled={!canEdit}
+								onChange={(e) => {
+									const next = docs.map((x, i) =>
+										i === idx ? { ...x, url: e.target.value } : x,
+									);
+									patch({ [docsKey]: next });
+								}}
+							/>
+							{canEdit && (
+								<Button
+									type="button"
+									size="icon"
+									variant="ghost"
+									onClick={() => patch({ [docsKey]: docs.filter((_, i) => i !== idx) })}>
+									<Trash2 className="h-4 w-4 text-destructive" />
+								</Button>
+							)}
+						</div>
+					))}
+				</div>
+
+				<div className="flex flex-wrap gap-2 items-center">
+					<p className="text-xs text-muted-foreground">
+						Sections tersimpan: {(data.sections || []).length} (sampah tema dibuang otomatis saat
+						tampil/sync)
+					</p>
+					{canEdit && (data.sections || []).length > 0 && (
+						<Button type="button" size="sm" variant="outline" onClick={() => patch({ sections: [] })}>
+							Hapus semua sections
+						</Button>
+					)}
+					{canSync && (
+						<Button type="button" size="sm" variant="outline" onClick={onSync}>
+							<RefreshCw className="h-3.5 w-3.5 mr-1" /> Sync ulang
+						</Button>
+					)}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+function AnnouncementsEditor({
+	items,
+	canEdit,
+	onChange,
+}: {
+	items: any[];
+	canEdit: boolean;
+	onChange: (next: any[]) => void;
+}) {
+	const list = Array.isArray(items) ? items : [];
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-base">Daftar pengumuman ({list.length})</CardTitle>
+				<CardDescription>Max 50 per kategori saat sync. Hapus item yang tidak relevan.</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-2">
+				{!list.length && (
+					<p className="text-sm text-muted-foreground">Belum ada item. Jalankan sync student hub.</p>
+				)}
+				{list.map((item, idx) => (
+					<div
+						key={(item.url || '') + idx}
+						className="flex flex-wrap items-start justify-between gap-2 border-b border-border py-2">
+						<div className="min-w-0 flex-1">
+							<p className="text-sm font-medium truncate">{item.title}</p>
+							<p className="text-xs text-muted-foreground">
+								{item.category || 'lainnya'} · {item.source || '-'}
+								{item.publishedAt
+									? ` · ${new Date(item.publishedAt).toLocaleDateString('id-ID')}`
+									: ''}
+							</p>
+						</div>
+						{canEdit && (
+							<Button
+								type="button"
+								size="sm"
+								variant="ghost"
+								onClick={() => onChange(list.filter((_, i) => i !== idx))}>
+								<Trash2 className="h-4 w-4 text-destructive" />
+							</Button>
+						)}
+					</div>
+				))}
+			</CardContent>
+		</Card>
 	);
 }

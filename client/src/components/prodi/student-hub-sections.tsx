@@ -554,13 +554,33 @@ const ANNOUNCEMENT_CATS: { id: string; label: string }[] = [
 	{ id: 'lainnya', label: 'Lainnya' },
 ];
 
+const ANNOUNCEMENT_PAGE_SIZE = 10;
+const ANNOUNCEMENT_MAX_PER_FILTER = 50;
+
 export function PengumumanSection({ items }: { items: any[] }) {
 	const [cat, setCat] = useState('all');
+	const [page, setPage] = useState(1);
+
 	const filtered = useMemo(() => {
 		const list = items || [];
 		if (cat === 'all') return list;
 		return list.filter((i) => (i.category || 'lainnya') === cat);
 	}, [items, cat]);
+
+	const capped = useMemo(() => {
+		const list = filtered;
+		if (cat === 'all') {
+			// "Semua" = gabungan filter (tiap kategori sudah dibatasi 50 di sync)
+			return list;
+		}
+		return list.slice(0, ANNOUNCEMENT_MAX_PER_FILTER);
+	}, [filtered, cat]);
+	const pageCount = Math.max(1, Math.ceil(capped.length / ANNOUNCEMENT_PAGE_SIZE) || 1);
+	const safePage = Math.min(Math.max(1, page), pageCount);
+	const pageItems = capped.slice(
+		(safePage - 1) * ANNOUNCEMENT_PAGE_SIZE,
+		safePage * ANNOUNCEMENT_PAGE_SIZE,
+	);
 
 	if (!items?.length) {
 		return (
@@ -573,27 +593,40 @@ export function PengumumanSection({ items }: { items: any[] }) {
 		<div className="space-y-4">
 			<h2 className="text-xl font-semibold">Pengumuman penting</h2>
 			<p className="text-sm text-muted-foreground">
-				Filter dari feed resmi TI (skripsi/sidang) dan UIN (wisuda, UKT, kalender). Auto-refresh harian
-				dari dashboard.
+				Max {ANNOUNCEMENT_MAX_PER_FILTER} item per filter · {ANNOUNCEMENT_PAGE_SIZE}/halaman (termasuk
+				Semua). Feed TI + UIN. Auto-refresh harian bersama kalender/skripsi/PKL.
 			</p>
 			<div className="flex flex-wrap gap-2">
-				{ANNOUNCEMENT_CATS.map((c) => (
-					<button
-						key={c.id}
-						type="button"
-						onClick={() => setCat(c.id)}
-						className={cn(
-							'rounded-md border px-3 py-1.5 text-xs sm:text-sm transition-colors',
-							cat === c.id
-								? 'border-primary bg-primary/10 text-primary'
-								: 'border-border text-muted-foreground hover:bg-muted',
-						)}>
-						{c.label}
-					</button>
-				))}
+				{ANNOUNCEMENT_CATS.map((c) => {
+					const count =
+						c.id === 'all'
+							? (items || []).length
+							: Math.min(
+									(items || []).filter((i) => (i.category || 'lainnya') === c.id).length,
+									ANNOUNCEMENT_MAX_PER_FILTER,
+								);
+					return (
+						<button
+							key={c.id}
+							type="button"
+							onClick={() => {
+								setCat(c.id);
+								setPage(1);
+							}}
+							className={cn(
+								'rounded-md border px-3 py-1.5 text-xs sm:text-sm transition-colors',
+								cat === c.id
+									? 'border-primary bg-primary/10 text-primary'
+									: 'border-border text-muted-foreground hover:bg-muted',
+							)}>
+							{c.label}
+							{count > 0 ? ` (${count})` : ''}
+						</button>
+					);
+				})}
 			</div>
 			<ul className="divide-y divide-border rounded-lg border border-border bg-card">
-				{filtered.map((item, i) => (
+				{pageItems.map((item, i) => (
 					<li key={(item.url || '') + i} className="p-4 hover:bg-muted/30">
 						<a
 							href={item.url}
@@ -613,12 +646,42 @@ export function PengumumanSection({ items }: { items: any[] }) {
 						)}
 					</li>
 				))}
-				{!filtered.length && (
+				{!pageItems.length && (
 					<li className="p-6 text-center text-sm text-muted-foreground">
 						Tidak ada pengumuman di kategori ini.
 					</li>
 				)}
 			</ul>
+			{capped.length > ANNOUNCEMENT_PAGE_SIZE && (
+				<div className="flex flex-wrap items-center justify-between gap-2">
+					<p className="text-xs text-muted-foreground">
+						Menampilkan {(safePage - 1) * ANNOUNCEMENT_PAGE_SIZE + 1}–
+						{Math.min(safePage * ANNOUNCEMENT_PAGE_SIZE, capped.length)} dari {capped.length}
+						{cat !== 'all' && filtered.length > ANNOUNCEMENT_MAX_PER_FILTER
+							? ` (max ${ANNOUNCEMENT_MAX_PER_FILTER}/filter)`
+							: ''}
+					</p>
+					<div className="flex gap-2">
+						<button
+							type="button"
+							disabled={safePage <= 1}
+							onClick={() => setPage((p) => Math.max(1, p - 1))}
+							className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-muted">
+							Sebelumnya
+						</button>
+						<span className="text-sm text-muted-foreground self-center">
+							{safePage} / {pageCount}
+						</span>
+						<button
+							type="button"
+							disabled={safePage >= pageCount}
+							onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+							className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-40 hover:bg-muted">
+							Berikutnya
+						</button>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

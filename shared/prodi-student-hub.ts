@@ -318,13 +318,43 @@ export const DEFAULT_PKL_HUB = {
 };
 
 export function buildDefaultStudentHub(partial?: any) {
+	const skripsiHub = { ...DEFAULT_SKRIPSI_HUB, ...(partial?.skripsiHub || {}) };
+	const pklHub = { ...DEFAULT_PKL_HUB, ...(partial?.pklHub || {}) };
 	return {
 		portals: partial?.portals?.length ? partial.portals : DEFAULT_STUDENT_PORTALS,
 		guides: partial?.guides?.length ? partial.guides : DEFAULT_STUDENT_GUIDES,
 		academicCalendars: partial?.academicCalendars || {},
-		announcements: partial?.announcements || [],
-		skripsiHub: partial?.skripsiHub || { ...DEFAULT_SKRIPSI_HUB },
-		pklHub: partial?.pklHub || { ...DEFAULT_PKL_HUB },
+		announcements: Array.isArray(partial?.announcements) ? partial.announcements : [],
+		skripsiHub: sanitizeStoredHub(skripsiHub),
+		pklHub: sanitizeStoredHub(pklHub),
 	};
+}
+
+const JUNK_HUB_RE =
+	/miu\s*login|siam\s*login|powered\s*by|theme\s*version|ptipd|^\s*organization\s*$|^\s*profile\s*$|lecturer and staff|^\s*dokumen\s*$|^\s*en_?us\s*$|^\s*id\s*$|^\s*ar\s*$|^\s*zh\s*$/i;
+
+function sanitizeStoredHub(hub: any): any {
+	if (!hub || typeof hub !== 'object') return hub;
+	const next = { ...hub };
+	if (Array.isArray(next.sections)) {
+		next.sections = next.sections.filter(
+			(s: any) => s?.heading && !JUNK_HUB_RE.test(String(s.heading).trim()),
+		);
+	}
+	if (Array.isArray(next.actionLinks)) {
+		next.actionLinks = next.actionLinks.filter(
+			(l: any) => l?.url && l?.label && !JUNK_HUB_RE.test(String(l.label).trim()),
+		);
+	}
+	if (Array.isArray(next.templates)) {
+		next.templates = next.templates.map((t: any) => ({
+			...t,
+			name: String(t?.name || '')
+				.replace(/\s*\[DOWNLOAD HERE\]\s*/gi, '')
+				.replace(/\s*:\s*$/, '')
+				.trim() || 'Dokumen PKL',
+		}));
+	}
+	return next;
 }
 
