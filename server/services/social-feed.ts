@@ -340,31 +340,33 @@ async function scrapeYoutubeTabHtml(
 	const items: SocialFeedItem[] = [];
 	const seen = new Set<string>();
 
-	// LockupView (modern YT): contentId + metadata.title.content
-	const lockupRe =
-		/"contentId"\s*:\s*"([\w-]{11})"([\s\S]{0,1200}?)(?="contentId"|"content_id"|$)/g;
+	const idRe = /"contentId"\s*:\s*"([\w-]{11})"/g;
 	let m: RegExpExecArray | null;
-	while ((m = lockupRe.exec(html)) && items.length < maxItems * 2) {
+	while ((m = idRe.exec(html)) && items.length < maxItems) {
 		const id = m[1];
 		if (seen.has(id)) continue;
-		const chunk = m[2] || '';
+		const start = Math.max(0, m.index - 900);
+		const end = Math.min(html.length, m.index + 900);
+		const chunk = html.slice(start, end);
 		const titleMatch =
 			chunk.match(/"title"\s*:\s*\{\s*"content"\s*:\s*"([^"]+)"/) ||
 			chunk.match(/"label"\s*:\s*"([^"]{8,160})"/);
-		let title = titleMatch?.[1] || '';
-		title = title
+		let title = (titleMatch?.[1] || '')
 			.replace(/\\u0026/g, '&')
 			.replace(/\s+\d+\s+menit.*$/i, '')
 			.replace(/\s+\d+\s+detik.*$/i, '')
 			.trim();
-		if (!title || /tonton nanti|ditambahkan|antrean|tindakan/i.test(title)) {
-			title = kind === 'short' ? `Short ${id}` : kind === 'live' ? `Live ${id}` : `Video ${id}`;
+		if (!title || /tonton nanti|ditambahkan|antrean|tindakan|watch later/i.test(title)) {
+			title = '';
 		}
 		seen.add(id);
 		items.push({
 			id: `yt-${id}`,
 			platform: 'youtube',
-			title: title.slice(0, 140),
+			title: (title || (kind === 'short' ? `Short ${id}` : kind === 'live' ? `Live ${id}` : `Video ${id}`)).slice(
+				0,
+				140,
+			),
 			url:
 				kind === 'short'
 					? `https://www.youtube.com/shorts/${id}`
@@ -375,9 +377,9 @@ async function scrapeYoutubeTabHtml(
 	}
 
 	if (!items.length) {
-		const idRe =
+		const fallbackRe =
 			tab === 'shorts' ? /\/shorts\/([\w-]{11})/g : /"videoId"\s*:\s*"([\w-]{11})"/g;
-		while ((m = idRe.exec(html)) && items.length < maxItems) {
+		while ((m = fallbackRe.exec(html)) && items.length < maxItems) {
 			const id = m[1];
 			if (seen.has(id)) continue;
 			seen.add(id);
@@ -395,7 +397,7 @@ async function scrapeYoutubeTabHtml(
 		}
 	}
 
-	return items.slice(0, maxItems);
+	return items;
 }
 
 export async function syncYoutubeFeed(
@@ -424,8 +426,8 @@ export async function syncYoutubeFeed(
 		console.warn('youtubei.js failed:', err);
 	}
 
-	// 2) HTML tab scrape (reliable on VPS when InnerTube blocked)
-	if (handle && (!innertubeOk || pools.video.length + pools.live.length < maxItems)) {
+	// 2) HTML tab scrape (reliable on VPS when InnerTube blocked / incomplete)
+	if (handle) {
 		try {
 			if (config.content.videos) {
 				const vids = await scrapeYoutubeTabHtml(
@@ -435,8 +437,10 @@ export async function syncYoutubeFeed(
 					Math.max(maxItems * 3, 12),
 				);
 				for (const it of vids) {
-					if (!pools.video.some((x) => x.id === it.id) && !pools.short.some((x) => x.id === it.id)) {
-						pools.video.push(it);
+					const existing = pools.video.find((x) => x.id === it.id);
+					if (!existing) pools.video.push(it);
+					else if (/^Video [\w-]{11}$/i.test(existing.title) && it.title && !/^Video /i.test(it.title)) {
+						existing.title = it.title;
 					}
 				}
 			}
@@ -448,7 +452,11 @@ export async function syncYoutubeFeed(
 					Math.max(maxItems * 3, 12),
 				);
 				for (const it of lives) {
-					if (!pools.live.some((x) => x.id === it.id)) pools.live.push(it);
+					const existing = pools.live.find((x) => x.id === it.id);
+					if (!existing) pools.live.push(it);
+					else if (/^(Video|Live) [\w-]{11}$/i.test(existing.title) && it.title && !/^(Video|Live) /i.test(it.title)) {
+						existing.title = it.title;
+					}
 				}
 			}
 			if (config.content.shorts) {
