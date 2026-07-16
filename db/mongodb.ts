@@ -335,6 +335,11 @@ const settingsSchema = new mongoose.Schema({
 			default: 'https://www.youtube.com/@himatifencoder',
 		},
 	},
+	/** Home YT/IG feed toggles + URLs (see shared/social-feed.ts) */
+	socialFeedConfig: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+	/** Cached scraped feed items (server-only write via sync) */
+	socialFeedCache: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
+	lastSocialFeedSyncAt: { type: Date, default: null },
 	links: {
 		uinMalang: {
 			type: String,

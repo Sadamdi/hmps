@@ -20,6 +20,10 @@ const TI_SKRIPSI = 'https://informatika.uin-malang.ac.id/thesis-skripsi-s1/';
 const TI_PKL = 'https://informatika.uin-malang.ac.id/internship-pkl/';
 
 const UPLOADS_CALENDAR = path.join(uploadDir, 'prodi', 'calendar');
+const UPLOADS_SKRIPSI = path.join(uploadDir, 'prodi', 'skripsi');
+const UPLOADS_PKL = path.join(uploadDir, 'prodi', 'pkl');
+const RSS_PAGE_LIMIT = 5;
+const ANNOUNCEMENT_EXCERPT_MAX = 800;
 
 /** Curated university-wide calendar PDF mirrors (audited). Key = start year. */
 const CURATED_CALENDAR_PDFS: Record<number, { academicYear: string; url: string; sourceKind: string }> = {
@@ -416,7 +420,7 @@ function parseRssItems(xml: string, source: 'ti' | 'uin'): StudentAnnouncement[]
 			.replace(/<[^>]+>/g, ' ')
 			.replace(/\s+/g, ' ')
 			.trim()
-			.slice(0, 280);
+			.slice(0, ANNOUNCEMENT_EXCERPT_MAX);
 		if (title && url) {
 			items.push({
 				title,
@@ -479,6 +483,34 @@ function isJunkLinkLabel(label: string): boolean {
 export function sanitizeHubResource(hub: any): any {
 	if (!hub || typeof hub !== 'object') return hub;
 	const next = { ...hub };
+	if (typeof next.intro === 'string') {
+		next.intro = next.intro.replace(/\s+/g, ' ').trim();
+		if (isJunkSectionHeading(next.intro.slice(0, 80))) next.intro = '';
+	}
+	if (typeof next.flowchartImageUrl === 'string') {
+		next.flowchartImageUrl = next.flowchartImageUrl.trim();
+	}
+	if (Array.isArray(next.subjects)) {
+		next.subjects = next.subjects
+			.map((s: any) => ({
+				name: String(s?.name || '').replace(/\s+/g, ' ').trim(),
+				code: s?.code ? String(s.code).trim() : undefined,
+				credits: s?.credits ? String(s.credits).trim() : undefined,
+				prerequisite: s?.prerequisite ? String(s.prerequisite).trim() : undefined,
+				objectives: Array.isArray(s?.objectives)
+					? s.objectives.map((x: unknown) => String(x || '').trim()).filter(Boolean)
+					: [],
+				activities: Array.isArray(s?.activities)
+					? s.activities.map((x: unknown) => String(x || '').trim()).filter(Boolean)
+					: [],
+			}))
+			.filter((s: any) => s.name && !isJunkSectionHeading(s.name));
+	}
+	if (Array.isArray(next.notes)) {
+		next.notes = next.notes
+			.map((n: unknown) => String(n || '').replace(/\s+/g, ' ').trim())
+			.filter((n: string) => n && !isJunkSectionHeading(n.slice(0, 80)));
+	}
 	if (Array.isArray(next.sections)) {
 		next.sections = next.sections.filter(
 			(s: any) => s?.heading && !isJunkSectionHeading(String(s.heading)),
@@ -508,26 +540,244 @@ export function sanitizeHubResource(hub: any): any {
 	return next;
 }
 
+function feedPageUrl(base: string, page: number): string {
+	if (page <= 1) return base;
+	const sep = base.includes('?') ? '&' : '?';
+	return `${base}${sep}paged=${page}`;
+}
+
 export async function syncAnnouncementsFeed(): Promise<StudentAnnouncement[]> {
 	const all: StudentAnnouncement[] = [];
-	try {
-		const tiXml = await fetchText(TI_PENGUMUMAN_FEED);
-		all.push(...parseRssItems(tiXml, 'ti'));
-	} catch (err) {
-		console.warn('TI RSS failed:', err);
+	const seen = new Set<string>();
+
+	const pushUnique = (items: StudentAnnouncement[]) => {
+		for (const item of items) {
+			const key = item.url || `${item.source}:${item.title}`;
+			if (seen.has(key)) continue;
+			seen.add(key);
+			all.push(item);
+		}
+	};
+
+	for (let page = 1; page <= RSS_PAGE_LIMIT; page++) {
+		try {
+			const tiXml = await fetchText(feedPageUrl(TI_PENGUMUMAN_FEED, page));
+			const items = parseRssItems(tiXml, 'ti');
+			if (!items.length) break;
+			pushUnique(items);
+			if (items.length < 5) break;
+		} catch (err) {
+			if (page === 1) console.warn('TI RSS failed:', err);
+			break;
+		}
 	}
-	try {
-		const uinXml = await fetchText(UIN_PENGUMUMAN_FEED);
-		all.push(...parseRssItems(uinXml, 'uin'));
-	} catch (err) {
-		console.warn('UIN Atom failed:', err);
+
+	for (let page = 1; page <= RSS_PAGE_LIMIT; page++) {
+		try {
+			const uinXml = await fetchText(feedPageUrl(UIN_PENGUMUMAN_FEED, page));
+			const items = parseRssItems(uinXml, 'uin');
+			if (!items.length) break;
+			pushUnique(items);
+			if (items.length < 5) break;
+		} catch (err) {
+			if (page === 1) console.warn('UIN Atom failed:', err);
+			break;
+		}
 	}
+
 	return filterAnnouncements(all);
 }
 
+function contentRoot($: cheerio.CheerioAPI) {
+	const $scope = $(
+		'main .elementor-widget-text-editor, article .elementor-widget-text-editor, .elementor-widget-theme-post-content, .entry-content, article, main, .site-main, #content, .post-content',
+	).first();
+	return $scope.length ? $scope.closest('main, article, .elementor, #content, body') : $.root();
+}
+
+/** Full body text from Elementor content widgets (not nav/footer chrome). */
+function extractElementorMainText($: cheerio.CheerioAPI): string {
+	const parts: string[] = [];
+	$('.elementor-widget-text-editor, .elementor-widget-theme-post-content, .entry-content').each((_, el) => {
+		const text = $(el).text().replace(/\s+/g, ' ').trim();
+		if (!text || text.length < 40) return;
+		if (isJunkSectionHeading(text.slice(0, 80))) return;
+		if (/Jl\.\s*Gajayana|Powered By|MIU Login|Siam Login/i.test(text) && text.length < 200) return;
+		parts.push(text);
+	});
+	if (parts.length) return parts.join('\n\n');
+	const fallback = contentRoot($).text().replace(/\s+/g, ' ').trim();
+	return fallback;
+}
+
+function extractBulletListAfter(label: string, block: string): string[] {
+	const re = new RegExp(`${label}\\s*:?\\s*([\\s\\S]*?)(?=SUBJECT\\s+NAME\\s*:|CREDIT\\s*:|PREREQUISITE\\s*:|Objectives\\s*:|Activities\\s*:|The procedure|Standard Operational|Guidelines and Templates|Final Report|REGISTRATION\\s+FOR|$)`, 'i');
+	const m = block.match(re);
+	if (!m) return [];
+	const chunk = m[1];
+	const bullets = chunk
+		.split(/(?:•|\n\s*[-–*]|\.\s+(?=[A-Z]))/)
+		.map((s) => s.replace(/\s+/g, ' ').trim())
+		.filter((s) => s.length > 15 && !/^(Objectives|Activities|SUBJECT|CREDIT|PREREQUISITE)/i.test(s));
+	if (bullets.length >= 2) return bullets.slice(0, 12);
+	// Fallback: sentences starting with "Students are able"
+	const able = chunk.match(/Students are able[^.]+\./gi) || [];
+	if (able.length) return able.slice(0, 12);
+	const consulting =
+		chunk.match(/(?:Consulting|Identifying|Formulating|Developing|Presenting)[^.]+\./gi) || [];
+	return consulting.slice(0, 12);
+}
+
+export type ParsedHubSubject = {
+	name: string;
+	code?: string;
+	credits?: string;
+	prerequisite?: string;
+	objectives: string[];
+	activities: string[];
+};
+
+/** Parse SUBJECT NAME / CREDIT / Objectives / Activities blocks from thesis page text. */
+export function parseThesisSubjects(text: string): ParsedHubSubject[] {
+	const subjects: ParsedHubSubject[] = [];
+	const matches: RegExpExecArray[] = [];
+	const re = /SUBJECT\s+NAME\s*:\s*/gi;
+	for (let m: RegExpExecArray | null; (m = re.exec(text)); ) {
+		matches.push(m);
+	}
+	if (!matches.length) return subjects;
+
+	for (let i = 0; i < matches.length; i++) {
+		const start = matches[i].index ?? 0;
+		const end = i + 1 < matches.length ? (matches[i + 1].index ?? text.length) : text.length;
+		const block = text.slice(start, end);
+
+		const nameMatch = block.match(/SUBJECT\s+NAME\s*:\s*(.+?)\s*\((\d+)\)/i);
+		const nameFallback = block.match(/SUBJECT\s+NAME\s*:\s*(.+?)\s+CREDIT\s*:/i);
+		const name = (nameMatch?.[1] || nameFallback?.[1] || '').replace(/\s+/g, ' ').trim();
+		const code = nameMatch?.[2];
+		const creditsMatch = block.match(
+			/CREDIT\s*:\s*(.+?)(?=\s+PREREQUISITE\s*:|\s+Objectives\s*:|$)/i,
+		);
+		const prereqMatch = block.match(
+			/PREREQUISITE\s*:\s*(.+?)(?=\s+Objectives\s*:|\s+Activities\s*:|$)/i,
+		);
+
+		if (!name || isJunkSectionHeading(name)) continue;
+
+		subjects.push({
+			name,
+			code,
+			credits: creditsMatch?.[1]?.replace(/\s+/g, ' ').trim(),
+			prerequisite: prereqMatch?.[1]?.replace(/\s+/g, ' ').trim(),
+			objectives: extractBulletListAfter('Objectives', block),
+			activities: extractBulletListAfter('Activities', block),
+		});
+	}
+	return subjects;
+}
+
+function extractIntroBeforeSubjects(text: string): string {
+	const idx = text.search(/SUBJECT\s+NAME\s*:/i);
+	const head = (idx > 0 ? text.slice(0, idx) : text).replace(/\s+/g, ' ').trim();
+	// Drop leading page title crumbs
+	return head
+		.replace(/^Thesis\s*\(Skripsi\)[^.]*\.\s*/i, '')
+		.replace(/^Internship\s*\(PKL\)\s*/i, '')
+		.slice(0, 2500);
+}
+
+function extractPklNotes(text: string): string[] {
+	const notes: string[] = [];
+	const finalIdx = text.search(/Final Report\s*:/i);
+	if (finalIdx >= 0) {
+		const chunk = text.slice(finalIdx).replace(/\s+/g, ' ').trim().slice(0, 1200);
+		const sentences = chunk.split(/(?<=\.)\s+/).map((s) => s.trim()).filter((s) => s.length > 20);
+		notes.push(...sentences.slice(0, 8));
+	}
+	const guideIdx = text.search(/Guidelines and Templates\s*:/i);
+	if (guideIdx >= 0 && finalIdx < 0) {
+		const before = text.slice(0, guideIdx).replace(/\s+/g, ' ').trim();
+		const last = before.split(/(?<=\.)\s+/).filter((s) => s.length > 40).slice(-3);
+		notes.push(...last);
+	}
+	return notes.filter((n) => !isJunkSectionHeading(n.slice(0, 80)));
+}
+
+function subjectsToSections(subjects: ParsedHubSubject[]) {
+	return subjects.map((s) => ({
+		heading: s.code ? `${s.name} (${s.code})` : s.name,
+		body: [
+			s.credits ? `Credit: ${s.credits}` : '',
+			s.prerequisite ? `Prerequisite: ${s.prerequisite}` : '',
+			s.objectives.length ? `Objectives: ${s.objectives.join(' ')}` : '',
+			s.activities.length ? `Activities: ${s.activities.join(' ')}` : '',
+		]
+			.filter(Boolean)
+			.join('\n\n')
+			.slice(0, 4000),
+		links: [] as { label: string; url: string }[],
+	}));
+}
+
+function ensureDir(dir: string) {
+	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+}
+
+async function downloadImageToLocal(
+	remoteUrl: string,
+	dir: string,
+	filename: string,
+): Promise<string | null> {
+	ensureDir(dir);
+	try {
+		const res = await fetch(remoteUrl, {
+			headers: { 'User-Agent': UA, Accept: 'image/*,*/*' },
+			signal: AbortSignal.timeout(45_000),
+			redirect: 'follow',
+		});
+		if (!res.ok) return null;
+		const buf = Buffer.from(await res.arrayBuffer());
+		if (buf.length < 5_000) return null;
+		const ct = (res.headers.get('content-type') || '').toLowerCase();
+		if (!ct.includes('image') && !/\.(jpe?g|png|webp|gif)(\?|$)/i.test(remoteUrl)) return null;
+		const disk = path.join(dir, filename);
+		fs.writeFileSync(disk, buf);
+		const rel = path.relative(uploadDir, disk).replace(/\\/g, '/');
+		return `/uploads/${rel}`;
+	} catch {
+		return null;
+	}
+}
+
+function pickFlowchartImageUrl($: cheerio.CheerioAPI, base: string): string | null {
+	const candidates: { url: string; score: number }[] = [];
+	$('img[src], img[data-src], img[data-lazy-src]').each((_, el) => {
+		const raw =
+			$(el).attr('src') ||
+			$(el).attr('data-src') ||
+			$(el).attr('data-lazy-src') ||
+			$(el).attr('data-full-url') ||
+			'';
+		if (!raw || raw.startsWith('data:')) return;
+		const url = absUrl(raw.replace(/&amp;/g, '&'), base);
+		if (!/wp-content\/uploads/i.test(url)) return;
+		if (/logo|uin-color|diagonal|icon|avatar|favicon/i.test(url)) return;
+		let score = 0;
+		if (/alur|skripsi|flow|procedure|pkl|internship/i.test(url)) score += 10;
+		const w = Number($(el).attr('width') || 0);
+		const h = Number($(el).attr('height') || 0);
+		if (w >= 400 || h >= 300) score += 3;
+		if (/\.(jpe?g|png)(\?|$)/i.test(url)) score += 1;
+		candidates.push({ url, score });
+	});
+	candidates.sort((a, b) => b.score - a.score);
+	return candidates[0]?.score ? candidates[0].url : null;
+}
+
 function extractPageSections($: cheerio.CheerioAPI, base: string) {
-	const $scope = $('main, article, .entry-content, .site-main, #content, .post-content').first();
-	const heads = ($scope.length ? $scope : $.root()).find('h2, h3');
+	const $root = contentRoot($);
+	const heads = $root.find('h2, h3');
 
 	const sections: { heading: string; body: string; links: { label: string; url: string }[] }[] = [];
 	heads.each((_, el) => {
@@ -537,9 +787,9 @@ function extractPageSections($: cheerio.CheerioAPI, base: string) {
 		const links: { label: string; url: string }[] = [];
 		let node = $(el).next();
 		let guard = 0;
-		while (node.length && !node.is('h2, h3') && guard < 12) {
+		while (node.length && !node.is('h2, h3') && guard < 24) {
 			const text = node.text().replace(/\s+/g, ' ').trim();
-			if (text && text.length < 500 && !isJunkSectionHeading(text.slice(0, 80))) {
+			if (text && text.length < 4000 && !isJunkSectionHeading(text.slice(0, 80))) {
 				bodyParts.push(text);
 			}
 			node.find('a[href]').addBack('a[href]').each((__, a) => {
@@ -554,11 +804,11 @@ function extractPageSections($: cheerio.CheerioAPI, base: string) {
 		if (!bodyParts.length && !links.length) return;
 		sections.push({
 			heading,
-			body: bodyParts.join(' ').slice(0, 600),
-			links: links.slice(0, 10),
+			body: bodyParts.join('\n\n').slice(0, 4000),
+			links: links.slice(0, 15),
 		});
 	});
-	return sections.slice(0, 12);
+	return sections.slice(0, 20);
 }
 
 export async function syncSkripsiHub(existing?: any) {
@@ -583,7 +833,7 @@ export async function syncSkripsiHub(existing?: any) {
 			if (/drive\.google\.com|docs\.google\.com|\.pdf(\?|$)/i.test(href)) {
 				if (!docs.some((d) => d.url === href)) docs.push({ name: label.slice(0, 100), url: href });
 			} else if (
-				/periodization|seminar|thesis|skripsi|registration|daftar|form|sidang|kompre|proposal/i.test(
+				/periodization|seminar|thesis|skripsi|registration|daftar|form|sidang|kompre|proposal|yudisium|syarat/i.test(
 					label,
 				)
 			) {
@@ -593,7 +843,25 @@ export async function syncSkripsiHub(existing?: any) {
 		if (docs[0]) hub.sopPdf = docs[0].url;
 		if (docs.length) hub.documents = docs.slice(0, 15);
 		if (links.length) hub.actionLinks = links.slice(0, 15);
-		hub.sections = extractPageSections($, TI_SKRIPSI);
+
+		const mainText = extractElementorMainText($);
+		const subjects = parseThesisSubjects(mainText);
+		const intro = extractIntroBeforeSubjects(mainText);
+		if (intro) hub.intro = intro;
+		if (subjects.length) {
+			hub.subjects = subjects;
+			hub.sections = subjectsToSections(subjects);
+		} else {
+			hub.sections = extractPageSections($, TI_SKRIPSI);
+		}
+
+		const remoteImg = pickFlowchartImageUrl($, TI_SKRIPSI);
+		if (remoteImg) {
+			const local = await downloadImageToLocal(remoteImg, UPLOADS_SKRIPSI, 'alur-skripsi.jpg');
+			hub.flowchartImageUrl = local || remoteImg;
+			hub.flowchartSourceUrl = remoteImg;
+		}
+
 		hub.hubUrl = TI_SKRIPSI;
 		hub.syncedAt = new Date().toISOString();
 		delete hub.syncError;
@@ -629,7 +897,21 @@ export async function syncPklHub(existing?: any) {
 			}
 		});
 		if (templates.length) hub.templates = templates.slice(0, 20);
+
+		const mainText = extractElementorMainText($);
+		const guideIdx = mainText.search(/Guidelines and Templates\s*:/i);
+		const introSource = guideIdx > 0 ? mainText.slice(0, guideIdx) : mainText;
+		hub.intro = introSource.replace(/\s+/g, ' ').trim().slice(0, 2500);
+		hub.notes = extractPklNotes(mainText);
 		hub.sections = extractPageSections($, TI_PKL);
+
+		const remoteImg = pickFlowchartImageUrl($, TI_PKL);
+		if (remoteImg) {
+			const local = await downloadImageToLocal(remoteImg, UPLOADS_PKL, 'alur-pkl.jpg');
+			hub.flowchartImageUrl = local || remoteImg;
+			hub.flowchartSourceUrl = remoteImg;
+		}
+
 		hub.hubUrl = TI_PKL;
 		hub.syncedAt = new Date().toISOString();
 		delete hub.syncError;
@@ -668,31 +950,90 @@ export async function runStudentResourcesSync(existingHub?: any): Promise<{
 		summary.error = err?.message || 'calendar_failed';
 	}
 
+	const prevAnnouncements = Array.isArray(existingHub?.announcements)
+		? existingHub.announcements
+		: [];
 	try {
-		hub.announcements = await syncAnnouncementsFeed();
+		const nextAnn = await syncAnnouncementsFeed();
+		// Keep-on-fail / keep-on-empty: never wipe a good cache with a failed/empty scrape
+		if (nextAnn.length > 0) {
+			hub.announcements = nextAnn;
+		} else if (prevAnnouncements.length > 0) {
+			hub.announcements = prevAnnouncements;
+			console.warn('Announcements sync returned empty — keeping previous list');
+		} else {
+			hub.announcements = [];
+		}
 		summary.announcementCount = hub.announcements.length;
 	} catch (err) {
 		console.warn('Announcements sync error:', err);
+		hub.announcements = prevAnnouncements;
+		summary.announcementCount = prevAnnouncements.length;
 	}
 
 	try {
+		const prevSkripsi = hub.skripsiHub;
 		hub.skripsiHub = await syncSkripsiHub(hub.skripsiHub);
+		if (hub.skripsiHub.syncError && prevSkripsi) {
+			hub.skripsiHub = mergeHubKeepRichFields(prevSkripsi, hub.skripsiHub);
+		}
 		summary.skripsiOk = !hub.skripsiHub.syncError;
 	} catch (err) {
 		console.warn('Skripsi sync error:', err);
 	}
 
 	try {
+		const prevPkl = hub.pklHub;
 		hub.pklHub = await syncPklHub(hub.pklHub);
+		if (hub.pklHub.syncError && prevPkl) {
+			hub.pklHub = mergeHubKeepRichFields(prevPkl, hub.pklHub);
+		}
 		summary.pklTemplates = hub.pklHub.templates?.length || 0;
 	} catch (err) {
 		console.warn('PKL sync error:', err);
 	}
 
-	hub.portals = DEFAULT_STUDENT_PORTALS;
-	hub.guides = DEFAULT_STUDENT_GUIDES;
+	// Only seed portals/guides when empty — do not clobber manual dashboard edits
+	if (!Array.isArray(hub.portals) || hub.portals.length === 0) {
+		hub.portals = DEFAULT_STUDENT_PORTALS;
+	}
+	if (!Array.isArray(hub.guides) || hub.guides.length === 0) {
+		hub.guides = DEFAULT_STUDENT_GUIDES;
+	}
 
 	return { hub, summary };
+}
+
+/** Prefer previous rich scraped fields when the new sync errored or left them blank. */
+function mergeHubKeepRichFields(prev: any, next: any) {
+	const out = { ...prev, ...next };
+	const keepIfEmpty = [
+		'intro',
+		'subjects',
+		'flowchartImageUrl',
+		'flowchartSourceUrl',
+		'notes',
+		'templates',
+		'documents',
+		'actionLinks',
+		'sections',
+		'steps',
+		'registrationHints',
+		'pedomanPdf',
+		'sopPdf',
+	] as const;
+	for (const key of keepIfEmpty) {
+		const n = next?.[key];
+		const p = prev?.[key];
+		const empty =
+			n == null ||
+			n === '' ||
+			(Array.isArray(n) && n.length === 0);
+		if (empty && p != null && !(Array.isArray(p) && p.length === 0) && p !== '') {
+			out[key] = p;
+		}
+	}
+	return out;
 }
 
 /** Lightweight announcements-only sync for daily cron */

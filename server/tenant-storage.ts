@@ -1228,6 +1228,9 @@ export function createTenantStorage(models: TenantModels) {
 			{ name: 'feedback.manage', displayName: 'Manage Feedback', description: 'Mengelola saran/kritik', category: 'feedback' },
 			{ name: 'toko.view', displayName: 'View Toko', description: 'Melihat dashboard toko dan katalog', category: 'toko' },
 			{ name: 'toko.manage', displayName: 'Manage Toko', description: 'Mengelola toko, produk, layout, sharing', category: 'toko' },
+			{ name: 'social_feed.view', displayName: 'View Social Feed', description: 'Melihat pengaturan feed YT/IG beranda', category: 'social_feed' },
+			{ name: 'social_feed.edit', displayName: 'Edit Social Feed', description: 'Mengubah toggle/URL/jumlah item feed YT/IG', category: 'social_feed' },
+			{ name: 'social_feed.sync', displayName: 'Sync Social Feed', description: 'Menjalankan sync scrape feed YouTube/Instagram', category: 'social_feed' },
 		];
 
 		let addedCount = 0;

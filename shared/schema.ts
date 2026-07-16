@@ -1,6 +1,8 @@
 // MongoDB Schema Types for Client-Side Usage
 // These types match the MongoDB schemas defined in db/mongodb.ts
 
+import type { SocialFeedConfig } from './social-feed';
+
 // User Types
 export interface UserWithRole {
 	_id: string;
@@ -145,6 +147,8 @@ export interface Settings {
 		instagram: string;
 		youtube: string;
 	};
+	/** Home YT/IG auto-scrape config (cache served via /api/social-feed) */
+	socialFeedConfig?: SocialFeedConfig;
 	eventsAutoScrollEnabled?: boolean;
 	eventsAllowMultipleYearsOnHome?: boolean;
 	feedbackSubmitEnabled?: boolean;
@@ -214,6 +218,8 @@ export const ALL_SECTION_BLOCKS: { id: string; label: string }[] = [
 	{ id: 'structure', label: 'Struktur Organisasi' },
 	{ id: 'prodi', label: 'Program Studi' },
 	{ id: 'berita', label: 'Berita' },
+	{ id: 'youtube', label: 'YouTube (Beranda)' },
+	{ id: 'instagram', label: 'Instagram (Beranda)' },
 	{ id: 'library', label: 'Galeri / Library' },
 	{ id: 'toko', label: 'Toko / Katalog' },
 	{ id: 'footer', label: 'Footer' },

@@ -2595,6 +2595,25 @@ async function initializeDefaultPermissions() {
 				category: 'home_settings',
 			},
 
+			{
+				name: 'social_feed.view',
+				displayName: 'View Social Feed Settings',
+				description: 'Melihat konfigurasi feed YouTube/Instagram beranda',
+				category: 'social_feed',
+			},
+			{
+				name: 'social_feed.edit',
+				displayName: 'Edit Social Feed Settings',
+				description: 'Mengubah URL, jumlah item, dan toggle feed YT/IG beranda',
+				category: 'social_feed',
+			},
+			{
+				name: 'social_feed.sync',
+				displayName: 'Sync Social Feed',
+				description: 'Menjalankan sync scrape feed YouTube/Instagram',
+				category: 'social_feed',
+			},
+
 			// Middleware management permissions (Owner only)
 			{
 				name: 'middleware.manage',
@@ -2818,6 +2837,19 @@ async function initializeDefaultPermissions() {
 				);
 			}
 		}
+
+		// Ensure operational roles can manage home social feed (Medinfo / BPH path).
+		await Role.updateMany(
+			{ name: { $in: ['chair', 'vice_chair', 'division_head', 'admin'] } },
+			{
+				$addToSet: {
+					permissions: {
+						$each: ['social_feed.view', 'social_feed.edit', 'social_feed.sync'],
+					},
+				},
+				$set: { updatedAt: new Date() },
+			},
+		);
 		console.log(
 			`🔧 Updated owner role with ${allPermissionNames.length} permissions`,
 		);
@@ -2943,6 +2975,9 @@ async function initializeDefaultRoles() {
 					'events.view_others',
 					'events.edit_others',
 					'events.delete_others',
+					'social_feed.view',
+					'social_feed.edit',
+					'social_feed.sync',
 				],
 				isActive: true,
 				createdBy: creatorObjectId,
@@ -2979,6 +3014,9 @@ async function initializeDefaultRoles() {
 					'events.view_others',
 					'events.edit_others',
 					'events.delete_others',
+					'social_feed.view',
+					'social_feed.edit',
+					'social_feed.sync',
 				],
 				isActive: true,
 				createdBy: creatorObjectId,
@@ -3050,6 +3088,9 @@ async function initializeDefaultRoles() {
 					'events.view_others',
 					'events.edit_others',
 					'events.delete_others',
+					'social_feed.view',
+					'social_feed.edit',
+					'social_feed.sync',
 				],
 				isActive: true,
 				createdBy: creatorObjectId,

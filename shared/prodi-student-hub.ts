@@ -90,6 +90,42 @@ export const DEFAULT_STUDENT_PORTALS: ProdiPortalLink[] = [
 		group: 'daily',
 	},
 	{
+		label: 'SETIA',
+		url: 'https://setia.uin-malang.ac.id/',
+		desc: 'Pendaftaran tahapan akademik / layanan setia (praproposal dll)',
+		group: 'daily',
+	},
+	{
+		label: 'LP2M (KKM/KKN)',
+		url: 'https://lp2m.uin-malang.ac.id/',
+		desc: 'Pengabdian masyarakat — KKM/KKN reguler & kolaborasi',
+		group: 'daily',
+	},
+	{
+		label: 'SIPEMAS',
+		url: 'https://sipemas.uin-malang.ac.id/',
+		desc: 'Portal pendaftaran KKM/pengabdian (periode tertentu)',
+		group: 'daily',
+	},
+	{
+		label: 'Magister Informatika (S2)',
+		url: 'https://informatika.uin-malang.ac.id/id/master-study-s2/',
+		desc: 'Profil program Magister Informatika FST',
+		group: 'graduate',
+	},
+	{
+		label: 'Master Thesis (S2)',
+		url: 'https://informatika.uin-malang.ac.id/en/master-thesis/',
+		desc: 'Hub tesis magister Informatika',
+		group: 'graduate',
+	},
+	{
+		label: 'Pascasarjana UIN',
+		url: 'https://pasca.uin-malang.ac.id/',
+		desc: 'Unit Pascasarjana Kampus 2 (S2/S3 lintas prodi)',
+		group: 'graduate',
+	},
+	{
 		label: 'SAINTEK Dokumen',
 		url: 'https://saintek.uin-malang.ac.id/dokumen/',
 		desc: 'Yudisium, SK, dokumen fakultas',
@@ -292,12 +328,89 @@ export const DEFAULT_STUDENT_GUIDES: ProdiStudentGuide[] = [
 		],
 		tips: ['Jika diminta login institusi, gunakan email mahasiswa / akses kampus.'],
 	},
+	{
+		id: 'kkm',
+		title: 'KKM / KKN (pengabdian)',
+		summary:
+			'Kuliah Kerja Mahasiswa (KKM, sering disebut KKN) dikelola LP2M UIN Malang — terpisah dari PKL Prodi TI. Biasanya syarat minimal ~100 SKS; jadwal & kuota diumumkan per periode.',
+		audience: 'Semester menengah (cek syarat SKS di pengumuman LP2M)',
+		steps: [
+			{
+				order: 1,
+				title: 'Cek pengumuman LP2M',
+				body: 'Baca periode KKM reguler / internasional / kolaborasi di situs LP2M.',
+				ctaLabel: 'Buka LP2M',
+				ctaUrl: 'https://lp2m.uin-malang.ac.id/',
+			},
+			{
+				order: 2,
+				title: 'Daftar via portal resmi',
+				body: 'Pendaftaran biasanya lewat SIAM atau SIPEMAS sesuai pengumuman periode tersebut.',
+				ctaLabel: 'SIAM',
+				ctaUrl: 'https://siam.uin-malang.ac.id/',
+			},
+			{
+				order: 3,
+				title: 'Unduh pedoman',
+				body: 'Ikuti buku pedoman KKM tahun berjalan (link di posting LP2M) dan pantau pembagian kelompok.',
+			},
+		],
+		tips: [
+			'KKM ≠ PKL: PKL diatur Prodi TI; KKM diatur LP2M tingkat universitas.',
+			'Simpan bukti kegiatan untuk SKKM/SKPI.',
+		],
+		links: [
+			{ label: 'LP2M', url: 'https://lp2m.uin-malang.ac.id/', desc: 'Pengumuman KKM/KKN' },
+			{ label: 'SIPEMAS', url: 'https://sipemas.uin-malang.ac.id/', desc: 'Portal pengabdian (periode tertentu)' },
+		],
+	},
 ];
+
+export type ProdiHubSubject = {
+	name: string;
+	code?: string;
+	credits?: string;
+	prerequisite?: string;
+	objectives: string[];
+	activities: string[];
+};
+
+export type ProdiHubInfoNotice = {
+	title: string;
+	body: string;
+	sourceLabel?: string;
+	sourceUrl?: string;
+	disclaimer?: string;
+};
 
 export const DEFAULT_SKRIPSI_HUB = {
 	hubUrl: 'https://informatika.uin-malang.ac.id/thesis-skripsi-s1/',
 	pedomanPdf:
 		'https://saintek.uin-malang.ac.id/wp-content/uploads/2025/08/PEDOMAN-BIMBINGAN-DAN-PENULISAN-SKRIPSI.pdf',
+	saintekPedomanPdf:
+		'https://saintek.uin-malang.ac.id/wp-content/uploads/2025/08/Cetak-Pedoman-Skripsi-2022-Saintek.pdf',
+	intro: '' as string,
+	subjects: [] as ProdiHubSubject[],
+	flowchartImageUrl: '' as string,
+	infoNotices: [
+		{
+			title: 'Penyetaraan karya ilmiah (SAINTEK)',
+			body:
+				'Pedoman Skripsi/TA Fakultas Sains dan Teknologi (2022) mengatur bahwa artikel jurnal minimal Sinta 2 (atau prestasi lomba tertentu) dapat disetarakan sebagai Skripsi/TA, dengan syarat tetap diseminasi/ujian dan diubah ke format skripsi. Ini berbeda dari kebijakan “lulus tanpa skripsi” di Fakultas Ekonomi.',
+			sourceLabel: 'Pedoman Skripsi/TA SAINTEK 2022 (§3.8)',
+			sourceUrl:
+				'https://saintek.uin-malang.ac.id/wp-content/uploads/2025/08/Cetak-Pedoman-Skripsi-2022-Saintek.pdf',
+			disclaimer:
+				'Bukan aturan khusus TI saja — berlaku tingkat fakultas SAINTEK. Selalu konfirmasi ke admin/prodi sebelum mendaftar jalur penyetaraan.',
+		},
+		{
+			title: 'Magister Informatika (S2)',
+			body:
+				'Program Magister Informatika memiliki hub tesis tersendiri. Syarat yudisium master mencakup publikasi (SINTA/SCOPUS/WoS) sesuai ketentuan prodi magister — bukan jalur “tanpa tesis”.',
+			sourceLabel: 'Master Thesis TI',
+			sourceUrl: 'https://informatika.uin-malang.ac.id/en/master-thesis/',
+		},
+	] as ProdiHubInfoNotice[],
 	steps: [
 		'Praproposal',
 		'Seminar Proposal',
@@ -314,11 +427,18 @@ export const DEFAULT_SKRIPSI_HUB = {
 
 export const DEFAULT_PKL_HUB = {
 	hubUrl: 'https://informatika.uin-malang.ac.id/internship-pkl/',
+	intro: '' as string,
+	subjects: [] as ProdiHubSubject[],
+	flowchartImageUrl: '' as string,
+	notes: [] as string[],
 	templates: [] as { name: string; url: string }[],
 };
 
 export function buildDefaultStudentHub(partial?: any) {
 	const skripsiHub = { ...DEFAULT_SKRIPSI_HUB, ...(partial?.skripsiHub || {}) };
+	if (!Array.isArray(skripsiHub.infoNotices) || skripsiHub.infoNotices.length === 0) {
+		skripsiHub.infoNotices = DEFAULT_SKRIPSI_HUB.infoNotices;
+	}
 	const pklHub = { ...DEFAULT_PKL_HUB, ...(partial?.pklHub || {}) };
 	return {
 		portals: partial?.portals?.length ? partial.portals : DEFAULT_STUDENT_PORTALS,
@@ -333,9 +453,51 @@ export function buildDefaultStudentHub(partial?: any) {
 const JUNK_HUB_RE =
 	/miu\s*login|siam\s*login|powered\s*by|theme\s*version|ptipd|^\s*organization\s*$|^\s*profile\s*$|lecturer and staff|^\s*dokumen\s*$|^\s*en_?us\s*$|^\s*id\s*$|^\s*ar\s*$|^\s*zh\s*$/i;
 
+function sanitizeSubjectList(list: unknown): ProdiHubSubject[] {
+	if (!Array.isArray(list)) return [];
+	return list
+		.map((s: any) => ({
+			name: String(s?.name || '').replace(/\s+/g, ' ').trim(),
+			code: s?.code ? String(s.code).trim() : undefined,
+			credits: s?.credits ? String(s.credits).trim() : undefined,
+			prerequisite: s?.prerequisite ? String(s.prerequisite).trim() : undefined,
+			objectives: Array.isArray(s?.objectives)
+				? s.objectives.map((x: unknown) => String(x || '').trim()).filter(Boolean)
+				: [],
+			activities: Array.isArray(s?.activities)
+				? s.activities.map((x: unknown) => String(x || '').trim()).filter(Boolean)
+				: [],
+		}))
+		.filter((s) => s.name && !JUNK_HUB_RE.test(s.name));
+}
+
 function sanitizeStoredHub(hub: any): any {
 	if (!hub || typeof hub !== 'object') return hub;
 	const next = { ...hub };
+	if (typeof next.intro === 'string') {
+		next.intro = next.intro.replace(/\s+/g, ' ').trim();
+		if (JUNK_HUB_RE.test(next.intro.slice(0, 80))) next.intro = '';
+	}
+	if (typeof next.flowchartImageUrl === 'string') {
+		next.flowchartImageUrl = next.flowchartImageUrl.trim();
+	}
+	next.subjects = sanitizeSubjectList(next.subjects);
+	if (Array.isArray(next.infoNotices)) {
+		next.infoNotices = next.infoNotices
+			.map((n: any) => ({
+				title: String(n?.title || '').trim(),
+				body: String(n?.body || '').replace(/\s+/g, ' ').trim(),
+				sourceLabel: n?.sourceLabel ? String(n.sourceLabel).trim() : undefined,
+				sourceUrl: n?.sourceUrl ? String(n.sourceUrl).trim() : undefined,
+				disclaimer: n?.disclaimer ? String(n.disclaimer).trim() : undefined,
+			}))
+			.filter((n: ProdiHubInfoNotice) => n.title && n.body);
+	}
+	if (Array.isArray(next.notes)) {
+		next.notes = next.notes
+			.map((n: unknown) => String(n || '').replace(/\s+/g, ' ').trim())
+			.filter((n: string) => n && !JUNK_HUB_RE.test(n.slice(0, 80)));
+	}
 	if (Array.isArray(next.sections)) {
 		next.sections = next.sections.filter(
 			(s: any) => s?.heading && !JUNK_HUB_RE.test(String(s.heading).trim()),

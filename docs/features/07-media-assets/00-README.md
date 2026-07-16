@@ -17,6 +17,7 @@ Media & Assets feature category for HMPS. This README is the local index for fea
 | [07-asset-cleanup-service.md](./07-asset-cleanup-service.md) | Asset Cleanup Service |
 | [08-file-scanner-service.md](./08-file-scanner-service.md) | File Scanner Service |
 | [09-banner-theme-render-services.md](./09-banner-theme-render-services.md) | Banner Theme & Render Services |
+| [10-home-social-feed.md](./10-home-social-feed.md) | Home YouTube/Instagram auto-scrape feed |
 | [99-openapi-endpoint-coverage.md](./99-openapi-endpoint-coverage.md) | OpenAPI Endpoint Coverage — Media & Assets |
 
 ## OpenAPI Tag Mapping

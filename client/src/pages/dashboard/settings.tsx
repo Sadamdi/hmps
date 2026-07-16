@@ -2,6 +2,7 @@ import { BannerEditor } from '@/components/dashboard/banner-editor';
 import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import SocialFeedSettingsPanel from '@/components/dashboard/social-feed-settings-panel';
 import { TenantOwnerDeleteAccountSection } from '@/components/dashboard/tenant-owner-delete-account-section';
 import { UserProfileEditor } from '@/components/dashboard/user-profile-editor';
 import { Button } from '@/components/ui/button';
@@ -189,9 +190,16 @@ export default function SettingsPage() {
 	// Home config permissions
 	const canViewHomeConfig = hasSpecificPermission('home_settings.view');
 	const canEditHomeConfig = hasSpecificPermission('home_settings.edit');
+	const canViewSocialFeed = hasSpecificPermission('social_feed.view');
 	const { toast } = useToast();
 	const [activeTab, setActiveTab] = useState(
-		canViewSettings ? 'general' : canViewHomeConfig ? 'home-config' : 'profile',
+		canViewSettings
+			? 'general'
+			: canViewHomeConfig
+				? 'home-config'
+				: canViewSocialFeed
+					? 'social-feed'
+					: 'profile',
 	);
 	const [isResetting, setIsResetting] = useState(false);
 	const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
@@ -203,14 +211,21 @@ export default function SettingsPage() {
 		if (
 			!canViewSettings &&
 			activeTab !== 'profile' &&
-			activeTab !== 'home-config'
+			activeTab !== 'home-config' &&
+			activeTab !== 'social-feed'
 		) {
-			setActiveTab(canViewHomeConfig ? 'home-config' : 'profile');
+			setActiveTab(
+				canViewHomeConfig
+					? 'home-config'
+					: canViewSocialFeed
+						? 'social-feed'
+						: 'profile',
+			);
 		}
 		if (isTenant && activeTab === 'middleware') {
 			setActiveTab(canViewSettings ? 'general' : 'profile');
 		}
-	}, [canViewSettings, canViewHomeConfig, activeTab, isTenant]);
+	}, [canViewSettings, canViewHomeConfig, canViewSocialFeed, activeTab, isTenant]);
 
 	// Password change form
 	const [passwordData, setPasswordData] = useState<PasswordChangeData>({
@@ -1104,6 +1119,9 @@ export default function SettingsPage() {
 					{(canViewHomeConfig || canEditHomeConfig) && (
 						<TabsTrigger value="home-config">Beranda</TabsTrigger>
 					)}
+					{canViewSocialFeed && (
+						<TabsTrigger value="social-feed">Media Sosial Beranda</TabsTrigger>
+					)}
 					{!isTenant && user && user.role === 'owner' && (
 						<TabsTrigger value="middleware">Middleware</TabsTrigger>
 					)}
@@ -1112,10 +1130,12 @@ export default function SettingsPage() {
 
 				{(isLoading &&
 					activeTab !== 'middleware' &&
-					activeTab !== 'home-config') ||
+					activeTab !== 'home-config' &&
+					activeTab !== 'social-feed') ||
 				(!formData &&
 					activeTab !== 'middleware' &&
-					activeTab !== 'home-config') ||
+					activeTab !== 'home-config' &&
+					activeTab !== 'social-feed') ||
 				(isMiddlewareLoading &&
 					activeTab === 'middleware' &&
 					!middlewareSettings) ? (
@@ -2042,6 +2062,12 @@ export default function SettingsPage() {
 						<TabsContent value="home-config">
 							<HomeConfigTab canEdit={canEditHomeConfig} isTenant={isTenant} />
 						</TabsContent>
+
+						{canViewSocialFeed && (
+							<TabsContent value="social-feed">
+								<SocialFeedSettingsPanel />
+							</TabsContent>
+						)}
 
 						<TabsContent value="middleware">
 							{middlewareSettings ? (

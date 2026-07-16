@@ -465,6 +465,9 @@ cron.schedule('15 * * * *', async () => {
 	try {
 		const { mongoStorage } = await import('./mongo-storage');
 		const doc = await mongoStorage.getProdiContent();
+		if (!doc.autoSyncEnabled) {
+			return;
+		}
 		const intervalDays = Math.min(
 			30,
 			Math.max(1, Number(doc.announcementSyncIntervalDays) || 1),
@@ -478,13 +481,12 @@ cron.schedule('15 * * * *', async () => {
 		const { runStudentResourcesSync } = await import('./services/prodi-student-resources');
 		const existingHub = (doc.content as any)?.studentHub || {};
 		const { hub, summary } = await runStudentResourcesSync(existingHub);
+		// portals/guides are not force-written — manual overrides stay; hub merge keeps customs when set
 		await mongoStorage.applyAutoSyncData(
 			{ studentHub: hub },
 			{
 				forceFields: [
 					'studentHub.academicCalendars',
-					'studentHub.portals',
-					'studentHub.guides',
 					'studentHub.announcements',
 					'studentHub.skripsiHub',
 					'studentHub.pklHub',
@@ -499,6 +501,39 @@ cron.schedule('15 * * * *', async () => {
 		);
 	} catch (err) {
 		console.error('Scheduled student hub sync error:', err);
+	}
+});
+
+// Schedule: home YouTube/Instagram social feed — check hourly; default interval 3 hours
+cron.schedule('45 * * * *', async () => {
+	try {
+		const { mongoStorage } = await import('./mongo-storage');
+		const settings: any = await mongoStorage.getSettings();
+		const lean =
+			settings && typeof settings.toObject === 'function'
+				? settings.toObject()
+				: settings;
+		const { normalizeSocialFeedConfig } = await import('../shared/social-feed');
+		const config = normalizeSocialFeedConfig(lean?.socialFeedConfig);
+		if (!config.youtube.enabled && !config.instagram.enabled) return;
+
+		const last = lean?.lastSocialFeedSyncAt
+			? new Date(lean.lastSocialFeedSyncAt).getTime()
+			: 0;
+		const dueMs = config.syncIntervalHours * 60 * 60 * 1000;
+		if (Date.now() - last < dueMs) return;
+
+		const { runSocialFeedSync } = await import('./services/social-feed');
+		const result = await runSocialFeedSync(config, lean?.socialFeedCache);
+		await mongoStorage.updateSettings({
+			socialFeedCache: result.cache,
+			lastSocialFeedSyncAt: new Date(),
+		});
+		console.log(
+			`✅ Social feed sync done (yt=${result.cache.youtube?.length || 0}, ig=${result.cache.instagram?.length || 0}, ok=${result.ok})`,
+		);
+	} catch (err) {
+		console.error('Scheduled social feed sync error:', err);
 	}
 });
 
