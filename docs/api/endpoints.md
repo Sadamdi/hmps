@@ -35,6 +35,7 @@ Public SSR  : http://localhost:5000/<route>
 | Organization | `/api/organization` | periods, positions, members, auto-fill |
 | Prodi | `/api/prodi` | public, manage, curriculum, media, sync |
 | Settings/Home | `/api/settings`, `/api/home-images` | site config, middleware, home assets |
+| Social Feed | `/api/social-feed` | public YT/IG cache + manage/sync |
 | Dashboard | `/api/stats`, `/api/dashboard` | stats/activity |
 | Upload/GDrive | `/api/upload`, `/api/gdrive` | media and Drive integration |
 | Community | `/api/communities`, `/api/registration`, `/api/register`, `/api/community` | registration + lifecycle |
@@ -225,6 +226,15 @@ GET    /api/stats
 GET    /api/dashboard/stats
 GET    /api/dashboard/activities
 POST   /api/dashboard/log-activity
+```
+
+## Social Feed (YouTube / Instagram beranda)
+
+```text
+GET  /api/social-feed           # public cache (title, url, thumb, live)
+GET  /api/social-feed/manage    # auth + social_feed.view
+PUT  /api/social-feed/manage    # auth + social_feed.edit (config only)
+POST /api/social-feed/sync      # auth + social_feed.sync
 ```
 
 ## Upload & Google Drive

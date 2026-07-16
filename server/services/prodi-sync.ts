@@ -1952,12 +1952,13 @@ export async function runProdiSyncScoped(
 				}
 				forceFields.push(
 					'studentHub.academicCalendars',
-					'studentHub.portals',
-					'studentHub.guides',
 					'studentHub.announcements',
 					'studentHub.skripsiHub',
 					'studentHub.pklHub',
 				);
+				// portals/guides: only seed when empty inside runStudentResourcesSync — not force-written
+				if (!existingHub.portals?.length) forceFields.push('studentHub.portals');
+				if (!existingHub.guides?.length) forceFields.push('studentHub.guides');
 				calendarYears = hubSummary.calendarYears || [];
 				calendarSkipped = hubSummary.calendarSkipped || [];
 				announcementCount = hubSummary.announcementCount || 0;

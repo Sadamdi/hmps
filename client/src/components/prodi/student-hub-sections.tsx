@@ -434,7 +434,20 @@ export function HubResourceSection({
 	hub: any;
 	emptyHint: string;
 }) {
-	if (!hub?.hubUrl && !hub?.templates?.length && !hub?.pedomanPdf && !hub?.documents?.length) {
+	const hasSubjects = Array.isArray(hub?.subjects) && hub.subjects.length > 0;
+	const hasRich =
+		hub?.intro ||
+		hasSubjects ||
+		hub?.flowchartImageUrl ||
+		(Array.isArray(hub?.notes) && hub.notes.length > 0);
+
+	if (
+		!hub?.hubUrl &&
+		!hub?.templates?.length &&
+		!hub?.pedomanPdf &&
+		!hub?.documents?.length &&
+		!hasRich
+	) {
 		return <p className="text-center text-muted-foreground py-12">{emptyHint}</p>;
 	}
 	return (
@@ -453,21 +466,121 @@ export function HubResourceSection({
 					</p>
 				)}
 			</div>
-			{Array.isArray(hub.steps) && hub.steps.length > 0 && (
-				<ol className="list-decimal list-inside space-y-1 text-sm">
-					{hub.steps.map((s: string, i: number) => (
-						<li key={i}>{s}</li>
-					))}
-				</ol>
+
+			{hub.intro && (
+				<p className="text-sm leading-relaxed text-foreground/90 whitespace-pre-wrap">{hub.intro}</p>
 			)}
-			{Array.isArray(hub.registrationHints) && (
+
+			{Array.isArray(hub.infoNotices) && hub.infoNotices.length > 0 && (
+				<div className="space-y-3">
+					{hub.infoNotices.map((n: any, i: number) => (
+						<aside
+							key={(n.title || '') + i}
+							className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-2">
+							<p className="text-sm font-semibold text-foreground">{n.title}</p>
+							<p className="text-sm text-muted-foreground leading-relaxed">{n.body}</p>
+							{n.disclaimer ? (
+								<p className="text-xs text-muted-foreground/90 italic">{n.disclaimer}</p>
+							) : null}
+							{n.sourceUrl ? (
+								<p className="text-xs">
+									Sumber:{' '}
+									<ExtLink href={n.sourceUrl}>{n.sourceLabel || n.sourceUrl}</ExtLink>
+								</p>
+							) : null}
+						</aside>
+					))}
+				</div>
+			)}
+
+			{hasSubjects && (
+				<div className="space-y-4">
+					{hub.subjects.map((sub: any, i: number) => (
+						<article
+							key={(sub.name || '') + i}
+							className="rounded-lg border border-border bg-card p-4 space-y-3">
+							<div>
+								<h3 className="font-semibold text-base">
+									{sub.name}
+									{sub.code ? (
+										<span className="text-muted-foreground font-normal"> ({sub.code})</span>
+									) : null}
+								</h3>
+								{(sub.credits || sub.prerequisite) && (
+									<p className="text-xs text-muted-foreground mt-1 space-x-2">
+										{sub.credits ? <span>Credit: {sub.credits}</span> : null}
+										{sub.credits && sub.prerequisite ? <span>·</span> : null}
+										{sub.prerequisite ? <span>Prerequisite: {sub.prerequisite}</span> : null}
+									</p>
+								)}
+							</div>
+							{Array.isArray(sub.objectives) && sub.objectives.length > 0 && (
+								<div>
+									<p className="text-sm font-medium mb-1">Objectives</p>
+									<ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+										{sub.objectives.map((o: string, j: number) => (
+											<li key={j}>{o}</li>
+										))}
+									</ul>
+								</div>
+							)}
+							{Array.isArray(sub.activities) && sub.activities.length > 0 && (
+								<div>
+									<p className="text-sm font-medium mb-1">Activities</p>
+									<ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+										{sub.activities.map((a: string, j: number) => (
+											<li key={j}>{a}</li>
+										))}
+									</ul>
+								</div>
+							)}
+						</article>
+					))}
+				</div>
+			)}
+
+			{hub.flowchartImageUrl && (
+				<figure className="space-y-2">
+					<p className="text-sm font-medium">Alur prosedur</p>
+					<img
+						src={hub.flowchartImageUrl}
+						alt={`Alur prosedur ${title}`}
+						className="w-full max-w-3xl rounded-md border border-border bg-muted/20"
+						loading="lazy"
+					/>
+				</figure>
+			)}
+
+			{Array.isArray(hub.notes) && hub.notes.length > 0 && (
+				<div className="space-y-1">
+					<p className="text-sm font-medium">Catatan</p>
+					<ul className="list-disc list-inside text-sm text-muted-foreground space-y-1">
+						{hub.notes.map((n: string, i: number) => (
+							<li key={i}>{n}</li>
+						))}
+					</ul>
+				</div>
+			)}
+
+			{Array.isArray(hub.steps) && hub.steps.length > 0 && (
+				<div>
+					<p className="text-sm font-medium mb-1">Ringkasan tahapan</p>
+					<ol className="list-decimal list-inside space-y-1 text-sm">
+						{hub.steps.map((s: string, i: number) => (
+							<li key={i}>{s}</li>
+						))}
+					</ol>
+				</div>
+			)}
+			{Array.isArray(hub.registrationHints) && hub.registrationHints.length > 0 && (
 				<ul className="list-disc list-inside text-sm text-muted-foreground">
 					{hub.registrationHints.map((h: string, i: number) => (
 						<li key={i}>{h}</li>
 					))}
 				</ul>
 			)}
-			{Array.isArray(hub.sections) && hub.sections.length > 0 && (
+
+			{!hasSubjects && Array.isArray(hub.sections) && hub.sections.length > 0 && (
 				<div className="space-y-3">
 					{hub.sections.map((sec: any, i: number) => (
 						<details key={i} className="rounded-lg border border-border bg-card p-4">
@@ -488,6 +601,7 @@ export function HubResourceSection({
 					))}
 				</div>
 			)}
+
 			<div className="flex flex-wrap gap-3">
 				{hub.hubUrl && (
 					<a
@@ -507,7 +621,7 @@ export function HubResourceSection({
 						Pedoman PDF
 					</a>
 				)}
-				{hub.sopPdf && (
+				{hub.sopPdf && hub.sopPdf !== hub.pedomanPdf && (
 					<a
 						href={hub.sopPdf}
 						target="_blank"
@@ -642,7 +756,7 @@ export function PengumumanSection({ items }: { items: any[] }) {
 							{item.publishedAt ? ` · ${new Date(item.publishedAt).toLocaleDateString('id-ID')}` : ''}
 						</p>
 						{item.excerpt && (
-							<p className="text-sm text-muted-foreground mt-2 line-clamp-3">{item.excerpt}</p>
+							<p className="text-sm text-muted-foreground mt-2 whitespace-pre-wrap">{item.excerpt}</p>
 						)}
 					</li>
 				))}

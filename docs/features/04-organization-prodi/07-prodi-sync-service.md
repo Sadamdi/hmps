@@ -21,7 +21,22 @@ Student resources gagal secara terisolasi — tidak menggagalkan sync profil/kur
 ### Pengumuman
 - Kategori: `thesis | wisuda | ukt | kalender | lainnya`.
 - Max **50 item per kategori** saat sync; UI publik **10/halaman** + pagination (termasuk filter Semua).
+- Feed TI + UIN digeser **hingga 5 halaman** (`?paged=N`) dengan dedupe URL; excerpt hingga **~800 karakter** (ditampilkan penuh di UI).
 - Auto-fetch: cron per jam; interval default **1 hari** (`announcementSyncIntervalDays`) menjalankan refresh **student hub penuh** (kalender + skripsi + PKL + pengumuman), dapat diubah di dashboard Prodi → tab Pengumuman.
+- Cron hub **menghormati `autoSyncEnabled`** (sama seperti sync bulanan).
+- **Keep-on-fail**: pengumuman kosong/gagal → keep list lama; skripsi/PKL error → keep field rich (`intro`/`subjects`/flowchart/dll); portals/guides **tidak di-force** jika sudah ada data manual.
+
+### Hub Skripsi / PKL (konten penuh)
+- Scrape halaman Elementor resmi TI (`thesis-skripsi-s1`, `internship-pkl`), bukan hanya link PDF.
+- Field tersimpan di `content.studentHub.skripsiHub` / `pklHub`:
+  - `intro` — paragraf pembuka
+  - `subjects[]` — nama, kode, SKS, prerequisite, `objectives[]`, `activities[]` (skripsi)
+  - `flowchartImageUrl` — cache lokal di `uploads/prodi/skripsi/` atau `uploads/prodi/pkl/` (+ `flowchartSourceUrl` remote)
+  - `notes[]` — catatan tambahan (PKL, mis. final report)
+  - `documents` / `templates` / `actionLinks` / `sopPdf` — tautan form & dokumen
+- UI publik (`HubResourceSection`) menampilkan intro → subjects → gambar alur → tahapan → dokumen.
+- Dashboard editor memungkinkan koreksi manual intro/subjects/flowchart setelah sync.
+- Portal & panduan mahasiswa tetap curated (`DEFAULT_STUDENT_PORTALS` / `DEFAULT_STUDENT_GUIDES`), bukan scrape penuh situs layanan akademik.
 
 ---
 

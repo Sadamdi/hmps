@@ -40,6 +40,7 @@ mindmap
       assets
       gdrive
       home images
+      social feed
       upload
     Collaboration, Feedback   Sharing
       comments
@@ -67,7 +68,7 @@ mindmap
 | 04 | [Organization & Prodi](./04-organization-prodi/00-README.md) | 9 | 26 | `organization`, `prodi` |
 | 05 | [Community Tenant](./05-community-tenant/00-README.md) | 7 | 19 | `communities`, `community`, `register`, `registration` |
 | 06 | [Store / Toko](./06-store-toko/00-README.md) | 11 | 57 | `store` |
-| 07 | [Media & Assets](./07-media-assets/00-README.md) | 10 | 21 | `assets`, `gdrive`, `home-images`, `upload` |
+| 07 | [Media & Assets](./07-media-assets/00-README.md) | 11 | 21 | `assets`, `gdrive`, `home-images`, `upload` |
 | 08 | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 8 | 36 | `comments`, `feedback`, `system-errors` |
 | 09 | [AI Chat & Notifications](./09-ai-notifications/00-README.md) | 8 | 16 | `chat`, `notifications` |
 | 10 | [Ops, Security & Maintenance](./10-ops-security/00-README.md) | 7 | 7 | `admin`, `backups`, `test` |
@@ -75,8 +76,8 @@ mindmap
 | 12 | [Runtime Infrastructure](./12-runtime-infrastructure/00-README.md) | 8 | 0 | - |
 
 Total feature category folders: **12**  
-Total markdown docs in `docs/features`: **112**  
-Total numbered feature docs: **98**  
+Total markdown docs in `docs/features`: **113**  
+Total numbered feature docs: **99**  
 Total OpenAPI operations: **278**  
 Total OpenAPI tags: **31**
 

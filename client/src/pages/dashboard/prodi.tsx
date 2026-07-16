@@ -2791,6 +2791,7 @@ function StudentHubResourceEditor({
 	const data = hub || {};
 	const docsKey = mode === 'skripsi' ? 'documents' : 'templates';
 	const docs: { name: string; url: string }[] = Array.isArray(data[docsKey]) ? data[docsKey] : [];
+	const subjects: any[] = Array.isArray(data.subjects) ? data.subjects : [];
 
 	const patch = (partial: Record<string, any>) => onChange({ ...data, ...partial });
 
@@ -2821,6 +2822,182 @@ function StudentHubResourceEditor({
 						</div>
 					)}
 				</div>
+
+				<div className="space-y-1">
+					<Label>Intro (teks dari halaman resmi)</Label>
+					<Textarea
+						rows={5}
+						disabled={!canEdit}
+						value={data.intro || ''}
+						onChange={(e) => patch({ intro: e.target.value })}
+					/>
+				</div>
+
+				<div className="space-y-1">
+					<Label>URL gambar alur (flowchart)</Label>
+					<Input
+						value={data.flowchartImageUrl || ''}
+						disabled={!canEdit}
+						placeholder="/uploads/prodi/skripsi/alur-skripsi.jpg"
+						onChange={(e) => patch({ flowchartImageUrl: e.target.value })}
+					/>
+					{data.flowchartImageUrl ? (
+						<img
+							src={data.flowchartImageUrl}
+							alt="Preview alur"
+							className="mt-2 max-h-48 rounded border border-border object-contain"
+						/>
+					) : null}
+				</div>
+
+				<div className="space-y-2">
+					<div className="flex items-center justify-between gap-2">
+						<Label>Mata kuliah / subjects ({subjects.length})</Label>
+						{canEdit && (
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								onClick={() =>
+									patch({
+										subjects: [
+											...subjects,
+											{
+												name: 'Subject baru',
+												code: '',
+												credits: '',
+												prerequisite: '',
+												objectives: [],
+												activities: [],
+											},
+										],
+									})
+								}>
+								<Plus className="h-3.5 w-3.5 mr-1" /> Tambah subject
+							</Button>
+						)}
+					</div>
+					{subjects.map((sub, idx) => (
+						<div key={idx} className="rounded-md border border-border p-3 space-y-2">
+							<div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2">
+								<Input
+									placeholder="Nama subject"
+									value={sub.name || ''}
+									disabled={!canEdit}
+									onChange={(e) => {
+										const next = subjects.map((x, i) =>
+											i === idx ? { ...x, name: e.target.value } : x,
+										);
+										patch({ subjects: next });
+									}}
+								/>
+								{canEdit && (
+									<Button
+										type="button"
+										size="icon"
+										variant="ghost"
+										onClick={() => patch({ subjects: subjects.filter((_, i) => i !== idx) })}>
+										<Trash2 className="h-4 w-4 text-destructive" />
+									</Button>
+								)}
+							</div>
+							<div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+								<Input
+									placeholder="Kode"
+									value={sub.code || ''}
+									disabled={!canEdit}
+									onChange={(e) => {
+										const next = subjects.map((x, i) =>
+											i === idx ? { ...x, code: e.target.value } : x,
+										);
+										patch({ subjects: next });
+									}}
+								/>
+								<Input
+									placeholder="Credit / SKS"
+									value={sub.credits || ''}
+									disabled={!canEdit}
+									onChange={(e) => {
+										const next = subjects.map((x, i) =>
+											i === idx ? { ...x, credits: e.target.value } : x,
+										);
+										patch({ subjects: next });
+									}}
+								/>
+								<Input
+									placeholder="Prerequisite"
+									value={sub.prerequisite || ''}
+									disabled={!canEdit}
+									onChange={(e) => {
+										const next = subjects.map((x, i) =>
+											i === idx ? { ...x, prerequisite: e.target.value } : x,
+										);
+										patch({ subjects: next });
+									}}
+								/>
+							</div>
+							<Textarea
+								rows={3}
+								placeholder="Objectives (satu baris per item)"
+								disabled={!canEdit}
+								value={(sub.objectives || []).join('\n')}
+								onChange={(e) => {
+									const next = subjects.map((x, i) =>
+										i === idx
+											? {
+													...x,
+													objectives: e.target.value
+														.split('\n')
+														.map((s) => s.trim())
+														.filter(Boolean),
+												}
+											: x,
+									);
+									patch({ subjects: next });
+								}}
+							/>
+							<Textarea
+								rows={3}
+								placeholder="Activities (satu baris per item)"
+								disabled={!canEdit}
+								value={(sub.activities || []).join('\n')}
+								onChange={(e) => {
+									const next = subjects.map((x, i) =>
+										i === idx
+											? {
+													...x,
+													activities: e.target.value
+														.split('\n')
+														.map((s) => s.trim())
+														.filter(Boolean),
+												}
+											: x,
+									);
+									patch({ subjects: next });
+								}}
+							/>
+						</div>
+					))}
+				</div>
+
+				{mode === 'pkl' && (
+					<div className="space-y-1">
+						<Label>Catatan (satu baris per catatan)</Label>
+						<Textarea
+							rows={4}
+							disabled={!canEdit}
+							value={(data.notes || []).join('\n')}
+							onChange={(e) =>
+								patch({
+									notes: e.target.value
+										.split('\n')
+										.map((s) => s.trim())
+										.filter(Boolean),
+								})
+							}
+						/>
+					</div>
+				)}
 
 				{mode === 'skripsi' && (
 					<div className="space-y-1">
@@ -2897,8 +3074,10 @@ function StudentHubResourceEditor({
 
 				<div className="flex flex-wrap gap-2 items-center">
 					<p className="text-xs text-muted-foreground">
-						Sections tersimpan: {(data.sections || []).length} (sampah tema dibuang otomatis saat
-						tampil/sync)
+						Subjects: {subjects.length} · Sections fallback: {(data.sections || []).length}
+						{data.syncedAt
+							? ` · sync ${new Date(data.syncedAt).toLocaleString('id-ID')}`
+							: ''}
 					</p>
 					{canEdit && (data.sections || []).length > 0 && (
 						<Button type="button" size="sm" variant="outline" onClick={() => patch({ sections: [] })}>

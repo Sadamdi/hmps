@@ -8,6 +8,10 @@ import Hero from '@/components/public/hero';
 import Library from '@/components/public/library';
 import Navbar from '@/components/public/navbar';
 import TokoSection from '@/components/public/toko-section';
+import {
+	InstagramHomeSection,
+	YoutubeHomeSection,
+} from '@/components/public/social-feed-sections';
 import VisionMission from '@/components/public/vision-mission';
 import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
@@ -398,6 +402,18 @@ export default function Home() {
 				);
 			case 'berita':
 				return <BeritaList key="berita" />;
+			case 'youtube':
+				return (
+					<Suspense key="youtube" fallback={null}>
+						<YoutubeHomeSection />
+					</Suspense>
+				);
+			case 'instagram':
+				return (
+					<Suspense key="instagram" fallback={null}>
+						<InstagramHomeSection />
+					</Suspense>
+				);
 			case 'library':
 				return <Library key="library" />;
 				case 'toko':

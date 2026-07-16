@@ -48,6 +48,7 @@ import notificationRouter from './routes/notifications';
 import sharingRouter, { expirePendingShares } from './routes/sharing';
 import storeRouter from './routes/store';
 import systemErrorRouter from './routes/system-errors';
+import socialFeedRouter from './routes/social-feed';
 import {
 	DEFAULT_THEME_COLOR,
 	deriveBannerColorsFromTheme,
@@ -5391,7 +5392,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 			const storage = resolveStorage(req);
 			const settings = await storage.getSettings();
-			const body = JSON.stringify(settings);
+			const lean =
+				settings && typeof (settings as any).toObject === 'function'
+					? (settings as any).toObject()
+					: settings;
+			// Scrape config/cache are managed via /api/social-feed — omit from public settings.
+			const {
+				socialFeedCache: _sfc,
+				socialFeedConfig: _sfg,
+				lastSocialFeedSyncAt: _lss,
+				...publicSettings
+			} = lean || {};
+			const body = JSON.stringify(publicSettings);
 			await writePublicJsonCache(
 				settingsPublicCache,
 				cacheKey,
@@ -5414,6 +5426,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const body = { ...req.body };
+				delete body.socialFeedCache;
+				delete body.socialFeedConfig;
+				delete body.lastSocialFeedSyncAt;
 
 				// Auto-convert mapsLocationInput → mapsEmbedUrl
 				if (typeof body.mapsLocationInput === 'string') {
@@ -5483,10 +5498,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				// Sinkronkan cache settings agar GET sesudah save tidak mengembalikan data lama.
 				try {
 					const cacheKey = `settings|${tenantCacheKey(req)}`;
+					const leanUpdated =
+						updatedSettings &&
+						typeof (updatedSettings as any).toObject === 'function'
+							? (updatedSettings as any).toObject()
+							: updatedSettings;
+					const {
+						socialFeedCache: _sfc,
+						socialFeedConfig: _sfg,
+						lastSocialFeedSyncAt: _lss,
+						...publicSettings
+					} = leanUpdated || {};
 					await writePublicJsonCache(
 						settingsPublicCache,
 						cacheKey,
-						JSON.stringify(updatedSettings),
+						JSON.stringify(publicSettings),
 						API_SETTINGS_CACHE_MS,
 					);
 				} catch (cacheErr) {
@@ -7444,6 +7470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use('/api/store', storeRouter);
 	app.use('/api/notifications', notificationRouter);
 	app.use('/api/sharing', sharingRouter);
+	app.use('/api/social-feed', socialFeedRouter);
 
 	// SPA Routing - Handle all frontend routes
 	// This ensures that routes like /dashboard, /berita, etc. work correctly
