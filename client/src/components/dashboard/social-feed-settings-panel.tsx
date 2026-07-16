@@ -113,9 +113,10 @@ export default function SocialFeedSettingsPanel() {
 				<CardHeader>
 					<CardTitle>Media Sosial Beranda</CardTitle>
 					<CardDescription>
-						Auto-scrape YouTube (@HimatifEncoder: Video/Shorts/Live) dan Instagram
-						(himatif.encoder: Post/Reels/Live/Story). Section beranda + item navbar
-						YouTube/Instagram bisa digabung ke grup Media di tab Beranda.
+						YouTube lewat youtubei.js (tab Video / Live / Shorts). Instagram lewat
+						web_profile_info + cookie seed. Filter tipe konten di-round-robin supaya
+						campuran adil. Section + item navbar YouTube/Instagram bisa digabung ke
+						grup Media di tab Beranda.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-8">
@@ -228,8 +229,11 @@ export default function SocialFeedSettingsPanel() {
 							</div>
 						</div>
 						<p className="text-xs text-muted-foreground">
-							Default channel: https://www.youtube.com/@HimatifEncoder — Shorts diambil
-							dari tab Shorts; video dari RSS channel.
+							Scrape lewat youtubei.js (InnerTube): tab <strong>Video</strong>,{' '}
+							<strong>Live/Streams</strong>, dan <strong>Shorts</strong> (jika ada).
+							Channel @HimatifEncoder saat ini tidak punya tab Shorts — filter Shorts
+							pakai video ≤60 dtk dari tab Video. Filter campur di-round-robin supaya
+							Live tidak menelan slot Video.
 						</p>
 						{ytThumbs.length > 0 && (
 							<div className="flex flex-wrap gap-2">
@@ -251,7 +255,7 @@ export default function SocialFeedSettingsPanel() {
 							<div>
 								<p className="font-medium">Instagram</p>
 								<p className="text-sm text-muted-foreground">
-									Scrape profil publik + @bochilteam/scraper-instagram (enrich)
+									web_profile_info + cookie seed + enrich media thumb
 								</p>
 							</div>
 							<Switch
@@ -345,9 +349,9 @@ export default function SocialFeedSettingsPanel() {
 								))}
 							</div>
 							<p className="text-xs text-muted-foreground">
-								Story bersifat best-effort (sering butuh sesi IG). Post/Reel dari
-								profil publik himatif.encoder. Jika scrape kosong (rate-limit), isi
-								URL manual di bawah atau set env INSTAGRAM_SESSION_ID.
+								Post vs Reel dipisah dari product_type / URL. Story butuh{' '}
+								<code className="text-[10px]">INSTAGRAM_SESSION_ID</code>. URL manual
+								hanya fallback jika scrape IP kena rate-limit.
 							</p>
 						</div>
 						<div className="space-y-2">

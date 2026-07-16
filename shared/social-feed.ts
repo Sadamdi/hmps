@@ -21,22 +21,22 @@ export type SocialFeedItem = {
 };
 
 export type YoutubeContentFilters = {
-	/** Regular uploads (RSS / Videos tab) */
+	/** Tab Videos channel (@handle/videos) */
 	videos: boolean;
-	/** YouTube Shorts */
+	/** Tab Shorts; jika tab kosong, fallback video berdurasi ≤60 dtk */
 	shorts: boolean;
-	/** Live now / live badge */
+	/** Tab Live/Streams (arsip live) + badge live sekarang */
 	live: boolean;
 };
 
 export type InstagramContentFilters = {
-	/** Feed posts (/p/) */
+	/** Post feed (/p/) */
 	posts: boolean;
-	/** Reels */
+	/** Reels (product_type clips / /reel/) */
 	reels: boolean;
 	/** Live broadcast (badge only when reliable) */
 	live: boolean;
-	/** Stories (best-effort; often needs extra provider) */
+	/** Stories (best-effort; butuh INSTAGRAM_SESSION_ID) */
 	stories: boolean;
 };
 
@@ -100,14 +100,7 @@ export const DEFAULT_SOCIAL_FEED_CONFIG: SocialFeedConfig = {
 		maxItems: 4,
 		showLiveBadge: true,
 		content: { ...DEFAULT_INSTAGRAM_CONTENT },
-		// Seed fallback bila scrape IP kena login-wall / 429 (bisa diganti di Settings)
-		manualUrls: [
-			'https://www.instagram.com/himatif.encoder/p/DXVhh4Rkm6z/',
-			'https://www.instagram.com/himatif.encoder/reel/DZBtbo7ydui/',
-			'https://www.instagram.com/himatif.encoder/reel/DY_MUu3SLMn/',
-			'https://www.instagram.com/himatif.encoder/p/DY87-CsyoEY/',
-			'https://www.instagram.com/himatif.encoder/reel/DY6L21NS5qU/',
-		],
+		manualUrls: [],
 	},
 	syncIntervalHours: 3,
 };
@@ -202,4 +195,33 @@ export function filterInstagramItems(
 		if (kind === 'reel') return content.reels;
 		return content.posts;
 	});
+}
+
+/**
+ * Round-robin antar pool jenis konten supaya filter Video+Live+Shorts
+ * tidak didominasi satu sumber (mis. RSS live VOD).
+ */
+export function mixSocialItemsByKind(
+	pools: Partial<Record<SocialContentKind, SocialFeedItem[]>>,
+	order: SocialContentKind[],
+	maxItems: number,
+): SocialFeedItem[] {
+	const queues = order
+		.map((kind) => ({ kind, items: [...(pools[kind] || [])] }))
+		.filter((q) => q.items.length > 0);
+	const out: SocialFeedItem[] = [];
+	const seen = new Set<string>();
+	while (out.length < maxItems && queues.some((q) => q.items.length)) {
+		for (const q of queues) {
+			if (out.length >= maxItems) break;
+			while (q.items.length) {
+				const next = q.items.shift()!;
+				if (seen.has(next.id)) continue;
+				seen.add(next.id);
+				out.push(next);
+				break;
+			}
+		}
+	}
+	return out;
 }
