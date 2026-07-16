@@ -113,8 +113,9 @@ export default function SocialFeedSettingsPanel() {
 				<CardHeader>
 					<CardTitle>Media Sosial Beranda</CardTitle>
 					<CardDescription>
-						Auto-scrape 1–5 post terbaru YouTube (RSS) dan Instagram (profil publik).
-						Section juga bisa disembunyikan dari tab Beranda tanpa mematikan sync.
+						Auto-scrape YouTube (@HimatifEncoder: Video/Shorts/Live) dan Instagram
+						(himatif.encoder: Post/Reels/Live/Story). Section beranda + item navbar
+						YouTube/Instagram bisa digabung ke grup Media di tab Beranda.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-8">
@@ -197,6 +198,39 @@ export default function SocialFeedSettingsPanel() {
 								Embed unggulan
 							</label>
 						</div>
+						<div className="space-y-2">
+							<Label>Tipe konten YouTube</Label>
+							<div className="flex flex-wrap gap-4 text-sm">
+								{(
+									[
+										['videos', 'Video'],
+										['shorts', 'Shorts'],
+										['live', 'Live'],
+									] as const
+								).map(([key, label]) => (
+									<label key={key} className="flex items-center gap-2">
+										<Switch
+											checked={!!config.youtube.content[key]}
+											disabled={!canEdit}
+											onCheckedChange={(v) =>
+												setConfig((c) => ({
+													...c,
+													youtube: {
+														...c.youtube,
+														content: { ...c.youtube.content, [key]: v },
+													},
+												}))
+											}
+										/>
+										{label}
+									</label>
+								))}
+							</div>
+						</div>
+						<p className="text-xs text-muted-foreground">
+							Default channel: https://www.youtube.com/@HimatifEncoder — Shorts diambil
+							dari tab Shorts; video dari RSS channel.
+						</p>
 						{ytThumbs.length > 0 && (
 							<div className="flex flex-wrap gap-2">
 								{ytThumbs.map((item) => (
@@ -205,6 +239,7 @@ export default function SocialFeedSettingsPanel() {
 										src={item.thumbnailUrl}
 										alt=""
 										className="h-14 w-24 rounded object-cover ring-1 ring-border"
+										title={`${item.kind || 'video'}: ${item.title}`}
 									/>
 								))}
 							</div>
@@ -216,7 +251,7 @@ export default function SocialFeedSettingsPanel() {
 							<div>
 								<p className="font-medium">Instagram</p>
 								<p className="text-sm text-muted-foreground">
-									Scrape profil publik (best-effort, keep last-good)
+									Scrape profil publik + @bochilteam/scraper-instagram (enrich)
 								</p>
 							</div>
 							<Switch
@@ -280,6 +315,63 @@ export default function SocialFeedSettingsPanel() {
 							/>
 							Badge LIVE (hanya jika sinyal andal)
 						</label>
+						<div className="space-y-2">
+							<Label>Tipe konten Instagram</Label>
+							<div className="flex flex-wrap gap-4 text-sm">
+								{(
+									[
+										['posts', 'Post'],
+										['reels', 'Reels'],
+										['live', 'Live'],
+										['stories', 'Story'],
+									] as const
+								).map(([key, label]) => (
+									<label key={key} className="flex items-center gap-2">
+										<Switch
+											checked={!!config.instagram.content[key]}
+											disabled={!canEdit}
+											onCheckedChange={(v) =>
+												setConfig((c) => ({
+													...c,
+													instagram: {
+														...c.instagram,
+														content: { ...c.instagram.content, [key]: v },
+													},
+												}))
+											}
+										/>
+										{label}
+									</label>
+								))}
+							</div>
+							<p className="text-xs text-muted-foreground">
+								Story bersifat best-effort (sering butuh sesi IG). Post/Reel dari
+								profil publik himatif.encoder. Jika scrape kosong (rate-limit), isi
+								URL manual di bawah atau set env INSTAGRAM_SESSION_ID.
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label>URL manual (fallback, 1 baris 1 URL post/reel)</Label>
+							<textarea
+								disabled={!canEdit}
+								className="min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+								value={(config.instagram.manualUrls || []).join('\n')}
+								onChange={(e) =>
+									setConfig((c) => ({
+										...c,
+										instagram: {
+											...c.instagram,
+											manualUrls: e.target.value
+												.split(/\r?\n/)
+												.map((s) => s.trim())
+												.filter(Boolean)
+												.slice(0, 12),
+										},
+									}))
+								}
+								placeholder="https://www.instagram.com/himatif.encoder/reel/...."
+							/>
+						</div>
 						{igThumbs.length > 0 && (
 							<div className="flex flex-wrap gap-2">
 								{igThumbs.map((item) => (

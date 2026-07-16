@@ -240,6 +240,8 @@ export const ALL_NAVBAR_ITEMS: { id: string; label: string }[] = [
 	{ id: 'prodi', label: 'Program Studi' },
 	{ id: 'events', label: 'Event' },
 	{ id: 'berita', label: 'Berita' },
+	{ id: 'youtube', label: 'YouTube' },
+	{ id: 'instagram', label: 'Instagram' },
 	{ id: 'library', label: 'Galeri' },
 	{ id: 'toko', label: 'Toko' },
 	{ id: 'komunitas', label: 'Komunitas' },

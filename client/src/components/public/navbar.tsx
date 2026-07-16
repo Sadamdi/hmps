@@ -36,6 +36,7 @@ import {
 	Sun,
 	X,
 } from 'lucide-react';
+import { FaInstagram, FaYoutube } from 'react-icons/fa';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
@@ -180,6 +181,32 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 		children: [
 			{ label: 'Berita', href: '/#berita' },
 			{ label: 'Lihat semua berita', href: '/berita' },
+		],
+	},
+	{
+		id: 'youtube',
+		label: 'YouTube',
+		icon: <FaYoutube className="h-4 w-4" />,
+		homeSection: 'youtube',
+		children: [
+			{ label: 'Kanal di beranda', href: '/#youtube' },
+			{
+				label: 'Buka YouTube',
+				href: 'https://www.youtube.com/@HimatifEncoder',
+			},
+		],
+	},
+	{
+		id: 'instagram',
+		label: 'Instagram',
+		icon: <FaInstagram className="h-4 w-4" />,
+		homeSection: 'instagram',
+		children: [
+			{ label: 'Feed di beranda', href: '/#instagram' },
+			{
+				label: 'Buka Instagram',
+				href: 'https://www.instagram.com/himatif.encoder/',
+			},
 		],
 	},
 	{
@@ -1134,6 +1161,11 @@ export default function Navbar({
 	};
 
 	const handleChildNav = (href: string) => {
+		// External social profiles → open in new tab
+		if (/^https?:\/\//i.test(href) && !href.includes(window.location.host)) {
+			window.open(href, '_blank', 'noopener,noreferrer');
+			return;
+		}
 		// Parse pathname dan hash dari href
 		const url = new URL(href, window.location.origin);
 		let targetPath = url.pathname;
