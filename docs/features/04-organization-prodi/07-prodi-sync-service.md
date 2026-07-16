@@ -20,7 +20,8 @@ Student resources gagal secara terisolasi — tidak menggagalkan sync profil/kur
 
 ### Pengumuman
 - Kategori: `thesis | wisuda | ukt | kalender | lainnya`.
-- Auto-fetch: cron per jam; interval default **1 hari** (`announcementSyncIntervalDays`, dapat diubah di dashboard Prodi → tab Pengumuman).
+- Max **50 item per kategori** saat sync; UI publik **10/halaman** + pagination (termasuk filter Semua).
+- Auto-fetch: cron per jam; interval default **1 hari** (`announcementSyncIntervalDays`) menjalankan refresh **student hub penuh** (kalender + skripsi + PKL + pengumuman), dapat diubah di dashboard Prodi → tab Pengumuman.
 
 ---
 

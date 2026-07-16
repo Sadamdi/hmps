@@ -431,13 +431,81 @@ function parseRssItems(xml: string, source: 'ti' | 'uin'): StudentAnnouncement[]
 	return items;
 }
 
+const ANNOUNCEMENT_CATEGORIES: AnnouncementCategory[] = [
+	'thesis',
+	'wisuda',
+	'ukt',
+	'kalender',
+	'lainnya',
+];
+/** Max items kept per category filter (UI also caps at this). */
+export const ANNOUNCEMENT_MAX_PER_CATEGORY = 50;
+
 function filterAnnouncements(items: StudentAnnouncement[]): StudentAnnouncement[] {
 	const tiRe = /thesis|periodization|seminar|skripsi|sidang|kompre|ujian|pkl|internship/i;
 	const uinRe = /wisuda|kalender akademik|ukt|uang kuliah|herregistrasi|yudisium/i;
-	return items
-		.filter((i) => (i.source === 'ti' ? tiRe.test(i.title) : uinRe.test(i.title) || i.category !== 'lainnya'))
-		.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
-		.slice(0, 40);
+	const relevant = items
+		.filter((i) =>
+			i.source === 'ti' ? tiRe.test(i.title) : uinRe.test(i.title) || i.category !== 'lainnya',
+		)
+		.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+
+	const buckets = new Map<AnnouncementCategory, StudentAnnouncement[]>();
+	for (const cat of ANNOUNCEMENT_CATEGORIES) buckets.set(cat, []);
+	for (const item of relevant) {
+		const cat = item.category || 'lainnya';
+		const bucket = buckets.get(cat)!;
+		if (bucket.length < ANNOUNCEMENT_MAX_PER_CATEGORY) bucket.push(item);
+	}
+	return ANNOUNCEMENT_CATEGORIES.flatMap((cat) => buckets.get(cat) || []);
+}
+
+const JUNK_SECTION_RE =
+	/miu\s*login|siam\s*login|powered\s*by|theme\s*version|ptipd|^\s*organization\s*$|^\s*profile\s*$|lecturer and staff|^\s*dokumen\s*$|^\s*en_?us\s*$|^\s*id\s*$|^\s*ar\s*$|^\s*zh\s*$/i;
+
+function isJunkSectionHeading(heading: string): boolean {
+	return JUNK_SECTION_RE.test(heading.trim());
+}
+
+function isJunkLinkLabel(label: string): boolean {
+	const t = label.replace(/\s+/g, ' ').trim();
+	if (!t || t.length < 2) return true;
+	if (JUNK_SECTION_RE.test(t)) return true;
+	if (/^(home|beranda|menu|search|cari|login|logout|register)$/i.test(t)) return true;
+	return false;
+}
+
+/** Drop theme/nav junk from already-stored hub payloads (public + after sync). */
+export function sanitizeHubResource(hub: any): any {
+	if (!hub || typeof hub !== 'object') return hub;
+	const next = { ...hub };
+	if (Array.isArray(next.sections)) {
+		next.sections = next.sections.filter(
+			(s: any) => s?.heading && !isJunkSectionHeading(String(s.heading)),
+		);
+	}
+	if (Array.isArray(next.actionLinks)) {
+		next.actionLinks = next.actionLinks.filter(
+			(l: any) => l?.url && l?.label && !isJunkLinkLabel(String(l.label)),
+		);
+	}
+	if (Array.isArray(next.documents)) {
+		next.documents = next.documents.filter(
+			(d: any) => d?.url && d?.name && !isJunkLinkLabel(String(d.name)),
+		);
+	}
+	if (Array.isArray(next.templates)) {
+		next.templates = next.templates
+			.filter((t: any) => t?.url && t?.name)
+			.map((t: any) => ({
+				...t,
+				name: String(t.name)
+					.replace(/\s*\[DOWNLOAD HERE\]\s*/gi, '')
+					.replace(/\s*:\s*$/, '')
+					.trim() || 'Dokumen PKL',
+			}));
+	}
+	return next;
 }
 
 export async function syncAnnouncementsFeed(): Promise<StudentAnnouncement[]> {
@@ -458,32 +526,37 @@ export async function syncAnnouncementsFeed(): Promise<StudentAnnouncement[]> {
 }
 
 function extractPageSections($: cheerio.CheerioAPI, base: string) {
+	const $scope = $('main, article, .entry-content, .site-main, #content, .post-content').first();
+	const heads = ($scope.length ? $scope : $.root()).find('h2, h3');
+
 	const sections: { heading: string; body: string; links: { label: string; url: string }[] }[] = [];
-	$('h2, h3').each((_, el) => {
+	heads.each((_, el) => {
 		const heading = $(el).text().replace(/\s+/g, ' ').trim();
-		if (!heading || heading.length > 120) return;
+		if (!heading || heading.length > 120 || isJunkSectionHeading(heading)) return;
 		const bodyParts: string[] = [];
 		const links: { label: string; url: string }[] = [];
 		let node = $(el).next();
 		let guard = 0;
 		while (node.length && !node.is('h2, h3') && guard < 12) {
 			const text = node.text().replace(/\s+/g, ' ').trim();
-			if (text && text.length < 500) bodyParts.push(text);
+			if (text && text.length < 500 && !isJunkSectionHeading(text.slice(0, 80))) {
+				bodyParts.push(text);
+			}
 			node.find('a[href]').addBack('a[href]').each((__, a) => {
 				const label = $(a).text().replace(/\s+/g, ' ').trim() || 'Tautan';
+				if (isJunkLinkLabel(label)) return;
 				const url = absUrl(($(a).attr('href') || '').replace(/&amp;/g, '&'), base);
 				if (url && !links.some((l) => l.url === url)) links.push({ label: label.slice(0, 100), url });
 			});
 			node = node.next();
 			guard++;
 		}
-		if (heading) {
-			sections.push({
-				heading,
-				body: bodyParts.join(' ').slice(0, 600),
-				links: links.slice(0, 10),
-			});
-		}
+		if (!bodyParts.length && !links.length) return;
+		sections.push({
+			heading,
+			body: bodyParts.join(' ').slice(0, 600),
+			links: links.slice(0, 10),
+		});
 	});
 	return sections.slice(0, 12);
 }
@@ -497,10 +570,23 @@ export async function syncSkripsiHub(existing?: any) {
 		const links: { label: string; url: string }[] = [];
 		$('a[href]').each((_, el) => {
 			const label = $(el).text().replace(/\s+/g, ' ').trim() || 'Dokumen';
+			if (isJunkLinkLabel(label)) return;
+			if (
+				/organization|lecturer|laborator|curriculum|collaboration|management|undergraduate|graduate|profile|roadmap|publication|regulation|scopus|startup|start-up|software|apps|mbkm|mikrotik|product pkl|intellectual/i.test(
+					label,
+				)
+			) {
+				return;
+			}
 			const href = absUrl(($(el).attr('href') || '').replace(/&amp;/g, '&'), TI_SKRIPSI);
-			if (/drive\.google\.com|docs\.google\.com|\.pdf/i.test(href)) {
+			if (!href || href === TI_SKRIPSI || href.startsWith(`${TI_SKRIPSI}#`)) return;
+			if (/drive\.google\.com|docs\.google\.com|\.pdf(\?|$)/i.test(href)) {
 				if (!docs.some((d) => d.url === href)) docs.push({ name: label.slice(0, 100), url: href });
-			} else if (/periodization|seminar|thesis|skripsi|registration|daftar|form/i.test(label + href)) {
+			} else if (
+				/periodization|seminar|thesis|skripsi|registration|daftar|form|sidang|kompre|proposal/i.test(
+					label,
+				)
+			) {
 				if (!links.some((l) => l.url === href)) links.push({ label: label.slice(0, 100), url: href });
 			}
 		});
@@ -516,7 +602,7 @@ export async function syncSkripsiHub(existing?: any) {
 		hub.syncedAt = new Date().toISOString();
 		hub.syncError = String((err as Error)?.message || err);
 	}
-	return hub;
+	return sanitizeHubResource(hub);
 }
 
 export async function syncPklHub(existing?: any) {
@@ -536,6 +622,8 @@ export async function syncPklHub(existing?: any) {
 				const parentText = $(el).parent().text().replace(/\s+/g, ' ').trim();
 				name = parentText.slice(0, 80) || 'Dokumen PKL';
 			}
+			name = name.replace(/\s*\[DOWNLOAD HERE\]\s*/gi, '').replace(/\s*:\s*$/, '').trim();
+			if (isJunkLinkLabel(name)) return;
 			if (/drive\.google\.com|docs\.google\.com|\.pdf/i.test(href)) {
 				if (!templates.some((t) => t.url === href)) templates.push({ name: name.slice(0, 100), url: href });
 			}
@@ -550,7 +638,7 @@ export async function syncPklHub(existing?: any) {
 		hub.syncedAt = new Date().toISOString();
 		hub.syncError = String((err as Error)?.message || err);
 	}
-	return hub;
+	return sanitizeHubResource(hub);
 }
 
 export { buildDefaultStudentHub };
