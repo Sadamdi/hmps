@@ -12,7 +12,13 @@
 
 ## Deskripsi
 
-Auto-scrape feed beranda: YouTube channel RSS (resolve `@handle` → channelId) dan Instagram profil publik (Cheerio, best-effort). Hasil di-cache di Settings (`socialFeedConfig` / `socialFeedCache`), ditampilkan sebagai thumbnail card 1–5 item dengan link-out. Badge LIVE bila deteksi andal. Sync terjadwal (cron) + tombol manual; gagal scrape tidak menghapus cache terakhir.
+Auto-scrape feed beranda: YouTube `@HimatifEncoder` (RSS channelId via `externalId`/canonical — bukan `channelId` pertama yang sering salah; Shorts via tab `/shorts`; Live badge) dan Instagram `himatif.encoder` (web_profile_info + HTML `/user/p|reel/CODE` + `@bochilteam/scraper-instagram` enrich; fallback URL manual / `INSTAGRAM_SESSION_ID`).
+
+Filter tipe konten di Settings + chip filter di beranda: YT Video/Shorts/Live; IG Post/Reels/Live/Story.
+
+Navbar: item `youtube` / `instagram` ada di `ALL_NAVBAR_ITEMS` — bisa digabung ke merge group **Media** di tab Beranda.
+
+Hasil di-cache di Settings (`socialFeedConfig` / `socialFeedCache`), ditampilkan sebagai thumbnail card 1–5 item dengan link-out. Sync terjadwal (cron) + tombol manual; gagal scrape tidak menghapus cache terakhir (keep-on-fail).
 
 Sumber: `shared/social-feed.ts`, `server/services/social-feed.ts`, `server/routes/social-feed.ts`, `client/src/components/public/social-feed-sections.tsx`, `client/src/components/dashboard/social-feed-settings-panel.tsx`.
 

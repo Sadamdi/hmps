@@ -294,7 +294,7 @@ export default function SettingsPage() {
 			facebook: 'https://www.facebook.com/himatif.encoder/',
 			tiktok: 'https://www.tiktok.com/@himatif.encoder',
 			instagram: 'https://www.instagram.com/himatif.encoder/',
-			youtube: 'https://www.youtube.com/@himatifencoder',
+											youtube: 'https://www.youtube.com/@HimatifEncoder',
 		},
 		links: {
 			uinMalang: 'https://uin-malang.ac.id/',
@@ -5368,7 +5368,9 @@ function NavbarGroupsEditor({
 				<CardTitle>Merge Group Navbar</CardTitle>
 				<CardDescription>
 					Gabung beberapa item navbar menjadi satu parent dropdown (contoh:
-					Media). Item yang sudah dipakai grup lain tidak bisa dipilih ulang.
+					Media). Item YouTube & Instagram bisa dicentang ke grup Media bersama
+					Event/Berita/Galeri. Item yang sudah dipakai grup lain tidak bisa
+					dipilih ulang.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-4">
