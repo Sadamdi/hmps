@@ -18,7 +18,7 @@ Runtime Infrastructure feature category for HMPS. This README is the local index
 | [08-dev-swagger-runtime-entry-helpers.md](./08-dev-swagger-runtime-entry-helpers.md) | 08-dev-swagger-runtime-entry-helpers.md |
 ## Source References
 
-See the feature documents and [OpenAPI Endpoint Coverage](./99-openapi-endpoint-coverage.md) for file-level references and route contracts.
+See the feature documents for file-level references. Kategori ini **tidak** punya OpenAPI tag sendiri (coverage ops = 0); lihat juga SOP 12 dan `docs/architecture/`.
 
 ## Maintenance Checklist
 

@@ -28,6 +28,7 @@ Media & Assets feature category for HMPS. This README is the local index for fea
 | `gdrive` | 3 | Google Drive media operations. |
 | `home-images` | 12 | Home/banner image slots, person slots, render, active year, and copy flows. |
 | `upload` | 5 | General upload endpoints. |
+| `social-feed` | 4 | Home YT/IG feed public cache + manage/sync. |
 
 ## Endpoint Family Coverage
 

@@ -380,4 +380,4 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 ---
 
-*Terakhir diperbarui: 2026-08-06 · Current app version: lihat `docs/version/versions.md`*
+*Terakhir diperbarui: 2026-08-06 · Current app version: `4.12.0` — lihat `docs/version/versions.md`*

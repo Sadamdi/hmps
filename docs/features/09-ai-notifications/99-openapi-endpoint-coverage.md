@@ -47,6 +47,16 @@ Notification stream, preferences, and web push subscriptions.
 
 ---
 
+## ai
+
+Content enhance (dashboard editor assist).
+
+| Method | Path | Params / Headers | Request Body Fields |
+|--------|------|------------------|---------------------|
+| `POST` | `/api/ai/enhance-content` | auth | verify in `server/routes/ai-enhance.ts` |
+
+---
+
 ## Maintenance
 
 - Update this file when `docs/openapi.json` changes.

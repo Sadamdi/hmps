@@ -54,6 +54,7 @@ Study program profile, lecturers, curriculum, lab, and sync data.
 | `POST` | `/api/prodi/upload/photo/lab` | - | `#/components/schemas/GenericRequestBody` |
 | `POST` | `/api/prodi/upload/photo/member` | - | `#/components/schemas/GenericRequestBody` |
 | `POST` | `/api/prodi/upload/photo/org-structure` | - | `#/components/schemas/GenericRequestBody` |
+| `POST` | `/api/prodi/calendar/upload` | - | calendar PDF upload fields (verify in `server/routes.ts` / prodi handlers) |
 
 ---
 

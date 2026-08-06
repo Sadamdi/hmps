@@ -24,6 +24,7 @@ Collaboration, Feedback & Sharing feature category for HMPS. This README is the 
 | `comments` | 6 | Comment public/admin management and count endpoints. |
 | `feedback` | 23 | Feedback public/own/manage/config/rating/bug-report flows. |
 | `system-errors` | 7 | Automatic bug monitoring: client report + owner list/count/detail/status/analyze/delete. |
+| `sharing` | 10 | Invite/request/decision/access + sharing notifications/summary. |
 
 ## Endpoint Family Coverage
 

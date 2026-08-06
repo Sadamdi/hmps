@@ -15,6 +15,7 @@ AI Chat & Notifications feature category for HMPS. This README is the local inde
 | [05-chat-service.md](./05-chat-service.md) | Chat Service |
 | [06-recommendation-service.md](./06-recommendation-service.md) | Recommendation Service |
 | [07-notification-orchestrator-service.md](./07-notification-orchestrator-service.md) | Notification Orchestrator & Stream Services |
+| [09-content-enhance-ai.md](./09-content-enhance-ai.md) | Content enhance via `/api/ai/enhance-content` |
 | [99-openapi-endpoint-coverage.md](./99-openapi-endpoint-coverage.md) | OpenAPI Endpoint Coverage — AI Chat & Notifications |
 
 ## OpenAPI Tag Mapping
@@ -23,6 +24,7 @@ AI Chat & Notifications feature category for HMPS. This README is the local inde
 |-----|------------|-----------------|
 | `chat` | 8 | Gemini chat sessions, messages, history, admin/debug endpoints. |
 | `notifications` | 8 | Notification stream, preferences, and web push subscriptions. |
+| `ai` | 1 | Content enhance endpoint. |
 
 ## Endpoint Family Coverage
 
