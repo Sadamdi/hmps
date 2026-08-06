@@ -1,7 +1,7 @@
 ﻿# 🔗 API Endpoints — HMPS Project HIMATIF ENCODER
 
 > Endpoint inventory berdasarkan `server/routes.ts`, modular routers, store router, dan public SSR routes.  
-> **App version:** lihat [`docs/version/versions.md`](../version/versions.md). Terakhir sync docs: 2026-08-06.
+> **App version:** lihat [`docs/version/versions.md`](../version/versions.md) (**4.12.0**). Terakhir sync docs: 2026-08-06.
 
 ---
 
@@ -173,7 +173,6 @@ GET    /api/organization/positions
 GET    /api/organization/positions/:period
 POST   /api/organization/positions
 POST   /api/organization/positions/copy
-POST   /api/organization/positions/auto-fill
 POST   /api/organization/structure/copy
 POST   /api/organization/structure-auto-fill
 POST   /api/organization/structure-auto-fill/apply
@@ -319,6 +318,7 @@ POST   /admin/products/:id/shares
 DELETE /admin/shares/:shareId
 GET    /admin/categories
 POST   /admin/categories
+PATCH  /admin/categories/:id
 DELETE /admin/categories/:id
 GET    /admin/bundles
 POST   /admin/bundles
@@ -454,4 +454,4 @@ GET /^\/dashboard(\/.*)?$/
 
 ---
 
-*Terakhir diperbarui: 2026-06-28*
+*Terakhir diperbarui: 2026-08-06*

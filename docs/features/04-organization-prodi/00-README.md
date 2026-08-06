@@ -23,7 +23,7 @@ Organization & Prodi feature category for HMPS. This README is the local index f
 | Tag | Operations | Endpoint Family |
 |-----|------------|-----------------|
 | `organization` | 16 | Organization members, periods, positions, and public structure surfaces. |
-| `prodi` | 10 | Study program profile, lecturers, curriculum, lab, and sync data. |
+| `prodi` | 11 | Study program profile, lecturers, curriculum, lab, sync, and calendar upload. |
 
 ## Endpoint Family Coverage
 

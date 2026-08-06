@@ -60,6 +60,41 @@ Feedback public/own/manage/config/rating/bug-report flows.
 
 ---
 
+## system-errors
+
+Automatic bug monitoring: client/server capture + owner list/count/detail/status/analyze/delete.
+
+| Method | Path | Params / Headers | Request Body Fields |
+|--------|------|------------------|---------------------|
+| `POST` | `/api/system-errors/report` | optional auth | fingerprint/context fields (verify in `server/routes/system-errors.ts`) |
+| `GET` | `/api/system-errors/list` | status, severity, source, page, limit | - |
+| `GET` | `/api/system-errors/count` | - | - |
+| `GET` | `/api/system-errors/{id}` | id* | - |
+| `PATCH` | `/api/system-errors/{id}/status` | id* | `status` |
+| `POST` | `/api/system-errors/{id}/analyze` | id* | - |
+| `DELETE` | `/api/system-errors/{id}` | id* | - |
+
+---
+
+## sharing
+
+Collaborative access invite/request/decision/notifications (auth required).
+
+| Method | Path | Params / Headers | Request Body Fields |
+|--------|------|------------------|---------------------|
+| `POST` | `/api/sharing/{entityType}/{entityId}/invite` | entityType*, entityId* | verify in `server/routes/sharing.ts` |
+| `POST` | `/api/sharing/{entityType}/{entityId}/request` | entityType*, entityId* | verify in route |
+| `POST` | `/api/sharing/decision/{sharingId}` | sharingId* | decision fields |
+| `DELETE` | `/api/sharing/{entityType}/{entityId}/access/{userId}` | entityType*, entityId*, userId* | - |
+| `GET` | `/api/sharing/my-summary` | - | - |
+| `GET` | `/api/sharing/notifications` | - | - |
+| `POST` | `/api/sharing/notifications/read` | - | ids/read markers |
+| `GET` | `/api/sharing/users/search` | q | - |
+| `GET` | `/api/sharing/{entityType}/{entityId}` | entityType*, entityId* | - |
+| `GET` | `/api/sharing/requestable` | - | - |
+
+---
+
 ## Maintenance
 
 - Update this file when `docs/openapi.json` changes.

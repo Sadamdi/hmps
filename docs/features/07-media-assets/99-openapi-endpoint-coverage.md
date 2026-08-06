@@ -70,6 +70,19 @@ General upload endpoints.
 
 ---
 
+## social-feed
+
+Home YouTube/Instagram auto-scrape feed.
+
+| Method | Path | Params / Headers | Request Body Fields |
+|--------|------|------------------|---------------------|
+| `GET` | `/api/social-feed` | - | - |
+| `GET` | `/api/social-feed/manage` | - | - |
+| `PUT` | `/api/social-feed/manage` | - | config fields (verify in `server/routes/social-feed.ts`) |
+| `POST` | `/api/social-feed/sync` | - | - |
+
+---
+
 ## Maintenance
 
 - Update this file when `docs/openapi.json` changes.

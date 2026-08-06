@@ -1,39 +1,32 @@
 # HMPS Versions
 
-**Current version:** `4.11.0`  
-**Policy:** setiap selesai satu unit kerja (satu tugas/fitur/fix batch yang di-ship), bump SemVer dan tulis release note di folder ini.
+**Current version:** `4.12.0`  
+**Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
 
 ```text
 docs/version/
-├── versions.md              ← index ini
-├── version-template.md      ← template wajib untuk release baru
-├── changelogs/
-│   ├── README.md            ← panduan + link
-│   └── CHANGELOG.md         ← semua versi (Keep a Changelog)
-└── release/
-    ├── 1.0.0.md
-    └── ...
+├── versions.md
+├── version-template.md
+├── changelogs/CHANGELOG.md
+└── release/X.Y.Z.md
 ```
 
-## How to bump (wajib setelah selesai mengerjakan)
+## How to bump
 
-1. Tentukan bump:
-   - **MAJOR** (`X.0.0`): breaking API/auth/tenant atau platform shift besar
-   - **MINOR** (`x.Y.0`): fitur baru / endpoint baru / tugas besar non-breaking
-   - **PATCH** (`x.y.Z`): bugfix, hardening, docs sync kecil
-2. Salin [`version-template.md`](./version-template.md) → `release/<new-version>.md` dan isi lengkap.
-3. Update baris **Current** di file ini.
-4. Tambah section di [`changelogs/CHANGELOG.md`](./changelogs/CHANGELOG.md).
-5. Sync `package.json` `version` dan `docs/openapi.json` `info.version`.
-6. Update `AGENTS.md` / feature docs / endpoints jika behavior berubah (SOP 11).
+1. MAJOR / MINOR / PATCH sesuai SOP 11.
+2. Salin template → `release/<new>.md` — **isi semua section**, jangan ringkas.
+3. Update Current di file ini + changelog.
+4. Sync `package.json` + `docs/openapi.json` `info.version`.
+5. Update feature/API docs bila behavior berubah.
 
 ## All versions
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.11.0`](./release/4.11.0.md) | 2026-08-06 | Versioning system, SOP sync & docs audit | MINOR | 0 | **Current** |
+| [`4.12.0`](./release/4.12.0.md) | 2026-08-06 | Rich release notes + full docs/API inventory sync | MINOR | 0 | **Current** |
+| [`4.11.0`](./release/4.11.0.md) | 2026-08-06 | Versioning system, SOP sync & docs audit | MINOR | 1 | Released |
 | [`4.10.0`](./release/4.10.0.md) | 2026-07-16 | Home YT/IG social feed | MINOR | 7 | Released |
 | [`4.9.0`](./release/4.9.0.md) | 2026-07-15 | Prodi student hub & input security | MINOR | 6 | Released |
 | [`4.8.1`](./release/4.8.1.md) | 2026-07-05 | Deploy scripts & PM2 ops tooling | PATCH | 4 | Released |
@@ -72,7 +65,7 @@ docs/version/
 | [`2.8.0`](./release/2.8.0.md) | 2025-08-04 | PostgreSQL removal & allowlist | MINOR | 2 | Released |
 | [`2.7.0`](./release/2.7.0.md) | 2025-08-03 | Periods management, loading UX & DDoS tiers | MINOR | 7 | Released |
 | [`2.6.0`](./release/2.6.0.md) | 2025-07-30 | Article tags import & API hardening | MINOR | 4 | Released |
-| [`2.5.0`](./release/2.5.0.md) | 2025-07-26 | Mobile hero, TinyMCE uploads & dashboard alerts | MINOR | 7 | Released |
+| [`2.5.0`](./release/2.5.0.md) | 2025-07-26 | Mobile hero, TinyMCE uploads & dashboard alerts | MINOR | 9 | Released |
 | [`2.4.0`](./release/2.4.0.md) | 2025-07-19 | Google Drive media & article pipeline | MINOR | 9 | Released |
 | [`2.3.2`](./release/2.3.2.md) | 2025-07-07 | Parallax polish | PATCH | 1 | Released |
 | [`2.3.1`](./release/2.3.1.md) | 2025-06-13 | Project README & misc June sync | PATCH | 2 | Released |
@@ -83,12 +76,13 @@ docs/version/
 | [`2.0.1`](./release/2.0.1.md) | 2025-05-05 | Post-Mongo content & session hardening | PATCH | 18 | Released |
 | [`2.0.0`](./release/2.0.0.md) | 2025-05-05 | MongoDB platform migration | MAJOR | 3 | Released |
 | [`1.1.0`](./release/1.1.0.md) | 2025-05-05 | Auth, org structure, settings & editor | MINOR | 12 | Released |
-| [`1.0.0`](./release/1.0.0.md) | 2025-05-05 | Initial complete site bootstrap | MAJOR | 2 | Released |
+| [`1.0.0`](./release/1.0.0.md) | 2025-05-05 | Initial complete site bootstrap | MAJOR | 1 | Released |
 
 ## History note
 
-- Versi `1.0.0`–`4.10.0` di-backfill dari **425** git commits (`2025-05-05` → `2026-07-16`).
+- `1.0.0`–`4.10.0`: backfill dari 425 commits, notes diperkaya (subjects + file impact).
 - Gap tanpa commit: **2025-10-16 → 2026-03-13**.
-- `4.11.0` adalah work unit dokumentasi/versioning/SOP sync (`2026-08-06`).
+- `4.11.0`: sistem versioning + SOP sync.
+- `4.12.0`: template/release sangat lengkap + sync inventory docs/API.
 
 Terakhir diperbarui: 2026-08-06

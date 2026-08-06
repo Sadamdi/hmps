@@ -22,7 +22,10 @@ flowchart TD
   Server --> Services[server/services]
   Server --> Storage[server/*storage*]
   Server --> Models[db + server/models]
-  Services --> External[Gemini / Drive / Email / Shipping]
+  Services --> External[OpenAICompatible / Gemini / Drive / Email / Shipping]
+  Services --> Scrape[SocialFeed YT IG scrape]
+  Services --> Monitor[ErrorMonitor AI analyze]
+  Server --> Banner[BannerRender sidecar]
   Storage --> DB[(MongoDB)]
   Models --> DB
   Shared -. no server-only imports .-> Client
@@ -34,6 +37,8 @@ flowchart TD
 - `shared/` must remain safe for frontend bundle.
 - Tenant-aware services must receive trusted tenant context from server resolver.
 - Route modules may orchestrate, but reusable logic belongs in service/storage/helper.
+- Social-feed / Prodi scrape must soft-fail; error-monitor capture must be best-effort.
+- Banner-render is a separate process when enabled (`npm run start:banner-render`).
 
 ## Graph UI Preference
 

@@ -20,7 +20,7 @@ Auxiliary Runtime feature category for HMPS. This README is the local index for 
 | [10-client-hooks-utilities.md](./10-client-hooks-utilities.md) | Client Hooks & Utilities |
 ## Source References
 
-See the feature documents and [OpenAPI Endpoint Coverage](./99-openapi-endpoint-coverage.md) for file-level references and route contracts.
+See the feature documents for file-level references. Kategori ini **tidak** punya OpenAPI tag sendiri (coverage ops = 0); kontrak API ada di kategori domain terkait.
 
 ## Maintenance Checklist
 

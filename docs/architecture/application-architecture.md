@@ -24,13 +24,17 @@ flowchart LR
 
 ## Route Architecture
 
-- `server/routes.ts`: main route registration for auth, users, berita, library, events, organization, settings, prodi, community, upload, backup, ops.
-- `server/routes/store.ts`: store/toko domain.
-- `server/routes/chat.ts`: AI chat domain using the primary OpenAI-compatible provider, then Gemini fallback.
+- `server/routes.ts`: main route registration for auth, users, berita, library, events, organization, settings, prodi (incl. student hub/calendar), community, upload, backup, ops.
+- `server/routes/store.ts` (+ `store-logic.ts`): store/toko domain.
+- `server/routes/chat.ts`: AI chat (OpenAI-compatible primary, Gemini fallback).
+- `server/routes/ai-enhance.ts`: content enhance (`/api/ai/*`).
 - `server/routes/comments.ts`: comments.
 - `server/routes/feedback.ts`: feedback and bug report.
-- `server/routes/sharing.ts`: collaborative access requests.
+- `server/routes/sharing.ts`: collaborative access invite/request/decision.
 - `server/routes/notifications.ts`: SSE preferences and web push.
+- `server/routes/social-feed.ts`: home YT/IG social feed cache/manage/sync.
+- `server/routes/system-errors.ts`: automatic bug monitoring (capture + owner manage/AI analyze).
+- Sidecar: `server/banner-render-service.ts` for banner template render.
 
 ## Frontend Architecture
 
@@ -38,10 +42,12 @@ flowchart LR
 - Dashboard routes are wrapped by `ProtectedRoute`.
 - Public notification stream is mounted globally but skipped for dashboard/auth/error/tenant paths.
 - Store supports `/toko` and a configurable custom navbar path from `/api/store/public/settings`.
+- Home can render social-feed sections; Prodi surfaces include student-hub content when configured.
 
 ## Data Architecture
 
-- Main data uses MongoDB/Mongoose models and storage abstraction.
+- Primary schemas/models: `db/mongodb.ts` + types in `shared/schema.ts`.
+- Extra models may live in `server/models/**` (not the only location).
 - Tenant data uses tenant resolver and tenant storage/db models.
 - Shared types/utilities live in `shared/` only if safe for frontend and backend.
 
@@ -51,8 +57,13 @@ flowchart LR
 |--------|---------|
 | Auth | session, JWT cookie, permission |
 | Tenant | community slug, isolated DB, tenant route context |
-| Media | upload, image process, Google Drive |
-| Store | products, cart, checkout, orders, pricing |
-| AI | OpenAI-compatible primary provider, Gemini key slots fallback, chat service, permission tools |
+| Media | upload, image process, Google Drive, banner-render sidecar |
+| Social feed | YT/IG scrape cache, soft-fail, manage/sync |
+| Store | products, cart, checkout, orders, pricing, shipping |
+| AI | OpenAI-compatible primary, Gemini fallback, chat tools, content enhance |
 | Notifications | SSE, web push, preferences |
-| Ops | backup, restore OTP, cleanup, security middleware |
+| Monitoring | system-errors capture (server/client), owner dashboard, AI analyze |
+| Prodi hub | student hub calendars/portals/guides, sync jobs |
+| Ops | backup, restore OTP, cleanup, security middleware, file scanner |
+
+Terakhir diperbarui: 2026-08-06 · App version: lihat `docs/version/versions.md`
