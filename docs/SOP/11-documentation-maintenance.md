@@ -2,7 +2,7 @@
 
 ## Scope
 
-SOP ini mengatur cara menjaga dokumentasi HMPS tetap code-accurate setelah perubahan frontend/backend/runtime.
+SOP ini mengatur cara menjaga dokumentasi HMPS tetap code-accurate setelah perubahan frontend/backend/runtime, **termasuk versioning per unit kerja**.
 
 ## Source of Truth Order
 
@@ -10,7 +10,8 @@ SOP ini mengatur cara menjaga dokumentasi HMPS tetap code-accurate setelah perub
 2. `docs/features/feature-summary.md`.
 3. Feature docs under `docs/features/<category>/`.
 4. `docs/api/endpoints.md` and OpenAPI files.
-5. SOP and architecture docs.
+5. `docs/version/` (versions + release notes + changelog).
+6. SOP and architecture docs.
 
 ## Required Updates by Change Type
 
@@ -25,6 +26,34 @@ SOP ini mengatur cara menjaga dokumentasi HMPS tetap code-accurate setelah perub
 | Tenant behavior change | tenant feature doc and multi-tenant architecture doc |
 | Upload/media behavior change | media feature doc and security/error notes |
 | Auth/permission behavior change | auth feature doc and endpoints/security notes |
+| **Any finished work unit** | **`docs/version/release/X.Y.Z.md` + `versions.md` + `changelogs/CHANGELOG.md` + sync `package.json` & OpenAPI `info.version`** |
+| Script/env/deploy change | SOP 07 + ops notes; verify script files still exist |
+
+## Versioning Policy (per unit kerja)
+
+Setiap selesai mengerjakan **satu unit kerja** (bukan menunggu rilis besar):
+
+1. Tentukan bump SemVer:
+   - **MAJOR**: breaking / platform shift
+   - **MINOR**: fitur baru / tugas besar non-breaking
+   - **PATCH**: fix / hardening / docs sync kecil
+2. Salin `docs/version/version-template.md` → `docs/version/release/<version>.md` dan isi lengkap.
+3. Update Current di `docs/version/versions.md`.
+4. Tambah section di `docs/version/changelogs/CHANGELOG.md`.
+5. Sync `package.json` `version` dan `docs/openapi.json` `info.version`.
+
+Struktur:
+
+```text
+docs/version/
+├── versions.md
+├── version-template.md
+├── changelogs/
+│   ├── README.md
+│   └── CHANGELOG.md
+└── release/
+    └── X.Y.Z.md
+```
 
 ## Feature Doc Quality Rules
 
@@ -34,16 +63,25 @@ SOP ini mengatur cara menjaga dokumentasi HMPS tetap code-accurate setelah perub
 4. Include source file references.
 5. Include security/tenant/media notes when relevant.
 6. Keep category indexes current.
+7. Isi field `Since version` / `Last documented version` di feature template bila relevan.
+
+## Honesty Rules
+
+1. Dokumentasikan response shape apa adanya (`{ message }` vs envelope `success`).
+2. Jangan klaim automated tests jika belum ada suite.
+3. Verifikasi script di `package.json` masih punya file target sebelum menulis langkah deploy.
+4. Model utama di `db/mongodb.ts` + `shared/schema.ts`, bukan hanya `server/models/`.
 
 ## Coverage Audit Checklist
 
 After large changes, verify:
 
-- Express routes are mapped.
+- Express routes are mapped (termasuk modular: store, chat, comments, feedback, sharing, notifications, social-feed, ai-enhance, system-errors).
 - Frontend pages are mapped.
 - Services/models/storage are mapped.
 - Runtime middleware/config/helpers are mapped.
-- README navigation still points to correct docs.
+- README navigation still points to correct docs (termasuk SOP 09–12 dan `docs/version/`).
+- Version Current selaras di package + OpenAPI + `versions.md`.
 - `npm run check` passes if code or TypeScript-aware docs references changed.
 
 ## Do Not Document Secrets
@@ -53,7 +91,8 @@ Never include values/content of:
 - `.env`,
 - service account JSON,
 - JWT secret,
-- Gemini key,
+- Gemini / OpenAI-compatible key,
 - SMTP password,
 - backup URI,
+- VAPID private keys,
 - tokens or OTP.

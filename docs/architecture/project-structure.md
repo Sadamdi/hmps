@@ -9,7 +9,8 @@ hmps_new/
 ├── server/
 ├── shared/
 ├── db/
-├── docs/
+├── docs/          ← SOP, features, API, version/release notes
+├── ops/           ← deploy / sync helpers (bila dipakai)
 ├── public/
 ├── attached_assets/
 ├── uploads/
@@ -36,18 +37,19 @@ hmps_new/
 |------|----------------|
 | `index.ts` | Express bootstrap, sitemap, SSR/static routing, scheduler startup |
 | `routes.ts` | Main API registration and orchestration |
-| `routes/` | Modular routers: store, chat, comments, feedback, notifications, sharing |
+| `routes/` | Modular routers: store, store-logic, chat, comments, feedback, notifications, sharing, social-feed, ai-enhance, system-errors |
 | `auth.ts` | JWT cookie, session, auth helpers |
 | `security.ts` | Helmet/HPP/security middleware wiring |
 | `middleware/` | Anti-spoofing, API protection, DDoS, tenant resolver, rate limits |
-| `services/` | Business/external services: Gemini, backup, email, OTP, shipping, notification |
+| `services/` | Business/external: chat, OTP, email, shipping, notification, social-feed, prodi-sync, error-monitor, backup, file-scanner, dll. |
 | `mongo-storage.ts` | Main app storage/data access abstraction |
 | `tenant-storage.ts` | Tenant-aware storage/data access |
-| `models/` | Mongoose models used outside db core |
+| `models/` | Extra Mongoose models (primary schemas mostly in `db/mongodb.ts`) |
 | `upload.ts` | Multer/upload handlers |
 | `googleDrive.ts` | Google Drive integration |
 | `image-processor.ts` | Image processing helpers |
 | `swagger.ts` | OpenAPI/static docs integration |
+| `banner-render-service.ts` | Sidecar process for banner template render |
 
 ## Shared: `shared/`
 
@@ -60,7 +62,7 @@ Do not put secrets or server-only dependencies here.
 
 ## DB: `db/`
 
-- `mongodb.ts`: MongoDB/Mongoose schemas and connection.
+- `mongodb.ts`: **primary** MongoDB/Mongoose schemas and connection.
 - `tenant.ts`: tenant database/model support.
 - `mongo-seed.ts`: local seed script.
 - `mongodb-backup.ts`: backup client/utility.
@@ -73,4 +75,6 @@ Do not put secrets or server-only dependencies here.
 
 ## Docs
 
-`docs/` is source of truth for SOP, architecture, feature inventory, API endpoint inventory, and todo.
+`docs/` is source of truth for SOP, architecture, feature inventory, API endpoint inventory, todo, and **SemVer release notes** under `docs/version/` (bump setelah setiap unit kerja selesai — SOP 11).
+
+Terakhir diperbarui: 2026-08-06

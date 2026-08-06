@@ -1,6 +1,6 @@
 # Master To-Do — HMPS Project
 
-> Terakhir diperbarui: 2026-07-15
+> Terakhir diperbarui: 2026-08-06 · App version: lihat `docs/version/versions.md`
 
 ---
 
@@ -145,6 +145,7 @@
 | ✅ | Prodi CRUD | Public & manage endpoints, curriculum, labs, lecturers |
 | ✅ | Prodi sync service | Sync data prodi dari external source |
 | ✅ | Organization auto-fill service | Service untuk auto-fill structure |
+| ✅ | Prodi student hub | Academic calendar sync, portals/guides, calendar PDF repair/upload, NIM decoder |
 
 ### Frontend
 
@@ -152,6 +153,7 @@
 |--------|-------|------------|
 | ✅ | Kelembagaan page | `/kelembagaan` — public view organization |
 | ✅ | Prodi page | `/prodi` — public view program studi |
+| ✅ | Prodi student hub UI | Dashboard/public surfaces for calendar, portals, guides |
 | ✅ | Dosen detail | `/prodi/dosen/:slug` — lecturer detail |
 | ✅ | Curriculum detail | `/prodi/curriculum/:slug` — curriculum detail |
 | ✅ | Lab detail | `/prodi/laboratorium/:type/:index` — lab detail |
@@ -164,7 +166,7 @@
 |--------|-------|------------|
 | ❌ | Organization chart visual | Belum ada bagan organisasi interaktif (org chart diagram) |
 | ❌ | Member portfolio/profile page | Anggota belum punya profile page individual |
-| ❌ | Prodi accreditation info | Belum ada halaman/section info akreditasi |
+| 🔧 | Prodi accreditation info | Field/UI akreditasi sudah ada di sync — pastikan docs & completeness |
 | ❌ | Alumni directory | Belum ada fitur database alumni |
 
 ---
@@ -261,11 +263,13 @@
 | ✅ | File scanner & cleanup | Scan files, cleanup unused uploads |
 | ✅ | Asset cleanup service | Scheduled asset cleanup |
 | ✅ | Banner theme/render services | Banner template rendering |
+| ✅ | Home social feed (YT/IG) | `GET /api/social-feed` + manage/sync; scrape cache soft-fail |
 
 ### Frontend
 
 | Status | Fitur | Keterangan |
 |--------|-------|------------|
+| ✅ | Home social feed sections | Public home YT/IG blocks + dashboard settings panel |
 | ✅ | MediaDisplay component | Universal media display (image, video, embed) |
 | ✅ | GDriveLinkInput | Google Drive link input component |
 | ✅ | GDriveFallback | Fallback component for GDrive |
@@ -425,6 +429,8 @@
 | ✅ | Project-local AI skills | `.agents/skills/` |
 | ✅ | Category folders (01-12) | Numbered category folders with README + feature docs |
 | ✅ | OpenAPI endpoint coverage | `99-openapi-endpoint-coverage.md` per category |
+| ✅ | SemVer versioning per unit kerja | `docs/version/` — versions.md, template, changelogs, release/*.md |
+| ✅ | SOP aligned to codebase (2026-08-06) | SOP 01–12 sync: response honesty, models location, banner-render, modular routes |
 
 ---
 
@@ -436,10 +442,12 @@
 | 🔧 | Keep `docs/features/feature-summary.md` in sync when routes/pages/services change |
 | 🔧 | Keep OpenAPI JSON/HTML updated when API changes |
 | 🔧 | Add or update numbered feature docs for every new feature |
+| 🔧 | Setelah setiap unit kerja: bump `docs/version/` + sync package/OpenAPI version |
 | ❌ | Add test documentation once automated tests are expanded |
 | 🔧 | Periodically review tenant isolation rules |
 | 🔧 | Periodically review upload/media cleanup behavior |
 | 🔧 | Audit `.code-review-graph/graph.html` after visualization regeneration |
+| 🔧 | Verify `package.json` SEO scripts still have target files before using in deploy |
 
 ---
 
@@ -451,7 +459,7 @@
 | ❌ | Multi-language / i18n | Public Content | Dukungan Bahasa Inggris + Bahasa Indonesia |
 | ❌ | Advanced analytics dashboard | Ops | Charts, visitor tracking, content performance |
 | ❌ | Email newsletter | Public Content | Subscription & auto-send berita baru |
-| ❌ | Social media integration | Public Content | Auto-post ke IG/Twitter saat berita publish |
+| ❌ | Social media auto-post on publish | Public Content | Auto-post ke IG/Twitter saat berita publish (home YT/IG feed scrape sudah ✅) |
 | ❌ | Form builder (dynamic forms) | Collaboration | Form builder custom untuk survey/pendaftaran |
 | ❌ | Calendar integration | Events | Sync ke Google Calendar / iCal |
 | ❌ | Document signing | Collaboration | Tanda tangan digital untuk surat/dokumen |
@@ -474,10 +482,10 @@
 | Total OpenAPI tags | **31** |
 | Frontend routes (public) | **20+** |
 | Dashboard routes (protected) | **13** |
-| Backend route files | **7** |
-| Backend services | **16** |
+| Backend modular route files | **10** (`server/routes/`) |
+| Documented SemVer releases | **51** (`1.0.0` … `4.11.0`) |
 | Custom hooks | **8** |
 
 ---
 
-*Terakhir diperbarui: 2026-06-28*
+*Terakhir diperbarui: 2026-08-06*

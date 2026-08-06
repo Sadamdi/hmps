@@ -5,8 +5,12 @@
 | Scope | Prefix |
 |-------|--------|
 | Main API | `/api/*` |
-| Tenant API | `/api/c/:slug/*` |
+| Tenant API | `/api/c/:slug/*` (rewrite via tenant resolver) |
 | Store API | `/api/store/*` |
+| AI enhance | `/api/ai/*` |
+| Social feed | `/api/social-feed/*` |
+| System errors | `/api/system-errors/*` |
+| Comments | `/api/comments/*` |
 | Public assets | `/uploads`, `/attached_assets` |
 
 ## Route Requirements
@@ -15,11 +19,24 @@
 - Protected endpoint wajib auth dan permission middleware/helper.
 - Tenant-aware endpoint wajib resolve slug server-side.
 - Upload endpoint wajib validate file.
-- New endpoint wajib update `docs/api/endpoints.md`.
+- New endpoint wajib update `docs/api/endpoints.md` dan (jika publik/stabil) `docs/openapi.json`.
+- Setelah unit kerja selesai, bump versi di `docs/version/`.
 
 ## Response Convention
 
-Endpoint baru sebaiknya memakai:
+### De-facto (mayoritas endpoint existing)
+
+Banyak handler mengembalikan bentuk sederhana:
+
+```json
+{ "message": "..." }
+```
+
+atau payload domain langsung (object/array) dengan status HTTP sebagai sinyal utama.
+
+### Target untuk endpoint baru
+
+Endpoint **baru** sebaiknya memakai envelope:
 
 ```json
 {
@@ -40,17 +57,19 @@ Error:
 }
 ```
 
-Jangan ubah massal response endpoint lama tanpa migration plan.
+Jangan ubah massal response endpoint lama tanpa migration plan. Dokumentasikan observed contract apa adanya di feature docs.
 
 ## Pagination & Query
 
-- `page`, `limit`, `q`, `sortBy`, `sortOrder`.
-- Batas maksimum limit harus ada untuk list besar.
-- Search regex harus aman dan diberi limit.
+- Pola umum list: `page`, `limit` (sering di-cap, mis. 100).
+- Search/`q` harus aman (regex escape/limit) jika dipakai.
+- `sortBy` / `sortOrder` **bukan** standar global API; beberapa resource memakai field sort di dokumen DB atau query khusus — cek handler aktual.
 
 ## Special Cases
 
-- Store cart/order endpoint harus konsisten dengan pricing utilities.
+- Store cart/order endpoint harus konsisten dengan pricing utilities (`shared/store-*`).
 - Feedback/comment guest endpoint harus cek `x-guest-key` bila ownership diperlukan.
 - Notification SSE harus menjaga connection lifecycle dan tenant scope.
-- Chat endpoint harus menjaga secret Gemini tetap server-side.
+- Chat / AI keys (Gemini, OpenAI-compatible) tetap server-side.
+- System-errors: `POST /report` publik + rate limit; admin/owner endpoints terproteksi.
+- Social-feed scrape harus soft-fail dan cache-aware agar public page tidak 500.

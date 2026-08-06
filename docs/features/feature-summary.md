@@ -1,6 +1,7 @@
 # HMPS Feature Summary
 
-**Source of Truth**: current codebase + `docs/openapi.json` + feature docs.
+**Source of Truth**: current codebase + `docs/openapi.json` + feature docs.  
+**App version (Current)**: see [`docs/version/versions.md`](../version/versions.md) (`4.11.0` at last docs sync).
 
 This document maps HMPS user-facing features, backend endpoint families, frontend/runtime support layers, and operational infrastructure.
 

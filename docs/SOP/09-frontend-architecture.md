@@ -25,10 +25,13 @@ SOP ini berlaku untuk semua perubahan di `client/src/**`: pages, components, hoo
 
 ## Route & Auth Rules
 
-1. `client/src/App.tsx` is the route composition source.
+1. `client/src/App.tsx` is the route composition source (termasuk catch-all community `/:slug/*` — urutan route penting).
 2. Dashboard pages must be protected in UI and still rely on backend permission.
-3. Tenant pages must use tenant context and API rewrite safely.
+3. Tenant pages must use tenant context and API rewrite safely (`client/src/lib` tenant helpers).
 4. UI permission hiding is UX only; backend remains source of truth.
+5. Storefront path publik bisa dinamis dari settings (jangan hardcode hanya `/toko` tanpa cek config).
+6. Home social feed (YT/IG) adalah public widget — tangani loading/empty/soft-fail.
+7. Page orphan (mis. folder tanpa route aktif) jangan diasumsikan live; verifikasi di `App.tsx`.
 
 ## UI State Requirements
 
@@ -52,8 +55,9 @@ Every async page/widget should handle:
 Update relevant feature docs when changing:
 
 - routes/pages,
-- public widgets,
+- public widgets (termasuk social feed / AI chat / comments / notifications),
 - dashboard components,
 - tenant behavior,
 - auth/permission UI,
-- upload/rich content behavior.
+- upload/rich content behavior,
+- lalu bump `docs/version/` setelah unit kerja selesai.
