@@ -20,36 +20,54 @@
 | 415 | unsupported media type |
 | 429 | rate limited |
 | 500 | internal server error |
-| 502 | external service failure |
+| 502 / 503 | external/upstream or overloaded (pakai sesuai handler aktual) |
 
 ## Backend Pattern
+
+### De-facto (banyak endpoint existing)
+
+```ts
+return res.status(400).json({ message: "Pesan aman untuk user" });
+```
+
+### Target untuk endpoint baru / area yang sudah memakai envelope
 
 ```ts
 try {
   // validate -> authorize -> execute
 } catch (error) {
-  console.error('[feature/action] failed', {
+  console.error("[feature/action] failed", {
     error,
     userId: req.user?.id,
     tenant: req.params?.slug,
   });
   return res.status(500).json({
     success: false,
-    message: 'Terjadi kesalahan pada server',
-    error: { code: 'INTERNAL_ERROR' },
+    message: "Terjadi kesalahan pada server",
+    error: { code: "INTERNAL_ERROR" },
   });
 }
 ```
+
+Jangan mengarang bahwa semua route sudah memakai `success`/`error.code`. Dokumentasikan observed response di feature docs.
+
+## System Error Monitoring
+
+- Capture server (5xx / selected 4xx API) + client (`error-monitor` + ErrorBoundary) ke model SystemError.
+- Best-effort: jangan biarkan monitoring merusak request utama.
+- Owner dashboard + AI analysis: lihat feature doc `08-collaboration-feedback/06-system-error-monitoring.md`.
+- Env: `ERROR_MONITOR_ENABLED`, `ERROR_MONITOR_AI_ENABLED` (dan provider AI terkait).
 
 ## Sensitive Data Never Logged
 
 - Password/password hash
 - OTP
 - JWT/session token
-- Gemini API key
+- Gemini / OpenAI-compatible API key
 - Google credential
 - SMTP password
 - Backup URI
+- VAPID private keys
 
 ## Upload Error
 
@@ -57,6 +75,6 @@ Jika upload gagal setelah file tersimpan sementara, cleanup file tersebut sebelu
 
 ## External Integration Error
 
-- Gemini quota/rate limit harus fallback/cooldown key slot bila tersedia.
-- Google Drive failure harus return safe message.
-- Email failure harus tidak mengekspos SMTP credential.
+- Gemini / OpenAI-compatible quota/rate limit harus fallback/cooldown bila tersedia.
+- Google Drive / shipping / scrape social-feed harus soft-fail atau error aman ke client.
+- Email/OTP failure tidak boleh expose detail SMTP.

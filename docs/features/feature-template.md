@@ -13,6 +13,8 @@
 **Category**: [folder kategori]  
 **Tenant-Aware**: Yes / No / Conditional  
 **Permission Scope**: Public / Authenticated / Admin / Owner / Custom  
+**Since version**: [X.Y.Z — first documented / introduced]  
+**Last documented version**: [X.Y.Z — last docs sync; see `docs/version/`]  
 
 ---
 

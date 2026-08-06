@@ -41,6 +41,7 @@ Setiap kali merencanakan atau mengimplementasikan fitur, **WAJIB** baca:
 13. `docs/features/feature-summary.md` — Cek fitur yang sudah ada
 14. `docs/api/endpoints.md` — Cek endpoint yang sudah didefinisikan
 15. `docs/todo/master-todo.md` — Cek progress saat ini
+16. `docs/version/versions.md` — Versi Current + policy bump per unit kerja
 
 ### Skills Lokal yang Tersedia
 
@@ -176,15 +177,16 @@ client/src/
 ### Backend / API
 
 ```text
-1. Baca SOP + feature summary + endpoints docs
+1. Baca SOP + feature summary + endpoints docs + versions.md
 2. Buat/Update Feature Document dari `docs/features/feature-template.md`
 3. Definisikan kontrak request/response dan permission
 4. Tambahkan schema/model/storage/service jika perlu
 5. Tambahkan route handler dan middleware auth/permission
 6. Tambahkan tenant handling jika fitur tenant-aware
 7. Tambahkan error handling, audit/activity logging bila perlu
-8. Update docs: feature summary, endpoints, todo
+8. Update docs: feature summary, endpoints, OpenAPI, todo
 9. Jalankan typecheck/test relevan
+10. Setelah unit kerja selesai: bump SemVer + isi docs/version/release + changelog
 ```
 
 ### Frontend
@@ -197,7 +199,40 @@ client/src/
 5. Tambahkan loading, empty, error, success state
 6. Verifikasi responsive UI dan permission state
 7. Update docs bila behavior user-facing berubah
+8. Setelah unit kerja selesai: bump SemVer + isi docs/version/release + changelog
 ```
+
+---
+
+## Versioning (wajib tiap selesai mengerjakan)
+
+Setiap **unit kerja** yang selesai (fitur, fix batch, hardening, docs sync berarti) **harus** bump versi. Bukan menunggu rilis besar; satu selesai kerja = satu bump.
+
+| Bump | Kapan |
+|------|--------|
+| **MAJOR** `X.0.0` | Breaking API/auth/tenant, atau platform shift besar |
+| **MINOR** `x.Y.0` | Fitur baru, endpoint baru, tugas besar non-breaking |
+| **PATCH** `x.y.Z` | Bugfix, hardening kecil, docs/API sync tanpa fitur baru |
+
+Struktur:
+
+```text
+docs/version/
+├── versions.md
+├── version-template.md
+├── changelogs/CHANGELOG.md
+└── release/X.Y.Z.md
+```
+
+Checklist setelah selesai kerja:
+
+1. Salin `docs/version/version-template.md` → `docs/version/release/<new>.md` dan isi lengkap.
+2. Update Current di `docs/version/versions.md`.
+3. Tambah section di `docs/version/changelogs/CHANGELOG.md`.
+4. Sync `package.json` `version` dan `docs/openapi.json` `info.version`.
+5. Update feature/API/SOP docs yang terdampak (SOP 11).
+
+Current version: lihat `docs/version/versions.md`.
 
 ---
 
@@ -345,4 +380,4 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 
 ---
 
-*Terakhir diperbarui: 2026-05-08*
+*Terakhir diperbarui: 2026-08-06 · Current app version: lihat `docs/version/versions.md`*

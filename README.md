@@ -184,8 +184,9 @@ Dokumentasi HMPS sekarang dipisahkan berdasarkan fungsi agar developer tidak per
 | Error handling | [`docs/SOP/08-error-handling.md`](./docs/SOP/08-error-handling.md) | Saat menangani async error, validation error, auth error, atau service error |
 | Frontend architecture | [`docs/SOP/09-frontend-architecture.md`](./docs/SOP/09-frontend-architecture.md) | Saat mengubah React pages, components, hooks, tenant UI, atau client utils |
 | Backend service/storage | [`docs/SOP/10-backend-service-storage.md`](./docs/SOP/10-backend-service-storage.md) | Saat mengubah Express routes, services, storage, models, atau runtime helpers |
-| Documentation maintenance | [`docs/SOP/11-documentation-maintenance.md`](./docs/SOP/11-documentation-maintenance.md) | Saat update docs/features/API/OpenAPI/README/skills |
+| Documentation maintenance | [`docs/SOP/11-documentation-maintenance.md`](./docs/SOP/11-documentation-maintenance.md) | Saat update docs/features/API/OpenAPI/README/skills + version bump |
 | Runtime security/ops | [`docs/SOP/12-runtime-security-operations.md`](./docs/SOP/12-runtime-security-operations.md) | Saat mengubah middleware, scheduler, cache, backup, web push, Swagger, runtime config |
+| Versions / changelog | [`docs/version/versions.md`](./docs/version/versions.md) | SemVer per unit kerja; release notes + changelog |
 | Arsitektur aplikasi | [`docs/architecture/application-architecture.md`](./docs/architecture/application-architecture.md) | Memahami struktur React + Express + MongoDB + tenant |
 | Struktur project | [`docs/architecture/project-structure.md`](./docs/architecture/project-structure.md) | Menentukan file/folder yang tepat untuk perubahan |
 | Multi-tenant | [`docs/architecture/multi-tenant.md`](./docs/architecture/multi-tenant.md) | Semua fitur yang berjalan di `/api/c/:slug/*` atau community shell |
@@ -201,7 +202,8 @@ Dokumentasi HMPS sekarang dipisahkan berdasarkan fungsi agar developer tidak per
 
 Feature docs saat ini mencakup:
 
-- **11 kategori fitur** di `docs/features/`.
+- **12 kategori fitur** di `docs/features/`.
+- **Versioning** di `docs/version/` (bump setelah setiap unit kerja selesai).
 - **88 markdown docs** termasuk index kategori, feature summary, template, dan feature docs.
 - Coverage audit terakhir:
   - `284` Express route declarations covered.

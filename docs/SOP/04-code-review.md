@@ -2,9 +2,9 @@
 
 ## Review Order
 
-1. Gunakan `code-review-graph` MCP jika tersedia.
+1. Gunakan `code-review-graph` MCP jika tersedia; jika tidak, review diff + impact manual.
 2. Review changed files dan impact radius.
-3. Fokus pada correctness, security, tenant, media cleanup, dan docs.
+3. Fokus pada correctness, security, tenant, media cleanup, docs, dan version bump.
 4. Jalankan verifikasi relevan.
 
 ## Checklist Umum
@@ -13,6 +13,7 @@
 - [ ] Tidak ada secret/API key/credential.
 - [ ] `npm run check` lolos.
 - [ ] Docs update jika endpoint/fitur berubah.
+- [ ] `docs/version/release/` + changelog + package/OpenAPI version di-bump untuk unit kerja ini.
 
 ## Backend Checklist
 
@@ -32,8 +33,12 @@
 
 ## Module-Specific Checklist
 
-- Store: harga, diskon, stok, checkout, order state.
-- Media: mimetype, size, cleanup, public URL.
-- Chat: permission tools dan secret server-side.
-- Notification: tidak leak tenant/private event.
+- Store: harga, diskon, stok, checkout, order state, shipping bila disentuh.
+- Media: mimetype, size, cleanup, public URL, Drive/scanner bila relevan.
+- Chat / AI enhance: permission tools dan secret server-side.
+- Notification / webpush: tidak leak tenant/private event.
+- Social feed: soft-fail scrape, cache, jangan blok home.
+- Prodi student hub: sync/calendar PDF/repair paths aman.
+- System errors: rate limit report, owner-only manage, best-effort capture.
+- Banner render: dampak sidecar/process terpisah.
 - Backup: OTP dan tenant restore target benar.
