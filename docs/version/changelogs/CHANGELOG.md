@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.14.2] — 2026-08-08
+
+**Embed allowlist, tag merge pass-2, AI berita fields** · PATCH · [Full release notes](../release/4.14.2.md)
+
+### Highlights
+- Embed: wreckit.id + maps/wp.com CDN di allowlist owner
+- Tag merge: teknik/informatika/encoder/raker dll. (58→52)
+- Enhance + Spyro berita: tags; Spyro cover URL opsional
+
+---
+
 ## [4.14.1] — 2026-08-08
 
 **WrecK-IT meta Tanggal/Waktu/Tempat + tags scroll all** · PATCH · [Full release notes](../release/4.14.1.md)

@@ -17,6 +17,16 @@ Profile `berita` (4.14+) mewajibkan urutan:
 
 Berlaku untuk Enhance AI dan Spyro tool `create_berita_draft` / `update_berita`.
 
+### Cakupan field berita
+
+| Jalur | Judul | Excerpt | Tags | Konten HTML | Cover image |
+|-------|-------|---------|------|-------------|-------------|
+| Enhance AI (editor) | ✅ | ✅ | ✅ (koma) | ✅ | ❌ (upload manual / URL di tool Spyro) |
+| Spyro `create_berita_draft` | ✅ | ✅ | ✅ | ✅ | ✅ opsional (`image` URL / GDrive / `/uploads/...`) |
+| Spyro `update_berita` | ✅ | ✅ | ✅ | ✅ | ✅ opsional |
+
+Cover file upload multipart tetap lewat Dashboard; AI tidak mengunggah file biner.
+
 ## Endpoint
 
 `POST /api/ai/enhance-content` — auth wajib, permission per entity type.
