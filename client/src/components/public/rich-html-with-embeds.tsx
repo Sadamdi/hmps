@@ -55,8 +55,27 @@ function classifyUrl(url: string, allowedHosts?: Set<string>): Segment | null {
 			return { kind: 'external_link', url, host };
 		}
 
-		if (DEFAULT_EMBED_HOSTS.has(host) || allowedHosts?.has(host)) {
+		const hostBare = host.replace(/^www\./, '');
+		const inDefault = DEFAULT_EMBED_HOSTS.has(host) || DEFAULT_EMBED_HOSTS.has(hostBare);
+		const inAllow =
+			!!allowedHosts &&
+			(allowedHosts.has(host) ||
+				allowedHosts.has(hostBare) ||
+				allowedHosts.has(`www.${hostBare}`));
+
+		// Default media hosts (YT/Drive/Maps/Photopea) → iframe.
+		// Custom allowlist: hanya iframe path viewer/embed; situs biasa (mis. wreckit.id)
+		// sering menolak framing (X-Frame-Options / frame-ancestors) → tampilkan kartu link.
+		if (inDefault) {
 			return { kind: 'external', url, host };
+		}
+		if (inAllow) {
+			const path = parsed.pathname + parsed.search;
+			const looksEmbeddable =
+				/\/(embed|preview|viewer|view|uc)\b/i.test(path) ||
+				/[?&](embedded|output)=/i.test(path);
+			if (looksEmbeddable) return { kind: 'external', url, host };
+			return { kind: 'external_link', url, host };
 		}
 		if (parsed.protocol === 'https:') {
 			return { kind: 'external', url, host };
@@ -216,8 +235,16 @@ export default function RichHtmlWithEmbeds({
 		);
 	}
 
-	const isAllowed = (host: string) =>
-		DEFAULT_EMBED_HOSTS.has(host) || extraHosts?.has(host);
+	const isAllowed = (host: string) => {
+		const bare = host.replace(/^www\./, '');
+		return (
+			DEFAULT_EMBED_HOSTS.has(host) ||
+			DEFAULT_EMBED_HOSTS.has(bare) ||
+			!!extraHosts?.has(host) ||
+			!!extraHosts?.has(bare) ||
+			!!extraHosts?.has(`www.${bare}`)
+		);
+	};
 
 	return (
 		<div className={`${proseClass} space-y-0`}>
@@ -308,13 +335,18 @@ export default function RichHtmlWithEmbeds({
 					);
 				}
 				if (seg.kind === 'external_link') {
+					const looksFile = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|7z)(\?|$)/i.test(
+						seg.url,
+					);
 					return (
 						<div
 							key={i}
 							className="not-prose my-4 flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-sm">
 							<div className="min-w-0 flex-1">
 								<p className="font-medium text-foreground truncate">
-									File tidak bisa dipreview inline
+									{looksFile
+										? 'File tidak bisa dipreview inline'
+										: `Tautan eksternal · ${seg.host}`}
 								</p>
 								<p className="text-muted-foreground text-xs truncate">
 									{seg.host}
