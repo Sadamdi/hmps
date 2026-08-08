@@ -75,6 +75,8 @@ export default function BeritaEditor({
 	const [tags, setTags] = useState<string[]>(berita?.tags || []);
 	const [newTag, setNewTag] = useState('');
 	const [allExistingTags, setAllExistingTags] = useState<string[]>([]);
+	const [existingTagsOpen, setExistingTagsOpen] = useState(false);
+	const [existingTagQuery, setExistingTagQuery] = useState('');
 	const [gdriveUrl, setGdriveUrl] = useState('');
 	const [isGdriveValid, setIsGdriveValid] = useState(false);
 	const [gdriveError, setGdriveError] = useState<string | undefined>();
@@ -962,25 +964,69 @@ export default function BeritaEditor({
 							</Button>
 						</div>
 
-						{/* Existing Tags */}
+						{/* Existing Tags — collapsed by default; search + max 20 + scroll */}
 						{allExistingTags.length > 0 && (
 							<div className="space-y-2">
-								<p className="text-sm text-gray-600">Existing tags:</p>
-								<div className="flex flex-wrap gap-2">
-									{allExistingTags.map((tag) => (
-										<button
-											key={tag}
-											type="button"
-											onClick={() => selectExistingTag(tag)}
-											className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-												tags.includes(tag)
-													? 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600'
-													: 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
-											}`}>
-											{tag}
-										</button>
-									))}
-								</div>
+								<button
+									type="button"
+									className="flex w-full items-center justify-between rounded-md border border-border px-3 py-2 text-sm text-muted-foreground hover:bg-muted/50"
+									onClick={() => setExistingTagsOpen((o) => !o)}
+									aria-expanded={existingTagsOpen}
+								>
+									<span>
+										Existing tags ({allExistingTags.length})
+										{!existingTagsOpen ? ' — klik untuk membuka' : ''}
+									</span>
+									<span className="text-xs">{existingTagsOpen ? 'Tutup' : 'Buka'}</span>
+								</button>
+								{existingTagsOpen && (
+									<div className="space-y-2 rounded-md border border-border p-3">
+										<div className="relative">
+											<Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+											<Input
+												placeholder="Cari tag…"
+												value={existingTagQuery}
+												onChange={(e) => setExistingTagQuery(e.target.value)}
+												className="h-9 pl-8"
+											/>
+										</div>
+										<div className="max-h-40 overflow-y-auto">
+											<div className="flex flex-wrap gap-2">
+												{allExistingTags
+													.filter((tag) =>
+														!existingTagQuery.trim()
+															? true
+															: tag
+																	.toLowerCase()
+																	.includes(existingTagQuery.trim().toLowerCase()),
+													)
+													.slice(0, 20)
+													.map((tag) => (
+														<button
+															key={tag}
+															type="button"
+															onClick={() => selectExistingTag(tag)}
+															className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+																tags.includes(tag)
+																	? 'bg-blue-500 text-white border-blue-500 hover:bg-blue-600'
+																	: 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200'
+															}`}>
+															{tag}
+														</button>
+													))}
+											</div>
+											{allExistingTags.filter((tag) =>
+												!existingTagQuery.trim()
+													? true
+													: tag.toLowerCase().includes(existingTagQuery.trim().toLowerCase()),
+											).length > 20 && (
+												<p className="mt-2 text-xs text-muted-foreground">
+													Menampilkan 20 teratas. Ketik di pencarian untuk menyaring tag lain.
+												</p>
+											)}
+										</div>
+									</div>
+								)}
 							</div>
 						)}
 

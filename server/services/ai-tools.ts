@@ -457,13 +457,13 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 	{
 		name: 'create_berita_draft',
 		description:
-			'Buat berita baru sebagai draft (belum dipublikasikan). AI akan membuatkan berita sesuai format yang sudah ada. User kemudian bisa mengedit dan mempublikasikan melalui Dashboard Berita.',
+			'Buat berita baru sebagai draft (belum dipublikasikan) dengan skeleton HTML gaya Medinfo Himatif Encoder. User kemudian bisa mengedit dan mempublikasikan melalui Dashboard Berita.',
 		parameters: {
 			type: 'object',
 			properties: {
 				title: {
 					type: 'string',
-					description: 'Judul berita.',
+					description: 'Judul berita (formal, tanpa emoji berlebihan).',
 				},
 				excerpt: {
 					type: 'string',
@@ -472,7 +472,7 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 				content: {
 					type: 'string',
 					description:
-						'Konten lengkap berita dalam format HTML (<p>, <h2>/<h3> bila perlu, <ul><li>). Ikuti gaya penulisan berita Himatif Encoder yang sudah dipublikasikan.',
+						'Konten HTML lengkap mengikuti skeleton Medinfo: (1) 2–3 baris meta `<p><strong>emoji Label:</strong> …</p>` (🗓 Tanggal / 🕖 Waktu / 📍 Tempat untuk kegiatan; atau 🏅 Prestasi / 📍 Lingkup / 👥 Tim untuk prestasi); (2) paragraf pembuka menyebut Himpunan Mahasiswa Teknik Informatika "ENCODER"; (3) section `<h3>…</h3>` (Latar Belakang, Pelaksanaan Kegiatan, dll.); (4) gambar hanya `<p><img></p>` di antara section; (5) `<ul><li>` untuk daftar bila perlu. Jangan taruh gambar di atas meta.',
 				},
 				tags: {
 					type: 'array',
@@ -610,7 +610,11 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 				beritaId: { type: 'string', description: 'ID berita yang ingin diedit.' },
 				title: { type: 'string', description: 'Judul baru (opsional).' },
 				excerpt: { type: 'string', description: 'Ringkasan baru (opsional).' },
-				content: { type: 'string', description: 'Konten HTML baru (opsional).' },
+				content: {
+					type: 'string',
+					description:
+						'Konten HTML baru (opsional). Harus tetap mengikuti skeleton Medinfo: meta 2–3 baris di awal, paragraf pembuka ENCODER, section <h3>, gambar hanya di antara section.',
+				},
 				tags: { type: 'array', items: { type: 'string' }, description: 'Tag baru (opsional, mengganti seluruh tag).' },
 			},
 			required: ['beritaId'],

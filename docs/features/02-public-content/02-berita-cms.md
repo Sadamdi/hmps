@@ -8,6 +8,11 @@
 
 Fitur **Berita Cms** terdokumentasi ulang dari audit code HMPS New, bukan dari payload template. Endpoint, parameter, body field, dan status response di bawah berasal dari static scan terhadap route handler di `server/routes.ts` dan `server/routes/*.ts` dan hanya membaca file HMPS New.
 
+### Editor notes (4.14+)
+
+- **Existing tags** di `BeritaEditor`: default tertutup; saat dibuka ada pencarian, max 20 chip, scroll.
+- **Konten HTML** gaya Medinfo (meta 2–3 baris + pembuka ENCODER + `h3` + gambar di antara section) dipakai AI enhance/Spyro; lihat `09-content-enhance-ai.md`.
+
 ---
 
 ## User Stories

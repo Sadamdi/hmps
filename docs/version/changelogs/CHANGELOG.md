@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.14.0] — 2026-08-08
+
+**Berita Medinfo skeleton, AI style, tags UI, tag merge** · MINOR · [Full release notes](../release/4.14.0.md)
+
+### Highlights
+- AI berita mengikuti skeleton meta + h3 Medinfo
+- Existing tags: collapse, search, max 20
+- Production tag merge (case/sinonim)
+
+---
+
 ## [4.13.0] — 2026-08-08
 
 **Kurikulum S2 (level s1/s2) + sync magister** · MINOR · [Full release notes](../release/4.13.0.md)
