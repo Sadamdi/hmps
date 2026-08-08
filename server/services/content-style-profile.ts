@@ -30,7 +30,21 @@ export type ContentStyleProfile = {
 };
 
 const CACHE_MS = 30 * 60 * 1000;
+/** Bump when berita skeleton rules change so cached profiles refresh. */
+const PROFILE_CACHE_VERSION = 'berita-skeleton-v2';
 const cache = new Map<string, { profile: ContentStyleProfile; expiresAt: number }>();
+
+function looksLikeMedinfoMeta(html: string): boolean {
+	return /🗓|Tanggal:|Prestasi:|Lingkup:/i.test(html || '');
+}
+
+function clipHtmlSkeleton(html: string, max = 520): string {
+	const t = String(html || '')
+		.replace(/\s+/g, ' ')
+		.trim();
+	if (t.length <= max) return t;
+	return `${t.slice(0, max - 1)}…`;
+}
 
 function stripHtml(html: string): string {
 	return html
@@ -78,35 +92,42 @@ async function buildBeritaProfile(
 ): Promise<ContentStyleProfile> {
 	const rows = await models.Berita.find({ published: true })
 		.sort({ createdAt: -1 })
-		.limit(8)
+		.limit(12)
 		.select('title excerpt content tags')
 		.lean();
 
-	const excerpts = rows.map((r: any) => String(r.excerpt || '').length);
-	const titles = rows.map((r: any) => String(r.title || '').length);
-	const tagSets = rows.flatMap((r: any) => (Array.isArray(r.tags) ? r.tags : []));
-	const htmlPatterns = rows.flatMap((r: any) => htmlTags(String(r.content || '')));
+	const withMeta = rows.filter((r: any) => looksLikeMedinfoMeta(String(r.content || '')));
+	const ordered = [...withMeta, ...rows.filter((r: any) => !withMeta.includes(r))].slice(0, 10);
 
-	const samples = rows.slice(0, 3).map((r: any) => {
-		const plain = stripHtml(String(r.content || ''));
-		return `Judul: ${r.title}\nExcerpt: ${r.excerpt}\nCuplikan: ${clip(plain, 200)}`;
+	const excerpts = ordered.map((r: any) => String(r.excerpt || '').length);
+	const titles = ordered.map((r: any) => String(r.title || '').length);
+	const tagSets = ordered.flatMap((r: any) => (Array.isArray(r.tags) ? r.tags : []));
+	const htmlPatterns = ordered.flatMap((r: any) => htmlTags(String(r.content || '')));
+	const h3Count = ordered.filter((r: any) => /<h3[\s>]/i.test(String(r.content || ''))).length;
+	const h2Count = ordered.filter((r: any) => /<h2[\s>]/i.test(String(r.content || ''))).length;
+	const headingTag = h3Count >= h2Count ? 'h3' : 'h2';
+
+	const samples = ordered.slice(0, 3).map((r: any) => {
+		const html = String(r.content || '');
+		return `Judul: ${r.title}\nExcerpt: ${r.excerpt}\nHTML: ${clipHtmlSkeleton(html, 560)}`;
 	});
 
 	return {
 		entityType: 'berita',
 		contextKey,
-		summary: 'Berita Himatif Encoder — informatif, sopan, Bahasa Indonesia baku.',
+		summary:
+			'Berita Himatif Encoder (gaya Medinfo) — formal hangat, HTML berstruktur meta + pembuka + section.',
 		rules: [
-			`Panjang judul rata-rata ~${avg(titles) || 55} karakter; ringkas dan informatif.`,
-			`Excerpt 1–2 kalimat (~${avg(excerpts) || 120} karakter), merangkum inti berita.`,
-			'Konten HTML: paragraf <p>, subjudul <h2>/<h3> bila panjang, bullet <ul><li> untuk poin.',
-			'Nada: formal hangat, nilai Islami, tidak berlebihan; sebut HMPS/Himatif Encoder bila relevan.',
+			`Panjang judul rata-rata ~${avg(titles) || 55} karakter; ringkas dan informatif, tanpa emoji berlebihan di judul.`,
+			`Excerpt 1–2 kalimat (~${avg(excerpts) || 140} karakter), merangkum inti berita.`,
+			'Skeleton konten HTML WAJIB (urut): (1) 2–3 baris meta `<p><strong>emoji Label:</strong> nilai</p>` — untuk kegiatan: 🗓 Tanggal / 🕖 Waktu / 📍 Tempat; untuk prestasi tanpa tanggal: 🏅 Prestasi / 📍 Lingkup / 👥 Tim; (2) satu paragraf pembuka yang menyebut Himpunan Mahasiswa Teknik Informatika "ENCODER" atau konteks Himatif; (3) section dengan `<${headingTag}>Judul Section</${headingTag}>` (contoh: Latar Belakang, Pelaksanaan Kegiatan, Tim Juara, Apresiasi); (4) gambar hanya sebagai `<p><img …></p>` di antara section, JANGAN di atas baris meta; (5) bullet `<ul><li>` bila daftar nama/poin.',
+			'Nada: formal hangat, nilai Islami, tidak clickbait; sebut Himatif Encoder bila relevan.',
 			tagSets.length
 				? `Tag umum: ${Array.from(new Set(tagSets)).slice(0, 8).join(', ')}.`
-				: 'Gunakan tag relevan (kegiatan, akademik, HMPS).',
+				: 'Gunakan tag relevan (kegiatan, prestasi, Himatif Encoder, UIN Malang).',
 			htmlPatterns.length
-				? `Tag HTML sering dipakai: ${Array.from(new Set(htmlPatterns)).slice(0, 6).join(', ')}.`
-				: 'Minimal satu paragraf <p>.',
+				? `Tag HTML sering dipakai: ${Array.from(new Set(htmlPatterns)).slice(0, 8).join(', ')}.`
+				: 'Minimal paragraf <p> dan heading section.',
 		],
 		samples,
 		generatedAt: new Date().toISOString(),
@@ -265,7 +286,7 @@ export async function getContentStyleProfile(
 	tenantDbName?: string | null,
 ): Promise<ContentStyleProfile> {
 	const contextKey = tenantDbName ? `tenant:${tenantDbName}` : 'main';
-	const cacheKey = `${contextKey}:${entityType}`;
+	const cacheKey = `${PROFILE_CACHE_VERSION}:${contextKey}:${entityType}`;
 	const hit = cache.get(cacheKey);
 	if (hit && hit.expiresAt > Date.now()) return hit.profile;
 

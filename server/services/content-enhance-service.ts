@@ -23,7 +23,8 @@ export type EnhanceContentInput = {
 };
 
 const ENTITY_FIELD_HINTS: Partial<Record<ContentEntityType, string>> = {
-	berita: 'Berita HMPS: judul, excerpt, konten artikel HTML.',
+	berita:
+		'Berita HMPS/Medinfo: judul, excerpt, konten HTML berstruktur (meta 2–3 baris di awal, paragraf pembuka ENCODER, section h3, gambar di antara section).',
 	event: 'Event HMPS: judul dan deskripsi kegiatan HTML.',
 	library: 'Item galeri: judul, deskripsi singkat, deskripsi lengkap HTML.',
 	store_product: 'Produk toko: nama, deskripsi singkat, deskripsi HTML.',

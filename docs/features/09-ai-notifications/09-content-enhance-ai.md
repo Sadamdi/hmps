@@ -6,6 +6,17 @@
 
 Tombol **Enhance dengan AI** di form publish dashboard. AI memperbaiki teks yang sudah diisi (judul, excerpt, konten HTML, dll.) dengan gaya konten HMPS dari sampel database (`content-style-profile`).
 
+### Skeleton HTML berita (Medinfo)
+
+Profile `berita` (4.14+) mewajibkan urutan:
+
+1. 2–3 baris meta `<p><strong>emoji Label:</strong> …</p>` (Tanggal/Waktu/Tempat atau Prestasi/Lingkup/Tim)
+2. Paragraf pembuka menyebut Himatif Encoder / ENCODER
+3. Section `<h3>` (Latar Belakang, Pelaksanaan Kegiatan, dll.)
+4. Gambar hanya `<p><img></p>` di antara section — bukan di atas meta
+
+Berlaku untuk Enhance AI dan Spyro tool `create_berita_draft` / `update_berita`.
+
 ## Endpoint
 
 `POST /api/ai/enhance-content` — auth wajib, permission per entity type.
