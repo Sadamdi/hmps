@@ -11,6 +11,20 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.12.1] — 2026-08-08
+
+**Prodi sync: S2 accreditation + curriculum index** · PATCH · [Full release notes](../release/4.12.1.md)
+
+### Highlights
+- Akreditasi S2 source → `/master-study-s2/` (halaman certificate lama 404)
+- Merge item akreditasi historis + crawl baru
+- Seed kurikulum S1 2020 + 2024 meski index card `href="#"`
+
+### Commits
+lihat git log setelah release
+
+---
+
 ## [4.12.0] — 2026-08-06
 
 **Rich release notes + full docs/API inventory sync** · MINOR · [Full release notes](../release/4.12.0.md)

@@ -14,7 +14,9 @@ const SOURCES = {
 	teachingLab: 'https://informatika.uin-malang.ac.id/teaching-laboratory/',
 	researchLab: 'https://informatika.uin-malang.ac.id/research-laboratory/',
 	accreditationS1: 'https://informatika.uin-malang.ac.id/accreditation-certificate-for-undergraduate-s1/',
-	accreditationS2: 'https://informatika.uin-malang.ac.id/accreditation-certificate-for-master-s2/',
+	// Old /accreditation-certificate-for-master-s2/ removed from WP (404). Live source is Master Study profile.
+	accreditationS2: 'https://informatika.uin-malang.ac.id/master-study-s2/',
+	curriculum2024: 'https://informatika.uin-malang.ac.id/curriculum-2024-dan-rps/',
 };
 
 const BASE_URL = 'https://informatika.uin-malang.ac.id';
@@ -971,28 +973,48 @@ function parseGraduateProfileTable($: cheerio.CheerioAPI, $table: cheerio.Cheeri
 type CurriculumIndexEntry = { year: number; url: string };
 
 async function parseCurriculumIndexEntries(): Promise<CurriculumIndexEntry[]> {
-	const $ = await fetchPage(SOURCES.curriculumIndex);
-	const root = getContentRoot($);
-	if (!root.length) return [];
-
 	const byYear = new Map<number, string>();
-	root.find('a[href]').each((_i, a) => {
-		const $a = $(a);
-		const href = normalizeHref($a.attr('href') || '');
-		if (!href || !href.startsWith(BASE_URL)) return;
-		const txt = cleanText($a);
-		const parentTxt = cleanText($a.closest('h1,h2,h3,h4,h5,h6,p,div').first());
-		const merged = `${txt} ${parentTxt}`.trim();
-		const m = merged.match(/curriculum\s*(\d{4})/i);
-		if (!m) return;
-		const year = parseInt(m[1], 10);
-		if (!Number.isFinite(year) || year < 2000 || year > 2100) return;
-		if (!byYear.has(year)) byYear.set(year, href);
-	});
+	// Index cards currently use href="#"; keep known official detail URLs seeded.
+	byYear.set(2020, SOURCES.curriculumLegacy);
+	byYear.set(2024, SOURCES.curriculum2024);
 
-	// Fallback jika index belum lengkap, tetap dukung sumber lama.
-	if (byYear.size === 0) {
-		byYear.set(2020, SOURCES.curriculumLegacy);
+	try {
+		const $ = await fetchPage(SOURCES.curriculumIndex);
+		const root = getContentRoot($);
+		if (root.length) {
+			root.find('a[href]').each((_i, a) => {
+				const $a = $(a);
+				const hrefRaw = ($a.attr('href') || '').trim();
+				const href = normalizeHref(hrefRaw);
+				const txt = cleanText($a);
+				const cardTxt = cleanText($a.closest('.curriculum-card, .card, article, li, div').first());
+				const parentTxt = cleanText($a.closest('h1,h2,h3,h4,h5,h6,p,div').first());
+				const merged = `${txt} ${parentTxt} ${cardTxt}`.trim();
+				const yearFromText = merged.match(/curriculum\s*(\d{4})/i);
+				const yearFromUrl = href.match(/curriculum-(\d{4})/i);
+				const year = parseInt((yearFromText?.[1] || yearFromUrl?.[1] || ''), 10);
+				if (!Number.isFinite(year) || year < 2000 || year > 2100) return;
+				if (!href || href.endsWith('#') || href.includes('/#') || !href.startsWith(BASE_URL)) {
+					// Year discovered from card label; keep seeded/known URL.
+					return;
+				}
+				byYear.set(year, href);
+			});
+
+			root.find('h1,h2,h3,h4,.card-content').each((_i, el) => {
+				const txt = cleanText($(el));
+				const m = txt.match(/curriculum\s*(\d{4})/i);
+				if (!m) return;
+				const year = parseInt(m[1], 10);
+				if (!Number.isFinite(year) || year < 2000 || year > 2100) return;
+				if (!byYear.has(year)) {
+					if (year === 2024) byYear.set(year, SOURCES.curriculum2024);
+					else if (year === 2020) byYear.set(year, SOURCES.curriculumLegacy);
+				}
+			});
+		}
+	} catch (err) {
+		console.warn('Curriculum index parse warning:', err);
 	}
 
 	return Array.from(byYear.entries())
@@ -1596,30 +1618,58 @@ async function parseAccreditationLevel(sourceUrl: string, fallbackTitle: string)
 		}
 	});
 
-	// fallback jika struktur table berubah.
+	// fallback jika struktur table berubah (mis. Master Study profile page).
 	if (items.length === 0) {
 		root.find('a[href]').each((_i, a) => {
 			const $a = $(a);
 			const url = normalizeHref($a.attr('href') || '');
 			if (!url || !looksLikeDocumentUrl(url)) return;
-			const title = cleanText($a.closest('tr,li,p,div').first()) || cleanText($a);
+			const linkTitle = cleanText($a);
+			const contextTitle = cleanText($a.closest('tr,li,p,div').first());
+			const title = linkTitle || contextTitle;
 			if (!title) return;
+			const blob = `${title} ${url}`.toLowerCase();
+			const accredLike =
+				/akredit|lam.?infokom|sertifikat|file_sk|file_sertifikat|sk\/lam|baik sekali/.test(blob);
+			// On profile-style pages, skip unrelated PDFs (visi-misi, RPS, etc.).
+			if (sourceUrl.includes('master-study') && !accredLike) return;
 			items.push({
-				group: '',
+				group: accredLike ? 'Akreditasi PRODI' : '',
 				title,
 				downloadUrl: url,
-				yearLabel: parseYearLabel(title),
-				isPrimary: /sertifikat akreditasi|sk sertifikat/i.test(title),
+				yearLabel: parseYearLabel(title) || parseYearLabel(contextTitle),
+				isPrimary: /sertifikat|sk sertifikat|lam.?infokom|file_sertifikat|file_sk/i.test(blob),
 			});
 		});
 	}
 
 	return {
-		title: heading,
+		title: heading || fallbackTitle,
 		sourceUrl,
 		groups,
 		items,
 		lastSyncedAt: new Date(),
+		lastError: '',
+	};
+}
+
+function mergeAccreditationLevel(
+	incoming: AccreditationLevel,
+	previous: AccreditationLevel | null | undefined,
+): AccreditationLevel {
+	if (!previous?.items?.length) return incoming;
+	const byUrl = new Map<string, AccreditationItem>();
+	for (const it of previous.items) {
+		if (it?.downloadUrl) byUrl.set(it.downloadUrl, it);
+	}
+	for (const it of incoming.items) {
+		if (it?.downloadUrl) byUrl.set(it.downloadUrl, it);
+	}
+	const groups = Array.from(new Set([...(previous.groups || []), ...(incoming.groups || [])]));
+	return {
+		...incoming,
+		groups,
+		items: Array.from(byUrl.values()),
 		lastError: '',
 	};
 }
@@ -1907,16 +1957,22 @@ export async function runProdiSyncScoped(
 					};
 				}
 			};
-			const [s1, s2] = await Promise.all([
+			const [s1Raw, s2Raw] = await Promise.all([
 				safeParseLevel(SOURCES.accreditationS1, 'Accreditation Certificate For Undergraduate (S1)'),
 				safeParseLevel(SOURCES.accreditationS2, 'Accreditation Certificate For Master (S2)'),
 			]);
+			// Master page is profile-style (few live links); merge keeps historical certificate rows.
+			const s1 = mergeAccreditationLevel(s1Raw, existingContent?.accreditation?.s1);
+			const s2 = mergeAccreditationLevel(s2Raw, existingContent?.accreditation?.s2);
 			let s3: AccreditationLevel = emptyLevel(
 				'Accreditation Certificate For Doctoral (S3)',
 				discoveredS3Url,
 			);
 			if (discoveredS3Url) {
-				s3 = await safeParseLevel(discoveredS3Url, 'Accreditation Certificate For Doctoral (S3)');
+				s3 = mergeAccreditationLevel(
+					await safeParseLevel(discoveredS3Url, 'Accreditation Certificate For Doctoral (S3)'),
+					existingContent?.accreditation?.s3,
+				);
 			}
 			accreditation = {
 				s1,
