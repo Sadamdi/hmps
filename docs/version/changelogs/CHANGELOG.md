@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.14.1] — 2026-08-08
+
+**WrecK-IT meta Tanggal/Waktu/Tempat + tags scroll all** · PATCH · [Full release notes](../release/4.14.1.md)
+
+### Highlights
+- WrecK-IT: meta 🗓 Tanggal / 🕖 Waktu / 📍 Tempat
+- Existing tags: scroll semua (tanpa potong 20)
+- AI skeleton berita selalu Tanggal/Waktu/Tempat
+
+---
+
 ## [4.14.0] — 2026-08-08
 
 **Berita Medinfo skeleton, AI style, tags UI, tag merge** · MINOR · [Full release notes](../release/4.14.0.md)

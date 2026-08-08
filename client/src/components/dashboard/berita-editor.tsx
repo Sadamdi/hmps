@@ -964,7 +964,7 @@ export default function BeritaEditor({
 							</Button>
 						</div>
 
-						{/* Existing Tags — collapsed by default; search + max 20 + scroll */}
+						{/* Existing Tags — collapsed by default; search + scroll all */}
 						{allExistingTags.length > 0 && (
 							<div className="space-y-2">
 								<button
@@ -990,7 +990,7 @@ export default function BeritaEditor({
 												className="h-9 pl-8"
 											/>
 										</div>
-										<div className="max-h-40 overflow-y-auto">
+										<div className="max-h-56 overflow-y-auto overscroll-contain pr-1">
 											<div className="flex flex-wrap gap-2">
 												{allExistingTags
 													.filter((tag) =>
@@ -1000,7 +1000,6 @@ export default function BeritaEditor({
 																	.toLowerCase()
 																	.includes(existingTagQuery.trim().toLowerCase()),
 													)
-													.slice(0, 20)
 													.map((tag) => (
 														<button
 															key={tag}
@@ -1015,16 +1014,11 @@ export default function BeritaEditor({
 														</button>
 													))}
 											</div>
-											{allExistingTags.filter((tag) =>
-												!existingTagQuery.trim()
-													? true
-													: tag.toLowerCase().includes(existingTagQuery.trim().toLowerCase()),
-											).length > 20 && (
-												<p className="mt-2 text-xs text-muted-foreground">
-													Menampilkan 20 teratas. Ketik di pencarian untuk menyaring tag lain.
-												</p>
-											)}
 										</div>
+										<p className="text-xs text-muted-foreground">
+											Scroll untuk melihat semua tag
+											{existingTagQuery.trim() ? ' hasil pencarian' : ''}. Ketik untuk menyaring.
+										</p>
 									</div>
 								)}
 							</div>

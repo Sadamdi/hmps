@@ -120,7 +120,7 @@ async function buildBeritaProfile(
 		rules: [
 			`Panjang judul rata-rata ~${avg(titles) || 55} karakter; ringkas dan informatif, tanpa emoji berlebihan di judul.`,
 			`Excerpt 1–2 kalimat (~${avg(excerpts) || 140} karakter), merangkum inti berita.`,
-			'Skeleton konten HTML WAJIB (urut): (1) 2–3 baris meta `<p><strong>emoji Label:</strong> nilai</p>` — untuk kegiatan: 🗓 Tanggal / 🕖 Waktu / 📍 Tempat; untuk prestasi tanpa tanggal: 🏅 Prestasi / 📍 Lingkup / 👥 Tim; (2) satu paragraf pembuka yang menyebut Himpunan Mahasiswa Teknik Informatika "ENCODER" atau konteks Himatif; (3) section dengan `<${headingTag}>Judul Section</${headingTag}>` (contoh: Latar Belakang, Pelaksanaan Kegiatan, Tim Juara, Apresiasi); (4) gambar hanya sebagai `<p><img …></p>` di antara section, JANGAN di atas baris meta; (5) bullet `<ul><li>` bila daftar nama/poin.',
+			'Skeleton konten HTML WAJIB (urut): (1) tepat 3 baris meta `<p><strong>emoji Label:</strong> nilai</p>` — SELALU 🗓 Tanggal / 🕖 Waktu / 📍 Tempat (pola publish Medinfo terbaru; prestasi/kompetisi: Tanggal=periode/final, Waktu=babak/sesi, Tempat=lingkup/venue — jangan ganti ke Prestasi/Lingkup/Tim); (2) satu paragraf pembuka yang menyebut Himpunan Mahasiswa Teknik Informatika "ENCODER" atau konteks Himatif; (3) section dengan `<${headingTag}>Judul Section</${headingTag}>` (contoh: Latar Belakang, Pelaksanaan Kegiatan, Tim Juara, Apresiasi); (4) gambar hanya sebagai `<p><img …></p>` di antara section, JANGAN di atas baris meta; (5) bullet `<ul><li>` bila daftar nama/poin.',
 			'Nada: formal hangat, nilai Islami, tidak clickbait; sebut Himatif Encoder bila relevan.',
 			tagSets.length
 				? `Tag umum: ${Array.from(new Set(tagSets)).slice(0, 8).join(', ')}.`

@@ -472,7 +472,7 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 				content: {
 					type: 'string',
 					description:
-						'Konten HTML lengkap mengikuti skeleton Medinfo: (1) 2–3 baris meta `<p><strong>emoji Label:</strong> …</p>` (🗓 Tanggal / 🕖 Waktu / 📍 Tempat untuk kegiatan; atau 🏅 Prestasi / 📍 Lingkup / 👥 Tim untuk prestasi); (2) paragraf pembuka menyebut Himpunan Mahasiswa Teknik Informatika "ENCODER"; (3) section `<h3>…</h3>` (Latar Belakang, Pelaksanaan Kegiatan, dll.); (4) gambar hanya `<p><img></p>` di antara section; (5) `<ul><li>` untuk daftar bila perlu. Jangan taruh gambar di atas meta.',
+						'Konten HTML lengkap mengikuti skeleton Medinfo: (1) tepat 3 baris meta `<p><strong>emoji Label:</strong> …</p>` SELALU 🗓 Tanggal / 🕖 Waktu / 📍 Tempat (prestasi/kompetisi: isi Tanggal=periode/final, Waktu=babak/sesi, Tempat=lingkup/venue — jangan Prestasi/Lingkup/Tim); (2) paragraf pembuka menyebut Himpunan Mahasiswa Teknik Informatika "ENCODER"; (3) section `<h3>…</h3>` (Latar Belakang, Pelaksanaan Kegiatan, dll.); (4) gambar hanya `<p><img></p>` di antara section; (5) `<ul><li>` untuk daftar bila perlu. Jangan taruh gambar di atas meta.',
 				},
 				tags: {
 					type: 'array',
