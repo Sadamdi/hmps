@@ -10,7 +10,7 @@ Tombol **Enhance dengan AI** di form publish dashboard. AI memperbaiki teks yang
 
 Profile `berita` (4.14+) mewajibkan urutan:
 
-1. 2–3 baris meta `<p><strong>emoji Label:</strong> …</p>` (Tanggal/Waktu/Tempat atau Prestasi/Lingkup/Tim)
+1. Tepat 3 baris meta `<p><strong>emoji Label:</strong> …</p>` — selalu 🗓 Tanggal / 🕖 Waktu / 📍 Tempat (prestasi/kompetisi mengisi ketiga field itu, bukan Prestasi/Lingkup/Tim)
 2. Paragraf pembuka menyebut Himatif Encoder / ENCODER
 3. Section `<h3>` (Latar Belakang, Pelaksanaan Kegiatan, dll.)
 4. Gambar hanya `<p><img></p>` di antara section — bukan di atas meta
