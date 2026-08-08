@@ -1,5 +1,23 @@
 # HMPS — Deploy & Sync Media
 
+## Chrome DevTools MCP (local QA)
+
+Untuk Cursor agent bisa drive Chrome (profile Sulthan / login session):
+
+1. Tutup **semua** window Chrome.
+2. Jalankan:
+
+```powershell
+.\ops\start-chrome-debug.ps1
+# default = profile Default (sultanadamr@gmail.com / Sulthan Adam R)
+```
+
+3. Pastikan `.cursor/mcp.json` punya server `chrome-devtools` dengan `--browserUrl=http://127.0.0.1:9222`.
+4. Di Cursor: **Settings → MCP → refresh/reload** `chrome-devtools` (atau restart Cursor).
+5. Kalau situs Google minta Sign in, login sekali di window Chrome debug itu — session cookie akan ke-save di profile Default.
+
+---
+
 ## Konsep singkat
 
 | Tempat | Peran |

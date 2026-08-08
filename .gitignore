@@ -26,3 +26,9 @@ scripts/
 psd/
 # Added by code-review-graph
 .code-review-graph/
+
+# Local progress reports (screenshots + DOCX) — do not push
+docs/reports/
+
+# Local ops runbooks / SSH helpers (may contain host notes) — do not push
+docs/ops/
