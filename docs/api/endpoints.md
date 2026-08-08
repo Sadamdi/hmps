@@ -434,17 +434,26 @@ POST /api/admin/migrate-community-media
 ## Public SSR / SPA Routes
 
 ```text
-GET /sitemap.xml
+GET /sitemap.xml          # dynamic URL + image/video sitemap extensions
+GET /
 GET /berita
 GET /berita/:id/:slug
 GET /berita/:slugOrId
+GET /events
+GET /events/:year/:eventId
+GET /library
+GET /library/:id
+GET /toko
 GET /toko/:slug
 GET /profil
 GET /kelembagaan
+GET /prodi
 GET /login
 GET /error
 GET /^\/dashboard(\/.*)?$/
 ```
+
+Sitemap helper: `server/services/seo-sitemap.ts` (image/video namespaces for Google/Bing discovery).
 
 ---
 
