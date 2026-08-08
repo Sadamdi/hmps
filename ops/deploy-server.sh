@@ -131,6 +131,26 @@ done
 log "=== 4/5 Stop apps → npm install → build (low RAM)"
 pm2_stop_apps
 
+# Selalu coba hidupkan app lagi meski install/build gagal (hindari downtime 502)
+cleanup_start_apps() {
+	local ec=$?
+	log "=== 5/5 Start / restart apps (exit_code=${ec})"
+	if pm2_start_apps; then
+		:
+	elif systemctl is-active --quiet hmps 2>/dev/null; then
+		sudo systemctl restart hmps
+	else
+		log "Restart manual diperlukan (pm2 / systemctl)"
+	fi
+	if [[ "$ec" -ne 0 ]]; then
+		log "Deploy gagal setelah sync — app tetap di-restart. Cek log npm/build."
+		exit "$ec"
+	fi
+	log "Selesai. HEAD = $(git rev-parse --short HEAD) ($(git log -1 --format='%s'))"
+	log "Backup tersimpan di: $BACKUP_DIR"
+}
+trap cleanup_start_apps EXIT
+
 # npm ci sering ENOMEM di VPS 2GB; prefer install ringan + fallback
 if [[ -f package-lock.json ]]; then
 	npm install --no-audit --no-fund --prefer-offline --maxsockets 1 \
@@ -140,14 +160,7 @@ else
 fi
 npm run build
 
-log "=== 5/5 Start / restart apps"
-if pm2_start_apps; then
-	:
-elif systemctl is-active --quiet hmps 2>/dev/null; then
-	sudo systemctl restart hmps
-else
-	log "Restart manual diperlukan (pm2 / systemctl)"
-fi
-
-log "Selesai. HEAD = $(git rev-parse --short HEAD) ($(git log -1 --format='%s'))"
-log "Backup tersimpan di: $BACKUP_DIR"
+# sukses: trap EXIT akan start apps + log selesai
+trap - EXIT
+cleanup_start_apps
+exit 0
