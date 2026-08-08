@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.14.4] — 2026-08-08
+
+**Media SEO: image/video sitemap + richer schema** · PATCH · [Full release notes](../release/4.14.4.md)
+
+### Highlights
+- Sitemap dinamis dengan ekstensi `image:` / `video:` (berita, event, galeri, toko)
+- JSON-LD ImageObject / VideoObject + title SERP ~60 karakter
+- robots.txt allow media publik; Organization/WebSite di homepage
+
+---
+
 ## [4.14.3] — 2026-08-08
 
 **Nginx CSP fix + official berita import** · PATCH · [Full release notes](../release/4.14.3.md)

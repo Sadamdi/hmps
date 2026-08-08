@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 
-# Sitemap
+# Sitemap (URL + image/video extensions)
 Sitemap: https://himatif-encoder.com/sitemap.xml
 
 # Disallow private/admin areas
@@ -12,13 +12,15 @@ Disallow: /uploads/admin/
 Disallow: /_next/
 Disallow: /node_modules/
 
-# Explicitly allow important public paths
+# Explicitly allow important public paths + media for image/video search
 Allow: /berita
 Allow: /berita/
 Allow: /events
 Allow: /events/
 Allow: /library
 Allow: /library/
+Allow: /toko
+Allow: /toko/
 Allow: /prodi
 Allow: /prodi/
 Allow: /profil
@@ -26,7 +28,10 @@ Allow: /profil/
 Allow: /kelembagaan
 Allow: /kelembagaan/
 Allow: /attached_assets/
+Allow: /uploads/
 Allow: /uploads/berita/
+Allow: /uploads/store/
+Allow: /uploads/prodi/
 
 # AI / LLM crawlers: same public access policy as regular users
 User-agent: GPTBot
