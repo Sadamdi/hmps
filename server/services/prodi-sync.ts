@@ -7,7 +7,8 @@ import { deleteFile } from '../upload';
 
 const SOURCES = {
 	profile: 'https://informatika.uin-malang.ac.id/undergraduate-s1/',
-	lecturers: 'https://informatika.uin-malang.ac.id/lecturer-and-staff/',
+	// Official page renamed from lecturer-and-staff (404) → lecturer-staff
+	lecturers: 'https://informatika.uin-malang.ac.id/lecturer-staff/',
 	curriculumIndex: 'https://informatika.uin-malang.ac.id/curriculum-for-undergraduate/',
 	curriculumLegacy: 'https://informatika.uin-malang.ac.id/curriculum/',
 	teachingLab: 'https://informatika.uin-malang.ac.id/teaching-laboratory/',

@@ -47,6 +47,12 @@ const CURATED_CALENDAR_PDFS: Record<number, { academicYear: string; url: string;
 		url: 'https://old.uin-malang.ac.id/+/c/1.4.25.9563?r=Kalender+Akademik+2025+-+2026',
 		sourceKind: 'official_mirror',
 	},
+	// Odoo attachment from official pengumuman (SIAKAD points here for 2026/2027)
+	2026: {
+		academicYear: '2026/2027',
+		url: 'https://uin-malang.ac.id/web/content/3419?download=true',
+		sourceKind: 'official_mirror',
+	},
 };
 
 export type AcademicCalendarEntry = {
@@ -194,8 +200,16 @@ async function extractPdfFromAnnouncement(announcementUrl: string): Promise<{
 	$('a[href]').each((_, el) => {
 		const href = absUrl(($(el).attr('href') || '').replace(/&amp;/g, '&'), announcementUrl);
 		const text = $(el).text().replace(/\s+/g, ' ').trim();
-		if (!pdfUrl && (/kalender/i.test(text) || /\.pdf/i.test(href) || /download/i.test(text))) {
-			if (/\.pdf|content\/\d+|old\.uin-malang|drive\.google/i.test(href)) pdfUrl = href;
+		if (
+			!pdfUrl &&
+			(/kalender/i.test(text) ||
+				/\.pdf/i.test(href) ||
+				/download/i.test(text) ||
+				/web\/content\//i.test(href))
+		) {
+			if (/\.pdf|content\/\d+|old\.uin-malang|drive\.google|download=true/i.test(href)) {
+				pdfUrl = href;
+			}
 		}
 	});
 	const body = $('article, .entry-content, main').first().text().replace(/\s+/g, ' ').trim();
@@ -385,7 +399,7 @@ export async function syncAcademicCalendars(
 	}
 
 	const skipped: number[] = [];
-	for (let y = 2000; y <= 2026; y++) {
+	for (let y = 2000; y <= 2027; y++) {
 		if (!map[String(y)]) skipped.push(y);
 	}
 
