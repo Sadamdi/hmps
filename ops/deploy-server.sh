@@ -106,6 +106,14 @@ pm2_start_apps() {
 cd "$APP_DIR"
 mkdir -p "$BACKUP_DIR"
 
+# Pastikan node/npm/pm2 dari nvm tersedia (PM2 child sering punya PATH minim)
+export NVM_DIR="${NVM_DIR:-/root/.nvm}"
+if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+	# shellcheck disable=SC1091
+	. "$NVM_DIR/nvm.sh"
+fi
+export PATH="/root/.nvm/versions/node/v24.15.0/bin:${PATH:-/usr/bin:/bin}"
+
 log "=== 1/5 Backup file penting → $BACKUP_DIR"
 for p in "${PROTECTED_PATHS[@]}"; do
 	backup_item "$p"
