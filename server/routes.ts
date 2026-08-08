@@ -5835,9 +5835,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const result = doc.toObject
 					? doc.toObject()
 					: JSON.parse(JSON.stringify(doc));
-				const years = await mongoStorage.getProdiCurriculumYears();
+				const years = await mongoStorage.getProdiCurriculumYears('s1');
+				const yearsS2 = await mongoStorage.getProdiCurriculumYears('s2');
 				const activeYear = mongoStorage.resolveAcademicYearByDate(new Date());
 				result.curriculumYears = years;
+				result.curriculumYearsByLevel = { s1: years, s2: yearsS2 };
 				result.activeAcademicYear = activeYear;
 				result.targetSyncYear = activeYear;
 				res.json(result);
@@ -5903,14 +5905,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		requirePermission('prodi.edit'),
 		async (req, res) => {
 			try {
-				const { academicYear, copyFromYear } = req.body;
+				const { academicYear, copyFromYear, level: rawLevel } = req.body;
 				const year = parseInt(String(academicYear), 10);
+				const level = rawLevel === 's2' ? 's2' : 's1';
 				if (!Number.isFinite(year) || year < 2000 || year > 2100) {
 					return res
 						.status(400)
 						.json({ message: 'Tahun harus antara 2000–2100' });
 				}
 				let payload: any = {
+					level,
 					semesters: [],
 					optionalSubjects: [],
 					graduateProfile: [],
@@ -5922,9 +5926,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (copyFromYear) {
 					const src = await mongoStorage.getProdiCurriculumByYear(
 						parseInt(String(copyFromYear), 10),
+						level,
 					);
 					if (src) {
 						payload = {
+							level,
 							semesters: JSON.parse(JSON.stringify(src.semesters ?? [])),
 							optionalSubjects: JSON.parse(
 								JSON.stringify(src.optionalSubjects ?? []),
@@ -5946,7 +5952,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const result = await mongoStorage.upsertProdiCurriculumByYear(
 					year,
 					payload,
-					{ overwrite: false },
+					{ overwrite: false, level },
 				);
 				if (result.action === 'needs_confirm') {
 					return res

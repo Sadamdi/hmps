@@ -91,6 +91,9 @@ Returns sync summary including `calendarYears`, `announcementCount`, `pklTemplat
 | Lecturers | `/lecturer-staff/` | old `/lecturer-and-staff/` = 404 |
 | Curriculum S1 index | `/curriculum-for-undergraduate/` | cards use `href="#"`; sync seeds `curriculum/` (2020) + `curriculum-2024-dan-rps/` (2024) |
 | Curriculum detail 2024 | `/curriculum-2024-dan-rps/` | Terbaru di situs resmi |
+| Curriculum S2 index | `/curriculum-for-master/` | entries keyed by `level: s2` + year |
+| Curriculum S2 2022 | `/curriculum-2022/` | table parser SEMESTER I–III |
+| Curriculum S2 2024 | PDF OBE (HTML page still 404) | `Kurikulum-OBE-Magister-Informatika-2024-rev.pdf` as guidebook |
 | Accreditation S1 | `/accreditation-certificate-for-undergraduate-s1/` + directory | Unggul 2024 LAM INFOKOM |
 | Accreditation S2 | `/master-study-s2/` | `/accreditation-certificate-for-master-s2/` **removed (404)**; Baik Sekali LAM INFOKOM 2025; merge keeps historical rows |
 | Curriculum Master | `/curriculum-for-master/` → `/curriculum-2022/` | link `curriculum-2024-for-master` still 404 on official site |

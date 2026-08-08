@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.13.0] — 2026-08-08
+
+**Kurikulum S2 (level s1/s2) + sync magister** · MINOR · [Full release notes](../release/4.13.0.md)
+
+### Highlights
+- Model kurikulum per `level` S1/S2
+- Sync magister 2022 (HTML) + 2024 (PDF OBE)
+- UI switcher S1/S2 di `/prodi` dan dashboard
+
+---
+
 ## [4.12.1] — 2026-08-08
 
 **Prodi sync: S2 accreditation + curriculum index** · PATCH · [Full release notes](../release/4.12.1.md)

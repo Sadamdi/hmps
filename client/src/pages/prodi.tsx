@@ -335,11 +335,12 @@ export default function ProdiPage() {
 							{lecturers && <LecturersSection data={lecturers} />}
 						</TabsContent>
 						<TabsContent value="kurikulum" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
-							{curriculum && (
+							{(curriculum || data?.curriculumByLevel) && (
 								<CurriculumSection
 									data={curriculum}
 									curriculumMeta={curriculumMeta}
 									curriculumByYear={curriculumByYear}
+									curriculumByLevel={data?.curriculumByLevel}
 								/>
 							)}
 						</TabsContent>
@@ -640,52 +641,126 @@ function CurriculumSection({
 	data,
 	curriculumMeta,
 	curriculumByYear,
+	curriculumByLevel,
 }: {
 	data: any;
-	curriculumMeta?: { availableYears: number[]; activeYear: number };
+	curriculumMeta?: {
+		availableYears: number[];
+		activeYear: number;
+		levels?: {
+			s1?: { availableYears: number[]; activeYear: number; label?: string };
+			s2?: { availableYears: number[]; activeYear: number; label?: string };
+		};
+	};
 	curriculumByYear?: Record<number, any>;
+	curriculumByLevel?: {
+		s1?: Record<number, any>;
+		s2?: Record<number, any>;
+	};
 }) {
-	const availableYears = curriculumMeta?.availableYears ?? [];
-	const activeYear = curriculumMeta?.activeYear;
-	const defaultYear = activeYear && availableYears.includes(activeYear)
-		? activeYear
-		: availableYears[0] ?? null;
+	const hasS2 =
+		(curriculumMeta?.levels?.s2?.availableYears?.length ?? 0) > 0 ||
+		Object.keys(curriculumByLevel?.s2 || {}).length > 0;
+	const [level, setLevel] = useState<'s1' | 's2'>('s1');
+	const levelMeta = curriculumMeta?.levels?.[level];
+	const availableYears =
+		levelMeta?.availableYears ??
+		(level === 's1' ? curriculumMeta?.availableYears ?? [] : []);
+	const activeYear = levelMeta?.activeYear ?? curriculumMeta?.activeYear;
+	const defaultYear =
+		activeYear && availableYears.includes(activeYear)
+			? activeYear
+			: availableYears[0] ?? null;
 
 	const [selectedYear, setSelectedYear] = useState<number | null>(null);
 	const effectiveYear = selectedYear ?? defaultYear;
-	const formatRange = (year: number) => `${year}-${year + 4}`;
+	const formatRange = (year: number) =>
+		level === 's2' ? `${year}-${year + 2}` : `${year}-${year + 4}`;
 
-	const displayData = (effectiveYear != null && curriculumByYear?.[effectiveYear])
-		? curriculumByYear[effectiveYear]
-		: data;
-	const periodText = displayData?.periodLabel || (effectiveYear ? formatRange(effectiveYear) : '');
+	const yearMap =
+		curriculumByLevel?.[level] ||
+		(level === 's1' ? curriculumByYear : undefined) ||
+		{};
+	const displayData =
+		effectiveYear != null && yearMap?.[effectiveYear]
+			? yearMap[effectiveYear]
+			: level === 's1'
+				? data
+				: null;
+	const periodText =
+		displayData?.periodLabel ||
+		(effectiveYear ? formatRange(effectiveYear) : '');
 
 	return (
 		<div className="space-y-10">
-			{availableYears.length > 1 && (
-				<SectionCard title="Pilih Kurikulum">
-					<div className="flex items-center gap-3 flex-wrap">
-						<Select
-							value={String(effectiveYear ?? '')}
-							onValueChange={(v) => setSelectedYear(parseInt(v, 10))}
-						>
-							<SelectTrigger className="w-52">
-								<SelectValue placeholder="Pilih tahun kurikulum" />
-							</SelectTrigger>
-							<SelectContent>
-								{availableYears.map((y) => (
-									<SelectItem key={y} value={String(y)}>
-										Kurikulum {formatRange(y)} {y === activeYear ? '(Aktif)' : ''}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-						{effectiveYear != null && (
-							<span className="text-sm text-muted-foreground">
-								Menampilkan kurikulum periode {formatRange(effectiveYear)}
-							</span>
-						)}
-					</div>
+			<SectionCard title="Pilih Program & Kurikulum">
+				<div className="flex flex-col gap-4">
+					{hasS2 && (
+						<div className="flex items-center gap-2 flex-wrap">
+							<button
+								type="button"
+								onClick={() => {
+									setLevel('s1');
+									setSelectedYear(null);
+								}}
+								className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+									level === 's1'
+										? 'border-primary bg-primary/10 text-primary'
+										: 'border-border hover:bg-accent'
+								}`}
+							>
+								S1 Teknik Informatika
+							</button>
+							<button
+								type="button"
+								onClick={() => {
+									setLevel('s2');
+									setSelectedYear(null);
+								}}
+								className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
+									level === 's2'
+										? 'border-primary bg-primary/10 text-primary'
+										: 'border-border hover:bg-accent'
+								}`}
+							>
+								S2 Magister Informatika
+							</button>
+						</div>
+					)}
+					{availableYears.length > 0 && (
+						<div className="flex items-center gap-3 flex-wrap">
+							<Select
+								value={String(effectiveYear ?? '')}
+								onValueChange={(v) => setSelectedYear(parseInt(v, 10))}
+							>
+								<SelectTrigger className="w-52">
+									<SelectValue placeholder="Pilih tahun kurikulum" />
+								</SelectTrigger>
+								<SelectContent>
+									{availableYears.map((y) => (
+										<SelectItem key={`${level}-${y}`} value={String(y)}>
+											Kurikulum {formatRange(y)}{' '}
+											{y === activeYear ? '(Aktif)' : ''}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							{effectiveYear != null && (
+								<span className="text-sm text-muted-foreground">
+									Menampilkan {level.toUpperCase()} periode {formatRange(effectiveYear)}
+								</span>
+							)}
+						</div>
+					)}
+				</div>
+			</SectionCard>
+
+			{!displayData && (
+				<SectionCard title="Kurikulum">
+					<p className="text-sm text-muted-foreground">
+						Data kurikulum {level.toUpperCase()} belum tersedia. Jalankan Sync Kurikulum
+						dari dashboard.
+					</p>
 				</SectionCard>
 			)}
 
@@ -729,7 +804,7 @@ function CurriculumSection({
 				</SectionCard>
 			)}
 
-			{displayData.graduateProfile?.length > 0 && (
+			{displayData?.graduateProfile?.length > 0 && (
 				<SectionCard title="Profil Lulusan">
 					<div className="overflow-x-auto">
 						<table className="w-full text-sm border-collapse">
@@ -754,7 +829,7 @@ function CurriculumSection({
 				</SectionCard>
 			)}
 
-			{displayData.knowledgeGroups?.length > 0 && (
+			{displayData?.knowledgeGroups?.length > 0 && (
 				<SectionCard title="Kelompok Keilmuan">
 					<ol className="list-decimal list-inside space-y-1 text-foreground">
 						{displayData.knowledgeGroups.map((kg: string, i: number) => (
@@ -764,7 +839,7 @@ function CurriculumSection({
 				</SectionCard>
 			)}
 
-			{displayData.structureSummary && (
+			{displayData?.structureSummary && (
 				<SectionCard title="Struktur Kurikulum">
 					<div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-line">
 						{displayData.structureSummary}
@@ -772,13 +847,13 @@ function CurriculumSection({
 				</SectionCard>
 			)}
 
-			{displayData.semesters?.length > 0 && (
+			{displayData?.semesters?.length > 0 && (
 				<SectionCard title={`Distribusi Mata Kuliah Per Semester${periodText ? ` — Kurikulum ${periodText}` : ''}`}>
 					<SemesterTabs semesters={displayData.semesters} />
 				</SectionCard>
 			)}
 
-			{displayData.optionalSubjects?.length > 0 && (
+			{displayData?.optionalSubjects?.length > 0 && (
 				<SectionCard title="Mata Kuliah Pilihan">
 					<SubjectTable subjects={displayData.optionalSubjects} />
 				</SectionCard>
