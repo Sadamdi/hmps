@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.14.3] — 2026-08-08
+
+**Nginx CSP fix + official berita import** · PATCH · [Full release notes](../release/4.14.3.md)
+
+### Highlights
+- CSP hanya dari Node agar embed allowlist efektif
+- Kartu tautan untuk situs yang menolak iframe (wreckit.id)
+- Import 9 berita prestasi/seminar dari Prodi TI
+
+---
+
 ## [4.14.2] — 2026-08-08
 
 **Embed allowlist, tag merge pass-2, AI berita fields** · PATCH · [Full release notes](../release/4.14.2.md)
