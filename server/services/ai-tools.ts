@@ -477,7 +477,13 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 				tags: {
 					type: 'array',
 					items: { type: 'string' },
-					description: 'Tag untuk berita (opsional).',
+					description:
+						'Tag untuk berita (opsional). Prefer kanonis: Teknik Informatika, Himatif Encoder, UIN Malang, nama kegiatan — hindari pecah jadi "teknik"+"informatika".',
+				},
+				image: {
+					type: 'string',
+					description:
+						'URL gambar cover (opsional): path lokal /uploads/... , URL https, atau Google Drive file. Jika kosong dipakai placeholder default.',
 				},
 			},
 			required: ['title'],
@@ -615,7 +621,17 @@ const DASHBOARD_WRITE_TOOLS: AIToolDef[] = [
 					description:
 						'Konten HTML baru (opsional). Harus tetap mengikuti skeleton Medinfo: meta 2–3 baris di awal, paragraf pembuka ENCODER, section <h3>, gambar hanya di antara section.',
 				},
-				tags: { type: 'array', items: { type: 'string' }, description: 'Tag baru (opsional, mengganti seluruh tag).' },
+				tags: {
+					type: 'array',
+					items: { type: 'string' },
+					description:
+						'Tag baru (opsional, mengganti seluruh tag). Gunakan tag kanonis; jangan pecah Teknik Informatika.',
+				},
+				image: {
+					type: 'string',
+					description:
+						'URL gambar cover baru (opsional): /uploads/..., https, atau Google Drive file.',
+				},
 			},
 			required: ['beritaId'],
 		},
@@ -1401,6 +1417,81 @@ async function fetchAndExtractWebpage(
 const STORE_THUMB_PLACEHOLDER =
 	'data:image/svg+xml,' +
 	encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+
+async function resolveBeritaCoverImage(raw?: string): Promise<{
+	image: string;
+	imageSource: 'local' | 'gdrive';
+	gdriveFileId: string | null;
+	usedDefault: boolean;
+	error?: string;
+}> {
+	const value = String(raw || '').trim();
+	if (!value) {
+		return {
+			image: DEFAULT_BERITA_IMAGE_PATH,
+			imageSource: 'local',
+			gdriveFileId: null,
+			usedDefault: true,
+		};
+	}
+	if (value.startsWith('/uploads/') || value.startsWith('/attached_assets/')) {
+		return {
+			image: value,
+			imageSource: 'local',
+			gdriveFileId: null,
+			usedDefault: false,
+		};
+	}
+	try {
+		const { extractFileId, checkAccessibility, isValidGoogleDriveUrl } =
+			await import('../googleDrive');
+		if (isValidGoogleDriveUrl(value)) {
+			const fileId = extractFileId(value);
+			if (!fileId) {
+				return {
+					image: DEFAULT_BERITA_IMAGE_PATH,
+					imageSource: 'local',
+					gdriveFileId: null,
+					usedDefault: true,
+					error: 'Google Drive URL tidak valid (file ID tidak terbaca).',
+				};
+			}
+			const accessible = await checkAccessibility(fileId);
+			if (!accessible) {
+				return {
+					image: DEFAULT_BERITA_IMAGE_PATH,
+					imageSource: 'local',
+					gdriveFileId: null,
+					usedDefault: true,
+					error: 'File Google Drive tidak bisa diakses server (harus public/share).',
+				};
+			}
+			return {
+				image: value,
+				imageSource: 'gdrive',
+				gdriveFileId: fileId,
+				usedDefault: false,
+			};
+		}
+	} catch {
+		/* fall through to https */
+	}
+	if (/^https?:\/\//i.test(value)) {
+		return {
+			image: value,
+			imageSource: 'local',
+			gdriveFileId: null,
+			usedDefault: false,
+		};
+	}
+	return {
+		image: DEFAULT_BERITA_IMAGE_PATH,
+		imageSource: 'local',
+		gdriveFileId: null,
+		usedDefault: true,
+		error: 'URL gambar cover tidak dikenali. Pakai /uploads/..., https://..., atau Google Drive.',
+	};
+}
 
 function validateStoreVideoUrl(url: string): { ok: boolean; type: '' | 'youtube' | 'gdrive' | 'public' } {
 	if (!url || !String(url).trim()) return { ok: true, type: '' };
@@ -2262,14 +2353,19 @@ export async function executeToolCall(
 					(args.content as string) ||
 					`<p>${excerpt}</p>`;
 				const tags = (args.tags as string[]) || [];
+				const imageResolved = await resolveBeritaCoverImage(
+					args.image as string | undefined,
+				);
+				if (imageResolved.error) return { error: imageResolved.error };
 
 				const berita = await Berita.create({
 					title,
 					slug,
 					excerpt,
 					content,
-					image: DEFAULT_BERITA_IMAGE_PATH,
-					imageSource: 'local',
+					image: imageResolved.image,
+					imageSource: imageResolved.imageSource,
+					gdriveFileId: imageResolved.gdriveFileId,
 					tags,
 					published: false,
 					authorId: (user as any)._id,
@@ -2285,9 +2381,12 @@ export async function executeToolCall(
 						title: berita.title,
 						slug: berita.slug,
 						published: false,
+						image: berita.image,
+						tags: berita.tags,
 					},
-					message:
-						'Berita draft berhasil dibuat. Silakan buka Dashboard > Berita untuk menambahkan gambar cover, mengedit konten, dan mempublikasikan.',
+					message: imageResolved.usedDefault
+						? 'Berita draft berhasil dibuat (cover masih placeholder). Silakan buka Dashboard > Berita untuk ganti gambar cover bila perlu, lalu publish.'
+						: 'Berita draft berhasil dibuat dengan cover dari URL yang diberikan. Silakan tinjau di Dashboard > Berita sebelum publish.',
 				};
 			}
 
@@ -2461,6 +2560,15 @@ export async function executeToolCall(
 				if (args.excerpt) updates.excerpt = args.excerpt;
 				if (args.content) updates.content = args.content;
 				if (args.tags) updates.tags = args.tags;
+				if (args.image !== undefined && String(args.image || '').trim()) {
+					const imageResolved = await resolveBeritaCoverImage(
+						args.image as string,
+					);
+					if (imageResolved.error) return { error: imageResolved.error };
+					updates.image = imageResolved.image;
+					updates.imageSource = imageResolved.imageSource;
+					updates.gdriveFileId = imageResolved.gdriveFileId;
+				}
 				await Berita.findByIdAndUpdate(beritaId, updates);
 				return { success: true, message: 'Berita berhasil diperbarui.' };
 			}

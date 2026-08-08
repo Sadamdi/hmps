@@ -24,7 +24,7 @@ export type EnhanceContentInput = {
 
 const ENTITY_FIELD_HINTS: Partial<Record<ContentEntityType, string>> = {
 	berita:
-		'Berita HMPS/Medinfo: judul, excerpt, konten HTML berstruktur (meta 2–3 baris di awal, paragraf pembuka ENCODER, section h3, gambar di antara section).',
+		'Berita HMPS/Medinfo: judul, excerpt, tags (pisahkan koma; pakai kanonis jelas mis. Teknik Informatika, Himatif Encoder), konten HTML berstruktur (tepat 3 baris meta 🗓 Tanggal / 🕖 Waktu / 📍 Tempat di awal, paragraf pembuka ENCODER, section h3, gambar hanya <p><img> di antara section). Jangan ubah URL gambar yang sudah ada kecuali rusak.',
 	event: 'Event HMPS: judul dan deskripsi kegiatan HTML.',
 	library: 'Item galeri: judul, deskripsi singkat, deskripsi lengkap HTML.',
 	store_product: 'Produk toko: nama, deskripsi singkat, deskripsi HTML.',
@@ -102,7 +102,8 @@ ${ENTITY_FIELD_HINTS[input.entityType] || 'Konten dashboard HMPS.'}
 
 ${styleHint}
 
-Tugas: perbaiki/tingkatkan kualitas teks field berikut (ejaan, kejelasan, nada formal Islami HMPS). ${preserveHtml ? 'Pertahankan tag HTML yang ada; jangan ubah struktur embed/URL.' : 'Output plain text kecuali field memang HTML.'}
+Tugas: perbaiki/tingkatkan kualitas teks field berikut (ejaan, kejelasan, nada formal Islami HMPS). ${preserveHtml ? 'Pertahankan tag HTML yang ada; jangan ubah struktur embed/URL/gambar yang sudah valid.' : 'Output plain text kecuali field memang HTML.'}
+Jika ada field "tags": kembalikan daftar tag dipisah koma, dedupe, dan kanonis (contoh: Teknik Informatika — jangan pecah ke "teknik" + "informatika"; Himatif Encoder — jangan "encoder" saja).
 
 Field input:
 ${fieldBlocks}

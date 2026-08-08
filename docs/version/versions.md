@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.14.1`  
+**Current version:** `4.14.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.14.1`](./release/4.14.1.md) | 2026-08-08 | WrecK-IT meta Tanggal/Waktu/Tempat + tags scroll all | PATCH | 1 | **Current** |
+| [`4.14.2`](./release/4.14.2.md) | 2026-08-08 | Embed allowlist, tag merge pass-2, AI berita fields | PATCH | 1 | **Current** |
+| [`4.14.1`](./release/4.14.1.md) | 2026-08-08 | WrecK-IT meta Tanggal/Waktu/Tempat + tags scroll all | PATCH | 1 | Released |
 | [`4.14.0`](./release/4.14.0.md) | 2026-08-08 | Berita Medinfo skeleton, AI style, tags UI, tag merge | MINOR | 1 | Released |
 | [`4.13.0`](./release/4.13.0.md) | 2026-08-08 | Kurikulum S2 (level s1/s2) + sync magister | MINOR | 1 | Released |
 | [`4.12.1`](./release/4.12.1.md) | 2026-08-08 | Prodi sync: S2 accreditation + curriculum index | PATCH | 1 | Released |

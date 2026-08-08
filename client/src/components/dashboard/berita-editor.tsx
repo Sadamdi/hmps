@@ -1439,13 +1439,34 @@ export default function BeritaEditor({
 				fields={[
 					{ key: 'title', label: 'Judul' },
 					{ key: 'excerpt', label: 'Excerpt' },
+					{ key: 'tags', label: 'Tags' },
 					{ key: 'content', label: 'Konten' },
 				]}
-				values={{ title, excerpt, content }}
+				values={{
+					title,
+					excerpt,
+					tags: tags.join(', '),
+					content,
+				}}
 				onApply={(partial) => {
 					if (partial.title !== undefined) setTitle(partial.title);
 					if (partial.excerpt !== undefined) setExcerpt(partial.excerpt);
 					if (partial.content !== undefined) setContent(partial.content);
+					if (partial.tags !== undefined) {
+						const next = partial.tags
+							.split(/[,;\n]+/)
+							.map((t) => t.trim())
+							.filter(Boolean);
+						const seen = new Set<string>();
+						const uniq: string[] = [];
+						for (const t of next) {
+							const k = t.toLowerCase();
+							if (seen.has(k)) continue;
+							seen.add(k);
+							uniq.push(t);
+						}
+						setTags(uniq);
+					}
 				}}
 			/>
 			<Button
