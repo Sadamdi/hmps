@@ -19,6 +19,8 @@ const SOURCES = {
 	curriculum2024: 'https://informatika.uin-malang.ac.id/curriculum-2024-dan-rps/',
 	curriculumMasterIndex: 'https://informatika.uin-malang.ac.id/curriculum-for-master/',
 	curriculumMaster2022: 'https://informatika.uin-malang.ac.id/curriculum-2022/',
+	curriculumMaster2022Pdf:
+		'https://informatika.uin-malang.ac.id/wp-content/uploads/2025/08/Buku-Kurikulum-S2-Informatika-2022-1-Agst-2022-Finalisasi-1.pdf',
 	/** HTML page still 404; official OBE PDF used as guidebook fallback */
 	curriculumMaster2024Pdf:
 		'https://informatika.uin-malang.ac.id/wp-content/uploads/2025/08/Kurikulum-OBE-Magister-Informatika-2024-rev.pdf',
@@ -1261,6 +1263,9 @@ async function parseCurriculumFromUrl(curriculumUrl: string): Promise<any> {
 				guidebookUrl = href;
 			}
 		});
+	}
+	if (!guidebookUrl && curriculumUrl.includes('curriculum-2022')) {
+		guidebookUrl = SOURCES.curriculumMaster2022Pdf;
 	}
 
 	// Intro paragraph as structure summary for master pages
