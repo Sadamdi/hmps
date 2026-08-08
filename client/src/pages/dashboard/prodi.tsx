@@ -489,6 +489,7 @@ export default function DashboardProdi() {
 							data={localContent.curriculum ?? {}}
 							curriculumByYear={doc?.curriculumByYear}
 							curriculumYears={doc?.curriculumYears ?? []}
+							curriculumYearsByLevel={doc?.curriculumYearsByLevel}
 							activeAcademicYear={doc?.activeAcademicYear}
 							onChange={(field, val) => updateField('curriculum', field, val)}
 							onYearChange={setSelectedCurriculumYear}
@@ -1911,6 +1912,7 @@ function CurriculumEditor({
 	data,
 	curriculumByYear,
 	curriculumYears,
+	curriculumYearsByLevel,
 	activeAcademicYear,
 	onChange,
 	onYearChange,
@@ -1919,6 +1921,7 @@ function CurriculumEditor({
 	data: any;
 	curriculumByYear?: any[];
 	curriculumYears?: number[];
+	curriculumYearsByLevel?: { s1?: number[]; s2?: number[] };
 	activeAcademicYear?: number;
 	onChange: (f: string, v: any) => void;
 	onYearChange?: (year: number | null) => void;
@@ -1926,15 +1929,21 @@ function CurriculumEditor({
 }) {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
-	const years = curriculumYears ?? [];
-	const formatRange = (year: number) => `${year}-${year + 4}`;
+	const [level, setLevel] = useState<'s1' | 's2'>('s1');
+	const years =
+		curriculumYearsByLevel?.[level] ??
+		(level === 's1' ? curriculumYears ?? [] : []);
+	const formatRange = (year: number) =>
+		level === 's2' ? `${year}-${year + 2}` : `${year}-${year + 4}`;
 	const [selectedYear, setSelectedYear] = useState<number | null>(null);
 	const [newYearInput, setNewYearInput] = useState('');
 
 	const activeYear = activeAcademicYear ?? new Date().getFullYear();
 	const effectiveYear = selectedYear ?? (years.length > 0 ? (years.includes(activeYear) ? activeYear : years[0]) : null);
 
-	const yearEntries: any[] = curriculumByYear ?? [];
+	const yearEntries: any[] = (curriculumByYear ?? []).filter(
+		(e: any) => (e.level || 's1') === level,
+	);
 	const yearData = effectiveYear != null
 		? yearEntries.find((e: any) => e.academicYear === effectiveYear)
 		: null;
@@ -2010,6 +2019,30 @@ function CurriculumEditor({
 					</CardTitle>
 				</CardHeader>
 				<CardContent className="space-y-4">
+					<div className="flex items-center gap-2 flex-wrap">
+						<Button
+							type="button"
+							size="sm"
+							variant={level === 's1' ? 'default' : 'outline'}
+							onClick={() => {
+								setLevel('s1');
+								setSelectedYear(null);
+							}}
+						>
+							S1
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							variant={level === 's2' ? 'default' : 'outline'}
+							onClick={() => {
+								setLevel('s2');
+								setSelectedYear(null);
+							}}
+						>
+							S2
+						</Button>
+					</div>
 					{years.length > 0 && (
 						<Select
 							value={String(effectiveYear ?? '')}
@@ -2020,7 +2053,7 @@ function CurriculumEditor({
 							</SelectTrigger>
 							<SelectContent>
 								{years.map((y) => (
-									<SelectItem key={y} value={String(y)}>
+									<SelectItem key={`${level}-${y}`} value={String(y)}>
 										Kurikulum {formatRange(y)} {y === activeYear ? '(Aktif)' : ''}
 									</SelectItem>
 								))}

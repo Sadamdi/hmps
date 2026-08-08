@@ -1295,21 +1295,61 @@ async function getProdiContent(): Promise<any> {
 	return doc;
 }
 
+function normalizeCurriculumLevel(level: unknown): 's1' | 's2' {
+	return level === 's2' ? 's2' : 's1';
+}
+
+function entriesForLevel(entries: any[], level: 's1' | 's2'): any[] {
+	return (entries ?? []).filter(
+		(e: any) => normalizeCurriculumLevel(e?.level) === level,
+	);
+}
+
 async function getProdiContentPublic(): Promise<any> {
 	await ensureCurriculumByYearMigrated();
 	const doc = await getProdiContent();
 	const content = doc.content ? JSON.parse(JSON.stringify(doc.content)) : {};
 	const entries: any[] = doc.curriculumByYear ?? [];
-	const availableYears = entries
+	const s1Entries = entriesForLevel(entries, 's1');
+	const s2Entries = entriesForLevel(entries, 's2');
+	const availableYears = s1Entries
 		.map((e: any) => e.academicYear as number)
 		.sort((a: number, b: number) => b - a);
-	const activeYear = resolveActiveCurriculumYear(entries);
-	content.curriculumMeta = { availableYears, activeYear };
-	// Build a map of all curriculum year data so frontend can switch
+	const activeYear = resolveActiveCurriculumYear(s1Entries);
+	const s2Years = s2Entries
+		.map((e: any) => e.academicYear as number)
+		.sort((a: number, b: number) => b - a);
+	const s2Active = resolveActiveCurriculumYear(s2Entries);
+	content.curriculumMeta = {
+		availableYears,
+		activeYear,
+		levels: {
+			s1: { availableYears, activeYear, label: 'S1 Teknik Informatika' },
+			s2: {
+				availableYears: s2Years,
+				activeYear: s2Active,
+				label: 'S2 Magister Informatika',
+			},
+		},
+	};
+	// Backward-compatible flat map = S1 only
 	content.curriculumByYear = {};
-	for (const entry of entries) {
+	for (const entry of s1Entries) {
 		const obj = entry.toObject?.() ?? entry;
 		content.curriculumByYear[obj.academicYear] = obj;
+	}
+	// Nested by level for S1/S2 switcher
+	content.curriculumByLevel = { s1: {}, s2: {} } as Record<
+		string,
+		Record<number, any>
+	>;
+	for (const entry of entries) {
+		const obj = entry.toObject?.() ?? entry;
+		const level = normalizeCurriculumLevel(obj.level);
+		content.curriculumByLevel[level][obj.academicYear] = {
+			...obj,
+			level,
+		};
 	}
 	// Ensure student hub defaults for public page (guides/portals) without requiring sync
 	try {
@@ -1435,20 +1475,25 @@ async function ensureCurriculumByYearMigrated(): Promise<void> {
 	await doc.save();
 }
 
-async function getProdiCurriculumYears(): Promise<number[]> {
+async function getProdiCurriculumYears(level: 's1' | 's2' = 's1'): Promise<number[]> {
 	await ensureCurriculumByYearMigrated();
 	const doc = await getProdiContent();
-	const entries: any[] = doc.curriculumByYear ?? [];
+	const entries = entriesForLevel(doc.curriculumByYear ?? [], level);
 	return entries
 		.map((e: any) => e.academicYear as number)
 		.sort((a: number, b: number) => b - a);
 }
 
-async function getProdiCurriculumByYear(year?: number): Promise<any> {
+async function getProdiCurriculumByYear(
+	year?: number,
+	level: 's1' | 's2' = 's1',
+): Promise<any> {
 	await ensureCurriculumByYearMigrated();
 	const doc = await getProdiContent();
-	const entries: any[] = doc.curriculumByYear ?? [];
-	if (!entries.length) return doc.content?.curriculum ?? null;
+	const entries = entriesForLevel(doc.curriculumByYear ?? [], level);
+	if (!entries.length) {
+		return level === 's1' ? doc.content?.curriculum ?? null : null;
+	}
 
 	if (year !== undefined) {
 		const found = entries.find((e: any) => e.academicYear === year);
@@ -1466,26 +1511,33 @@ async function getProdiCurriculumByYear(year?: number): Promise<any> {
 async function upsertProdiCurriculumByYear(
 	year: number,
 	payload: any,
-	options?: { overwrite?: boolean },
+	options?: { overwrite?: boolean; level?: 's1' | 's2' },
 ): Promise<{
 	action: 'created' | 'overwritten' | 'needs_confirm';
 	year: number;
+	level: 's1' | 's2';
 }> {
 	await ensureCurriculumByYearMigrated();
 	const doc = await getProdiContent();
 	if (!doc.curriculumByYear) doc.curriculumByYear = [];
 
+	const level = normalizeCurriculumLevel(options?.level ?? payload?.level);
 	const idx = (doc.curriculumByYear as any[]).findIndex(
-		(e: any) => e.academicYear === year,
+		(e: any) =>
+			e.academicYear === year &&
+			normalizeCurriculumLevel(e.level) === level,
 	);
 
 	if (idx >= 0 && !options?.overwrite) {
-		return { action: 'needs_confirm', year };
+		return { action: 'needs_confirm', year, level };
 	}
 
+	const defaultPeriod =
+		level === 's2' ? `${year}-${year + 2}` : `${year}-${year + 4}`;
 	const entry = {
 		academicYear: year,
-		periodLabel: payload.periodLabel ?? `${year}-${year + 4}`,
+		level,
+		periodLabel: payload.periodLabel ?? defaultPeriod,
 		graduateProfile: payload.graduateProfile ?? [],
 		knowledgeGroups: payload.knowledgeGroups ?? [],
 		structureSummary: payload.structureSummary ?? '',
@@ -1507,24 +1559,32 @@ async function upsertProdiCurriculumByYear(
 
 	doc.markModified('curriculumByYear');
 
-	// keep legacy content.curriculum in sync with latest year
-	if (!doc.content) (doc as any).content = {};
-	if (!(doc as any).content.curriculum) (doc as any).content.curriculum = {};
-	(doc as any).content.curriculum.semesters = entry.semesters;
-	(doc as any).content.curriculum.optionalSubjects = entry.optionalSubjects;
-	(doc as any).content.curriculum.subjectRpsResources =
-		entry.subjectRpsResources;
-	(doc as any).content.curriculum.graduateProfile = entry.graduateProfile;
-	(doc as any).content.curriculum.knowledgeGroups = entry.knowledgeGroups;
-	(doc as any).content.curriculum.structureSummary = entry.structureSummary;
-	(doc as any).content.curriculum.periodLabel = entry.periodLabel;
-	(doc as any).content.curriculum.guidebookUrl = entry.guidebookUrl;
-	(doc as any).content.curriculum.curriculumUrl = entry.curriculumUrl;
-	(doc as any).content.curriculum.officialUrl = entry.officialUrl;
-	doc.markModified('content');
+	// Legacy content.curriculum tracks latest S1 only
+	if (level === 's1') {
+		const s1Years = entriesForLevel(doc.curriculumByYear as any[], 's1')
+			.map((e: any) => e.academicYear as number)
+			.sort((a: number, b: number) => b - a);
+		const isLatestS1 = !s1Years.length || year === s1Years[0];
+		if (isLatestS1) {
+			if (!doc.content) (doc as any).content = {};
+			if (!(doc as any).content.curriculum) (doc as any).content.curriculum = {};
+			(doc as any).content.curriculum.semesters = entry.semesters;
+			(doc as any).content.curriculum.optionalSubjects = entry.optionalSubjects;
+			(doc as any).content.curriculum.subjectRpsResources =
+				entry.subjectRpsResources;
+			(doc as any).content.curriculum.graduateProfile = entry.graduateProfile;
+			(doc as any).content.curriculum.knowledgeGroups = entry.knowledgeGroups;
+			(doc as any).content.curriculum.structureSummary = entry.structureSummary;
+			(doc as any).content.curriculum.periodLabel = entry.periodLabel;
+			(doc as any).content.curriculum.guidebookUrl = entry.guidebookUrl;
+			(doc as any).content.curriculum.curriculumUrl = entry.curriculumUrl;
+			(doc as any).content.curriculum.officialUrl = entry.officialUrl;
+			doc.markModified('content');
+		}
+	}
 
 	await doc.save();
-	return { action: idx >= 0 ? 'overwritten' : 'created', year };
+	return { action: idx >= 0 ? 'overwritten' : 'created', year, level };
 }
 
 // ─── Feedback CRUD ───

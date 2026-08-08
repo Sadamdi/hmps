@@ -17,6 +17,13 @@ const SOURCES = {
 	// Old /accreditation-certificate-for-master-s2/ removed from WP (404). Live source is Master Study profile.
 	accreditationS2: 'https://informatika.uin-malang.ac.id/master-study-s2/',
 	curriculum2024: 'https://informatika.uin-malang.ac.id/curriculum-2024-dan-rps/',
+	curriculumMasterIndex: 'https://informatika.uin-malang.ac.id/curriculum-for-master/',
+	curriculumMaster2022: 'https://informatika.uin-malang.ac.id/curriculum-2022/',
+	/** HTML page still 404; official OBE PDF used as guidebook fallback */
+	curriculumMaster2024Pdf:
+		'https://informatika.uin-malang.ac.id/wp-content/uploads/2025/08/Kurikulum-OBE-Magister-Informatika-2024-rev.pdf',
+	curriculumMaster2024Page:
+		'https://informatika.uin-malang.ac.id/curriculum-2024-for-master/',
 };
 
 const BASE_URL = 'https://informatika.uin-malang.ac.id';
@@ -970,7 +977,147 @@ function parseGraduateProfileTable($: cheerio.CheerioAPI, $table: cheerio.Cheeri
 	return rows;
 }
 
-type CurriculumIndexEntry = { year: number; url: string };
+type CurriculumIndexEntry = { year: number; url: string; level: 's1' | 's2' };
+
+const ROMAN_SEMESTER: Record<string, number> = {
+	i: 1,
+	ii: 2,
+	iii: 3,
+	iv: 4,
+	v: 5,
+	vi: 6,
+	vii: 7,
+	viii: 8,
+};
+
+function parseSemesterNumberLabel(text: string): number | null {
+	const t = (text || '').trim();
+	const arabic = t.match(/semester\s*(\d{1,2})/i);
+	if (arabic) {
+		const n = parseInt(arabic[1], 10);
+		return Number.isFinite(n) ? n : null;
+	}
+	const roman = t.match(/semester\s*([ivx]+)/i);
+	if (roman) return ROMAN_SEMESTER[roman[1].toLowerCase()] ?? null;
+	return null;
+}
+
+/** Master curriculum pages use plain SEMESTER tables (not Elementor accordion). */
+function parseMasterSemesterTables(
+	$: cheerio.CheerioAPI,
+	root: cheerio.Cheerio<any>,
+	semesters: any[],
+	optionalSubjects: any[],
+) {
+	const ensure = (num: number) => {
+		if (!semesters.find((s: any) => s.semester === num)) {
+			semesters.push({ semester: num, totalSks: '', subjects: [] });
+		}
+	};
+
+	root.find('table').each((_ti, tbl) => {
+		const $tbl = $(tbl);
+		const before = cleanText(
+			$tbl.prevAll('h1,h2,h3,h4,h5,p,div,strong').first(),
+		);
+		const caption = cleanText($tbl.find('caption').first());
+		const nearby = `${before} ${caption} ${cleanText($tbl.parent())}`.slice(0, 200);
+		const lowerNearby = nearby.toLowerCase();
+		const isOptional =
+			/pilihan|elective|optional/i.test(lowerNearby) &&
+			!/semester/i.test(lowerNearby);
+		const semNum = parseSemesterNumberLabel(nearby);
+
+		$tbl.find('tr').each((_ri, tr) => {
+			const cells = $(tr)
+				.find('td,th')
+				.toArray()
+				.map((c) => cleanText($(c)));
+			if (cells.length < 3) return;
+			const joined = cells.join(' ').toLowerCase();
+			if (/^(no|code|subjects?|sks|prerequisite)/i.test(cells[0]) && /code|subject/i.test(joined)) {
+				return;
+			}
+			if (/^total$/i.test(cells[0]) || /^t\s*o\s*t\s*a\s*l$/i.test(joined)) {
+				const sks = cells.find((c) => /^\d+(\.\d+)?$/.test(c)) || '';
+				if (semNum != null && sks) {
+					ensure(semNum);
+					const row = semesters.find((s: any) => s.semester === semNum);
+					if (row && !row.totalSks) row.totalSks = sks;
+				}
+				return;
+			}
+
+			// Expected: No | Code | Name | SKS | Prerequisite
+			let code = '';
+			let name = '';
+			let sks = '';
+			let prerequisite = '';
+			if (cells.length >= 5) {
+				code = cells[1];
+				name = cells[2];
+				sks = cells[3];
+				prerequisite = cells[4];
+			} else if (cells.length === 4) {
+				if (/^\d+$/.test(cells[0])) {
+					code = cells[1];
+					name = cells[2];
+					sks = cells[3];
+				} else {
+					code = cells[0];
+					name = cells[1];
+					sks = cells[2];
+					prerequisite = cells[3];
+				}
+			} else {
+				code = cells[0];
+				name = cells[1];
+				sks = cells[2] || '';
+			}
+
+			if (!name || name.length < 3) return;
+			if (/^subjects?\s*name$/i.test(name)) return;
+			const subject = {
+				code: code && !/^no$/i.test(code) ? code : '',
+				name,
+				sks: sks || '',
+				prerequisite: prerequisite || '',
+			};
+
+			if (isOptional || /mk\s*pilihan/i.test(name)) {
+				optionalSubjects.push(subject);
+				return;
+			}
+			if (semNum == null) return;
+			ensure(semNum);
+			const row = semesters.find((s: any) => s.semester === semNum);
+			row.subjects.push(subject);
+		});
+	});
+
+	// Fallback: scan full text blocks "SEMESTER I ... SEMESTER II"
+	if (semesters.length === 0) {
+		const full = cleanText(root);
+		const parts = full.split(/(?=SEMESTER\s+[IVX\d]+)/i);
+		for (const part of parts) {
+			const num = parseSemesterNumberLabel(part.slice(0, 40));
+			if (num == null) continue;
+			ensure(num);
+			const row = semesters.find((s: any) => s.semester === num);
+			const codeRe =
+				/(\d{5,}[A-Z0-9]*)\s+([A-Za-zÀ-ÿ][^0-9]{3,80}?)\s+(\d{1,2})\s+/g;
+			let m: RegExpExecArray | null;
+			while ((m = codeRe.exec(part)) !== null) {
+				row.subjects.push({
+					code: m[1],
+					name: m[2].trim(),
+					sks: m[3],
+					prerequisite: '',
+				});
+			}
+		}
+	}
+}
 
 async function parseCurriculumIndexEntries(): Promise<CurriculumIndexEntry[]> {
 	const byYear = new Map<number, string>();
@@ -1018,12 +1165,72 @@ async function parseCurriculumIndexEntries(): Promise<CurriculumIndexEntry[]> {
 	}
 
 	return Array.from(byYear.entries())
-		.map(([year, url]) => ({ year, url }))
+		.map(([year, url]) => ({ year, url, level: 's1' as const }))
+		.sort((a, b) => a.year - b.year);
+}
+
+async function parseCurriculumMasterIndexEntries(): Promise<CurriculumIndexEntry[]> {
+	const byYear = new Map<number, string>();
+	byYear.set(2022, SOURCES.curriculumMaster2022);
+	// Prefer live HTML page when it exists; else keep PDF URL as sync target marker.
+	byYear.set(2024, SOURCES.curriculumMaster2024Page);
+
+	try {
+		const $ = await fetchPage(SOURCES.curriculumMasterIndex);
+		const root = getContentRoot($);
+		if (root.length) {
+			root.find('a[href]').each((_i, a) => {
+				const href = normalizeHref($(a).attr('href') || '');
+				if (!href || !href.startsWith(BASE_URL) || href.endsWith('#')) return;
+				const txt = `${cleanText($(a))} ${cleanText($(a).closest('div,li,p').first())}`;
+				const m = txt.match(/curriculum\s*(\d{4})/i) || href.match(/curriculum-(\d{4})/i);
+				if (!m) return;
+				const year = parseInt(m[1], 10);
+				if (!Number.isFinite(year) || year < 2000 || year > 2100) return;
+				byYear.set(year, href);
+			});
+		}
+	} catch (err) {
+		console.warn('Master curriculum index parse warning:', err);
+	}
+
+	return Array.from(byYear.entries())
+		.map(([year, url]) => ({ year, url, level: 's2' as const }))
 		.sort((a, b) => a.year - b.year);
 }
 
 async function parseCurriculumFromUrl(curriculumUrl: string): Promise<any> {
-	const $ = await fetchPage(curriculumUrl);
+	// Master 2024 HTML still 404 — ship PDF guidebook entry instead of failing the year.
+	if (
+		curriculumUrl === SOURCES.curriculumMaster2024Page ||
+		curriculumUrl === SOURCES.curriculumMaster2024Pdf ||
+		/\.pdf($|\?)/i.test(curriculumUrl)
+	) {
+		return {
+			graduateProfile: [],
+			knowledgeGroups: [],
+			structureSummary:
+				'Kurikulum OBE Magister Informatika 2024. Halaman web detail belum tersedia di situs resmi TI; unduh buku kurikulum PDF sebagai referensi utama.',
+			semesters: [],
+			optionalSubjects: [],
+			guidebookUrl: SOURCES.curriculumMaster2024Pdf,
+			curriculumUrl: SOURCES.curriculumMasterIndex,
+			officialUrl: SOURCES.curriculumMasterIndex,
+		};
+	}
+
+	let $: cheerio.CheerioAPI;
+	try {
+		$ = await fetchPage(curriculumUrl);
+	} catch (err: any) {
+		if (
+			curriculumUrl.includes('curriculum-2024-for-master') ||
+			/HTTP 404/.test(String(err?.message || ''))
+		) {
+			return parseCurriculumFromUrl(SOURCES.curriculumMaster2024Pdf);
+		}
+		throw err;
+	}
 	const root = getContentRoot($);
 	if (!root.length) return {};
 
@@ -1050,8 +1257,30 @@ async function parseCurriculumFromUrl(curriculumUrl: string): Promise<any> {
 	if (accordionMeta.structureSummary.trim()) structureSummary = accordionMeta.structureSummary.trim();
 	if (accordionMeta.guidebookUrl) guidebookUrl = accordionMeta.guidebookUrl;
 
+	if (semesters.length === 0) {
+		parseMasterSemesterTables($, root, semesters, optionalSubjects);
+	}
+
+	// Collect guidebook PDF links (master pages)
+	if (!guidebookUrl) {
+		root.find('a[href]').each((_i, a) => {
+			if (guidebookUrl) return;
+			const href = normalizeHref($(a).attr('href') || '');
+			const label = cleanText($(a));
+			if (/\.pdf($|\?)/i.test(href) && /kurikulum|curriculum|obe|guidebook|buku/i.test(`${label} ${href}`)) {
+				guidebookUrl = href;
+			}
+		});
+	}
+
+	// Intro paragraph as structure summary for master pages
+	if (!structureSummary.trim()) {
+		const intro = cleanText(root.find('p').first());
+		if (intro.length > 40) structureSummary = intro.slice(0, 800);
+	}
+
 	console.log(
-		`Curriculum accordion parse result: ${semesters.length} semesters (${semesters.map((s: any) => `sem${s.semester}:${s.subjects?.length ?? 0}`).join(', ')}), optionalSubjects=${optionalSubjects.length}`,
+		`Curriculum parse result: ${semesters.length} semesters (${semesters.map((s: any) => `sem${s.semester}:${s.subjects?.length ?? 0}`).join(', ')}), optionalSubjects=${optionalSubjects.length}`,
 	);
 
 	orderedBlockElements($, root).each((_i, el: any) => {
@@ -1830,7 +2059,12 @@ export async function runProdiSyncScoped(
 	let profile: any = null;
 	let lecturerData: { headAndSecretary: any[]; groups: LecturerGroup[]; staff: any[] } | null = null;
 	let curriculum: any = null;
-	let curriculumByYearParsed: { year: number; url: string; payload: any }[] = [];
+	let curriculumByYearParsed: {
+		year: number;
+		url: string;
+		level?: 's1' | 's2';
+		payload: any;
+	}[] = [];
 	let teachingLabs: any[] | null = null;
 	let researchLabs: any[] | null = null;
 	let accreditation: any = null;
@@ -1867,14 +2101,26 @@ export async function runProdiSyncScoped(
 		if (doCurriculum) {
 			tasks.push(
 				(async () => {
-					const entries = await parseCurriculumIndexEntries();
-					const parsed: { year: number; url: string; payload: any }[] = [];
+					const [s1Entries, s2Entries] = await Promise.all([
+						parseCurriculumIndexEntries(),
+						parseCurriculumMasterIndexEntries(),
+					]);
+					const entries = [...s1Entries, ...s2Entries];
+					const parsed: { year: number; url: string; level: 's1' | 's2'; payload: any }[] = [];
 					for (const entry of entries) {
 						try {
 							const payload = await parseCurriculumFromUrl(entry.url);
-							parsed.push({ year: entry.year, url: entry.url, payload });
+							parsed.push({
+								year: entry.year,
+								url: entry.url,
+								level: entry.level,
+								payload: { ...payload, level: entry.level },
+							});
 						} catch (err) {
-							console.error(`Curriculum parse error for year ${entry.year}:`, err);
+							console.error(
+								`Curriculum parse error for ${entry.level} year ${entry.year}:`,
+								err,
+							);
 						}
 					}
 					return parsed;
@@ -1899,8 +2145,10 @@ export async function runProdiSyncScoped(
 		}
 
 		if (doCurriculum && curriculumByYearParsed.length > 0) {
-			const sorted = [...curriculumByYearParsed].sort((a, b) => b.year - a.year);
-			curriculum = sorted[0].payload;
+			const s1Sorted = [...curriculumByYearParsed]
+				.filter((x: any) => (x.level || 's1') === 's1')
+				.sort((a, b) => b.year - a.year);
+			curriculum = (s1Sorted[0] || curriculumByYearParsed[0]).payload;
 		}
 
 		// Enrich lecturer details
@@ -2048,26 +2296,37 @@ export async function runProdiSyncScoped(
 			}
 		}
 
-		// Curriculum goes through year-based storage
+		// Curriculum goes through year-based storage (S1 + S2)
 		if (doCurriculum && curriculumByYearParsed.length) {
-			const sortedByYear = [...curriculumByYearParsed].sort((a, b) => a.year - b.year);
+			const sortedByYear = [...curriculumByYearParsed].sort((a, b) => {
+				const la = (a as any).level === 's2' ? 1 : 0;
+				const lb = (b as any).level === 's2' ? 1 : 0;
+				if (la !== lb) return la - lb;
+				return a.year - b.year;
+			});
 			curriculumProcessedYears = sortedByYear.map((x) => x.year);
 			let latestSuccessPayload: any = null;
 			for (const row of sortedByYear) {
 				const year = row.year;
+				const level = ((row as any).level || 's1') as 's1' | 's2';
 				curriculumTargetYear = year;
-				const periodLabel = `${year}-${year + 4}`;
+				const periodLabel =
+					level === 's2' ? `${year}-${year + 2}` : `${year}-${year + 4}`;
 				const syncPayload = {
 					...row.payload,
-					periodLabel,
-					officialUrl: SOURCES.curriculumIndex,
+					level,
+					periodLabel: row.payload?.periodLabel || periodLabel,
+					officialUrl:
+						level === 's2'
+							? SOURCES.curriculumMasterIndex
+							: SOURCES.curriculumIndex,
 					curriculumUrl: row.url || row.payload?.curriculumUrl || '',
 					source: 'sync' as const,
 				};
 				const result = await mongoStorage.upsertProdiCurriculumByYear(
 					year,
 					syncPayload,
-					{ overwrite: options?.overwrite },
+					{ overwrite: options?.overwrite, level },
 				);
 				if (result.action === 'needs_confirm') {
 					curriculumNeedsConfirmYears.push(year);
@@ -2075,7 +2334,7 @@ export async function runProdiSyncScoped(
 				}
 				if (result.action === 'created') curriculumCreatedYears.push(year);
 				if (result.action === 'overwritten') curriculumOverwrittenYears.push(year);
-				latestSuccessPayload = syncPayload;
+				if (level === 's1') latestSuccessPayload = syncPayload;
 			}
 
 			if (curriculumNeedsConfirmYears.length > 0) {

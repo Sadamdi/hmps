@@ -1072,6 +1072,8 @@ const accreditationLevelSchema = new mongoose.Schema(
 const curriculumYearEntrySchema = new mongoose.Schema(
 	{
 		academicYear: { type: Number, required: true },
+		/** Study level: undergraduate (s1) or master (s2). Legacy rows default to s1. */
+		level: { type: String, enum: ['s1', 's2'], default: 's1' },
 		periodLabel: { type: String, default: '' },
 		graduateProfile: [{ type: mongoose.Schema.Types.Mixed }],
 		knowledgeGroups: [{ type: String }],

@@ -200,6 +200,8 @@ POST /api/prodi/sync/run
 POST /api/prodi/calendar/upload
 ```
 
+Notes (4.13.0+): `GET /api/prodi` returns `curriculumByLevel.{s1,s2}` and `curriculumMeta.levels`; flat `curriculumByYear` remains S1-only for compatibility. `POST /api/prodi/curriculum/year` accepts optional `level` (`s1`|`s2`). Sync scope `curriculum` crawls undergraduate + master years.
+
 ## Settings, Home Images, Dashboard
 
 ```text
