@@ -1879,25 +1879,44 @@ export async function runProdiSyncScoped(
 		if (doAccreditation) {
 			const s3ManualUrl = (existingContent?.accreditation?.s3ManualUrl || '').trim();
 			const discoveredS3Url = s3ManualUrl || await discoverAccreditationS3Url();
-			const [s1, s2] = await Promise.all([
-				parseAccreditationLevel(SOURCES.accreditationS1, 'Accreditation Certificate For Undergraduate (S1)'),
-				parseAccreditationLevel(SOURCES.accreditationS2, 'Accreditation Certificate For Master (S2)'),
-			]);
-			let s3: AccreditationLevel = {
-				title: 'Accreditation Certificate For Doctoral (S3)',
-				sourceUrl: discoveredS3Url,
+			const emptyLevel = (title: string, sourceUrl: string): AccreditationLevel => ({
+				title,
+				sourceUrl,
 				groups: [],
 				items: [],
 				lastSyncedAt: null,
 				lastError: '',
-			};
-			if (discoveredS3Url) {
+			});
+			const safeParseLevel = async (url: string, title: string): Promise<AccreditationLevel> => {
 				try {
-					s3 = await parseAccreditationLevel(discoveredS3Url, 'Accreditation Certificate For Doctoral (S3)');
+					return await parseAccreditationLevel(url, title);
 				} catch (err: any) {
-					s3.lastError = err?.message || 'Failed to sync S3';
-					s3.lastSyncedAt = new Date();
+					const prev =
+						title.includes('Master')
+							? existingContent?.accreditation?.s2
+							: title.includes('Undergraduate')
+								? existingContent?.accreditation?.s1
+								: null;
+					console.warn(`Accreditation parse soft-fail (${title}):`, err?.message || err);
+					return {
+						...(prev && typeof prev === 'object' ? prev : emptyLevel(title, url)),
+						title,
+						sourceUrl: url,
+						lastSyncedAt: new Date(),
+						lastError: err?.message || 'Failed to sync accreditation level',
+					};
 				}
+			};
+			const [s1, s2] = await Promise.all([
+				safeParseLevel(SOURCES.accreditationS1, 'Accreditation Certificate For Undergraduate (S1)'),
+				safeParseLevel(SOURCES.accreditationS2, 'Accreditation Certificate For Master (S2)'),
+			]);
+			let s3: AccreditationLevel = emptyLevel(
+				'Accreditation Certificate For Doctoral (S3)',
+				discoveredS3Url,
+			);
+			if (discoveredS3Url) {
+				s3 = await safeParseLevel(discoveredS3Url, 'Accreditation Certificate For Doctoral (S3)');
 			}
 			accreditation = {
 				s1,
