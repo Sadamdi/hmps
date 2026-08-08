@@ -49,7 +49,7 @@ cd /var/www/hmps
 bash ops/deploy-server.sh
 ```
 
-Itu saja untuk update code.
+Script low-RAM: stop `hmps-app` + `himatif-banner` → `npm install` → `build` → restart (jangan sentuh `hmps-auto-deploy`).
 
 ---
 
