@@ -84,6 +84,18 @@ Returns sync summary including `calendarYears`, `announcementCount`, `pklTemplat
 - `client/src/components/prodi/student-hub-sections.tsx`
 - `client/src/pages/dashboard/prodi.tsx`
 
+### Official URL map (recheck 2026-08-08)
+
+| Scope | Live source | Notes |
+|-------|-------------|--------|
+| Lecturers | `/lecturer-staff/` | old `/lecturer-and-staff/` = 404 |
+| Curriculum S1 index | `/curriculum-for-undergraduate/` | cards use `href="#"`; sync seeds `curriculum/` (2020) + `curriculum-2024-dan-rps/` (2024) |
+| Curriculum detail 2024 | `/curriculum-2024-dan-rps/` | Terbaru di situs resmi |
+| Accreditation S1 | `/accreditation-certificate-for-undergraduate-s1/` + directory | Unggul 2024 LAM INFOKOM |
+| Accreditation S2 | `/master-study-s2/` | `/accreditation-certificate-for-master-s2/` **removed (404)**; Baik Sekali LAM INFOKOM 2025; merge keeps historical rows |
+| Curriculum Master | `/curriculum-for-master/` → `/curriculum-2022/` | link `curriculum-2024-for-master` still 404 on official site |
+| Calendar | UIN `web/content` / faculty mirrors | 2026/2027 curated |
+
 ---
 
 ## Business Rules From Code / Project Standards
