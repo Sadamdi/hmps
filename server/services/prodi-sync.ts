@@ -1015,18 +1015,24 @@ function parseMasterSemesterTables(
 		}
 	};
 
+	let inferredSem = 0;
 	root.find('table').each((_ti, tbl) => {
 		const $tbl = $(tbl);
+		const $figure = $tbl.closest('figure');
+		const $anchor = $figure.length ? $figure : $tbl;
 		const before = cleanText(
-			$tbl.prevAll('h1,h2,h3,h4,h5,p,div,strong').first(),
+			$anchor.prevAll('h1,h2,h3,h4,h5,p,div,strong').first(),
 		);
 		const caption = cleanText($tbl.find('caption').first());
-		const nearby = `${before} ${caption} ${cleanText($tbl.parent())}`.slice(0, 200);
-		const lowerNearby = nearby.toLowerCase();
-		const isOptional =
-			/pilihan|elective|optional/i.test(lowerNearby) &&
-			!/semester/i.test(lowerNearby);
-		const semNum = parseSemesterNumberLabel(nearby);
+		const nearby = `${before} ${caption}`.slice(0, 240);
+		let semNum = parseSemesterNumberLabel(nearby);
+		if (semNum == null) {
+			// Tables are ordered SEMESTER I, II, III… when labels sit in previous <p><strong>
+			inferredSem += 1;
+			semNum = inferredSem;
+		} else {
+			inferredSem = semNum;
+		}
 
 		$tbl.find('tr').each((_ri, tr) => {
 			const cells = $(tr)
@@ -1034,16 +1040,21 @@ function parseMasterSemesterTables(
 				.toArray()
 				.map((c) => cleanText($(c)));
 			if (cells.length < 3) return;
-			const joined = cells.join(' ').toLowerCase();
-			if (/^(no|code|subjects?|sks|prerequisite)/i.test(cells[0]) && /code|subject/i.test(joined)) {
+			const joined = cells.join(' ').toLowerCase().replace(/\s+/g, '');
+			if (
+				/^no$/i.test(cells[0]) &&
+				/code|subject/i.test(cells.join(' '))
+			) {
 				return;
 			}
-			if (/^total$/i.test(cells[0]) || /^t\s*o\s*t\s*a\s*l$/i.test(joined)) {
-				const sks = cells.find((c) => /^\d+(\.\d+)?$/.test(c)) || '';
+			if (/^total$/i.test(joined) || /^total\d+$/i.test(joined) || /^t\s*o\s*t\s*a\s*l/i.test(cells[0])) {
+				const sks =
+					cells.find((c) => /^\d+(\.\d+)?$/.test(c.replace(/\s+/g, ''))) ||
+					'';
 				if (semNum != null && sks) {
 					ensure(semNum);
 					const row = semesters.find((s: any) => s.semester === semNum);
-					if (row && !row.totalSks) row.totalSks = sks;
+					if (row && !row.totalSks) row.totalSks = sks.replace(/\s+/g, '');
 				}
 				return;
 			}
@@ -1077,46 +1088,25 @@ function parseMasterSemesterTables(
 
 			if (!name || name.length < 3) return;
 			if (/^subjects?\s*name$/i.test(name)) return;
-			const subject = {
+			const $nameLink = $(tr).find('td a[href], th a[href]').first();
+			const rpsUrl = normalizeHref($nameLink.attr('href') || '');
+			const subject: any = {
 				code: code && !/^no$/i.test(code) ? code : '',
 				name,
 				sks: sks || '',
 				prerequisite: prerequisite || '',
 			};
+			if (rpsUrl && /\.pdf($|\?)/i.test(rpsUrl)) subject.rpsUrl = rpsUrl;
 
-			if (isOptional || /mk\s*pilihan/i.test(name)) {
+			// Elective slots stay inside the semester; also mirror into optionalSubjects.
+			if (/mk\s*pilihan/i.test(name) || /sesuai kode mk pilihan/i.test(code)) {
 				optionalSubjects.push(subject);
-				return;
 			}
-			if (semNum == null) return;
 			ensure(semNum);
 			const row = semesters.find((s: any) => s.semester === semNum);
 			row.subjects.push(subject);
 		});
 	});
-
-	// Fallback: scan full text blocks "SEMESTER I ... SEMESTER II"
-	if (semesters.length === 0) {
-		const full = cleanText(root);
-		const parts = full.split(/(?=SEMESTER\s+[IVX\d]+)/i);
-		for (const part of parts) {
-			const num = parseSemesterNumberLabel(part.slice(0, 40));
-			if (num == null) continue;
-			ensure(num);
-			const row = semesters.find((s: any) => s.semester === num);
-			const codeRe =
-				/(\d{5,}[A-Z0-9]*)\s+([A-Za-zÀ-ÿ][^0-9]{3,80}?)\s+(\d{1,2})\s+/g;
-			let m: RegExpExecArray | null;
-			while ((m = codeRe.exec(part)) !== null) {
-				row.subjects.push({
-					code: m[1],
-					name: m[2].trim(),
-					sks: m[3],
-					prerequisite: '',
-				});
-			}
-		}
-	}
 }
 
 async function parseCurriculumIndexEntries(): Promise<CurriculumIndexEntry[]> {
@@ -2317,10 +2307,13 @@ export async function runProdiSyncScoped(
 					level,
 					periodLabel: row.payload?.periodLabel || periodLabel,
 					officialUrl:
-						level === 's2'
+						row.payload?.officialUrl ||
+						(level === 's2'
 							? SOURCES.curriculumMasterIndex
-							: SOURCES.curriculumIndex,
-					curriculumUrl: row.url || row.payload?.curriculumUrl || '',
+							: SOURCES.curriculumIndex),
+					curriculumUrl:
+						row.payload?.curriculumUrl || row.url || '',
+					guidebookUrl: row.payload?.guidebookUrl || '',
 					source: 'sync' as const,
 				};
 				const result = await mongoStorage.upsertProdiCurriculumByYear(
