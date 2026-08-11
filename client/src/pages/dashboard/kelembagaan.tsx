@@ -59,9 +59,11 @@ export default function DashboardKelembagaan() {
 	// Sync visionMission from settings once loaded; prefill default if empty
 	useEffect(() => {
 		if (settings !== undefined && !isEditingRef.current) {
-			setVisionMission(settings.visionMission || DEFAULT_VISION_MISSION);
+			setVisionMission(
+				settings.visionMission || (isTenant ? '' : DEFAULT_VISION_MISSION),
+			);
 		}
-	}, [settings]);
+	}, [settings, isTenant]);
 
 	const updateMutation = useMutation({
 		mutationFn: async (updatedSettings: Partial<Settings>) => {
@@ -134,8 +136,8 @@ export default function DashboardKelembagaan() {
 						<h2 className="text-2xl font-bold">Kelembagaan</h2>
 						<p className="text-muted-foreground text-sm mt-1">
 							Kelola konten halaman{' '}
-							<a href="/kelembagaan" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
-								/kelembagaan <ExternalLink className="h-3 w-3" />
+							<a href={`${basePath || ''}/kelembagaan`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+								{basePath || ''}/kelembagaan <ExternalLink className="h-3 w-3" />
 							</a>
 						</p>
 					</div>

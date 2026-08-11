@@ -199,7 +199,7 @@
 | Status | Fitur | Keterangan |
 |--------|-------|------------|
 | ❌ | Community settings page (per-tenant) | Tenant admin belum bisa ubah settings community dari UI |
-| ❌ | Community branding (logo, color) | Belum ada fitur custom branding per community |
+| 🔧 | Community branding (logo, color) | Logo navbar/favicon/SEO memakai `settings.logoUrl` (4.15.0). Color theme custom masih belum. |
 | ❌ | Community member list/directory | Belum ada halaman list member community |
 | ❌ | Cross-community content sharing | Belum bisa share konten antar community |
 | ❌ | Community analytics dashboard | Belum ada statistik per community |

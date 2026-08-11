@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { isReservedTenantSlug } from '@shared/tenant-paths';
 import {
 	closestCenter,
 	DndContext,
@@ -507,6 +508,14 @@ export default function RegisterPage() {
 			toast({
 				title: 'Lengkapi Form',
 				description: 'Nama komunitas, slug, username, dan password wajib diisi',
+				variant: 'destructive',
+			});
+			return;
+		}
+		if (isReservedTenantSlug(form.slug)) {
+			toast({
+				title: 'Slug tidak tersedia',
+				description: 'URL itu dipakai sistem (mis. toko, berita, dashboard). Pilih slug lain.',
 				variant: 'destructive',
 			});
 			return;

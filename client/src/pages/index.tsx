@@ -29,6 +29,7 @@ import {
 import { useLocation } from 'wouter';
 import { ALL_SUBITEM_BLOCKS, DEFAULT_HOME_CONFIG, DEFAULT_TENANT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
 import { useTenant } from '@/lib/tenant-context';
+import { usePublicBrand } from '@/hooks/use-public-brand';
 import { ArrowRight } from 'lucide-react';
 
 interface Settings {
@@ -77,8 +78,16 @@ const DESKTOP_SCROLL_LOCK_MQ = '(min-width: 1024px)';
 
 export default function Home() {
 	const { isTenant } = useTenant();
+	const brand = usePublicBrand();
+	const { publicPath } = brand;
 	const { isLoading, completeLoading, forceComplete, assetsLoaded } =
 		useAppLoading();
+
+	useEffect(() => {
+		if (!isTenant) return;
+		forceComplete();
+		setHeroReady(true);
+	}, [isTenant, forceComplete]);
 
 	const defaultHomeBlocks = isTenant
 		? DEFAULT_TENANT_HOME_CONFIG.blocks
@@ -190,18 +199,20 @@ export default function Home() {
 
 	// Restore judul tab dan canonical saat kembali ke beranda dari halaman lain
 	useEffect(() => {
-		document.title =
-			'Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang | Fakultas Saintek';
+		document.title = brand.documentTitle();
 		const canonical = document.querySelector('link[rel="canonical"]');
-		if (canonical) canonical.setAttribute('href', 'https://himatif-encoder.com');
+		if (canonical) canonical.setAttribute('href', brand.absoluteUrl('/'));
 		const metaDescription = document.querySelector('meta[name="description"]');
 		if (metaDescription) {
 			metaDescription.setAttribute(
 				'content',
-				'Himatif Encoder adalah Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang. Wadah pengembangan akademik, organisasi, kepemimpinan mahasiswa TI, dan kegiatan teknologi di Fakultas Sains dan Teknologi UIN Malang.',
+				brand.siteDescription ||
+					(brand.isTenant
+						? brand.siteName
+						: 'Himatif Encoder adalah Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang. Wadah pengembangan akademik, organisasi, kepemimpinan mahasiswa TI, dan kegiatan teknologi di Fakultas Sains dan Teknologi UIN Malang.'),
 			);
 		}
-	}, []);
+	}, [brand]);
 
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
@@ -449,19 +460,19 @@ export default function Home() {
 					{isKelembagaanStructure ? (
 						<div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
 							<a
-								href={meta.href}
+								href={publicPath(meta.href)}
 								className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">
 								Lihat semua struktur <ArrowRight className="h-4 w-4" />
 							</a>
 							<a
-								href="/kelembagaan?tab=grid#structure"
+								href={publicPath('/kelembagaan?tab=grid#structure')}
 								className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-muted text-foreground font-medium hover:bg-muted/80 transition-colors">
 								Lihat daftar anggota <ArrowRight className="h-4 w-4" />
 							</a>
 						</div>
 					) : (
 						<a
-							href={meta.href}
+							href={publicPath(meta.href)}
 							className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">
 							Lihat Detail <ArrowRight className="h-4 w-4" />
 						</a>
@@ -495,7 +506,7 @@ export default function Home() {
 
 	return (
 		<div className="min-h-screen bg-background text-foreground">
-			{isLoading && (
+			{isLoading && !isTenant && (
 				<LoadingScreen
 					onLoadingComplete={completeLoading}
 					forceComplete={forceComplete}

@@ -1,4 +1,5 @@
 import { useRevealAnimation } from "@/hooks/use-reveal-animation";
+import { useTenant } from "@/lib/tenant-context";
 import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { Link } from "wouter";
@@ -59,8 +60,11 @@ export default function VisionMission({ showLink = true }: VisionMissionProps) {
     ],
   };
 
+  const { isTenant } = useTenant();
   const currentYear = new Date().getFullYear();
-  const siteName = settings?.siteName || "Himatif Encoder";
+  const siteName = settings?.siteName || (isTenant ? "Komunitas" : "Himatif Encoder");
+  const hasVision = Boolean(settings?.visionMission?.trim());
+  const showHimatifDefault = !isTenant && !hasVision;
 
   return (
     <section
@@ -96,12 +100,14 @@ export default function VisionMission({ showLink = true }: VisionMissionProps) {
               </span>
             </div>
             <p className="text-lg text-center leading-relaxed text-foreground/90">
-              {settings?.visionMission
-                ? settings.visionMission
+              {hasVision
+                ? settings!.visionMission
                     .split("- MISI")[0]
                     .replace("- VISI", "")
                     .trim()
-                : defaultVisionMission.visi}
+                : showHimatifDefault
+                  ? defaultVisionMission.visi
+                  : "Visi & misi belum diisi. Lengkapi di Dashboard → Kelembagaan."}
             </p>
           </div>
 
@@ -115,9 +121,9 @@ export default function VisionMission({ showLink = true }: VisionMissionProps) {
             </div>
 
             <div className="space-y-4">
-              {settings?.visionMission
+              {hasVision
                 ? // If we have settings, extract misi points from the settings string
-                  settings.visionMission
+                  settings!.visionMission
                     .split("- MISI")[1]
                     ?.split("*")
                     .filter((item) => item.trim().length > 0)
@@ -134,8 +140,8 @@ export default function VisionMission({ showLink = true }: VisionMissionProps) {
                         <p className="text-base text-foreground/90 leading-relaxed">{item.trim()}</p>
                       </div>
                     ))
-                : // Default misi points
-                  defaultVisionMission.misi.map((item, index) => (
+                : showHimatifDefault
+                  ? defaultVisionMission.misi.map((item, index) => (
                     <div
                       key={index}
                       className="flex items-start gap-4 p-4 bg-card/40 border border-cyan-500/20 rounded-xl hover:border-teal-400/30 transition-colors"
@@ -147,7 +153,8 @@ export default function VisionMission({ showLink = true }: VisionMissionProps) {
                       </div>
                       <p className="text-base text-foreground/90 leading-relaxed">{item}</p>
                     </div>
-                  ))}
+                  ))
+                  : null}
             </div>
           </div>
           {showLink && (

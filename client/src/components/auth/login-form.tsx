@@ -38,7 +38,14 @@ export default function LoginForm() {
 	const { handleError } = useErrorHandler();
 	const [, navigate] = useLocation();
 	const [showPassword, setShowPassword] = useState(false);
-	const { isTenant, basePath } = useTenant();
+	const { isTenant, basePath, slug: tenantSlug } = useTenant();
+	const sessionUser =
+		isTenant && user
+			? (user as any).authScope === 'main' ||
+				((user as any).tenantSlug && (user as any).tenantSlug !== tenantSlug)
+				? null
+				: user
+			: user;
 	const { data: siteSettings } = useQuery<any>({ queryKey: ['/api/settings'], staleTime: 60000 });
 	const siteName = siteSettings?.siteName || siteSettings?.navbarBrand || (isTenant ? 'Komunitas' : 'HIMATIF ENCODER');
 	const homeHref = isTenant && basePath ? basePath : '/';
@@ -69,24 +76,18 @@ export default function LoginForm() {
 	}, [isTenant, siteName]);
 
 	useEffect(() => {
-		if (user) {
-			const slug = (user as any)?.tenantSlug;
-			if (slug) {
-				const currentFirstSegment = window.location.pathname.split('/').filter(Boolean)[0];
-				if (currentFirstSegment === slug) {
-					navigate('/dashboard');
-				} else {
-					window.location.href = `/${slug}/dashboard`;
-				}
-			} else {
-				if (isTenant) {
-					window.location.href = '/dashboard';
-				} else {
-					navigate('/dashboard');
-				}
-			}
+		if (!sessionUser) return;
+		const slug = (sessionUser as any)?.tenantSlug as string | undefined;
+		if (isTenant) {
+			navigate('/dashboard');
+			return;
 		}
-	}, [user, navigate, isTenant]);
+		if (slug) {
+			window.location.href = `/${slug}/dashboard`;
+			return;
+		}
+		navigate('/dashboard');
+	}, [sessionUser, navigate, isTenant]);
 
 	// Countdown timer untuk rate limit
 	useEffect(() => {
@@ -156,18 +157,7 @@ export default function LoginForm() {
 		}
 	};
 
-	if (isLoading) {
-		return (
-			<div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-100 via-slate-50 to-slate-100 dark:from-[#050d24] dark:via-[#0b1d4a] dark:to-[#07122d]">
-				<div className="flex items-center space-x-3 text-slate-700 dark:text-slate-200">
-					<Loader2 className="h-6 w-6 animate-spin text-cyan-600 dark:text-cyan-400" />
-					<span className="text-sm font-medium">Memuat...</span>
-				</div>
-			</div>
-		);
-	}
-
-	if (user) return null;
+	if (sessionUser) return null;
 
 	return (
 		<div
@@ -209,6 +199,10 @@ export default function LoginForm() {
 					<div className="mx-auto mb-4 animate-glow-pulse w-16 h-16 rounded-full ring-2 ring-cyan-400/40 flex items-center justify-center bg-slate-100 dark:bg-white/5">
 						{siteSettings?.logoUrl ? (
 							<img src={siteSettings.logoUrl} alt={`Logo ${siteName}`} className="w-12 h-12 object-contain" />
+						) : isTenant ? (
+							<span className="text-lg font-bold text-cyan-600 dark:text-cyan-300">
+								{(siteName || 'K').slice(0, 1).toUpperCase()}
+							</span>
 						) : (
 							<img src="/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp" alt="Logo" className="w-12 h-12 object-contain" />
 						)}

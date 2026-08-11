@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { apiRequest } from '@/lib/queryClient';
 import { useTenant } from '@/lib/tenant-context';
+import { usePublicBrand } from '@/hooks/use-public-brand';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 import {
 	formatContentDisplay as formatContentDisplayFn,
@@ -71,6 +72,7 @@ export default function BeritaDetail() {
 	const { id, slug } = useParams<{ id?: string; slug?: string }>();
 	const [, setLocation] = useLocation();
 	const { basePath } = useTenant();
+	const { siteName, logoUrl, documentTitle, absoluteUrl } = usePublicBrand();
 	const bp = basePath || '';
 	const isObjectId = (v?: string) => !!v && /^[a-f\d]{24}$/i.test(v);
 	const isLegacyHybridRoute = !!id && !!slug;
@@ -209,14 +211,14 @@ export default function BeritaDetail() {
 
 	useEffect(() => {
 		if (berita) {
-			document.title = `${berita.title} | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang`;
+			document.title = documentTitle(berita.title);
 
 			const metaDescription = document.querySelector(
 				'meta[name="description"]',
 			);
 			const descContent =
 				berita.excerpt ||
-				`${berita.title} - Berita dari Himatif Encoder, Himpunan Mahasiswa Teknik Informatika UIN Malang.`;
+				`${berita.title} - Berita dari ${siteName}.`;
 			if (metaDescription) {
 				metaDescription.setAttribute('content', descContent);
 			} else {
@@ -226,7 +228,7 @@ export default function BeritaDetail() {
 				document.head.appendChild(newMeta);
 			}
 
-			const canonicalUrl = `https://himatif-encoder.com/berita/${berita.slug || normalizedSlug || ''}`;
+			const canonicalUrl = absoluteUrl(`/berita/${berita.slug || normalizedSlug || ''}`);
 			const canonical = document.querySelector('link[rel="canonical"]');
 			if (canonical) {
 				canonical.setAttribute('href', canonicalUrl);
@@ -243,7 +245,7 @@ export default function BeritaDetail() {
 				{ property: 'og:type', content: 'article' },
 				{ property: 'og:url', content: canonicalUrl },
 				{ property: 'og:image', content: berita.image },
-				{ property: 'og:site_name', content: 'Himatif Encoder' },
+				{ property: 'og:site_name', content: siteName },
 				{ property: 'article:published_time', content: berita.createdAt },
 				{ property: 'article:author', content: berita.author },
 			];
@@ -275,8 +277,9 @@ export default function BeritaDetail() {
 				author: { '@type': 'Person', name: berita.author },
 				publisher: {
 					'@type': 'Organization',
-					name: 'Himatif Encoder',
-					url: 'https://himatif-encoder.com',
+					name: siteName,
+					url: absoluteUrl('/'),
+					...(logoUrl ? { logo: logoUrl } : {}),
 				},
 				datePublished: berita.createdAt,
 				dateModified: berita.updatedAt || berita.createdAt,
@@ -286,7 +289,7 @@ export default function BeritaDetail() {
 			});
 			document.head.appendChild(script);
 		}
-	}, [berita, normalizedSlug]);
+	}, [berita, normalizedSlug, documentTitle, siteName, absoluteUrl, logoUrl]);
 
 	const formatDate = (dateString: string) => {
 		const date = new Date(dateString);

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.14.7",
+    "version": "4.15.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -10256,6 +10256,66 @@
         }
       }
     },
+    "/api/info": {
+      "get": {
+        "tags": [
+          "info"
+        ],
+        "summary": "GET /api/info",
+        "operationId": "get_api_info",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "message": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
     "/api/library": {
       "get": {
         "tags": [
@@ -13055,6 +13115,10 @@
                   "copyFromYear": {
                     "type": "string",
                     "example": "sample"
+                  },
+                  "level": {
+                    "type": "string",
+                    "example": "sample"
                   }
                 },
                 "additionalProperties": true
@@ -13062,7 +13126,8 @@
               "examples": {
                 "default": {
                   "value": {
-                    "copyFromYear": "sample"
+                    "copyFromYear": "sample",
+                    "level": "sample"
                   }
                 }
               }

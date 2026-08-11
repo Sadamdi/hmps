@@ -34,42 +34,37 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 	const apiBase = `/api/c/${slug}`;
 
 	useEffect(() => {
+		const ac = new AbortController();
+		const timer = window.setTimeout(() => ac.abort(), 8000);
 		const fetchCurrentUser = async () => {
 			try {
 				const response = await fetch(`${apiBase}/auth/me`, {
 					credentials: 'include',
 					headers: { 'Cache-Control': 'no-cache' },
+					signal: ac.signal,
 				});
 				if (response.ok) {
 					const userData = await response.json();
-					if (userData.tenantSlug === slug) {
+					if (userData.tenantSlug === slug && userData.authScope !== 'main') {
 						setUser({ ...userData, authScope: 'tenant', tenantSlug: slug });
 						await fetchUserPermissions();
-					} else {
-						setUser({ ...userData, authScope: userData.authScope || 'tenant', tenantSlug: userData.tenantSlug, _crossTenant: true } as any);
+						return;
 					}
-					return;
 				}
-			} catch { /* fall through to fallback */ }
-
-			try {
-				const absUrl = `${window.location.origin}/api/auth/me`;
-				const fallback = await fetch(absUrl, {
-					credentials: 'include',
-					headers: { 'Cache-Control': 'no-cache' },
-				});
-				if (fallback.ok) {
-					const fbData = await fallback.json();
-					setUser({ ...fbData, authScope: fbData.authScope || 'main', tenantSlug: fbData.tenantSlug, _crossTenant: true } as any);
-					return;
-				}
-			} catch { /* ignore */ }
+			} catch { /* tenant session absent / timeout */ }
 
 			setUser(null);
 			setPermissions([]);
 		};
 
-		fetchCurrentUser().finally(() => setIsLoading(false));
+		fetchCurrentUser().finally(() => {
+			window.clearTimeout(timer);
+			setIsLoading(false);
+		});
+		return () => {
+			ac.abort();
+			window.clearTimeout(timer);
+		};
 	}, [slug]);
 
 	const fetchUserPermissions = async () => {
@@ -136,10 +131,7 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 	};
 
 	const logout = async () => {
-		const isCross = (user as any)?._crossTenant;
-		const logoutUrl = isCross
-			? `${window.location.origin}/api/auth/logout`
-			: `${apiBase}/auth/logout`;
+		const logoutUrl = `${apiBase}/auth/logout`;
 		try {
 			await fetch(logoutUrl, {
 				method: 'POST',

@@ -34,26 +34,43 @@ sequenceDiagram
 ## Home / provisioning defaults
 
 - New tenants seed `homeConfig` from `DEFAULT_TENANT_HOME_CONFIG` (no Prodi) via `initializeTenantSettings` in `server/tenant-storage.ts`.
+- Blank tenant settings also force empty `aboutPageIntro`, `aboutPageTrackRecord`, `visionMission` (no Himatif seed).
 - `navbarBrand` uses full community name (not truncated to 10 chars).
 - Public home (`client/src/pages/index.tsx`): if tenant and `homeConfig.blocks` is empty, fallback to `DEFAULT_TENANT_HOME_CONFIG`, **not** main `DEFAULT_HOME_CONFIG`.
 - Shared feedback/security code paths apply equally to `/api/feedback` and `/api/c/:slug/feedback`.
 
+## Public URL, SEO, logo, auth
+
+- Public path helper: `shared/tenant-paths.ts` (`prefixPublicPath`, `publicAbsoluteUrl`, reserved slugs including `toko`).
+- Tenant public URLs are `/{slug}/...` (contoh `/ontakiuinmalang/berita/{article}`). Canonical/og:url/JSON-LD tidak boleh mengarah ke `/berita/...` utama.
+- SSR production injects tenant `siteName` / `logoUrl` for `/:slug` and nested public pages.
+- Sitemap includes active tenant landing + tenant berita. `/api/info` returns `{ slug, name, isTenant }`.
+- Navbar shows `settings.logoUrl` when set. Favicon on tenant shell follows logo.
+- Himatif copy/logo fallback is **main-only**. Tenant empty fields use empty-state or `siteName`.
+- Auth: JWT main tidak di-resolve sebagai user tenant. `GET /api/c/:slug/auth/me` 401 = logged out di tenant UI (tidak fallback `/api/auth/me`).
+- `GET /api/prodi` 404 on tenant. Reserved slug list used at register (server + client).
+
 ## Tenant-Aware Feature Checklist
 
-- [ ] Works on main path if expected.
-- [ ] Works on `/api/c/:slug/*` if expected.
-- [ ] Invalid slug returns safe error.
-- [ ] Tenant A cannot read/write Tenant B data.
-- [ ] Upload paths and media URLs are scoped safely.
-- [ ] Notifications/chat/sharing do not cross tenant boundary.
-- [ ] Empty tenant `homeConfig` does not render main-only sections (e.g. Prodi).
+- [x] Works on main path if expected.
+- [x] Works on `/api/c/:slug/*` if expected.
+- [x] Invalid slug returns safe error.
+- [x] Tenant A cannot read/write Tenant B data.
+- [x] Upload paths and media URLs are scoped safely.
+- [x] Notifications/chat/sharing do not cross tenant boundary.
+- [x] Empty tenant `homeConfig` does not render main-only sections (e.g. Prodi).
+- [x] Public canonical/sitemap/logo are tenant-scoped.
 
 ## Key Files
 
 - `server/middleware/tenant-resolver.ts`
 - `server/tenant-storage.ts`
 - `db/tenant.ts`
+- `shared/tenant-paths.ts`
+- `client/src/hooks/use-public-brand.ts`
 - `client/src/pages/community/index.tsx`
 - `client/src/pages/index.tsx`
 - `shared/schema.ts` (`DEFAULT_TENANT_HOME_CONFIG`)
 - `server/routes.ts`
+- `server/index.ts` (SSR + sitemap)
+

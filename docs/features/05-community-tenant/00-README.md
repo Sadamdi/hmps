@@ -32,6 +32,7 @@ Community Tenant feature category for HMPS. This README is the local index for f
 | Method | Path |
 |--------|------|
 | `GET` | `/api/communities` |
+| `GET` | `/api/info` (tenant: `/api/c/:slug/info`) |
 
 ### community
 

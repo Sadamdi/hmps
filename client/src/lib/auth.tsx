@@ -43,11 +43,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 	}, []);
 
 	useEffect(() => {
+		const ac = new AbortController();
+		const timer = window.setTimeout(() => ac.abort(), 8000);
 		const fetchCurrentUser = async () => {
 			try {
 				const response = await fetch('/api/auth/me', {
 					credentials: 'include',
 					headers: { 'Cache-Control': 'no-cache' },
+					signal: ac.signal,
 				});
 
 				if (response.ok) {
@@ -62,11 +65,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				console.error('Failed to fetch current user:', error);
 				setUser(null);
 			} finally {
+				window.clearTimeout(timer);
 				setIsLoading(false);
 			}
 		};
 
 		fetchCurrentUser();
+		return () => {
+			ac.abort();
+			window.clearTimeout(timer);
+		};
 	}, []);
 
 	const fetchUserPermissions = async () => {
