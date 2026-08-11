@@ -132,9 +132,20 @@ export default function CommunityShell() {
 	const { data: storeNavSettings, isLoading: storeSettingsLoading } = useQuery<{ navbarPath?: string }>({
 		queryKey: ['community-store-settings', slug],
 		queryFn: async () => {
-			const res = await fetch(`/api/c/${slug}/store/public/settings`, { credentials: 'include' });
-			if (!res.ok) return { navbarPath: '/toko' };
-			return res.json();
+			const ac = new AbortController();
+			const timer = window.setTimeout(() => ac.abort(), 8000);
+			try {
+				const res = await fetch(`/api/c/${slug}/store/public/settings`, {
+					credentials: 'include',
+					signal: ac.signal,
+				});
+				if (!res.ok) return { navbarPath: '/toko' };
+				return res.json();
+			} catch {
+				return { navbarPath: '/toko' };
+			} finally {
+				window.clearTimeout(timer);
+			}
 		},
 		enabled: !!slug,
 		staleTime: 60_000,
@@ -158,12 +169,16 @@ export default function CommunityShell() {
 		'/login',
 		'/forgot-password',
 		'/dashboard',
+		'/register',
+		'/prodi',
+		'/communities',
+		'/error',
 	];
 	const isLikelyDynamicStorePath =
 		restPath !== '/' &&
 		!staticPrefixes.some((prefix) => restPath === prefix || restPath.startsWith(`${prefix}/`));
 
-	if (!slug || isError) return <NotFound />;
+	if (!slug || isError) return <NotFound redirectTo={null} />;
 	if (isLoading || (storeSettingsLoading && isLikelyDynamicStorePath)) return <RouteLoadingFallback />;
 
 	return (

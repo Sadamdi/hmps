@@ -4,16 +4,21 @@ import { AlertCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 
-export default function NotFound() {
+export default function NotFound({
+  redirectTo = '/',
+}: {
+  redirectTo?: string | null;
+}) {
   const [, navigate] = useLocation();
   const [secondsLeft, setSecondsLeft] = useState(5);
 
   useEffect(() => {
+    if (!redirectTo) return;
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
-          navigate("/");
+          navigate(redirectTo);
           return 0;
         }
         return prev - 1;
@@ -21,7 +26,7 @@ export default function NotFound() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [navigate]);
+  }, [navigate, redirectTo]);
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background text-foreground dark:bg-slate-950 dark:text-slate-100 px-4">
@@ -43,26 +48,34 @@ export default function NotFound() {
             </div>
           </div>
 
-          <p className="mt-3 text-sm text-muted-foreground dark:text-slate-300">
-            Kamu akan diarahkan otomatis ke beranda dalam{" "}
-            <span className="font-semibold text-primary">{secondsLeft}</span>{" "}
-            detik.
-          </p>
+          {redirectTo ? (
+            <>
+              <p className="mt-3 text-sm text-muted-foreground dark:text-slate-300">
+                Kamu akan diarahkan otomatis ke beranda dalam{" "}
+                <span className="font-semibold text-primary">{secondsLeft}</span>{" "}
+                detik.
+              </p>
 
-          <div className="mt-3 h-1.5 w-full rounded-full bg-muted overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-1000 ease-linear"
-              style={{ width: `${(secondsLeft / 5) * 100}%` }}
-            />
-          </div>
+              <div className="mt-3 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-1000 ease-linear"
+                  style={{ width: `${(secondsLeft / 5) * 100}%` }}
+                />
+              </div>
 
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="mt-5 inline-flex items-center justify-center rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90 transition-colors w-full"
-          >
-            Ke beranda sekarang
-          </button>
+              <button
+                type="button"
+                onClick={() => navigate(redirectTo)}
+                className="mt-5 inline-flex items-center justify-center rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground shadow-sm hover:opacity-90 transition-colors w-full"
+              >
+                Ke beranda sekarang
+              </button>
+            </>
+          ) : (
+            <p className="mt-3 text-sm text-muted-foreground dark:text-slate-300">
+              Komunitas atau halaman ini tidak ditemukan. Periksa URL, atau buka situs HIMATIF dari beranda resmi.
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

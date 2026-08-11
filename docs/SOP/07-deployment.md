@@ -33,7 +33,7 @@ Alur aman (auto + manual):
 
 VPS ~2 GB RAM / 0 swap: jangan `npm ci` sambil app masih jalan.
 
-**Wajib `--include=dev`:** `dist/index.js` meng-import paket `vite` (devDependency). `npm install` dengan `NODE_ENV=production` memangkas vite → `vite: not found` + proses PM2 “online” tanpa listen `:5000` → Cloudflare **502**.
+**Wajib vite di `dependencies` + `--include=dev`:** `dist/index.js` dan `server/vite.ts` meng-import `vite`. Sejak 4.15.1 `vite`/`esbuild` ada di `dependencies`, tapi `NODE_ENV=production` dari PM2 tetap bisa memangkas bin lama. Script deploy meng-`unset NODE_ENV`, cek `node_modules/.bin/vite` **executable**, force-install vite jika bin hilang, dan FATAL sebelum build. Auto-deploy child env: `NODE_ENV=development` + `NPM_CONFIG_PRODUCTION=false`.
 
 Auto-deploy **tidak** menyimpan secret; pakai `/var/www/hmps/.env` + credential git server. Script `*.sh` harus **LF**.
 

@@ -13,10 +13,10 @@
 #        stop app → npm install --include=dev → build → restart + healthcheck
 #      Commit docs/skills/README saja: JANGAN stop app, JANGAN npm/build
 #
-# Kenapa --include=dev wajib:
+# Kenapa --include=dev + unset NODE_ENV wajib:
 #   dist/index.js meng-import paket `vite` (esbuild --packages=external).
-#   vite ada di devDependencies. `npm install` dengan NODE_ENV=production
-#   memangkas vite → build "vite: not found" + app crash 502.
+#   vite/esbuild juga di dependencies (4.15.1+), tapi NODE_ENV=production dari PM2
+#   dulu memangkas bin → build "vite: not found" + app crash 502.
 # =============================================================================
 set -euo pipefail
 
@@ -159,17 +159,27 @@ paths_need_npm() {
 }
 
 vite_missing() {
-	[[ ! -x "$APP_DIR/node_modules/.bin/vite" && ! -f "$APP_DIR/node_modules/vite/package.json" ]]
+	# Bin harus bisa dieksekusi. package.json sisa tanpa .bin/vite = false negative (lalu `vite: not found`).
+	[[ ! -x "$APP_DIR/node_modules/.bin/vite" ]]
 }
 
 npm_install_with_dev() {
-	# Jangan biarkan NODE_ENV=production memangkas vite/esbuild
+	# PM2 auto-deploy jalan dengan NODE_ENV=production → npm memangkas devDeps (vite).
 	export NPM_CONFIG_PRODUCTION=false
+	unset NODE_ENV
 	if [[ -f package-lock.json ]]; then
 		npm install --include=dev --no-audit --no-fund --prefer-offline --maxsockets 1 \
 			|| npm install --include=dev --no-audit --no-fund --maxsockets 1
 	else
 		npm install --include=dev --no-audit --no-fund --maxsockets 1
+	fi
+	if vite_missing; then
+		log "vite bin masih hilang setelah npm install — pasang vite+esbuild eksplisit"
+		npm install vite@5.4.9 esbuild@0.24.0 --no-audit --no-fund --maxsockets 1
+	fi
+	if vite_missing; then
+		log "FATAL: node_modules/.bin/vite tidak ada. Jangan lanjut build."
+		return 1
 	fi
 }
 

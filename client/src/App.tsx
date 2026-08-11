@@ -16,6 +16,7 @@ import { Route, Switch, useLocation } from 'wouter';
 const NotificationPrompt = lazy(() => import('@/components/public/notification-prompt'));
 const NotificationStream = lazy(() => import('@/components/public/notification-stream'));
 import { queryClient } from './lib/queryClient';
+import { getTenantSlugFromPathname } from './lib/tenant-api-rewrite';
 
 const Home = lazy(() => import('@/pages/index'));
 const AllBerita = lazy(() => import('@/pages/berita/index'));
@@ -70,6 +71,8 @@ function RouteLoadingFallback() {
 
 function Router() {
 	const [location] = useLocation();
+	const pathname = location.split('?')[0].split('#')[0] || '/';
+	const isTenantPath = !!getTenantSlugFromPathname(pathname);
 	const normalizeStorePath = (raw?: string): string => {
 		const cleaned = String(raw || '/toko').trim();
 		if (!cleaned) return '/toko';
@@ -86,9 +89,9 @@ function Router() {
 			return res.json();
 		},
 		staleTime: 60_000,
+		enabled: !isTenantPath,
 	});
 	const storeBasePath = normalizeStorePath(storeNavSettings?.navbarPath);
-	const pathname = location.split('?')[0].split('#')[0] || '/';
 	const staticPrefixes = [
 		'/berita',
 		'/login',
@@ -105,6 +108,7 @@ function Router() {
 		'/communities',
 	];
 	const isLikelyDynamicStorePath =
+		!isTenantPath &&
 		pathname !== '/' &&
 		!pathname.startsWith('/api/') &&
 		!staticPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));

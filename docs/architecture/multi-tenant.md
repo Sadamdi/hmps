@@ -49,6 +49,9 @@ sequenceDiagram
 - Himatif copy/logo fallback is **main-only**. Tenant empty fields use empty-state or `siteName`.
 - Auth: JWT main tidak di-resolve sebagai user tenant. `GET /api/c/:slug/auth/me` 401 = logged out di tenant UI (tidak fallback `/api/auth/me`).
 - `GET /api/prodi` 404 on tenant. Reserved slug list used at register (server + client).
+- `App.tsx` tidak menunggu `/api/store/public/settings` (main) untuk path tenant-like (`getTenantSlugFromPathname`). Path `/:slug` bukan toko dinamis.
+- Slug komunitas tidak valid: `CommunityShell` tampil 404 **tanpa** auto-redirect ke beranda Himatif (`NotFound redirectTo={null}`).
+- Query store settings tenant punya timeout 8s; gagal → fallback `/toko` (bukan spinner abadi).
 
 ## Tenant-Aware Feature Checklist
 
