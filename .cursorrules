@@ -28,7 +28,7 @@ Pakai graph **dulu jika MCP available**. Fall back ke Grep/Glob/Read jika server
 
 - Backend: `server/routes.ts`, `server/routes/*`, `server/services/`, `db/mongodb.ts`.
 - Frontend: `client/src/App.tsx`, `client/src/pages/`, `client/src/hooks/`, `client/src/lib/`.
-- Deploy: `ops/deploy-server.sh` + `/root/auto-deploy.js` (di luar repo; tanpa secret).
+- Deploy: `ops/deploy-server.sh` (docs-only = tanpa stop; runtime = `npm install --include=dev` + healthcheck) + `/root/auto-deploy.js` (di luar repo; tanpa secret).
 - Versioning: bump SemVer tiap unit kerja (SOP 11).
 - Skill HMPS di `.agents/skills/` wajib; `.cursor/skills/pro-*` hanya guidance umum.
 

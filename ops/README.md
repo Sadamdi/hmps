@@ -49,12 +49,12 @@ cd /var/www/hmps
 bash ops/deploy-server.sh
 ```
 
-Script low-RAM: stop `hmps-app` + `himatif-banner` → `npm install` → `build` → restart (jangan sentuh `hmps-auto-deploy`).
+Script: sync git dulu. Commit docs/skills/ops **tidak** stop app. Perubahan `client/` `server/` `shared/` `db/` `public/` / `package-lock.json`: stop `hmps-app` + `himatif-banner` → `npm install --include=dev` → `build` → restart + healthcheck (jangan sentuh `hmps-auto-deploy`).
 
 **Auto-deploy** (`/root/auto-deploy.js`, PM2 `hmps-auto-deploy`) tiap 30 detik:
 
-1. `ops/auto-push-media.sh` — commit+push media baru di server (`uploads/`, `attached_assets/...`) ke GitHub  
-2. Jika `origin/main` lebih baru → `ops/deploy-server.sh` (stop → npm install → build → restart)
+1. `ops/auto-push-media.sh` — commit+push media baru (author: Sulthan Adam Rahmadi)  
+2. Jika `origin/main` lebih baru → `ops/deploy-server.sh` (skip rebuild bila bukan runtime)
 
 Survive reboot via `pm2-root.service` + `pm2 save`.
 

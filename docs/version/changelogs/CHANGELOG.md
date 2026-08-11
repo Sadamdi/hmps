@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.14.6] — 2026-08-12
+
+**Deploy skip docs-only + vite install harden** · PATCH · [Full release notes](../release/4.14.6.md)
+
+### Highlights
+- Push docs/skills tidak lagi stop PM2 / rebuild
+- `npm install --include=dev` agar vite tidak terhapus (akar 502)
+- Healthcheck `:5000` setelah restart; media commit memakai identity Adam
+
+---
+
 ## [4.14.5] — 2026-08-12
 
 **Docs, branding, contributors, and agent sync** · PATCH · [Full release notes](../release/4.14.5.md)

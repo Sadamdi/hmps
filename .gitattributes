@@ -1,0 +1,2 @@
+# Bash di VPS Linux: CRLF merusak `set -o pipefail` dan shebang
+*.sh text eol=lf

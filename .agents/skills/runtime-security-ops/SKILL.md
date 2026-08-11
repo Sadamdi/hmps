@@ -9,7 +9,7 @@ description: Use when changing HMPS middleware, runtime config, scheduler, cache
 
 Use for changes in `server/middleware/**`, `server/config/**`, `server/lib/**`, scheduler/backup/restore, `public/sw-push.js`, `server/swagger.ts`, `server/vite.ts`, `ops/deploy-server.sh`, `ops/auto-push-media.sh`, and runtime infrastructure docs.
 
-Production deploy: `ops/deploy-server.sh` (stop apps → `npm install` → build → restart). Auto watcher `/root/auto-deploy.js` lives outside the app repo — do not commit secrets. See `docs/SOP/07-deployment.md`.
+Production deploy: `ops/deploy-server.sh` — docs-only sync keeps the site up; runtime/lockfile changes stop apps → `npm install --include=dev` → build → healthcheck `:5000`. Never run production `npm install` without `--include=dev` (vite is a devDependency but `dist/index.js` imports it). Auto watcher `/root/auto-deploy.js` lives outside the app repo — do not commit secrets. See `docs/SOP/07-deployment.md`.
 
 ## Required References
 

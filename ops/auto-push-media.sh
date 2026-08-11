@@ -69,7 +69,8 @@ log "Staged $STAGED file(s). Commit + push..."
 git fetch origin "$BRANCH"
 
 MSG="chore(media): auto-sync uploads from production $(date -u +%Y-%m-%dT%H%MZ)"
-git commit -m "$MSG"
+# Jangan pakai Auto-Deploy Bot — grafik GitHub Contributors mengikuti author email
+git -c user.name="Sulthan Adam Rahmadi" -c user.email="sultanadamr@gmail.com" commit -m "$MSG"
 
 BEHIND="$(git rev-list HEAD..origin/${BRANCH} --count 2>/dev/null | tr -d ' ' || echo 0)"
 if [[ "${BEHIND:-0}" -gt 0 ]]; then
