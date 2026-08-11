@@ -22,7 +22,7 @@ Fitur **Community Listing Shell** terdokumentasi ulang dari audit code HMPS New,
 
 | Item | Value |
 |------|-------|
-| UI routes/surfaces | `/communities, /:slug/*` |
+| UI routes/surfaces | `/communities`, `/:slug/*`, sitemap tenant URLs, SSR `/:slug` + `/:slug/berita/:articleSlug` |
 | Frontend source | `client/src/App.tsx`, `client/src/pages/**`, targeted components/hooks |
 | Backend source | Route table below |
 
@@ -40,7 +40,9 @@ Flow umum:
 
 | Method | Endpoint | Source | Observed Input | Observed Response |
 |--------|----------|--------|----------------|-------------------|
-| GET | `/api/communities` | `server/routes.ts#L9847` | none observed in handler window | 200/json |
+| GET | `/api/communities` | `server/routes.ts` | none | 200/json array komunitas aktif |
+| GET | `/api/info` | `server/routes.ts` | tenant via `/api/c/:slug/info` | `{ slug, name, isTenant }` |
+| GET | `/sitemap.xml` | `server/index.ts` | none | XML main + tenant landing/berita |
 
 ---
 

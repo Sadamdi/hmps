@@ -275,12 +275,14 @@ export default function About() {
 					Tentang Kami
 				</span>
 				<h1 className={`text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}>
-					Himatif Encoder
+					{settings?.siteName || 'Himatif Encoder'}
 				</h1>
+				{(settings?.siteTagline || !settings?.siteName) && (
 				<p className={`text-base text-muted-foreground mb-5 max-w-xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-					Himpunan Mahasiswa Teknik Informatika · Fakultas Sains dan Teknologi
-					UIN Maulana Malik Ibrahim Malang
+					{settings?.siteTagline ||
+						'Himpunan Mahasiswa Teknik Informatika · Fakultas Sains dan Teknologi UIN Maulana Malik Ibrahim Malang'}
 				</p>
+				)}
 					{/* Gradient divider */}
 					<div className="mx-auto w-32 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
 				</div>

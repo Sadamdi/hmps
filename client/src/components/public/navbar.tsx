@@ -57,6 +57,8 @@ import type {
 
 interface NavbarSettings {
 	navbarBrand?: string;
+	logoUrl?: string;
+	siteName?: string;
 	homeConfig?: HomeConfig;
 	aboutPageTrackRecord?: any[];
 	aboutPageLambang?: any[];
@@ -1350,8 +1352,17 @@ export default function Navbar({
 									window.scrollTo({ top: 0, behavior: 'smooth' });
 								}
 							}}
-							className="text-xl font-bold tracking-tight bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 bg-clip-text text-transparent hover:opacity-90 transition-opacity dark:from-blue-300 dark:via-cyan-200 dark:to-blue-100">
-							{settings?.navbarBrand || 'HMTI'}
+							className="flex items-center gap-2 text-xl font-bold tracking-tight hover:opacity-90 transition-opacity">
+							{settings?.logoUrl ? (
+								<img
+									src={settings.logoUrl}
+									alt={settings.navbarBrand || settings.siteName || 'Logo'}
+									className="h-8 w-8 object-contain shrink-0"
+								/>
+							) : null}
+							<span className="bg-gradient-to-r from-blue-600 via-blue-500 to-cyan-500 bg-clip-text text-transparent dark:from-blue-300 dark:via-cyan-200 dark:to-blue-100">
+								{settings?.navbarBrand || settings?.siteName || (isTenant ? tenantSlug || 'Komunitas' : 'HMTI')}
+							</span>
 						</button>
 
 						{/* Desktop nav links */}

@@ -35,7 +35,7 @@ Public SSR  : http://localhost:5000/<route>
 | Events | `/api/events`, `/api/event-years` | archive, active home, CMS |
 | Organization | `/api/organization` | periods, positions, members, auto-fill |
 | Prodi | `/api/prodi` | public, manage, curriculum, media, sync |
-| Settings/Home | `/api/settings`, `/api/home-images` | site config, middleware, home assets |
+| Settings/Home | `/api/settings`, `/api/info`, `/api/home-images` | site config, tenant/main identity, home assets |
 | Social Feed | `/api/social-feed` | public YT/IG cache + manage/sync |
 | Dashboard | `/api/stats`, `/api/dashboard` | stats/activity |
 | Upload/GDrive | `/api/upload`, `/api/gdrive` | media and Drive integration |
@@ -205,6 +205,7 @@ Notes (4.13.0+): `GET /api/prodi` returns `curriculumByLevel.{s1,s2}` and `curri
 ## Settings, Home Images, Dashboard
 
 ```text
+GET    /api/info              # { slug, name, isTenant } — via /api/c/:slug/info on tenant
 GET    /api/settings
 PUT    /api/settings
 PUT    /api/settings/home-config
@@ -434,7 +435,9 @@ POST /api/admin/migrate-community-media
 ## Public SSR / SPA Routes
 
 ```text
-GET /sitemap.xml          # dynamic URL + image/video sitemap extensions
+GET /sitemap.xml          # main + active tenant landing/berita; 200 even on generator error
+GET /:slug                # tenant SSR shell (active community only)
+GET /:slug/berita/:articleSlug
 GET /
 GET /berita
 GET /berita/:id/:slug

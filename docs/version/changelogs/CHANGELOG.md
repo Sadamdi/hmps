@@ -11,6 +11,18 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.15.0] — 2026-08-12
+
+**Tenant URL, SEO, logo, dan isolasi auth** · MINOR · [Full release notes](../release/4.15.0.md)
+
+### Highlights
+- Canonical/og/sitemap/SSR tenant memakai `/{slug}/...` dan logo komunitas
+- Login/beranda tenant tidak spinner abadi (timeout auth + skip loading screen Himatif)
+- JWT Himatif tidak lagi dianggap login di tenant
+- Register menolak slug reserved; `/api/info` identitas main/tenant
+
+---
+
 ## [4.14.7] — 2026-08-12
 
 **Safe rebuild + contributor history rewrite** · PATCH · [Full release notes](../release/4.14.7.md)

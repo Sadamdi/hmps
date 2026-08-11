@@ -6,6 +6,7 @@ import {
 } from '@/lib/org-structure-division';
 import { apiRequest } from '@/lib/queryClient';
 import { useTenant } from '@/lib/tenant-context';
+import { usePublicBrand } from '@/hooks/use-public-brand';
 import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
@@ -205,11 +206,16 @@ const sortMembersByPosition = (
 
 export default function Structure() {
 	const { slug, isTenant } = useTenant();
+	const { siteName, publicPath, basePath } = usePublicBrand();
 	const scope = isTenant && slug ? slug : 'main';
 	const [currentPeriod, setCurrentPeriod] = useState<string>('');
 	const [activeView, setActiveView] = useState<string>('flow');
 	const [selectedDivision, setSelectedDivision] = useState<string>('all');
-	const isHomeEmbedded = typeof window !== 'undefined' && window.location.pathname === '/';
+	const isHomeEmbedded =
+		typeof window !== 'undefined' &&
+		(window.location.pathname === '/' ||
+			window.location.pathname === basePath ||
+			window.location.pathname === `${basePath}/`);
 	// Support deep-linking to member list via `?tab=grid`
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
@@ -221,7 +227,11 @@ export default function Structure() {
 	// If user lands on `/kelembagaan#structure`, ensure we scroll to the Structure section.
 	useEffect(() => {
 		if (typeof window === 'undefined') return;
-		if (window.location.pathname !== '/kelembagaan') return;
+		if (
+			window.location.pathname !== '/kelembagaan' &&
+			window.location.pathname !== `${basePath}/kelembagaan`
+		)
+			return;
 		if (window.location.hash !== '#structure') return;
 
 		const t = window.setTimeout(() => {
@@ -230,7 +240,7 @@ export default function Structure() {
 		}, 150);
 
 		return () => window.clearTimeout(t);
-	}, [activeView]);
+	}, [activeView, basePath]);
 	const [nodes, setNodes, onNodesChange] = useNodesState([]);
 	const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 	const [flowRefitCounter, setFlowRefitCounter] = useState<number>(0);
@@ -674,7 +684,7 @@ export default function Structure() {
 					</h2>
 					<div className="mt-2 h-1 w-20 bg-primary mx-auto"></div>
 					<p className="mt-4 text-lg text-muted-foreground">
-						Kepengurusan Himpunan Mahasiswa Teknik Informatika
+						Kepengurusan {siteName}
 					</p>
 				</div>
 
@@ -862,13 +872,13 @@ export default function Structure() {
 					<div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
 						{activeView === 'flow' ? (
 							<a
-								href="/kelembagaan#structure"
+								href={publicPath('/kelembagaan#structure')}
 								className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">
 								Lihat semua struktur <ArrowRight className="h-4 w-4" />
 							</a>
 						) : (
 							<a
-								href="/kelembagaan?tab=grid#structure"
+								href={publicPath('/kelembagaan?tab=grid#structure')}
 								className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-muted text-foreground font-medium hover:bg-muted/80 transition-colors">
 								Lihat daftar anggota <ArrowRight className="h-4 w-4" />
 							</a>

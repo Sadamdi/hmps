@@ -15,6 +15,7 @@ import { Calendar, ChevronDown, Filter, Search, Tag, User } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
+import { usePublicBrand } from '@/hooks/use-public-brand';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
 interface BeritaItem {
@@ -44,6 +45,7 @@ export default function AllBerita() {
 	const beritaContainerRef = useRef<HTMLDivElement>(null);
 
 	const { basePath } = useTenant();
+	const { documentTitle, siteName, isTenant } = usePublicBrand();
 	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
 		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
@@ -70,17 +72,13 @@ export default function AllBerita() {
 	}, []);
 
 	useEffect(() => {
-		document.title =
-			'Berita | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
-		const desc =
-			'Daftar berita dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.';
+		document.title = documentTitle('Berita');
+		const desc = isTenant
+			? `Berita dan informasi terkini dari ${siteName}`
+			: 'Daftar berita dan informasi terkini dari Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang.';
 		const meta = document.querySelector('meta[name="description"]');
 		if (meta) meta.setAttribute('content', desc);
-		return () => {
-			document.title =
-				'Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang | Fakultas Saintek';
-		};
-	}, []);
+	}, [documentTitle, isTenant, siteName]);
 
 	useEffect(() => {
 		const urlParams = new URLSearchParams(window.location.search);
@@ -220,7 +218,7 @@ export default function AllBerita() {
 					<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: 'Berita' }]} />
 				<h1 className="text-3xl font-bold text-foreground mb-2">Semua Berita</h1>
 				<p className="text-muted-foreground">
-					Temukan berita dan informasi terkini dari Himatif Encoder
+					Temukan berita dan informasi terkini dari {siteName}
 				</p>
 				</div>
 

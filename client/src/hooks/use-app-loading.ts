@@ -62,7 +62,9 @@ export function useAppLoading() {
 
 				// Preload active combined assets (banner + people) agar sinkron dengan hero intro.
 				try {
-					const response = await fetch('/api/home-images/active');
+					const response = await fetch('/api/home-images/active', {
+						signal: AbortSignal.timeout(5000),
+					});
 					if (response.ok) {
 						const active = await response.json() as {
 							desktopMode?: 'bennerfull' | 'combined';
@@ -93,6 +95,11 @@ export function useAppLoading() {
 		};
 
 		preloadCriticalAssets();
+		const failSafe = window.setTimeout(() => {
+			setAssetsLoaded(true);
+			setContentLoaded(true);
+		}, 8000);
+		return () => window.clearTimeout(failSafe);
 	}, []);
 
 	// Simulasi loading content (lebih cepat)

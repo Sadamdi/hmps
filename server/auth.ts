@@ -94,13 +94,14 @@ export async function authenticate(
 		let SessionModel: any;
 		(req as any)._authResolvedFromMainInTenant = false;
 		if (req.isTenantRequest && req.tenantModels) {
+			const tokenTenant = (decoded as any).tenant || null;
+			if (tokenTenant && req.tenantDbName && tokenTenant !== req.tenantDbName) {
+				return res.status(401).json({ message: 'Authentication required' });
+			}
 			user = await req.tenantModels.User.findById(decoded.id).lean();
 			SessionModel = req.tenantModels.Session;
-			if (!user && !(decoded as any).tenant) {
-				user = await mongoStorage.getUserById(decoded.id);
-				const { Session: MainSession } = await import('../db/mongodb');
-				SessionModel = MainSession;
-				(req as any)._authResolvedFromMainInTenant = true;
+			if (!user) {
+				return res.status(401).json({ message: 'Authentication required' });
 			}
 		} else if ((decoded as any).tenant) {
 			try {
@@ -177,6 +178,13 @@ export async function authenticateOptional(
 		let user: any;
 		let SessionModel: any;
 		if (req.isTenantRequest && req.tenantModels) {
+			const tokenTenant = decoded.tenant || null;
+			if (tokenTenant && req.tenantDbName && tokenTenant !== req.tenantDbName) {
+				return next();
+			}
+			if (!tokenTenant) {
+				return next();
+			}
 			user = await req.tenantModels.User.findById(decoded.id).lean();
 			SessionModel = req.tenantModels.Session;
 		} else if (decoded.tenant) {

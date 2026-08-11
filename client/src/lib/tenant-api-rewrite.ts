@@ -2,26 +2,7 @@
  * Rewrites same-origin API paths to tenant-scoped `/api/c/:slug/...` when the browser
  * is on a community path (`/:slug/...`). Used by fetch defaults and apiRequest.
  */
-const RESERVED_FIRST_SEGMENTS = new Set([
-	'',
-	'api',
-	'assets',
-	'attached_assets',
-	'uploads',
-	'berita',
-	'login',
-	'register',
-	'forgot-password',
-	'error',
-	'profil',
-	'kelembagaan',
-	'prodi',
-	'events',
-	'library',
-	'dashboard',
-	'communities',
-	'sitemap.xml',
-]);
+import { isReservedTenantSlug } from '@shared/tenant-paths';
 
 const MAIN_ONLY_API_PREFIXES = ['/api/register', '/api/communities', '/api/registration'];
 
@@ -54,7 +35,7 @@ export function getTenantSlugFromPathname(pathname: string): string | null {
 	const m = pathname.match(/^\/([a-zA-Z0-9_-]+)(?:\/|$)/);
 	if (!m) return null;
 	const first = m[1].toLowerCase();
-	if (RESERVED_FIRST_SEGMENTS.has(first)) return null;
+	if (isReservedTenantSlug(first)) return null;
 	return m[1];
 }
 

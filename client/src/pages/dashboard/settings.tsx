@@ -317,7 +317,7 @@ export default function SettingsPage() {
 		refetch: refetchSettings,
 	} = useQuery({
 		queryKey: ['/api/settings'],
-		placeholderData: defaultSettings,
+		placeholderData: isTenant ? undefined : defaultSettings,
 		staleTime: 0, // Always fetch fresh data
 		refetchOnWindowFocus: true, // Refetch when window gets focus
 		refetchOnMount: true,

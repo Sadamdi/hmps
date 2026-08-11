@@ -5380,6 +5380,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
+	app.get('/api/info', async (req, res) => {
+		if (!req.isTenantRequest || !req.tenantSlug) {
+			return res.json({
+				slug: null,
+				name: 'Himatif Encoder',
+				isTenant: false,
+			});
+		}
+		return res.json({
+			slug: req.tenantSlug,
+			name: req.tenantName || req.tenantSlug,
+			isTenant: true,
+		});
+	});
+
 	// Settings routes (tenant-aware)
 	app.get('/api/settings', async (req, res) => {
 		const cacheKey = `settings|${tenantCacheKey(req)}`;
@@ -5746,6 +5761,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 	app.get('/api/prodi', async (req, res) => {
 		try {
+			if (req.isTenantRequest) {
+				return res.status(404).json({ message: 'Prodi hanya tersedia di situs utama' });
+			}
 			const content = await resolveStorage(req).getProdiContentPublic();
 			res.json(content);
 		} catch (error) {
@@ -10303,24 +10321,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.status(400)
 					.json({ message: 'URL slug maksimal 20 karakter' });
 			}
-			const reserved = [
-				'api',
-				'login',
-				'dashboard',
-				'register',
-				'forgot-password',
-				'error',
-				'berita',
-				'profil',
-				'kelembagaan',
-				'prodi',
-				'events',
-				'communities',
-				'uploads',
-				'assets',
-				'attached_assets',
-			];
-			if (reserved.includes(slug)) {
+			const { isReservedTenantSlug } = await import('@shared/tenant-paths');
+			if (isReservedTenantSlug(slug)) {
 				return res
 					.status(400)
 					.json({ message: 'URL slug ini sudah digunakan oleh sistem' });
@@ -10501,10 +10503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					siteName: communityName,
 					siteTagline: description || communityName,
 					siteDescription: description || communityName,
-					navbarBrand:
-						communityName.length > 10
-							? communityName.substring(0, 10)
-							: communityName,
+					navbarBrand: communityName,
 					contactEmail: contactEmail || ownerEmail || '',
 					address: address || '',
 					socialLinks: socialLinks || {},

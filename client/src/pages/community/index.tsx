@@ -9,6 +9,7 @@ import NotFound from '@/pages/not-found';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { lazy, Suspense, useEffect } from 'react';
+import { usePublicBrand } from '@/hooks/use-public-brand';
 import { Link, Route, Router, Switch, useParams } from 'wouter';
 
 const Home = lazy(() => import('@/pages/index'));
@@ -46,6 +47,31 @@ function RouteLoadingFallback() {
 			<div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
 		</div>
 	);
+}
+
+function TenantDocumentBrand() {
+	const { siteName, logoUrl, documentTitle, siteDescription, absoluteUrl } = usePublicBrand();
+
+	useEffect(() => {
+		document.title = documentTitle();
+		const faviconHref = logoUrl || '/favicon.ico';
+		let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]');
+		if (!link) {
+			link = document.createElement('link');
+			link.rel = 'icon';
+			document.head.appendChild(link);
+		}
+		link.href = faviconHref;
+
+		const metaDescription = document.querySelector('meta[name="description"]');
+		if (metaDescription && siteDescription) {
+			metaDescription.setAttribute('content', siteDescription.slice(0, 160));
+		}
+		const canonical = document.querySelector('link[rel="canonical"]');
+		if (canonical) canonical.setAttribute('href', absoluteUrl('/'));
+	}, [siteName, logoUrl, siteDescription, documentTitle, absoluteUrl]);
+
+	return null;
 }
 
 function CrossTenantGuard({ slug, children }: { slug: string; children: ReactNode }) {
@@ -87,9 +113,17 @@ export default function CommunityShell() {
 		queryKey: ['community-exists', slug],
 		queryFn: async () => {
 			if (!slug) throw new Error('No slug');
-			const res = await fetch(`/api/c/${slug}/settings`);
-			if (!res.ok) throw new Error('Community not found');
-			return true;
+			const ac = new AbortController();
+			const timer = window.setTimeout(() => ac.abort(), 8000);
+			try {
+				const res = await fetch(`/api/c/${slug}/info`, { signal: ac.signal });
+				if (res.ok) return true;
+				const fallback = await fetch(`/api/c/${slug}/settings`, { signal: ac.signal });
+				if (!fallback.ok) throw new Error('Community not found');
+				return true;
+			} finally {
+				window.clearTimeout(timer);
+			}
 		},
 		enabled: !!slug,
 		retry: false,
@@ -136,6 +170,7 @@ export default function CommunityShell() {
 		<TenantProvider slug={slug}>
 			<Router base={`/${slug}`}>
 				<TenantAuthProvider slug={slug}>
+					<TenantDocumentBrand />
 					<CrossTenantGuard slug={slug}>
 					<Suspense fallback={null}>
 						<NotificationStream />

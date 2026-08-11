@@ -254,6 +254,10 @@ export function createTenantStorage(models: TenantModels) {
 	}) {
 		const data: Record<string, any> = {
 			...TENANT_BLANK_SETTINGS,
+			aboutPageIntro: '',
+			aboutPageTrackRecord: [],
+			aboutPageLambang: [],
+			visionMission: '',
 			siteName: communityData.siteName,
 			siteTagline: communityData.siteTagline || communityData.siteName,
 			siteDescription: communityData.siteDescription || communityData.siteName,

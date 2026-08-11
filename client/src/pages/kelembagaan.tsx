@@ -6,9 +6,11 @@ import Structure from '@/components/public/structure';
 import VisionMission from '@/components/public/vision-mission';
 import { Suspense, useEffect } from 'react';
 import { useTenant } from '@/lib/tenant-context';
+import { usePublicBrand } from '@/hooks/use-public-brand';
 
 export default function KelembagaanPage() {
 	const { basePath } = useTenant();
+	const { documentTitle, siteName, isTenant } = usePublicBrand();
 	const bp = basePath || '';
 
 	const scrollToSection = (sectionId: string) => {
@@ -16,16 +18,17 @@ export default function KelembagaanPage() {
 	};
 
 	useEffect(() => {
-		document.title =
-			'Kelembagaan | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
+		document.title = documentTitle('Kelembagaan');
 		const metaDescription = document.querySelector('meta[name="description"]');
 		if (metaDescription) {
 			metaDescription.setAttribute(
 				'content',
-				'Kelembagaan HIMATIF Encoder - Visi dan Misi serta Struktur Organisasi Himpunan Mahasiswa Teknik Informatika UIN Malang.',
+				isTenant
+					? `Visi, misi, dan struktur organisasi ${siteName}`
+					: 'Kelembagaan HIMATIF Encoder - Visi dan Misi serta Struktur Organisasi Himpunan Mahasiswa Teknik Informatika UIN Malang.',
 			);
 		}
-	}, []);
+	}, [documentTitle, isTenant, siteName]);
 
 	return (
 		<div className="min-h-screen bg-background relative">
@@ -52,8 +55,9 @@ export default function KelembagaanPage() {
 						Visi, Misi & Struktur Organisasi
 					</h1>
 					<p className="text-base text-muted-foreground max-w-xl mx-auto">
-						Landasan gerak dan kepengurusan Himpunan Mahasiswa Teknik Informatika
-						UIN Maulana Malik Ibrahim Malang
+						{isTenant
+							? `Landasan gerak dan kepengurusan ${siteName}`
+							: 'Landasan gerak dan kepengurusan Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang'}
 					</p>
 					<div className="mx-auto mt-5 w-32 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
 				</div>

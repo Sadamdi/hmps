@@ -188,9 +188,19 @@ export default function Hero({
 	const enableCommunityCombinedFx = isTenant && desktopMode === 'combined';
 
 	const versionSuffix = homeImageVersionSuffix(homeImages?.updatedAt);
-	const bennerfullSrc =
-		(homeImages?.bennerfull || DEFAULT_IMAGE_URL) + versionSuffix;
-	const orangSrc = (homeImages?.orang || DEFAULT_IMAGE_URL) + versionSuffix;
+	const tenantOrMainFallback = isTenant
+		? settings?.logoUrl || ''
+		: DEFAULT_IMAGE_URL;
+	const bennerfullSrc = homeImages?.bennerfull
+		? homeImages.bennerfull + versionSuffix
+		: tenantOrMainFallback
+			? tenantOrMainFallback + versionSuffix
+			: '';
+	const orangSrc = homeImages?.orang
+		? homeImages.orang + versionSuffix
+		: tenantOrMainFallback
+			? tenantOrMainFallback + versionSuffix
+			: '';
 	const desktopBackgroundSrc = homeImages?.desktopBackground
 		? homeImages.desktopBackground + versionSuffix
 		: '';

@@ -12,6 +12,7 @@ import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useLayoutEffect } from 'react';
 import { useTenant } from '@/lib/tenant-context';
+import { usePublicBrand } from '@/hooks/use-public-brand';
 
 interface Settings {
 	aboutUs?: string;
@@ -37,17 +38,20 @@ export default function ProfilPage() {
 		},
 	});
 
+	const { documentTitle, siteName, orgSubtitle } = usePublicBrand();
+
 	useEffect(() => {
-		document.title =
-			'Profil | Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang';
+		document.title = documentTitle('Profil');
 		const metaDescription = document.querySelector('meta[name="description"]');
 		if (metaDescription) {
 			metaDescription.setAttribute(
 				'content',
-				'Profil HIMATIF Encoder - Tentang Kami, Sejarah Rekam Jejak Ketua Himpunan & Divisi, serta Filosofi Lambang Himpunan Mahasiswa Teknik Informatika UIN Malang.',
+				isTenant
+					? `Profil ${siteName}`
+					: 'Profil HIMATIF Encoder - Tentang Kami, Sejarah Rekam Jejak Ketua Himpunan & Divisi, serta Filosofi Lambang Himpunan Mahasiswa Teknik Informatika UIN Malang.',
 			);
 		}
-	}, []);
+	}, [documentTitle, siteName, isTenant]);
 
 	const sectionHash = /^#(tentang-kami|sejarah|filosofi)$/;
 
@@ -130,12 +134,13 @@ export default function ProfilPage() {
 						Profil
 					</span>
 					<h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight">
-						Himatif Encoder
+						{siteName}
 					</h1>
+					{orgSubtitle ? (
 					<p className="text-base text-muted-foreground max-w-xl mx-auto">
-						Himpunan Mahasiswa Teknik Informatika · Fakultas Sains dan Teknologi
-						UIN Maulana Malik Ibrahim Malang
+						{orgSubtitle}
 					</p>
+					) : null}
 					<div className="mx-auto mt-5 w-32 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
 				</div>
 				<div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/35 to-transparent" />
@@ -154,7 +159,7 @@ export default function ProfilPage() {
 								Tentang Kami
 							</span>
 							<h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-								Tentang HIMATIF Encoder
+								Tentang {siteName}
 							</h2>
 							<div className="mx-auto w-24 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
 						</div>
@@ -319,7 +324,7 @@ export default function ProfilPage() {
 								Filosofi
 							</span>
 							<h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-								Filosofi Lambang HIMATIF Encoder
+								Filosofi Lambang {siteName}
 							</h2>
 							<div className="mx-auto w-24 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
 						</div>

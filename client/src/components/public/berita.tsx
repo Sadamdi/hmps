@@ -16,6 +16,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { toSlug } from '@/utils/slug';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
+import { usePublicBrand } from '@/hooks/use-public-brand';
 
 interface BeritaItem {
 	id?: number;
@@ -47,6 +48,7 @@ interface PaginatedResponse<T> {
 }
 
 export default function BeritaList() {
+	const { siteName } = usePublicBrand();
 	const [showAll, setShowAll] = useState(false);
 	const [isMobile, setIsMobile] = useState(false);
 	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
@@ -148,7 +150,7 @@ export default function BeritaList() {
 					</h2>
 					<div className={`w-20 h-1 bg-primary mx-auto mb-4 ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`} />
 					<p className={`text-muted-foreground max-w-2xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-						Temukan berita dan informasi terkini dari HIMATIF ENCODER
+						Temukan berita dan informasi terkini dari {siteName}
 					</p>
 				</div>
 

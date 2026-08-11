@@ -214,6 +214,12 @@ app.get('/sitemap.xml', async (_req, res) => {
 				priority: '0.9',
 				lastmod: now,
 			},
+			{
+				loc: `${host}/communities`,
+				changefreq: 'weekly',
+				priority: '0.7',
+				lastmod: now,
+			},
 		];
 
 		let beritaUrls: SitemapUrlEntry[] = [];
@@ -370,12 +376,78 @@ app.get('/sitemap.xml', async (_req, res) => {
 			);
 		}
 
+		let tenantUrls: SitemapUrlEntry[] = [];
+		try {
+			const { Community } = await import('../db/mongodb');
+			const { getTenantModels } = await import('../db/tenant');
+			const comms = await Community.find({ status: 'active' })
+				.select('slug name dbName')
+				.lean();
+			for (const c of comms || []) {
+				const slug = String((c as any).slug || '').trim();
+				const dbName = String((c as any).dbName || '').trim();
+				if (!slug || !dbName) continue;
+				tenantUrls.push(
+					{
+						loc: `${host}/${slug}`,
+						changefreq: 'weekly',
+						priority: '0.8',
+						lastmod: now,
+					},
+					{
+						loc: `${host}/${slug}/berita`,
+						changefreq: 'weekly',
+						priority: '0.7',
+						lastmod: now,
+					},
+					{
+						loc: `${host}/${slug}/profil`,
+						changefreq: 'monthly',
+						priority: '0.6',
+						lastmod: now,
+					},
+					{
+						loc: `${host}/${slug}/kelembagaan`,
+						changefreq: 'monthly',
+						priority: '0.6',
+						lastmod: now,
+					},
+				);
+				try {
+					const models = getTenantModels(dbName);
+					const articles = await models.Berita.find({ published: true })
+						.select('slug updatedAt createdAt')
+						.lean();
+					for (const a of articles || []) {
+						if (!(a as any).slug) continue;
+						tenantUrls.push({
+							loc: `${host}/${slug}/berita/${(a as any).slug}`,
+							lastmod: lastmodOf(a),
+							changefreq: 'monthly',
+							priority: '0.7',
+						});
+					}
+				} catch (tenantDbErr: any) {
+					console.log(
+						`tenant sitemap content skipped for ${slug}:`,
+						tenantDbErr?.message,
+					);
+				}
+			}
+		} catch (tenantListErr: any) {
+			console.log(
+				'tenant sitemap list skipped:',
+				tenantListErr?.message || 'Unknown error',
+			);
+		}
+
 		const urls = [
 			...baseUrls,
 			...beritaUrls,
 			...eventUrls,
 			...libraryUrls,
 			...tokoUrls,
+			...tenantUrls,
 		];
 		const dedupedUrls = urls.filter(
 			(item, idx, arr) => arr.findIndex((x) => x.loc === item.loc) === idx,
@@ -390,10 +462,15 @@ app.get('/sitemap.xml', async (_req, res) => {
 		return res.status(200).send(xml);
 	} catch (e: any) {
 		console.error('❌ Failed to generate sitemap dynamically:', e);
-		console.log('🔄 Falling back to static sitemap file');
 		console.log('🔍 Error details:', e?.message || 'Unknown error');
-		console.log('🔍 Error stack:', e?.stack || 'No stack trace');
-		return res.sendFile(path.join(process.cwd(), 'public', 'sitemap.xml'));
+		const minimal =
+			`<?xml version="1.0" encoding="UTF-8"?>` +
+			`<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">` +
+			`<url><loc>https://himatif-encoder.com/</loc></url>` +
+			`<url><loc>https://himatif-encoder.com/communities</loc></url>` +
+			`</urlset>`;
+		res.set('Content-Type', 'application/xml');
+		return res.status(200).send(minimal);
 	}
 });
 
@@ -1515,6 +1592,91 @@ process.on('unhandledRejection', (reason: any) => {
 		app.get(/^\/dashboard(\/.*)?$/, (_req, res) => {
 			res.redirect(302, '/login');
 		});
+
+		const loadActiveCommunity = async (slug: string) => {
+			const { isReservedTenantSlug } = await import('@shared/tenant-paths');
+			if (!slug || isReservedTenantSlug(slug)) return null;
+			const { Community } = await import('../db/mongodb');
+			return Community.findOne({ slug, status: 'active' }).lean() as Promise<any>;
+		};
+
+		app.get('/:slug/berita/:articleSlug', async (req, res, next) => {
+			try {
+				const comm = await loadActiveCommunity(String(req.params.slug || ''));
+				if (!comm?.dbName) return next();
+				const { getTenantModels } = await import('../db/tenant');
+				const models = getTenantModels(comm.dbName);
+				const item = await models.Berita.findOne({
+					slug: req.params.articleSlug,
+					published: true,
+				}).lean();
+				const settings = await models.Settings.findOne().lean();
+				const siteName = String(settings?.siteName || comm.name || comm.slug);
+				const distPath = path.resolve(process.cwd(), 'dist', 'public');
+				const htmlPath = path.join(distPath, 'index.html');
+				if (!fs.existsSync(htmlPath)) return next();
+				let html = fs.readFileSync(htmlPath, 'utf-8');
+				const title = item
+					? `${item.title} | ${siteName}`
+					: `Berita | ${siteName}`;
+				const description = String(
+					item?.excerpt || settings?.siteDescription || siteName,
+				).slice(0, 160);
+				const canonicalUrl = `https://himatif-encoder.com/${comm.slug}/berita/${req.params.articleSlug}`;
+				html = injectArticleMeta(html, {
+					title,
+					description,
+					canonicalUrl,
+					ogImage: resolveOgImage(item?.image || settings?.logoUrl),
+					ogImageAlt: String(item?.title || title),
+				});
+				res.set('Content-Type', 'text/html');
+				return res.send(html);
+			} catch (err) {
+				console.log('Tenant berita prerender fallback:', err);
+				return next();
+			}
+		});
+
+		const serveTenantShell = (pageTitle: string, restPath: string) => {
+			return async (req: Request, res: Response, next: NextFunction) => {
+				try {
+					const comm = await loadActiveCommunity(String(req.params.slug || ''));
+					if (!comm?.dbName) return next();
+					const { getTenantModels } = await import('../db/tenant');
+					const models = getTenantModels(comm.dbName);
+					const settings = await models.Settings.findOne().lean();
+					const siteName = String(settings?.siteName || comm.name || comm.slug);
+					const description = String(
+						settings?.siteDescription || settings?.siteTagline || siteName,
+					).slice(0, 160);
+					const suffix = restPath ? `/${restPath}` : '';
+					await serveHtmlWithMeta({
+						title: pageTitle ? `${pageTitle} | ${siteName}` : siteName,
+						description,
+						canonicalUrl: `https://himatif-encoder.com/${comm.slug}${suffix}`,
+						jsonLd: {
+							'@context': 'https://schema.org',
+							'@type': 'Organization',
+							name: siteName,
+							url: `https://himatif-encoder.com/${comm.slug}`,
+							logo: resolveOgImage(settings?.logoUrl),
+						},
+					})(req, res, next);
+				} catch {
+					return next();
+				}
+			};
+		};
+
+		app.get('/:slug/login', serveTenantShell('Login', 'login'));
+		app.get('/:slug/profil', serveTenantShell('Profil', 'profil'));
+		app.get('/:slug/kelembagaan', serveTenantShell('Kelembagaan', 'kelembagaan'));
+		app.get('/:slug/berita', serveTenantShell('Berita', 'berita'));
+		app.get('/:slug/events', serveTenantShell('Event', 'events'));
+		app.get('/:slug/library', serveTenantShell('Galeri', 'library'));
+		app.get('/:slug/toko', serveTenantShell('Toko', 'toko'));
+		app.get('/:slug', serveTenantShell('', ''));
 
 		serveStatic(app);
 	}

@@ -17,10 +17,15 @@ declare global {
 	}
 }
 
-const communityCache = new Map<string, { dbName: string; status: string; cachedAt: number }>();
+const communityCache = new Map<
+	string,
+	{ dbName: string; status: string; name: string; cachedAt: number }
+>();
 const CACHE_TTL = 60_000; // 1 minute
 
-async function resolveCommunity(slug: string): Promise<{ dbName: string; status: string } | null> {
+async function resolveCommunity(
+	slug: string,
+): Promise<{ dbName: string; status: string; name: string } | null> {
 	const cached = communityCache.get(slug);
 	if (cached && Date.now() - cached.cachedAt < CACHE_TTL) {
 		return cached;
@@ -37,7 +42,11 @@ async function resolveCommunity(slug: string): Promise<{ dbName: string; status:
 	if (!dbName) {
 		throw new Error(`Invalid tenant dbName for slug "${slug}"`);
 	}
-	const entry = { dbName, status: community.status, cachedAt: Date.now() };
+	const name =
+		typeof community.name === 'string' && community.name.trim()
+			? community.name.trim()
+			: slug;
+	const entry = { dbName, status: community.status, name, cachedAt: Date.now() };
 	communityCache.set(slug, entry);
 	return entry;
 }
@@ -64,7 +73,7 @@ export function tenantApiResolver(req: Request, res: Response, next: NextFunctio
 			}
 
 			req.tenantSlug = slug;
-			req.tenantName = (community as { name?: string }).name || slug;
+			req.tenantName = community.name || slug;
 			req.tenantDbName = community.dbName;
 			const models = getTenantModels(community.dbName);
 			req.tenantModels = models;
