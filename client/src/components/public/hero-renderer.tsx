@@ -91,6 +91,7 @@ export function HeroBannerContent({
 	enableCommunityCombinedFx = false,
 	combinedIntroActive = false,
 	combinedIntroWaveIndex = -1,
+	fallbackSrc = DEFAULT_IMAGE_URL,
 }: Pick<
 	HeroRenderData,
 	| 'desktopMode'
@@ -103,13 +104,14 @@ export function HeroBannerContent({
 	enableCommunityCombinedFx?: boolean;
 	combinedIntroActive?: boolean;
 	combinedIntroWaveIndex?: number;
+	fallbackSrc?: string;
 }) {
 	if (desktopMode === 'combined') {
 		const n = slotOrder.length;
 		return (
 			<div className="relative w-full h-full overflow-hidden">
 				{slotOrder.map((key, idx) => {
-					const src = banners[key] || DEFAULT_BANNERS[key] || '';
+					const src = banners[key] || fallbackSrc || '';
 					if (!src) return null;
 					const base = computeBannerStyle(idx, n);
 					const wave = computeWaveIndex(idx, n);
@@ -152,9 +154,11 @@ export function HeroBannerContent({
 		);
 	}
 
+	const bannerSrc = bennerfullSrc || fallbackSrc;
+	if (!bannerSrc) return <div className="w-full h-full bg-muted" />;
 	return (
 		<img
-			src={bennerfullSrc || DEFAULT_IMAGE_URL}
+			src={bannerSrc}
 			alt="Banner"
 			className="w-full h-full object-cover"
 			loading="eager"
@@ -368,12 +372,14 @@ export function HeroPersonContent({
 	orangSrc,
 	combinedIntroActive = false,
 	combinedIntroWaveIndex = -1,
+	fallbackSrc = DEFAULT_IMAGE_URL,
 }: Pick<
 	HeroRenderData,
 	'desktopMode' | 'desktopBannerSource' | 'slotOrder' | 'people' | 'orangSrc'
 > & {
 	combinedIntroActive?: boolean;
 	combinedIntroWaveIndex?: number;
+	fallbackSrc?: string;
 }) {
 	const slotEntries = useMemo(() => {
 		if (desktopMode !== 'combined') return [];
@@ -423,9 +429,11 @@ export function HeroPersonContent({
 		return <div className="w-full h-full" />;
 	}
 
+	const personSrc = orangSrc || fallbackSrc;
+	if (!personSrc) return <div className="w-full h-full" />;
 	return (
 		<img
-			src={orangSrc || DEFAULT_IMAGE_URL}
+			src={personSrc}
 			alt="Orang"
 			className="w-full h-full object-contain"
 			loading="eager"
@@ -501,6 +509,7 @@ export function HeroMobileSlideshow({
 	logoUrl,
 	onScrollTo,
 	stats,
+	fallbackSrc = DEFAULT_IMAGE_URL,
 }: Pick<
 	HeroRenderData,
 	| 'slotOrder'
@@ -516,14 +525,15 @@ export function HeroMobileSlideshow({
 		berita?: number;
 		libraryItems?: number;
 	};
+	fallbackSrc?: string;
 }) {
 	const [currentIdx, setCurrentIdx] = useState(0);
 
 	const mobileBannerSrcs = useMemo(() => {
 		return slotOrder
-			.map((key) => banners[key] || DEFAULT_BANNERS[key] || '')
+			.map((key) => banners[key] || fallbackSrc || '')
 			.filter(Boolean);
-	}, [banners, slotOrder]);
+	}, [banners, slotOrder, fallbackSrc]);
 
 	useEffect(() => {
 		if (mobileBannerSrcs.length <= 1) return;

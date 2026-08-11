@@ -512,6 +512,7 @@ export default function Hero({
 						enableCommunityCombinedFx={enableCommunityCombinedFx}
 						combinedIntroActive={combinedIntroStarted}
 						combinedIntroWaveIndex={combinedIntroWaveIndex}
+						fallbackSrc={tenantOrMainFallback}
 					/>
 					{/* Fog belakang — full height, tipis */}
 					<div
@@ -578,6 +579,7 @@ export default function Hero({
 							orangSrc={orangSrc}
 							combinedIntroActive={combinedIntroStarted}
 							combinedIntroWaveIndex={combinedIntroWaveIndex}
+							fallbackSrc={tenantOrMainFallback}
 						/>
 					</div>
 					{/* Fog depan — setengah, tebal */}
@@ -593,14 +595,16 @@ export default function Hero({
 				<HeroMobileSlideshow
 					slotOrder={slotOrder}
 					banners={versionedBanners}
-					siteName={settings?.siteName || 'HIMATIF ENCODER'}
+					siteName={settings?.siteName || (isTenant ? 'Komunitas' : 'HIMATIF ENCODER')}
 					siteTagline={
-						settings?.siteTagline || 'Himpunan Mahasiswa Teknik Informatika'
+						settings?.siteTagline ||
+						(isTenant ? '' : 'Himpunan Mahasiswa Teknik Informatika')
 					}
 					siteDescription={settings?.siteDescription || ''}
 					logoUrl={settings?.logoUrl}
 					onScrollTo={scrollToSection}
 					stats={stats}
+					fallbackSrc={tenantOrMainFallback}
 				/>
 			</div>
 		</div>
