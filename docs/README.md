@@ -59,7 +59,7 @@ docs/
 | [Code Review](./SOP/04-code-review.md) | Checklist review |
 | [Testing](./SOP/05-testing-strategy.md) | `npm run check` + manual smoke |
 | [API Design](./SOP/06-api-design.md) | Prefix, response honesty, pagination |
-| [Deployment](./SOP/07-deployment.md) | Build, banner-render, env, smoke |
+| [Deployment](./SOP/07-deployment.md) | Build, `ops/deploy-server.sh`, auto-deploy, env, smoke |
 | [Error Handling](./SOP/08-error-handling.md) | Error + system-errors monitoring |
 | [Frontend Architecture](./SOP/09-frontend-architecture.md) | Pola React/Vite |
 | [Backend Service/Storage](./SOP/10-backend-service-storage.md) | Routes/services/models |
@@ -101,4 +101,4 @@ docs/
 4. Untuk API: `endpoints.md` + OpenAPI; regenerasi HTML dengan `npm run docs:api-html`.
 5. Setelah selesai unit kerja: bump SemVer memakai `version-template.md` (SOP 11).
 
-Terakhir diperbarui: 2026-08-06
+Terakhir diperbarui: 2026-08-12

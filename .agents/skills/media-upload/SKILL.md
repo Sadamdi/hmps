@@ -32,5 +32,4 @@ Use `server/upload.ts`, `image-processor.ts`, `googleDrive.ts`, and file scanner
 - [ ] Upload/media paths are validated if files are involved.
 - [ ] Secrets stay server-side and out of logs.
 - [ ] Feature/API docs are updated when behavior changes.
-- [ ] 
-pm run check or equivalent verification is run when code changes.
+- [ ] `npm run check` or equivalent verification is run when code changes.

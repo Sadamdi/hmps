@@ -32,5 +32,5 @@ Create or update a feature doc from `docs/features/feature-template.md`. Define 
 - [ ] Upload/media paths are validated if files are involved.
 - [ ] Secrets stay server-side and out of logs.
 - [ ] Feature/API docs are updated when behavior changes.
-- [ ] 
-pm run check or equivalent verification is run when code changes.
+- [ ] Official contributors remain @Sadamdi and @addid-cloud only (no AI author/Co-authored-by).
+- [ ] `npm run check` or equivalent verification is run when code changes.

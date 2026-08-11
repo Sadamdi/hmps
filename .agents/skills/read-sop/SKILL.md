@@ -27,6 +27,7 @@ Read `AGENTS.md`, feature summary, endpoints, architecture docs, current version
 - docs/SOP/10-backend-service-storage.md (backend tasks)
 - docs/SOP/11-documentation-maintenance.md
 - docs/SOP/12-runtime-security-operations.md (middleware/ops/security)
+- docs/SOP/07-deployment.md (when changing deploy/ops)
 - docs/architecture/application-architecture.md
 - docs/architecture/multi-tenant.md when tenant-aware
 

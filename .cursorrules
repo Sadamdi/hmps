@@ -15,7 +15,22 @@ scanning cannot.
 - **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
 - **Architecture questions**: `get_architecture_overview` + `list_communities`
 
-Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+Pakai graph **dulu jika MCP available**. Fall back ke Grep/Glob/Read jika server error, tool tidak terdaftar, atau graph tidak menutupi yang dibutuhkan.
+
+## Contributors (official humans only)
+
+- Human contributors resmi hanya [@Sadamdi](https://github.com/Sadamdi) dan [@addid-cloud](https://github.com/addid-cloud).
+- Jangan tulis Claude, Cursor, Copilot, atau nama model sebagai author/contributor di README, AGENTS, release notes, atau trailer `Co-authored-by` AI.
+- Commit identity: `Sulthan Adam Rahmadi <sultanadamr@gmail.com>` (jangan email Cursor/Claude).
+- Jangan rewrite git history untuk grafik Contributors GitHub.
+
+## Paths & ops (aktual)
+
+- Backend: `server/routes.ts`, `server/routes/*`, `server/services/`, `db/mongodb.ts`.
+- Frontend: `client/src/App.tsx`, `client/src/pages/`, `client/src/hooks/`, `client/src/lib/`.
+- Deploy: `ops/deploy-server.sh` + `/root/auto-deploy.js` (di luar repo; tanpa secret).
+- Versioning: bump SemVer tiap unit kerja (SOP 11).
+- Skill HMPS di `.agents/skills/` wajib; `.cursor/skills/pro-*` hanya guidance umum.
 
 ### Key Tools
 

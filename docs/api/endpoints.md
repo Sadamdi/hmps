@@ -1,7 +1,7 @@
 # 🔗 API Endpoints — HMPS Project HIMATIF ENCODER
 
 > Endpoint inventory berdasarkan `server/routes.ts`, modular routers, store router, dan public SSR routes.  
-> **App version:** lihat [`docs/version/versions.md`](../version/versions.md) (**4.12.0**). Terakhir sync docs: 2026-08-06.
+> **App version:** lihat [`docs/version/versions.md`](../version/versions.md) (**4.14.5**). Terakhir sync docs: 2026-08-12.
 
 ---
 
@@ -465,4 +465,4 @@ Sitemap helper: `server/services/seo-sitemap.ts` (image/video namespaces for Goo
 
 ---
 
-*Terakhir diperbarui: 2026-08-06*
+*Terakhir diperbarui: 2026-08-12*

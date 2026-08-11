@@ -16,7 +16,17 @@ Build menghasilkan frontend Vite dan backend bundled ke `dist/` (termasuk `banne
 | Main app | `npm run dev` | `npm start` (port **5000**) |
 | Banner render sidecar | `npm run dev:banner-render` | `npm run start:banner-render` |
 
-Deploy ops scripts (bila dipakai di server): lihat `ops/` dan commit terkait PM2 / sync media. Tidak ada Docker/CI resmi di repo saat ini.
+### Production deploy (aktual)
+
+| Jalur | Path | Perilaku |
+|-------|------|----------|
+| Manual | `cd /var/www/hmps && bash ops/deploy-server.sh` | Backup media/`.env` → `git reset --hard origin/main` → **stop** `hmps-app` + `himatif-banner` → `npm install` (bukan `npm ci`) → `build` → restart |
+| Auto watcher | PM2 `hmps-auto-deploy` → `/root/auto-deploy.js` (di luar repo app) | Tiap ~30s: (1) `ops/auto-push-media.sh` (media aman → GitHub) (2) jika `origin/main` lebih baru → `ops/deploy-server.sh` |
+| Reboot | systemd `pm2-root.service` + `pm2 save` | Resurrect `hmps-app`, `himatif-banner`, `hmps-auto-deploy` |
+
+VPS ~2 GB RAM / 0 swap: jangan `npm ci` sambil app masih jalan. Auto-deploy **tidak** menyimpan secret; pakai `/var/www/hmps/.env` + credential git server.
+
+Tidak ada Docker/CI resmi di repo saat ini. Catatan ops lokal (gitignore): `docs/ops/`.
 
 ## Scripts di `package.json` (status)
 

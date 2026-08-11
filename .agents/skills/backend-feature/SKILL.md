@@ -9,6 +9,8 @@ description: Use when creating or changing HMPS Express backend routes, services
 
 Use for backend changes under `server/**`, `db/**`, or backend-facing shared contracts.
 
+Actual paths: `server/routes.ts`, `server/routes/*`, `server/services/`, `server/*storage*`, `db/mongodb.ts`.
+
 ## Required References
 
 - `docs/SOP/10-backend-service-storage.md`

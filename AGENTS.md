@@ -10,6 +10,8 @@
 - **Nama**: HMPS Project — HIMATIF ENCODER
 - **Tipe**: Full-Stack Web Application
 - **Domain**: Platform informasi resmi HMPS Teknik Informatika UIN Malang
+- **Website**: https://himatif-encoder.com
+- **Contact**: himatif.encoder@gmail.com
 - **Frontend**: React 18 + Vite + TypeScript
 - **Backend**: Express.js + TypeScript
 - **Database**: MongoDB + Mongoose
@@ -34,14 +36,15 @@ Setiap kali merencanakan atau mengimplementasikan fitur, **WAJIB** baca:
 6. `docs/SOP/10-backend-service-storage.md` — Pola backend service/storage HMPS
 7. `docs/SOP/11-documentation-maintenance.md` — Aturan maintenance docs/feature/API
 8. `docs/SOP/12-runtime-security-operations.md` — Middleware, runtime security, scheduler, ops
-9. `docs/architecture/application-architecture.md` — Pola arsitektur aplikasi
-10. `docs/architecture/project-structure.md` — Struktur folder
-11. `docs/architecture/dependency-graph.md` — Dependency graph & AI context
-12. `docs/architecture/multi-tenant.md` — Aturan multi-tenant/community
-13. `docs/features/feature-summary.md` — Cek fitur yang sudah ada
-14. `docs/api/endpoints.md` — Cek endpoint yang sudah didefinisikan
-15. `docs/todo/master-todo.md` — Cek progress saat ini
-16. `docs/version/versions.md` — Versi Current + policy bump per unit kerja
+9. `docs/SOP/07-deployment.md` — Deploy production (`ops/deploy-server.sh`, auto-deploy)
+10. `docs/architecture/application-architecture.md` — Pola arsitektur aplikasi
+11. `docs/architecture/project-structure.md` — Struktur folder
+12. `docs/architecture/dependency-graph.md` — Dependency graph & AI context
+13. `docs/architecture/multi-tenant.md` — Aturan multi-tenant/community
+14. `docs/features/feature-summary.md` — Cek fitur yang sudah ada
+15. `docs/api/endpoints.md` — Cek endpoint yang sudah didefinisikan
+16. `docs/todo/master-todo.md` — Cek progress saat ini
+17. `docs/version/versions.md` — Versi Current + policy bump per unit kerja
 
 ### Skills Lokal yang Tersedia
 
@@ -301,6 +304,7 @@ Jika endpoint existing belum memakai format ini, jangan ubah massal tanpa rencan
 6. Menaruh business logic besar langsung di React component.
 7. Return stack trace atau object error mentah ke user.
 8. Menghapus aturan `code-review-graph` dari file ini.
+9. Menulis Claude, Cursor, Copilot, atau nama model sebagai author/contributor di README, AGENTS, release notes, atau trailer commit `Co-authored-by` AI.
 
 ---
 
@@ -335,7 +339,7 @@ scanning cannot.
 - **Finding relationships**: `query_graph` with callers_of/callees_of/imports_of/tests_for
 - **Architecture questions**: `get_architecture_overview` + `list_communities`
 
-Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
+Pakai graph **dulu jika MCP available**. Fall back ke Grep/Glob/Read jika server error, tool tidak terdaftar, atau graph tidak menutupi yang dibutuhkan.
 
 ### Key Tools
 
@@ -378,6 +382,15 @@ Fall back to Grep/Glob/Read **only** when the graph doesn't cover what you need.
 | Sulthan Adam Rahmadi | Owner, Lead Developer, Project Manager | [@Sadamdi](https://github.com/Sadamdi) |
 | Muhammad Alif Mujaddid | Core Developer, Frontend/Backend, UI/UX | [@addid-cloud](https://github.com/addid-cloud) |
 
+### Aturan contributor (wajib)
+
+- Human contributors resmi **hanya** [@Sadamdi](https://github.com/Sadamdi) dan [@addid-cloud](https://github.com/addid-cloud).
+- Jangan tulis Claude, Cursor, Copilot, atau nama model sebagai author/contributor di README, AGENTS, release notes, atau trailer commit `Co-authored-by` AI.
+- Commit identity: `Sulthan Adam Rahmadi <sultanadamr@gmail.com>` (jangan email Cursor/Claude).
+- Grafik GitHub Contributors mengikuti author email commit historis — **jangan rewrite history** / force-push untuk “membersihkan” AI.
+- `User-agent: ClaudeBot` di `public/robots.txt` adalah crawler, **bukan** contributor.
+- Skill `pro-backend` / `pro-frontend` di `.cursor/skills/` adalah guidance umum; skill HMPS di `.agents/skills/` tetap wajib untuk kerja repo ini.
+
 ---
 
-*Terakhir diperbarui: 2026-08-08 · Current app version: `4.14.4` — lihat `docs/version/versions.md`*
+*Terakhir diperbarui: 2026-08-12 · Current app version: `4.14.5` — lihat `docs/version/versions.md`*

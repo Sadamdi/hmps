@@ -375,7 +375,7 @@ export default function Footer() {
 		[config.destinations],
 	);
 
-	const contactEmail = settings?.contactEmail || 'hmti@uin-malang.ac.id';
+	const contactEmail = settings?.contactEmail || 'himatif.encoder@gmail.com';
 	const address = settings?.address || 'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang';
 	const mapsEmbedUrl = settings?.mapsEmbedUrl || '';
 	const footerText = settings?.footerText || `\u00A9 ${new Date().getFullYear()} Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.`;

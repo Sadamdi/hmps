@@ -11,7 +11,7 @@ Use before merging/pushing HMPS changes.
 
 ## HMPS Workflow
 
-Use code-review-graph MCP first when available. Review correctness, auth/permission, tenant isolation, upload cleanup, store pricing/order state, notification leakage, chat tool permission, docs updates, and `npm run check` result.
+Use code-review-graph MCP first when available; fall back to Grep/Read if the MCP server errors. Review correctness, auth/permission, tenant isolation, upload cleanup, store pricing/order state, notification leakage, chat tool permission, docs updates, and `npm run check` result. Do not add AI tools as contributors.
 
 ## Required References
 
@@ -32,5 +32,4 @@ Use code-review-graph MCP first when available. Review correctness, auth/permiss
 - [ ] Upload/media paths are validated if files are involved.
 - [ ] Secrets stay server-side and out of logs.
 - [ ] Feature/API docs are updated when behavior changes.
-- [ ] 
-pm run check or equivalent verification is run when code changes.
+- [ ] `npm run check` or equivalent verification is run when code changes.

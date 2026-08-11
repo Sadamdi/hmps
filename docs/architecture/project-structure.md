@@ -10,7 +10,7 @@ hmps_new/
 ├── shared/
 ├── db/
 ├── docs/          ← SOP, features, API, version/release notes
-├── ops/           ← deploy / sync helpers (bila dipakai)
+├── ops/           ← production deploy: `deploy-server.sh`, `auto-push-media.sh`
 ├── public/
 ├── attached_assets/
 ├── uploads/
@@ -77,4 +77,4 @@ Do not put secrets or server-only dependencies here.
 
 `docs/` is source of truth for SOP, architecture, feature inventory, API endpoint inventory, todo, and **SemVer release notes** under `docs/version/` (bump setelah setiap unit kerja selesai — SOP 11).
 
-Terakhir diperbarui: 2026-08-06
+Terakhir diperbarui: 2026-08-12

@@ -789,17 +789,14 @@ Project ini dilisensikan di bawah MIT License - lihat file [LICENSE](LICENSE) un
 
 ### 📞 **Contact & Support**
 
-**Website**: [himatif.encoder.com](https://himatif.encoder.com)  
-📧 **Email**: ti@uin-malang.ac.id  
+**Website**: [himatif-encoder.com](https://himatif-encoder.com)  
+📧 **Email**: himatif.encoder@gmail.com  
 📱 **Instagram**: [@himatif.encoder](https://www.instagram.com/himatif.encoder/)  
 
 ---
 
 <sub>Dibuat dengan ❤️ oleh Tim HIMATIF ENCODER untuk kemajuan Program Studi Teknik Informatika UIN Malang</sub>
 
-</div> 
-
-
-> Documentation update: feature docs now include **11 categories** with Runtime Infrastructure coverage for middleware, config, database bootstrap/backup clients, backend helpers, and frontend constants/utilities.
+</div>
 
 
