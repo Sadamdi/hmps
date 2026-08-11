@@ -22,7 +22,7 @@ Pakai graph **dulu jika MCP available**. Fall back ke Grep/Glob/Read jika server
 - Human contributors resmi hanya [@Sadamdi](https://github.com/Sadamdi) dan [@addid-cloud](https://github.com/addid-cloud).
 - Jangan tulis Claude, Cursor, Copilot, atau nama model sebagai author/contributor di README, AGENTS, release notes, atau trailer `Co-authored-by` AI.
 - Commit identity: `Sulthan Adam Rahmadi <sultanadamr@gmail.com>` (jangan email Cursor/Claude).
-- Jangan rewrite git history untuk grafik Contributors GitHub.
+- History sudah di-rewrite 2026-08-12 (hanya Sadamdi + addid-cloud). Jangan force-push/rewrite lagi kecuali owner minta.
 
 ## Paths & ops (aktual)
 

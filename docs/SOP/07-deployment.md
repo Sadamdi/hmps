@@ -18,10 +18,17 @@ Build menghasilkan frontend Vite dan backend bundled ke `dist/` (termasuk `banne
 
 ### Production deploy (aktual)
 
+Alur aman (auto + manual):
+
+1. **Media baru di server** → `ops/auto-push-media.sh` commit+push (author Adam).
+2. **Code baru di GitHub** → `git fetch` + `reset --hard origin/main` + restore media/`.env`.
+3. **Hanya docs/skills/ops** → jangan stop app, jangan npm/build.
+4. **Runtime baru** (`client/` `server/` `shared/` `db/` `public/` / lockfile) → backup `dist` → stop app → `npm install --include=dev` → build → restart + healthcheck `:5000`. Jika build/health gagal → restore `dist` lama (hindari 404/502).
+
 | Jalur | Path | Perilaku |
 |-------|------|----------|
-| Manual | `cd /var/www/hmps && bash ops/deploy-server.sh` | Backup media/`.env` → `git reset --hard origin/main` → restore. **Docs/skills/ops saja:** jangan stop app. **Runtime/lockfile:** stop → `npm install --include=dev` → build → restart + healthcheck `:5000` |
-| Auto watcher | PM2 `hmps-auto-deploy` → `/root/auto-deploy.js` (di luar repo app) | Tiap ~30s: (1) `ops/auto-push-media.sh` (media aman → GitHub) (2) jika `origin/main` lebih baru → `ops/deploy-server.sh` |
+| Manual | `cd /var/www/hmps && bash ops/deploy-server.sh` | Langkah 2–4 di atas |
+| Auto watcher | PM2 `hmps-auto-deploy` → `/root/auto-deploy.js` | Tiap ~30s: langkah 1 lalu 2–4 bila `origin/main` lebih baru |
 | Reboot | systemd `pm2-root.service` + `pm2 save` | Resurrect `hmps-app`, `himatif-banner`, `hmps-auto-deploy` |
 
 VPS ~2 GB RAM / 0 swap: jangan `npm ci` sambil app masih jalan.

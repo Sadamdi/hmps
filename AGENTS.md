@@ -387,10 +387,10 @@ Pakai graph **dulu jika MCP available**. Fall back ke Grep/Glob/Read jika server
 - Human contributors resmi **hanya** [@Sadamdi](https://github.com/Sadamdi) dan [@addid-cloud](https://github.com/addid-cloud).
 - Jangan tulis Claude, Cursor, Copilot, atau nama model sebagai author/contributor di README, AGENTS, release notes, atau trailer commit `Co-authored-by` AI.
 - Commit identity: `Sulthan Adam Rahmadi <sultanadamr@gmail.com>` (jangan email Cursor/Claude).
-- Grafik GitHub Contributors mengikuti author email commit historis (Replit noreply, `auto-deploy@hmps.com`, dll.) — **jangan rewrite history** / force-push. Media push ke depan memakai identity Adam.
+- Human contributors resmi **hanya** [@Sadamdi](https://github.com/Sadamdi) dan [@addid-cloud](https://github.com/addid-cloud). History di-rewrite 2026-08-12 (4.14.7) agar email lama (Replit, Auto-Deploy Bot, Cursor trailer) tidak muncul. **Jangan rewrite/force-push lagi** kecuali owner minta. Media push: identity Adam.
 - `User-agent: ClaudeBot` di `public/robots.txt` adalah crawler, **bukan** contributor.
 - Skill `pro-backend` / `pro-frontend` di `.cursor/skills/` adalah guidance umum; skill HMPS di `.agents/skills/` tetap wajib untuk kerja repo ini.
 
 ---
 
-*Terakhir diperbarui: 2026-08-12 · Current app version: `4.14.6` — lihat `docs/version/versions.md`*
+*Terakhir diperbarui: 2026-08-12 · Current app version: `4.14.7` — lihat `docs/version/versions.md`*

@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.14.7] — 2026-08-12
+
+**Safe rebuild + contributor history rewrite** · PATCH · [Full release notes](../release/4.14.7.md)
+
+### Highlights
+- Backup `dist` sebelum build; restore jika gagal (hindari 404/502)
+- Rewrite author historis + force-push: hanya Sadamdi dan addid-cloud
+- Alur auto: push media baru → pull code baru → rebuild hanya jika runtime
+
+---
+
 ## [4.14.6] — 2026-08-12
 
 **Deploy skip docs-only + vite install harden** · PATCH · [Full release notes](../release/4.14.6.md)

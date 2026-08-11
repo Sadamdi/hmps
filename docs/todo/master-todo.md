@@ -1,6 +1,6 @@
 # Master To-Do — HMPS Project
 
-> Terakhir diperbarui: 2026-08-12 · App version: `4.14.6` — lihat `docs/version/versions.md`
+> Terakhir diperbarui: 2026-08-12 · App version: `4.14.7` — lihat `docs/version/versions.md`
 
 ---
 
@@ -480,7 +480,7 @@
 | Total feature docs | **114** |
 | Total OpenAPI operations | **294** |
 | Total OpenAPI tags | **34** |
-| Documented SemVer releases | **57** (`1.0.0` … `4.14.6`) |
+| Documented SemVer releases | **58** (`1.0.0` … `4.14.7`) |
 | Frontend routes (public) | **20+** |
 | Dashboard routes (protected) | **13** |
 | Backend modular route files | **10** (`server/routes/`) |
