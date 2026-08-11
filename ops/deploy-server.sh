@@ -37,6 +37,29 @@ PROTECTED_PATHS=(
 	attached_assets/benner
 )
 
+DIST_KEEP=(
+	dist/index.js
+	dist/banner-render-service.js
+	dist/public
+)
+
+backup_dist() {
+	local p
+	for p in "${DIST_KEEP[@]}"; do
+		backup_item "$p"
+	done
+}
+
+restore_dist() {
+	local p
+	for p in "${DIST_KEEP[@]}"; do
+		if [[ -e "$BACKUP_DIR/$p" ]]; then
+			rm -rf "$APP_DIR/$p"
+			restore_item "$p"
+		fi
+	done
+}
+
 log() { echo "[hmps-deploy] $*"; }
 
 backup_item() {
@@ -166,6 +189,7 @@ log "=== 1/5 Backup file penting → $BACKUP_DIR"
 for p in "${PROTECTED_PATHS[@]}"; do
 	backup_item "$p"
 done
+backup_dist
 
 log "=== 2/5 Sync code dari GitHub (origin/main)"
 git fetch origin main
@@ -213,6 +237,10 @@ APPS_STOPPED=0
 cleanup_start_apps() {
 	local ec=$?
 	log "=== 5/5 Start / restart apps (exit_code=${ec})"
+	if [[ "$ec" -ne 0 ]]; then
+		log "Install/build gagal — restore dist lama agar tidak 404/502"
+		restore_dist
+	fi
 	if [[ "$APPS_STOPPED" -eq 1 ]] || ! wait_healthy; then
 		if pm2_start_apps; then
 			:
@@ -225,10 +253,13 @@ cleanup_start_apps() {
 	if wait_healthy; then
 		:
 	else
-		log "Health masih gagal setelah restart. Cek: pm2 logs hmps-app --lines 40"
+		log "Health gagal — restore dist cadangan lalu restart lagi"
+		restore_dist
+		pm2_start_apps || true
+		wait_healthy || log "Masih gagal. Cek: pm2 logs hmps-app --lines 40"
 	fi
 	if [[ "$ec" -ne 0 ]]; then
-		log "Deploy gagal setelah sync — app tetap di-restart. Cek log npm/build."
+		log "Deploy gagal setelah sync — app dihidupkan dari dist cadangan. Cek log npm/build."
 		exit "$ec"
 	fi
 	log "Selesai. HEAD = $(git rev-parse --short HEAD) ($(git log -1 --format='%s'))"

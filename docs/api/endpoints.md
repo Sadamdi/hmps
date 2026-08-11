@@ -1,7 +1,7 @@
 # 🔗 API Endpoints — HMPS Project HIMATIF ENCODER
 
 > Endpoint inventory berdasarkan `server/routes.ts`, modular routers, store router, dan public SSR routes.  
-> **App version:** lihat [`docs/version/versions.md`](../version/versions.md) (**4.14.6**). Terakhir sync docs: 2026-08-12.
+> **App version:** lihat [`docs/version/versions.md`](../version/versions.md) (**4.14.7**). Terakhir sync docs: 2026-08-12.
 
 ---
 
