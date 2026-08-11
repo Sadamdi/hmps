@@ -20,11 +20,15 @@ Build menghasilkan frontend Vite dan backend bundled ke `dist/` (termasuk `banne
 
 | Jalur | Path | Perilaku |
 |-------|------|----------|
-| Manual | `cd /var/www/hmps && bash ops/deploy-server.sh` | Backup media/`.env` → `git reset --hard origin/main` → **stop** `hmps-app` + `himatif-banner` → `npm install` (bukan `npm ci`) → `build` → restart |
+| Manual | `cd /var/www/hmps && bash ops/deploy-server.sh` | Backup media/`.env` → `git reset --hard origin/main` → restore. **Docs/skills/ops saja:** jangan stop app. **Runtime/lockfile:** stop → `npm install --include=dev` → build → restart + healthcheck `:5000` |
 | Auto watcher | PM2 `hmps-auto-deploy` → `/root/auto-deploy.js` (di luar repo app) | Tiap ~30s: (1) `ops/auto-push-media.sh` (media aman → GitHub) (2) jika `origin/main` lebih baru → `ops/deploy-server.sh` |
 | Reboot | systemd `pm2-root.service` + `pm2 save` | Resurrect `hmps-app`, `himatif-banner`, `hmps-auto-deploy` |
 
-VPS ~2 GB RAM / 0 swap: jangan `npm ci` sambil app masih jalan. Auto-deploy **tidak** menyimpan secret; pakai `/var/www/hmps/.env` + credential git server.
+VPS ~2 GB RAM / 0 swap: jangan `npm ci` sambil app masih jalan.
+
+**Wajib `--include=dev`:** `dist/index.js` meng-import paket `vite` (devDependency). `npm install` dengan `NODE_ENV=production` memangkas vite → `vite: not found` + proses PM2 “online” tanpa listen `:5000` → Cloudflare **502**.
+
+Auto-deploy **tidak** menyimpan secret; pakai `/var/www/hmps/.env` + credential git server. Script `*.sh` harus **LF**.
 
 Tidak ada Docker/CI resmi di repo saat ini. Catatan ops lokal (gitignore): `docs/ops/`.
 

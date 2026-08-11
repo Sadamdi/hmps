@@ -9,10 +9,14 @@
 #   1. Backup .env + uploads + attached_assets (media)
 #   2. git fetch + reset --hard origin/main  (code = sama persis GitHub)
 #   3. Restore media + .env dari backup (isi file tidak hilang)
-#   4. Stop app (hemat RAM) → npm install → build → start/restart app
+#   4. Hanya jika runtime/package berubah:
+#        stop app → npm install --include=dev → build → restart + healthcheck
+#      Commit docs/skills/README saja: JANGAN stop app, JANGAN npm/build
 #
-# Commit di server BOLEH berubah/nama beda — yang penting ISI media tetap ada.
-# Server production ~2GB RAM / 0 swap: jangan npm ci sambil app masih jalan.
+# Kenapa --include=dev wajib:
+#   dist/index.js meng-import paket `vite` (esbuild --packages=external).
+#   vite ada di devDependencies. `npm install` dengan NODE_ENV=production
+#   memangkas vite → build "vite: not found" + app crash 502.
 # =============================================================================
 set -euo pipefail
 
@@ -23,6 +27,7 @@ BACKUP_DIR="$BACKUP_ROOT/$TIMESTAMP"
 
 # App yang di-stop selama install/build (jangan sentuh hmps-auto-deploy)
 PM2_APPS="${HMPS_PM2_APPS:-hmps-app himatif-banner}"
+HEALTH_URL="${HMPS_HEALTH_URL:-http://127.0.0.1:5000/}"
 
 # Path yang tidak boleh hilang isinya (server = sumber media runtime)
 PROTECTED_PATHS=(
@@ -61,7 +66,6 @@ restore_item() {
 		log "restore file: $rel"
 	elif [[ -d "$src" ]]; then
 		mkdir -p "$dest"
-		# Merge: file media server tetap, tidak hapus file dari Git
 		rsync -a "$src/" "$dest/"
 		log "restore folder (merge): $rel"
 	fi
@@ -92,7 +96,6 @@ pm2_start_apps() {
 	local started=0
 	for app in $PM2_APPS; do
 		if pm2 describe "$app" >/dev/null 2>&1; then
-			# pm2 restart juga menghidupkan proses yang sebelumnya di-stop
 			pm2 restart "$app"
 			log "pm2 restart: $app"
 			started=1
@@ -103,16 +106,61 @@ pm2_start_apps() {
 	[[ "$started" -eq 1 ]]
 }
 
+wait_healthy() {
+	local i code
+	for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+		code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 4 "$HEALTH_URL" 2>/dev/null || echo 000)"
+		if [[ "$code" == "200" ]]; then
+			log "Health OK ($HEALTH_URL → 200) after ${i}s"
+			return 0
+		fi
+		log "Health wait ${i}/12 ($HEALTH_URL → ${code})"
+		sleep 2
+	done
+	log "Health FAIL ($HEALTH_URL tidak 200)"
+	return 1
+}
+
+paths_need_runtime_build() {
+	local changed="$1"
+	[[ -z "$changed" ]] && return 1
+	printf '%s\n' "$changed" | grep -Eq \
+		'^(client/|server/|shared/|db/|public/|package-lock\.json|vite\.config|tailwind\.config|postcss\.config|tsconfig|index\.html)'
+}
+
+paths_need_npm() {
+	local changed="$1"
+	[[ -z "$changed" ]] && return 1
+	# Hanya lockfile = dependency berubah. Bump version di package.json tidak perlu npm/build.
+	printf '%s\n' "$changed" | grep -Eq '^package-lock\.json$'
+}
+
+vite_missing() {
+	[[ ! -x "$APP_DIR/node_modules/.bin/vite" && ! -f "$APP_DIR/node_modules/vite/package.json" ]]
+}
+
+npm_install_with_dev() {
+	# Jangan biarkan NODE_ENV=production memangkas vite/esbuild
+	export NPM_CONFIG_PRODUCTION=false
+	if [[ -f package-lock.json ]]; then
+		npm install --include=dev --no-audit --no-fund --prefer-offline --maxsockets 1 \
+			|| npm install --include=dev --no-audit --no-fund --maxsockets 1
+	else
+		npm install --include=dev --no-audit --no-fund --maxsockets 1
+	fi
+}
+
 cd "$APP_DIR"
 mkdir -p "$BACKUP_DIR"
 
-# Pastikan node/npm/pm2 dari nvm tersedia (PM2 child sering punya PATH minim)
 export NVM_DIR="${NVM_DIR:-/root/.nvm}"
 if [[ -s "$NVM_DIR/nvm.sh" ]]; then
 	# shellcheck disable=SC1091
 	. "$NVM_DIR/nvm.sh"
 fi
-export PATH="/root/.nvm/versions/node/v24.15.0/bin:${PATH:-/usr/bin:/bin}"
+export PATH="/root/.nvm/versions/node/v24.15.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+
+PREV_HEAD="$(git rev-parse HEAD)"
 
 log "=== 1/5 Backup file penting → $BACKUP_DIR"
 for p in "${PROTECTED_PATHS[@]}"; do
@@ -122,25 +170,62 @@ done
 log "=== 2/5 Sync code dari GitHub (origin/main)"
 git fetch origin main
 git reset --hard origin/main
+NEW_HEAD="$(git rev-parse HEAD)"
+CHANGED="$(git diff --name-only "$PREV_HEAD" "$NEW_HEAD" || true)"
+log "HEAD $PREV_HEAD → $NEW_HEAD"
 
 log "=== 3/5 Restore media + .env"
 for p in "${PROTECTED_PATHS[@]}"; do
 	restore_item "$p"
 done
 
-log "=== 4/5 Stop apps → npm install → build (low RAM)"
-pm2_stop_apps
+NEED_NPM=0
+NEED_BUILD=0
+if [[ "$PREV_HEAD" != "$NEW_HEAD" ]]; then
+	if paths_need_npm "$CHANGED"; then
+		NEED_NPM=1
+		NEED_BUILD=1
+	fi
+	if paths_need_runtime_build "$CHANGED"; then
+		NEED_BUILD=1
+	fi
+fi
+if vite_missing; then
+	log "vite tidak ada di node_modules — wajib npm install --include=dev"
+	NEED_NPM=1
+	NEED_BUILD=1
+fi
 
-# Selalu coba hidupkan app lagi meski install/build gagal (hindari downtime 502)
+if [[ "$NEED_BUILD" -eq 0 && "$NEED_NPM" -eq 0 ]]; then
+	log "=== skip npm/build === hanya docs/ops/skills atau sudah sync. App tetap jalan."
+	if ! wait_healthy; then
+		log "App tidak sehat meski commit non-runtime — coba restart tanpa rebuild"
+		pm2_start_apps || true
+		wait_healthy || log "Masih gagal health. Cek pm2 logs hmps-app."
+	fi
+	log "Selesai (no rebuild). HEAD = $(git rev-parse --short HEAD) ($(git log -1 --format='%s'))"
+	log "Backup tersimpan di: $BACKUP_DIR"
+	exit 0
+fi
+
+log "=== 4/5 Stop apps → npm install --include=dev → build (low RAM)"
+APPS_STOPPED=0
 cleanup_start_apps() {
 	local ec=$?
 	log "=== 5/5 Start / restart apps (exit_code=${ec})"
-	if pm2_start_apps; then
+	if [[ "$APPS_STOPPED" -eq 1 ]] || ! wait_healthy; then
+		if pm2_start_apps; then
+			:
+		elif systemctl is-active --quiet hmps 2>/dev/null; then
+			sudo systemctl restart hmps
+		else
+			log "Restart manual diperlukan (pm2 / systemctl)"
+		fi
+	fi
+	if wait_healthy; then
 		:
-	elif systemctl is-active --quiet hmps 2>/dev/null; then
-		sudo systemctl restart hmps
 	else
-		log "Restart manual diperlukan (pm2 / systemctl)"
+		log "Health masih gagal setelah restart. Cek: pm2 logs hmps-app --lines 40"
 	fi
 	if [[ "$ec" -ne 0 ]]; then
 		log "Deploy gagal setelah sync — app tetap di-restart. Cek log npm/build."
@@ -151,16 +236,12 @@ cleanup_start_apps() {
 }
 trap cleanup_start_apps EXIT
 
-# npm ci sering ENOMEM di VPS 2GB; prefer install ringan + fallback
-if [[ -f package-lock.json ]]; then
-	npm install --no-audit --no-fund --prefer-offline --maxsockets 1 \
-		|| npm install --no-audit --no-fund --maxsockets 1
-else
-	npm install --no-audit --no-fund --maxsockets 1
-fi
+pm2_stop_apps
+APPS_STOPPED=1
+
+npm_install_with_dev
 npm run build
 
-# sukses: trap EXIT akan start apps + log selesai
 trap - EXIT
 cleanup_start_apps
 exit 0
