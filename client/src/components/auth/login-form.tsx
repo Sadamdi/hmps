@@ -38,7 +38,7 @@ export default function LoginForm() {
 	const { handleError } = useErrorHandler();
 	const [, navigate] = useLocation();
 	const [showPassword, setShowPassword] = useState(false);
-	const { isTenant, basePath, slug: tenantSlug } = useTenant();
+	const { isTenant, slug: tenantSlug } = useTenant();
 	const sessionUser =
 		isTenant && user
 			? (user as any).authScope === 'main' ||
@@ -48,7 +48,7 @@ export default function LoginForm() {
 			: user;
 	const { data: siteSettings } = useQuery<any>({ queryKey: ['/api/settings'], staleTime: 60000 });
 	const siteName = siteSettings?.siteName || siteSettings?.navbarBrand || (isTenant ? 'Komunitas' : 'HIMATIF ENCODER');
-	const homeHref = isTenant && basePath ? basePath : '/';
+	const homeHref = '/';
 
 	const { data: loginTargets } = useQuery<{ targets: LoginTargetOption[] }>({
 		queryKey: ['/api/auth/login-targets'],

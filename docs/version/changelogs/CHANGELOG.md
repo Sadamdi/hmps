@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.15.2] — 2026-08-12
+
+**Tenant breadcrumb + hero fallback** · PATCH · [Full release notes](../release/4.15.2.md)
+
+### Highlights
+- Breadcrumb Login tenant tidak lagi double-slug (`/:slug/:slug`)
+- Hero tenant tanpa banner tidak jatuh ke logo Himatif (main tetap pakai default)
+
+---
+
 ## [4.15.1] — 2026-08-12
 
 **Tenant route gate + vite deploy harden** · PATCH · [Full release notes](../release/4.15.1.md)

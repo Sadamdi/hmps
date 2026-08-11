@@ -52,6 +52,8 @@ sequenceDiagram
 - `App.tsx` tidak menunggu `/api/store/public/settings` (main) untuk path tenant-like (`getTenantSlugFromPathname`). Path `/:slug` bukan toko dinamis.
 - Slug komunitas tidak valid: `CommunityShell` tampil 404 **tanpa** auto-redirect ke beranda Himatif (`NotFound redirectTo={null}`).
 - Query store settings tenant punya timeout 8s; gagal → fallback `/toko` (bukan spinner abadi).
+- Breadcrumb di dalam `CommunityShell` harus `href="/"` (wouter base), bukan `basePath` absolut — hindari `/:slug/:slug`.
+- Hero tenant tanpa banner: `logoUrl` atau kosong. `DEFAULT_IMAGE_URL` Himatif hanya fallback main.
 
 ## Tenant-Aware Feature Checklist
 
