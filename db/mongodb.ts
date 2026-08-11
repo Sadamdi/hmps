@@ -242,7 +242,7 @@ const settingsSchema = new mongoose.Schema({
 	aboutVideoUrl: { type: String, default: '' },
 	aboutVideoGdriveUrl: { type: String, default: '' },
 	visionMission: { type: String, default: '' },
-	contactEmail: { type: String, default: 'hmti@uin-malang.ac.id' },
+	contactEmail: { type: String, default: 'himatif.encoder@gmail.com' },
 	address: {
 		type: String,
 		default:

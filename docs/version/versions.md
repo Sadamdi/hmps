@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.14.4`  
+**Current version:** `4.14.5`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.14.4`](./release/4.14.4.md) | 2026-08-08 | Media SEO: image/video sitemap + richer schema | PATCH | 1 | **Current** |
+| [`4.14.5`](./release/4.14.5.md) | 2026-08-12 | Docs, branding, contributors, and agent sync | PATCH | 1 | **Current** |
+| [`4.14.4`](./release/4.14.4.md) | 2026-08-08 | Media SEO: image/video sitemap + richer schema | PATCH | 1 | Released |
 | [`4.14.3`](./release/4.14.3.md) | 2026-08-08 | Nginx CSP fix + official berita import | PATCH | 1 | Released |
 | [`4.14.2`](./release/4.14.2.md) | 2026-08-08 | Embed allowlist, tag merge pass-2, AI berita fields | PATCH | 1 | Released |
 | [`4.14.1`](./release/4.14.1.md) | 2026-08-08 | WrecK-IT meta Tanggal/Waktu/Tempat + tags scroll all | PATCH | 1 | Released |

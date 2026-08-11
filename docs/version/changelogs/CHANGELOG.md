@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.14.5] — 2026-08-12
+
+**Docs, branding, contributors, and agent sync** · PATCH · [Full release notes](../release/4.14.5.md)
+
+### Highlights
+- README contact: `https://himatif-encoder.com` + `himatif.encoder@gmail.com`; hapus blurb 11 kategori
+- Default `contactEmail` app/seed ke Gmail resmi (bukan `hmti@uin-malang.ac.id`)
+- Living docs + SOP 07 selaras ops aktual; contributor resmi hanya @Sadamdi + @addid-cloud
+
+---
+
 ## [4.14.4] — 2026-08-08
 
 **Media SEO: image/video sitemap + richer schema** · PATCH · [Full release notes](../release/4.14.4.md)

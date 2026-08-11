@@ -7,11 +7,14 @@ description: Use when changing HMPS middleware, runtime config, scheduler, cache
 
 ## When to Use
 
-Use for changes in `server/middleware/**`, `server/config/**`, `server/lib/**`, scheduler/backup/restore, `public/sw-push.js`, `server/swagger.ts`, `server/vite.ts`, and runtime infrastructure docs.
+Use for changes in `server/middleware/**`, `server/config/**`, `server/lib/**`, scheduler/backup/restore, `public/sw-push.js`, `server/swagger.ts`, `server/vite.ts`, `ops/deploy-server.sh`, `ops/auto-push-media.sh`, and runtime infrastructure docs.
+
+Production deploy: `ops/deploy-server.sh` (stop apps → `npm install` → build → restart). Auto watcher `/root/auto-deploy.js` lives outside the app repo — do not commit secrets. See `docs/SOP/07-deployment.md`.
 
 ## Required References
 
 - `docs/SOP/12-runtime-security-operations.md`
+- `docs/SOP/07-deployment.md`
 - `docs/SOP/08-error-handling.md`
 - `docs/features/10-ops-security/00-README.md`
 - `docs/features/12-runtime-infrastructure/00-README.md`

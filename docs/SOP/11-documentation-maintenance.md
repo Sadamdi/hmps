@@ -84,6 +84,10 @@ After large changes, verify:
 - Version Current selaras di package + OpenAPI + `versions.md`.
 - `npm run check` passes if code or TypeScript-aware docs references changed.
 
+## Contributors in docs
+
+Human contributors resmi hanya [@Sadamdi](https://github.com/Sadamdi) dan [@addid-cloud](https://github.com/addid-cloud). Jangan cantumkan Claude, Cursor, Copilot, atau nama model sebagai author/contributor di README, AGENTS, release notes, atau trailer `Co-authored-by` AI. Commit identity: `Sulthan Adam Rahmadi <sultanadamr@gmail.com>`.
+
 ## Do Not Document Secrets
 
 Never include values/content of:

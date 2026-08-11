@@ -275,7 +275,7 @@ export default function SettingsPage() {
 		siteDescription:
 			'Himpunan Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang',
 		navbarBrand: 'HMTI',
-		contactEmail: 'hmti@uin-malang.ac.id',
+		contactEmail: 'himatif.encoder@gmail.com',
 		address:
 			'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang',
 		mapsLocationInput: '',

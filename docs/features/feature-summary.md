@@ -1,7 +1,7 @@
 # HMPS Feature Summary
 
 **Source of Truth**: current codebase + `docs/openapi.json` + feature docs.  
-**App version (Current)**: see [`docs/version/versions.md`](../version/versions.md) (`4.12.0` at last docs sync).
+**App version (Current)**: see [`docs/version/versions.md`](../version/versions.md) (`4.14.5` at last docs sync).
 
 This document maps HMPS user-facing features, backend endpoint families, frontend/runtime support layers, and operational infrastructure.
 
@@ -75,6 +75,8 @@ mindmap
 | 10 | [Ops, Security & Maintenance](./10-ops-security/00-README.md) | 7 | 7 | `admin`, `backups`, `test` |
 | 11 | [Auxiliary Runtime](./11-auxiliary-runtime/00-README.md) | 10 | 0 | - |
 | 12 | [Runtime Infrastructure](./12-runtime-infrastructure/00-README.md) | 8 | 0 | - |
+
+Public discovery (SSR / sitemap): [`02-public-content/04-ssr-sitemap.md`](./02-public-content/04-ssr-sitemap.md) — HTML prerender, `/sitemap.xml` image/video, `robots.txt`.
 
 Total feature category folders: **12**  
 Total markdown docs in `docs/features`: **114**  

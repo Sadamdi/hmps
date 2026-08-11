@@ -30,6 +30,7 @@ Use for documentation updates under `docs/**`, `README.md`, `AGENTS.md`, and `.a
 7. After the work unit is finished: bump SemVer, write `docs/version/release/X.Y.Z.md`, update `versions.md` + `changelogs/CHANGELOG.md`, sync `package.json` and OpenAPI `info.version`.
 8. Never document secret values or credential JSON contents.
 9. Run coverage rules from SOP 11 and `npm run check` if relevant.
+10. Official human contributors are only @Sadamdi and @addid-cloud. Do not list Claude, Cursor, Copilot, or model names as authors/contributors. Commit as `Sulthan Adam Rahmadi <sultanadamr@gmail.com>`.
 
 ## Quality Checklist
 
