@@ -2,8 +2,8 @@
 
 **Date:** 2026-08-12  
 **Scope:** Live production (`himatif-encoder.com`) + production Mongo + current code  
-**Status:** Implemented in `4.15.0` (local working tree; production masih `4.14.7` sampai deploy)  
-**Current app:** `4.15.0`  
+**Status:** Implemented in `4.15.0` + follow-up `4.15.1` (routing/404/deploy vite)  
+**Current app:** `4.15.1`  
 **Related:** `docs/architecture/multi-tenant.md`, `docs/todo/master-todo.md` §5, `.agents/skills/tenant-feature`
 
 ---

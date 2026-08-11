@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.15.0`  
+**Current version:** `4.15.1`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.15.0`](./release/4.15.0.md) | 2026-08-12 | Tenant URL, SEO, logo, dan isolasi auth | MINOR | 0 | **Current** |
+| [`4.15.1`](./release/4.15.1.md) | 2026-08-12 | Tenant route gate + vite deploy harden | PATCH | 1 | **Current** |
+| [`4.15.0`](./release/4.15.0.md) | 2026-08-12 | Tenant URL, SEO, logo, dan isolasi auth | MINOR | 1 | Released |
 | [`4.14.7`](./release/4.14.7.md) | 2026-08-12 | Safe rebuild + contributor history rewrite | PATCH | 1 | Released |
 | [`4.14.6`](./release/4.14.6.md) | 2026-08-12 | Deploy skip docs-only + vite install harden | PATCH | 1 | Released |
 | [`4.14.5`](./release/4.14.5.md) | 2026-08-12 | Docs, branding, contributors, and agent sync | PATCH | 1 | Released |

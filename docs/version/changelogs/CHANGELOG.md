@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.15.1] — 2026-08-12
+
+**Tenant route gate + vite deploy harden** · PATCH · [Full release notes](../release/4.15.1.md)
+
+### Highlights
+- Path tenant tidak lagi tertahan di store-path gate Himatif (spinner / homepage salah)
+- Slug komunitas tidak valid tetap 404, tidak auto-redirect ke beranda Himatif
+- `vite`/`esbuild` di `dependencies` + deploy cek bin executable + auto-deploy unset `NODE_ENV=production` saat npm install
+
+---
+
 ## [4.15.0] — 2026-08-12
 
 **Tenant URL, SEO, logo, dan isolasi auth** · MINOR · [Full release notes](../release/4.15.0.md)

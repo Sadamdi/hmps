@@ -126,8 +126,9 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 | 1 | Happy path | valid UI/API request | handler returns success response shown by source |
 | 2 | Validation error | missing/invalid observed fields | safe 400/validation-style error if handler validates |
 | 3 | Unauthorized | no/invalid session on protected route | 401 or 403 based on handler/middleware |
-| 4 | Not found | invalid id/slug | 404 or safe message based on handler |
+| 4 | Not found | invalid community slug (`/kontakiuinmalang`) | 404 tanpa auto-redirect ke beranda Himatif |
 | 5 | Tenant boundary | wrong community slug/context | no cross-tenant data access |
+| 7 | Route gate | hard-reload `/:slug` / `/:slug/login` | CommunityShell langsung mount; tidak nunggu `/api/store/public/settings` main |
 | 6 | Regression | `npm run check` | TypeScript passes |
 
 ---
