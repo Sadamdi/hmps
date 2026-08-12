@@ -1655,8 +1655,8 @@ export default function Navbar({
 				</div>
 			</header>
 
-			{/* ============ MOBILE FLOATING RIGHT ICON NAV ============ */}
-			<div className="fixed right-3 top-1/2 -translate-y-1/2 z-[55] sm:hidden events-mobile-nav">
+			{/* ============ MOBILE FLOATING NAV (bottom-left — avoids AI chat overlay) ============ */}
+			<div className="fixed left-3 bottom-6 z-[55] sm:hidden events-mobile-nav pb-[env(safe-area-inset-bottom)]">
 				{/* Collapsed bubble mode */}
 				{isMobileNavCollapsed ? (
 					<button
@@ -1676,7 +1676,7 @@ export default function Navbar({
 				) : (
 					/* Expanded mode — panel statis, hanya ikon yang dianimasikan */
 					<div
-						className={`flex flex-col gap-1.5 p-2 rounded-2xl
+						className={`flex flex-col-reverse gap-1.5 p-2 rounded-2xl
 					           bg-background/92 backdrop-blur-md
 					           border border-border/80 shadow-xl shadow-black/10
 					           ${isAnimatingCollapse ? 'pointer-events-none' : ''}`}>

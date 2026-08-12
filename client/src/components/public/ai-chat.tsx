@@ -731,10 +731,10 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	// ──────────────── Render ────────────────
 
 	return (
-		<div className="fixed bottom-6 right-6 z-40">
+		<div className="fixed bottom-6 right-3 sm:right-6 z-40 pb-[env(safe-area-inset-bottom)]">
 			{/* Toggle Button */}
 			<Button
-				className="ai-chat-btn relative overflow-hidden group"
+				className="ai-chat-btn relative overflow-hidden group h-12 w-12 sm:h-14 sm:w-14"
 				onClick={() => setIsChatOpen(!isChatOpen)}
 				aria-label={isChatOpen ? 'Tutup AI Chat' : 'Buka AI Chat'}>
 				<span className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700 bg-gradient-to-r from-transparent via-white/15 to-transparent pointer-events-none" />
@@ -747,7 +747,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 
 			{/* Chat Window */}
 			{isChatOpen && (
-				<div className="absolute bottom-20 right-0 w-80 sm:w-96 bg-card border border-border/80 rounded-xl shadow-[0_24px_60px_rgba(0,0,0,0.55)] overflow-hidden animate-scale-in flex flex-col"
+				<div className="absolute bottom-16 sm:bottom-20 right-0 w-[min(22rem,calc(100vw-1.5rem))] sm:w-96 bg-card border border-border/80 rounded-xl shadow-[0_24px_60px_rgba(0,0,0,0.55)] overflow-hidden animate-scale-in flex flex-col"
 					style={{ maxHeight: 'min(520px, 70vh)' }}>
 					{/* Header */}
 					<div className="bg-gradient-to-r from-[#1a3a6b] to-[#0e2a56] border-b border-border/70 px-4 py-3 flex items-center gap-3 flex-shrink-0">

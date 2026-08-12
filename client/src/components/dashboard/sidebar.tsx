@@ -198,14 +198,17 @@ export default function Sidebar({
 		<>
 			{/* Mobile Overlay */}
 			{mobileOpen && (
-				<div
-					className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+				<button
+					type="button"
+					aria-label="Tutup menu navigasi"
+					className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] lg:hidden"
 					onClick={onMobileToggle}
 				/>
 			)}
 
 			{/* Sidebar: lebar/transform pakai 300ms; warna tema pakai 150ms (bukan transition-all — supaya selaras dengan header/konten) */}
 			<aside
+				aria-label="Navigasi dashboard"
 				className={`fixed z-50 h-screen overflow-hidden transition-[width,transform] duration-300 ease-out ${
 					isExpanded ? 'w-64' : 'w-20'
 				} ${
@@ -213,8 +216,8 @@ export default function Sidebar({
 				}`}>
 				<div className="flex h-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm transition-colors duration-150 ease-out">
 					{/* Header */}
-					<div className="p-6 flex items-center justify-between border-b border-sidebar-border flex-shrink-0">
-				<div className="flex items-center space-x-2">
+					<div className="flex min-h-16 flex-shrink-0 items-center justify-between border-b border-sidebar-border px-4 py-3">
+				<div className="flex min-w-0 items-center space-x-2">
 						<Link
 							href="/"
 							className="font-bold text-xl bg-gradient-to-r from-blue-300 via-cyan-200 to-blue-100 bg-clip-text text-transparent hover:opacity-80 transition-opacity">
@@ -237,7 +240,7 @@ export default function Sidebar({
 					</div>
 
 					{/* Navigation - takes up remaining space */}
-					<nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+					<nav aria-label="Menu utama" className="flex-1 space-y-1 overflow-y-auto overscroll-contain p-3">
 						{navItems.map((item) => {
 							if (isTenant && !tenantEnabledRoutes.has(item.href)) {
 								return null;

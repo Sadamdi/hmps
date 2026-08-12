@@ -204,9 +204,9 @@ export default function DashboardKelembagaan() {
 					<div className="text-center p-8 text-muted-foreground">Memuat data...</div>
 				) : (
 					<Tabs value={selectedTab} onValueChange={(v) => { setSelectedTab(v); isEditingRef.current = false; setIsEditing(false); }}>
-						<TabsList>
-							<TabsTrigger value="visi-misi">Visi &amp; Misi</TabsTrigger>
-							<TabsTrigger value="struktur">Struktur Organisasi</TabsTrigger>
+						<TabsList className="grid h-auto w-full grid-cols-2 p-1 sm:w-auto">
+							<TabsTrigger value="visi-misi" className="min-h-10 px-3 text-xs sm:text-sm">Visi &amp; Misi</TabsTrigger>
+							<TabsTrigger value="struktur" className="min-h-10 px-3 text-xs sm:text-sm">Struktur Organisasi</TabsTrigger>
 						</TabsList>
 
 						{/* Tab Visi & Misi */}

@@ -336,31 +336,37 @@ export default function Header({ title, onMobileMenuToggle }: HeaderProps) {
 	};
 
 	return (
-		<header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur transition-colors duration-150 ease-out">
-			<div className="px-3 sm:px-4 lg:px-6 py-3 lg:py-4 flex items-center justify-between gap-2">
+		<header className="sticky top-0 z-30 border-b border-border bg-background/90 shadow-sm backdrop-blur transition-colors duration-150 ease-out">
+			<div className="flex min-h-16 items-center justify-between gap-2 px-3 py-2 sm:px-5 lg:px-6">
 				<div className="flex items-center min-w-0 flex-1 gap-2">
 					<Button
 						variant="ghost"
 						size="icon"
 						className="lg:hidden shrink-0"
-						onClick={onMobileMenuToggle}>
+						onClick={onMobileMenuToggle}
+						aria-label="Buka menu navigasi">
 						<Menu className="h-5 w-5" />
 					</Button>
-					<h1 className="text-lg lg:text-xl font-semibold truncate min-w-0">
-						{title}
-					</h1>
+					<div className="min-w-0">
+						<p className="hidden text-[11px] font-medium uppercase tracking-wider text-muted-foreground sm:block">
+							Panel pengelolaan
+						</p>
+						<h1 className="truncate text-base font-semibold sm:text-lg">{title}</h1>
+					</div>
 				</div>
 
-				<div className="flex items-center space-x-2 lg:space-x-4">
+				<div className="flex shrink-0 items-center gap-1 sm:gap-2">
 					<Link
 						href="/"
-						className="text-muted-foreground hover:text-foreground p-2 hidden sm:block">
+						aria-label="Kembali ke halaman utama"
+						className="hidden rounded-lg p-2 text-muted-foreground hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:block">
 						<Home className="h-5 w-5" />
 					</Link>
 
 					<button
+						type="button"
 						onClick={toggleTheme}
-						className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+						className="rounded-lg p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 						aria-label={
 							theme === 'dark'
 								? 'Ganti ke mode siang'

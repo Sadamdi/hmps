@@ -689,7 +689,7 @@ export default function OrganizationStructureEditor() {
 			setAutoFillAnswers({});
 			setAutoFillStep(0);
 			toast({
-				title: 'Auto isi struktur selesai',
+				title: 'Import struktur selesai',
 				description: `Baru: ${data.createdMembers ?? 0} anggota, ${data.createdPositions ?? 0} jabatan. Diperbarui: ${data.updated}. Dilewati: ${data.skipped}.`,
 			});
 		},
@@ -1334,11 +1334,15 @@ export default function OrganizationStructureEditor() {
 		: [];
 
 	return (
-		<div className="space-y-4">
-			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+		<div className="space-y-5">
+			<div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
 				<div>
-					<h3 className="text-lg font-semibold">Struktur Organisasi</h3>
-					<p className="text-sm text-muted-foreground">Kelola anggota, jabatan, dan divisi organisasi.</p>
+					<p className="text-xs font-medium uppercase tracking-wider text-primary">Workspace kelembagaan</p>
+					<h3 className="text-xl font-semibold mt-1">Susun struktur organisasi</h3>
+					<p className="text-sm text-muted-foreground mt-1 max-w-2xl">
+						Mulai secara manual dari periode, lalu buat divisi dan jabatan sebelum menempatkan anggota.
+						Semua perubahan tetap tersimpan per periode kepengurusan.
+					</p>
 				</div>
 				{activeTab === 'members' && hasSpecificPermission('kelembagaan.edit') && (
 					<Button
@@ -1350,11 +1354,30 @@ export default function OrganizationStructureEditor() {
 				)}
 			</div>
 
+			<div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4" aria-label="Tahapan penyusunan struktur">
+				{[
+					{ number: 1, label: 'Pilih periode', detail: hasPeriods ? selectedPeriod : 'Belum dibuat', done: hasPeriods },
+					{ number: 2, label: 'Susun divisi', detail: hasDivisionsInPeriod ? `${divisions.length} tersedia` : 'Perlu dilengkapi', done: hasDivisionsInPeriod },
+					{ number: 3, label: 'Atur jabatan', detail: hasPositionsInPeriod ? 'Siap digunakan' : 'Perlu dilengkapi', done: hasPositionsInPeriod },
+					{ number: 4, label: 'Tempatkan anggota', detail: `${filteredMembers.length} anggota`, done: filteredMembers.length > 0 },
+				].map((step) => (
+					<div key={step.number} className={`rounded-lg border p-3 ${step.done ? 'bg-primary/5 border-primary/20' : 'bg-muted/30'}`}>
+						<div className="flex items-center gap-2">
+							<span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${step.done ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+								{step.number}
+							</span>
+							<span className="text-sm font-medium">{step.label}</span>
+						</div>
+						<p className="mt-1 pl-8 text-xs text-muted-foreground">{step.detail}</p>
+					</div>
+				))}
+			</div>
+
 			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-				<TabsList className="grid w-full grid-cols-3">
-					<TabsTrigger value="members">Anggota</TabsTrigger>
-					<TabsTrigger value="jabatan">Jabatan</TabsTrigger>
-					<TabsTrigger value="divisions">Divisi</TabsTrigger>
+				<TabsList className="grid h-auto w-full grid-cols-3 p-1">
+					<TabsTrigger value="members" className="min-h-10 px-2 text-xs sm:text-sm">Anggota</TabsTrigger>
+					<TabsTrigger value="jabatan" className="min-h-10 px-2 text-xs sm:text-sm">Periode & jabatan</TabsTrigger>
+					<TabsTrigger value="divisions" className="min-h-10 px-2 text-xs sm:text-sm">Divisi</TabsTrigger>
 				</TabsList>
 
 				{/* Members Tab */}
@@ -1366,7 +1389,7 @@ export default function OrganizationStructureEditor() {
 						description="Mengisi pengurus HMPS TI UIN Malang per periode: foto, nama, dan nama jabatan yang mengacu pada tab Jabatan serta divisi. Data ini dipakai bagan organisasi publik.">
 						<ul className="list-disc list-inside space-y-1.5 text-sm">
 							<li>
-								<strong>Langkah</strong>: pilih <strong>periode</strong> (mis. <code className="text-xs bg-muted px-1 rounded">2025-2026</code>) → filter <strong>divisi</strong> jika perlu → <strong>Tambah Anggota</strong> atau edit → isi nama lengkap, nama jabatan, unggah foto → simpan. Gunakan <strong>Auto isi struktur</strong> hanya setelah membaca ringkasan konfirmasi.
+								<strong>Langkah</strong>: pilih <strong>periode</strong> (mis. <code className="text-xs bg-muted px-1 rounded">2025-2026</code>) → filter <strong>divisi</strong> jika perlu → <strong>Tambah Anggota</strong> atau edit → isi nama lengkap, nama jabatan, unggah foto → simpan. Gunakan <strong>Import dari dokumen</strong> hanya sebagai draf dan review seluruh hasil sebelum menyimpan.
 							</li>
 							<li>
 								<strong>Contoh valid</strong>: nama <code className="text-xs bg-muted px-1 rounded">Ahmad Fulan, S.Kom.</code>; nama jabatan selaras dengan yang sudah didefinisikan di tab Jabatan; foto wajah jelas, persegi, ukuran wajar.
@@ -1442,7 +1465,7 @@ export default function OrganizationStructureEditor() {
 										disabled={autoFillBusy}
 										onClick={openAutoFillDialog}>
 										<Sparkles className="h-4 w-4 mr-2" />
-										Auto isi struktur
+										Import dari dokumen (butuh review)
 									</Button>
 								</CardContent>
 							</Card>
@@ -1965,10 +1988,10 @@ export default function OrganizationStructureEditor() {
 					<DialogHeader>
 						<DialogTitle>
 							{autoFillUiPhase === 'qa' && autoFillPreview
-								? 'Konfirmasi auto isi struktur'
+								? 'Review hasil import'
 								: autoFillUiPhase === 'confirm'
 									? 'Konfirmasi ekstraksi'
-									: 'Auto isi struktur'}
+									: 'Import dari dokumen (butuh review)'}
 						</DialogTitle>
 						<DialogDescription>
 							{autoFillUiPhase === 'qa' && autoFillPreview?.summary}
@@ -1979,7 +2002,7 @@ export default function OrganizationStructureEditor() {
 							)}
 							{autoFillUiPhase === 'upload' && (
 								<span className="block mt-2">
-									Pilih dokumen penugasan, lalu konfirmasi sebelum ekstraksi dimulai.
+									Pilih dokumen sebagai draf awal. Hasil ekstraksi tidak langsung disimpan dan wajib Anda periksa.
 								</span>
 							)}
 							{autoFillUiPhase === 'confirm' && structureDocFile && (
@@ -2050,6 +2073,14 @@ export default function OrganizationStructureEditor() {
 
 					{autoFillUiPhase === 'qa' && autoFillCurrentQuestion && (
 						<div className="space-y-4 py-2">
+							<div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+								<p className="font-medium">Periksa ketidakpastian ekstraksi</p>
+								<p className="mt-1">
+									Sistem meminta jawaban untuk data yang tidak cocok atau ambigu. Konflik terdeteksi:{' '}
+									<strong>{autoFillPreview?.conflicts?.length ?? 0}</strong>. Tidak ada skor keyakinan per baris dari API,
+									jadi jangan anggap hasil sebagai data final.
+								</p>
+							</div>
 							<div>
 								<p className="text-sm font-medium">{autoFillCurrentQuestion.title}</p>
 								{autoFillCurrentQuestion.description && (

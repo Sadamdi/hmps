@@ -212,19 +212,24 @@ export default function AllBerita() {
 		<div className="min-h-screen bg-background relative">
 			<Navbar activeSection="berita" scrollToSection={scrollToSection} />
 
-			<div className="container mx-auto px-4 py-8">
+			<main className="container mx-auto max-w-7xl px-4 sm:px-6 py-6 sm:py-10">
 				{/* Header */}
-				<div className="mb-8" data-aos="fade-down">
+				<header className="mb-8 border-b border-border/70 pb-7 sm:pb-9" data-aos="fade-down">
 					<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: 'Berita' }]} />
-				<h1 className="text-3xl font-bold text-foreground mb-2">Semua Berita</h1>
-				<p className="text-muted-foreground">
-					Temukan berita dan informasi terkini dari {siteName}
-				</p>
-				</div>
+					<p className="mt-6 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+						Ruang redaksi
+					</p>
+					<h1 className="mt-2 max-w-3xl text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+						Cerita, kabar, dan gagasan terbaru.
+					</h1>
+					<p className="mt-4 max-w-2xl text-base leading-7 text-muted-foreground sm:text-lg">
+						Ikuti berita dan informasi terkini dari {siteName}, disajikan ringkas untuk membantu Anda menemukan hal yang penting.
+					</p>
+				</header>
 
 				{/* Search and Filter */}
 				<div
-					className="bg-card border border-border rounded-xl shadow-sm p-6 mb-8"
+					className="bg-card/70 border border-border/70 rounded-2xl p-4 sm:p-5 mb-8"
 					data-aos="fade-up"
 					data-aos-delay="100">
 					<div className="space-y-3">
@@ -312,11 +317,11 @@ export default function AllBerita() {
 					<div
 						ref={beritaContainerRef}
 						key={`page-${currentPage}`}
-						className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+						className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 mb-8">
 						{paginatedBerita.map((item, index) => (
 							<Card
 								key={item._id}
-								className="overflow-hidden hover:shadow-lg transition-all duration-300 group hover:scale-[1.02] bg-card border-border"
+								className="overflow-hidden bg-card border-border/70 group rounded-xl sm:rounded-2xl transition-[border-color,box-shadow] duration-200 hover:border-primary/40 hover:shadow-lg focus-within:ring-2 focus-within:ring-primary/50"
 								data-aos="fade-up"
 								data-aos-delay={`${index * 40}`}>
 								<CardHeader className="p-0">
@@ -326,11 +331,11 @@ export default function AllBerita() {
 											? `/berita/${item.slug}`
 											: `/berita/${item._id}`
 									}>
-									<div className="relative h-48 overflow-hidden">
+									<div className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden bg-muted">
 										<img
 												src={item.image}
 												alt={item.title}
-												className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+												className="w-full h-full object-cover transition-transform duration-500 motion-reduce:transition-none group-hover:scale-[1.03]"
 												onError={(e) => {
 													const target = e.target as HTMLImageElement;
 													target.src = DEFAULT_IMAGE_URL;
@@ -340,23 +345,23 @@ export default function AllBerita() {
 										</div>
 									</Link>
 								</CardHeader>
-								<CardContent className="p-4">
+								<CardContent className="p-3 sm:p-5">
 								<Link
 									href={
 										item.slug
 											? `/berita/${item.slug}`
 											: `/berita/${item._id}`
 									}>
-									<CardTitle className="text-base mb-2 hover:text-primary transition-colors line-clamp-2 text-foreground">
+									<CardTitle className="text-[13px] sm:text-xl leading-snug mb-1.5 sm:mb-2 hover:text-primary transition-colors line-clamp-2 text-foreground">
 											{item.title}
 										</CardTitle>
 									</Link>
-									<p className="text-muted-foreground text-sm mb-3 line-clamp-3">
+									<p className="hidden sm:block text-muted-foreground text-sm leading-6 mb-3 line-clamp-3">
 										{item.excerpt}
 									</p>
 
 									{item.tags && item.tags.length > 0 && (
-										<div className="flex flex-wrap gap-1 mb-3">
+										<div className="hidden sm:flex flex-wrap gap-1 mb-3">
 											{item.tags.slice(0, 3).map((tag: string) => (
 												<Badge key={tag} variant="secondary" className="text-xs">
 													{tag}
@@ -370,8 +375,8 @@ export default function AllBerita() {
 										</div>
 									)}
 
-									<div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-										<div className="flex items-center gap-1">
+									<div className="flex items-center justify-between text-[10px] sm:text-xs text-muted-foreground mb-0 sm:mb-3">
+										<div className="hidden sm:flex items-center gap-1">
 											<User className="h-3 w-3" />
 											<span>{item.authorsDisplay || item.author}</span>
 										</div>
@@ -379,7 +384,7 @@ export default function AllBerita() {
 											<Calendar className="h-3 w-3" />
 											<span>{formatDate(item.createdAt)}</span>
 										</div>
-										<div className="flex items-center gap-1">
+										<div className="hidden sm:flex items-center gap-1">
 											<span>{item.viewCount ?? 0} pembaca</span>
 										</div>
 									</div>
@@ -389,11 +394,12 @@ export default function AllBerita() {
 										item.slug
 											? `/berita/${item.slug}`
 											: `/berita/${item._id}`
-									}>
+									}
+									className="hidden sm:block">
 									<Button
 										variant="link"
-											className="text-primary hover:text-primary/80 p-0 h-auto font-medium text-sm">
-											Baca selengkapnya →
+											className="text-primary hover:text-primary/80 p-0 h-9 sm:h-auto font-semibold text-xs sm:text-sm touch-manipulation">
+											Baca artikel <span aria-hidden="true">→</span>
 										</Button>
 									</Link>
 								</CardContent>
@@ -408,7 +414,7 @@ export default function AllBerita() {
 					onPageChange={setCurrentPage}
 					className="mt-8"
 				/>
-			</div>
+			</main>
 
 		<Footer />
 

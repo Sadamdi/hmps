@@ -3,7 +3,7 @@ import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { HIMATIF_ABOUT_HTML, HIMATIF_TAGLINE } from '@shared/himatif-defaults';
 import { useQuery } from '@tanstack/react-query';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 
 interface Settings {
@@ -193,13 +193,39 @@ function AnimatedGallery({
 	);
 }
 
+function MobilePhotoStrip({ images }: { images: string[] }) {
+	const strip = useMemo(() => images.slice(0, 8), [images]);
+	if (strip.length === 0) return null;
+	return (
+		<div className="lg:hidden -mx-4 mb-8">
+			<div className="flex gap-2.5 overflow-x-auto px-4 pb-1 snap-x snap-mandatory scrollbar-none">
+				{strip.map((src, i) => (
+					<div
+						key={`${src}-${i}`}
+						className="snap-start shrink-0 w-28 h-20 rounded-xl overflow-hidden border border-border/60 bg-muted">
+						<img
+							src={src}
+							alt=""
+							className="w-full h-full object-cover"
+							loading="lazy"
+							onError={(e) => {
+								(e.target as HTMLElement).style.display = 'none';
+							}}
+						/>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
 export default function About() {
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
 	});
 	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
+	const [aboutExpanded, setAboutExpanded] = useState(false);
 
-	// Fetch library items (photos from Google Drive)
 	const { data: libraryItems } = useQuery<LibraryItem[]>({
 		queryKey: ['/api/library'],
 	});
@@ -217,23 +243,20 @@ export default function About() {
 		HIMATIF_ABOUT_HTML;
 	const aboutTagline = String(settings?.siteTagline || '').trim() || HIMATIF_TAGLINE;
 
-	// Combine and process images from both sources
 	const galleryImages = React.useMemo(() => {
 		const images: string[] = [];
 
-		// Add images from library items (Google Drive photos)
 		if (libraryItems) {
 			libraryItems.forEach((item) => {
 				if (item.type === 'photo' && item.imageUrls) {
-					// Convert Google Drive URLs to direct image URLs
 					item.imageUrls.forEach((url, index) => {
 						if (
 							item.imageSources[index] === 'gdrive' &&
 							item.gdriveFileIds[index]
 						) {
-							// Use Google Drive direct image URL
-							const directUrl = `https://drive.google.com/uc?export=view&id=${item.gdriveFileIds[index]}`;
-							images.push(directUrl);
+							images.push(
+								`https://drive.google.com/uc?export=view&id=${item.gdriveFileIds[index]}`,
+							);
 						} else {
 							images.push(url);
 						}
@@ -246,8 +269,9 @@ export default function About() {
 			beritaItems.forEach((item) => {
 				if (item.published && item.image) {
 					if (item.imageSource === 'gdrive' && item.gdriveFileId) {
-						const directUrl = `https://drive.google.com/uc?export=view&id=${item.gdriveFileId}`;
-						images.push(directUrl);
+						images.push(
+							`https://drive.google.com/uc?export=view&id=${item.gdriveFileId}`,
+						);
 					} else if (!item.image.includes('default-berita-image')) {
 						images.push(item.image);
 					}
@@ -260,36 +284,30 @@ export default function About() {
 
 	return (
 		<section
-		id="about"
-		className="py-16 bg-background section-tint-bg relative overflow-hidden">
-			{/* Section top connector */}
+			id="about"
+			className="py-12 sm:py-16 bg-background section-tint-bg relative overflow-hidden">
 			<div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
-			{/* Animated Galleries */}
-			<AnimatedGallery
-				images={galleryImages}
-				direction="up"
-				side="left"
-			/>
-			<AnimatedGallery
-				images={galleryImages}
-				direction="down"
-				side="right"
-			/>
+			<AnimatedGallery images={galleryImages} direction="up" side="left" />
+			<AnimatedGallery images={galleryImages} direction="down" side="right" />
 
 			<div className="container mx-auto px-4 relative z-10">
-			<div ref={headingRef} className="text-center mb-12">
-				<span className={`inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
-					Tentang Kami
-				</span>
-				<h1 className={`text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}>
-					{settings?.siteName || 'Himatif Encoder'}
-				</h1>
-				<p className={`text-base text-muted-foreground mb-5 max-w-xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-					{aboutTagline}
-				</p>
-					{/* Gradient divider */}
+				<div ref={headingRef} className="text-center mb-8 sm:mb-12">
+					<span
+						className={`inline-block px-3 py-1 mb-3 sm:mb-4 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
+						Tentang Kami
+					</span>
+					<h1
+						className={`text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}>
+						{settings?.siteName || 'Himatif Encoder'}
+					</h1>
+					<p
+						className={`text-sm sm:text-base text-muted-foreground mb-4 sm:mb-5 max-w-xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
+						{aboutTagline}
+					</p>
 					<div className="mx-auto w-32 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
 				</div>
+
+				<MobilePhotoStrip images={galleryImages} />
 
 				<AboutVideoEmbed
 					aboutVideoUrl={settings?.aboutVideoUrl}
@@ -297,22 +315,37 @@ export default function About() {
 					aosDelay={180}
 				/>
 
-				<div
-					className="max-w-4xl mx-auto text-justify relative" // Back to text-justify
-					data-aos="fade-up"
-					data-aos-delay="200">
+				<div className="max-w-3xl mx-auto relative mt-6 sm:mt-8">
 					{aboutHtml ? (
 						<div className="space-y-4">
-							<div className="prose prose-lg lg:prose-xl max-w-none leading-relaxed bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm mx-auto prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
+							<div className="relative bg-card/90 border border-border/70 rounded-xl p-4 sm:p-8 shadow-sm">
 								<div
-									dangerouslySetInnerHTML={{ __html: aboutHtml }}
-									className="text-justify text-foreground"
-								/>
+									className={`prose prose-sm sm:prose-lg max-w-none leading-relaxed text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
+										aboutExpanded
+											? ''
+											: 'max-h-[9.5rem] sm:max-h-[14rem] overflow-hidden'
+									}`}>
+									<div
+										dangerouslySetInnerHTML={{ __html: aboutHtml }}
+										className="text-left sm:text-justify"
+									/>
+								</div>
+								{!aboutExpanded && (
+									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 rounded-b-xl bg-gradient-to-t from-card via-card/90 to-transparent" />
+								)}
 							</div>
-							<div className="flex justify-center mt-6">
+							<div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3">
+								<button
+									type="button"
+									onClick={() => setAboutExpanded((v) => !v)}
+									className="inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold border border-border text-foreground hover:bg-secondary transition-colors">
+									{aboutExpanded ? 'Ringkas' : 'Baca di sini'}
+								</button>
 								<Link href="/profil">
-									<button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary/70 transition-all duration-200">
-										Baca selengkapnya
+									<button
+										type="button"
+										className="inline-flex min-h-11 w-full sm:w-auto items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 transition-colors">
+										Halaman profil
 										<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
 										</svg>
@@ -323,18 +356,16 @@ export default function About() {
 					) : hasAboutVideo ? (
 						<div className="flex justify-center mt-2">
 							<Link href="/profil">
-								<button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary/70 transition-all duration-200">
-									Baca selengkapnya
-									<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-									</svg>
+								<button
+									type="button"
+									className="inline-flex min-h-11 items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 transition-colors">
+									Halaman profil
 								</button>
 							</Link>
 						</div>
 					) : null}
 				</div>
 			</div>
-			{/* Section bottom connector */}
 			<div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/35 to-transparent" />
 		</section>
 	);

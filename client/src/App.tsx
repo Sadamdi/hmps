@@ -360,13 +360,17 @@ function PublicNotifStream() {
 function App() {
 	useEffect(() => {
 		AOS.init({
-			duration: 500,
+			duration: 420,
 			easing: 'ease-out',
 			once: true,
 			mirror: false,
-			offset: 60,
+			offset: 48,
 			throttleDelay: 99,
 			disableMutationObserver: false,
+			disable: () =>
+				typeof window !== 'undefined' &&
+				(window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+					window.innerWidth < 768),
 		});
 	}, []);
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface LoadingScreenProps {
 	onLoadingComplete: () => void;
@@ -17,7 +17,14 @@ export function LoadingScreen({
 	const [currentStep, setCurrentStep] = useState(0);
 	const [isComplete, setIsComplete] = useState(false);
 	const [isExiting, setIsExiting] = useState(false);
-	const EXIT_MS = 780;
+	const reduceMotion = useMemo(
+		() =>
+			typeof window !== 'undefined' &&
+			(window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+				window.matchMedia('(max-width: 1023px)').matches),
+		[],
+	);
+	const EXIT_MS = reduceMotion ? 120 : 560;
 
 	// Track waktu mulai loading
 	useEffect(() => {
@@ -25,6 +32,7 @@ export function LoadingScreen({
 	}, []);
 
 	const handleSkip = () => {
+		if (isExiting || isComplete) return;
 		setIsExiting(true);
 		onExitStart?.();
 		setTimeout(() => {
@@ -43,10 +51,10 @@ export function LoadingScreen({
 		const timer = setInterval(() => {
 			setProgress((prev) => {
 				if (assetsLoaded) return 100;
-				const next = prev + 2.5;
-				return next >= 95 ? 95 : next;
+				const remaining = 92 - prev;
+				return Math.min(92, prev + Math.max(0.4, remaining * 0.08));
 			});
-		}, 90);
+		}, 100);
 
 		const stepTimer = setInterval(() => {
 			setCurrentStep((prev) => {
@@ -72,14 +80,17 @@ export function LoadingScreen({
 			onLoadingComplete();
 		}, EXIT_MS);
 		return () => clearTimeout(done);
-	}, [assetsLoaded, isExiting, isComplete, loadingSteps.length, onExitStart, onLoadingComplete]);
+	}, [assetsLoaded, isExiting, isComplete, loadingSteps.length, onExitStart, onLoadingComplete, EXIT_MS]);
 
 	return (
 		<div
-			className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-800 ease-out ${
+			className={`fixed inset-0 z-50 flex items-center justify-center transition-all ease-out ${
 				isComplete ? 'opacity-0 pointer-events-none' : 'opacity-100'
 			} ${isExiting ? 'scale-[1.015]' : 'scale-100'}`}
-			style={{ background: 'var(--gradient-loading)' }}>
+			style={{
+				background: 'var(--gradient-loading)',
+				transitionDuration: `${EXIT_MS}ms`,
+			}}>
 			{/* Subtle static orbs */}
 			<div
 				className="pointer-events-none absolute top-1/4 left-1/4 w-80 h-80 rounded-full"
