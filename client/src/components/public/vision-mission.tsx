@@ -1,5 +1,6 @@
 import { useRevealAnimation } from "@/hooks/use-reveal-animation";
 import { useTenant } from "@/lib/tenant-context";
+import { HIMATIF_MISSION, HIMATIF_VISION } from "@shared/himatif-defaults";
 import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { Link } from "wouter";
@@ -52,19 +53,15 @@ export default function VisionMission({ showLink = true }: VisionMissionProps) {
   const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
 
   const defaultVisionMission = {
-    visi: "Mewujudkan Himpunan Mahasiswa Teknik Informatika yang berintegritas, progresif, dan adaptif sebagai wadah kolaborasi yang responsif, transparan, partisipatif, menjunjung tinggi nilai kekeluargaan, menciptakan lingkungan yang harmonis, inovatif, dan berorientasi pada kemajuan berkelanjutan.",
-    misi: [
-      "Meningkatkan lingkungan yang kondusif untuk dialog terbuka, penguatan solidaritas, dan pengamalan kepedulian kolektif, dengan semangat kebersamaan untuk mendukung hubungan yang harmonis dan produktif antar anggota.",
-      "Mengintegrasikan nilai-nilai budaya lokal, nasional, dan profesionalisme dalam setiap program kerja, menumbuhkan kesadaran akan tanggung jawab sosial, meningkatkan kompetensi akademik, soft skills, kepemimpinan, dan inovasi teknologi melalui berbagai kegiatan produktif.",
-      "Mengoptimalkan peran Himpunan sebagai wadah pemberdayaan anggota dengan memberikan perhatian terhadap aspirasi, memfasilitasi pengembangan diri, dan menciptakan jaringan kolaborasi yang efektif dengan berbagai pihak untuk mendorong kontribusi aktif dalam pembangunan dan pengembangan organisasi.",
-    ],
+    visi: HIMATIF_VISION,
+    misi: HIMATIF_MISSION,
   };
 
   const { isTenant } = useTenant();
   const currentYear = new Date().getFullYear();
   const siteName = settings?.siteName || (isTenant ? "Komunitas" : "Himatif Encoder");
   const hasVision = Boolean(settings?.visionMission?.trim());
-  const showHimatifDefault = !isTenant && !hasVision;
+  const showHimatifDefault = !hasVision;
 
   return (
     <section

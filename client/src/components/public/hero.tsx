@@ -189,7 +189,7 @@ export default function Hero({
 
 	const versionSuffix = homeImageVersionSuffix(homeImages?.updatedAt);
 	const tenantOrMainFallback = isTenant
-		? settings?.logoUrl || ''
+		? settings?.logoUrl || DEFAULT_IMAGE_URL
 		: DEFAULT_IMAGE_URL;
 	const bennerfullSrc = homeImages?.bennerfull
 		? homeImages.bennerfull + versionSuffix

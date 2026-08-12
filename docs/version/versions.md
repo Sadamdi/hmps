@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.15.2`  
+**Current version:** `4.15.3`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.15.2`](./release/4.15.2.md) | 2026-08-12 | Tenant breadcrumb + hero fallback | PATCH | 1 | **Current** |
+| [`4.15.3`](./release/4.15.3.md) | 2026-08-12 | Tenant empty chrome fallback Himatif | PATCH | 1 | **Current** |
+| [`4.15.2`](./release/4.15.2.md) | 2026-08-12 | Tenant breadcrumb + hero fallback | PATCH | 1 | Released |
 | [`4.15.1`](./release/4.15.1.md) | 2026-08-12 | Tenant route gate + vite deploy harden | PATCH | 1 | Released |
 | [`4.15.0`](./release/4.15.0.md) | 2026-08-12 | Tenant URL, SEO, logo, dan isolasi auth | MINOR | 1 | Released |
 | [`4.14.7`](./release/4.14.7.md) | 2026-08-12 | Safe rebuild + contributor history rewrite | PATCH | 1 | Released |

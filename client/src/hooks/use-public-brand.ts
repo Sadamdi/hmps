@@ -38,8 +38,8 @@ export function usePublicBrand(settingsOverride?: PublicBrandSettings | null) {
 	const siteTagline = useMemo(() => {
 		const t = String(settings?.siteTagline || '').trim();
 		if (t) return t;
-		return isTenant ? '' : MAIN_TAGLINE;
-	}, [settings?.siteTagline, isTenant]);
+		return MAIN_TAGLINE;
+	}, [settings?.siteTagline]);
 
 	const logoUrl = String(settings?.logoUrl || '').trim();
 
