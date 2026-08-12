@@ -261,6 +261,17 @@ export default function Home() {
 		};
 	}, [location, scrollLocked, settings?.homeConfig]);
 
+	// Setelah loading screen selesai (mobile + desktop): refresh AOS berkali-kali
+	// agar section lazy-load tidak stuck opacity 0.
+	useEffect(() => {
+		if (isLoading) return;
+		const delays = [0, 180, 600, 1500, 3200];
+		const timers = delays.map((ms) =>
+			window.setTimeout(() => AOS.refreshHard(), ms),
+		);
+		return () => timers.forEach((t) => window.clearTimeout(t));
+	}, [isLoading]);
+
 	const [activeSection, setActiveSection] = useState('home');
 
 	const validSections = [

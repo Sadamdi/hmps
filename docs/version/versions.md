@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.16.1`  
+**Current version:** `4.16.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.16.1`](./release/4.16.1.md) | 2026-08-12 | Mobile grid galeri/toko + teks tentang ringkas | PATCH | 1 | **Current** |
+| [`4.16.2`](./release/4.16.2.md) | 2026-08-12 | Fix AOS invisible sections + navbar/about regressions | PATCH | 1 | **Current** |
+| [`4.16.1`](./release/4.16.1.md) | 2026-08-12 | Mobile grid galeri/toko + teks tentang ringkas | PATCH | 1 | Released |
 | [`4.16.0`](./release/4.16.0.md) | 2026-08-12 | Full platform UX redesign | MINOR | 1 | Released |
 | [`4.15.3`](./release/4.15.3.md) | 2026-08-12 | Tenant empty chrome fallback Himatif | PATCH | 1 | Released |
 | [`4.15.2`](./release/4.15.2.md) | 2026-08-12 | Tenant breadcrumb + hero fallback | PATCH | 1 | Released |

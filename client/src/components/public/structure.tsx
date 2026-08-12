@@ -10,6 +10,7 @@ import { usePublicBrand } from '@/hooks/use-public-brand';
 import { Pagination } from '@/components/ui/pagination';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
+import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -205,6 +206,7 @@ const sortMembersByPosition = (
 };
 
 export default function Structure() {
+	useAosRefreshOnMount();
 	const { slug, isTenant } = useTenant();
 	const { siteName, publicPath, basePath } = usePublicBrand();
 	const scope = isTenant && slug ? slug : 'main';

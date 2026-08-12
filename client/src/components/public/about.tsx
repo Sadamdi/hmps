@@ -135,7 +135,7 @@ function AnimatedGallery({
 	useEffect(() => {
 		// Shuffle and select random images for this gallery
 		const shuffled = [...images].sort(() => Math.random() - 0.5);
-		const selectedImages = shuffled.slice(0, 6); // Reduce to 6 images for better spacing
+		const selectedImages = shuffled.slice(0, typeof window !== 'undefined' && window.innerWidth < 1024 ? 4 : 6);
 		setCurrentImages(selectedImages);
 
 		// Generate random positions for each image with collision detection
@@ -145,7 +145,7 @@ function AnimatedGallery({
 	if (currentImages.length === 0) return null;
 
 	return (
-		<div className={`hidden lg:block absolute inset-0 pointer-events-none`}>
+		<div className="absolute inset-0 pointer-events-none overflow-hidden">
 			{currentImages.map((image, index) => {
 				const position = positions[index];
 				if (!position) return null;
@@ -154,15 +154,18 @@ function AnimatedGallery({
 				const animationTypes = ['gentle-sway', 'float-up', 'float-down'];
 				const animationType = animationTypes[index % animationTypes.length];
 
+				const sizeScale =
+					typeof window !== 'undefined' && window.innerWidth < 1024 ? 0.52 : 1;
+
 				return (
 					<div
 						key={`${image}-${index}`}
-						className={`absolute overflow-hidden rounded-xl shadow-lg transform transition-all duration-700 hover:scale-110 hover:shadow-2xl pointer-events-auto animate-${animationType}`}
+						className={`absolute overflow-hidden rounded-xl shadow-lg transform transition-all duration-700 hover:scale-110 hover:shadow-2xl pointer-events-auto animate-${animationType} max-lg:opacity-75`}
 						style={{
 							[side === 'left' ? 'left' : 'right']: `${position.x}%`,
 							top: `${position.y}%`,
-							width: `${position.size}px`,
-							height: `${position.size * 0.8}px`,
+							width: `${position.size * sizeScale}px`,
+							height: `${position.size * sizeScale * 0.8}px`,
 							animationDelay: `${position.delay}s`,
 							animationDuration: `${position.duration}s`,
 							animationIterationCount: 'infinite',
@@ -193,30 +196,8 @@ function AnimatedGallery({
 	);
 }
 
-function MobilePhotoStrip({ images }: { images: string[] }) {
-	const strip = useMemo(() => images.slice(0, 8), [images]);
-	if (strip.length === 0) return null;
-	return (
-		<div className="lg:hidden -mx-4 mb-8">
-			<div className="flex gap-2.5 overflow-x-auto px-4 pb-1 snap-x snap-mandatory scrollbar-none">
-				{strip.map((src, i) => (
-					<div
-						key={`${src}-${i}`}
-						className="snap-start shrink-0 w-28 h-20 rounded-xl overflow-hidden border border-border/60 bg-muted">
-						<img
-							src={src}
-							alt=""
-							className="w-full h-full object-cover"
-							loading="lazy"
-							onError={(e) => {
-								(e.target as HTMLElement).style.display = 'none';
-							}}
-						/>
-					</div>
-				))}
-			</div>
-		</div>
-	);
+function MobilePhotoStrip(_props: { images: string[] }) {
+	return null;
 }
 
 export default function About() {
@@ -307,15 +288,13 @@ export default function About() {
 					<div className="mx-auto w-32 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
 				</div>
 
-				<MobilePhotoStrip images={galleryImages} />
-
 				<AboutVideoEmbed
 					aboutVideoUrl={settings?.aboutVideoUrl}
 					aboutVideoGdriveUrl={settings?.aboutVideoGdriveUrl}
 					aosDelay={180}
 				/>
 
-				<div className="max-w-3xl mx-auto relative mt-6 sm:mt-8">
+				<div className="max-w-3xl mx-auto relative mt-4 sm:mt-8">
 					{aboutHtml ? (
 						<div className="space-y-4">
 							<div className="relative bg-card/90 border border-border/70 rounded-xl p-4 sm:p-8 shadow-sm">
@@ -323,7 +302,7 @@ export default function About() {
 									className={`prose prose-sm sm:prose-lg max-w-none leading-relaxed text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
 										aboutExpanded
 											? ''
-											: 'max-h-[4.5rem] sm:max-h-[14rem] overflow-hidden [&_p]:line-clamp-3 sm:[&_p]:line-clamp-none'
+											: 'max-h-[7.5rem] sm:max-h-[14rem] overflow-hidden'
 									}`}>
 									<div
 										dangerouslySetInnerHTML={{ __html: aboutHtml }}

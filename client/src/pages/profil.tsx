@@ -177,9 +177,7 @@ export default function ProfilPage() {
 								<div
 									className={`prose prose-sm sm:prose-base max-w-none leading-relaxed text-foreground
 								prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
-									introExpanded
-										? ''
-										: 'max-h-[5rem] sm:max-h-[18rem] overflow-hidden [&_p]:line-clamp-4 sm:[&_p]:line-clamp-none'
+									introExpanded ? '' : 'max-h-[8rem] sm:max-h-[18rem] overflow-hidden'
 								}`}
 									dangerouslySetInnerHTML={{ __html: intro }}
 								/>

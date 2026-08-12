@@ -279,8 +279,8 @@ export default function Navbar({
 	// Track klik terakhir pada nested sub-trigger (agar non-home tidak auto-direct di klik pertama)
 	const lastNestedClickRef = useRef<{ id: string; time: number } | null>(null);
 
-	// Mobile floating nav state
-	const [isMobileNavCollapsed, setIsMobileNavCollapsed] = useState(false);
+	// Mobile nav: collapsed by default; trigger di header kanan (sebelah theme)
+	const [isMobileNavCollapsed, setIsMobileNavCollapsed] = useState(true);
 	const [isAnimatingCollapse, setIsAnimatingCollapse] = useState(false);
 	const [isAnimatingExpand, setIsAnimatingExpand] = useState(false);
 	const idleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1638,8 +1638,27 @@ export default function Navbar({
 							</button>
 						</div>
 
-						{/* Mobile right: theme toggle only */}
+						{/* Mobile kanan: menu navigasi + theme toggle */}
 						<div className="flex sm:hidden items-center gap-1">
+							<button
+								type="button"
+								aria-label={isMobileNavCollapsed ? 'Buka navigasi' : 'Tutup navigasi'}
+								aria-expanded={!isMobileNavCollapsed}
+								onClick={() => {
+									if (isMobileNavCollapsed) {
+										triggerExpand();
+										scheduleCollapse();
+									} else {
+										triggerCollapse();
+									}
+								}}
+								className={`p-2 rounded-lg transition-colors ${
+									isMobileNavCollapsed
+										? 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+										: 'bg-primary/15 text-primary'
+								}`}>
+								<Menu className="h-5 w-5" />
+							</button>
 							<button
 								onClick={toggleTheme}
 								className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
@@ -1655,28 +1674,12 @@ export default function Navbar({
 				</div>
 			</header>
 
-			{/* ============ MOBILE FLOATING NAV (bottom-left — avoids AI chat overlay) ============ */}
-			<div className="fixed left-3 bottom-6 z-[55] sm:hidden events-mobile-nav pb-[env(safe-area-inset-bottom)]">
-				{/* Collapsed bubble mode */}
-				{isMobileNavCollapsed ? (
-					<button
-						aria-label="Buka navigasi"
-						onClick={() => {
-							triggerExpand();
-							scheduleCollapse();
-						}}
-						className="w-12 h-12 flex items-center justify-center rounded-full
-					           bg-gradient-to-br from-blue-500 to-cyan-500 text-white
-					           shadow-[0_4px_20px_rgba(37,99,235,0.5)]
-					           animate-mobile-nav-bubble-in
-					           transition-transform duration-500 ease-out
-					           hover:scale-105 active:scale-95">
-						<Menu className="h-5 w-5" />
-					</button>
-				) : (
-					/* Expanded mode — panel statis, hanya ikon yang dianimasikan */
+			{/* ============ MOBILE NAV PANEL (kanan atas, turun ke bawah) ============ */}
+			{!isMobileNavCollapsed ? (
+			<div className="fixed right-3 top-[4.5rem] z-[55] sm:hidden events-mobile-nav">
+				{/* Expanded mode — panel di bawah header, ikon vertikal atas→bawah */}
 					<div
-						className={`flex flex-col-reverse gap-1.5 p-2 rounded-2xl
+						className={`flex flex-col gap-1.5 p-2 rounded-2xl
 					           bg-background/92 backdrop-blur-md
 					           border border-border/80 shadow-xl shadow-black/10
 					           ${isAnimatingCollapse ? 'pointer-events-none' : ''}`}>
@@ -2004,8 +2007,8 @@ export default function Navbar({
 							);
 						})()}
 					</div>
-				)}
 			</div>
+			) : null}
 
 			{notifModalOpen && (
 				<NotifSettingsModal

@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.2] — 2026-08-12
+
+**Fix AOS invisible sections + navbar/about regressions** · PATCH · [Full release notes](../release/4.16.2.md)
+
+### Highlights
+- Section hilang setelah loading (struktur, galeri, event, berita detail) — diperbaiki
+- Menu mobile kembali kanan atas; tentang kami galeri melayang; berita kartu unified
+
+---
+
 ## [4.16.1] — 2026-08-12
 
 **Mobile grid galeri/toko + teks tentang ringkas** · PATCH · [Full release notes](../release/4.16.1.md)

@@ -158,6 +158,12 @@ body {
 		transition-duration: 280ms !important;
 		transition-delay: 0ms !important;
 	}
+
+	/* Safety net: jangan biarkan section lazy-load tetap invisible jika AOS belum refresh */
+	[data-aos]:not(.aos-animate) {
+		opacity: 1 !important;
+		transform: none !important;
+	}
 }
 
 @layer components {

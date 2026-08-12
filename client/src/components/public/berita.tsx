@@ -9,6 +9,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import OptimizedImage from '@/components/ui/optimized-image';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
+import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, User } from 'lucide-react';
@@ -48,6 +49,7 @@ interface PaginatedResponse<T> {
 }
 
 export default function BeritaList() {
+	useAosRefreshOnMount();
 	const { siteName } = usePublicBrand();
 	const [showAll, setShowAll] = useState(false);
 	const [isMobile, setIsMobile] = useState(false);
@@ -155,14 +157,14 @@ export default function BeritaList() {
 								<Card
 									key={item.id || item._id}
 									className="overflow-hidden rounded-xl sm:rounded-2xl border border-border/70 bg-card transition-[border-color,box-shadow,transform] duration-200 group focus-within:ring-2 focus-within:ring-primary/40 hover:border-primary/35 hover:shadow-md active:scale-[0.99]"
-									data-aos={isMobile ? undefined : 'fade-up'}
-									data-aos-delay={isMobile ? undefined : index * 80}>
+									data-aos="fade-up"
+									data-aos-delay={index * 80}>
 									<Link href={getBeritaUrl(item)}>
 										<div className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden cursor-pointer bg-muted">
 											<OptimizedImage
 												src={item.image}
 												alt={item.title}
-												className="w-full h-full object-cover sm:group-hover:scale-[1.03] transition-transform duration-500 motion-reduce:transition-none"
+												className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 motion-reduce:transition-none"
 												loading="lazy"
 												sizes="(max-width: 768px) 50vw, (max-width: 1024px) 50vw, 33vw"
 												onError={(e) => {
@@ -173,101 +175,56 @@ export default function BeritaList() {
 										</div>
 									</Link>
 
-									{/* Mobile compact body */}
-									<div className="p-2.5 sm:hidden space-y-1.5">
+									<CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3">
 										<Link href={getBeritaUrl(item)}>
-											<h3 className="font-semibold text-[13px] leading-snug line-clamp-2 text-foreground active:text-primary">
+											<h3 className="font-bold text-[13px] sm:text-xl leading-snug line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">
 												{item.title}
 											</h3>
 										</Link>
-										<p className="text-[10px] text-muted-foreground tabular-nums">
-											{formatDate(item.createdAt)}
-										</p>
-									</div>
-
-									{/* Desktop rich body */}
-									<div className="hidden sm:block">
-										<CardHeader className="pb-3">
-											<Link href={getBeritaUrl(item)}>
-												<h3 className="font-bold text-xl leading-tight line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">
-													{item.title}
-												</h3>
-											</Link>
-											<div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground mt-2">
-												<div className="flex items-center gap-1 min-w-0">
-													<User className="h-4 w-4 shrink-0" />
-													<span className="truncate">
-														{item.authorsDisplay || item.author}
-													</span>
-												</div>
-												<div className="flex items-center gap-1">
-													<Calendar className="h-4 w-4" />
-													<span>{formatDate(item.createdAt)}</span>
-												</div>
-												<span>{item.viewCount ?? 0} pembaca</span>
+										<div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-0.5 text-[10px] sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">
+											<div className="hidden sm:flex items-center gap-1 min-w-0 max-w-full">
+												<User className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+												<span className="truncate">
+													{item.authorsDisplay || item.author}
+												</span>
 											</div>
-										</CardHeader>
+											<div className="flex items-center gap-1">
+												<Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+												<span>{formatDate(item.createdAt)}</span>
+											</div>
+											<span className="hidden sm:inline">{item.viewCount ?? 0} pembaca</span>
+										</div>
+									</CardHeader>
 
-										<CardContent className="pt-0">
-											<p className="text-muted-foreground leading-relaxed mb-3 line-clamp-3">
-												{truncateText(item.excerpt)}
-											</p>
-											{item.tags && item.tags.length > 0 && (
-												<div className="flex flex-wrap gap-1 mb-3">
-													{item.tags.slice(0, 3).map((tag) => (
-														<Badge key={tag} variant="secondary" className="text-xs">
-															{tag}
-														</Badge>
-													))}
-													{item.tags.length > 3 && (
-														<Badge variant="outline" className="text-xs">
-															+{item.tags.length - 3} lagi
-														</Badge>
-													)}
-												</div>
-											)}
-											{(item.relatedGalleryPreview?.length ||
-												item.linkedEventsPreview?.length) ? (
-												<div className="flex flex-wrap gap-2 pt-2 mt-2 border-t border-border">
-													<span className="text-xs font-semibold text-muted-foreground w-full">
-														Terkait:
-													</span>
-													{item.relatedGalleryPreview?.map((g) => (
-														<Link
-															key={g._id}
-															href={`/library/${toSlug(g.title) || g._id}`}>
-															<span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-xs hover:bg-primary/20">
-																Galeri: {g.title}
-															</span>
-														</Link>
-													))}
-													{item.linkedEventsPreview?.map((ev) => (
-														<Link
-															key={ev._id}
-															href={
-																ev.year
-																	? `/events/${ev.year}/${toSlug(ev.title) || ev._id}`
-																	: `/events/all`
-															}>
-															<span className="inline-flex items-center rounded-full bg-secondary text-foreground px-3 py-1 text-xs hover:bg-secondary/80">
-																Event: {ev.title}
-															</span>
-														</Link>
-													))}
-												</div>
-											) : null}
-										</CardContent>
+									<CardContent className="px-3 sm:px-6 pt-0 pb-2 sm:pb-0">
+										<p className="text-muted-foreground text-[11px] sm:text-base leading-relaxed mb-2 sm:mb-3 line-clamp-2 sm:line-clamp-3">
+											{truncateText(item.excerpt, isMobile ? 80 : 120)}
+										</p>
+										{item.tags && item.tags.length > 0 && (
+											<div className="flex flex-wrap gap-1 mb-2 sm:mb-3">
+												{item.tags.slice(0, isMobile ? 2 : 3).map((tag) => (
+													<Badge key={tag} variant="secondary" className="text-[10px] sm:text-xs">
+														{tag}
+													</Badge>
+												))}
+												{item.tags.length > (isMobile ? 2 : 3) && (
+													<Badge variant="outline" className="text-[10px] sm:text-xs">
+														+{item.tags.length - (isMobile ? 2 : 3)} lagi
+													</Badge>
+												)}
+											</div>
+										)}
+									</CardContent>
 
-										<CardFooter className="pt-0">
-											<Link href={getBeritaUrl(item)}>
-												<Button
-													variant="link"
-													className="text-primary hover:text-primary/80 p-0 h-auto font-medium min-h-11">
-													Baca selengkapnya →
-												</Button>
-											</Link>
-										</CardFooter>
-									</div>
+									<CardFooter className="px-3 sm:px-6 pt-0 pb-3 sm:pb-6">
+										<Link href={getBeritaUrl(item)}>
+											<Button
+												variant="link"
+												className="text-primary hover:text-primary/80 p-0 h-auto font-medium text-xs sm:text-sm min-h-8 sm:min-h-11">
+												Baca selengkapnya →
+											</Button>
+										</Link>
+									</CardFooter>
 								</Card>
 							))}
 						</div>

@@ -15,6 +15,7 @@ import { Calendar, Download, ExternalLink, Eye, FileText } from 'lucide-react';
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
 import { toSlug } from '@/utils/slug';
+import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 
 const BASE_SPEED_PPS = 100;
 const EASING_K = 3;
@@ -297,6 +298,7 @@ export default function EventsTree({
 	scrollToMonthRef?: React.RefObject<EventsTreeRef | null>;
 	autoScrollEnabled?: boolean;
 }) {
+	useAosRefreshOnMount();
 	const outerRef = useRef<HTMLDivElement>(null);
 	const innerRef = useRef<HTMLDivElement>(null);
 

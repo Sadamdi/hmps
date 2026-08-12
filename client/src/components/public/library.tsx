@@ -11,6 +11,7 @@ import {
 	DialogTrigger,
 } from '@/components/ui/dialog';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
+import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 import { useQuery } from '@tanstack/react-query';
 import {
 	getLibraryVisualKind,
@@ -290,6 +291,7 @@ function deriveItemYear(item: LibraryItem): number | null {
 }
 
 export default function Library({ variant = 'section' }: LibraryProps) {
+	useAosRefreshOnMount();
 	const [searchQuery, setSearchQuery] = useState('');
 	const [selectedTags, setSelectedTags] = useState<string[]>([]);
 	const [selectedYear, setSelectedYear] = useState<number | null>(null);
