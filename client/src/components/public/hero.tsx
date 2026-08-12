@@ -101,6 +101,13 @@ export default function Hero({
 	onIntroSettled,
 }: HeroProps) {
 	const { isTenant } = useTenant();
+	const reduceIntroMotion = useMemo(
+		() =>
+			typeof window !== 'undefined' &&
+			(window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+				window.matchMedia('(max-width: 1023px)').matches),
+		[],
+	);
 	const [showText, setShowText] = useState(false);
 	const [textMoveUp, setTextMoveUp] = useState(false);
 	const [showBanner, setShowBanner] = useState(false);
@@ -411,6 +418,15 @@ export default function Hero({
 
 		hasAnimatedRef.current = true;
 
+		if (reduceIntroMotion) {
+			setShowBanner(true);
+			setShowPerson(true);
+			setShowText(true);
+			setTextMoveUp(true);
+			onIntroSettled?.();
+			return;
+		}
+
 		// Reset state animasi
 		setShowBanner(false);
 		setShowPerson(false);
@@ -481,6 +497,7 @@ export default function Hero({
 		combinedAssetsReady,
 		slotOrder.length,
 		onIntroSettled,
+		reduceIntroMotion,
 	]);
 
 	return (

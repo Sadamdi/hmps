@@ -1,7 +1,7 @@
 import AIChat from '@/components/public/ai-chat';
 import { useAuth } from '@/lib/auth';
 import { useTenant } from '@/lib/tenant-context';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import Header from './header';
 import Sidebar from './sidebar';
@@ -38,9 +38,13 @@ export default function DashboardLayout({
 	const { isTenant, slug, basePath } = useTenant();
 	const fullPath = useResolvedDashboardPath(locationPath);
 
+	useEffect(() => {
+		setMobileMenuOpen(false);
+	}, [locationPath]);
+
 	return (
 		<div
-			className="min-h-screen text-foreground transition-colors duration-150 ease-out"
+			className="min-h-dvh overflow-x-hidden text-foreground transition-colors duration-150 ease-out"
 			style={{ background: 'var(--gradient-dashboard)' }}>
 			<Sidebar
 				mobileOpen={mobileMenuOpen}
@@ -56,8 +60,13 @@ export default function DashboardLayout({
 					title={title}
 					onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
 				/>
-				<main className="relative min-w-0 flex-1 p-3 transition-colors duration-150 ease-out sm:p-4 lg:p-6">
-					<div className="mx-auto max-w-7xl min-w-0">{children}</div>
+				<main
+					id="dashboard-main"
+					tabIndex={-1}
+					className="relative min-w-0 flex-1 px-3 py-4 transition-colors duration-150 ease-out focus:outline-none sm:px-5 sm:py-6 lg:px-8 lg:py-8">
+					<div className="mx-auto min-w-0 max-w-[1600px] [&_h1]:tracking-tight [&_form]:min-w-0 [&_[role=dialog]]:min-w-0 [&_.overflow-x-auto]:rounded-lg [&_.overflow-x-auto]:border [&_.overflow-x-auto]:border-border/60">
+						{children}
+					</div>
 					{/* AI Chat untuk semua halaman dashboard, dengan context path + permissions */}
 					<AIChat
 						pageContext={{

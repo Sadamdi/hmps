@@ -10,7 +10,7 @@ import type {
 } from '@shared/schema';
 import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { useQuery } from '@tanstack/react-query';
-import { useEffect, useLayoutEffect } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import { useTenant } from '@/lib/tenant-context';
 import { usePublicBrand } from '@/hooks/use-public-brand';
 
@@ -25,6 +25,7 @@ interface Settings {
 export default function ProfilPage() {
 	const { isTenant, basePath } = useTenant();
 	const bp = basePath || '';
+	const [introExpanded, setIntroExpanded] = useState(false);
 
 	const scrollToSection = (sectionId: string) => {
 		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
@@ -120,31 +121,31 @@ export default function ProfilPage() {
 			/>
 
 			{/* Breadcrumb bar */}
-			<div className="bg-card border-b border-border">
-				<div className="max-w-7xl mx-auto px-4 py-3">
+			<div className="bg-card/70 border-b border-border/70">
+				<div className="max-w-7xl mx-auto px-4 sm:px-6 py-3">
 					<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: 'Profil' }]} />
 				</div>
 			</div>
 
 			{/* Page header */}
-			<div className="relative py-14 section-tint-bg overflow-hidden">
+			<header className="relative py-14 sm:py-20 section-tint-bg overflow-hidden">
 				<div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
-				<div className="max-w-5xl mx-auto px-4 text-center">
-					<span className="inline-block px-3 py-1 mb-4 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase">
-						Profil
-					</span>
-					<h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight">
+				<div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
+					<p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-primary">
+						Mengenal organisasi
+					</p>
+					<h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground mb-4 tracking-tight">
 						{siteName}
 					</h1>
 					{orgSubtitle ? (
-					<p className="text-base text-muted-foreground max-w-xl mx-auto">
+					<p className="text-base sm:text-lg leading-7 text-muted-foreground max-w-2xl mx-auto">
 						{orgSubtitle}
 					</p>
 					) : null}
 					<div className="mx-auto mt-5 w-32 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
 				</div>
 				<div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/35 to-transparent" />
-			</div>
+			</header>
 
 			{/* ===== TENTANG KAMI (intro/aboutUs) ===== */}
 			{(intro || hasAboutVideo) && (
@@ -171,12 +172,27 @@ export default function ProfilPage() {
 						/>
 
 						{intro && (
-						<div className="max-w-4xl mx-auto">
-							<div
-								className="prose prose-base max-w-none leading-relaxed bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm text-foreground
-								prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground"
-								dangerouslySetInnerHTML={{ __html: intro }}
-							/>
+						<div className="max-w-3xl mx-auto space-y-3">
+							<div className="relative bg-card/90 border border-border/70 rounded-xl p-4 sm:p-8 shadow-sm">
+								<div
+									className={`prose prose-sm sm:prose-base max-w-none leading-relaxed text-foreground
+								prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
+									introExpanded ? '' : 'max-h-[12rem] sm:max-h-[18rem] overflow-hidden'
+								}`}
+									dangerouslySetInnerHTML={{ __html: intro }}
+								/>
+								{!introExpanded && (
+									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 rounded-b-xl bg-gradient-to-t from-card via-card/95 to-transparent" />
+								)}
+							</div>
+							<div className="flex justify-center">
+								<button
+									type="button"
+									onClick={() => setIntroExpanded((v) => !v)}
+									className="inline-flex min-h-11 items-center justify-center px-5 py-2.5 rounded-lg text-sm font-semibold border border-border hover:bg-secondary transition-colors">
+									{introExpanded ? 'Sembunyikan' : 'Baca sejarah lengkap'}
+								</button>
+							</div>
 						</div>
 						)}
 					</div>

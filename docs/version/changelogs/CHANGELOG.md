@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.0] — 2026-08-12
+
+**Full platform UX redesign** · MINOR · [Full release notes](../release/4.16.0.md)
+
+### Highlights
+- Berita mobile 2×2 compact; tentang/profil collapsible; FAB anti-overlap
+- Loading fail-safe 3s + AOS off mobile; dashboard shell + kelembagaan manual-first
+
+---
+
 ## [4.15.3] — 2026-08-12
 
 **Tenant empty chrome fallback Himatif** · PATCH · [Full release notes](../release/4.15.3.md)

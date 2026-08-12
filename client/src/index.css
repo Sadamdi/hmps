@@ -8,6 +8,25 @@ body {
 	overflow-x: clip;
 }
 
+html {
+	scroll-padding-top: 5.5rem;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+}
+
+body {
+	min-width: 320px;
+}
+
+::selection {
+	background: hsl(var(--primary) / 0.22);
+	color: hsl(var(--foreground));
+}
+
+:focus-visible {
+	outline-offset: 3px;
+}
+
 /* ============================================================
    Performance-first keyframes: only transform + opacity
    (GPU-composited, safe for low-end devices)
@@ -131,6 +150,39 @@ body {
 		animation-iteration-count: 1 !important;
 		transition-duration: 0.01ms !important;
 		scroll-behavior: auto !important;
+	}
+}
+
+@media (max-width: 767px) {
+	[data-aos] {
+		transition-duration: 280ms !important;
+		transition-delay: 0ms !important;
+	}
+}
+
+@layer components {
+	.page-shell {
+		@apply mx-auto w-full max-w-[1440px] px-4 sm:px-6 lg:px-8;
+	}
+
+	.section-shell {
+		@apply py-14 sm:py-20 lg:py-24;
+	}
+
+	.editorial-kicker {
+		@apply text-xs font-bold uppercase tracking-[0.18em] text-primary;
+	}
+
+	.editorial-heading {
+		@apply text-balance text-3xl font-bold tracking-[-0.035em] text-foreground sm:text-4xl lg:text-5xl;
+	}
+
+	.editorial-copy {
+		@apply max-w-2xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg sm:leading-8;
+	}
+
+	.interactive-surface {
+		@apply transition-[transform,border-color,background-color,box-shadow] duration-200 ease-out hover:border-primary/25 hover:shadow-lg active:scale-[0.995];
 	}
 }
 

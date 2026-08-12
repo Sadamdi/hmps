@@ -1,13 +1,25 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
+const LOAD_SESSION_KEY = 'app-loaded';
+const CRITICAL_ASSETS = [
+	DEFAULT_IMAGE_URL,
+	'/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp',
+];
+
+function wasLoadedThisSession() {
+	if (typeof window === 'undefined') return false;
+	try {
+		return sessionStorage.getItem(LOAD_SESSION_KEY) === 'true';
+	} catch {
+		return false;
+	}
+}
+
 export function useAppLoading() {
-	const [isLoading, setIsLoading] = useState(() => {
-		// Cek apakah sudah pernah loading di session ini
-		return !sessionStorage.getItem('app-loaded');
-	});
-	const [assetsLoaded, setAssetsLoaded] = useState(false);
-	const [contentLoaded, setContentLoaded] = useState(false);
+	const [isLoading, setIsLoading] = useState(() => !wasLoadedThisSession());
+	const [assetsLoaded, setAssetsLoaded] = useState(() => wasLoadedThisSession());
+	const [contentLoaded, setContentLoaded] = useState(() => wasLoadedThisSession());
 
 	// Preload asset penting dari local assets
 	useEffect(() => {
@@ -29,36 +41,7 @@ export function useAppLoading() {
 						img.src = src;
 					});
 
-				// Preload banner dari local path
-				imagePromises.push(decodeImage(DEFAULT_IMAGE_URL));
-
-				// Preload orang dari local path
-				imagePromises.push(decodeImage(DEFAULT_IMAGE_URL));
-
-				// Preload mobile banner images (yang paling penting untuk mobile)
-				const mobileBanners = [
-					'/attached_assets/benner/ketua.webp',
-					'/attached_assets/benner/wakil.webp',
-					'/attached_assets/benner/intelek.webp',
-					'/attached_assets/benner/pr.webp',
-					'/attached_assets/benner/techno.webp',
-					'/attached_assets/benner/senor.webp',
-					'/attached_assets/benner/medinfo.webp',
-					'/attached_assets/benner/religius.webp',
-				];
-
-				// Preload 3 banner pertama untuk mobile (yang paling penting)
-				const criticalMobileBanners = mobileBanners.slice(0, 3);
-				criticalMobileBanners.forEach((bannerPath) => {
-					imagePromises.push(decodeImage(bannerPath));
-				});
-
-				// Preload logo HMPS
-				imagePromises.push(
-					decodeImage(
-						'/attached_assets/content/1753431673566_LOGO_HMPS___Himatif__b27bdf89e7255aaa.webp',
-					),
-				);
+				CRITICAL_ASSETS.forEach((src) => imagePromises.push(decodeImage(src)));
 
 				// Preload active combined assets (banner + people) agar sinkron dengan hero intro.
 				try {
@@ -98,7 +81,7 @@ export function useAppLoading() {
 		const failSafe = window.setTimeout(() => {
 			setAssetsLoaded(true);
 			setContentLoaded(true);
-		}, 8000);
+		}, 3000);
 		return () => window.clearTimeout(failSafe);
 	}, []);
 
@@ -122,17 +105,20 @@ export function useAppLoading() {
 		}
 	}, [assetsLoaded, contentLoaded]);
 
-	const completeLoading = () => {
+	const completeLoading = useCallback(() => {
 		setIsLoading(false);
-		sessionStorage.setItem('app-loaded', 'true');
-	};
+		try {
+			sessionStorage.setItem(LOAD_SESSION_KEY, 'true');
+		} catch {
+			/* storage can be unavailable */
+		}
+	}, []);
 
-	const forceComplete = () => {
+	const forceComplete = useCallback(() => {
 		setAssetsLoaded(true);
 		setContentLoaded(true);
-		setIsLoading(false);
-		sessionStorage.setItem('app-loaded', 'true');
-	};
+		completeLoading();
+	}, [completeLoading]);
 
 	return {
 		isLoading,
