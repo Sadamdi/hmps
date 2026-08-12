@@ -5,6 +5,13 @@
 # Jalankan DI SERVER:
 #   cd /var/www/hmps && bash ops/deploy-server.sh
 #
+# Reliability (4.16.4+):
+#   - .deploy-built-head: tandai dist sukses untuk HEAD git
+#   - dist stale → paksa rebuild meski commit sudah sync
+#   - ensure-swap: VPS 2GB tanpa swap → vite OOM → dist lama ter-restore
+#   - build retry 2x + NODE_OPTIONS memory cap
+#   - auto-deploy.js juga deploy jika HEAD != .deploy-built-head
+#
 # Apa yang dilakukan:
 #   1. Backup .env + uploads + attached_assets (media)
 #   2. git fetch + reset --hard origin/main  (code = sama persis GitHub)
@@ -168,7 +175,35 @@ dist_matches_head() {
 	local head="$1"
 	[[ -f "$BUILT_HEAD_FILE" ]] || return 1
 	[[ -f "$APP_DIR/dist/public/index.html" ]] || return 1
-	[[ "$(cat "$BUILT_HEAD_FILE" 2>/dev/null)" == "$head" ]]
+	local built
+	built="$(cat "$BUILT_HEAD_FILE" 2>/dev/null)"
+	[[ "$built" == "$head" ]] && return 0
+	# Ops/docs-only: dist runtime masih valid — update marker tanpa rebuild
+	if git cat-file -e "${built}^{commit}" 2>/dev/null &&
+		git diff --quiet "$built" "$head" -- \
+			client/ server/ shared/ db/ public/ package-lock.json \
+			vite.config.ts tailwind.config.js postcss.config.js tsconfig.json index.html 2>/dev/null; then
+		log "Runtime unchanged since $(git rev-parse --short "$built") — dist valid for $(git rev-parse --short "$head")"
+		echo "$head" > "$BUILT_HEAD_FILE"
+		return 0
+	fi
+	return 1
+}
+
+run_build_with_retry() {
+	local attempt max="${HMPS_BUILD_RETRIES:-2}"
+	export NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=1280}"
+	for attempt in $(seq 1 "$max"); do
+		log "npm run build (attempt ${attempt}/${max})"
+		if npm run build 2>&1 | tee -a "$BACKUP_DIR/build.log"; then
+			return 0
+		fi
+		log "Build attempt ${attempt} gagal"
+		[[ "$attempt" -lt "$max" ]] || return 1
+		sleep 8
+		npm_install_with_dev || true
+	done
+	return 1
 }
 
 npm_install_with_dev() {
@@ -193,6 +228,11 @@ npm_install_with_dev() {
 
 cd "$APP_DIR"
 mkdir -p "$BACKUP_DIR"
+
+# Swap mencegah OOM silent kill saat vite build (VPS 2GB sering swap=0)
+if [[ -x "$APP_DIR/ops/ensure-swap.sh" ]]; then
+	bash "$APP_DIR/ops/ensure-swap.sh" || log "ensure-swap warning (non-fatal)"
+fi
 
 export NVM_DIR="${NVM_DIR:-/root/.nvm}"
 if [[ -s "$NVM_DIR/nvm.sh" ]]; then
@@ -300,7 +340,7 @@ pm2_stop_apps
 APPS_STOPPED=1
 
 npm_install_with_dev
-npm run build
+run_build_with_retry
 
 trap - EXIT
 cleanup_start_apps
