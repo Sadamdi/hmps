@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
+import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 
 const TableOfContents = lazy(
 	() => import('@/components/berita/table-of-contents'),
@@ -69,6 +70,7 @@ interface RelatedBerita {
 }
 
 export default function BeritaDetail() {
+	useAosRefreshOnMount();
 	const { id, slug } = useParams<{ id?: string; slug?: string }>();
 	const [, setLocation] = useLocation();
 	const { basePath } = useTenant();
