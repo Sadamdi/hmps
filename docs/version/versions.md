@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.16.4`  
+**Current version:** `4.16.5`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.16.4`](./release/4.16.4.md) | 2026-08-12 | Auto-deploy reliability swap + stale retry | PATCH | 1 | **Current** |
+| [`4.16.5`](./release/4.16.5.md) | 2026-08-12 | Mobile UX navbar, about, berita/galeri cards | PATCH | 1 | **Current** |
+| [`4.16.4`](./release/4.16.4.md) | 2026-08-12 | Auto-deploy reliability swap + stale retry | PATCH | 1 | Released |
 | [`4.16.3`](./release/4.16.3.md) | 2026-08-12 | Deploy: paksa rebuild jika dist stale | PATCH | 1 | Released |
 | [`4.16.2`](./release/4.16.2.md) | 2026-08-12 | Fix AOS invisible sections + navbar/about regressions | PATCH | 1 | Released |
 | [`4.16.1`](./release/4.16.1.md) | 2026-08-12 | Mobile grid galeri/toko + teks tentang ringkas | PATCH | 1 | Released |

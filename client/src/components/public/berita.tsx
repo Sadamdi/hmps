@@ -152,11 +152,11 @@ export default function BeritaList() {
 					</div>
 				) : (
 					<>
-						<div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6">
+						<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
 							{displayedBerita.map((item, index) => (
 								<Card
 									key={item.id || item._id}
-									className="overflow-hidden rounded-xl sm:rounded-2xl border border-border/70 bg-card transition-[border-color,box-shadow,transform] duration-200 group focus-within:ring-2 focus-within:ring-primary/40 hover:border-primary/35 hover:shadow-md active:scale-[0.99]"
+									className="overflow-hidden rounded-xl sm:rounded-2xl border border-border/70 bg-card flex flex-col transition-[border-color,box-shadow,transform] duration-200 group focus-within:ring-2 focus-within:ring-primary/40 hover:border-primary/35 hover:shadow-md active:scale-[0.99]"
 									data-aos="fade-up"
 									data-aos-delay={index * 80}>
 									<Link href={getBeritaUrl(item)}>
@@ -175,20 +175,20 @@ export default function BeritaList() {
 										</div>
 									</Link>
 
-									<CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3">
+									<CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3 flex-1">
 										<Link href={getBeritaUrl(item)}>
-											<h3 className="font-bold text-[13px] sm:text-xl leading-snug line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">
+											<h3 className="font-bold text-sm sm:text-xl leading-snug line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">
 												{item.title}
 											</h3>
 										</Link>
-										<div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-0.5 text-[10px] sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">
-											<div className="hidden sm:flex items-center gap-1 min-w-0 max-w-full">
+										<div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-0.5 text-[11px] sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">
+											<div className="flex items-center gap-1 min-w-0 max-w-full">
 												<User className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-												<span className="truncate">
+												<span className="truncate max-w-[8rem] sm:max-w-none">
 													{item.authorsDisplay || item.author}
 												</span>
 											</div>
-											<div className="flex items-center gap-1">
+											<div className="flex items-center gap-1 shrink-0">
 												<Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
 												<span>{formatDate(item.createdAt)}</span>
 											</div>
@@ -197,8 +197,8 @@ export default function BeritaList() {
 									</CardHeader>
 
 									<CardContent className="px-3 sm:px-6 pt-0 pb-2 sm:pb-0">
-										<p className="text-muted-foreground text-[11px] sm:text-base leading-relaxed mb-2 sm:mb-3 line-clamp-2 sm:line-clamp-3">
-											{truncateText(item.excerpt, isMobile ? 80 : 120)}
+										<p className="text-muted-foreground text-xs sm:text-base leading-relaxed mb-2 sm:mb-3 line-clamp-2 sm:line-clamp-3">
+											{truncateText(item.excerpt, isMobile ? 100 : 120)}
 										</p>
 										{item.tags && item.tags.length > 0 && (
 											<div className="flex flex-wrap gap-1 mb-2 sm:mb-3">
@@ -209,14 +209,14 @@ export default function BeritaList() {
 												))}
 												{item.tags.length > (isMobile ? 2 : 3) && (
 													<Badge variant="outline" className="text-[10px] sm:text-xs">
-														+{item.tags.length - (isMobile ? 2 : 3)} lagi
+														+{item.tags.length - (isMobile ? 2 : 3)}
 													</Badge>
 												)}
 											</div>
 										)}
 									</CardContent>
 
-									<CardFooter className="px-3 sm:px-6 pt-0 pb-3 sm:pb-6">
+									<CardFooter className="px-3 sm:px-6 pt-0 pb-3 sm:pb-6 mt-auto">
 										<Link href={getBeritaUrl(item)}>
 											<Button
 												variant="link"

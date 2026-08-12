@@ -155,12 +155,14 @@ function AnimatedGallery({
 				const animationType = animationTypes[index % animationTypes.length];
 
 				const sizeScale =
-					typeof window !== 'undefined' && window.innerWidth < 1024 ? 0.52 : 1;
+					typeof window !== 'undefined' && window.innerWidth < 1024 ? 0.38 : 1;
+				const mobileOpacity =
+					typeof window !== 'undefined' && window.innerWidth < 1024 ? 0.35 : 0.8;
 
 				return (
 					<div
 						key={`${image}-${index}`}
-						className={`absolute overflow-hidden rounded-xl shadow-lg transform transition-all duration-700 hover:scale-110 hover:shadow-2xl pointer-events-auto animate-${animationType} max-lg:opacity-75`}
+						className={`absolute overflow-hidden rounded-xl shadow-lg transform transition-all duration-700 hover:scale-110 hover:shadow-2xl pointer-events-auto animate-${animationType} max-lg:opacity-40 max-lg:pointer-events-none`}
 						style={{
 							[side === 'left' ? 'left' : 'right']: `${position.x}%`,
 							top: `${position.y}%`,
@@ -171,7 +173,7 @@ function AnimatedGallery({
 							animationIterationCount: 'infinite',
 							animationTimingFunction: 'ease-in-out',
 							transform: `rotate(${position.rotation}deg)`,
-							opacity: 0.8, // Slightly more visible
+							opacity: mobileOpacity,
 							zIndex: 1,
 							willChange: 'transform', // Optimize for animation
 						}}>
@@ -196,8 +198,27 @@ function AnimatedGallery({
 	);
 }
 
-function MobilePhotoStrip(_props: { images: string[] }) {
-	return null;
+function MobilePhotoStrip({ images }: { images: string[] }) {
+	const picks = images.slice(0, 6);
+	if (picks.length === 0) return null;
+	return (
+		<div className="lg:hidden mb-5 -mx-1">
+			<div className="flex gap-2.5 overflow-x-auto pb-1 px-1 snap-x snap-mandatory scrollbar-thin">
+				{picks.map((src, i) => (
+					<div
+						key={`${src}-${i}`}
+						className="snap-start shrink-0 w-[42vw] max-w-[168px] aspect-[4/3] rounded-xl overflow-hidden border border-border/60 shadow-sm">
+						<img
+							src={src}
+							alt=""
+							className="w-full h-full object-cover"
+							loading="lazy"
+						/>
+					</div>
+				))}
+			</div>
+		</div>
+	);
 }
 
 export default function About() {
@@ -294,15 +315,17 @@ export default function About() {
 					aosDelay={180}
 				/>
 
-				<div className="max-w-3xl mx-auto relative mt-4 sm:mt-8">
+				<MobilePhotoStrip images={galleryImages} />
+
+				<div className="max-w-3xl mx-auto relative mt-2 sm:mt-8">
 					{aboutHtml ? (
 						<div className="space-y-4">
-							<div className="relative bg-card/90 border border-border/70 rounded-xl p-4 sm:p-8 shadow-sm">
+							<div className="relative bg-card/95 backdrop-blur-sm border border-border/70 rounded-xl p-5 sm:p-8 shadow-md max-lg:shadow-lg">
 								<div
 									className={`prose prose-sm sm:prose-lg max-w-none leading-relaxed text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
 										aboutExpanded
 											? ''
-											: 'max-h-[7.5rem] sm:max-h-[14rem] overflow-hidden'
+											: 'max-h-[11rem] sm:max-h-[14rem] overflow-hidden'
 									}`}>
 									<div
 										dangerouslySetInnerHTML={{ __html: aboutHtml }}
@@ -310,7 +333,7 @@ export default function About() {
 									/>
 								</div>
 								{!aboutExpanded && (
-									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 sm:h-20 rounded-b-xl bg-gradient-to-t from-card via-card/90 to-transparent" />
+									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 sm:h-20 rounded-b-xl bg-gradient-to-t from-card via-card/95 to-transparent" />
 								)}
 							</div>
 							<div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3">
