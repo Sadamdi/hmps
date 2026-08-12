@@ -198,29 +198,6 @@ function AnimatedGallery({
 	);
 }
 
-function MobilePhotoStrip({ images }: { images: string[] }) {
-	const picks = images.slice(0, 6);
-	if (picks.length === 0) return null;
-	return (
-		<div className="lg:hidden mb-5 -mx-1">
-			<div className="flex gap-2.5 overflow-x-auto pb-1 px-1 snap-x snap-mandatory scrollbar-thin">
-				{picks.map((src, i) => (
-					<div
-						key={`${src}-${i}`}
-						className="snap-start shrink-0 w-[42vw] max-w-[168px] aspect-[4/3] rounded-xl overflow-hidden border border-border/60 shadow-sm">
-						<img
-							src={src}
-							alt=""
-							className="w-full h-full object-cover"
-							loading="lazy"
-						/>
-					</div>
-				))}
-			</div>
-		</div>
-	);
-}
-
 export default function About() {
 	const { data: settings } = useQuery<Settings>({
 		queryKey: ['/api/settings'],
@@ -315,17 +292,16 @@ export default function About() {
 					aosDelay={180}
 				/>
 
-				<MobilePhotoStrip images={galleryImages} />
-
-				<div className="max-w-3xl mx-auto relative mt-2 sm:mt-8">
+				<div className="max-w-3xl mx-auto relative mt-4 sm:mt-8">
 					{aboutHtml ? (
 						<div className="space-y-4">
+							{/* Mobile: teks penuh. Desktop: clamp + Baca di sini */}
 							<div className="relative bg-card/95 backdrop-blur-sm border border-border/70 rounded-xl p-5 sm:p-8 shadow-md max-lg:shadow-lg">
 								<div
 									className={`prose prose-sm sm:prose-lg max-w-none leading-relaxed text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
 										aboutExpanded
 											? ''
-											: 'max-h-[11rem] sm:max-h-[14rem] overflow-hidden'
+											: 'sm:max-h-[14rem] sm:overflow-hidden'
 									}`}>
 									<div
 										dangerouslySetInnerHTML={{ __html: aboutHtml }}
@@ -333,14 +309,14 @@ export default function About() {
 									/>
 								</div>
 								{!aboutExpanded && (
-									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 sm:h-20 rounded-b-xl bg-gradient-to-t from-card via-card/95 to-transparent" />
+									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 rounded-b-xl bg-gradient-to-t from-card via-card/95 to-transparent hidden sm:block" />
 								)}
 							</div>
 							<div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3">
 								<button
 									type="button"
 									onClick={() => setAboutExpanded((v) => !v)}
-									className="inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold border border-border text-foreground hover:bg-secondary transition-colors">
+									className="hidden sm:inline-flex min-h-11 items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold border border-border text-foreground hover:bg-secondary transition-colors">
 									{aboutExpanded ? 'Ringkas' : 'Baca di sini'}
 								</button>
 								<Link href="/profil">
