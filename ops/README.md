@@ -54,7 +54,12 @@ Script: sync git dulu. Commit docs/skills/ops **tidak** stop app. Perubahan `cli
 **Auto-deploy** (`/root/auto-deploy.js`, PM2 `hmps-auto-deploy`) tiap 30 detik:
 
 1. `ops/auto-push-media.sh` — commit+push media baru (author: Sulthan Adam Rahmadi)  
-2. Jika `origin/main` lebih baru → `ops/deploy-server.sh` (skip rebuild bila bukan runtime)
+2. Deploy jika `origin/main` lebih baru **atau** dist stale (runtime berubah sejak `.deploy-built-head`)  
+3. Retry otomatis tiap 30s bila build gagal — tidak stuck “git baru + bundle lama”
+
+Setelah update `ops/auto-deploy.js` di repo: `bash ops/install-auto-deploy.sh` di server.
+
+**Reliability (4.16.4+):** VPS 2GB wajib swap (`ops/ensure-swap.sh`), build retry 2x, `.deploy-built-head` marker.
 
 Survive reboot via `pm2-root.service` + `pm2 save`.
 

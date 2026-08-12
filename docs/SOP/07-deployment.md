@@ -1,4 +1,4 @@
-﻿# SOP 07 — Deployment HMPS
+# SOP 07 — Deployment HMPS
 
 ## Build & Run
 
@@ -28,10 +28,12 @@ Alur aman (auto + manual):
 | Jalur | Path | Perilaku |
 |-------|------|----------|
 | Manual | `cd /var/www/hmps && bash ops/deploy-server.sh` | Langkah 2–4 di atas |
-| Auto watcher | PM2 `hmps-auto-deploy` → `/root/auto-deploy.js` | Tiap ~30s: langkah 1 lalu 2–4 bila `origin/main` lebih baru |
+| Auto watcher | PM2 `hmps-auto-deploy` → `/root/auto-deploy.js` | Tiap ~30s: langkah 1 lalu deploy jika `origin/main` lebih baru **atau** dist stale (`.deploy-built-head` ≠ HEAD) |
 | Reboot | systemd `pm2-root.service` + `pm2 save` | Resurrect `hmps-app`, `himatif-banner`, `hmps-auto-deploy` |
 
-VPS ~2 GB RAM / 0 swap: jangan `npm ci` sambil app masih jalan.
+VPS ~2 GB RAM: jalankan `bash ops/ensure-swap.sh` sekali (swap 2GB). Build retry 2x + `NODE_OPTIONS=--max-old-space-size=1280`. Jangan `npm ci` sambil app masih jalan.
+
+**Dist stale (4.16.4+):** bila build gagal, trap restore dist lama → site tetap jalan tapi bundle lama. Auto-deploy **retry tiap 30s** sampai `.deploy-built-head` = HEAD. Update watcher: `bash ops/install-auto-deploy.sh` (salin `ops/auto-deploy.js` → `/root/auto-deploy.js`).
 
 **Wajib vite di `dependencies` + `--include=dev`:** `dist/index.js` dan `server/vite.ts` meng-import `vite`. Sejak 4.15.1 `vite`/`esbuild` ada di `dependencies`, tapi `NODE_ENV=production` dari PM2 tetap bisa memangkas bin lama. Script deploy meng-`unset NODE_ENV`, cek `node_modules/.bin/vite` **executable**, force-install vite jika bin hilang, dan FATAL sebelum build. Auto-deploy child env: `NODE_ENV=development` + `NPM_CONFIG_PRODUCTION=false`.
 

@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.4] — 2026-08-12
+
+**Auto-deploy reliability** · PATCH · [Full release notes](../release/4.16.4.md)
+
+### Highlights
+- Swap 2GB + build retry — cegah OOM silent fail di VPS 2GB
+- Auto-deploy retry otomatis bila dist stale (tidak perlu SSH manual)
+
+---
+
 ## [4.16.3] — 2026-08-12
 
 **Deploy: paksa rebuild jika dist stale** · PATCH · [Full release notes](../release/4.16.3.md)
