@@ -11,6 +11,15 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.3] — 2026-08-12
+
+**Deploy: paksa rebuild jika dist stale** · PATCH · [Full release notes](../release/4.16.3.md)
+
+### Highlights
+- Cegah auto-deploy stuck: git baru tapi bundle lama setelah build gagal + restore dist
+
+---
+
 ## [4.16.2] — 2026-08-12
 
 **Fix AOS invisible sections + navbar/about regressions** · PATCH · [Full release notes](../release/4.16.2.md)

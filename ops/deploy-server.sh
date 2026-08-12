@@ -22,6 +22,7 @@ set -euo pipefail
 
 APP_DIR="${HMPS_APP_DIR:-$(cd "$(dirname "$0")/.." && pwd)}"
 BACKUP_ROOT="${HMPS_BACKUP_ROOT:-/var/backups/hmps-deploy}"
+BUILT_HEAD_FILE="$APP_DIR/.deploy-built-head"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DIR="$BACKUP_ROOT/$TIMESTAMP"
 
@@ -163,6 +164,13 @@ vite_missing() {
 	[[ ! -x "$APP_DIR/node_modules/.bin/vite" ]]
 }
 
+dist_matches_head() {
+	local head="$1"
+	[[ -f "$BUILT_HEAD_FILE" ]] || return 1
+	[[ -f "$APP_DIR/dist/public/index.html" ]] || return 1
+	[[ "$(cat "$BUILT_HEAD_FILE" 2>/dev/null)" == "$head" ]]
+}
+
 npm_install_with_dev() {
 	# PM2 auto-deploy jalan dengan NODE_ENV=production → npm memangkas devDeps (vite).
 	export NPM_CONFIG_PRODUCTION=false
@@ -229,6 +237,13 @@ if vite_missing; then
 	NEED_NPM=1
 	NEED_BUILD=1
 fi
+if [[ "${HMPS_FORCE_REBUILD:-0}" == "1" ]]; then
+	log "HMPS_FORCE_REBUILD=1 — paksa rebuild"
+	NEED_BUILD=1
+elif ! dist_matches_head "$NEW_HEAD"; then
+	log "dist belum di-build untuk HEAD $(git rev-parse --short "$NEW_HEAD") — paksa rebuild (cegah git baru + bundle lama)"
+	NEED_BUILD=1
+fi
 
 if [[ "$NEED_BUILD" -eq 0 && "$NEED_NPM" -eq 0 ]]; then
 	log "=== skip npm/build === hanya docs/ops/skills atau sudah sync. App tetap jalan."
@@ -271,6 +286,10 @@ cleanup_start_apps() {
 	if [[ "$ec" -ne 0 ]]; then
 		log "Deploy gagal setelah sync — app dihidupkan dari dist cadangan. Cek log npm/build."
 		exit "$ec"
+	fi
+	if [[ "$APPS_STOPPED" -eq 1 ]]; then
+		echo "$NEW_HEAD" > "$BUILT_HEAD_FILE"
+		log "Tandai dist built untuk HEAD $(git rev-parse --short "$NEW_HEAD")"
 	fi
 	log "Selesai. HEAD = $(git rev-parse --short HEAD) ($(git log -1 --format='%s'))"
 	log "Backup tersimpan di: $BACKUP_DIR"
