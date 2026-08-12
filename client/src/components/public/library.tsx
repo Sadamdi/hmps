@@ -57,13 +57,15 @@ function LibraryGalleryCard({
 	const showCarousel = !hasFolder && images.length > 1;
 	const slide = Math.min(slideIndex, Math.max(0, images.length - 1));
 
+	const detailHref = `/library/${toSlug(item.title) || item._id || item.id}`;
+
 	return (
 		<div
-			className="bg-card rounded-lg overflow-hidden shadow-md border border-border/70 hover:shadow-lg hover:border-primary/40 transition-all"
+			className="bg-card rounded-xl sm:rounded-lg overflow-hidden shadow-sm sm:shadow-md border border-border/70 hover:shadow-md sm:hover:shadow-lg hover:border-primary/40 transition-all active:scale-[0.99] sm:active:scale-100"
 			data-aos="fade-up"
 			data-aos-delay={index * 100}>
 			<div
-				className="h-48 relative overflow-hidden group touch-pan-y"
+				className="aspect-[4/3] sm:h-48 relative overflow-hidden group touch-pan-y"
 				onPointerDownCapture={() => setHidePlayHint(true)}>
 				{item.gdriveEmbedFolders && item.gdriveEmbedFolders.length > 0 ? (
 					<div className="h-full w-full flex flex-col items-center justify-center bg-muted text-muted-foreground">
@@ -151,9 +153,21 @@ function LibraryGalleryCard({
 				)}
 			</div>
 
-			<div className="p-4 sm:p-5">
+			{/* Mobile: judul + tanggal saja */}
+			<div className="p-2.5 sm:hidden space-y-1">
+				<Link href={detailHref}>
+					<h3 className="font-semibold text-[13px] leading-snug line-clamp-2 text-foreground active:text-primary">
+						{item.title}
+					</h3>
+				</Link>
+				{item.date ? (
+					<p className="text-[10px] text-muted-foreground tabular-nums">{item.date}</p>
+				) : null}
+			</div>
+
+			<div className="hidden sm:block p-4 sm:p-5">
 				<div className="mb-2">
-					<Link href={`/library/${toSlug(item.title) || item._id || item.id}`}>
+					<Link href={detailHref}>
 						<h3 className="font-bold text-lg leading-snug line-clamp-2 hover:text-primary transition-colors cursor-pointer">
 							{item.title}
 						</h3>
@@ -258,7 +272,7 @@ function LibraryGalleryCard({
 						</DialogContent>
 					</Dialog>
 					<Link
-						href={`/library/${toSlug(item.title) || item._id || item.id}`}
+						href={detailHref}
 						className="text-sm font-medium text-muted-foreground hover:text-primary underline underline-offset-2">
 						Halaman detail
 					</Link>
@@ -435,16 +449,15 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 
 				{isLoading ? (
 					<div className="animate-pulse space-y-8">
-						<div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
-							{[...Array(3)].map((_, i) => (
+						<div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
+							{[...Array(4)].map((_, i) => (
 								<div
 									key={i}
-									className="bg-card rounded-lg overflow-hidden shadow-md border border-border/60">
-									<div className="h-48 bg-gray-200" />
-									<div className="p-6 space-y-3">
-										<div className="h-4 bg-gray-200 rounded w-3/4" />
-										<div className="h-4 bg-gray-200 rounded" />
-										<div className="h-4 bg-gray-200 rounded w-5/6" />
+									className="bg-card rounded-xl sm:rounded-lg overflow-hidden shadow-sm border border-border/60">
+									<div className="aspect-[4/3] sm:h-48 bg-gray-200" />
+									<div className="p-2.5 sm:p-6 space-y-2 sm:space-y-3">
+										<div className="h-3 sm:h-4 bg-gray-200 rounded w-full" />
+										<div className="hidden sm:block h-4 bg-gray-200 rounded w-5/6" />
 									</div>
 								</div>
 							))}
@@ -452,7 +465,7 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 					</div>
 				) : (
 					<>
-						<div className="grid md:grid-cols-3 sm:grid-cols-2 gap-8">
+						<div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
 							{filteredLibraryItems.map((item: LibraryItem, index) => (
 								<LibraryGalleryCard
 									key={item._id || item.id}

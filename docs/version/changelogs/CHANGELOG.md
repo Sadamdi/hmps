@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.1] — 2026-08-12
+
+**Mobile grid galeri/toko + teks tentang ringkas** · PATCH · [Full release notes](../release/4.16.1.md)
+
+### Highlights
+- Galeri & toko home: grid 2 kolom compact di mobile (bukan 1 kolom besar)
+- Tentang kami & profil: clamp teks lebih pendek sebelum expand
+
+---
+
 ## [4.16.0] — 2026-08-12
 
 **Full platform UX redesign** · MINOR · [Full release notes](../release/4.16.0.md)
