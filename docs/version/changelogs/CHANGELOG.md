@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.5] — 2026-08-12
+
+**Mobile UX polish** · PATCH · [Full release notes](../release/4.16.5.md)
+
+### Highlights
+- Menu mobile paling kanan; theme toggle di kirinya
+- Tentang Kami: photo strip + teks lebih panjang di mobile
+- Berita & Galeri: card 2×2 struktur sama desktop (compact)
+
+---
+
 ## [4.16.4] — 2026-08-12
 
 **Auto-deploy reliability** · PATCH · [Full release notes](../release/4.16.4.md)

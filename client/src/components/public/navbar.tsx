@@ -1638,8 +1638,18 @@ export default function Navbar({
 							</button>
 						</div>
 
-						{/* Mobile kanan: menu navigasi + theme toggle */}
+						{/* Mobile kanan: theme toggle (kiri) + menu navigasi (paling kanan) */}
 						<div className="flex sm:hidden items-center gap-1">
+							<button
+								onClick={toggleTheme}
+								className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+								aria-label={theme === 'dark' ? 'Mode siang' : 'Mode malam'}>
+								{theme === 'dark' ? (
+									<Sun className="h-4 w-4 text-amber-400" />
+								) : (
+									<Moon className="h-4 w-4 text-slate-500" />
+								)}
+							</button>
 							<button
 								type="button"
 								aria-label={isMobileNavCollapsed ? 'Buka navigasi' : 'Tutup navigasi'}
@@ -1658,16 +1668,6 @@ export default function Navbar({
 										: 'bg-primary/15 text-primary'
 								}`}>
 								<Menu className="h-5 w-5" />
-							</button>
-							<button
-								onClick={toggleTheme}
-								className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
-								aria-label={theme === 'dark' ? 'Mode siang' : 'Mode malam'}>
-								{theme === 'dark' ? (
-									<Sun className="h-4 w-4 text-amber-400" />
-								) : (
-									<Moon className="h-4 w-4 text-slate-500" />
-								)}
 							</button>
 						</div>
 					</div>

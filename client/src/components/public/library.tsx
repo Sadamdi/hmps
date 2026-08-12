@@ -62,7 +62,7 @@ function LibraryGalleryCard({
 
 	return (
 		<div
-			className="bg-card rounded-xl sm:rounded-lg overflow-hidden shadow-sm sm:shadow-md border border-border/70 hover:shadow-md sm:hover:shadow-lg hover:border-primary/40 transition-all active:scale-[0.99] sm:active:scale-100"
+			className="bg-card rounded-xl sm:rounded-lg overflow-hidden shadow-sm sm:shadow-md border border-border/70 hover:shadow-md sm:hover:shadow-lg hover:border-primary/40 transition-all active:scale-[0.99] sm:active:scale-100 flex flex-col h-full"
 			data-aos="fade-up"
 			data-aos-delay={index * 100}>
 			<div
@@ -154,102 +154,58 @@ function LibraryGalleryCard({
 				)}
 			</div>
 
-			{/* Mobile: judul + tanggal saja */}
-			<div className="p-2.5 sm:hidden space-y-1">
-				<Link href={detailHref}>
-					<h3 className="font-semibold text-[13px] leading-snug line-clamp-2 text-foreground active:text-primary">
-						{item.title}
-					</h3>
-				</Link>
-				{item.date ? (
-					<p className="text-[10px] text-muted-foreground tabular-nums">{item.date}</p>
-				) : null}
-			</div>
-
-			<div className="hidden sm:block p-4 sm:p-5">
-				<div className="mb-2">
+			{/* Satu layout card — mobile 2×2 mirip desktop, hanya lebih compact */}
+			<div className="p-3 sm:p-4 md:p-5 flex flex-col flex-1">
+				<div className="mb-1.5 sm:mb-2">
 					<Link href={detailHref}>
-						<h3 className="font-bold text-lg leading-snug line-clamp-2 hover:text-primary transition-colors cursor-pointer">
+						<h3 className="font-bold text-sm sm:text-lg leading-snug line-clamp-2 hover:text-primary transition-colors cursor-pointer">
 							{item.title}
 						</h3>
 					</Link>
 				</div>
 				{item.authorsDisplay && (
-					<p className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
-						<User className="h-3 w-3 shrink-0" /> {item.authorsDisplay}
+					<p className="text-[10px] sm:text-xs text-muted-foreground mb-1 flex items-center gap-1">
+						<User className="h-3 w-3 shrink-0" />
+						<span className="truncate">{item.authorsDisplay}</span>
 					</p>
 				)}
-				<div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground mb-2">
+				<div className="flex flex-wrap items-center gap-x-2 sm:gap-x-3 gap-y-0.5 text-[10px] sm:text-xs text-muted-foreground mb-1.5 sm:mb-2">
 					{item.date && (
-						<span className="flex items-center gap-1">
+						<span className="flex items-center gap-1 shrink-0">
 							<Calendar className="h-3 w-3" /> {item.date}
 						</span>
 					)}
 					{typeof item.viewCount === 'number' && (
-						<span className="flex items-center gap-1">
+						<span className="hidden sm:flex items-center gap-1">
 							<Eye className="h-3 w-3" /> {item.viewCount} pembaca
 						</span>
 					)}
 				</div>
 				{item.description ? (
-					<p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+					<p className="text-[11px] sm:text-sm text-muted-foreground mb-2 sm:mb-3 line-clamp-2">
 						{item.description}
 					</p>
 				) : null}
 				{item.tags && item.tags.length > 0 && (
-					<div className="flex flex-wrap gap-1 mb-3">
-						{item.tags.slice(0, 3).map((t) => (
+					<div className="flex flex-wrap gap-1 mb-2 sm:mb-3">
+						{item.tags.slice(0, 2).map((t) => (
 							<Badge key={t} variant="outline" className="text-[10px] px-1.5 py-0">
 								{t}
 							</Badge>
 						))}
-						{item.tags.length > 3 && (
+						{item.tags.length > 2 && (
 							<Badge variant="outline" className="text-[10px] px-1.5 py-0">
-								+{item.tags.length - 3}
+								+{item.tags.length - 2}
 							</Badge>
 						)}
 					</div>
 				)}
-				{(item.relatedBeritaPreview && item.relatedBeritaPreview.length > 0) ||
-				(item.relatedEventsPreview && item.relatedEventsPreview.length > 0) ? (
-					<div className="flex flex-wrap gap-2 mb-3 pt-2 border-t border-border">
-						<span className="text-xs font-semibold text-muted-foreground w-full">
-							Terkait:
-						</span>
-						{item.relatedBeritaPreview?.map((b) => (
-							<Link
-							key={b._id}
-							href={
-								b.slug
-									? `/berita/${b.slug}`
-									: `/berita/${b._id}`
-							}>
-								<span className="inline-flex items-center rounded-full bg-primary/10 text-primary px-3 py-1 text-[10px] sm:text-xs hover:bg-primary/20">
-									Berita: {b.title}
-								</span>
-							</Link>
-						))}
-						{item.relatedEventsPreview?.map((ev) => (
-							<Link
-								key={ev._id}
-								href={
-									ev.year
-										? `/events/${ev.year}/${toSlug(ev.title) || ev._id}`
-										: `/events/all`
-								}>
-								<span className="inline-flex items-center rounded-full bg-secondary text-foreground px-3 py-1 text-[10px] sm:text-xs hover:bg-secondary/80">
-									Event: {ev.title}
-								</span>
-							</Link>
-						))}
-					</div>
-				) : null}
-				<div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+				<div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-auto pt-1">
 					<Dialog>
 						<DialogTrigger asChild>
 							<Button
 								variant="link"
-								className="text-primary hover:text-primary/80 p-0 h-auto font-medium">
+								className="text-primary hover:text-primary/80 p-0 h-auto font-medium text-xs sm:text-sm min-h-8">
 								Cepat lihat →
 							</Button>
 						</DialogTrigger>
@@ -274,8 +230,8 @@ function LibraryGalleryCard({
 					</Dialog>
 					<Link
 						href={detailHref}
-						className="text-sm font-medium text-muted-foreground hover:text-primary underline underline-offset-2">
-						Halaman detail
+						className="text-[11px] sm:text-sm font-medium text-muted-foreground hover:text-primary underline underline-offset-2">
+						Detail
 					</Link>
 				</div>
 			</div>
@@ -451,7 +407,7 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 
 				{isLoading ? (
 					<div className="animate-pulse space-y-8">
-						<div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
+						<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8">
 							{[...Array(4)].map((_, i) => (
 								<div
 									key={i}
@@ -467,7 +423,7 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 					</div>
 				) : (
 					<>
-						<div className="grid grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-6 lg:gap-8">
+						<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 lg:gap-8">
 							{filteredLibraryItems.map((item: LibraryItem, index) => (
 								<LibraryGalleryCard
 									key={item._id || item.id}
