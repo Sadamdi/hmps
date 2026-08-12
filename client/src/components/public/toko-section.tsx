@@ -15,7 +15,7 @@ import StoreProductCard from './store-product-card';
 type PublicProductsPage = { items: any[]; total: number; page: number; limit: number };
 
 const INITIAL_DESKTOP = 6;
-const INITIAL_MOBILE = 3;
+const INITIAL_MOBILE = 4;
 const MAX_DESKTOP = 12;
 const MAX_MOBILE = 6;
 
@@ -115,8 +115,8 @@ export default function TokoSection() {
 						<Skeleton className="h-1 w-20 mx-auto mb-4" />
 						<Skeleton className="h-6 w-96 mx-auto" />
 					</div>
-					<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-						{[...Array(6)].map((_, i) => (
+					<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
+						{[...Array(4)].map((_, i) => (
 							<Card key={i} className="overflow-hidden">
 								<Skeleton className="aspect-[4/3] w-full" />
 								<CardContent className="p-4 space-y-2">
@@ -153,7 +153,7 @@ export default function TokoSection() {
 					</div>
 				) : (
 					<>
-						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+						<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
 							{displayedProducts.map((p: any, index: number) => (
 								<StoreProductCard
 									key={p._id}

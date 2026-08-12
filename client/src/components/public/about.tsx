@@ -323,7 +323,7 @@ export default function About() {
 									className={`prose prose-sm sm:prose-lg max-w-none leading-relaxed text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
 										aboutExpanded
 											? ''
-											: 'max-h-[9.5rem] sm:max-h-[14rem] overflow-hidden'
+											: 'max-h-[4.5rem] sm:max-h-[14rem] overflow-hidden [&_p]:line-clamp-3 sm:[&_p]:line-clamp-none'
 									}`}>
 									<div
 										dangerouslySetInnerHTML={{ __html: aboutHtml }}
@@ -331,7 +331,7 @@ export default function About() {
 									/>
 								</div>
 								{!aboutExpanded && (
-									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-20 rounded-b-xl bg-gradient-to-t from-card via-card/90 to-transparent" />
+									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 sm:h-20 rounded-b-xl bg-gradient-to-t from-card via-card/90 to-transparent" />
 								)}
 							</div>
 							<div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center gap-2 sm:gap-3">

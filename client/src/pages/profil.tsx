@@ -177,12 +177,14 @@ export default function ProfilPage() {
 								<div
 									className={`prose prose-sm sm:prose-base max-w-none leading-relaxed text-foreground
 								prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
-									introExpanded ? '' : 'max-h-[12rem] sm:max-h-[18rem] overflow-hidden'
+									introExpanded
+										? ''
+										: 'max-h-[5rem] sm:max-h-[18rem] overflow-hidden [&_p]:line-clamp-4 sm:[&_p]:line-clamp-none'
 								}`}
 									dangerouslySetInnerHTML={{ __html: intro }}
 								/>
 								{!introExpanded && (
-									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 rounded-b-xl bg-gradient-to-t from-card via-card/95 to-transparent" />
+									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 sm:h-24 rounded-b-xl bg-gradient-to-t from-card via-card/95 to-transparent" />
 								)}
 							</div>
 							<div className="flex justify-center">
