@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.6] — 2026-08-12
+
+**About mobile cleanup** · PATCH · [Full release notes](../release/4.16.6.md)
+
+### Highlights
+- Hapus photo strip slide di Tentang Kami (mobile)
+- Hapus tombol Baca di sini di mobile; teks tampil penuh
+
+---
+
 ## [4.16.5] — 2026-08-12
 
 **Mobile UX polish** · PATCH · [Full release notes](../release/4.16.5.md)
