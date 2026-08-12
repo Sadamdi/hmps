@@ -16,6 +16,7 @@ server/public
 vite.config.ts.*
 *.tar.gz
 .env
+.deploy-built-head
 openai-working.json
 .kiro
 server/gen-lang-client-0095636115-aab30f032fed.json
