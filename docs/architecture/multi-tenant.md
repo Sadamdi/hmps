@@ -34,7 +34,7 @@ sequenceDiagram
 ## Home / provisioning defaults
 
 - New tenants seed `homeConfig` from `DEFAULT_TENANT_HOME_CONFIG` (no Prodi) via `initializeTenantSettings` in `server/tenant-storage.ts`.
-- Blank tenant settings also force empty `aboutPageIntro`, `aboutPageTrackRecord`, `visionMission` (no Himatif seed).
+- Blank tenant settings also force empty `aboutPageIntro`, `aboutPageTrackRecord`, `visionMission` di DB (tidak di-copy Himatif ke storage).
 - `navbarBrand` uses full community name (not truncated to 10 chars).
 - Public home (`client/src/pages/index.tsx`): if tenant and `homeConfig.blocks` is empty, fallback to `DEFAULT_TENANT_HOME_CONFIG`, **not** main `DEFAULT_HOME_CONFIG`.
 - Shared feedback/security code paths apply equally to `/api/feedback` and `/api/c/:slug/feedback`.
@@ -46,14 +46,14 @@ sequenceDiagram
 - SSR production injects tenant `siteName` / `logoUrl` for `/:slug` and nested public pages.
 - Sitemap includes active tenant landing + tenant berita. `/api/info` returns `{ slug, name, isTenant }`.
 - Navbar shows `settings.logoUrl` when set. Favicon on tenant shell follows logo.
-- Himatif copy/logo fallback is **main-only**. Tenant empty fields use empty-state or `siteName`.
+- Identitas (siteName / slug / URL / auth / logo jika sudah diisi) tetap tenant. Field chrome yang **kosong** (hero image, footer alamat/email/sosial/tautan, tagline, about, visi) **fallback ke default Himatif** supaya halaman tidak gelap/kosong. Kalau tenant mengisi field sendiri, itu yang dipakai.
 - Auth: JWT main tidak di-resolve sebagai user tenant. `GET /api/c/:slug/auth/me` 401 = logged out di tenant UI (tidak fallback `/api/auth/me`).
 - `GET /api/prodi` 404 on tenant. Reserved slug list used at register (server + client).
 - `App.tsx` tidak menunggu `/api/store/public/settings` (main) untuk path tenant-like (`getTenantSlugFromPathname`). Path `/:slug` bukan toko dinamis.
 - Slug komunitas tidak valid: `CommunityShell` tampil 404 **tanpa** auto-redirect ke beranda Himatif (`NotFound redirectTo={null}`).
 - Query store settings tenant punya timeout 8s; gagal → fallback `/toko` (bukan spinner abadi).
 - Breadcrumb di dalam `CommunityShell` harus `href="/"` (wouter base), bukan `basePath` absolut — hindari `/:slug/:slug`.
-- Hero tenant tanpa banner: `logoUrl` atau kosong. `DEFAULT_IMAGE_URL` Himatif hanya fallback main.
+- Hero tenant tanpa banner: `logoUrl` tenant, kalau kosong `DEFAULT_IMAGE_URL` Himatif.
 
 ## Tenant-Aware Feature Checklist
 

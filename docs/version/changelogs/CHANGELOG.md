@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.15.3] — 2026-08-12
+
+**Tenant empty chrome fallback Himatif** · PATCH · [Full release notes](../release/4.15.3.md)
+
+### Highlights
+- Tenant belum di-setup tidak lagi hero gelap + footer kosong
+- Hero/footer/about/visi/tagline kosong memakai default Himatif; identitas tenant tetap
+
+---
+
 ## [4.15.2] — 2026-08-12
 
 **Tenant breadcrumb + hero fallback** · PATCH · [Full release notes](../release/4.15.2.md)

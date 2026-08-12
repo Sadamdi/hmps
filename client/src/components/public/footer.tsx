@@ -7,9 +7,16 @@ import { getOrCreateGuestSecret } from '@/lib/guest-identity';
 import { queryClient } from '@/lib/queryClient';
 import type { FeedbackMedia, FeedbackFormConfig, FeedbackFieldDefinition } from '@shared/schema';
 import { DEFAULT_FEEDBACK_FORM_CONFIG } from '@shared/schema';
+import {
+	HIMATIF_ADDRESS,
+	HIMATIF_CONTACT_EMAIL,
+	withHimatifQuickLinks,
+	withHimatifSocial,
+} from '@shared/himatif-defaults';
 import { useTenant } from '@/lib/tenant-context';
 
 interface Settings {
+	siteName?: string;
 	contactEmail?: string;
 	address?: string;
 	mapsEmbedUrl?: string;
@@ -377,20 +384,16 @@ export default function Footer() {
 	);
 
 	const { isTenant } = useTenant();
-	const contactEmail = settings?.contactEmail || (isTenant ? '' : 'himatif.encoder@gmail.com');
-	const address = settings?.address || (isTenant ? '' : 'Gedung Fakultas Sains dan Teknologi UIN Malang, Jl. Gajayana No.50, Malang');
+	const contactEmail = settings?.contactEmail || HIMATIF_CONTACT_EMAIL;
+	const address = settings?.address || HIMATIF_ADDRESS;
 	const mapsEmbedUrl = settings?.mapsEmbedUrl || '';
-	const footerText = settings?.footerText || `\u00A9 ${new Date().getFullYear()} Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.`;
-	const socialLinks = settings?.socialLinks || { facebook: '#', tiktok: '#', instagram: '#', youtube: '#' };
-	const oldLinks = settings?.links || { uinMalang: 'https://uin-malang.ac.id/', fakultasSainsTeknologi: 'https://saintek.uin-malang.ac.id/', jurusanTeknikInformatika: 'https://informatika.uin-malang.ac.id/', perpustakaan: 'https://library.uin-malang.ac.id/' };
-	const quickLinks: Array<{ label: string; url: string }> = settings?.quickLinks?.length
-		? settings.quickLinks
-		: [
-			{ label: 'UIN Malang', url: oldLinks.uinMalang },
-			{ label: 'Fakultas Sains dan Teknologi', url: oldLinks.fakultasSainsTeknologi },
-			{ label: 'Jurusan Teknik Informatika', url: oldLinks.jurusanTeknikInformatika },
-			{ label: 'Perpustakaan', url: oldLinks.perpustakaan },
-		].filter((l) => l.url);
+	const footerText =
+		settings?.footerText ||
+		(isTenant
+			? `\u00A9 ${new Date().getFullYear()} ${settings?.siteName || 'Komunitas'}. All rights reserved.`
+			: `\u00A9 ${new Date().getFullYear()} Himpunan Mahasiswa Teknik Informatika UIN Malang. All rights reserved.`);
+	const socialLinks = withHimatifSocial(settings?.socialLinks);
+	const quickLinks = withHimatifQuickLinks(settings?.quickLinks, settings?.links);
 
 	const [formOpen, setFormOpen] = useState(false);
 	const [deleteFeedbackOpen, setDeleteFeedbackOpen] = useState(false);

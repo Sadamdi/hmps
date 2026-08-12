@@ -1,6 +1,7 @@
 import { AboutVideoEmbed } from '@/components/public/about-video-embed';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
+import { HIMATIF_ABOUT_HTML, HIMATIF_TAGLINE } from '@shared/himatif-defaults';
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'wouter';
@@ -10,6 +11,7 @@ interface Settings {
 	siteTagline: string;
 	siteDescription: string;
 	aboutUs: string;
+	aboutPageIntro?: string;
 	aboutVideoUrl?: string;
 	aboutVideoGdriveUrl?: string;
 	visionMission: string;
@@ -209,6 +211,11 @@ export default function About() {
 	const hasAboutVideo =
 		!!parseYouTubeVideoId(settings?.aboutVideoUrl || '') ||
 		!!parseGoogleDriveFileId(settings?.aboutVideoGdriveUrl || '');
+	const aboutHtml =
+		String(settings?.aboutUs || '').trim() ||
+		String(settings?.aboutPageIntro || '').trim() ||
+		HIMATIF_ABOUT_HTML;
+	const aboutTagline = String(settings?.siteTagline || '').trim() || HIMATIF_TAGLINE;
 
 	// Combine and process images from both sources
 	const galleryImages = React.useMemo(() => {
@@ -277,12 +284,9 @@ export default function About() {
 				<h1 className={`text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}>
 					{settings?.siteName || 'Himatif Encoder'}
 				</h1>
-				{(settings?.siteTagline || !settings?.siteName) && (
 				<p className={`text-base text-muted-foreground mb-5 max-w-xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-					{settings?.siteTagline ||
-						'Himpunan Mahasiswa Teknik Informatika · Fakultas Sains dan Teknologi UIN Maulana Malik Ibrahim Malang'}
+					{aboutTagline}
 				</p>
-				)}
 					{/* Gradient divider */}
 					<div className="mx-auto w-32 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
 				</div>
@@ -297,11 +301,11 @@ export default function About() {
 					className="max-w-4xl mx-auto text-justify relative" // Back to text-justify
 					data-aos="fade-up"
 					data-aos-delay="200">
-					{settings?.aboutUs ? (
+					{aboutHtml ? (
 						<div className="space-y-4">
 							<div className="prose prose-lg lg:prose-xl max-w-none leading-relaxed bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm mx-auto prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground">
 								<div
-									dangerouslySetInnerHTML={{ __html: settings.aboutUs }}
+									dangerouslySetInnerHTML={{ __html: aboutHtml }}
 									className="text-justify text-foreground"
 								/>
 							</div>
@@ -327,29 +331,7 @@ export default function About() {
 								</button>
 							</Link>
 						</div>
-					) : (
-						<div className="space-y-4">
-							<div className="text-center text-muted-foreground bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm">
-								<div className="text-4xl mb-4">📝</div>
-								<p className="text-lg mb-2 text-foreground">
-									Informasi tentang himpunan belum tersedia
-								</p>
-								<p className="text-sm text-muted-foreground/80">
-									Konten sedang dalam proses pengembangan
-								</p>
-							</div>
-							<div className="flex justify-center mt-6">
-								<Link href="/profil">
-									<button className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold border-2 border-primary/50 text-primary hover:bg-primary/10 hover:border-primary/70 transition-all duration-200">
-										Baca selengkapnya
-										<svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-											<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-										</svg>
-									</button>
-								</Link>
-							</div>
-						</div>
-					)}
+					) : null}
 				</div>
 			</div>
 			{/* Section bottom connector */}
