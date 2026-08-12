@@ -59,7 +59,7 @@ Script: sync git dulu. Commit docs/skills/ops **tidak** stop app. Perubahan `cli
 
 Setelah update `ops/auto-deploy.js` di repo: `bash ops/install-auto-deploy.sh` di server.
 
-**Reliability (4.16.4+):** VPS 2GB wajib swap (`ops/ensure-swap.sh`), build retry 2x, `.deploy-built-head` marker.
+**Reliability (4.16.4+):** build retry 2x, stop PM2 saat build, `.deploy-built-head` marker, auto-deploy retry dist stale. Swap (`ops/ensure-swap.sh`) — jika VPS blokir swapon, build tetap jalan dengan stop app dulu.
 
 Survive reboot via `pm2-root.service` + `pm2 save`.
 

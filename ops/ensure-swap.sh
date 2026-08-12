@@ -17,14 +17,24 @@ if [[ ! -f "$SWAP_FILE" ]]; then
 	fallocate -l "${SWAP_GB}G" "$SWAP_FILE" 2>/dev/null || dd if=/dev/zero of="$SWAP_FILE" bs=1M count=$((SWAP_GB * 1024)) status=progress
 	chmod 600 "$SWAP_FILE"
 	mkswap "$SWAP_FILE"
+	if ! grep -q "$SWAP_FILE" /etc/fstab 2>/dev/null; then
+		echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
+	fi
 fi
 
-swapon "$SWAP_FILE" 2>/dev/null || true
+swapon "$SWAP_FILE" 2>/dev/null || SWAPON_ERR=1
 
-if ! grep -q "$SWAP_FILE" /etc/fstab 2>/dev/null; then
-	echo "$SWAP_FILE none swap sw 0 0" >> /etc/fstab
+if swapon --show 2>/dev/null | grep -q .; then
+	echo "[hmps-swap] Swap aktif:"
+	swapon --show
+	free -h | sed 's/^/[hmps-swap] /'
+	exit 0
 fi
 
-echo "[hmps-swap] Aktif:"
-swapon --show
+echo "[hmps-swap] WARNING: swap tidak aktif (swapon gagal — sering 'Operation not permitted' di VPS/container)."
+echo "[hmps-swap] Deploy tetap jalan: PM2 di-stop saat build + retry 2x + NODE_OPTIONS memory cap."
+if [[ "${SWAPON_ERR:-0}" -eq 1 ]]; then
+	echo "[hmps-swap] Coba aktifkan swap di panel VPS/host, atau hubungi provider."
+fi
 free -h | sed 's/^/[hmps-swap] /'
+exit 0
