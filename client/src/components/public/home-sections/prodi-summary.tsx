@@ -1,3 +1,4 @@
+import { PublicSectionHeader } from '@/components/public/section-header';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowRight, GraduationCap } from 'lucide-react';
 import { Link } from 'wouter';
@@ -20,23 +21,15 @@ export default function ProdiSummarySection() {
 		<section id="prodi" className="relative py-16 section-tint-bg overflow-hidden scroll-mt-20">
 			<div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent" />
 			<div className="max-w-5xl mx-auto px-4">
-				<div className="text-center mb-8">
-					<span className="inline-block px-3 py-1 mb-3 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase">
-						Program Studi
-					</span>
-					<h2 className="text-2xl md:text-3xl font-bold text-foreground mb-2">
-						S1 Teknik Informatika
-					</h2>
-					<div className="mx-auto w-24 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent" />
-				</div>
+				<PublicSectionHeader
+					eyebrow="Program Studi"
+					icon={<GraduationCap />}
+					title="S1 Teknik Informatika"
+					description={excerpt}
+					className="mb-8"
+				/>
 
 				<div className="max-w-3xl mx-auto text-center space-y-6">
-					<div className="flex justify-center">
-						<GraduationCap className="h-12 w-12 text-primary/60" />
-					</div>
-					<p className="text-muted-foreground leading-relaxed line-clamp-4">
-						{excerpt}
-					</p>
 					<Link
 						href="/prodi"
 						className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-primary text-primary-foreground font-medium hover:opacity-90 transition-opacity">

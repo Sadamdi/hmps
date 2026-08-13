@@ -1,5 +1,6 @@
 import MediaDisplay from '@/components/MediaDisplay';
 import { SimpleSelect } from '@/components/public/SimpleSelect';
+import { PublicSectionHeader } from '@/components/public/section-header';
 import {
 	collectDivisionLabelsFromMembers,
 	getDivisionFromPosition,
@@ -12,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { usePagination } from '@/hooks/use-pagination';
 import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Network } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
 	Background,
@@ -678,17 +679,13 @@ export default function Structure() {
 			id="structure"
 			className="py-16 bg-secondary/30">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div
-					className="text-center mb-8"
-					data-aos="fade-up">
-					<h2 className="text-3xl font-bold text-foreground font-serif">
-						Struktur Organisasi
-					</h2>
-					<div className="mt-2 h-1 w-20 bg-primary mx-auto"></div>
-					<p className="mt-4 text-lg text-muted-foreground">
-						Kepengurusan {siteName}
-					</p>
-				</div>
+				<PublicSectionHeader
+					eyebrow="Kelembagaan"
+					icon={<Network />}
+					title="Struktur Organisasi"
+					description={`Kepengurusan ${siteName}`}
+					className="mb-8"
+				/>
 
 				{/* Period and Division Selector */}
 				<div

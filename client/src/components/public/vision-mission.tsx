@@ -1,8 +1,8 @@
 import { useRevealAnimation } from "@/hooks/use-reveal-animation";
-import { useTenant } from "@/lib/tenant-context";
+import { PublicSectionHeader } from "@/components/public/section-header";
 import { HIMATIF_MISSION, HIMATIF_VISION } from "@shared/himatif-defaults";
 import { useQuery } from "@tanstack/react-query";
-import { Check } from "lucide-react";
+import { Check, Target } from "lucide-react";
 import { Link } from "wouter";
 
 interface Settings {
@@ -57,9 +57,6 @@ export default function VisionMission({ showLink = true }: VisionMissionProps) {
     misi: HIMATIF_MISSION,
   };
 
-  const { isTenant } = useTenant();
-  const currentYear = new Date().getFullYear();
-  const siteName = settings?.siteName || (isTenant ? "Komunitas" : "Himatif Encoder");
   const hasVision = Boolean(settings?.visionMission?.trim());
   const showHimatifDefault = !hasVision;
 
@@ -72,19 +69,14 @@ export default function VisionMission({ showLink = true }: VisionMissionProps) {
       <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-500/50 to-transparent" />
 
       <div className="container mx-auto px-4">
-        <div ref={headingRef} className="text-center mb-12">
-          <p className={`text-sm font-semibold tracking-widest text-cyan-400/80 uppercase mb-3 ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
-            {currentYear}
-          </p>
-          <h1 className={`text-4xl font-bold mb-3 text-foreground ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}>
-            {siteName}
-          </h1>
-          <div className={`mx-auto w-24 h-px bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent my-6 ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`} />
-          <h2 className={`text-3xl font-bold tracking-tight text-foreground ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>VISI &amp; MISI</h2>
-          <p className={`mt-3 text-muted-foreground text-sm max-w-md mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-            Landasan gerak dan arah perjuangan organisasi
-          </p>
-        </div>
+        <PublicSectionHeader
+          headingRef={headingRef}
+          visible={headingVisible}
+          eyebrow="Kelembagaan"
+          icon={<Target />}
+          title="Visi & Misi"
+          description="Landasan gerak dan arah perjuangan organisasi"
+        />
 
         <div className="max-w-4xl mx-auto">
           {/* Visi Section */}

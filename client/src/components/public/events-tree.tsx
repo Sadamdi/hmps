@@ -7,6 +7,7 @@ import {
 import EventAttachmentPreviewDialog, {
 	type EventAttachmentPreviewItem,
 } from '@/components/public/event-attachment-preview-dialog';
+import { PublicSectionHeader } from '@/components/public/section-header';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { EventItem, EventYear, EventStatus } from '@shared/schema';
@@ -669,21 +670,13 @@ export default function EventsTree({
 			</div>
 
 			<div className="max-w-7xl mx-auto relative">
-				<div className="text-center mb-10">
-					<h2
-						className="text-3xl sm:text-4xl font-bold text-white mb-2"
-						data-aos="fade-up"
-					>
-						Event
-					</h2>
-					<p
-						className="text-gray-400 text-sm"
-						data-aos="fade-up"
-						data-aos-delay="100"
-					>
-						Kegiatan dan acara sepanjang tahun
-					</p>
-				</div>
+				<PublicSectionHeader
+					eyebrow="Event"
+					icon={<Calendar />}
+					title="Event"
+					description="Kegiatan dan acara sepanjang tahun"
+					className="mb-10"
+				/>
 
 				<div
 					className={`relative eventsTrackEnter ${trackEntered ? 'eventsTrackEntered' : ''}`}

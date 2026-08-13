@@ -16,11 +16,12 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import OptimizedImage from '@/components/ui/optimized-image';
 import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
+import { PublicSectionHeader } from '@/components/public/section-header';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, User } from 'lucide-react';
+import { Calendar, FileText, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
@@ -113,9 +114,10 @@ export default function BeritaList() {
 		return (
 			<section id="berita" className="py-14 sm:py-20 bg-background">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-					<div className="mb-8 sm:mb-12 text-center">
-						<Skeleton className="h-4 w-28 mb-3 mx-auto" />
+					<div className="mb-8 sm:mb-12">
+						<Skeleton className="h-6 w-28 mb-3 mx-auto rounded-full" />
 						<Skeleton className="h-9 w-56 mb-3 mx-auto" />
+						<Skeleton className="h-px w-28 mb-3 mx-auto" />
 						<Skeleton className="h-5 w-72 max-w-full mx-auto" />
 					</div>
 					<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
@@ -137,22 +139,14 @@ export default function BeritaList() {
 	return (
 		<section id="berita" className="py-14 sm:py-20 bg-background">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div
-					ref={headingRef}
-					className="mb-8 sm:mb-12 border-b border-border/70 pb-6 text-center">
-					<p
-						className={`text-xs font-semibold uppercase tracking-[0.22em] text-primary mb-2 ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
-						Berita
-					</p>
-					<h2
-						className={`text-2xl sm:text-4xl font-bold tracking-tight text-foreground mb-2 sm:mb-3 ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
-						Berita terbaru
-					</h2>
-					<p
-						className={`text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto leading-6 sm:leading-7 ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-						Kabar terkini dari {siteName}
-					</p>
-				</div>
+				<PublicSectionHeader
+					headingRef={headingRef}
+					visible={headingVisible}
+					eyebrow="Berita"
+					icon={<FileText />}
+					title="Berita terbaru"
+					description={`Kabar terkini dari ${siteName}`}
+				/>
 
 				{beritaList.length === 0 ? (
 					<div className="text-center py-12 text-muted-foreground">

@@ -1,3 +1,4 @@
+import { PublicSectionHeader } from '@/components/public/section-header';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, Instagram, Youtube } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -219,27 +220,23 @@ function SocialPlatformSection({
 			className="scroll-mt-20 py-14 md:py-16"
 			data-aos="fade-up">
 			<div className="mx-auto max-w-6xl px-4">
-				<div className="mb-6 flex flex-col items-center gap-3 text-center">
-					<div>
-						<span className="mb-2 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-primary">
-							<Icon className="h-4 w-4" />
-							{platform === 'youtube' ? 'YouTube' : 'Instagram'}
-						</span>
-						<h2 className="text-2xl font-bold text-foreground md:text-3xl">{title}</h2>
-						<p className="mt-1 max-w-xl mx-auto text-sm text-muted-foreground">
-							Konten terbaru dari akun resmi — filter Video/Shorts/Reels/Live sesuai platform.
-						</p>
-					</div>
-					{profileUrl ? (
-						<a
-							href={profileUrl}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted">
-							Buka profil resmi <ExternalLink className="h-3.5 w-3.5" />
-						</a>
-					) : null}
-				</div>
+				<PublicSectionHeader
+					eyebrow={platform === 'youtube' ? 'YouTube' : 'Instagram'}
+					icon={<Icon />}
+					title={title}
+					description="Konten terbaru dari akun resmi — filter Video/Shorts/Reels/Live sesuai platform."
+					actions={
+						profileUrl ? (
+							<a
+								href={profileUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted">
+								Buka profil resmi <ExternalLink className="h-3.5 w-3.5" />
+							</a>
+						) : null
+					}
+				/>
 
 				{filterOptions.length > 2 ? (
 					<div className="mb-5 flex flex-wrap justify-center gap-2">

@@ -1,9 +1,11 @@
 import { AboutVideoEmbed } from '@/components/public/about-video-embed';
+import { PublicSectionHeader } from '@/components/public/section-header';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { HIMATIF_ABOUT_HTML, HIMATIF_TAGLINE } from '@shared/himatif-defaults';
 import { useQuery } from '@tanstack/react-query';
-import React, { useEffect, useMemo, useState } from 'react';
+import { Info } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'wouter';
 
 interface Settings {
@@ -94,6 +96,9 @@ const generateRandomPositions = (
 	for (let i = 0; i < count; i++) {
 		let attempts = 0;
 		let newPosition: Position;
+		// Slot vertikal merata biar tidak numpuk di area judul/video saja
+		const t = count <= 1 ? 0.45 : i / (count - 1);
+		const slotY = isMobile ? 6 + t * 86 : 12.5 + t * 70;
 
 		do {
 			const sizeCategory =
@@ -104,7 +109,7 @@ const generateRandomPositions = (
 
 			newPosition = {
 				x: Math.random() * (maxX - baseX) + baseX,
-				y: Math.random() * (isMobile ? 82 : 75) + (isMobile ? 6 : 12.5),
+				y: slotY + (Math.random() * 5 - 2.5),
 				delay: Math.random() * 6,
 				size,
 				rotation: Math.random() * 8 - 4,
@@ -269,21 +274,14 @@ export default function About() {
 			<AnimatedGallery images={galleryImages} direction="down" side="right" />
 
 			<div className="container mx-auto px-4 relative z-10">
-				<div ref={headingRef} className="text-center mb-8 sm:mb-12">
-					<span
-						className={`inline-block px-3 py-1 mb-3 sm:mb-4 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
-						Tentang Kami
-					</span>
-					<h1
-						className={`text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-2 tracking-tight ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}>
-						{settings?.siteName || 'Himatif Encoder'}
-					</h1>
-					<p
-						className={`text-sm sm:text-base text-muted-foreground mb-4 sm:mb-5 max-w-xl mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-						{aboutTagline}
-					</p>
-					<div className="mx-auto w-32 h-px bg-gradient-to-r from-transparent via-cyan-400/70 to-transparent" />
-				</div>
+				<PublicSectionHeader
+					headingRef={headingRef}
+					visible={headingVisible}
+					eyebrow="Tentang Kami"
+					icon={<Info />}
+					title={settings?.siteName || 'Himatif Encoder'}
+					description={aboutTagline}
+				/>
 
 				<AboutVideoEmbed
 					aboutVideoUrl={settings?.aboutVideoUrl}
