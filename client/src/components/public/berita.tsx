@@ -6,8 +6,16 @@ import {
 	CardFooter,
 	CardHeader,
 } from '@/components/ui/card';
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import OptimizedImage from '@/components/ui/optimized-image';
+import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 import { apiRequest } from '@/lib/queryClient';
@@ -15,7 +23,6 @@ import { useQuery } from '@tanstack/react-query';
 import { Calendar, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
-import { toSlug } from '@/utils/slug';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 import { usePublicBrand } from '@/hooks/use-public-brand';
 
@@ -58,7 +65,9 @@ export default function BeritaList() {
 		queryKey: ['/api/berita'],
 		queryFn: async () => {
 			const response = await apiRequest('GET', '/api/berita?page=1&limit=12');
-			const payload = (await response.json()) as BeritaItem[] | PaginatedResponse<BeritaItem>;
+			const payload = (await response.json()) as
+				| BeritaItem[]
+				| PaginatedResponse<BeritaItem>;
 			return Array.isArray(payload) ? payload : payload.data;
 		},
 		placeholderData: [],
@@ -74,7 +83,6 @@ export default function BeritaList() {
 		return () => window.removeEventListener('resize', checkIsMobile);
 	}, []);
 
-	// Mobile: 2×2 compact (4). Desktop: 6 then up to 12.
 	const initialCount = isMobile ? 4 : 6;
 	const maxCount = isMobile ? 8 : 12;
 
@@ -105,10 +113,10 @@ export default function BeritaList() {
 		return (
 			<section id="berita" className="py-14 sm:py-20 bg-background">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-					<div className="mb-8 sm:mb-12">
-						<Skeleton className="h-4 w-28 mb-3" />
-						<Skeleton className="h-9 w-56 mb-3" />
-						<Skeleton className="h-5 w-72 max-w-full" />
+					<div className="mb-8 sm:mb-12 text-center">
+						<Skeleton className="h-4 w-28 mb-3 mx-auto" />
+						<Skeleton className="h-9 w-56 mb-3 mx-auto" />
+						<Skeleton className="h-5 w-72 max-w-full mx-auto" />
 					</div>
 					<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
 						{[...Array(isMobile ? 4 : 6)].map((_, i) => (
@@ -131,7 +139,7 @@ export default function BeritaList() {
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 				<div
 					ref={headingRef}
-					className="mb-8 sm:mb-12 border-b border-border/70 pb-6">
+					className="mb-8 sm:mb-12 border-b border-border/70 pb-6 text-center">
 					<p
 						className={`text-xs font-semibold uppercase tracking-[0.22em] text-primary mb-2 ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
 						Berita
@@ -141,7 +149,7 @@ export default function BeritaList() {
 						Berita terbaru
 					</h2>
 					<p
-						className={`text-sm sm:text-base text-muted-foreground max-w-2xl leading-6 sm:leading-7 ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
+						className={`text-sm sm:text-base text-muted-foreground max-w-2xl mx-auto leading-6 sm:leading-7 ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
 						Kabar terkini dari {siteName}
 					</p>
 				</div>
@@ -153,80 +161,149 @@ export default function BeritaList() {
 				) : (
 					<>
 						<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-							{displayedBerita.map((item, index) => (
-								<Card
-									key={item.id || item._id}
-									className="overflow-hidden rounded-xl sm:rounded-2xl border border-border/70 bg-card flex flex-col transition-[border-color,box-shadow,transform] duration-200 group focus-within:ring-2 focus-within:ring-primary/40 hover:border-primary/35 hover:shadow-md active:scale-[0.99]"
-									data-aos="fade-up"
-									data-aos-delay={index * 80}>
-									<Link href={getBeritaUrl(item)}>
-										<div className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden cursor-pointer bg-muted">
-											<OptimizedImage
-												src={item.image}
-												alt={item.title}
-												className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 motion-reduce:transition-none"
-												loading="lazy"
-												sizes="(max-width: 768px) 50vw, (max-width: 1024px) 50vw, 33vw"
-												onError={(e) => {
-													const target = e.target as HTMLImageElement;
-													target.src = DEFAULT_IMAGE_URL;
-												}}
-											/>
-										</div>
-									</Link>
-
-									<CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3 flex-1">
-										<Link href={getBeritaUrl(item)}>
-											<h3 className="font-bold text-sm sm:text-xl leading-snug line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">
-												{item.title}
-											</h3>
+							{displayedBerita.map((item, index) => {
+								const href = getBeritaUrl(item);
+								return (
+									<Card
+										key={item.id || item._id}
+										className="overflow-hidden rounded-xl sm:rounded-2xl border border-border/70 bg-card flex flex-col transition-[border-color,box-shadow,transform] duration-200 group focus-within:ring-2 focus-within:ring-primary/40 hover:border-primary/35 hover:shadow-md active:scale-[0.99]"
+										data-aos="fade-up"
+										data-aos-delay={index * 80}>
+										{/* Gambar + judul → halaman berita penuh */}
+										<Link href={href}>
+											<div className="relative aspect-[4/3] sm:aspect-[16/10] overflow-hidden cursor-pointer bg-muted">
+												<OptimizedImage
+													src={item.image}
+													alt={item.title}
+													className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500 motion-reduce:transition-none"
+													loading="lazy"
+													sizes="(max-width: 768px) 50vw, (max-width: 1024px) 50vw, 33vw"
+													onError={(e) => {
+														const target = e.target as HTMLImageElement;
+														target.src = DEFAULT_IMAGE_URL;
+													}}
+												/>
+											</div>
 										</Link>
-										<div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-0.5 text-[11px] sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">
-											<div className="flex items-center gap-1 min-w-0 max-w-full">
-												<User className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
-												<span className="truncate max-w-[8rem] sm:max-w-none">
-													{item.authorsDisplay || item.author}
+
+										<CardHeader className="p-3 sm:p-6 pb-2 sm:pb-3 flex-1">
+											<Link href={href}>
+												<h3 className="font-bold text-sm sm:text-xl leading-snug line-clamp-2 group-hover:text-primary transition-colors duration-200 cursor-pointer">
+													{item.title}
+												</h3>
+											</Link>
+											<div className="flex flex-wrap items-center gap-x-2 sm:gap-x-4 gap-y-0.5 text-[11px] sm:text-sm text-muted-foreground mt-1.5 sm:mt-2">
+												<div className="flex items-center gap-1 min-w-0 max-w-full">
+													<User className="h-3 w-3 sm:h-4 sm:w-4 shrink-0" />
+													<span className="truncate max-w-[8rem] sm:max-w-none">
+														{item.authorsDisplay || item.author}
+													</span>
+												</div>
+												<div className="flex items-center gap-1 shrink-0">
+													<Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
+													<span>{formatDate(item.createdAt)}</span>
+												</div>
+												<span className="hidden sm:inline">
+													{item.viewCount ?? 0} pembaca
 												</span>
 											</div>
-											<div className="flex items-center gap-1 shrink-0">
-												<Calendar className="h-3 w-3 sm:h-4 sm:w-4" />
-												<span>{formatDate(item.createdAt)}</span>
-											</div>
-											<span className="hidden sm:inline">{item.viewCount ?? 0} pembaca</span>
-										</div>
-									</CardHeader>
+										</CardHeader>
 
-									<CardContent className="px-3 sm:px-6 pt-0 pb-2 sm:pb-0">
-										<p className="text-muted-foreground text-xs sm:text-base leading-relaxed mb-2 sm:mb-3 line-clamp-2 sm:line-clamp-3">
-											{truncateText(item.excerpt, isMobile ? 100 : 120)}
-										</p>
-										{item.tags && item.tags.length > 0 && (
-											<div className="flex flex-wrap gap-1 mb-2 sm:mb-3">
-												{item.tags.slice(0, isMobile ? 2 : 3).map((tag) => (
-													<Badge key={tag} variant="secondary" className="text-[10px] sm:text-xs">
-														{tag}
-													</Badge>
-												))}
-												{item.tags.length > (isMobile ? 2 : 3) && (
-													<Badge variant="outline" className="text-[10px] sm:text-xs">
-														+{item.tags.length - (isMobile ? 2 : 3)}
-													</Badge>
-												)}
-											</div>
-										)}
-									</CardContent>
+										<CardContent className="px-3 sm:px-6 pt-0 pb-2 sm:pb-0">
+											<p className="text-muted-foreground text-xs sm:text-base leading-relaxed mb-2 sm:mb-3 line-clamp-2 sm:line-clamp-3">
+												{truncateText(item.excerpt, isMobile ? 100 : 120)}
+											</p>
+											{item.tags && item.tags.length > 0 && (
+												<div className="flex flex-wrap gap-1 mb-2 sm:mb-3">
+													{item.tags
+														.slice(0, isMobile ? 2 : 3)
+														.map((tag) => (
+															<Badge
+																key={tag}
+																variant="secondary"
+																className="text-[10px] sm:text-xs">
+																{tag}
+															</Badge>
+														))}
+													{item.tags.length > (isMobile ? 2 : 3) && (
+														<Badge
+															variant="outline"
+															className="text-[10px] sm:text-xs">
+															+{item.tags.length - (isMobile ? 2 : 3)}
+														</Badge>
+													)}
+												</div>
+											)}
+										</CardContent>
 
-									<CardFooter className="px-3 sm:px-6 pt-0 pb-3 sm:pb-6 mt-auto">
-										<Link href={getBeritaUrl(item)}>
-											<Button
-												variant="link"
-												className="text-primary hover:text-primary/80 p-0 h-auto font-medium text-xs sm:text-sm min-h-8 sm:min-h-11">
-												Baca selengkapnya →
-											</Button>
-										</Link>
-									</CardFooter>
-								</Card>
-							))}
+										{/* Cepat lihat = modal (seperti Galeri). Baca selengkapnya = halaman penuh. */}
+										<CardFooter className="px-3 sm:px-6 pt-0 pb-3 sm:pb-6 mt-auto flex flex-wrap items-center gap-x-3 gap-y-1">
+											<Dialog>
+												<DialogTrigger asChild>
+													<Button
+														variant="link"
+														className="text-primary hover:text-primary/80 p-0 h-auto font-medium text-xs sm:text-sm min-h-8">
+														Cepat lihat →
+													</Button>
+												</DialogTrigger>
+												<DialogContent className="max-w-3xl w-[95vw] max-h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
+													<div className="shrink-0 px-4 sm:px-6 pt-5 sm:pt-6 pb-2 border-b border-border">
+														<DialogHeader>
+															<DialogTitle className="text-lg sm:text-2xl font-bold pr-8 text-left">
+																{item.title}
+															</DialogTitle>
+															<p className="text-xs sm:text-sm text-muted-foreground mt-2 flex flex-wrap gap-x-3 gap-y-1">
+																<span>
+																	{(item.authorsDisplay || item.author) ?? ''}
+																</span>
+																<span>{formatDate(item.createdAt)}</span>
+															</p>
+														</DialogHeader>
+													</div>
+													<div className="overflow-y-auto overflow-x-hidden px-4 sm:px-6 py-4 max-h-[calc(90vh-8rem)] space-y-4">
+														<div className="overflow-hidden rounded-xl bg-muted aspect-[16/10]">
+															<img
+																src={item.image || DEFAULT_IMAGE_URL}
+																alt={item.title}
+																className="w-full h-full object-cover"
+																onError={(e) => {
+																	(e.target as HTMLImageElement).src =
+																		DEFAULT_IMAGE_URL;
+																}}
+															/>
+														</div>
+														{item.excerpt ? (
+															<p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+																{item.excerpt}
+															</p>
+														) : null}
+														{item.content ? (
+															<RichHtmlWithEmbeds
+																content={item.content}
+																className="prose prose-sm sm:prose-base max-w-none dark:prose-invert text-foreground"
+															/>
+														) : null}
+														<div className="pt-2 pb-1">
+															<Link href={href}>
+																<Button className="w-full sm:w-auto min-h-11">
+																	Baca selengkapnya di halaman
+																</Button>
+															</Link>
+														</div>
+													</div>
+												</DialogContent>
+											</Dialog>
+											<Link href={href}>
+												<Button
+													variant="link"
+													className="text-muted-foreground hover:text-primary p-0 h-auto font-medium text-xs sm:text-sm min-h-8 underline underline-offset-2">
+													Baca selengkapnya
+												</Button>
+											</Link>
+										</CardFooter>
+									</Card>
+								);
+							})}
 						</div>
 
 						{(beritaList.length > initialCount || showAll) && (

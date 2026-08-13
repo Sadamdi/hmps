@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.7] — 2026-08-13
+
+**Beranda mobile polish** · PATCH · [Full release notes](../release/4.16.7.md)
+
+### Highlights
+- Floating gallery Tentang Kami menyebar di mobile (banyak foto)
+- Judul Berita / YouTube / Instagram center
+- Berita: Cepat lihat (modal) + Baca selengkapnya (halaman); gambar/judul buka halaman
+
+---
+
 ## [4.16.6] — 2026-08-12
 
 **About mobile cleanup** · PATCH · [Full release notes](../release/4.16.6.md)
