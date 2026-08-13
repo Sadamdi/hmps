@@ -61,37 +61,41 @@ type Position = {
 // Generate random positions for floating images with collision detection
 const generateRandomPositions = (
 	count: number,
-	side: 'left' | 'right'
+	side: 'left' | 'right',
+	isMobile: boolean,
 ): Position[] => {
-	const positions: Position[] = []; // Explicit type annotation
-	const baseX = side === 'left' ? 1 : 1; // Distance from edge
-	const maxX = 12; // Maximum distance from edge
-	const minDistance = 10; // Minimum distance between images (in percentage) - increased for better spacing
+	const positions: Position[] = [];
+	// Mobile: sebarkan ke setengah layar (bukan cuma pinggir 12%) agar terlihat di belakang card
+	const baseX = isMobile ? 2 : 1;
+	const maxX = isMobile ? 46 : 12;
+	const minDistance = isMobile ? 12 : 10;
 
-	// Define different size categories for more variety
-	const sizeCategories = [
-		{ min: 50, max: 70 }, // Extra small
-		{ min: 80, max: 100 }, // Small
-		{ min: 110, max: 140 }, // Medium
-		{ min: 150, max: 180 }, // Large
-		{ min: 190, max: 220 }, // Extra large
-	];
+	const sizeCategories = isMobile
+		? [
+				{ min: 72, max: 96 },
+				{ min: 100, max: 128 },
+				{ min: 132, max: 168 },
+			]
+		: [
+				{ min: 50, max: 70 },
+				{ min: 80, max: 100 },
+				{ min: 110, max: 140 },
+				{ min: 150, max: 180 },
+				{ min: 190, max: 220 },
+			];
 
-	// Function to check if two positions overlap
 	const isOverlapping = (pos1: Position, pos2: Position) => {
 		const distance = Math.sqrt(
-			Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2)
+			Math.pow(pos1.x - pos2.x, 2) + Math.pow(pos1.y - pos2.y, 2),
 		);
 		return distance < minDistance;
 	};
 
-	// Generate positions with collision detection
 	for (let i = 0; i < count; i++) {
 		let attempts = 0;
 		let newPosition: Position;
 
 		do {
-			// Pick random size category
 			const sizeCategory =
 				sizeCategories[Math.floor(Math.random() * sizeCategories.length)];
 			const size =
@@ -100,16 +104,16 @@ const generateRandomPositions = (
 
 			newPosition = {
 				x: Math.random() * (maxX - baseX) + baseX,
-				y: Math.random() * 75 + 12.5, // 12.5% to 87.5% from top
-				delay: Math.random() * 6, // Random animation delay up to 6s
-				size: size,
-				rotation: Math.random() * 8 - 4, // Random rotation -4 to +4 degrees
-				duration: Math.random() * 6 + 10, // Animation duration 10-16 seconds
+				y: Math.random() * (isMobile ? 82 : 75) + (isMobile ? 6 : 12.5),
+				delay: Math.random() * 6,
+				size,
+				rotation: Math.random() * 8 - 4,
+				duration: Math.random() * 6 + 10,
 			};
 
 			attempts++;
 		} while (
-			attempts < 50 && // Max 50 attempts to avoid infinite loop
+			attempts < 50 &&
 			positions.some((pos) => isOverlapping(newPosition, pos))
 		);
 
@@ -133,13 +137,13 @@ function AnimatedGallery({
 	const [positions, setPositions] = useState<Position[]>([]);
 
 	useEffect(() => {
-		// Shuffle and select random images for this gallery
+		const isMobile =
+			typeof window !== 'undefined' && window.innerWidth < 1024;
 		const shuffled = [...images].sort(() => Math.random() - 0.5);
-		const selectedImages = shuffled.slice(0, typeof window !== 'undefined' && window.innerWidth < 1024 ? 4 : 6);
+		// Mobile: lebih banyak per sisi agar terasa “menyebar” seperti desktop
+		const selectedImages = shuffled.slice(0, isMobile ? 6 : 6);
 		setCurrentImages(selectedImages);
-
-		// Generate random positions for each image with collision detection
-		setPositions(generateRandomPositions(selectedImages.length, side));
+		setPositions(generateRandomPositions(selectedImages.length, side, isMobile));
 	}, [images, side]);
 
 	if (currentImages.length === 0) return null;
@@ -150,19 +154,17 @@ function AnimatedGallery({
 				const position = positions[index];
 				if (!position) return null;
 
-				// Choose animation type based on index for more variety
 				const animationTypes = ['gentle-sway', 'float-up', 'float-down'];
 				const animationType = animationTypes[index % animationTypes.length];
-
-				const sizeScale =
-					typeof window !== 'undefined' && window.innerWidth < 1024 ? 0.38 : 1;
-				const mobileOpacity =
-					typeof window !== 'undefined' && window.innerWidth < 1024 ? 0.35 : 0.8;
+				const isMobile =
+					typeof window !== 'undefined' && window.innerWidth < 1024;
+				const sizeScale = isMobile ? 0.62 : 1;
+				const layerOpacity = isMobile ? 0.58 : 0.8;
 
 				return (
 					<div
 						key={`${image}-${index}`}
-						className={`absolute overflow-hidden rounded-xl shadow-lg transform transition-all duration-700 hover:scale-110 hover:shadow-2xl pointer-events-auto animate-${animationType} max-lg:opacity-40 max-lg:pointer-events-none`}
+						className={`absolute overflow-hidden rounded-xl shadow-lg transform transition-all duration-700 hover:scale-110 hover:shadow-2xl pointer-events-auto animate-${animationType} max-lg:pointer-events-none`}
 						style={{
 							[side === 'left' ? 'left' : 'right']: `${position.x}%`,
 							top: `${position.y}%`,
@@ -173,9 +175,9 @@ function AnimatedGallery({
 							animationIterationCount: 'infinite',
 							animationTimingFunction: 'ease-in-out',
 							transform: `rotate(${position.rotation}deg)`,
-							opacity: mobileOpacity,
+							opacity: layerOpacity,
 							zIndex: 1,
-							willChange: 'transform', // Optimize for animation
+							willChange: 'transform',
 						}}>
 						<img
 							src={image}
@@ -183,13 +185,10 @@ function AnimatedGallery({
 							className="w-full h-full object-cover transition-all duration-500 hover:scale-105"
 							loading="lazy"
 							onError={(e) => {
-								// Hide broken images
 								(e.target as HTMLElement).style.display = 'none';
 							}}
 						/>
 						<div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-black/10 opacity-60"></div>
-
-						{/* Subtle border glow effect */}
 						<div className="absolute inset-0 rounded-xl border border-white/20"></div>
 					</div>
 				);
