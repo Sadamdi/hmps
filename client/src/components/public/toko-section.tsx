@@ -1,12 +1,13 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PublicSectionHeader } from '@/components/public/section-header';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, ShoppingBag } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { normalizeStoreCurrency } from '@shared/store-currency';
@@ -111,9 +112,10 @@ export default function TokoSection() {
 			<section id="toko" className="py-16 bg-background scroll-mt-20">
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 					<div className="text-center mb-12">
+						<Skeleton className="h-6 w-28 mx-auto mb-3 rounded-full" />
 						<Skeleton className="h-8 w-48 mx-auto mb-4" />
-						<Skeleton className="h-1 w-20 mx-auto mb-4" />
-						<Skeleton className="h-6 w-96 mx-auto" />
+						<Skeleton className="h-px w-28 mx-auto mb-4" />
+						<Skeleton className="h-6 w-96 max-w-full mx-auto" />
 					</div>
 					<div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
 						{[...Array(4)].map((_, i) => (
@@ -135,15 +137,12 @@ export default function TokoSection() {
 	return (
 		<section id="toko" className="py-16 bg-background scroll-mt-20">
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div className="text-center mb-12">
-					<h2 className="text-3xl font-bold text-foreground mb-4">
-						{storeLabel}
-					</h2>
-					<div className="w-20 h-1 bg-primary mx-auto mb-4" />
-					<p className="text-muted-foreground max-w-2xl mx-auto">
-						Lihat katalog terbaru dan lanjutkan pembelian via WhatsApp.
-					</p>
-				</div>
+				<PublicSectionHeader
+					eyebrow="Toko"
+					icon={<ShoppingBag />}
+					title={storeLabel}
+					description="Lihat katalog terbaru dan lanjutkan pembelian via WhatsApp."
+				/>
 
 				{allProducts.length === 0 ? (
 					<div className="text-center py-12">

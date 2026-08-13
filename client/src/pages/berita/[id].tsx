@@ -400,7 +400,7 @@ export default function BeritaDetail() {
 	}
 
 	return (
-		<div className="min-h-screen bg-background relative">
+		<div className="min-h-screen bg-background relative overflow-x-hidden">
 			<Navbar
 				activeSection="berita"
 				scrollToSection={scrollToSection}
@@ -424,8 +424,8 @@ export default function BeritaDetail() {
 			</div>
 
 			{/* Main Layout */}
-			<div className="max-w-7xl mx-auto px-4 py-8">
-				<div className="flex gap-8">
+			<div className="max-w-7xl mx-auto px-4 py-8 overflow-x-hidden">
+				<div className="flex gap-8 min-w-0">
 					{/* Table of Contents - Desktop Sidebar */}
 					<div
 						className="hidden lg:block w-80 flex-shrink-0"
@@ -440,13 +440,13 @@ export default function BeritaDetail() {
 						</Suspense>
 					</div>
 
-					{/* Main Content */}
-					<div className="flex-1 max-w-4xl">
+					{/* Main Content — min-w-0 mencegah overflow flex di mobile */}
+					<div className="flex-1 max-w-4xl min-w-0 w-full overflow-x-hidden">
 						{/* Header Berita */}
 						<div
 							className="mb-8"
 							data-aos="fade-up">
-							<h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight mb-5">
+							<h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight mb-5 break-words">
 								{berita.title}
 							</h1>
 
@@ -480,16 +480,16 @@ export default function BeritaDetail() {
 							</div>
 						</div>
 
-						{/* Featured Image */}
+						{/* Featured Image — max-w-full + aspect lock, no horizontal overflow */}
 						<div
-							className="mb-10"
-							data-aos="zoom-in"
+							className="mb-10 max-w-full"
+							data-aos="fade-up"
 							data-aos-delay="150">
-							<div className="relative overflow-hidden rounded-xl shadow-lg">
+							<div className="relative w-full max-w-full overflow-hidden rounded-xl shadow-lg bg-muted aspect-[16/10] md:aspect-[2/1]">
 								<img
 									src={berita.image}
 									alt={berita.title}
-									className="w-full h-80 md:h-[400px] object-cover"
+									className="absolute inset-0 h-full w-full max-w-full object-cover"
 									onError={(e) => {
 										const target = e.target as HTMLImageElement;
 										target.src = DEFAULT_IMAGE_URL;
@@ -500,11 +500,11 @@ export default function BeritaDetail() {
 
 						{/* Konten Berita */}
 						<div
-							className="bg-card rounded-xl shadow-sm border border-border overflow-hidden"
+							className="bg-card rounded-xl shadow-sm border border-border overflow-hidden max-w-full"
 							data-aos="fade-up"
 							data-aos-delay="200">
-							<div className="p-6 md:p-10">
-								<div onClickCapture={handleContentAttachmentClick}>
+							<div className="p-6 md:p-10 max-w-full overflow-x-hidden">
+								<div onClickCapture={handleContentAttachmentClick} className="max-w-full overflow-x-hidden">
 									<RichHtmlWithEmbeds
 										content={berita.content}
 										className="prose prose-lg max-w-none berita-content prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground prose-a:text-primary prose-blockquote:text-muted-foreground dark:prose-invert text-foreground leading-relaxed"

@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.8] — 2026-08-13
+
+**Section header consistency + berita overflow** · PATCH · [Full release notes](../release/4.16.8.md)
+
+### Highlights
+- PublicSectionHeader seragam: pill + judul + garis cyan + deskripsi
+- Floating gallery mobile tersebar vertikal (tidak numpuk di video)
+- Berita detail: fix flex/min-w-0 + image max-width overflow mobile
+
+---
+
 ## [4.16.7] — 2026-08-13
 
 **Beranda mobile polish** · PATCH · [Full release notes](../release/4.16.7.md)

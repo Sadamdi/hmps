@@ -2,6 +2,7 @@ import {
 	LibraryDetailItem as LibraryItem,
 	LibraryItemDetailContent,
 } from '@/components/public/library-item-detail';
+import { PublicSectionHeader } from '@/components/public/section-header';
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
@@ -21,7 +22,7 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import AOS from 'aos';
-import { Calendar, ChevronDown, ChevronLeft, ChevronRight, Eye, Filter, Search, Tag, User } from 'lucide-react';
+import { BookOpen, Calendar, ChevronDown, ChevronLeft, ChevronRight, Eye, Filter, Search, Tag, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { toSlug } from '@/utils/slug';
@@ -325,19 +326,14 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 	return (
 		<section id={variant === 'section' ? 'library' : undefined} className={outerClass}>
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-				<div ref={headingRef} className="text-center mb-12">
-					<h2
-						className={`text-3xl font-bold text-foreground font-serif ${headingVisible ? 'reveal-heading' : 'opacity-0'}`}>
-						Galeri
-					</h2>
-					<div
-						className={`mt-2 h-1 w-20 bg-primary mx-auto ${headingVisible ? 'reveal-heading reveal-heading-delay-1' : 'opacity-0'}`}
-					/>
-					<p
-						className={`mt-4 text-lg text-muted-foreground ${headingVisible ? 'reveal-heading reveal-heading-delay-2' : 'opacity-0'}`}>
-						Koleksi foto dan video kegiatan Himpunan
-					</p>
-				</div>
+				<PublicSectionHeader
+					headingRef={headingRef}
+					visible={headingVisible}
+					eyebrow="Galeri"
+					icon={<BookOpen />}
+					title="Galeri"
+					description="Koleksi foto dan video kegiatan Himpunan"
+				/>
 
 				<div className="mb-6 space-y-3" data-aos="fade-up" data-aos-delay="100">
 					<div className="relative max-w-lg mx-auto">

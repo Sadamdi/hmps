@@ -906,6 +906,10 @@ body {
 .berita-content {
 	font-family: 'Georgia', 'Times New Roman', serif;
 	line-height: 1.8;
+	overflow-x: clip;
+	max-width: 100%;
+	word-wrap: break-word;
+	overflow-wrap: anywhere;
 }
 
 .berita-content h1,
@@ -998,11 +1002,30 @@ body {
 .berita-content img {
 	border-radius: 0.75rem;
 	box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-	margin: 2rem 0;
-	max-width: 100%;
-	height: auto;
-	display: inline-block;
+	margin: 2rem auto;
+	max-width: 100% !important;
+	width: auto !important;
+	height: auto !important;
+	display: block;
 	transform-origin: center center;
+}
+
+.berita-content iframe,
+.berita-content video {
+	max-width: 100% !important;
+	width: 100%;
+}
+
+.berita-content table {
+	display: block;
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.berita-content img.hmps-img-rot-90,
+.berita-content img.hmps-img-rot-270 {
+	max-height: min(70vh, 100%);
+	object-fit: contain;
 }
 
 .berita-content img.hmps-img-rot-90 { transform: rotate(90deg); }
