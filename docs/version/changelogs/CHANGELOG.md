@@ -11,6 +11,17 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.16.9] — 2026-08-17
+
+**Bidirectional relations + authored image sizing** · PATCH · [Full release notes](../release/4.16.9.md)
+
+### Highlights
+- Gallery public API unions both sides of Berita/Event relations and repairs legacy one-sided links
+- Event detail now exposes and renders related galleries
+- Rich-editor image widths are preserved while remaining responsive and overflow-safe
+
+---
+
 ## [4.16.8] — 2026-08-13
 
 **Section header consistency + berita overflow** · PATCH · [Full release notes](../release/4.16.8.md)
