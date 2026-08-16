@@ -1,0 +1,91 @@
+name: Sync GitHub Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+      - docs/version/release/**
+      - ops/sync-github-releases.py
+      - .github/workflows/sync-github-release.yml
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to sync, without the v prefix (empty = package.json)
+        required: false
+        type: string
+      target:
+        description: Optional target commit (empty = workflow commit)
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-github-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          BEFORE_SHA: ${{ github.event.before }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          current="$(node -p "require('./package.json').version")"
+          requested="${INPUT_VERSION#v}"
+
+          if [[ "$EVENT_NAME" == "workflow_dispatch" && -n "$requested" ]]; then
+            version="$requested"
+          else
+            version="$current"
+          fi
+
+          note="docs/version/release/${version}.md"
+          if [[ ! -f "$note" ]]; then
+            echo "::error::Release note tidak ada: $note"
+            exit 1
+          fi
+
+          changed=true
+          if [[ "$EVENT_NAME" == "push" && -n "$BEFORE_SHA" && "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]]; then
+            previous="$(git show "${BEFORE_SHA}:package.json" 2>/dev/null | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).version||'')}catch{console.log('')}})")"
+            if [[ "$version" == "$previous" ]]; then
+              changed=false
+            fi
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "note=$note" >> "$GITHUB_OUTPUT"
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
+      - name: Skip non-version push
+        if: steps.version.outputs.changed != 'true'
+        run: echo "package.json version tidak berubah; media/docs-only push tidak membuat release."
+
+      - name: Create or update GitHub Release
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          version="${{ steps.version.outputs.version }}"
+          target="${INPUT_TARGET:-${GITHUB_SHA}}"
+          python ops/sync-github-releases.py \
+            --version "$version" \
+            --target "$target" \
+            --repo "$GITHUB_REPOSITORY"

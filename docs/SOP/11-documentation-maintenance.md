@@ -1,4 +1,4 @@
-﻿# SOP 11 — Documentation Maintenance HMPS
+# SOP 11 — Documentation Maintenance HMPS
 
 ## Scope
 
@@ -41,6 +41,27 @@ Setiap selesai mengerjakan **satu unit kerja** (bukan menunggu rilis besar):
 3. Update Current di `docs/version/versions.md`.
 4. Tambah section di `docs/version/changelogs/CHANGELOG.md`.
 5. Sync `package.json` `version` dan `docs/openapi.json` `info.version`.
+
+### GitHub Release automation
+
+Setiap bump versi yang masuk ke `main` otomatis disinkronkan oleh
+`.github/workflows/sync-github-release.yml`.
+
+Kontrak:
+
+1. `package.json` version berubah.
+2. `docs/version/release/X.Y.Z.md` wajib ada dan heading versinya cocok.
+3. Workflow membuat atau memperbarui tag/release `vX.Y.Z`.
+4. Push media otomatis atau perubahan docs tanpa bump versi tidak membuat release.
+5. Manual/backfill dapat dijalankan dengan:
+
+```bash
+python ops/sync-github-releases.py --version X.Y.Z --target HEAD
+python ops/sync-github-releases.py --all
+```
+
+Workflow menggunakan `GITHUB_TOKEN` bawaan Actions dengan permission
+`contents: write`; jangan menyimpan Personal Access Token di repository.
 
 Struktur:
 
