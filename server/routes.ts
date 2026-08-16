@@ -624,8 +624,35 @@ async function enrichLibraryWithAuthors(
 async function enrichLibraryRelations(item: any, req: Request): Promise<void> {
 	try {
 		const m = resolveModels(req);
-		const eids = item.relatedEventIds;
-		const bids = item.relatedBeritaIds;
+		// Union both sides so legacy/partially-synced links remain visible.
+		const [reverseEvents, reverseBerita] = await Promise.all([
+			m.Event.find({ relatedGalleryIds: item._id }).select('_id').lean(),
+			m.Berita.find({ relatedGalleryIds: item._id }).select('_id').lean(),
+		]);
+		const storedEids = (item.relatedEventIds || []).map(String);
+		const storedBids = (item.relatedBeritaIds || []).map(String);
+		const eids = Array.from(
+			new Set([
+				...storedEids,
+				...(reverseEvents || []).map((e: any) => String(e._id)),
+			]),
+		);
+		const bids = Array.from(
+			new Set([
+				...storedBids,
+				...(reverseBerita || []).map((b: any) => String(b._id)),
+			]),
+		);
+		const needsRepair =
+			eids.length !== storedEids.length || bids.length !== storedBids.length;
+		item.relatedEventIds = eids;
+		item.relatedBeritaIds = bids;
+		if (needsRepair) {
+			await m.Library.updateOne(
+				{ _id: item._id },
+				{ $set: { relatedEventIds: eids, relatedBeritaIds: bids } },
+			).catch(() => {});
+		}
 		if (eids?.length) {
 			const evs = await m.Event.find({ _id: { $in: eids } })
 				.select('title yearId')
@@ -656,6 +683,49 @@ async function enrichLibraryRelations(item: any, req: Request): Promise<void> {
 		}
 	} catch (e) {
 		console.warn('enrichLibraryRelations:', e);
+	}
+}
+
+async function enrichEventGalleryRelations(event: any, req: Request): Promise<void> {
+	if (!event) return;
+	try {
+		const m = resolveModels(req);
+		const reverseLibraries = await m.Library.find({
+			relatedEventIds: event._id,
+			published: true,
+		})
+			.select('_id title slug')
+			.lean();
+		const storedIds = (event.relatedGalleryIds || []).map(String);
+		const galleryIds = Array.from(
+			new Set([
+				...storedIds,
+				...(reverseLibraries || []).map((lib: any) => String(lib._id)),
+			]),
+		);
+		const galleries = galleryIds.length
+			? await m.Library.find({
+					_id: { $in: galleryIds },
+					published: true,
+				})
+					.select('_id title slug')
+					.lean()
+			: [];
+		event.relatedGalleryIds = galleryIds;
+		event.relatedGalleryPreview = (galleries || []).map((lib: any) => ({
+			_id: String(lib._id),
+			title: lib.title,
+			slug: lib.slug,
+		}));
+		if (galleryIds.length !== storedIds.length) {
+			await m.Event.updateOne(
+				{ _id: event._id },
+				{ $set: { relatedGalleryIds: galleryIds } },
+			).catch(() => {});
+		}
+	} catch (e) {
+		console.warn('enrichEventGalleryRelations:', e);
+		event.relatedGalleryPreview = [];
 	}
 }
 
@@ -8718,8 +8788,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				try {
 					await enrichEventTreeWithAuthors(event, req);
+					await enrichEventGalleryRelations(event, req);
 				} catch (e) {
-					console.warn('Failed to enrich event authors:', e);
+					console.warn('Failed to enrich event relations:', e);
 				}
 
 				res.json(event);
@@ -8773,8 +8844,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			try {
 				await enrichEventTreeWithAuthors(event, req);
+				await enrichEventGalleryRelations(event, req);
 			} catch (e) {
-				console.warn('Failed to enrich event authors:', e);
+				console.warn('Failed to enrich event relations:', e);
 			}
 
 			res.json(event);

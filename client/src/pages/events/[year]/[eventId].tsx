@@ -33,6 +33,12 @@ interface RelatedBerita {
 	slug?: string;
 }
 
+interface RelatedGallery {
+	_id: string;
+	title: string;
+	slug?: string;
+}
+
 interface EventItem {
 	_id: string;
 	title: string;
@@ -44,6 +50,7 @@ interface EventItem {
 	attachments?: { name: string; url: string; type?: string }[];
 	children?: EventItem[];
 	relatedBerita?: RelatedBerita[];
+	relatedGalleryPreview?: RelatedGallery[];
 	viewCount?: number;
 }
 
@@ -222,6 +229,28 @@ export default function EventDetailPage() {
 									</div>
 								</div>
 							)}
+
+							{event.relatedGalleryPreview &&
+								event.relatedGalleryPreview.length > 0 && (
+									<div>
+										<h2 className="text-lg font-semibold mb-3">Galeri Terkait</h2>
+										<div className="space-y-2">
+											{event.relatedGalleryPreview.map((gallery) => (
+												<Link
+													key={gallery._id}
+													href={
+														gallery.slug
+															? `/library/${gallery.slug}`
+															: `/library/${gallery._id}`
+													}
+													className="flex items-center gap-2 px-4 py-3 rounded-lg border bg-card hover:bg-accent transition-colors">
+													<span className="flex-1">{gallery.title}</span>
+													<ExternalLink className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+												</Link>
+											))}
+										</div>
+									</div>
+								)}
 
 							{event.children && event.children.length > 0 && (
 								<div>
