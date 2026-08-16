@@ -3944,6 +3944,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			);
 			if (!item)
 				return res.status(404).json({ message: 'Library item not found' });
+			attachLibraryDisplayFields(item as unknown as Record<string, unknown>);
+			await enrichLibraryWithAuthors([item], req);
+			await enrichLibraryRelations(item, req);
 			res.json(item);
 		} catch (error) {
 			console.error('Get library by slug error:', error);
@@ -3995,8 +3998,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 			try {
 				await enrichLibraryWithAuthors([item], req);
+				await enrichLibraryRelations(item, req);
 			} catch (e) {
-				console.warn('Failed to enrich library authors:', e);
+				console.warn('Failed to enrich library relations:', e);
 			}
 
 			res.json(item);
