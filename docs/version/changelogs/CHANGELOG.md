@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.17.1] — 2026-08-21
+
+**Dashboard overview layout polish** · PATCH · [Full release notes](../release/4.17.1.md)
+
+### Highlights
+- Suite analitik dipindah ke bawah welcome / stats / activities / quick actions
+- Kartu widget diselaraskan dengan surface dashboard + spacing mobile/desktop
+
+---
+
 ## [4.17.0] — 2026-08-21
 
 **Dashboard overview visitor analytics suite** · MINOR · [Full release notes](../release/4.17.0.md)

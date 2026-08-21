@@ -7,6 +7,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Loader2, Clock } from 'lucide-react';
+import { overviewCardClass } from './widget-styles';
 
 function getHeatColor(value: number, max: number): string {
 	if (value === 0) return 'bg-muted/30';
@@ -38,32 +39,32 @@ export default function EngagementHeatmap() {
 	);
 
 	return (
-		<Card>
-			<CardHeader className="pb-2">
-				<div className="flex items-center justify-between">
-					<div>
-						<CardTitle className="text-base">Engagement Heatmap</CardTitle>
-						<CardDescription>30 hari terakhir (jam x hari)</CardDescription>
+		<Card className={overviewCardClass}>
+			<CardHeader className="pb-2 p-4 sm:p-6">
+				<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+					<div className="min-w-0">
+						<CardTitle className="text-sm sm:text-base">Engagement Heatmap</CardTitle>
+						<CardDescription className="text-xs">30 hari terakhir (jam × hari)</CardDescription>
 					</div>
 					{data?.peakHour && (
-						<div className="flex items-center gap-1 text-xs bg-muted/50 rounded-full px-3 py-1">
-							<Clock className="h-3 w-3" />
+						<div className="flex items-center gap-1 text-xs bg-muted/50 rounded-full px-3 py-1 w-fit">
+							<Clock className="h-3 w-3 shrink-0" />
 							<span className="font-medium">Peak: {data.peakHour} ({data.peakDay})</span>
 						</div>
 					)}
 				</div>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
 				{isLoading ? (
 					<div className="flex justify-center py-8">
 						<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
 					</div>
 				) : matrix.length > 0 ? (
-					<div className="overflow-x-auto">
-						<div className="min-w-[400px]">
+					<div className="overflow-x-auto -mx-1 px-1">
+						<div className="min-w-[480px]">
 							{/* Day labels */}
 							<div className="flex mb-1">
-								<div className="w-12" />
+								<div className="w-10 sm:w-12" />
 								{days.map((d) => (
 									<div
 										key={d}
@@ -77,7 +78,7 @@ export default function EngagementHeatmap() {
 							<div className="space-y-0.5">
 								{hours.map((hour, h) => (
 									<div key={h} className="flex items-center">
-										<div className="w-12 text-xs text-muted-foreground pr-2 text-right">
+										<div className="w-10 sm:w-12 text-[10px] sm:text-xs text-muted-foreground pr-1 sm:pr-2 text-right">
 											{h % 3 === 0 ? hour : ''}
 										</div>
 										<div className="flex-1 flex gap-0.5">
@@ -86,7 +87,7 @@ export default function EngagementHeatmap() {
 												return (
 													<div
 														key={day}
-														className={`flex-1 h-4 rounded-sm ${getHeatColor(val, maxCount)}`}
+														className={`flex-1 h-3.5 sm:h-4 rounded-sm ${getHeatColor(val, maxCount)}`}
 														title={`${hour} ${days[day]}: ${val} visits`}
 													/>
 												);

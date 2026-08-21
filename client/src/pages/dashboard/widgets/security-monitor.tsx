@@ -16,6 +16,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Loader2, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { overviewCardClass } from './widget-styles';
 
 const THREAT_COLORS = {
 	low: { bg: 'bg-green-100 text-green-700', icon: ShieldCheck, color: '#10b981' },
@@ -53,15 +54,15 @@ export default function SecurityMonitor() {
 	}));
 
 	return (
-		<Card>
-			<CardHeader className="pb-2">
-				<div className="flex items-center justify-between">
-					<div>
-						<CardTitle className="text-base flex items-center gap-2">
-							<Shield className="h-4 w-4" />
+		<Card className={overviewCardClass}>
+			<CardHeader className="pb-2 p-4 sm:p-6">
+				<div className="flex items-start justify-between gap-2">
+					<div className="min-w-0">
+						<CardTitle className="text-sm sm:text-base flex items-center gap-2">
+							<Shield className="h-4 w-4 shrink-0" />
 							Security Monitor
 						</CardTitle>
-						<CardDescription>24 jam terakhir</CardDescription>
+						<CardDescription className="text-xs">24 jam terakhir</CardDescription>
 					</div>
 					<div className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 ${threatConfig.bg}`}>
 						<ThreatIcon className="h-3 w-3" />
@@ -69,7 +70,7 @@ export default function SecurityMonitor() {
 					</div>
 				</div>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
 				{isLoading ? (
 					<div className="flex justify-center py-8">
 						<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -86,14 +87,15 @@ export default function SecurityMonitor() {
 						{breakdown.length > 0 && (
 							<div>
 								<p className="text-xs font-medium mb-2">Breakdown</p>
-								<ResponsiveContainer width="100%" height={120}>
+								<div className="h-[110px] w-full">
+								<ResponsiveContainer width="100%" height="100%">
 									<BarChart data={breakdown}>
 										<XAxis
 											dataKey="name"
 											tick={{ fontSize: 9 }}
 											interval={0}
 										/>
-										<YAxis tick={{ fontSize: 9 }} />
+										<YAxis tick={{ fontSize: 9 }} width={28} />
 										<Tooltip />
 										<Bar dataKey="count" radius={4}>
 											{breakdown.map((_, i: number) => (
@@ -105,13 +107,15 @@ export default function SecurityMonitor() {
 										</Bar>
 									</BarChart>
 								</ResponsiveContainer>
+								</div>
 							</div>
 						)}
 
 						{timeline.length > 0 && (
 							<div>
 								<p className="text-xs font-medium mb-2">Timeline (per hour)</p>
-								<ResponsiveContainer width="100%" height={60}>
+								<div className="h-[56px] w-full">
+								<ResponsiveContainer width="100%" height="100%">
 									<BarChart data={timeline}>
 										<Bar dataKey="count" fill="#6366f1" radius={2} />
 										<Tooltip />
@@ -119,6 +123,7 @@ export default function SecurityMonitor() {
 										<YAxis hide />
 									</BarChart>
 								</ResponsiveContainer>
+								</div>
 							</div>
 						)}
 
@@ -129,14 +134,14 @@ export default function SecurityMonitor() {
 									{data.topSuspiciousIps.slice(0, 5).map((ip: any, i: number) => (
 										<div
 											key={ip.ip}
-											className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1"
+											className="flex items-center justify-between text-xs bg-muted/30 rounded px-2 py-1 gap-2"
 										>
-											<span className="truncate">
+											<span className="truncate min-w-0">
 												{i + 1}. {ip.ip}
 											</span>
-											<div className="flex items-center gap-2">
+											<div className="flex items-center gap-2 shrink-0">
 												<span className="font-medium">{ip.hits} hits</span>
-												<span className="text-muted-foreground">
+												<span className="text-muted-foreground hidden sm:inline">
 													{ip.types?.join(', ')}
 												</span>
 											</div>

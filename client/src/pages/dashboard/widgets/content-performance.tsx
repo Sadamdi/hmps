@@ -8,6 +8,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Loader2, FileText, BookOpen, Activity } from 'lucide-react';
+import { overviewCardClass } from './widget-styles';
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444'];
 
@@ -30,17 +31,17 @@ export default function ContentPerformance() {
 	];
 
 	return (
-		<Card>
-			<CardHeader className="pb-2">
+		<Card className={overviewCardClass}>
+			<CardHeader className="pb-2 p-4 sm:p-6">
 				<div className="flex items-center gap-2">
-					<Activity className="h-4 w-4 text-blue-500" />
-					<div>
-						<CardTitle className="text-base">Content Performance</CardTitle>
-						<CardDescription>7 hari terakhir</CardDescription>
+					<Activity className="h-4 w-4 text-primary shrink-0" />
+					<div className="min-w-0">
+						<CardTitle className="text-sm sm:text-base">Content Performance</CardTitle>
+						<CardDescription className="text-xs">7 hari terakhir</CardDescription>
 					</div>
 				</div>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
 				{isLoading ? (
 					<div className="flex justify-center py-8">
 						<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />

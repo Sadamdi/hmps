@@ -15,7 +15,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/components/ui/card';
-import { Loader2, Cpu, HardDrive, MemoryStick, Uptime } from 'lucide-react';
+import { Loader2, Cpu, HardDrive, MemoryStick } from 'lucide-react';
+import { overviewCardClass } from './widget-styles';
 
 function RingGauge({
 	value,
@@ -96,7 +97,7 @@ export default function SystemHealth() {
 
 	if (isLoading) {
 		return (
-			<Card>
+			<Card className={overviewCardClass}>
 				<CardContent className="flex justify-center py-12">
 					<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
 				</CardContent>
@@ -116,16 +117,16 @@ export default function SystemHealth() {
 	}));
 
 	return (
-		<Card>
-			<CardHeader className="pb-2">
-				<div className="flex items-center justify-between">
-					<div>
-						<CardTitle className="text-base">System Health</CardTitle>
-						<CardDescription>
+		<Card className={overviewCardClass}>
+			<CardHeader className="pb-2 p-4 sm:p-6">
+				<div className="flex items-start justify-between gap-2">
+					<div className="min-w-0">
+						<CardTitle className="text-sm sm:text-base">System Health</CardTitle>
+						<CardDescription className="text-xs truncate">
 							{health?.cpu?.model || 'Server'} · {health?.cpu?.cores} cores
 						</CardDescription>
 					</div>
-					<div className="flex items-center gap-1 text-xs">
+					<div className="flex items-center gap-1 text-xs shrink-0">
 						<span className="relative flex h-2 w-2">
 							<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
 							<span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
@@ -136,9 +137,9 @@ export default function SystemHealth() {
 					</div>
 				</div>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
 				<div className="space-y-4">
-					<div className="flex justify-around flex-wrap gap-4">
+					<div className="flex justify-around flex-wrap gap-3 sm:gap-4">
 						<RingGauge
 							value={health?.cpu?.usage || 0}
 							label="CPU"
@@ -164,7 +165,8 @@ export default function SystemHealth() {
 
 					{/* Live CPU+RAM chart */}
 					{history.length > 1 && (
-						<ResponsiveContainer width="100%" height={100}>
+						<div className="h-[90px] sm:h-[100px] w-full">
+						<ResponsiveContainer width="100%" height="100%">
 							<AreaChart data={history}>
 								<defs>
 									<linearGradient id="colorCpuLive" x1="0" y1="0" x2="0" y2="1">
@@ -182,7 +184,7 @@ export default function SystemHealth() {
 									tick={{ fontSize: 9 }}
 									interval="preserveEnd"
 								/>
-								<YAxis domain={[0, 100]} tick={{ fontSize: 9 }} />
+								<YAxis domain={[0, 100]} tick={{ fontSize: 9 }} width={28} />
 								<Tooltip />
 								<Area
 									type="monotone"
@@ -200,6 +202,7 @@ export default function SystemHealth() {
 								/>
 							</AreaChart>
 						</ResponsiveContainer>
+						</div>
 					)}
 
 					<div className="grid grid-cols-2 gap-2 text-xs">

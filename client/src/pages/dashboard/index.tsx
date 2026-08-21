@@ -282,83 +282,38 @@ export default function Dashboard() {
 		return null;
 	}
 
+	const showOverviewSuite =
+		hasSpecificPermission('overview.realtime_visitors') ||
+		hasSpecificPermission('overview.system_health') ||
+		hasSpecificPermission('overview.security_monitor') ||
+		hasSpecificPermission('overview.visitor_graph') ||
+		hasSpecificPermission('overview.heatmap') ||
+		hasSpecificPermission('overview.berita_leaderboard') ||
+		hasSpecificPermission('overview.login_attempts') ||
+		hasSpecificPermission('overview.content_performance');
+
 	return (
 		<DashboardLayout title="Dashboard" pageContextExtra={{ pageData: homePageDataForSpyro }}>
-			{/* === Overview Stats Suite (TOP) === */}
-			<div className="space-y-6 mb-6 sm:mb-8">
-				{/* Row 1: Status glance (3 cols) */}
-				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-					{hasSpecificPermission('overview.realtime_visitors') && (
-						<Suspense fallback={null}>
-							<ActiveVisitors />
-						</Suspense>
-					)}
-					{hasSpecificPermission('overview.system_health') && (
-						<Suspense fallback={null}>
-							<SystemHealth />
-						</Suspense>
-					)}
-					{hasSpecificPermission('overview.security_monitor') && (
-						<Suspense fallback={null}>
-							<SecurityMonitor />
-						</Suspense>
-					)}
-				</div>
-
-				{/* Row 2: Main visitor graph (full width) */}
-				{hasSpecificPermission('overview.visitor_graph') && (
-					<Suspense fallback={null}>
-						<VisitorGraph />
-					</Suspense>
-				)}
-
-				{/* Row 3: Analytics pair */}
-				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-					{hasSpecificPermission('overview.heatmap') && (
-						<Suspense fallback={null}>
-							<EngagementHeatmap />
-						</Suspense>
-					)}
-					{hasSpecificPermission('overview.berita_leaderboard') && (
-						<Suspense fallback={null}>
-							<BeritaLeaderboard />
-						</Suspense>
-					)}
-				</div>
-
-				{/* Row 4: Management pair */}
-				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-					{hasSpecificPermission('overview.login_attempts') && (
-						<Suspense fallback={null}>
-							<LoginAttempts />
-						</Suspense>
-					)}
-					{hasSpecificPermission('overview.content_performance') && (
-						<Suspense fallback={null}>
-							<ContentPerformance />
-						</Suspense>
-					)}
-				</div>
-			</div>
-
 			<div className="mb-6 sm:mb-8">
 				<h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
 					Welcome back, {user?.name || user?.username}
 				</h1>
-				<p className="text-muted-foreground text-sm sm:text-base">Here's an overview of the system</p>
+				<p className="text-muted-foreground text-sm sm:text-base">
+					Here's an overview of the system
+				</p>
 			</div>
 
 			<DashboardHintCard
 				title="Panduan singkat dashboard"
 				variant="blue"
 				storageKey="dashboard-home"
-				description="Halaman ini ringkasan: angka konten, aktivitas terbaru, dan pintasan. Tidak ada form create di sini—semua pengeditan dilakukan di menu lain.">
+				description="Ringkasan di atas: statistik, aktivitas, dan pintasan. Di bawahnya (jika izin overview) ada analitik visitor, keamanan, dan kesehatan server.">
 				<ul className="list-disc list-inside space-y-1.5 text-sm">
 					<li>
-						<strong>Langkah</strong>: (1) cek kartu statistik jika Anda punya izin <code className="text-xs bg-muted px-1 rounded">dashboard.stats</code>; (2) baca aktivitas untuk audit singkat; (3) pakai quick action untuk membuka modul (Berita, Galeri, dll.).
+						<strong>Langkah</strong>: (1) cek kartu statistik jika Anda punya izin <code className="text-xs bg-muted px-1 rounded">dashboard.stats</code>; (2) baca aktivitas untuk audit singkat; (3) pakai quick action untuk membuka modul; (4) scroll ke <em>Analitik Overview</em> bila tersedia.
 					</li>
 					<li>
-						<strong>Contoh valid</strong>: Anda login sebagai admin → melihat angka berita &gt; 0 setelah ada konten yang dipublish; aktivitas menampilkan judul dan waktu.
+						<strong>Contoh valid</strong>: Anda login sebagai admin → melihat angka berita &gt; 0 setelah ada konten yang dipublish; aktivitas menampilkan judul dan waktu; grafik visitor terisi setelah ada kunjungan publik.
 					</li>
 					<li>
 						<strong>Contoh tidak valid / kosong</strong>: statistik 0 padahal konten sudah ada bisa karena tidak ada izin stats, data belum ter-load, atau konten belum publish—cek halaman masing-masing.
@@ -367,7 +322,7 @@ export default function Dashboard() {
 						<strong>Jika gagal</strong>: refresh halaman; jika angka tetap salah, buka modul terkait dan pastikan konten tersimpan; cek konsol jaringan hanya jika tim IT meminta.
 					</li>
 					<li>
-						<strong>Izin</strong>: butuh <code className="text-xs bg-muted px-1 rounded">dashboard.view</code> untuk masuk; <code className="text-xs bg-muted px-1 rounded">dashboard.stats</code> untuk angka; <code className="text-xs bg-muted px-1 rounded">dashboard.activities</code> untuk daftar aktivitas.
+						<strong>Izin</strong>: butuh <code className="text-xs bg-muted px-1 rounded">dashboard.view</code> untuk masuk; <code className="text-xs bg-muted px-1 rounded">dashboard.stats</code> / <code className="text-xs bg-muted px-1 rounded">dashboard.activities</code> untuk ringkasan; <code className="text-xs bg-muted px-1 rounded">overview.*</code> untuk suite analitik.
 					</li>
 				</ul>
 			</DashboardHintCard>
@@ -451,9 +406,9 @@ export default function Dashboard() {
 			<div className="mt-6 sm:mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
 				{/* Recent Activities */}
 				<Card className="border-border/70 bg-card/95">
-					<CardHeader className="flex flex-row items-center justify-between">
-						<div>
-							<CardTitle>Recent Activities</CardTitle>
+					<CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between p-4 sm:p-6">
+						<div className="min-w-0">
+							<CardTitle className="text-base sm:text-lg">Recent Activities</CardTitle>
 							<p className="text-sm text-muted-foreground">
 								Latest actions in the system
 							</p>
@@ -463,6 +418,7 @@ export default function Dashboard() {
 								<Button
 									variant="outline"
 									size="sm"
+									className="w-full sm:w-auto shrink-0"
 									onClick={() => setShowAllActivities(true)}>
 									<Eye className="h-4 w-4 mr-1" />
 									Lihat Selengkapnya
@@ -523,12 +479,12 @@ export default function Dashboard() {
 
 				{/* Quick Actions */}
 				<Card className="border-border/70 bg-card/95">
-					<CardHeader>
-						<CardTitle>Quick Actions</CardTitle>
+					<CardHeader className="p-4 sm:p-6">
+						<CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
 						<CardDescription>Frequently used actions</CardDescription>
 					</CardHeader>
-					<CardContent>
-						<div className="grid grid-cols-2 gap-4">
+					<CardContent className="p-4 pt-0 sm:p-6 sm:pt-0">
+						<div className="grid grid-cols-2 gap-3 sm:gap-4">
 						{hasSpecificPermission('berita.create') && (
 							<button
 								onClick={() => setLocation('/dashboard/berita')}
@@ -622,6 +578,70 @@ export default function Dashboard() {
 					</CardContent>
 				</Card>
 			</div>
+
+			{/* Analytics overview — below welcome / stats / activities */}
+			{showOverviewSuite && (
+				<section className="mt-8 sm:mt-10 space-y-4 sm:space-y-6">
+					<div className="border-t border-border/60 pt-6 sm:pt-8">
+						<h2 className="text-lg sm:text-xl font-semibold text-foreground">
+							Analitik Overview
+						</h2>
+						<p className="text-sm text-muted-foreground mt-1">
+							Visitor website, performa konten, keamanan, dan kesehatan server
+						</p>
+					</div>
+
+					<div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+						{hasSpecificPermission('overview.realtime_visitors') && (
+							<Suspense fallback={null}>
+								<ActiveVisitors />
+							</Suspense>
+						)}
+						{hasSpecificPermission('overview.system_health') && (
+							<Suspense fallback={null}>
+								<SystemHealth />
+							</Suspense>
+						)}
+						{hasSpecificPermission('overview.security_monitor') && (
+							<Suspense fallback={null}>
+								<SecurityMonitor />
+							</Suspense>
+						)}
+					</div>
+
+					{hasSpecificPermission('overview.visitor_graph') && (
+						<Suspense fallback={null}>
+							<VisitorGraph />
+						</Suspense>
+					)}
+
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+						{hasSpecificPermission('overview.heatmap') && (
+							<Suspense fallback={null}>
+								<EngagementHeatmap />
+							</Suspense>
+						)}
+						{hasSpecificPermission('overview.berita_leaderboard') && (
+							<Suspense fallback={null}>
+								<BeritaLeaderboard />
+							</Suspense>
+						)}
+					</div>
+
+					<div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+						{hasSpecificPermission('overview.login_attempts') && (
+							<Suspense fallback={null}>
+								<LoginAttempts />
+							</Suspense>
+						)}
+						{hasSpecificPermission('overview.content_performance') && (
+							<Suspense fallback={null}>
+								<ContentPerformance />
+							</Suspense>
+						)}
+					</div>
+				</section>
+			)}
 
 			{/* All Activities Modal */}
 			<Dialog

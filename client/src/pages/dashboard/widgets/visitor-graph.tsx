@@ -22,6 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { Loader2, TrendingUp, TrendingDown, Eye, Users } from 'lucide-react';
+import { overviewCardClass, overviewInnerCardClass } from './widget-styles';
 
 type RangeKey = '1d' | '3d' | '7d' | '30d';
 
@@ -52,7 +53,7 @@ function StatCard({
 	growth?: number;
 }) {
 	return (
-		<div className="bg-muted/40 rounded-lg p-3 border">
+		<div className="bg-muted/40 rounded-lg p-3 border border-border/50">
 			<div className="flex items-center justify-between mb-1">
 				<p className="text-xs text-muted-foreground">{label}</p>
 				<span className="text-muted-foreground">{icon}</span>
@@ -167,12 +168,12 @@ export default function VisitorGraph() {
 		})) || [];
 
 	return (
-		<Card>
-			<CardHeader className="pb-3">
-				<div className="flex items-center justify-between flex-wrap gap-2">
-					<div>
-						<CardTitle>Visitor Analytics</CardTitle>
-						<CardDescription>
+		<Card className={overviewCardClass}>
+			<CardHeader className="pb-3 p-4 sm:p-6">
+				<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+					<div className="min-w-0">
+						<CardTitle className="text-base sm:text-lg">Visitor Analytics</CardTitle>
+						<CardDescription className="text-xs sm:text-sm">
 							Pengunjung website {data?.bucketType === 'hourly' ? '(per jam)' : '(per hari)'}
 						</CardDescription>
 					</div>
@@ -182,6 +183,7 @@ export default function VisitorGraph() {
 								key={r.key}
 								variant={range === r.key ? 'default' : 'outline'}
 								size="sm"
+								className="text-xs sm:text-sm h-8 px-2.5 sm:px-3"
 								onClick={() => setRange(r.key)}
 							>
 								{r.label}
@@ -190,15 +192,15 @@ export default function VisitorGraph() {
 					</div>
 				</div>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
 				{isLoading ? (
 					<div className="flex justify-center py-12">
 						<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
 					</div>
 				) : data ? (
-					<div className="space-y-6">
+					<div className="space-y-4 sm:space-y-6">
 						{/* Summary stat cards */}
-						<div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+						<div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
 							<StatCard
 								label="Total Pageviews"
 								value={formatNumber(data.totalPageviews)}
@@ -229,7 +231,8 @@ export default function VisitorGraph() {
 						</div>
 
 						{/* Main area chart */}
-						<ResponsiveContainer width="100%" height={280}>
+						<div className="h-[200px] sm:h-[280px] w-full">
+						<ResponsiveContainer width="100%" height="100%">
 							<AreaChart data={chartData}>
 								<defs>
 									<linearGradient id="colorPv" x1="0" y1="0" x2="0" y2="1">
@@ -247,7 +250,7 @@ export default function VisitorGraph() {
 									tick={{ fontSize: 11 }}
 									interval="preserveStartEnd"
 								/>
-								<YAxis tick={{ fontSize: 11 }} />
+								<YAxis tick={{ fontSize: 11 }} width={36} />
 								<Tooltip />
 								<Area
 									type="monotone"
@@ -267,26 +270,27 @@ export default function VisitorGraph() {
 								/>
 							</AreaChart>
 						</ResponsiveContainer>
+						</div>
 
 						{/* Sub-widgets grid */}
-						<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+						<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
 							{canSeeTopPages && data.topPages?.length > 0 && (
-								<Card>
-									<CardHeader className="pb-2">
+								<Card className={overviewInnerCardClass}>
+									<CardHeader className="pb-2 p-3 sm:p-4">
 										<CardTitle className="text-sm">Top 5 Pages</CardTitle>
 									</CardHeader>
-									<CardContent>
+									<CardContent className="px-3 pb-3 sm:px-4 sm:pb-4">
 										<div className="space-y-2">
 											{data.topPages.map(
 												(p: { path: string; count: number }, i: number) => (
 													<div
 														key={p.path}
-														className="flex items-center justify-between text-xs"
+														className="flex items-center justify-between text-xs gap-2"
 													>
-														<span className="truncate mr-2" title={p.path}>
+														<span className="truncate min-w-0" title={p.path}>
 															{i + 1}. {p.path}
 														</span>
-														<span className="font-medium whitespace-nowrap">
+														<span className="font-medium whitespace-nowrap shrink-0">
 															{formatNumber(p.count)}
 														</span>
 													</div>
@@ -298,11 +302,11 @@ export default function VisitorGraph() {
 							)}
 
 							{canSeeReferrer && (
-								<Card>
-									<CardHeader className="pb-2">
+								<Card className={overviewInnerCardClass}>
+									<CardHeader className="pb-2 p-3 sm:p-4">
 										<CardTitle className="text-sm">Referrer Sources</CardTitle>
 									</CardHeader>
-									<CardContent>
+									<CardContent className="px-3 pb-3 sm:px-4 sm:pb-4">
 										<MiniDonut
 											title="Referrers"
 											data={(data.referrers || []).map(
@@ -317,11 +321,11 @@ export default function VisitorGraph() {
 							)}
 
 							{canSeeDevice && (
-								<Card>
-									<CardHeader className="pb-2">
+								<Card className={overviewInnerCardClass}>
+									<CardHeader className="pb-2 p-3 sm:p-4">
 										<CardTitle className="text-sm">Device</CardTitle>
 									</CardHeader>
-									<CardContent>
+									<CardContent className="px-3 pb-3 sm:px-4 sm:pb-4">
 										<MiniDonut
 											title="Device"
 											data={[
@@ -335,11 +339,11 @@ export default function VisitorGraph() {
 							)}
 
 							{canSeeGeo && data.geoBreakdown?.length > 0 && (
-								<Card className="md:col-span-2 lg:col-span-1">
-									<CardHeader className="pb-2">
+								<Card className={`${overviewInnerCardClass} sm:col-span-2 lg:col-span-1`}>
+									<CardHeader className="pb-2 p-3 sm:p-4">
 										<CardTitle className="text-sm">Geo (Country)</CardTitle>
 									</CardHeader>
-									<CardContent>
+									<CardContent className="px-3 pb-3 sm:px-4 sm:pb-4">
 										<MiniDonut
 											title="Geo"
 											data={(data.geoBreakdown || []).map(

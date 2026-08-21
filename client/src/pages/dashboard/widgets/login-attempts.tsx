@@ -7,6 +7,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Loader2, LogIn, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import { overviewCardClass } from './widget-styles';
 
 export default function LoginAttempts() {
 	const { data, isLoading } = useQuery({
@@ -22,19 +23,19 @@ export default function LoginAttempts() {
 	});
 
 	return (
-		<Card>
-			<CardHeader className="pb-2">
+		<Card className={overviewCardClass}>
+			<CardHeader className="pb-2 p-4 sm:p-6">
 				<div className="flex items-center justify-between">
-					<div>
-						<CardTitle className="text-base flex items-center gap-2">
-							<LogIn className="h-4 w-4" />
+					<div className="min-w-0">
+						<CardTitle className="text-sm sm:text-base flex items-center gap-2">
+							<LogIn className="h-4 w-4 shrink-0" />
 							Login Attempts
 						</CardTitle>
-						<CardDescription>24 jam terakhir</CardDescription>
+						<CardDescription className="text-xs">24 jam terakhir</CardDescription>
 					</div>
 				</div>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
 				{isLoading ? (
 					<div className="flex justify-center py-8">
 						<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
