@@ -1,5 +1,10 @@
 import { exec } from 'child_process';
+import fs from 'fs';
 import os from 'os';
+import path from 'path';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
 
 export interface SystemHealthSnapshot {
 	cpu: {
@@ -101,31 +106,61 @@ async function getEventLoopLag(): Promise<number> {
 }
 
 async function getDiskUsage(): Promise<{ total: number; used: number; available: number; usage: number }> {
-	return new Promise((resolve) => {
-		exec("df -k / | tail -1 | awk '{print $2,$3,$4}'", (err: Error | null, stdout: string) => {
-			if (err || !stdout.trim()) {
-				resolve({ total: 0, used: 0, available: 0, usage: 0 });
-				return;
-			}
-			const parts = stdout.trim().split(/\s+/);
-			const total = parseInt(parts[0] || '0', 10) * 1024;
-			const used = parseInt(parts[1] || '0', 10) * 1024;
-			const available = parseInt(parts[2] || '0', 10) * 1024;
-			const usage = total > 0 ? Math.round((used / total) * 100) : 0;
-			resolve({ total, used, available, usage });
-		});
-	});
+	try {
+		const { stdout } = await execAsync("df -k / | tail -1 | awk '{print $2,$3,$4}'");
+		const parts = stdout.trim().split(/\s+/);
+		const total = parseInt(parts[0] || '0', 10) * 1024;
+		const used = parseInt(parts[1] || '0', 10) * 1024;
+		const available = parseInt(parts[2] || '0', 10) * 1024;
+		const usage = total > 0 ? Math.round((used / total) * 100) : 0;
+		return { total, used, available, usage };
+	} catch {
+		return { total: 0, used: 0, available: 0, usage: 0 };
+	}
+}
+
+export type DirSizeInfo = { size: string; fileCount: number };
+
+async function getDirSize(dir: string): Promise<DirSizeInfo> {
+	try {
+		if (!fs.existsSync(dir)) return { size: '0B', fileCount: 0 };
+		const [{ stdout: sizeOut }, { stdout: countOut }] = await Promise.all([
+			execAsync(`du -sh ${JSON.stringify(dir)} 2>/dev/null | head -1`),
+			execAsync(`find ${JSON.stringify(dir)} -type f 2>/dev/null | wc -l`),
+		]);
+		const size = sizeOut.trim().split(/\s+/)[0] || '0B';
+		const fileCount = parseInt(countOut.trim(), 10) || 0;
+		return { size, fileCount };
+	} catch {
+		return { size: '0B', fileCount: 0 };
+	}
+}
+
+export async function getStorageBreakdown(appRoot = process.cwd()): Promise<{
+	uploads: DirSizeInfo;
+	attachedAssets: DirSizeInfo;
+	total: string;
+}> {
+	const [uploads, attachedAssets] = await Promise.all([
+		getDirSize(path.join(appRoot, 'uploads')),
+		getDirSize(path.join(appRoot, 'attached_assets')),
+	]);
+	return { uploads, attachedAssets, total: '—' };
 }
 
 let lastSnapshotTime = 0;
+let cachedSnapshot: SystemHealthSnapshot | null = null;
 let pendingSnapshot: Promise<SystemHealthSnapshot> | null = null;
 
 export async function getSystemHealth(): Promise<SystemHealthSnapshot> {
 	const now = Date.now();
-	if (now - lastSnapshotTime < 2000 && pendingSnapshot) {
+	// Serve cached snapshot within 2s window (dedupe concurrent polls)
+	if (cachedSnapshot && now - lastSnapshotTime < 2000) {
+		return cachedSnapshot;
+	}
+	if (pendingSnapshot) {
 		return pendingSnapshot;
 	}
-	lastSnapshotTime = now;
 
 	pendingSnapshot = (async (): Promise<SystemHealthSnapshot> => {
 		const [cpu, eventLoopLag, disk] = await Promise.all([
@@ -150,7 +185,7 @@ export async function getSystemHealth(): Promise<SystemHealthSnapshot> {
 			history.shift();
 		}
 
-		return {
+		const snapshot: SystemHealthSnapshot = {
 			cpu: {
 				usage: cpu.usage,
 				cores: cpu.cores,
@@ -179,7 +214,12 @@ export async function getSystemHealth(): Promise<SystemHealthSnapshot> {
 			},
 			history: [...history],
 		};
-	})();
+		cachedSnapshot = snapshot;
+		lastSnapshotTime = Date.now();
+		return snapshot;
+	})().finally(() => {
+		pendingSnapshot = null;
+	});
 
 	return pendingSnapshot;
 }
