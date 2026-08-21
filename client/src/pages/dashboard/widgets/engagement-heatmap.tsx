@@ -8,6 +8,7 @@ import {
 } from '@/components/ui/card';
 import { Loader2, Clock } from 'lucide-react';
 import { overviewCardClass } from './widget-styles';
+import { useOverviewRange } from './overview-range-context';
 
 function getHeatColor(value: number, max: number): string {
 	if (value === 0) return 'bg-muted/30';
@@ -19,10 +20,12 @@ function getHeatColor(value: number, max: number): string {
 }
 
 export default function EngagementHeatmap() {
+	const { days: rangeDays } = useOverviewRange();
+
 	const { data, isLoading } = useQuery({
-		queryKey: ['/api/dashboard/engagement-heatmap'],
+		queryKey: ['/api/dashboard/engagement-heatmap', rangeDays],
 		queryFn: async () => {
-			const res = await fetch('/api/dashboard/engagement-heatmap', {
+			const res = await fetch(`/api/dashboard/engagement-heatmap?days=${rangeDays}`, {
 				credentials: 'include',
 			});
 			if (!res.ok) throw new Error('Failed');
@@ -44,7 +47,7 @@ export default function EngagementHeatmap() {
 				<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
 					<div className="min-w-0">
 						<CardTitle className="text-sm sm:text-base">Engagement Heatmap</CardTitle>
-						<CardDescription className="text-xs">30 hari terakhir (jam × hari)</CardDescription>
+						<CardDescription className="text-xs">{rangeDays} hari terakhir (jam × hari) — filter global</CardDescription>
 					</div>
 					{data?.peakHour && (
 						<div className="flex items-center gap-1 text-xs bg-muted/50 rounded-full px-3 py-1 w-fit">

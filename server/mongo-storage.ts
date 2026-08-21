@@ -2453,12 +2453,24 @@ async function initializeDefaultPermissions() {
 				description: 'Lihat penggunaan disk storage',
 				category: 'overview',
 			},
-			{
-				name: 'overview.content_performance',
-				displayName: 'View Content Performance',
-				description: 'Lihat performa konten dan engagement',
-				category: 'overview',
-			},
+		{
+			name: 'overview.content_performance',
+			displayName: 'View Content Performance',
+			description: 'Lihat performa konten dan engagement',
+			category: 'overview',
+		},
+		{
+			name: 'overview.network_activity',
+			displayName: 'View Network Activity',
+			description: 'Lihat throughput jaringan I/O (RX/TX) real-time',
+			category: 'overview',
+		},
+		{
+			name: 'overview.storage_activity',
+			displayName: 'View Storage Activity',
+			description: 'Lihat perubahan file uploads & attached_assets (delta)',
+			category: 'overview',
+		},
 
 			// User management permissions
 			{
@@ -3023,63 +3035,87 @@ async function initializeDefaultPermissions() {
 	// ── Backfill overview.* permissions to eligible roles ──
 	// (run even if initializeDefaultPermissions early-returned; roles already exist)
 	try {
-		const overviewPermsByRole: Record<string, string[]> = {
-			admin: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.referrer_sources', 'overview.device_breakdown',
-				'overview.geo_breakdown', 'overview.realtime_visitors',
-				'overview.heatmap', 'overview.berita_leaderboard',
-				'overview.system_health', 'overview.security_monitor',
-				'overview.login_attempts', 'overview.storage_usage',
-				'overview.content_performance',
-			],
-			chair: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.referrer_sources', 'overview.device_breakdown',
-				'overview.geo_breakdown', 'overview.realtime_visitors',
-				'overview.heatmap', 'overview.berita_leaderboard',
-				'overview.system_health', 'overview.security_monitor',
-				'overview.login_attempts', 'overview.storage_usage',
-				'overview.content_performance',
-			],
-			vice_chair: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.realtime_visitors', 'overview.berita_leaderboard',
-				'overview.system_health', 'overview.content_performance',
-			],
-			bph: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.realtime_visitors', 'overview.berita_leaderboard',
-				'overview.content_performance',
-			],
-			medinfo: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.referrer_sources', 'overview.device_breakdown',
-				'overview.geo_breakdown', 'overview.realtime_visitors',
-				'overview.heatmap', 'overview.berita_leaderboard',
-				'overview.content_performance',
-			],
-			public_relation: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.referrer_sources', 'overview.device_breakdown',
-				'overview.geo_breakdown', 'overview.realtime_visitors',
-				'overview.heatmap', 'overview.berita_leaderboard',
-				'overview.content_performance',
-			],
-			division_head: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.realtime_visitors', 'overview.berita_leaderboard',
-			],
-		};
+	const ALL_OVERVIEW_PERMS = [
+		'overview.visitor_graph', 'overview.top_pages',
+		'overview.referrer_sources', 'overview.device_breakdown',
+		'overview.geo_breakdown', 'overview.realtime_visitors',
+		'overview.heatmap', 'overview.berita_leaderboard',
+		'overview.system_health', 'overview.security_monitor',
+		'overview.login_attempts', 'overview.storage_usage',
+		'overview.content_performance',
+		'overview.network_activity', 'overview.storage_activity',
+	];
 
-		for (const [roleName, perms] of Object.entries(overviewPermsByRole)) {
+	const overviewPermsByRole: Record<string, string[]> = {
+		// admin & medinfo: full access to all overview.* (medinfo owns content/engagement side)
+		admin: [...ALL_OVERVIEW_PERMS],
+		medinfo: [...ALL_OVERVIEW_PERMS],
+		// chair & vice_chair: full ops view (no storage_activity detail)
+		chair: [
+			'overview.visitor_graph', 'overview.top_pages',
+			'overview.referrer_sources', 'overview.device_breakdown',
+			'overview.geo_breakdown', 'overview.realtime_visitors',
+			'overview.heatmap', 'overview.berita_leaderboard',
+			'overview.system_health', 'overview.security_monitor',
+			'overview.login_attempts', 'overview.storage_usage',
+			'overview.content_performance',
+			'overview.network_activity',
+		],
+		vice_chair: [
+			'overview.visitor_graph', 'overview.top_pages',
+			'overview.referrer_sources', 'overview.device_breakdown',
+			'overview.geo_breakdown', 'overview.realtime_visitors',
+			'overview.heatmap', 'overview.berita_leaderboard',
+			'overview.system_health', 'overview.security_monitor',
+			'overview.login_attempts', 'overview.storage_usage',
+			'overview.content_performance',
+			'overview.network_activity',
+		],
+		// bph: content + engagement (no infra/security)
+		bph: [
+			'overview.visitor_graph', 'overview.top_pages',
+			'overview.referrer_sources', 'overview.device_breakdown',
+			'overview.geo_breakdown', 'overview.realtime_visitors',
+			'overview.heatmap', 'overview.berita_leaderboard',
+			'overview.content_performance',
+		],
+		// public_relation: same as bph (content engagement view)
+		public_relation: [
+			'overview.visitor_graph', 'overview.top_pages',
+			'overview.referrer_sources', 'overview.device_breakdown',
+			'overview.geo_breakdown', 'overview.realtime_visitors',
+			'overview.heatmap', 'overview.berita_leaderboard',
+			'overview.content_performance',
+		],
+		// division_head: minimal (visitor + leaderboard)
+		division_head: [
+			'overview.visitor_graph', 'overview.top_pages',
+			'overview.realtime_visitors', 'overview.berita_leaderboard',
+		],
+		// staff_default: minimal
+		staff_default: [
+			'overview.visitor_graph', 'overview.top_pages',
+			'overview.realtime_visitors', 'overview.berita_leaderboard',
+		],
+	};
+
+	for (const [roleName, perms] of Object.entries(overviewPermsByRole)) {
+		await Role.updateMany(
+			{ name: roleName },
+			{ $addToSet: { permissions: { $each: perms } } },
+		);
+		// Remove legacy overview perms that the role should no longer have
+		// (so the rework is reflected, not just additive)
+		const toRemove = ALL_OVERVIEW_PERMS.filter((p) => !perms.includes(p));
+		if (toRemove.length > 0) {
 			await Role.updateMany(
 				{ name: roleName },
-				{ $addToSet: { permissions: { $each: perms } } },
+				{ $pull: { permissions: { $in: toRemove } } },
 			);
 		}
-		console.log('✅ Backfilled overview permissions to eligible roles');
-	} catch (e) {
+	}
+	console.log('✅ Backfilled + reconciled overview permissions to eligible roles');
+} catch (e) {
 		console.error('Error backfilling overview permissions:', e);
 	}
 }

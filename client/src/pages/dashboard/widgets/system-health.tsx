@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card';
 import { Cpu, HardDrive, MemoryStick } from 'lucide-react';
 import { overviewCardClass } from './widget-styles';
+import { useOverviewStream } from './use-overview-stream';
 
 function RingGauge({
 	value,
@@ -95,7 +96,10 @@ function cpuSpeedLabel(speedGhz: number | undefined, cores: number | undefined):
 }
 
 export default function SystemHealth() {
-	const { data, isPending, isFetching, isError } = useQuery({
+	// Real-time SSE push — updates React Query cache directly, no polling delay
+	const stream = useOverviewStream({ enabled: true });
+
+	const { data, isPending, isError } = useQuery({
 		queryKey: ['/api/dashboard/system-health'],
 		queryFn: async () => {
 			const res = await fetch('/api/dashboard/system-health', {
@@ -104,15 +108,17 @@ export default function SystemHealth() {
 			if (!res.ok) throw new Error('Failed');
 			return res.json();
 		},
-		// 10s is enough for ops glance; avoids noise / rate-limit pressure
-		refetchInterval: 10_000,
+		// SSE handles live updates; this is just the initial fetch + fallback
+		refetchInterval: stream.usingFallback ? 10_000 : false,
 		refetchIntervalInBackground: false,
-		staleTime: 8_000,
+		staleTime: stream.usingFallback ? 8_000 : 60_000,
 		retry: 1,
 		placeholderData: (prev) => prev,
 	});
 
 	const health = data;
+	const isLive = stream.connected && !stream.usingFallback;
+	const isFetching = !stream.lastUpdate && isPending;
 	const history = (health?.history || []).map((h: { t: number; cpu: number; ram: number }) => ({
 		time: new Date(h.t).toLocaleTimeString('id-ID', {
 			hour: '2-digit',
@@ -136,28 +142,30 @@ export default function SystemHealth() {
 							{health?.cpu?.cores != null ? ` · ${health.cpu.cores} cores` : ''}
 						</CardDescription>
 					</div>
-					<div className="flex items-center gap-1.5 text-xs shrink-0">
+				<div className="flex items-center gap-1.5 text-xs shrink-0">
+					<span
+						className="relative flex h-2 w-2"
+						title={isLive ? 'Live (SSE)' : stream.usingFallback ? 'Polling 10s' : isFetching ? 'Connecting…' : isError && !health ? 'Error' : 'Idle'}
+					>
+						{isLive && (
+							<span className="absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60 animate-ping" />
+						)}
 						<span
-							className="relative flex h-2 w-2"
-							title={isFetching ? 'Updating…' : isError && !health ? 'Error' : 'Live'}
-						>
-							{isFetching && (
-								<span className="absolute inline-flex h-full w-full rounded-full bg-sky-400 opacity-60 animate-ping" />
-							)}
-							<span
-								className={`relative inline-flex rounded-full h-2 w-2 ${
-									isError && !health
-										? 'bg-red-500'
-										: isFetching
-											? 'bg-sky-500'
-											: 'bg-green-500'
-								}`}
-							/>
-						</span>
-						<span className="text-muted-foreground">
-							{health?.uptime?.formatted || (showSkeleton ? '…' : '—')}
-						</span>
-					</div>
+							className={`relative inline-flex rounded-full h-2 w-2 ${
+								isError && !health
+									? 'bg-red-500'
+									: isLive
+										? 'bg-green-500'
+										: stream.usingFallback
+											? 'bg-amber-500'
+											: 'bg-sky-500 animate-pulse'
+							}`}
+						/>
+					</span>
+					<span className="text-muted-foreground">
+						{health?.uptime?.formatted || (showSkeleton ? '…' : '—')}
+					</span>
+				</div>
 				</div>
 			</CardHeader>
 			<CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">

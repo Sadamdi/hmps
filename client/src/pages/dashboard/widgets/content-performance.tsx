@@ -9,14 +9,17 @@ import {
 } from '@/components/ui/card';
 import { Loader2, FileText, BookOpen, Activity } from 'lucide-react';
 import { overviewCardClass } from './widget-styles';
+import { useOverviewRange } from './overview-range-context';
 
 const CHART_COLORS = ['#10b981', '#f59e0b', '#ef4444'];
 
 export default function ContentPerformance() {
+	const { range, days } = useOverviewRange();
+
 	const { data, isLoading } = useQuery({
-		queryKey: ['/api/dashboard/content-performance'],
+		queryKey: ['/api/dashboard/content-performance', range],
 		queryFn: async () => {
-			const res = await fetch('/api/dashboard/content-performance', {
+			const res = await fetch(`/api/dashboard/content-performance?range=${range}`, {
 				credentials: 'include',
 			});
 			if (!res.ok) throw new Error('Failed');
@@ -27,7 +30,7 @@ export default function ContentPerformance() {
 
 	const totalContent = (data?.berita?.total || 0) + (data?.library?.total || 0);
 	const engagementData = [
-		{ name: 'Pageviews 7d', value: data?.totalPageviews7d || 0 },
+		{ name: `Pageviews ${range}`, value: data?.totalPageviews7d || 0 },
 	];
 
 	return (
@@ -37,7 +40,7 @@ export default function ContentPerformance() {
 					<Activity className="h-4 w-4 text-primary shrink-0" />
 					<div className="min-w-0">
 						<CardTitle className="text-sm sm:text-base">Content Performance</CardTitle>
-						<CardDescription className="text-xs">7 hari terakhir</CardDescription>
+						<CardDescription className="text-xs">{days} hari terakhir — filter global</CardDescription>
 					</div>
 				</div>
 			</CardHeader>
@@ -72,7 +75,7 @@ export default function ContentPerformance() {
 
 						{/* Engagement metrics */}
 						<div className="bg-muted/30 rounded p-3">
-							<p className="text-xs font-medium mb-2">Engagement (7 hari)</p>
+							<p className="text-xs font-medium mb-2">Engagement ({range})</p>
 							<div className="grid grid-cols-2 gap-3">
 								<div>
 									<p className="text-xs text-muted-foreground">Pageviews</p>

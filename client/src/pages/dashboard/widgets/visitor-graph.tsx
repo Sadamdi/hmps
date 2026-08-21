@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
 	Area,
@@ -19,19 +18,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
 import { Loader2, TrendingUp, TrendingDown, Eye, Users } from 'lucide-react';
 import { overviewCardClass, overviewInnerCardClass } from './widget-styles';
-
-type RangeKey = '1d' | '3d' | '7d' | '30d';
-
-const RANGES: { key: RangeKey; label: string }[] = [
-	{ key: '1d', label: '1 Hari' },
-	{ key: '3d', label: '3 Hari' },
-	{ key: '7d', label: '7 Hari' },
-	{ key: '30d', label: '1 Bulan' },
-];
+import { useOverviewRange } from './overview-range-context';
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899'];
 
@@ -140,7 +130,7 @@ function MiniDonut({
 
 export default function VisitorGraph() {
 	const { hasSpecificPermission } = useAuth();
-	const [range, setRange] = useState<RangeKey>('7d');
+	const { range } = useOverviewRange();
 
 	const canSeeTopPages = hasSpecificPermission('overview.top_pages');
 	const canSeeReferrer = hasSpecificPermission('overview.referrer_sources');
@@ -174,21 +164,8 @@ export default function VisitorGraph() {
 					<div className="min-w-0">
 						<CardTitle className="text-base sm:text-lg">Visitor Analytics</CardTitle>
 						<CardDescription className="text-xs sm:text-sm">
-							Pengunjung website {data?.bucketType === 'hourly' ? '(per jam)' : '(per hari)'}
+							Pengunjung website {data?.bucketType === 'hourly' ? '(per jam)' : '(per hari)'} — filter global
 						</CardDescription>
-					</div>
-					<div className="flex gap-1 flex-wrap">
-						{RANGES.map((r) => (
-							<Button
-								key={r.key}
-								variant={range === r.key ? 'default' : 'outline'}
-								size="sm"
-								className="text-xs sm:text-sm h-8 px-2.5 sm:px-3"
-								onClick={() => setRange(r.key)}
-							>
-								{r.label}
-							</Button>
-						))}
 					</div>
 				</div>
 			</CardHeader>

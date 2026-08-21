@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/card';
 import { Loader2, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { overviewCardClass } from './widget-styles';
+import { useOverviewRange } from './overview-range-context';
 
 const THREAT_COLORS = {
 	low: { bg: 'bg-green-100 text-green-700', icon: ShieldCheck, color: '#10b981' },
@@ -27,10 +28,12 @@ const THREAT_COLORS = {
 const TYPE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#6366f1'];
 
 export default function SecurityMonitor() {
+	const { days } = useOverviewRange();
+
 	const { data, isLoading } = useQuery({
-		queryKey: ['/api/dashboard/security-monitor'],
+		queryKey: ['/api/dashboard/security-monitor', days],
 		queryFn: async () => {
-			const res = await fetch('/api/dashboard/security-monitor', {
+			const res = await fetch(`/api/dashboard/security-monitor?days=${days}`, {
 				credentials: 'include',
 			});
 			if (!res.ok) throw new Error('Failed');
@@ -62,7 +65,7 @@ export default function SecurityMonitor() {
 							<Shield className="h-4 w-4 shrink-0" />
 							Security Monitor
 						</CardTitle>
-						<CardDescription className="text-xs">24 jam terakhir</CardDescription>
+						<CardDescription className="text-xs">{days} hari terakhir — filter global</CardDescription>
 					</div>
 					<div className={`flex items-center gap-1 text-xs rounded-full px-3 py-1 ${threatConfig.bg}`}>
 						<ThreatIcon className="h-3 w-3" />
@@ -79,9 +82,9 @@ export default function SecurityMonitor() {
 					<div className="space-y-4">
 						<div className="text-center py-2">
 							<p className="text-3xl font-bold">
-								{data?.totalBlocked24h || 0}
-							</p>
-							<p className="text-xs text-muted-foreground">blocked requests</p>
+							{data?.totalBlocked24h || 0}
+						</p>
+						<p className="text-xs text-muted-foreground">blocked requests</p>
 						</div>
 
 						{breakdown.length > 0 && (

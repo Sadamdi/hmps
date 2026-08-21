@@ -11,6 +11,31 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.18.0] — 2026-08-22
+
+**Overview Suite Phase 2: SSE push, Network/Storage activity, global range filter, permission rework** · MINOR · [Full release notes](../release/4.18.0.md)
+
+### Added
+- SSE push channel `/api/dashboard/system-health/stream` (2s interval, auto-cleanup on close, heartbeat 25s)
+- `useOverviewStream` hook: EventSource subscribe + auto-reconnect (backoff) + fallback poll 10s if SSE gagal, pause saat tab hidden
+- Widget **System Activity** (Network I/O RX/TX sparkline + Storage Activity delta uploads/attached_assets)
+- `OverviewRangeContext` + `OverviewRangeProvider` + global range control 1d/3d/7d/30d di header Analitik Overview
+- Permission `overview.network_activity` & `overview.storage_activity` (definisi + backfill)
+- Endpoint heatmap/login-attempts/security-monitor/content-performance menerima `?days=` / `?range=` parameter
+
+### Changed
+- System Health widget beralih dari polling 10s ke SSE push (live indicator: green=SSE, amber=poll, sky=connecting)
+- Visitor-graph & berita-leaderboard: tombol range lokal dihapus, pakai global range context
+- `overviewPermsByRole` dirework: admin & medinfo = semua `overview.*`; chair/vice_chair = ops view tanpa storage_activity detail; bph/public_relation = content engagement; division_head/staff_default = minimal
+- Backfill overview sekarang **reconcile** (remove legacy perms yang tidak lagi termasuk, bukan hanya additive)
+
+### Ops note
+- SSE cocok untuk real-time metrics ringan tanpa WebSocket; tetap concurrent-safe per tab
+- Network/Storage helper pakai in-memory snapshot, bukan `find`/`du` tiap tick
+- Fallback poll 10s tetap ada kalau SSE putus — UX tidak blank
+
+---
+
 ## [4.17.2] — 2026-08-21
 
 **Fix system health zeros / ESM require** · PATCH · [Full release notes](../release/4.17.2.md)

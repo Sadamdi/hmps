@@ -7743,9 +7743,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!(await checkOverviewPermission(req, 'overview.heatmap'))) {
 				return res.status(403).json({ message: 'No permission' });
 			}
-			const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+			const days = Math.min(Math.max(parseInt(String(req.query.days), 10) || 30, 1), 90);
+			const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 			const result = await PageVisit.aggregate([
-				{ $match: { timestamp: { $gte: thirtyDaysAgo }, isBot: false } },
+				{ $match: { timestamp: { $gte: startDate }, isBot: false } },
 				{
 					$group: {
 						_id: {
@@ -7857,10 +7858,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const health = await getSystemHealth();
 			const canSeeStorage = await checkOverviewPermission(req, 'overview.storage_usage');
 			const storage = canSeeStorage ? await getStorageBreakdown() : null;
-			res.json({ ...health, storage });
+		res.json({ ...health, storage });
+	} catch (error) {
+		console.error('System health error:', error);
+		res.status(500).json({ message: 'Internal server error' });
+	}
+});
+
+	// 5b. System health SSE stream — push tiap 2s (real-time, no poll)
+	app.get('/api/dashboard/system-health/stream', authenticate, async (req, res) => {
+		try {
+			if (!(await checkOverviewPermission(req, 'overview.system_health'))) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+			const canSeeStorage = await checkOverviewPermission(req, 'overview.storage_usage');
+
+			res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+			res.setHeader('Cache-Control', 'no-cache');
+			res.setHeader('Connection', 'keep-alive');
+			res.setHeader('X-Accel-Buffering', 'no');
+			res.flushHeaders();
+
+			let closed = false;
+			const tick = async () => {
+				if (closed) return;
+				try {
+					const [health, storage] = await Promise.all([
+						getSystemHealth(),
+						canSeeStorage ? getStorageBreakdown() : null,
+					]);
+					res.write(`event: health\ndata: ${JSON.stringify({ ...health, storage })}\n\n`);
+				} catch {
+					// swallow to keep stream alive
+				}
+			};
+			await tick();
+			const interval = setInterval(tick, 2000);
+			const heartbeat = setInterval(() => {
+				if (closed) return;
+				try {
+					res.write(`: keepalive ${Date.now()}\n\n`);
+				} catch {
+					// ignore
+				}
+			}, 25_000);
+
+			req.on('close', () => {
+				closed = true;
+				clearInterval(interval);
+				clearInterval(heartbeat);
+			});
 		} catch (error) {
-			console.error('System health error:', error);
-			res.status(500).json({ message: 'Internal server error' });
+			console.error('System health stream error:', error);
+			if (!res.headersSent) {
+				res.status(500).json({ message: 'Internal server error' });
+			}
 		}
 	});
 
@@ -7870,8 +7922,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!(await checkOverviewPermission(req, 'overview.security_monitor'))) {
 				return res.status(403).json({ message: 'No permission' });
 			}
-			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-			const matchStage = { timestamp: { $gte: twentyFourHoursAgo } };
+			const days = Math.min(Math.max(parseInt(String(req.query.days), 10) || 1, 1), 30);
+			const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+			const matchStage = { timestamp: { $gte: startDate } };
 
 			const [totalResult, breakdownResult, topIpsResult, timelineResult] = await Promise.all([
 				SecurityEvent.aggregate([
@@ -7923,6 +7976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.json({
 				threatLevel,
 				totalBlocked24h: total,
+				days,
 				breakdown: breakdownResult.map((r) => ({ type: r._id, count: r.count })),
 				topSuspiciousIps: topIpsResult.map((r) => ({
 					ip: r._id,
@@ -7943,8 +7997,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!(await checkOverviewPermission(req, 'overview.login_attempts'))) {
 				return res.status(403).json({ message: 'No permission' });
 			}
-			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-			const matchStage = { timestamp: { $gte: twentyFourHoursAgo } };
+			const days = Math.min(Math.max(parseInt(String(req.query.days), 10) || 1, 1), 30);
+			const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+			const matchStage = { timestamp: { $gte: startDate } };
 
 			const [totalResult, failedResult, successResult, bruteForceResult, topIpsResult] = await Promise.all([
 				LoginAttempt.aggregate([
@@ -7976,6 +8031,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				total: totalResult[0]?.total || 0,
 				failed: failedResult[0]?.total || 0,
 				successful: successResult[0]?.total || 0,
+				days,
 				bruteForceIps: bruteForceResult.map((r) => ({
 					ip: r._id,
 					attempts: r.attempts,
@@ -8001,13 +8057,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const beritaCount = await storage.getBeritaCount();
 			const libraryCount = await storage.getLibraryItemsCount();
 
-			const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+			const days = Math.min(Math.max(parseInt(String(req.query.range || req.query.days), 10) || 7, 1), 90);
+			const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 			const totalPageviews = await PageVisit.countDocuments({
-				timestamp: { $gte: sevenDaysAgo },
+				timestamp: { $gte: startDate },
 				isBot: false,
 			});
 			const uniqueVisitors = await PageVisit.distinct('ipHash', {
-				timestamp: { $gte: sevenDaysAgo },
+				timestamp: { $gte: startDate },
 				isBot: false,
 			});
 			const engagementRate =
@@ -8025,6 +8082,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				engagementRate,
 				totalPageviews7d: totalPageviews,
 				uniqueVisitors7d: uniqueVisitors.length,
+				days,
 			});
 		} catch (error) {
 			console.error('Content performance error:', error);
