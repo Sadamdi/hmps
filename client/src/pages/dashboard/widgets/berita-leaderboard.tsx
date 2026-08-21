@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
 	Card,
@@ -7,18 +6,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Loader2, Trophy } from 'lucide-react';
 import { overviewCardClass } from './widget-styles';
-
-type RangeKey = '1d' | '3d' | '7d' | '30d';
-
-const RANGES: { key: RangeKey; label: string }[] = [
-	{ key: '1d', label: '1d' },
-	{ key: '3d', label: '3d' },
-	{ key: '7d', label: '7d' },
-	{ key: '30d', label: '30d' },
-];
+import { useOverviewRange } from './overview-range-context';
 
 function formatDate(ts: string): string {
 	if (!ts) return '-';
@@ -34,7 +24,7 @@ function formatDate(ts: string): string {
 }
 
 export default function BeritaLeaderboard() {
-	const [range, setRange] = useState<RangeKey>('7d');
+	const { range } = useOverviewRange();
 
 	const { data, isLoading } = useQuery({
 		queryKey: ['/api/dashboard/berita-leaderboard', range],
@@ -61,20 +51,7 @@ export default function BeritaLeaderboard() {
 							<Trophy className="h-4 w-4 text-yellow-500 shrink-0" />
 							Berita Leaderboard
 						</CardTitle>
-						<CardDescription className="text-xs">Top by views</CardDescription>
-					</div>
-					<div className="flex gap-1 flex-wrap">
-						{RANGES.map((r) => (
-							<Button
-								key={r.key}
-								variant={range === r.key ? 'default' : 'outline'}
-								size="sm"
-								className="h-7 px-2 text-xs"
-								onClick={() => setRange(r.key)}
-							>
-								{r.label}
-							</Button>
-						))}
+						<CardDescription className="text-xs">Top by views — filter global</CardDescription>
 					</div>
 				</div>
 			</CardHeader>

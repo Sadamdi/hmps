@@ -25,11 +25,18 @@ import { Suspense, lazy } from 'react';
 const VisitorGraph = lazy(() => import('./widgets/visitor-graph'));
 const ActiveVisitors = lazy(() => import('./widgets/active-visitors'));
 const SystemHealth = lazy(() => import('./widgets/system-health'));
+const SystemActivity = lazy(() => import('./widgets/system-activity'));
 const SecurityMonitor = lazy(() => import('./widgets/security-monitor'));
 const EngagementHeatmap = lazy(() => import('./widgets/engagement-heatmap'));
 const BeritaLeaderboard = lazy(() => import('./widgets/berita-leaderboard'));
 const LoginAttempts = lazy(() => import('./widgets/login-attempts'));
 const ContentPerformance = lazy(() => import('./widgets/content-performance'));
+
+import {
+	OverviewRangeProvider,
+	RANGE_OPTIONS,
+	useOverviewRange,
+} from './widgets/overview-range-context';
 
 import {
 	Edit3,
@@ -290,7 +297,9 @@ export default function Dashboard() {
 		hasSpecificPermission('overview.heatmap') ||
 		hasSpecificPermission('overview.berita_leaderboard') ||
 		hasSpecificPermission('overview.login_attempts') ||
-		hasSpecificPermission('overview.content_performance');
+		hasSpecificPermission('overview.content_performance') ||
+		hasSpecificPermission('overview.network_activity') ||
+		hasSpecificPermission('overview.storage_activity');
 
 	return (
 		<DashboardLayout title="Dashboard" pageContextExtra={{ pageData: homePageDataForSpyro }}>
@@ -581,14 +590,20 @@ export default function Dashboard() {
 
 			{/* Analytics overview — below welcome / stats / activities */}
 			{showOverviewSuite && (
+				<OverviewRangeProvider defaultRange="7d">
 				<section className="mt-8 sm:mt-10 space-y-4 sm:space-y-6">
 					<div className="border-t border-border/60 pt-6 sm:pt-8">
-						<h2 className="text-lg sm:text-xl font-semibold text-foreground">
-							Analitik Overview
-						</h2>
-						<p className="text-sm text-muted-foreground mt-1">
-							Visitor website, performa konten, keamanan, dan kesehatan server
-						</p>
+						<div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<div className="min-w-0">
+								<h2 className="text-lg sm:text-xl font-semibold text-foreground">
+									Analitik Overview
+								</h2>
+								<p className="text-sm text-muted-foreground mt-1">
+									Visitor website, performa konten, keamanan, dan kesehatan server
+								</p>
+							</div>
+							<GlobalRangeControl />
+						</div>
 					</div>
 
 					<div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
@@ -600,6 +615,11 @@ export default function Dashboard() {
 						{hasSpecificPermission('overview.system_health') && (
 							<Suspense fallback={null}>
 								<SystemHealth />
+							</Suspense>
+						)}
+						{(hasSpecificPermission('overview.network_activity') || hasSpecificPermission('overview.storage_activity')) && (
+							<Suspense fallback={null}>
+								<SystemActivity />
 							</Suspense>
 						)}
 						{hasSpecificPermission('overview.security_monitor') && (
@@ -641,6 +661,7 @@ export default function Dashboard() {
 						)}
 					</div>
 				</section>
+				</OverviewRangeProvider>
 			)}
 
 			{/* All Activities Modal */}
@@ -718,5 +739,27 @@ export default function Dashboard() {
 				</DialogContent>
 			</Dialog>
 		</DashboardLayout>
+	);
+}
+
+function GlobalRangeControl() {
+	const { range, setRange } = useOverviewRange();
+	return (
+		<div className="flex items-center gap-1 p-1 bg-muted/40 rounded-lg border border-border/60 self-start sm:self-auto">
+			<span className="text-xs text-muted-foreground px-2 hidden sm:inline">Rentang:</span>
+			{RANGE_OPTIONS.map((opt) => (
+				<button
+					key={opt.key}
+					onClick={() => setRange(opt.key)}
+					className={`text-xs sm:text-sm h-7 px-2.5 sm:px-3 rounded-md transition-colors ${
+						range === opt.key
+							? 'bg-primary text-primary-foreground font-medium'
+							: 'hover:bg-muted text-muted-foreground'
+					}`}
+				>
+					{opt.label}
+				</button>
+			))}
+		</div>
 	);
 }

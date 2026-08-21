@@ -8,12 +8,15 @@ import {
 } from '@/components/ui/card';
 import { Loader2, LogIn, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 import { overviewCardClass } from './widget-styles';
+import { useOverviewRange } from './overview-range-context';
 
 export default function LoginAttempts() {
+	const { days } = useOverviewRange();
+
 	const { data, isLoading } = useQuery({
-		queryKey: ['/api/dashboard/login-attempts'],
+		queryKey: ['/api/dashboard/login-attempts', days],
 		queryFn: async () => {
-			const res = await fetch('/api/dashboard/login-attempts', {
+			const res = await fetch(`/api/dashboard/login-attempts?days=${days}`, {
 				credentials: 'include',
 			});
 			if (!res.ok) throw new Error('Failed');
@@ -31,7 +34,7 @@ export default function LoginAttempts() {
 							<LogIn className="h-4 w-4 shrink-0" />
 							Login Attempts
 						</CardTitle>
-						<CardDescription className="text-xs">24 jam terakhir</CardDescription>
+						<CardDescription className="text-xs">{days} hari terakhir — filter global</CardDescription>
 					</div>
 				</div>
 			</CardHeader>

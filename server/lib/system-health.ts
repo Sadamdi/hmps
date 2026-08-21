@@ -6,6 +6,22 @@ import { promisify } from 'util';
 
 const execAsync = promisify(exec);
 
+export interface NetworkStats {
+	rxBytes: number;
+	txBytes: number;
+	rxRate: number; // bytes/sec since last sample
+	txRate: number; // bytes/sec since last sample
+	interfaces: { name: string; rxBytes: number; txBytes: number }[];
+}
+
+export interface StorageActivity {
+	uploads: { sizeBytes: number; fileCount: number };
+	attachedAssets: { sizeBytes: number; fileCount: number };
+	uploadsDelta: number; // file count change since last sample
+	attachedDelta: number;
+	changedFiles: number;
+}
+
 export interface SystemHealthSnapshot {
 	cpu: {
 		usage: number;
@@ -39,6 +55,8 @@ export interface SystemHealthSnapshot {
 		eventLoopLag: number;
 	};
 	history: { t: number; cpu: number; ram: number }[];
+	network?: NetworkStats;
+	storageActivity?: StorageActivity;
 }
 
 const HISTORY_MAX = 60;
@@ -185,6 +203,10 @@ export async function getSystemHealth(): Promise<SystemHealthSnapshot> {
 			history.shift();
 		}
 
+		// Network + storage activity (sync, in-memory, fast)
+		const network = getNetworkStats();
+		const storageActivity = getStorageActivity();
+
 		const snapshot: SystemHealthSnapshot = {
 			cpu: {
 				usage: cpu.usage,
@@ -213,6 +235,8 @@ export async function getSystemHealth(): Promise<SystemHealthSnapshot> {
 				eventLoopLag,
 			},
 			history: [...history],
+			network,
+			storageActivity,
 		};
 		cachedSnapshot = snapshot;
 		lastSnapshotTime = Date.now();
@@ -226,4 +250,138 @@ export async function getSystemHealth(): Promise<SystemHealthSnapshot> {
 
 export function getSystemHealthHistory(): { t: number; cpu: number; ram: number }[] {
 	return [...history];
+}
+
+// ==================== Network I/O stats ====================
+
+let lastNetSample: { t: number; interfaces: Map<string, { rxBytes: number; txBytes: number }> } | null = null;
+
+function parseProcNetDev(): Map<string, { rxBytes: number; txBytes: number }> {
+	const result = new Map<string, { rxBytes: number; txBytes: number }>();
+	try {
+		const content = fs.readFileSync('/proc/net/dev', 'utf-8');
+		const lines = content.trim().split('\n').slice(2); // skip header
+		for (const line of lines) {
+			const parts = line.trim().split(/\s+/);
+			if (parts.length < 17) continue;
+			// Format: "eth0: rx_bytes rx_packets ... tx_bytes ..."
+			let name = parts[0].replace(/:$/, '');
+			// Handle case where interface name and colon are separated
+			if (parts[0].endsWith(':')) {
+				name = parts[0].slice(0, -1);
+			}
+			// Skip loopback for aggregate rate (but still list)
+			const rxBytes = parseInt(parts[1], 10) || 0;
+			// tx_bytes is at index 9 (after 8 rx fields)
+			const txBytes = parseInt(parts[9], 10) || 0;
+			result.set(name, { rxBytes, txBytes });
+		}
+	} catch {
+		// /proc/net/dev not available (non-Linux) — fallback to os.networkInterfaces
+		const nets = os.networkInterfaces();
+		for (const [name, addrs] of Object.entries(nets)) {
+			if (!addrs) continue;
+			result.set(name, { rxBytes: 0, txBytes: 0 });
+		}
+	}
+	return result;
+}
+
+export function getNetworkStats(): NetworkStats {
+	const now = Date.now();
+	const current = parseProcNetDev();
+	let totalRx = 0;
+	let totalTx = 0;
+	const interfaces: { name: string; rxBytes: number; txBytes: number }[] = [];
+	for (const [name, stats] of current) {
+		// Skip loopback for aggregate
+		if (name === 'lo') {
+			interfaces.push({ name, rxBytes: stats.rxBytes, txBytes: stats.txBytes });
+			continue;
+		}
+		totalRx += stats.rxBytes;
+		totalTx += stats.txBytes;
+		interfaces.push({ name, rxBytes: stats.rxBytes, txBytes: stats.txBytes });
+	}
+
+	let rxRate = 0;
+	let txRate = 0;
+	if (lastNetSample) {
+		const dt = (now - lastNetSample.t) / 1000;
+		if (dt > 0) {
+			let prevRx = 0;
+			let prevTx = 0;
+			for (const [name, stats] of lastNetSample.interfaces) {
+				if (name === 'lo') continue;
+				prevRx += stats.rxBytes;
+				prevTx += stats.txBytes;
+			}
+			rxRate = Math.max(0, Math.round((totalRx - prevRx) / dt));
+			txRate = Math.max(0, Math.round((totalTx - prevTx) / dt));
+		}
+	}
+	lastNetSample = { t: now, interfaces: current };
+	return { rxBytes: totalRx, txBytes: totalTx, rxRate, txRate, interfaces };
+}
+
+// ==================== Storage Activity (delta) ====================
+
+let lastStorageSample: { t: number; uploads: { fileCount: number; sizeBytes: number }; attached: { fileCount: number; sizeBytes: number } } | null = null;
+
+function countFilesFast(dir: string): { fileCount: number; sizeBytes: number } {
+	try {
+		if (!fs.existsSync(dir)) return { fileCount: 0, sizeBytes: 0 };
+		let fileCount = 0;
+		let sizeBytes = 0;
+		const walk = (d: string) => {
+			try {
+				const entries = fs.readdirSync(d, { withFileTypes: true });
+				for (const entry of entries) {
+					const full = path.join(d, entry.name);
+					if (entry.isDirectory()) {
+						walk(full);
+					} else if (entry.isFile()) {
+						fileCount++;
+						try {
+							sizeBytes += fs.statSync(full).size;
+						} catch {
+							// skip
+						}
+					}
+				}
+			} catch {
+				// skip
+			}
+		};
+		walk(dir);
+		return { fileCount, sizeBytes };
+	} catch {
+		return { fileCount: 0, sizeBytes: 0 };
+	}
+}
+
+export function getStorageActivity(appRoot = process.cwd()): StorageActivity {
+	const now = Date.now();
+	const uploads = countFilesFast(path.join(appRoot, 'uploads'));
+	const attached = countFilesFast(path.join(appRoot, 'attached_assets'));
+
+	let uploadsDelta = 0;
+	let attachedDelta = 0;
+	let changedFiles = 0;
+
+	if (lastStorageSample) {
+		uploadsDelta = uploads.fileCount - lastStorageSample.uploads.fileCount;
+		attachedDelta = attached.fileCount - lastStorageSample.attached.fileCount;
+		changedFiles = Math.abs(uploadsDelta) + Math.abs(attachedDelta);
+	}
+
+	lastStorageSample = { t: now, uploads, attached };
+
+	return {
+		uploads: { sizeBytes: uploads.sizeBytes, fileCount: uploads.fileCount },
+		attachedAssets: { sizeBytes: attached.sizeBytes, fileCount: attached.fileCount },
+		uploadsDelta,
+		attachedDelta,
+		changedFiles,
+	};
 }
