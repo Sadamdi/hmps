@@ -1,4 +1,4 @@
-﻿---
+---
 name: read-sop
 description: Use at the start of any HMPS planning/coding session.
 ---

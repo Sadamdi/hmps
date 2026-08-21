@@ -1,4 +1,4 @@
-﻿# Berita Cms
+# Berita Cms
 
 **Status**: Active | **Contract Confidence**: Verified from route scan  | **Category**: public content
 

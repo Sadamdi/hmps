@@ -1,4 +1,4 @@
-﻿---
+---
 name: code-review
 description: Use before merging/pushing HMPS changes.
 ---

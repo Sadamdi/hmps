@@ -1,4 +1,4 @@
-﻿---
+---
 name: error-handling
 description: Use when implementing/reviewing error paths.
 ---

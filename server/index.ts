@@ -675,6 +675,95 @@ cron.schedule('45 * * * *', async () => {
 	}
 });
 
+// ==================== VISITOR STATS AGGREGATOR ====================
+// Aggregate page_visits -> visitor_stats every 15 min + warm cache.
+// TTL auto-cleans raw page_visits (30d) and security_events (7d) and login_attempts (30d).
+cron.schedule('*/15 * * * *', async () => {
+	try {
+		const { PageVisit } = await import('./models/page-visit');
+		const { VisitorStats } = await import('./models/visitor-stats');
+
+		const now = new Date();
+		const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+		const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+		// Hourly aggregate (last hour)
+		const hourlyAgg = await PageVisit.aggregate([
+			{ $match: { timestamp: { $gte: oneHourAgo, $lt: now }, isBot: false } },
+			{
+				$group: {
+					_id: null,
+					pageviews: { $sum: 1 },
+					uniqueVisitors: { $addToSet: '$ipHash' },
+					topPaths: { $push: { path: '$path' } },
+				},
+			},
+		]);
+
+		if (hourlyAgg.length > 0) {
+			const data = hourlyAgg[0];
+			const pathCounts: Record<string, number> = {};
+			for (const p of data.topPaths) {
+				pathCounts[p.path] = (pathCounts[p.path] || 0) + 1;
+			}
+			const topPaths = Object.entries(pathCounts)
+				.map(([path, count]) => ({ path, count }))
+				.sort((a, b) => b.count - a.count)
+				.slice(0, 10);
+
+			await VisitorStats.updateOne(
+				{ bucket: 'hourly', periodStart: oneHourAgo },
+				{
+					$set: {
+						bucket: 'hourly',
+						periodStart: oneHourAgo,
+						periodEnd: now,
+						pageviews: data.pageviews,
+						uniqueVisitors: data.uniqueVisitors.length,
+						topPaths,
+						updatedAt: now,
+					},
+				},
+				{ upsert: true },
+			);
+		}
+
+		// Daily aggregate (last 24h)
+		const dailyAgg = await PageVisit.aggregate([
+			{ $match: { timestamp: { $gte: oneDayAgo, $lt: now }, isBot: false } },
+			{
+				$group: {
+					_id: null,
+					pageviews: { $sum: 1 },
+					uniqueVisitors: { $addToSet: '$ipHash' },
+				},
+			},
+		]);
+
+		if (dailyAgg.length > 0) {
+			const data = dailyAgg[0];
+			await VisitorStats.updateOne(
+				{ bucket: 'daily', periodStart: oneDayAgo },
+				{
+					$set: {
+						bucket: 'daily',
+						periodStart: oneDayAgo,
+						periodEnd: now,
+						pageviews: data.pageviews,
+						uniqueVisitors: data.uniqueVisitors.length,
+						updatedAt: now,
+					},
+				},
+				{ upsert: true },
+			);
+		}
+
+		console.log('✅ Visitor stats aggregated (hourly + daily)');
+	} catch (err) {
+		console.error('Visitor stats aggregator error:', err);
+	}
+});
+
 // ==================== SECURITY MONITORING ====================
 // Security monitoring akan ditampilkan saat server start
 

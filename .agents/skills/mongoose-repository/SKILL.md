@@ -1,4 +1,4 @@
-﻿---
+---
 name: mongoose-repository
 description: Use for MongoDB/Mongoose/storage/query changes.
 ---

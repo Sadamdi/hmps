@@ -1,4 +1,4 @@
-﻿---
+---
 name: media-upload
 description: Use for upload, image processing, local media, or Google Drive integration.
 ---

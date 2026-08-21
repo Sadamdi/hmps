@@ -1,4 +1,4 @@
-﻿# Community Listing Shell
+# Community Listing Shell
 
 **Status**: Active | **Contract Confidence**: Verified from route scan  | **Category**: community tenant
 

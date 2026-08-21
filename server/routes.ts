@@ -94,6 +94,20 @@ import {
 	uploadTempOnboarding,
 } from './upload';
 import { getPublisherDisplayName } from './user-display';
+import rateLimit from 'express-rate-limit';
+import { lookupGeo, getRealClientIp } from './lib/geoip';
+import { getSystemHealth, getSystemHealthHistory } from './lib/system-health';
+import {
+	PageVisit,
+	BOT_UA_REGEX,
+	PUBLIC_SKIP_PREFIXES,
+	detectDevice,
+	maskIp,
+	parseReferrer,
+} from './models/page-visit';
+import { VisitorStats } from './models/visitor-stats';
+import { SecurityEvent, logSecurityEvent } from './models/security-event';
+import { LoginAttempt, logLoginAttempt } from './models/login-attempt';
 
 function envIntRoutes(name: string, fallback: number): number {
 	const v = parseInt(process.env[name] || '', 10);
@@ -871,6 +885,56 @@ const DIVISION_LABEL_MAX = 200;
 export async function registerRoutes(app: Express): Promise<Server> {
 	// Use cookie parser for handling JWT tokens
 	app.use(cookieParser());
+
+	// ==================== Visitor Tracking Middleware ====================
+	// Track every public page visit. Fire-and-forget insert. Rate-limited per IP.
+	const visitorLimiter = rateLimit({
+		windowMs: 60000,
+		max: 100,
+		standardHeaders: true,
+		legacyHeaders: false,
+		keyGenerator: (req: Request) => getRealClientIp(req),
+		message: { message: 'Too many requests, please slow down.' },
+	});
+
+	app.use(async (req, res, next) => {
+		try {
+			if (req.method !== 'GET') return next();
+			const reqPath = req.path;
+			if (PUBLIC_SKIP_PREFIXES.some((p) => reqPath.startsWith(p))) return next();
+			if (reqPath.includes('.')) return next();
+
+			const ua = req.get('User-Agent') || '';
+			if (BOT_UA_REGEX.test(ua)) return next();
+
+			await new Promise<void>((resolve) => {
+				visitorLimiter(req, res, () => resolve());
+			});
+			if (res.headersSent || res.statusCode === 429) return;
+
+			const ip = getRealClientIp(req);
+			const geo = lookupGeo(ip);
+			const device = detectDevice(ua);
+			const ipHash = maskIp(ip);
+
+			PageVisit.create({
+				path: reqPath.substring(0, 500),
+				ipHash,
+				userAgent: ua.substring(0, 300),
+				referrer: (req.get('Referer') || '').substring(0, 500),
+				timestamp: new Date(),
+				isBot: false,
+				country: geo.country,
+				countryCode: geo.countryCode,
+				device,
+			}).catch(() => {
+				// swallow — tracking must never break request
+			});
+		} catch {
+			// swallow
+		}
+		next();
+	});
 
 	// Initialize default data
 	try {
@@ -7401,6 +7465,566 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res
 				.status(500)
 				.json({ message: 'Internal server error', error: String(error) });
+		}
+	});
+
+	// ==================== Dashboard Overview Stats Suite ====================
+
+	// Helper: check overview permission
+	async function checkOverviewPermission(
+		req: any,
+		permission: string,
+	): Promise<boolean> {
+		try {
+			const storage = resolveStorage(req);
+			const permissions = await storage.getUserPermissions(
+				String((req.user as UserWithRole)?._id),
+			);
+			return permissions.includes(permission);
+		} catch {
+			return false;
+		}
+	}
+
+	// 1. Visitor stats (graph + top pages + referrer + device + geo + summary + growth)
+	app.get('/api/dashboard/visitor-stats', authenticate, async (req, res) => {
+		try {
+			const userId = String((req.user as UserWithRole)?._id);
+			const storage = resolveStorage(req);
+			const permissions = await storage.getUserPermissions(userId);
+			if (!permissions.includes('overview.visitor_graph')) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+
+			const range = (req.query.range as string) || '7d';
+			const now = new Date();
+			let startTime: Date;
+			let bucket: 'hourly' | 'daily';
+			let bucketMs: number;
+
+			switch (range) {
+				case '1d':
+					startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+					bucket = 'hourly';
+					bucketMs = 60 * 60 * 1000;
+					break;
+				case '3d':
+					startTime = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+					bucket = 'hourly';
+					bucketMs = 60 * 60 * 1000;
+					break;
+				case '30d':
+					startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+					bucket = 'daily';
+					bucketMs = 24 * 60 * 60 * 1000;
+					break;
+				case '7d':
+				default:
+					startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+					bucket = 'daily';
+					bucketMs = 24 * 60 * 60 * 1000;
+					break;
+			}
+
+			const matchStage = {
+				timestamp: { $gte: startTime, $lte: now },
+				isBot: false,
+			};
+
+			const buckets: number = Math.ceil((now.getTime() - startTime.getTime()) / bucketMs);
+			const pipeline: any[] = [
+				{ $match: matchStage },
+				{
+					$group: {
+						_id: {
+							bucket: {
+								$toDate: {
+									$subtract: [
+										{ $toLong: '$timestamp' },
+										{
+											$mod: [
+												{ $subtract: [{ $toLong: '$timestamp' }, { $toLong: startTime }] },
+												bucketMs,
+											],
+										},
+									],
+								},
+							},
+						},
+						pageviews: { $sum: 1 },
+						uniqueVisitors: { $addToSet: '$ipHash' },
+					},
+				},
+				{ $sort: { '_id.bucket': 1 } },
+			];
+
+			const results = (await PageVisit.aggregate(pipeline)) as any[];
+
+			const labels: string[] = [];
+			const pageviewsArr: number[] = [];
+			const uniqueArr: number[] = [];
+			for (let i = 0; i < buckets; i++) {
+				const bucketStart = new Date(startTime.getTime() + i * bucketMs);
+				const bucketEnd = new Date(bucketStart.getTime() + bucketMs);
+				const found = results.find(
+					(r) =>
+						new Date(r._id.bucket).getTime() >= bucketStart.getTime() &&
+						new Date(r._id.bucket).getTime() < bucketEnd.getTime(),
+				);
+				labels.push(
+					bucket === 'hourly'
+						? bucketStart.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+						: bucketStart.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
+				);
+				pageviewsArr.push(found ? found.pageviews : 0);
+				uniqueArr.push(found ? found.uniqueVisitors.length : 0);
+			}
+
+			const totalPageviews = pageviewsArr.reduce((a, b) => a + b, 0);
+			const totalUnique = uniqueArr.reduce((a, b) => a + b, 0);
+
+			// Previous period for growth calculation
+			const prevStart = new Date(startTime.getTime() - (now.getTime() - startTime.getTime()));
+			const prevResult = await PageVisit.aggregate([
+				{ $match: { timestamp: { $gte: prevStart, $lt: startTime }, isBot: false } },
+				{ $group: { _id: null, pageviews: { $sum: 1 }, unique: { $addToSet: '$ipHash' } } },
+			]);
+			const prevPageviews = prevResult[0]?.pageviews || 0;
+			const growthPct =
+				prevPageviews > 0
+					? Math.round(((totalPageviews - prevPageviews) / prevPageviews) * 100)
+					: 0;
+
+			// Top pages
+			let topPages: { path: string; count: number }[] = [];
+			if (permissions.includes('overview.top_pages')) {
+				const topPagesResult = await PageVisit.aggregate([
+					{ $match: matchStage },
+					{ $group: { _id: '$path', count: { $sum: 1 } } },
+					{ $sort: { count: -1 } },
+					{ $limit: 5 },
+				]);
+				topPages = topPagesResult.map((r) => ({ path: r._id, count: r.count }));
+			}
+
+			// Referrer breakdown
+			let referrers: { source: string; count: number }[] = [];
+			if (permissions.includes('overview.referrer_sources')) {
+				const refResult = await PageVisit.aggregate([
+					{ $match: matchStage },
+					{ $group: { _id: '$referrer', count: { $sum: 1 } } },
+					{ $sort: { count: -1 } },
+				]);
+				referrers = refResult
+					.map((r) => ({ source: parseReferrer(r._id || ''), count: r.count }))
+					.slice(0, 10);
+			}
+
+			// Device breakdown
+			let deviceBreakdown = { mobile: 0, desktop: 0, tablet: 0 };
+			if (permissions.includes('overview.device_breakdown')) {
+				const devResult = await PageVisit.aggregate([
+					{ $match: matchStage },
+					{ $group: { _id: '$device', count: { $sum: 1 } } },
+				]);
+				for (const r of devResult) {
+					if (r._id === 'mobile') deviceBreakdown.mobile = r.count;
+					else if (r._id === 'desktop') deviceBreakdown.desktop = r.count;
+					else if (r._id === 'tablet') deviceBreakdown.tablet = r.count;
+				}
+			}
+
+			// Geo breakdown
+			let geoBreakdown: { country: string; countryCode: string; count: number }[] = [];
+			if (permissions.includes('overview.geo_breakdown')) {
+				const geoResult = await PageVisit.aggregate([
+					{ $match: matchStage },
+					{ $group: { _id: { country: '$country', code: '$countryCode' }, count: { $sum: 1 } } },
+					{ $sort: { count: -1 } },
+					{ $limit: 10 },
+				]);
+				geoBreakdown = geoResult.map((r) => ({
+					country: r._id.country,
+					countryCode: r._id.code,
+					count: r.count,
+				}));
+			}
+
+			res.json({
+				labels,
+				pageviews: pageviewsArr,
+				uniqueVisitors: uniqueArr,
+				totalPageviews,
+				totalUnique,
+				growthPct,
+				avgPerBucket:
+					buckets > 0 ? Math.round(totalPageviews / buckets) : 0,
+				bucketType: bucket,
+				topPages,
+				referrers,
+				deviceBreakdown,
+				geoBreakdown,
+			});
+		} catch (error) {
+			console.error('Visitor stats error:', error);
+			res
+				.status(500)
+				.json({ message: 'Internal server error', error: String(error) });
+		}
+	});
+
+	// 2. Real-time active visitors (5 min window)
+	app.get('/api/dashboard/active-visitors', authenticate, async (req, res) => {
+		try {
+			if (!(await checkOverviewPermission(req, 'overview.realtime_visitors'))) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+			const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+			const matchStage = { timestamp: { $gte: fiveMinAgo }, isBot: false };
+
+			const [uniqueResult, pathResult] = await Promise.all([
+				PageVisit.aggregate([
+					{ $match: matchStage },
+					{ $group: { _id: '$ipHash' } },
+					{ $count: 'uniqueCount' },
+				]),
+				PageVisit.aggregate([
+					{ $match: matchStage },
+					{ $group: { _id: '$path', count: { $sum: 1 } } },
+					{ $sort: { count: -1 } },
+					{ $limit: 5 },
+				]),
+			]);
+
+			res.json({
+				count: uniqueResult[0]?.uniqueCount || 0,
+				byPath: pathResult.map((r) => ({ path: r._id, count: r.count })),
+			});
+		} catch (error) {
+			console.error('Active visitors error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// 3. Engagement heatmap (24h x 7d matrix)
+	app.get('/api/dashboard/engagement-heatmap', authenticate, async (req, res) => {
+		try {
+			if (!(await checkOverviewPermission(req, 'overview.heatmap'))) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+			const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+			const result = await PageVisit.aggregate([
+				{ $match: { timestamp: { $gte: thirtyDaysAgo }, isBot: false } },
+				{
+					$group: {
+						_id: {
+							dayOfWeek: { $dayOfWeek: '$timestamp' },
+							hour: { $hour: '$timestamp' },
+						},
+						count: { $sum: 1 },
+					},
+				},
+			]);
+
+			const matrix: number[][] = [];
+			for (let h = 0; h < 24; h++) {
+				matrix[h] = new Array(7).fill(0);
+			}
+			let peakHour = 0;
+			let peakDay = 0;
+			let maxCount = 0;
+			for (const r of result) {
+				const hour = r._id.hour;
+				const day = r._id.dayOfWeek - 1;
+				if (hour >= 0 && hour < 24 && day >= 0 && day < 7) {
+					matrix[hour][day] = r.count;
+					if (r.count > maxCount) {
+						maxCount = r.count;
+						peakHour = hour;
+						peakDay = day;
+					}
+				}
+			}
+
+			const days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+			res.json({
+				matrix,
+				days,
+				peakHour: `${String(peakHour).padStart(2, '0')}:00`,
+				peakDay: days[peakDay],
+				maxCount,
+			});
+		} catch (error) {
+			console.error('Heatmap error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// 4. Berita leaderboard (top by views)
+	app.get('/api/dashboard/berita-leaderboard', authenticate, async (req, res) => {
+		try {
+			if (!(await checkOverviewPermission(req, 'overview.berita_leaderboard'))) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+			const range = (req.query.range as string) || '7d';
+			const now = new Date();
+			let startTime: Date;
+			switch (range) {
+				case '1d': startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); break;
+				case '3d': startTime = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000); break;
+				case '30d': startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+				default: startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+			}
+
+			const topPaths = await PageVisit.aggregate([
+				{
+					$match: {
+						timestamp: { $gte: startTime, $lte: now },
+						isBot: false,
+						path: { $regex: /^\/berita\// },
+					},
+				},
+				{ $group: { _id: '$path', views: { $sum: 1 } } },
+				{ $sort: { views: -1 } },
+				{ $limit: 10 },
+			]);
+
+			const storage = resolveStorage(req);
+			const leaderboard: any[] = [];
+			for (const p of topPaths) {
+				const slug = p._id.replace(/^\/berita\//, '');
+				try {
+					const berita = await storage.getBeritaBySlug(slug);
+					if (berita) {
+						leaderboard.push({
+							beritaId: String(berita._id),
+							title: berita.title,
+							slug,
+							views: p.views,
+							publishDate: berita.publishedAt || berita.createdAt,
+							path: p._id,
+						});
+					}
+				} catch {
+					// skip if not found
+				}
+			}
+
+			res.json({ leaderboard, range });
+		} catch (error) {
+			console.error('Berita leaderboard error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// 5. System health (CPU + RAM + disk + uptime + Node heap)
+	app.get('/api/dashboard/system-health', authenticate, async (req, res) => {
+		try {
+			if (!(await checkOverviewPermission(req, 'overview.system_health'))) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+			const health = await getSystemHealth();
+			const canSeeStorage = await checkOverviewPermission(req, 'overview.storage_usage');
+
+			let storageInfo: { uploads: any; attachedAssets: any; total: string } | null = null;
+			if (canSeeStorage) {
+				const { exec } = require('child_process');
+				const getDirSize = (dir: string): Promise<{ size: string; fileCount: number }> => {
+					return new Promise((resolve) => {
+						exec(
+							`du -sh ${dir} 2>/dev/null | head -1`,
+							(err: any, stdout: string) => {
+								const size = (stdout.trim().split(/\s+/)[0] || '0B');
+								exec(
+									`find ${dir} -type f 2>/dev/null | wc -l`,
+									(err2: any, stdout2: string) => {
+										resolve({ size, fileCount: parseInt(stdout2.trim(), 10) || 0 });
+									},
+								);
+							},
+						);
+					});
+				};
+				const appRoot = process.cwd();
+				const [uploads, attachedAssets] = await Promise.all([
+					getDirSize(`${appRoot}/uploads`),
+					getDirSize(`${appRoot}/attached_assets`),
+				]);
+				storageInfo = { uploads, attachedAssets, total: '—' };
+			}
+
+			res.json({ ...health, storage: storageInfo });
+		} catch (error) {
+			console.error('System health error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// 6. Security monitor (blocked requests, suspicious IPs)
+	app.get('/api/dashboard/security-monitor', authenticate, async (req, res) => {
+		try {
+			if (!(await checkOverviewPermission(req, 'overview.security_monitor'))) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+			const matchStage = { timestamp: { $gte: twentyFourHoursAgo } };
+
+			const [totalResult, breakdownResult, topIpsResult, timelineResult] = await Promise.all([
+				SecurityEvent.aggregate([
+					{ $match: matchStage },
+					{ $count: 'total' },
+				]),
+				SecurityEvent.aggregate([
+					{ $match: matchStage },
+					{ $group: { _id: '$type', count: { $sum: 1 } } },
+					{ $sort: { count: -1 } },
+				]),
+				SecurityEvent.aggregate([
+					{ $match: matchStage },
+					{
+						$group: {
+							_id: { ip: '$ip', type: '$type' },
+							hits: { $sum: 1 },
+						},
+					},
+					{
+						$group: {
+							_id: '$_id.ip',
+							hits: { $sum: '$hits' },
+							types: { $addToSet: '$_id.type' },
+						},
+					},
+					{ $sort: { hits: -1 } },
+					{ $limit: 10 },
+				]),
+				SecurityEvent.aggregate([
+					{ $match: matchStage },
+					{
+						$group: {
+							_id: {
+								$dateToString: { format: '%H:00', date: '$timestamp' },
+							},
+							count: { $sum: 1 },
+						},
+					},
+					{ $sort: { _id: 1 } },
+				]),
+			]);
+
+			const total = totalResult[0]?.total || 0;
+			let threatLevel: 'low' | 'medium' | 'high' = 'low';
+			if (total > 500) threatLevel = 'high';
+			else if (total > 100) threatLevel = 'medium';
+
+			res.json({
+				threatLevel,
+				totalBlocked24h: total,
+				breakdown: breakdownResult.map((r) => ({ type: r._id, count: r.count })),
+				topSuspiciousIps: topIpsResult.map((r) => ({
+					ip: r._id,
+					hits: r.hits,
+					types: r.types,
+				})),
+				timeline: timelineResult.map((r) => ({ hour: r._id, count: r.count })),
+			});
+		} catch (error) {
+			console.error('Security monitor error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// 7. Login attempts (failed logins 24h, brute-force, locked)
+	app.get('/api/dashboard/login-attempts', authenticate, async (req, res) => {
+		try {
+			if (!(await checkOverviewPermission(req, 'overview.login_attempts'))) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+			const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+			const matchStage = { timestamp: { $gte: twentyFourHoursAgo } };
+
+			const [totalResult, failedResult, successResult, bruteForceResult, topIpsResult] = await Promise.all([
+				LoginAttempt.aggregate([
+					{ $match: matchStage },
+					{ $count: 'total' },
+				]),
+				LoginAttempt.aggregate([
+					{ $match: { ...matchStage, success: false } },
+					{ $count: 'total' },
+				]),
+				LoginAttempt.aggregate([
+					{ $match: { ...matchStage, success: true } },
+					{ $count: 'total' },
+				]),
+				LoginAttempt.aggregate([
+					{ $match: { ...matchStage, reason: 'brute_force' } },
+					{ $group: { _id: '$ip', attempts: { $sum: 1 } } },
+					{ $sort: { attempts: -1 } },
+				]),
+				LoginAttempt.aggregate([
+					{ $match: { ...matchStage, success: false } },
+					{ $group: { _id: '$ip', attempts: { $sum: 1 } } },
+					{ $sort: { attempts: -1 } },
+					{ $limit: 10 },
+				]),
+			]);
+
+			res.json({
+				total: totalResult[0]?.total || 0,
+				failed: failedResult[0]?.total || 0,
+				successful: successResult[0]?.total || 0,
+				bruteForceIps: bruteForceResult.map((r) => ({
+					ip: r._id,
+					attempts: r.attempts,
+				})),
+				topFailedIps: topIpsResult.map((r) => ({
+					ip: r._id,
+					attempts: r.attempts,
+				})),
+			});
+		} catch (error) {
+			console.error('Login attempts error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// 8. Content performance (published/draft/stale + engagement)
+	app.get('/api/dashboard/content-performance', authenticate, async (req, res) => {
+		try {
+			if (!(await checkOverviewPermission(req, 'overview.content_performance'))) {
+				return res.status(403).json({ message: 'No permission' });
+			}
+			const storage = resolveStorage(req);
+			const beritaCount = await storage.getBeritaCount();
+			const libraryCount = await storage.getLibraryItemsCount();
+
+			const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+			const totalPageviews = await PageVisit.countDocuments({
+				timestamp: { $gte: sevenDaysAgo },
+				isBot: false,
+			});
+			const uniqueVisitors = await PageVisit.distinct('ipHash', {
+				timestamp: { $gte: sevenDaysAgo },
+				isBot: false,
+			});
+			const engagementRate =
+				uniqueVisitors.length > 0
+					? Math.round((totalPageviews / uniqueVisitors.length) * 100) / 100
+					: 0;
+
+			res.json({
+				berita: {
+					total: beritaCount,
+				},
+				library: {
+					total: libraryCount,
+				},
+				engagementRate,
+				totalPageviews7d: totalPageviews,
+				uniqueVisitors7d: uniqueVisitors.length,
+			});
+		} catch (error) {
+			console.error('Content performance error:', error);
+			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
 
