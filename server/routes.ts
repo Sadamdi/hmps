@@ -96,7 +96,7 @@ import {
 import { getPublisherDisplayName } from './user-display';
 import rateLimit from 'express-rate-limit';
 import { lookupGeo, getRealClientIp } from './lib/geoip';
-import { getSystemHealth, getSystemHealthHistory } from './lib/system-health';
+import { getSystemHealth, getStorageBreakdown } from './lib/system-health';
 import {
 	PageVisit,
 	BOT_UA_REGEX,
@@ -7856,35 +7856,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 			const health = await getSystemHealth();
 			const canSeeStorage = await checkOverviewPermission(req, 'overview.storage_usage');
-
-			let storageInfo: { uploads: any; attachedAssets: any; total: string } | null = null;
-			if (canSeeStorage) {
-				const { exec } = require('child_process');
-				const getDirSize = (dir: string): Promise<{ size: string; fileCount: number }> => {
-					return new Promise((resolve) => {
-						exec(
-							`du -sh ${dir} 2>/dev/null | head -1`,
-							(err: any, stdout: string) => {
-								const size = (stdout.trim().split(/\s+/)[0] || '0B');
-								exec(
-									`find ${dir} -type f 2>/dev/null | wc -l`,
-									(err2: any, stdout2: string) => {
-										resolve({ size, fileCount: parseInt(stdout2.trim(), 10) || 0 });
-									},
-								);
-							},
-						);
-					});
-				};
-				const appRoot = process.cwd();
-				const [uploads, attachedAssets] = await Promise.all([
-					getDirSize(`${appRoot}/uploads`),
-					getDirSize(`${appRoot}/attached_assets`),
-				]);
-				storageInfo = { uploads, attachedAssets, total: '—' };
-			}
-
-			res.json({ ...health, storage: storageInfo });
+			const storage = canSeeStorage ? await getStorageBreakdown() : null;
+			res.json({ ...health, storage });
 		} catch (error) {
 			console.error('System health error:', error);
 			res.status(500).json({ message: 'Internal server error' });

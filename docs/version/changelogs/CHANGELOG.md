@@ -11,6 +11,16 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.17.2] — 2026-08-21
+
+**Fix system health zeros / ESM require** · PATCH · [Full release notes](../release/4.17.2.md)
+
+### Highlights
+- Perbaiki 500 `Dynamic require of child_process` pada system-health + storage
+- Poll 10s, keep previous data, tanpa spinner penuh saat refresh
+
+---
+
 ## [4.17.1] — 2026-08-21
 
 **Dashboard overview layout polish** · PATCH · [Full release notes](../release/4.17.1.md)

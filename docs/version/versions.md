@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.17.1`  
+**Current version:** `4.17.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.17.1`](./release/4.17.1.md) | 2026-08-21 | Dashboard overview layout polish | PATCH | 1 | **Current** |
+| [`4.17.2`](./release/4.17.2.md) | 2026-08-21 | Fix system health zeros / ESM require | PATCH | 1 | **Current** |
+| [`4.17.1`](./release/4.17.1.md) | 2026-08-21 | Dashboard overview layout polish | PATCH | 1 | Released |
 | [`4.17.0`](./release/4.17.0.md) | 2026-08-21 | Dashboard overview visitor analytics suite | MINOR | 1 | Released |
 | [`4.16.9`](./release/4.16.9.md) | 2026-08-17 | Bidirectional content relations + authored image sizing | PATCH | 1 | Released |
 | [`4.16.8`](./release/4.16.8.md) | 2026-08-13 | Unified section headers + floating spread + berita overflow | PATCH | 1 | Released |
