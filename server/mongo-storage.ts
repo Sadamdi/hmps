@@ -3019,6 +3019,69 @@ async function initializeDefaultPermissions() {
 	} catch (error) {
 		console.error('Error initializing default permissions:', error);
 	}
+
+	// ── Backfill overview.* permissions to eligible roles ──
+	// (run even if initializeDefaultPermissions early-returned; roles already exist)
+	try {
+		const overviewPermsByRole: Record<string, string[]> = {
+			admin: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.referrer_sources', 'overview.device_breakdown',
+				'overview.geo_breakdown', 'overview.realtime_visitors',
+				'overview.heatmap', 'overview.berita_leaderboard',
+				'overview.system_health', 'overview.security_monitor',
+				'overview.login_attempts', 'overview.storage_usage',
+				'overview.content_performance',
+			],
+			chair: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.referrer_sources', 'overview.device_breakdown',
+				'overview.geo_breakdown', 'overview.realtime_visitors',
+				'overview.heatmap', 'overview.berita_leaderboard',
+				'overview.system_health', 'overview.security_monitor',
+				'overview.login_attempts', 'overview.storage_usage',
+				'overview.content_performance',
+			],
+			vice_chair: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.realtime_visitors', 'overview.berita_leaderboard',
+				'overview.system_health', 'overview.content_performance',
+			],
+			bph: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.realtime_visitors', 'overview.berita_leaderboard',
+				'overview.content_performance',
+			],
+			medinfo: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.referrer_sources', 'overview.device_breakdown',
+				'overview.geo_breakdown', 'overview.realtime_visitors',
+				'overview.heatmap', 'overview.berita_leaderboard',
+				'overview.content_performance',
+			],
+			public_relation: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.referrer_sources', 'overview.device_breakdown',
+				'overview.geo_breakdown', 'overview.realtime_visitors',
+				'overview.heatmap', 'overview.berita_leaderboard',
+				'overview.content_performance',
+			],
+			division_head: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.realtime_visitors', 'overview.berita_leaderboard',
+			],
+		};
+
+		for (const [roleName, perms] of Object.entries(overviewPermsByRole)) {
+			await Role.updateMany(
+				{ name: roleName },
+				{ $addToSet: { permissions: { $each: perms } } },
+			);
+		}
+		console.log('✅ Backfilled overview permissions to eligible roles');
+	} catch (e) {
+		console.error('Error backfilling overview permissions:', e);
+	}
 }
 
 // Initialize default roles
@@ -3239,66 +3302,8 @@ async function initializeDefaultRoles() {
 
 		await Role.insertMany(defaultRoles);
 		console.log(`✅ Initialized ${defaultRoles.length} default roles`);
-
-		// ── Backfill overview.* permissions to eligible roles ──
-		// Owner gets all permissions automatically via line ~2862-2914.
-		// Other roles get relevant subsets based on their function.
-		const overviewPermsByRole: Record<string, string[]> = {
-			admin: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.referrer_sources', 'overview.device_breakdown',
-				'overview.geo_breakdown', 'overview.realtime_visitors',
-				'overview.heatmap', 'overview.berita_leaderboard',
-				'overview.system_health', 'overview.security_monitor',
-				'overview.login_attempts', 'overview.storage_usage',
-				'overview.content_performance',
-			],
-			chair: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.referrer_sources', 'overview.device_breakdown',
-				'overview.geo_breakdown', 'overview.realtime_visitors',
-				'overview.heatmap', 'overview.berita_leaderboard',
-				'overview.system_health', 'overview.security_monitor',
-				'overview.login_attempts', 'overview.storage_usage',
-				'overview.content_performance',
-			],
-			vice_chair: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.realtime_visitors', 'overview.berita_leaderboard',
-				'overview.system_health', 'overview.content_performance',
-			],
-			bph: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.realtime_visitors', 'overview.berita_leaderboard',
-				'overview.content_performance',
-			],
-			medinfo: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.referrer_sources', 'overview.device_breakdown',
-				'overview.geo_breakdown', 'overview.realtime_visitors',
-				'overview.heatmap', 'overview.berita_leaderboard',
-				'overview.content_performance',
-			],
-			public_relation: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.referrer_sources', 'overview.device_breakdown',
-				'overview.geo_breakdown', 'overview.realtime_visitors',
-				'overview.heatmap', 'overview.berita_leaderboard',
-				'overview.content_performance',
-			],
-			division_head: [
-				'overview.visitor_graph', 'overview.top_pages',
-				'overview.realtime_visitors', 'overview.berita_leaderboard',
-			],
-		};
-
-		for (const [roleName, perms] of Object.entries(overviewPermsByRole)) {
-			await Role.updateMany(
-				{ name: roleName },
-				{ $addToSet: { permissions: { $each: perms } } },
-			);
-		}
-		console.log('✅ Backfilled overview permissions to eligible roles');
+		// overview.* role subsets di-backfill di initializeDefaultPermissions()
+		// (jalan tiap startup, termasuk DB yang roles-nya sudah ada).
 	} catch (error) {
 		console.error('Error initializing default roles:', error);
 	}

@@ -1,3 +1,4 @@
+import { exec } from 'child_process';
 import os from 'os';
 
 export interface SystemHealthSnapshot {
@@ -101,7 +102,6 @@ async function getEventLoopLag(): Promise<number> {
 
 async function getDiskUsage(): Promise<{ total: number; used: number; available: number; usage: number }> {
 	return new Promise((resolve) => {
-		const { exec } = require('child_process');
 		exec("df -k / | tail -1 | awk '{print $2,$3,$4}'", (err: Error | null, stdout: string) => {
 			if (err || !stdout.trim()) {
 				resolve({ total: 0, used: 0, available: 0, usage: 0 });

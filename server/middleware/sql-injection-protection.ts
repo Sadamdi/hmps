@@ -451,6 +451,28 @@ export const sqlInjectionProtectionMiddleware = async (
 				},
 			);
 
+			const eventType =
+				injectionType === 'NoSQL Injection'
+					? 'nosqli'
+					: injectionType === 'XSS'
+						? 'xss'
+						: 'sqli';
+			void import('../models/security-event')
+				.then(({ logSecurityEvent }) =>
+					logSecurityEvent({
+						type: eventType,
+						ip: clientIP,
+						path: req.path,
+						userAgent: req.get('User-Agent') || '',
+						details: {
+							injectionType,
+							pattern: detectedPattern,
+							method: req.method,
+						},
+					}),
+				)
+				.catch(() => {});
+
 			// Return beautiful error response
 			return sendBeautifulError(
 				res,
