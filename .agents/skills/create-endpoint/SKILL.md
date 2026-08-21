@@ -1,4 +1,4 @@
-﻿---
+---
 name: create-endpoint
 description: Use when adding/changing Express endpoints.
 ---

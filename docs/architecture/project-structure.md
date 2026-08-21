@@ -1,4 +1,4 @@
-﻿# Project Structure — HMPS New
+# Project Structure — HMPS New
 
 ## Root Map
 

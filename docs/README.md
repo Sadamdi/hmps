@@ -1,4 +1,4 @@
-﻿# HMPS Project — Documentation Hub
+# HMPS Project — Documentation Hub
 
 > Pusat dokumentasi untuk **HMPS Project — HIMATIF ENCODER**.  
 > Platform informasi resmi HMPS Teknik Informatika UIN Malang.  

@@ -2380,6 +2380,86 @@ async function initializeDefaultPermissions() {
 				category: 'dashboard',
 			},
 
+			// Overview stats permissions (granular per widget)
+			{
+				name: 'overview.visitor_graph',
+				displayName: 'View Visitor Graph',
+				description: 'Lihat graph pengunjung website',
+				category: 'overview',
+			},
+			{
+				name: 'overview.top_pages',
+				displayName: 'View Top Pages',
+				description: 'Lihat halaman paling populer',
+				category: 'overview',
+			},
+			{
+				name: 'overview.referrer_sources',
+				displayName: 'View Referrer Sources',
+				description: 'Lihat sumber traffic visitor',
+				category: 'overview',
+			},
+			{
+				name: 'overview.device_breakdown',
+				displayName: 'View Device Breakdown',
+				description: 'Lihat breakdown device visitor',
+				category: 'overview',
+			},
+			{
+				name: 'overview.geo_breakdown',
+				displayName: 'View Geo Breakdown',
+				description: 'Lihat breakdown negara visitor',
+				category: 'overview',
+			},
+			{
+				name: 'overview.realtime_visitors',
+				displayName: 'View Real-time Visitors',
+				description: 'Lihat visitor aktif real-time',
+				category: 'overview',
+			},
+			{
+				name: 'overview.heatmap',
+				displayName: 'View Engagement Heatmap',
+				description: 'Lihat heatmap engagement 24h x 7d',
+				category: 'overview',
+			},
+			{
+				name: 'overview.berita_leaderboard',
+				displayName: 'View Berita Leaderboard',
+				description: 'Lihat berita paling banyak dilihat',
+				category: 'overview',
+			},
+			{
+				name: 'overview.system_health',
+				displayName: 'View System Health',
+				description: 'Lihat status CPU, RAM, disk server',
+				category: 'overview',
+			},
+			{
+				name: 'overview.security_monitor',
+				displayName: 'View Security Monitor',
+				description: 'Lihat ancaman keamanan dan IP mencurigakan',
+				category: 'overview',
+			},
+			{
+				name: 'overview.login_attempts',
+				displayName: 'View Login Attempts',
+				description: 'Lihat percobaan login dan brute-force',
+				category: 'overview',
+			},
+			{
+				name: 'overview.storage_usage',
+				displayName: 'View Storage Usage',
+				description: 'Lihat penggunaan disk storage',
+				category: 'overview',
+			},
+			{
+				name: 'overview.content_performance',
+				displayName: 'View Content Performance',
+				description: 'Lihat performa konten dan engagement',
+				category: 'overview',
+			},
+
 			// User management permissions
 			{
 				name: 'users.view',
@@ -3159,6 +3239,66 @@ async function initializeDefaultRoles() {
 
 		await Role.insertMany(defaultRoles);
 		console.log(`✅ Initialized ${defaultRoles.length} default roles`);
+
+		// ── Backfill overview.* permissions to eligible roles ──
+		// Owner gets all permissions automatically via line ~2862-2914.
+		// Other roles get relevant subsets based on their function.
+		const overviewPermsByRole: Record<string, string[]> = {
+			admin: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.referrer_sources', 'overview.device_breakdown',
+				'overview.geo_breakdown', 'overview.realtime_visitors',
+				'overview.heatmap', 'overview.berita_leaderboard',
+				'overview.system_health', 'overview.security_monitor',
+				'overview.login_attempts', 'overview.storage_usage',
+				'overview.content_performance',
+			],
+			chair: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.referrer_sources', 'overview.device_breakdown',
+				'overview.geo_breakdown', 'overview.realtime_visitors',
+				'overview.heatmap', 'overview.berita_leaderboard',
+				'overview.system_health', 'overview.security_monitor',
+				'overview.login_attempts', 'overview.storage_usage',
+				'overview.content_performance',
+			],
+			vice_chair: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.realtime_visitors', 'overview.berita_leaderboard',
+				'overview.system_health', 'overview.content_performance',
+			],
+			bph: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.realtime_visitors', 'overview.berita_leaderboard',
+				'overview.content_performance',
+			],
+			medinfo: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.referrer_sources', 'overview.device_breakdown',
+				'overview.geo_breakdown', 'overview.realtime_visitors',
+				'overview.heatmap', 'overview.berita_leaderboard',
+				'overview.content_performance',
+			],
+			public_relation: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.referrer_sources', 'overview.device_breakdown',
+				'overview.geo_breakdown', 'overview.realtime_visitors',
+				'overview.heatmap', 'overview.berita_leaderboard',
+				'overview.content_performance',
+			],
+			division_head: [
+				'overview.visitor_graph', 'overview.top_pages',
+				'overview.realtime_visitors', 'overview.berita_leaderboard',
+			],
+		};
+
+		for (const [roleName, perms] of Object.entries(overviewPermsByRole)) {
+			await Role.updateMany(
+				{ name: roleName },
+				{ $addToSet: { permissions: { $each: perms } } },
+			);
+		}
+		console.log('✅ Backfilled overview permissions to eligible roles');
 	} catch (error) {
 		console.error('Error initializing default roles:', error);
 	}

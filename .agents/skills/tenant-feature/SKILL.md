@@ -1,4 +1,4 @@
-﻿---
+---
 name: tenant-feature
 description: Use for features that must work in community tenant context.
 ---

@@ -2,6 +2,11 @@
 
 **Status**: Active | **Contract Confidence**: Verified from route scan  | **Category**: events library
 
+> **Invariant 4.16.9+:** relasi Berita–Galeri dan Event–Galeri harus tersimpan
+> pada kedua sisi. API publik Galeri/Event melakukan union + repair untuk data
+> lama yang hanya tersimpan pada satu sisi, sehingga tampilan tidak bergantung
+> pada halaman admin mana yang terakhir menyimpan relasi.
+
 ---
 
 ## Deskripsi

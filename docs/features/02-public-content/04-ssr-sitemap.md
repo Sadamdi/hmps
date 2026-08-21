@@ -1,4 +1,4 @@
-﻿# SSR Meta + Sitemap (image/video)
+# SSR Meta + Sitemap (image/video)
 
 **Status**: Active | **Contract Confidence**: High (handler in `server/index.ts`) | **Category**: public content
 

@@ -1,4 +1,4 @@
-﻿---
+---
 name: create-feature
 description: Use when building a new HMPS feature end-to-end.
 ---

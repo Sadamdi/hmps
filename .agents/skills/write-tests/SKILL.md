@@ -1,4 +1,4 @@
-﻿---
+---
 name: write-tests
 description: Use when adding verification for HMPS changes.
 ---

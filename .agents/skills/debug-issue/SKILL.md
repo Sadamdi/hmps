@@ -1,4 +1,4 @@
-﻿---
+---
 name: debug-issue
 description: Use when investigating HMPS bugs.
 ---

@@ -20,6 +20,17 @@ import { usePermissionGuard } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useAuth } from '@/lib/auth';
 import { useQuery } from '@tanstack/react-query';
+import { Suspense, lazy } from 'react';
+
+const VisitorGraph = lazy(() => import('./widgets/visitor-graph'));
+const ActiveVisitors = lazy(() => import('./widgets/active-visitors'));
+const SystemHealth = lazy(() => import('./widgets/system-health'));
+const SecurityMonitor = lazy(() => import('./widgets/security-monitor'));
+const EngagementHeatmap = lazy(() => import('./widgets/engagement-heatmap'));
+const BeritaLeaderboard = lazy(() => import('./widgets/berita-leaderboard'));
+const LoginAttempts = lazy(() => import('./widgets/login-attempts'));
+const ContentPerformance = lazy(() => import('./widgets/content-performance'));
+
 import {
 	Edit3,
 	Eye,
@@ -273,6 +284,63 @@ export default function Dashboard() {
 
 	return (
 		<DashboardLayout title="Dashboard" pageContextExtra={{ pageData: homePageDataForSpyro }}>
+			{/* === Overview Stats Suite (TOP) === */}
+			<div className="space-y-6 mb-6 sm:mb-8">
+				{/* Row 1: Status glance (3 cols) */}
+				<div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+					{hasSpecificPermission('overview.realtime_visitors') && (
+						<Suspense fallback={null}>
+							<ActiveVisitors />
+						</Suspense>
+					)}
+					{hasSpecificPermission('overview.system_health') && (
+						<Suspense fallback={null}>
+							<SystemHealth />
+						</Suspense>
+					)}
+					{hasSpecificPermission('overview.security_monitor') && (
+						<Suspense fallback={null}>
+							<SecurityMonitor />
+						</Suspense>
+					)}
+				</div>
+
+				{/* Row 2: Main visitor graph (full width) */}
+				{hasSpecificPermission('overview.visitor_graph') && (
+					<Suspense fallback={null}>
+						<VisitorGraph />
+					</Suspense>
+				)}
+
+				{/* Row 3: Analytics pair */}
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+					{hasSpecificPermission('overview.heatmap') && (
+						<Suspense fallback={null}>
+							<EngagementHeatmap />
+						</Suspense>
+					)}
+					{hasSpecificPermission('overview.berita_leaderboard') && (
+						<Suspense fallback={null}>
+							<BeritaLeaderboard />
+						</Suspense>
+					)}
+				</div>
+
+				{/* Row 4: Management pair */}
+				<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+					{hasSpecificPermission('overview.login_attempts') && (
+						<Suspense fallback={null}>
+							<LoginAttempts />
+						</Suspense>
+					)}
+					{hasSpecificPermission('overview.content_performance') && (
+						<Suspense fallback={null}>
+							<ContentPerformance />
+						</Suspense>
+					)}
+				</div>
+			</div>
+
 			<div className="mb-6 sm:mb-8">
 				<h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
 					Welcome back, {user?.name || user?.username}

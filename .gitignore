@@ -33,3 +33,6 @@ docs/reports/
 
 # Local ops runbooks / SSH helpers (may contain host notes) — do not push
 docs/ops/
+
+# Media sync cooldown marker (server-only)
+.media-last-push
