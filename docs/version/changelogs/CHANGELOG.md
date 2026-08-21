@@ -11,6 +11,18 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.17.0] — 2026-08-21
+
+**Dashboard overview visitor analytics suite** · MINOR · [Full release notes](../release/4.17.0.md)
+
+### Highlights
+- Visitor tracking publik + grafik/heatmap/realtime/leaderboard di dashboard overview
+- 13 permission `overview.*` + backfill role tiap startup
+- System health, security monitor, login attempts, content performance widgets
+- Fix ESM require yang memblokir insert page visits; hook security/login logging
+
+---
+
 ## [4.16.9] — 2026-08-17
 
 **Bidirectional relations + authored image sizing** · PATCH · [Full release notes](../release/4.16.9.md)

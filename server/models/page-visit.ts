@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { model, Schema, Types } from 'mongoose';
 
 export interface IPageVisit {
@@ -109,7 +110,6 @@ export function detectDevice(ua: string): 'mobile' | 'desktop' | 'tablet' {
 
 export function maskIp(ip: string): string {
 	// Hash IP untuk privacy (simpan 16 char pertama dari sha256)
-	const crypto = require('crypto');
 	return crypto.createHash('sha256').update(ip).digest('hex').substring(0, 16);
 }
 

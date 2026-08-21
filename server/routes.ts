@@ -887,17 +887,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use(cookieParser());
 
 	// ==================== Visitor Tracking Middleware ====================
-	// Track every public page visit. Fire-and-forget insert. Rate-limited per IP.
-	const visitorLimiter = rateLimit({
-		windowMs: 60000,
-		max: 100,
-		standardHeaders: true,
-		legacyHeaders: false,
-		keyGenerator: (req: Request) => getRealClientIp(req),
-		message: { message: 'Too many requests, please slow down.' },
-	});
+	// Track every public page visit. Fire-and-forget insert. Soft rate-limit per IP
+	// (in-memory — never sends 429 / never blocks the page response).
+	const visitorHitCounts = new Map<string, { count: number; resetAt: number }>();
+	const allowVisitorHit = (ipHash: string): boolean => {
+		const now = Date.now();
+		let entry = visitorHitCounts.get(ipHash);
+		if (!entry || now >= entry.resetAt) {
+			entry = { count: 0, resetAt: now + 60_000 };
+			visitorHitCounts.set(ipHash, entry);
+		}
+		entry.count += 1;
+		return entry.count <= 100;
+	};
 
-	app.use(async (req, res, next) => {
+	app.use((req, _res, next) => {
 		try {
 			if (req.method !== 'GET') return next();
 			const reqPath = req.path;
@@ -907,15 +911,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const ua = req.get('User-Agent') || '';
 			if (BOT_UA_REGEX.test(ua)) return next();
 
-			await new Promise<void>((resolve) => {
-				visitorLimiter(req, res, () => resolve());
-			});
-			if (res.headersSent || res.statusCode === 429) return;
-
 			const ip = getRealClientIp(req);
+			const ipHash = maskIp(ip);
+			if (!allowVisitorHit(ipHash)) return next();
+
 			const geo = lookupGeo(ip);
 			const device = detectDevice(ua);
-			const ipHash = maskIp(ip);
 
 			PageVisit.create({
 				path: reqPath.substring(0, 500),
@@ -1259,6 +1260,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			tenantSlug: loginTenantSlug,
 		});
 
+		void logLoginAttempt({
+			ip: getRealClientIp(req),
+			email: String(user.email || user.username || ''),
+			success: true,
+			reason: 'success',
+			userId: user._id,
+		});
+
 		try {
 			const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 			await SessionModel.deleteMany({
@@ -1287,6 +1296,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		async (req, res) => {
 			try {
 				const { username, password, loginTarget } = req.body;
+				const clientIp = getRealClientIp(req);
+				const failLogin = (
+					reason: 'invalid_password' | 'not_found' | 'locked' | 'brute_force',
+				) => {
+					void logLoginAttempt({
+						ip: clientIp,
+						email: String(username || ''),
+						success: false,
+						reason,
+					});
+				};
 
 				if (!username || !password) {
 					return res
@@ -1302,18 +1322,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					const tenantDbName = req.tenantDbName;
 
 					const user: any = await storage.getUserByUsernameOrEmail(username);
-					if (!user)
+					if (!user) {
+						failLogin('not_found');
 						return res
 							.status(401)
 							.json({ message: 'Invalid username or password' });
+					}
 					const isValid = await verifyPassword(
 						password,
 						(user as any).password,
 					);
-					if (!isValid)
+					if (!isValid) {
+						failLogin('invalid_password');
 						return res
 							.status(401)
 							.json({ message: 'Invalid username or password' });
+					}
 					return await finalizeLogin(
 						req,
 						res,
@@ -1331,27 +1355,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						slug: loginTarget,
 						status: 'active',
 					}).lean();
-					if (!community)
+					if (!community) {
+						failLogin('not_found');
 						return res
 							.status(401)
 							.json({ message: 'Komunitas tidak ditemukan atau tidak aktif' });
+					}
 					const { getTenantModels } = await import('../db/tenant');
 					const models = getTenantModels(community.dbName);
 					const { createTenantStorage } = await import('./tenant-storage');
 					const storage = createTenantStorage(models);
 					const user: any = await storage.getUserByUsernameOrEmail(username);
-					if (!user)
+					if (!user) {
+						failLogin('not_found');
 						return res
 							.status(401)
 							.json({ message: 'Invalid username or password' });
+					}
 					const isValid = await verifyPassword(
 						password,
 						(user as any).password,
 					);
-					if (!isValid)
+					if (!isValid) {
+						failLogin('invalid_password');
 						return res
 							.status(401)
 							.json({ message: 'Invalid username or password' });
+					}
 					return await finalizeLogin(
 						req,
 						res,
@@ -1418,6 +1448,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const totalMatches = (mainValid ? 1 : 0) + tenantMatches.length;
 
 				if (totalMatches === 0) {
+					failLogin(mainUser ? 'invalid_password' : 'not_found');
 					return res
 						.status(401)
 						.json({ message: 'Invalid username or password' });

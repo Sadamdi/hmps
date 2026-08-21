@@ -316,6 +316,19 @@ function sendTierBlockResponse(
 	res.setHeader('Retry-After', String(retryAfter));
 	res.setHeader('X-HMPS-RateLimit-Tier', String(tier));
 
+	const clientIP = getTrustedClientIp(req);
+	void import('../models/security-event')
+		.then(({ logSecurityEvent }) =>
+			logSecurityEvent({
+				type: 'ddos',
+				ip: clientIP,
+				path: req.path,
+				userAgent: req.get('User-Agent') || '',
+				details: { tier, blockUntil, retryAfter },
+			}),
+		)
+		.catch(() => {});
+
 	const wantsJson =
 		req.path.startsWith('/api/') ||
 		!!req.get('accept')?.includes('application/json');

@@ -229,6 +229,14 @@ GET    /api/stats
 GET    /api/dashboard/stats
 GET    /api/dashboard/activities
 POST   /api/dashboard/log-activity
+GET    /api/dashboard/visitor-stats
+GET    /api/dashboard/active-visitors
+GET    /api/dashboard/engagement-heatmap
+GET    /api/dashboard/berita-leaderboard
+GET    /api/dashboard/system-health
+GET    /api/dashboard/security-monitor
+GET    /api/dashboard/login-attempts
+GET    /api/dashboard/content-performance
 ```
 
 ## Social Feed (YouTube / Instagram beranda)
