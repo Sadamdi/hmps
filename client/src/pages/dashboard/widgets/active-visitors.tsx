@@ -6,6 +6,7 @@ import {
 	CardTitle,
 } from '@/components/ui/card';
 import { Loader2, Users } from 'lucide-react';
+import { overviewCardClass } from './widget-styles';
 
 export default function ActiveVisitors() {
 	const { data, isLoading } = useQuery({
@@ -21,23 +22,23 @@ export default function ActiveVisitors() {
 	});
 
 	return (
-		<Card>
-			<CardHeader className="pb-2">
+		<Card className={overviewCardClass}>
+			<CardHeader className="pb-2 p-4 sm:p-6">
 				<div className="flex items-center gap-2">
-					<div className="relative">
+					<div className="relative shrink-0">
 						<span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
 							<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
 							<span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
 						</span>
 						<Users className="h-5 w-5 text-muted-foreground" />
 					</div>
-					<div>
-						<CardTitle className="text-sm">Real-time Visitors</CardTitle>
+					<div className="min-w-0">
+						<CardTitle className="text-sm sm:text-base">Real-time Visitors</CardTitle>
 						<p className="text-xs text-muted-foreground">5 menit terakhir</p>
 					</div>
 				</div>
 			</CardHeader>
-			<CardContent>
+			<CardContent className="px-4 pb-4 sm:px-6 sm:pb-6">
 				{isLoading ? (
 					<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
 				) : (
