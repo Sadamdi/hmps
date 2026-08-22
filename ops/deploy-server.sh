@@ -32,6 +32,7 @@ BACKUP_ROOT="${HMPS_BACKUP_ROOT:-/var/backups/hmps-deploy}"
 BUILT_HEAD_FILE="$APP_DIR/.deploy-built-head"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DIR="$BACKUP_ROOT/$TIMESTAMP"
+BACKUP_RETENTION="${HMPS_BACKUP_RETENTION:-5}"
 
 # App yang di-stop selama install/build (jangan sentuh hmps-auto-deploy)
 PM2_APPS="${HMPS_PM2_APPS:-hmps-app himatif-banner}"
@@ -69,6 +70,24 @@ restore_dist() {
 }
 
 log() { echo "[hmps-deploy] $*"; }
+
+# Rotasi backup: simpan hanya N termuda (default 5). Dipanggil di akhir deploy.
+rotate_backups() {
+	local keep="${BACKUP_RETENTION:-5}"
+	if [[ ! -d "$BACKUP_ROOT" ]]; then
+		return 0
+	fi
+	local removed=0
+	while read -r old; do
+		if [[ -n "$old" && -d "$old" ]]; then
+			rm -rf "$old"
+			removed=$((removed + 1))
+		fi
+	done < <(ls -1dt "$BACKUP_ROOT"/*/ 2>/dev/null | tail -n +"$((keep + 1))")
+	if [[ $removed -gt 0 ]]; then
+		log "Backup rotation: removed $removed old backup(s), kept $keep"
+	fi
+}
 
 backup_item() {
 	local rel="$1"
@@ -294,6 +313,7 @@ if [[ "$NEED_BUILD" -eq 0 && "$NEED_NPM" -eq 0 ]]; then
 	fi
 	log "Selesai (no rebuild). HEAD = $(git rev-parse --short HEAD) ($(git log -1 --format='%s'))"
 	log "Backup tersimpan di: $BACKUP_DIR"
+	rotate_backups
 	exit 0
 fi
 
@@ -344,4 +364,5 @@ run_build_with_retry
 
 trap - EXIT
 cleanup_start_apps
+rotate_backups
 exit 0
