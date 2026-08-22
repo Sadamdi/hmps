@@ -11,6 +11,19 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.18.1] — 2026-08-22
+
+**Stabilize system-health CPU gauge on 1-vCPU hosts** · PATCH · [Full release notes](../release/4.18.1.md)
+
+### Fixed
+- CPU ring di Overview System Health sering ~93–100% padahal load host rendah — sample window 100ms diganti background sampler 1s + EMA smoothing
+- Label `1 cores` → `1 core` di widget System Health
+
+### Ops note
+- ClamAV (`clamd`) tetap aktif untuk scan-on-upload; EICAR test via `clamdscan` OK di production
+
+---
+
 ## [4.18.0] — 2026-08-22
 
 **Overview Suite Phase 2: SSE push, Network/Storage activity, global range filter, permission rework** · MINOR · [Full release notes](../release/4.18.0.md)

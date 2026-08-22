@@ -75,40 +75,89 @@ function formatUptime(seconds: number): string {
 	return parts.join(' ');
 }
 
-function getCpuUsage(): Promise<{ usage: number; model: string; speed: number; cores: number }> {
-	return new Promise((resolve) => {
-		const cpus1 = os.cpus();
-		let idle1 = 0;
-		let total1 = 0;
-		for (const cpu of cpus1) {
-			for (const type in cpu.times) {
-				total1 += (cpu.times as Record<string, number>)[type];
-			}
-			idle1 += cpu.times.idle;
-		}
-		const model = cpus1.length > 0 ? cpus1[0].model : 'Unknown';
-		const speed = cpus1.length > 0 ? cpus1[0].speed / 1000 : 0;
+type CpuInfo = { usage: number; model: string; speed: number; cores: number };
 
-		setTimeout(() => {
-			const cpus2 = os.cpus();
-			let idle2 = 0;
-			let total2 = 0;
-			for (const cpu of cpus2) {
-				for (const type in cpu.times) {
-					total2 += (cpu.times as Record<string, number>)[type];
-				}
-				idle2 += cpu.times.idle;
-			}
-			const idleDiff = idle2 - idle1;
-			const totalDiff = total2 - total1;
-			const usage = totalDiff > 0 ? Math.round(((totalDiff - idleDiff) / totalDiff) * 100) : 0;
-			resolve({
-				usage: Math.max(0, Math.min(100, usage)),
-				model,
-				speed,
-				cores: cpus2.length,
-			});
-		}, 100);
+/** 1s window + EMA — short samples (e.g. 100ms) look like ~100% on 1-vCPU hosts. */
+const CPU_SAMPLE_MS = 1000;
+const CPU_EMA_ALPHA = 0.35;
+
+let cpuSampler: {
+	idle: number;
+	total: number;
+	usage: number;
+	model: string;
+	speed: number;
+	cores: number;
+	timer: ReturnType<typeof setInterval> | null;
+} = {
+	idle: 0,
+	total: 0,
+	usage: 0,
+	model: 'Unknown',
+	speed: 0,
+	cores: 1,
+	timer: null,
+};
+
+function readCpuCounters(): Omit<CpuInfo, 'usage'> & { idle: number; total: number } {
+	const cpus = os.cpus();
+	let idle = 0;
+	let total = 0;
+	for (const cpu of cpus) {
+		for (const type in cpu.times) {
+			total += (cpu.times as Record<string, number>)[type];
+		}
+		idle += cpu.times.idle;
+	}
+	return {
+		idle,
+		total,
+		model: cpus[0]?.model || 'Unknown',
+		speed: cpus[0] ? cpus[0].speed / 1000 : 0,
+		cores: cpus.length || 1,
+	};
+}
+
+function ensureCpuSampler(): void {
+	if (cpuSampler.timer) return;
+
+	const first = readCpuCounters();
+	const loadPerCore = os.loadavg()[0] / Math.max(1, first.cores);
+	cpuSampler = {
+		...first,
+		// Seed from 1m load so the first SSE tick is not always 0
+		usage: Math.max(0, Math.min(100, Math.round(loadPerCore * 100))),
+		timer: null,
+	};
+
+	cpuSampler.timer = setInterval(() => {
+		const next = readCpuCounters();
+		const idleDiff = next.idle - cpuSampler.idle;
+		const totalDiff = next.total - cpuSampler.total;
+		const instant =
+			totalDiff > 0 ? ((totalDiff - idleDiff) / totalDiff) * 100 : cpuSampler.usage;
+		const smoothed = cpuSampler.usage * (1 - CPU_EMA_ALPHA) + instant * CPU_EMA_ALPHA;
+		cpuSampler.idle = next.idle;
+		cpuSampler.total = next.total;
+		cpuSampler.model = next.model;
+		cpuSampler.speed = next.speed;
+		cpuSampler.cores = next.cores;
+		cpuSampler.usage = Math.max(0, Math.min(100, Math.round(smoothed)));
+	}, CPU_SAMPLE_MS);
+
+	// Do not keep the event loop alive solely for metrics (tests / short scripts)
+	if (typeof cpuSampler.timer.unref === 'function') {
+		cpuSampler.timer.unref();
+	}
+}
+
+function getCpuUsage(): Promise<CpuInfo> {
+	ensureCpuSampler();
+	return Promise.resolve({
+		usage: cpuSampler.usage,
+		model: cpuSampler.model,
+		speed: cpuSampler.speed,
+		cores: cpuSampler.cores,
 	});
 }
 
