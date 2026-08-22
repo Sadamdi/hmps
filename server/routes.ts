@@ -7743,10 +7743,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!(await checkOverviewPermission(req, 'overview.heatmap'))) {
 				return res.status(403).json({ message: 'No permission' });
 			}
-			const days = Math.min(Math.max(parseInt(String(req.query.days), 10) || 30, 1), 90);
-			const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
-			const result = await PageVisit.aggregate([
-				{ $match: { timestamp: { $gte: startDate }, isBot: false } },
+		const rangeDaysCount = Math.min(Math.max(parseInt(String(req.query.days), 10) || 30, 1), 90);
+		const startDate = new Date(Date.now() - rangeDaysCount * 24 * 60 * 60 * 1000);
+		const result = await PageVisit.aggregate([
+			{ $match: { timestamp: { $gte: startDate }, isBot: false } },
 				{
 					$group: {
 						_id: {
@@ -7785,6 +7785,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				peakHour: `${String(peakHour).padStart(2, '0')}:00`,
 				peakDay: days[peakDay],
 				maxCount,
+				rangeDays: rangeDaysCount,
 			});
 		} catch (error) {
 			console.error('Heatmap error:', error);
