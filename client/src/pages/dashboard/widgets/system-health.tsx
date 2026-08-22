@@ -139,7 +139,9 @@ export default function SystemHealth() {
 						<CardTitle className="text-sm sm:text-base">System Health</CardTitle>
 						<CardDescription className="text-xs truncate">
 							{health?.cpu?.model || 'Server'}
-							{health?.cpu?.cores != null ? ` · ${health.cpu.cores} cores` : ''}
+							{health?.cpu?.cores != null
+								? ` · ${health.cpu.cores} core${health.cpu.cores === 1 ? '' : 's'}`
+								: ''}
 						</CardDescription>
 					</div>
 				<div className="flex items-center gap-1.5 text-xs shrink-0">
