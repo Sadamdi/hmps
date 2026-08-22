@@ -32,7 +32,7 @@ BACKUP_ROOT="${HMPS_BACKUP_ROOT:-/var/backups/hmps-deploy}"
 BUILT_HEAD_FILE="$APP_DIR/.deploy-built-head"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 BACKUP_DIR="$BACKUP_ROOT/$TIMESTAMP"
-BACKUP_RETENTION="${HMPS_BACKUP_RETENTION:-5}"
+BACKUP_RETENTION="${HMPS_BACKUP_RETENTION:-3}"
 
 # App yang di-stop selama install/build (jangan sentuh hmps-auto-deploy)
 PM2_APPS="${HMPS_PM2_APPS:-hmps-app himatif-banner}"
