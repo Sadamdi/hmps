@@ -11,6 +11,15 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.19.5] — 2026-08-28
+
+**Fix MediaContent/FullscreenModal remount-on-every-render** · PATCH · [Full release notes](../release/4.19.5.md)
+
+### Fixed
+- Kemungkinan root cause sebenarnya dari seluruh rangkaian bug player video Drive sejak awal: `MediaContent`/`FullscreenModal` di `MediaDisplay.tsx` didefinisikan sebagai nested function component lalu dipakai sebagai elemen JSX (`<MediaContent />`) — identitas fungsinya berubah tiap render induk, memaksa React unmount+remount subtree-nya terus-menerus dan merusak `ref` yang dipakai `IntersectionObserver` untuk lazy-load. Fix: panggil sebagai fungsi langsung (`{MediaContent()}`), bukan elemen JSX — DOM & ref jadi stabil antar-render.
+
+---
+
 ## [4.19.4] — 2026-08-28
 
 **Persistent "Buka di Drive" fallback for mobile-fragile embeds** · PATCH · [Full release notes](../release/4.19.4.md)
