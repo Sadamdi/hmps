@@ -373,6 +373,7 @@ const settingsSchema = new mongoose.Schema({
 	embedAllowedHosts: [{ type: String }],
 	eventsAutoScrollEnabled: { type: Boolean, default: true },
 	eventsAllowMultipleYearsOnHome: { type: Boolean, default: false },
+	mobileNavBubbleEnabled: { type: Boolean, default: false },
 	homeConfig: {
 		blocks: [
 			{

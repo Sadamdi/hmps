@@ -122,11 +122,11 @@ export default function TableOfContents({ content }: TableOfContentsProps) {
         </div>
       </div>
 
-      {/* Mobile TOC */}
-      <div className="lg:hidden fixed bottom-4 right-4 z-50">
+      {/* Mobile TOC — pojok kiri-bawah agar tidak bertabrakan dengan tombol AI chat (kanan-bawah) */}
+      <div className="lg:hidden fixed bottom-4 left-4 z-50">
         <div className="relative">
           {isOpen && (
-            <div className="absolute bottom-16 right-0 w-80 max-h-96 overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200 p-6">
+            <div className="absolute bottom-16 left-0 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200 p-6">
               <h3 className="font-bold text-gray-900 mb-4 flex items-center text-lg">
                 <List className="w-5 h-5 mr-2 text-primary" />
                 Table of Contents

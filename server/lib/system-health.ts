@@ -342,16 +342,16 @@ export function getNetworkStats(): NetworkStats {
 	let totalRx = 0;
 	let totalTx = 0;
 	const interfaces: { name: string; rxBytes: number; txBytes: number }[] = [];
-	for (const [name, stats] of current) {
+	current.forEach((stats, name) => {
 		// Skip loopback for aggregate
 		if (name === 'lo') {
 			interfaces.push({ name, rxBytes: stats.rxBytes, txBytes: stats.txBytes });
-			continue;
+			return;
 		}
 		totalRx += stats.rxBytes;
 		totalTx += stats.txBytes;
 		interfaces.push({ name, rxBytes: stats.rxBytes, txBytes: stats.txBytes });
-	}
+	});
 
 	let rxRate = 0;
 	let txRate = 0;
@@ -360,11 +360,11 @@ export function getNetworkStats(): NetworkStats {
 		if (dt > 0) {
 			let prevRx = 0;
 			let prevTx = 0;
-			for (const [name, stats] of lastNetSample.interfaces) {
-				if (name === 'lo') continue;
+			lastNetSample.interfaces.forEach((stats, name) => {
+				if (name === 'lo') return;
 				prevRx += stats.rxBytes;
 				prevTx += stats.txBytes;
-			}
+			});
 			rxRate = Math.max(0, Math.round((totalRx - prevRx) / dt));
 			txRate = Math.max(0, Math.round((totalTx - prevTx) / dt));
 		}

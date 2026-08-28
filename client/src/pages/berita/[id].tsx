@@ -757,7 +757,7 @@ export default function BeritaDetail() {
 				<div className="lg:hidden">
 					<Suspense
 						fallback={
-							<div className="fixed bottom-4 right-4 z-50">
+							<div className="fixed bottom-4 left-4 z-50">
 								<button className="bg-primary text-primary-foreground p-3 rounded-full shadow-lg">
 									TOC
 								</button>

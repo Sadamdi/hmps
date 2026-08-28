@@ -587,7 +587,7 @@ export default function MediaDisplay({
 						<iframe
 							src={currentUrl}
 							className="w-full h-full min-h-0 rounded cursor-pointer"
-							allow="autoplay; encrypted-media"
+							allow="autoplay; encrypted-media; fullscreen"
 							allowFullScreen
 							onError={handleVideoError}
 							style={{ border: 'none' }}

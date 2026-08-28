@@ -1695,11 +1695,11 @@ process.on('unhandledRejection', (reason: any) => {
 				if (!comm?.dbName) return next();
 				const { getTenantModels } = await import('../db/tenant');
 				const models = getTenantModels(comm.dbName);
-				const item = await models.Berita.findOne({
+				const item: any = await models.Berita.findOne({
 					slug: req.params.articleSlug,
 					published: true,
 				}).lean();
-				const settings = await models.Settings.findOne().lean();
+				const settings: any = await models.Settings.findOne().lean();
 				const siteName = String(settings?.siteName || comm.name || comm.slug);
 				const distPath = path.resolve(process.cwd(), 'dist', 'public');
 				const htmlPath = path.join(distPath, 'index.html');
@@ -1734,7 +1734,7 @@ process.on('unhandledRejection', (reason: any) => {
 					if (!comm?.dbName) return next();
 					const { getTenantModels } = await import('../db/tenant');
 					const models = getTenantModels(comm.dbName);
-					const settings = await models.Settings.findOne().lean();
+					const settings: any = await models.Settings.findOne().lean();
 					const siteName = String(settings?.siteName || comm.name || comm.slug);
 					const description = String(
 						settings?.siteDescription || settings?.siteTagline || siteName,
