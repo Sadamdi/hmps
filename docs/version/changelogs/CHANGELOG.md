@@ -11,6 +11,15 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.19.2] — 2026-08-28
+
+**Lazy-load Google Drive video iframes in berita content** · PATCH · [Full release notes](../release/4.19.2.md)
+
+### Fixed
+- Video Google Drive inline di artikel berita macet di layar loading Google (bukan bug modal fullscreen `4.19.1`, ini kasus inline) — root cause: artikel dengan banyak video (a.l. 7 iframe dalam 1 artikel) memuat semua iframe bersamaan saat mount, tanpa lazy-loading, menyebabkan kompetisi request terutama di mobile. Fix: iframe Drive di-lazy-load via IntersectionObserver + `loading="lazy"`.
+
+---
+
 ## [4.19.1] — 2026-08-28
 
 **Fix fullscreen media modal broken by AOS transform** · PATCH · [Full release notes](../release/4.19.1.md)

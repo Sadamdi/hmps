@@ -1,5 +1,5 @@
 import { detectMediaSource } from '@shared/mediaUtils';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 const DEFAULT_MEDIA_FRAME =
@@ -170,6 +170,30 @@ export default function MediaDisplay({
 	const [imageError, setImageError] = useState(false);
 	const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
 	const [isFullscreen, setIsFullscreen] = useState(false);
+
+	// Drive iframe embed (video) baru mulai load saat mendekati viewport.
+	// Tanpa ini, setiap artikel dengan banyak embed Drive memuat semua iframe
+	// sekaligus saat mount — di koneksi mobile yang lebih lambat, beberapa
+	// iframe Drive gagal/mandek loading karena terlalu banyak request bersamaan.
+	const [driveIframeInView, setDriveIframeInView] = useState(false);
+	const driveIframeContainerRef = useRef<HTMLDivElement | null>(null);
+
+	useEffect(() => {
+		if (driveIframeInView) return;
+		const el = driveIframeContainerRef.current;
+		if (!el) return;
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (entry.isIntersecting) {
+					setDriveIframeInView(true);
+					observer.disconnect();
+				}
+			},
+			{ rootMargin: '300px', threshold: 0.01 },
+		);
+		observer.observe(el);
+		return () => observer.disconnect();
+	}, [driveIframeInView]);
 
 	useEffect(() => {
 		const loadMedia = async () => {
@@ -584,20 +608,26 @@ export default function MediaDisplay({
 			if (useDriveIframe) {
 				return (
 					<div
+						ref={driveIframeContainerRef}
 						className={`${frameCn} flex items-center justify-center bg-black rounded relative group aspect-video max-h-[min(75vh,56rem)]`}>
-						<iframe
-							src={currentUrl}
-							className="w-full h-full min-h-0 rounded cursor-pointer"
-							allow="autoplay; encrypted-media; fullscreen"
-							allowFullScreen
-							onError={handleVideoError}
-							style={{ border: 'none' }}
-							title={alt}
-							onClick={toggleFullscreen}
-							onLoad={() => {
-								setImageError(false);
-							}}
-						/>
+						{driveIframeInView ? (
+							<iframe
+								src={currentUrl}
+								loading="lazy"
+								className="w-full h-full min-h-0 rounded cursor-pointer"
+								allow="autoplay; encrypted-media; fullscreen"
+								allowFullScreen
+								onError={handleVideoError}
+								style={{ border: 'none' }}
+								title={alt}
+								onClick={toggleFullscreen}
+								onLoad={() => {
+									setImageError(false);
+								}}
+							/>
+						) : (
+							<div className="w-8 h-8 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+						)}
 
 						{/* Fullscreen button for video */}
 						<button
