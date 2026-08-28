@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.19.2`  
+**Current version:** `4.19.3`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.19.2`](./release/4.19.2.md) | 2026-08-28 | Lazy-load Google Drive video iframes in berita content | PATCH | 1 | **Current** |
+| [`4.19.3`](./release/4.19.3.md) | 2026-08-28 | Fix Drive iframe lazy-load deadlock from 4.19.2 | PATCH | 1 | **Current** |
+| [`4.19.2`](./release/4.19.2.md) | 2026-08-28 | Lazy-load Google Drive video iframes in berita content | PATCH | 1 | Released |
 | [`4.19.1`](./release/4.19.1.md) | 2026-08-28 | Fix fullscreen media modal broken by AOS transform | PATCH | 1 | Released |
 | [`4.19.0`](./release/4.19.0.md) | 2026-08-28 | Mobile navbar bubble style + berita mobile UX fixes | MINOR | 1 | Released |
 | [`4.18.1`](./release/4.18.1.md) | 2026-08-22 | Stabilize system-health CPU gauge | PATCH | 1 | Released |

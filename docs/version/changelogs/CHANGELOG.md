@@ -11,6 +11,15 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.19.3] — 2026-08-28
+
+**Fix Drive iframe lazy-load deadlock from 4.19.2** · PATCH · [Full release notes](../release/4.19.3.md)
+
+### Fixed
+- Regresi dari `4.19.2`: SEMUA iframe Google Drive video macet permanen jadi spinner (bukan cuma sebagian seperti bug asal) — root cause: `useEffect` pemasang `IntersectionObserver` jalan sebelum elemen ber-`ref` sempat ter-render (early-return loading state), dependency array `[driveIframeInView]` tidak pernah berubah untuk memicu re-attach. Fix: tambah `mediaState.loading` ke dependency array. Diverifikasi langsung di production sebelum & sesudah fix via SSH + inspeksi DOM.
+
+---
+
 ## [4.19.2] — 2026-08-28
 
 **Lazy-load Google Drive video iframes in berita content** · PATCH · [Full release notes](../release/4.19.2.md)

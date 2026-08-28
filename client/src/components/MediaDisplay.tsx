@@ -193,7 +193,11 @@ export default function MediaDisplay({
 		);
 		observer.observe(el);
 		return () => observer.disconnect();
-	}, [driveIframeInView]);
+		// mediaState.loading di dependency: saat mount, ref belum terpasang
+		// (komponen masih return early-loading state) — effect ini re-run
+		// begitu loading selesai dan div ber-ref benar-benar ter-render,
+		// baru observer bisa attach ke elemen yang sebenarnya.
+	}, [driveIframeInView, mediaState.loading]);
 
 	useEffect(() => {
 		const loadMedia = async () => {
