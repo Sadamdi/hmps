@@ -939,7 +939,7 @@ export default function MediaDisplay({
 			<div className="w-full max-w-full overflow-hidden">
 				{/* Main photo display - Fixed size container */}
 				<div className="relative mb-4 w-full max-w-full">
-					<MediaContent />
+					{MediaContent()}
 
 					{/* Navigation buttons overlay */}
 					<div className="absolute inset-0 flex items-center justify-between px-4 opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
@@ -1004,7 +1004,7 @@ export default function MediaDisplay({
 						})}
 					</div>
 				</div>
-				<FullscreenModal />
+				{FullscreenModal()}
 			</div>
 		);
 	}
@@ -1012,8 +1012,8 @@ export default function MediaDisplay({
 	// Single media item
 	return (
 		<div className={`${className} w-full max-w-full overflow-hidden`}>
-			<MediaContent />
-			<FullscreenModal />
+			{MediaContent()}
+			{FullscreenModal()}
 		</div>
 	);
 }

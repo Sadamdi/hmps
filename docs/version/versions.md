@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.19.4`  
+**Current version:** `4.19.5`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.19.4`](./release/4.19.4.md) | 2026-08-28 | Persistent "Buka di Drive" fallback for mobile-fragile embeds | PATCH | 1 | **Current** |
+| [`4.19.5`](./release/4.19.5.md) | 2026-08-28 | Fix MediaContent/FullscreenModal remount-on-every-render | PATCH | 1 | **Current** |
+| [`4.19.4`](./release/4.19.4.md) | 2026-08-28 | Persistent "Buka di Drive" fallback for mobile-fragile embeds | PATCH | 1 | Released |
 | [`4.19.3`](./release/4.19.3.md) | 2026-08-28 | Fix Drive iframe lazy-load deadlock from 4.19.2 | PATCH | 1 | Released |
 | [`4.19.2`](./release/4.19.2.md) | 2026-08-28 | Lazy-load Google Drive video iframes in berita content | PATCH | 1 | Released |
 | [`4.19.1`](./release/4.19.1.md) | 2026-08-28 | Fix fullscreen media modal broken by AOS transform | PATCH | 1 | Released |
