@@ -11,6 +11,15 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.19.4] — 2026-08-28
+
+**Persistent "Buka di Drive" fallback for mobile-fragile embeds** · PATCH · [Full release notes](../release/4.19.4.md)
+
+### Added
+- Tombol "Buka di Drive" sekarang selalu terlihat (bukan hover-only) di video Google Drive, inline maupun fullscreen modal — user dikonfirmasi lewat pengujian silang (PC window di-shrink = OK, HP asli lintas browser + incognito = tetap macet) bahwa root cause ada di perilaku Google Drive `/preview` sendiri saat mendeteksi mobile User-Agent, di luar kendali kode kita. Fallback ini memastikan video tetap bisa ditonton walau iframe-nya gagal render.
+
+---
+
 ## [4.19.3] — 2026-08-28
 
 **Fix Drive iframe lazy-load deadlock from 4.19.2** · PATCH · [Full release notes](../release/4.19.3.md)

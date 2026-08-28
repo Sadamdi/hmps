@@ -610,6 +610,13 @@ export default function MediaDisplay({
 			}
 
 			if (useDriveIframe) {
+				const driveFileIdMatch = currentFile.url.match(
+					/(?:[?&]id=|\/d\/)([a-zA-Z0-9-_]+)/i,
+				);
+				const driveOpenUrl = driveFileIdMatch
+					? `https://drive.google.com/file/d/${driveFileIdMatch[1]}/view`
+					: currentFile.url;
+
 				return (
 					<div
 						ref={driveIframeContainerRef}
@@ -650,6 +657,33 @@ export default function MediaDisplay({
 								/>
 							</svg>
 						</button>
+
+						{/* Fallback link — selalu terlihat (bukan hover-only), karena player
+						    embed Google Drive kadang tidak render dengan benar di mobile
+						    (di luar kendali kita, itu halaman Google) — pastikan video tetap
+						    bisa ditonton lewat tab/app Drive langsung. */}
+						{driveIframeInView && (
+							<a
+								href={driveOpenUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								onClick={(e) => e.stopPropagation()}
+								className="absolute bottom-2 right-2 flex items-center gap-1 bg-black/70 text-white text-xs px-2.5 py-1.5 rounded-full hover:bg-black/85 transition-colors">
+								<svg
+									className="w-3 h-3"
+									fill="none"
+									stroke="currentColor"
+									viewBox="0 0 24 24">
+									<path
+										strokeLinecap="round"
+										strokeLinejoin="round"
+										strokeWidth={2}
+										d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+									/>
+								</svg>
+								Buka di Drive
+							</a>
+						)}
 					</div>
 				);
 			}
@@ -835,7 +869,7 @@ export default function MediaDisplay({
 					{/* Main image / video / Drive embed */}
 					{currentFile.type === 'video' ? (
 						isDriveEmbedVideoPlayback(currentFile, currentUrl) ? (
-							<div className="w-full h-[min(90vh,calc(100vw-2rem))] max-w-[min(100vw-2rem,1200px)] flex items-center justify-center">
+							<div className="relative w-full h-[min(90vh,calc(100vw-2rem))] max-w-[min(100vw-2rem,1200px)] flex items-center justify-center">
 								<iframe
 									src={currentUrl}
 									className="w-full h-full min-h-[50vh] rounded border-0 bg-black"
@@ -843,6 +877,36 @@ export default function MediaDisplay({
 									allowFullScreen
 									title={alt}
 								/>
+								{(() => {
+									const m = currentFile.url.match(
+										/(?:[?&]id=|\/d\/)([a-zA-Z0-9-_]+)/i,
+									);
+									const openUrl = m
+										? `https://drive.google.com/file/d/${m[1]}/view`
+										: currentFile.url;
+									return (
+										<a
+											href={openUrl}
+											target="_blank"
+											rel="noopener noreferrer"
+											onClick={(e) => e.stopPropagation()}
+											className="absolute bottom-3 right-3 flex items-center gap-1 bg-black/70 text-white text-xs px-2.5 py-1.5 rounded-full hover:bg-black/85 transition-colors">
+											<svg
+												className="w-3 h-3"
+												fill="none"
+												stroke="currentColor"
+												viewBox="0 0 24 24">
+												<path
+													strokeLinecap="round"
+													strokeLinejoin="round"
+													strokeWidth={2}
+													d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+												/>
+											</svg>
+											Buka di Drive
+										</a>
+									);
+								})()}
 							</div>
 						) : (
 							<div className="max-w-full max-h-full flex items-center justify-center">
