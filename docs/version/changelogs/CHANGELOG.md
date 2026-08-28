@@ -11,6 +11,15 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.19.6] — 2026-08-28
+
+**Remove debug instrumentation, confirm 4.19.5 fix verified** · PATCH · [Full release notes](../release/4.19.6.md)
+
+### Changed
+- Hapus `console.log` debug sementara yang ditambahkan untuk investigasi `4.19.5` — log runtime production mengonfirmasi mekanisme lazy-load `4.19.5` bekerja benar (observer attach → callback `isIntersecting:true` → state update → re-render); kegagalan yang sempat terlihat adalah artefak skrip pengujian yang cek terlalu cepat, bukan bug di kode. Pengujian ulang: 7/7 iframe muat, 0 spinner, 7/7 tombol fallback tampil, konsisten di beberapa reload.
+
+---
+
 ## [4.19.5] — 2026-08-28
 
 **Fix MediaContent/FullscreenModal remount-on-every-render** · PATCH · [Full release notes](../release/4.19.5.md)
