@@ -11,6 +11,15 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.19.1] — 2026-08-28
+
+**Fix fullscreen media modal broken by AOS transform** · PATCH · [Full release notes](../release/4.19.1.md)
+
+### Fixed
+- Modal fullscreen gambar/video di `MediaDisplay` terpotong jadi kotak hitam kecil (bukan gambar/video-nya sendiri yang bug) — root cause: ancestor `aos-init aos-animate` punya `transform` non-`none` yang jadi containing block baru untuk `position: fixed`, dikombinasi `overflow-hidden` sehingga modal terpotong. Fix: modal di-portal ke `document.body` via `createPortal`.
+
+---
+
 ## [4.19.0] — 2026-08-28
 
 **Mobile navbar bubble style + berita mobile UX fixes** · MINOR · [Full release notes](../release/4.19.0.md)
