@@ -62,6 +62,7 @@ interface NavbarSettings {
 	homeConfig?: HomeConfig;
 	aboutPageTrackRecord?: any[];
 	aboutPageLambang?: any[];
+	mobileNavBubbleEnabled?: boolean;
 }
 
 type NavItem = {
@@ -1650,47 +1651,46 @@ export default function Navbar({
 									<Moon className="h-4 w-4 text-slate-500" />
 								)}
 							</button>
-							<button
-								type="button"
-								aria-label={isMobileNavCollapsed ? 'Buka navigasi' : 'Tutup navigasi'}
-								aria-expanded={!isMobileNavCollapsed}
-								onClick={() => {
-									if (isMobileNavCollapsed) {
-										triggerExpand();
-										scheduleCollapse();
-									} else {
-										triggerCollapse();
-									}
-								}}
-								className={`p-2 rounded-lg transition-colors ${
-									isMobileNavCollapsed
-										? 'text-muted-foreground hover:text-foreground hover:bg-secondary'
-										: 'bg-primary/15 text-primary'
-								}`}>
-								<Menu className="h-5 w-5" />
-							</button>
+							{!settings?.mobileNavBubbleEnabled && (
+								<button
+									type="button"
+									aria-label={isMobileNavCollapsed ? 'Buka navigasi' : 'Tutup navigasi'}
+									aria-expanded={!isMobileNavCollapsed}
+									onClick={() => {
+										if (isMobileNavCollapsed) {
+											triggerExpand();
+											scheduleCollapse();
+										} else {
+											triggerCollapse();
+										}
+									}}
+									className={`p-2 rounded-lg transition-colors ${
+										isMobileNavCollapsed
+											? 'text-muted-foreground hover:text-foreground hover:bg-secondary'
+											: 'bg-primary/15 text-primary'
+									}`}>
+									<Menu className="h-5 w-5" />
+								</button>
+							)}
 						</div>
 					</div>
 				</div>
 			</header>
 
-			{/* ============ MOBILE NAV PANEL (kanan atas, turun ke bawah) ============ */}
-			{!isMobileNavCollapsed ? (
-			<div className="fixed right-3 top-[4.5rem] z-[55] sm:hidden events-mobile-nav">
-				{/* Expanded mode — panel di bawah header, ikon vertikal atas→bawah */}
-					<div
-						className={`flex flex-col gap-1.5 p-2 rounded-2xl
+			{/* ============ MOBILE NAV: shared item list, branch by style setting ============ */}
+			{(() => {
+				const panelClassName = `flex flex-col gap-1.5 p-2 rounded-2xl
 					           bg-background/92 backdrop-blur-md
 					           border border-border/80 shadow-xl shadow-black/10
-					           ${isAnimatingCollapse ? 'pointer-events-none' : ''}`}>
-						{/* All nav items with stagger animation */}
-						{(() => {
-							// Build flat list of all items including user/login at end
-							const allItems = [...mobileNavItems];
+					           ${isAnimatingCollapse ? 'pointer-events-none' : ''}`;
 
-							return (
-								<>
-									{allItems.map((item: NavItem, index: number) => {
+				const mobileNavItemsList = (() => {
+					// Build flat list of all items including user/login at end
+					const allItems = [...mobileNavItems];
+
+					return (
+						<>
+							{allItems.map((item: NavItem, index: number) => {
 										const delay = isAnimatingCollapse
 											? index * 55 // icons merge top-to-bottom
 											: isAnimatingExpand
@@ -2005,10 +2005,39 @@ export default function Navbar({
 									})()}
 								</>
 							);
-						})()}
+				})();
+
+				if (settings?.mobileNavBubbleEnabled) {
+					return (
+						<div className="fixed right-3 top-1/2 -translate-y-1/2 z-[55] sm:hidden events-mobile-nav">
+							{isMobileNavCollapsed ? (
+								<button
+									aria-label="Buka navigasi"
+									onClick={() => {
+										triggerExpand();
+										scheduleCollapse();
+									}}
+									className="w-12 h-12 flex items-center justify-center rounded-full
+									           bg-gradient-to-br from-blue-500 to-cyan-500 text-white
+									           shadow-[0_4px_20px_rgba(37,99,235,0.5)]
+									           animate-mobile-nav-bubble-in
+									           transition-transform duration-500 ease-out
+									           hover:scale-105 active:scale-95">
+									<Menu className="h-5 w-5" />
+								</button>
+							) : (
+								<div className={panelClassName}>{mobileNavItemsList}</div>
+							)}
+						</div>
+					);
+				}
+
+				return !isMobileNavCollapsed ? (
+					<div className="fixed right-3 top-[4.5rem] z-[55] sm:hidden events-mobile-nav">
+						<div className={panelClassName}>{mobileNavItemsList}</div>
 					</div>
-			</div>
-			) : null}
+				) : null;
+			})()}
 
 			{notifModalOpen && (
 				<NotifSettingsModal

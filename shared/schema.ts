@@ -151,6 +151,8 @@ export interface Settings {
 	socialFeedConfig?: SocialFeedConfig;
 	eventsAutoScrollEnabled?: boolean;
 	eventsAllowMultipleYearsOnHome?: boolean;
+	/** Gaya menu navigasi mobile: false/undefined = menu di header kanan-atas (default), true = bubble mengambang di tepi kanan */
+	mobileNavBubbleEnabled?: boolean;
 	feedbackSubmitEnabled?: boolean;
 	feedbackCardsEnabled?: boolean;
 	feedbackCardsAutoScrollEnabled?: boolean;

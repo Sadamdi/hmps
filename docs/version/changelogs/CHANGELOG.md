@@ -11,6 +11,20 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.19.0] — 2026-08-28
+
+**Mobile navbar bubble style + berita mobile UX fixes** · MINOR · [Full release notes](../release/4.19.0.md)
+
+### Added
+- Setting `mobileNavBubbleEnabled` (Dashboard → Settings → Appearance): navbar mobile bisa dipilih gaya menu header kanan-atas (default) atau bubble mengambang di tepi kanan (posisi tengah, sesuai commit lama `f2b5c31`), permission `settings.animations`
+
+### Fixed
+- Tombol Table of Contents mobile di halaman detail berita menutupi tombol AI chat (keduanya `fixed` di pojok kanan-bawah) — TOC dipindah ke pojok kiri-bawah
+- Iframe video Google Drive inline di artikel berita hilang permission `fullscreen` di atribut `allow`, berpotensi gagal play/fullscreen di mobile — disamakan dengan versi modal fullscreen
+- 2 error `npm run check` lama: `server/index.ts` (lean() query typing) dan `server/lib/system-health.ts` (Map iteration)
+
+---
+
 ## [4.18.1] — 2026-08-22
 
 **Stabilize system-health CPU gauge on 1-vCPU hosts** · PATCH · [Full release notes](../release/4.18.1.md)

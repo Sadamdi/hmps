@@ -130,6 +130,7 @@ interface SiteSettings {
 	maintenanceMode: boolean;
 	footerText: string;
 	eventsAutoScrollEnabled: boolean;
+	mobileNavBubbleEnabled: boolean;
 	feedbackSubmitEnabled: boolean;
 	feedbackCardsEnabled: boolean;
 	feedbackCardsAutoScrollEnabled: boolean;
@@ -284,6 +285,7 @@ export default function SettingsPage() {
 		enableRegistration: false,
 		maintenanceMode: false,
 		eventsAutoScrollEnabled: true,
+		mobileNavBubbleEnabled: false,
 		feedbackSubmitEnabled: true,
 		feedbackCardsEnabled: true,
 		feedbackCardsAutoScrollEnabled: true,
@@ -1298,6 +1300,34 @@ export default function SettingsPage() {
 											Kamu tidak memiliki permission{' '}
 											<strong>settings.animations</strong> untuk mengubah
 											pengaturan animasi. Hubungi owner/admin.
+										</p>
+									)}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t pt-4">
+										<div className="min-w-0">
+											<Label htmlFor="mobileNavBubbleEnabled">
+												Menu Mobile: Bubble Mengambang
+											</Label>
+											<p className="text-sm text-muted-foreground">
+												Ganti tombol menu navigasi mobile dari header
+												kanan-atas menjadi bubble bulat yang mengambang di
+												tepi kanan layar (posisi tengah)
+											</p>
+										</div>
+										<Switch
+											className="flex-shrink-0"
+											id="mobileNavBubbleEnabled"
+											checked={formData.mobileNavBubbleEnabled ?? false}
+											onCheckedChange={(checked) =>
+												handleSwitchChange('mobileNavBubbleEnabled', checked)
+											}
+											disabled={!canManageAnimations}
+										/>
+									</div>
+									{!canManageAnimations && (
+										<p className="text-xs text-muted-foreground">
+											Kamu tidak memiliki permission{' '}
+											<strong>settings.animations</strong> untuk mengubah
+											gaya menu navigasi mobile. Hubungi owner/admin.
 										</p>
 									)}
 								</CardContent>
