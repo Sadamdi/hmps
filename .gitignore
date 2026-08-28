@@ -34,5 +34,12 @@ docs/reports/
 # Local ops runbooks / SSH helpers (may contain host notes) — do not push
 docs/ops/
 
+# Local SSH helpers at repo root (may contain host credentials) — do not push
+/.ssh*.py
+/.ssh-*.py
+/.ssh-*.ps1
+/.askpass.ps1
+/.remote-*.sh
+
 # Media sync cooldown marker (server-only)
 .media-last-push
