@@ -1,5 +1,6 @@
 import { detectMediaSource } from '@shared/mediaUtils';
 import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const DEFAULT_MEDIA_FRAME =
 	'min-h-[12rem] max-h-[min(75vh,56rem)] w-full sm:min-h-[14rem]';
@@ -716,6 +717,9 @@ export default function MediaDisplay({
 	};
 
 	// Fullscreen Modal Component
+	// Di-portal ke document.body: `position: fixed` di sini akan salah posisi/ukuran
+	// (containing block berubah) kalau ada ancestor dengan `transform` non-none —
+	// mis. wrapper AOS (aos-init/aos-animate) yang dipakai luas di halaman ini.
 	const FullscreenModal = () => {
 		if (!isFullscreen || !currentFile) return null;
 
@@ -725,7 +729,7 @@ export default function MediaDisplay({
 		);
 		const currentUrl = urls[currentUrlIndex] || currentFile.url;
 
-		return (
+		return createPortal(
 			<div className="fixed inset-0 z-50 bg-black bg-opacity-95 flex items-center justify-center">
 				<div className="relative w-full h-full flex items-center justify-center p-4">
 					{/* Close button */}
@@ -826,7 +830,8 @@ export default function MediaDisplay({
 						/>
 					)}
 				</div>
-			</div>
+			</div>,
+			document.body,
 		);
 	};
 
