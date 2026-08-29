@@ -677,7 +677,7 @@ cron.schedule('45 * * * *', async () => {
 
 // ==================== VISITOR STATS AGGREGATOR ====================
 // Aggregate page_visits -> visitor_stats every 15 min + warm cache.
-// TTL auto-cleans raw page_visits (30d) and security_events (7d) and login_attempts (30d).
+// TTL auto-cleans raw page_visits (90d) and security_events (7d) and login_attempts (30d).
 cron.schedule('*/15 * * * *', async () => {
 	try {
 		const { PageVisit } = await import('./models/page-visit');
@@ -1793,6 +1793,12 @@ process.on('unhandledRejection', (reason: any) => {
 			})
 			.catch((err) => {
 				console.warn('   ⚠️ Antivirus File Scanner not started:', err.message);
+			});
+
+		import('./models/page-visit')
+			.then(({ ensurePageVisitTtlIndex }) => ensurePageVisitTtlIndex())
+			.catch((err) => {
+				console.warn('   ⚠️ PageVisit TTL ensure skipped:', err.message);
 			});
 
 		console.log('🛡️ Security Features Activated:');

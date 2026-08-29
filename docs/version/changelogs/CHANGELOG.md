@@ -11,6 +11,20 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.20.3] — 2026-08-29
+
+**Berita leaderboard comments + range All + PageVisit TTL 90d** · PATCH · [Full release notes](../release/4.20.3.md)
+
+### Added
+- Toggle **Views | Comments** di widget Berita Leaderboard (ranking berita by comment count + preview comment terbaru)
+- Global Overview range **All** (~90 hari data stats yang masih retained)
+
+### Changed
+- `GET /api/dashboard/berita-leaderboard` menerima `metric=views|comments` dan `range=all`
+- PageVisit TTL raw stats: 30d → **90d** (comment konten tidak dihapus)
+
+---
+
 ## [4.20.2] — 2026-08-29
 
 **OpenAI multi-key + model rotation** · PATCH · [Full release notes](../release/4.20.2.md)

@@ -1,12 +1,16 @@
 import { createContext, useCallback, useContext, useMemo, useState } from 'react';
 
-export type RangeKey = '1d' | '3d' | '7d' | '30d';
+/** Max retained PageVisit window (matches server TTL). Used when range === 'all'. */
+export const OVERVIEW_ALL_DAYS = 90;
+
+export type RangeKey = '1d' | '3d' | '7d' | '30d' | 'all';
 
 export const RANGE_OPTIONS: { key: RangeKey; label: string; days: number }[] = [
 	{ key: '1d', label: '1 Hari', days: 1 },
 	{ key: '3d', label: '3 Hari', days: 3 },
 	{ key: '7d', label: '7 Hari', days: 7 },
 	{ key: '30d', label: '30 Hari', days: 30 },
+	{ key: 'all', label: 'All', days: OVERVIEW_ALL_DAYS },
 ];
 
 interface OverviewRangeContextValue {
