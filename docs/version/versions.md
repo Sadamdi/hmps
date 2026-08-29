@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.20.1`  
+**Current version:** `4.20.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.20.1`](./release/4.20.1.md) | 2026-08-29 | Remove debug instrumentation, verify 4.20.0 proxy end-to-end | PATCH | 2 | **Current** |
+| [`4.20.2`](./release/4.20.2.md) | 2026-08-29 | OpenAI multi-key + model rotation | PATCH | 1 | **Current** |
+| [`4.20.1`](./release/4.20.1.md) | 2026-08-29 | Remove debug instrumentation, verify 4.20.0 proxy end-to-end | PATCH | 2 | Released |
 | [`4.20.0`](./release/4.20.0.md) | 2026-08-29 | Native streaming proxy for Google Drive video embeds | MINOR | 1 | Released |
 | [`4.19.6`](./release/4.19.6.md) | 2026-08-28 | Remove debug instrumentation, confirm 4.19.5 fix verified | PATCH | 1 | Released |
 | [`4.19.5`](./release/4.19.5.md) | 2026-08-28 | Fix MediaContent/FullscreenModal remount-on-every-render | PATCH | 1 | Released |
