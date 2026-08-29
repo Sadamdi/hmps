@@ -188,11 +188,20 @@ export default function MediaDisplay({
 	const driveIframeContainerRef = useRef<HTMLDivElement | null>(null);
 
 	useEffect(() => {
+		console.log('[DriveProxyDebug] effect run', {
+			driveIframeInView,
+			loading: mediaState.loading,
+			hasEl: !!driveIframeContainerRef.current,
+		});
 		if (driveIframeInView) return;
 		const el = driveIframeContainerRef.current;
 		if (!el) return;
 		const observer = new IntersectionObserver(
 			([entry]) => {
+				console.log('[DriveProxyDebug] callback', {
+					isIntersecting: entry.isIntersecting,
+					rect: entry.boundingClientRect,
+				});
 				if (entry.isIntersecting) {
 					setDriveIframeInView(true);
 					observer.disconnect();
@@ -201,6 +210,7 @@ export default function MediaDisplay({
 			{ rootMargin: '300px', threshold: 0.01 },
 		);
 		observer.observe(el);
+		console.log('[DriveProxyDebug] observer attached', el);
 		return () => observer.disconnect();
 		// mediaState.loading di dependency: saat mount, ref belum terpasang
 		// (komponen masih return early-loading state) — effect ini re-run
