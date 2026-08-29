@@ -636,6 +636,24 @@ export async function getFolderMediaForLibrary(folderId: string): Promise<
 	return out;
 }
 
+/**
+ * Get a bearer access token for the same service account used above, so a route
+ * handler can make an authenticated raw `fetch` call to the Drive API (e.g. for
+ * `alt=media` byte streaming, which needs direct control over the `Range` header
+ * in both directions — not something the `googleapis` wrapper's stream mode
+ * exposes cleanly).
+ */
+export async function getDriveAccessToken(): Promise<string> {
+	const client = await auth.getClient();
+	const tokenResponse = await client.getAccessToken();
+	const token =
+		typeof tokenResponse === 'string' ? tokenResponse : tokenResponse?.token;
+	if (!token) {
+		throw new Error('Failed to obtain Google Drive access token');
+	}
+	return token;
+}
+
 // Existing upload functionality (preserved)
 export async function uploadToDrive(
 	buffer: Buffer,

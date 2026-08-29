@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { detectMediaSource } from '@shared/mediaUtils';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -170,6 +171,14 @@ export default function MediaDisplay({
 	const [imageError, setImageError] = useState(false);
 	const [currentUrlIndex, setCurrentUrlIndex] = useState(0);
 	const [isFullscreen, setIsFullscreen] = useState(false);
+	// Drive video: coba stream native via proxy server dulu; kalau gagal untuk
+	// file ini, jangan coba lagi (baik di inline player maupun fullscreen) —
+	// langsung pakai iframe /preview yang sudah terbukti jalan sebagai fallback.
+	const [proxyStreamFailed, setProxyStreamFailed] = useState(false);
+	const { data: siteSettings } = useQuery<{
+		driveVideoNativeProxyEnabled?: boolean;
+	}>({ queryKey: ['/api/settings'] });
+	const driveProxyEnabled = siteSettings?.driveVideoNativeProxyEnabled !== false;
 
 	// Drive iframe embed (video) baru mulai load saat mendekati viewport.
 	// Tanpa ini, setiap artikel dengan banyak embed Drive memuat semua iframe
@@ -481,6 +490,7 @@ export default function MediaDisplay({
 	useEffect(() => {
 		setCurrentUrlIndex(0);
 		setImageError(false);
+		setProxyStreamFailed(false);
 	}, [src]);
 
 	// Handle thumbnail click
@@ -491,6 +501,7 @@ export default function MediaDisplay({
 		}));
 		setCurrentUrlIndex(0);
 		setImageError(false);
+		setProxyStreamFailed(false);
 	};
 
 	// Handle fullscreen toggle
@@ -564,6 +575,7 @@ export default function MediaDisplay({
 			}));
 			setCurrentUrlIndex(0);
 			setImageError(false);
+			setProxyStreamFailed(false);
 		}
 	};
 
@@ -575,6 +587,7 @@ export default function MediaDisplay({
 			}));
 			setCurrentUrlIndex(0);
 			setImageError(false);
+			setProxyStreamFailed(false);
 		}
 	};
 
@@ -613,29 +626,47 @@ export default function MediaDisplay({
 				const driveFileIdMatch = currentFile.url.match(
 					/(?:[?&]id=|\/d\/)([a-zA-Z0-9-_]+)/i,
 				);
-				const driveOpenUrl = driveFileIdMatch
-					? `https://drive.google.com/file/d/${driveFileIdMatch[1]}/view`
+				const driveFileId = driveFileIdMatch?.[1];
+				const driveOpenUrl = driveFileId
+					? `https://drive.google.com/file/d/${driveFileId}/view`
 					: currentFile.url;
+				const driveProxyUrl = driveFileId
+					? `/api/gdrive/stream/${driveFileId}`
+					: null;
+				const useNativeProxy =
+					driveProxyEnabled && !!driveProxyUrl && !proxyStreamFailed;
 
 				return (
 					<div
 						ref={driveIframeContainerRef}
 						className={`${frameCn} flex items-center justify-center bg-black rounded relative group aspect-video max-h-[min(75vh,56rem)]`}>
 						{driveIframeInView ? (
-							<iframe
-								src={currentUrl}
-								loading="lazy"
-								className="w-full h-full min-h-0 rounded cursor-pointer"
-								allow="autoplay; encrypted-media; fullscreen"
-								allowFullScreen
-								onError={handleVideoError}
-								style={{ border: 'none' }}
-								title={alt}
-								onClick={toggleFullscreen}
-								onLoad={() => {
-									setImageError(false);
-								}}
-							/>
+							useNativeProxy ? (
+								<video
+									className="w-full h-full min-h-0 rounded cursor-pointer object-contain"
+									controls
+									preload="metadata"
+									onClick={toggleFullscreen}
+									onError={() => setProxyStreamFailed(true)}>
+									<source src={driveProxyUrl!} />
+									<p>Your browser does not support the video element.</p>
+								</video>
+							) : (
+								<iframe
+									src={currentUrl}
+									loading="lazy"
+									className="w-full h-full min-h-0 rounded cursor-pointer"
+									allow="autoplay; encrypted-media; fullscreen"
+									allowFullScreen
+									onError={handleVideoError}
+									style={{ border: 'none' }}
+									title={alt}
+									onClick={toggleFullscreen}
+									onLoad={() => {
+										setImageError(false);
+									}}
+								/>
+							)
 						) : (
 							<div className="w-8 h-8 animate-spin rounded-full border-2 border-white/30 border-t-white" />
 						)}
@@ -868,57 +899,90 @@ export default function MediaDisplay({
 
 					{/* Main image / video / Drive embed */}
 					{currentFile.type === 'video' ? (
-						isDriveEmbedVideoPlayback(currentFile, currentUrl) ? (
-							<div className="relative w-full h-[min(90vh,calc(100vw-2rem))] max-w-[min(100vw-2rem,1200px)] flex items-center justify-center">
-								<iframe
-									src={currentUrl}
-									className="w-full h-full min-h-[50vh] rounded border-0 bg-black"
-									allow="autoplay; encrypted-media; fullscreen"
-									allowFullScreen
-									title={alt}
-								/>
-								{(() => {
-									const m = currentFile.url.match(
-										/(?:[?&]id=|\/d\/)([a-zA-Z0-9-_]+)/i,
-									);
-									const openUrl = m
-										? `https://drive.google.com/file/d/${m[1]}/view`
-										: currentFile.url;
-									return (
-										<a
-											href={openUrl}
-											target="_blank"
-											rel="noopener noreferrer"
-											onClick={(e) => e.stopPropagation()}
-											className="absolute bottom-3 right-3 flex items-center gap-1 bg-black/70 text-white text-xs px-2.5 py-1.5 rounded-full hover:bg-black/85 transition-colors">
-											<svg
-												className="w-3 h-3"
-												fill="none"
-												stroke="currentColor"
-												viewBox="0 0 24 24">
-												<path
-													strokeLinecap="round"
-													strokeLinejoin="round"
-													strokeWidth={2}
-													d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-												/>
-											</svg>
-											Buka di Drive
-										</a>
-									);
-								})()}
-							</div>
-						) : (
-							<div className="max-w-full max-h-full flex items-center justify-center">
-								<video
-									src={currentUrl}
-									className="max-w-full max-h-full object-contain"
-									controls
-									autoPlay={false}>
-									<p>Your browser does not support the video element.</p>
-								</video>
-							</div>
-						)
+						(() => {
+							const isDrive = isDriveEmbedVideoPlayback(currentFile, currentUrl);
+							const m = currentFile.url.match(
+								/(?:[?&]id=|\/d\/)([a-zA-Z0-9-_]+)/i,
+							);
+							const driveFileId = m?.[1];
+							const openUrl = driveFileId
+								? `https://drive.google.com/file/d/${driveFileId}/view`
+								: currentFile.url;
+							const driveProxyUrl = driveFileId
+								? `/api/gdrive/stream/${driveFileId}`
+								: null;
+							const useNativeProxy =
+								isDrive &&
+								driveProxyEnabled &&
+								!!driveProxyUrl &&
+								!proxyStreamFailed;
+
+							const openDriveLink = (
+								<a
+									href={openUrl}
+									target="_blank"
+									rel="noopener noreferrer"
+									onClick={(e) => e.stopPropagation()}
+									className="absolute bottom-3 right-3 flex items-center gap-1 bg-black/70 text-white text-xs px-2.5 py-1.5 rounded-full hover:bg-black/85 transition-colors">
+									<svg
+										className="w-3 h-3"
+										fill="none"
+										stroke="currentColor"
+										viewBox="0 0 24 24">
+										<path
+											strokeLinecap="round"
+											strokeLinejoin="round"
+											strokeWidth={2}
+											d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+										/>
+									</svg>
+									Buka di Drive
+								</a>
+							);
+
+							if (useNativeProxy) {
+								return (
+									<div className="relative max-w-full max-h-full flex items-center justify-center">
+										<video
+											src={driveProxyUrl!}
+											className="max-w-full max-h-full object-contain"
+											controls
+											autoPlay={false}
+											onError={() => setProxyStreamFailed(true)}>
+											<p>Your browser does not support the video element.</p>
+										</video>
+										{openDriveLink}
+									</div>
+								);
+							}
+
+							if (isDrive) {
+								return (
+									<div className="relative w-full h-[min(90vh,calc(100vw-2rem))] max-w-[min(100vw-2rem,1200px)] flex items-center justify-center">
+										<iframe
+											src={currentUrl}
+											className="w-full h-full min-h-[50vh] rounded border-0 bg-black"
+											allow="autoplay; encrypted-media; fullscreen"
+											allowFullScreen
+											title={alt}
+										/>
+										{openDriveLink}
+									</div>
+								);
+							}
+
+							return (
+								<div className="max-w-full max-h-full flex items-center justify-center">
+									<video
+										src={currentUrl}
+										className="max-w-full max-h-full object-contain"
+										controls
+										autoPlay={false}>
+										<p>Your browser does not support the video element.</p>
+									</video>
+								</div>
+							);
+						})()
 					) : (
 						<img
 							src={currentUrl}

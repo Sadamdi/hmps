@@ -3,6 +3,7 @@ import type { Express, Request } from 'express';
 import fs from 'fs';
 import { createServer, type Server } from 'http';
 import path from 'path';
+import { Readable } from 'stream';
 import { PostSharing } from '../db/mongodb';
 import {
 	authenticate,
@@ -995,6 +996,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				.json({ accessible: false, message: 'Internal server error' });
 		}
 	});
+
+	// Streams the actual video bytes for a Google Drive file through our own
+	// server (authenticated via the service account) into a native <video> tag,
+	// instead of trusting Google's `/preview` iframe player — which serves a
+	// broken player template to real mobile browsers (confirmed: desktop windows
+	// shrunk to phone size render fine, only real mobile UAs break). Falls back
+	// to the iframe automatically on the client if this returns a non-2xx status
+	// (e.g. file isn't actually shared "anyone with the link").
+	app.get(
+		'/api/gdrive/stream/:fileId',
+		gdriveProxyRateLimiter,
+		async (req, res) => {
+			const { fileId } = req.params;
+			if (!/^[a-zA-Z0-9_-]+$/.test(fileId)) {
+				return res.status(400).end();
+			}
+
+			try {
+				const { getDriveAccessToken } = await import('./googleDrive');
+				const token = await getDriveAccessToken();
+
+				const range = req.headers.range;
+				const driveResponse = await fetch(
+					`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
+					{
+						headers: {
+							Authorization: `Bearer ${token}`,
+							...(range ? { Range: range } : {}),
+						},
+					},
+				);
+
+				if (!driveResponse.ok || !driveResponse.body) {
+					// File not accessible (private/deleted/quota) — client falls back to iframe.
+					return res.status(404).end();
+				}
+
+				res.status(driveResponse.status);
+				const contentType = driveResponse.headers.get('content-type');
+				const contentLength = driveResponse.headers.get('content-length');
+				const contentRange = driveResponse.headers.get('content-range');
+				if (contentType) res.setHeader('Content-Type', contentType);
+				if (contentLength) res.setHeader('Content-Length', contentLength);
+				if (contentRange) res.setHeader('Content-Range', contentRange);
+				res.setHeader('Accept-Ranges', 'bytes');
+				res.setHeader('Cache-Control', 'private, max-age=3600');
+
+				Readable.fromWeb(driveResponse.body as any).pipe(res);
+			} catch (error) {
+				console.error('Drive video stream proxy error:', error);
+				if (!res.headersSent) {
+					res.status(502).end();
+				} else {
+					res.end();
+				}
+			}
+		},
+	);
 
 	app.post('/api/gdrive/media-url', gdriveProxyRateLimiter, async (req, res) => {
 		try {

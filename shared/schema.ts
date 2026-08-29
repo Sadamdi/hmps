@@ -153,6 +153,8 @@ export interface Settings {
 	eventsAllowMultipleYearsOnHome?: boolean;
 	/** Gaya menu navigasi mobile: false/undefined = menu di header kanan-atas (default), true = bubble mengambang di tepi kanan */
 	mobileNavBubbleEnabled?: boolean;
+	/** Video Google Drive: true/undefined (default) = coba stream native via proxy server dulu sebelum fallback ke iframe /preview; false = selalu pakai iframe /preview (kill-switch biaya bandwidth) */
+	driveVideoNativeProxyEnabled?: boolean;
 	feedbackSubmitEnabled?: boolean;
 	feedbackCardsEnabled?: boolean;
 	feedbackCardsAutoScrollEnabled?: boolean;
