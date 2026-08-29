@@ -232,7 +232,7 @@ POST   /api/dashboard/log-activity
 GET    /api/dashboard/visitor-stats
 GET    /api/dashboard/active-visitors
 GET    /api/dashboard/engagement-heatmap
-GET    /api/dashboard/berita-leaderboard
+GET    /api/dashboard/berita-leaderboard   # ?range=1d|3d|7d|30d|all&metric=views|comments
 GET    /api/dashboard/system-health
 GET    /api/dashboard/security-monitor
 GET    /api/dashboard/login-attempts

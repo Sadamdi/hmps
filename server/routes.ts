@@ -4,7 +4,7 @@ import fs from 'fs';
 import { createServer, type Server } from 'http';
 import path from 'path';
 import { Readable } from 'stream';
-import { PostSharing } from '../db/mongodb';
+import { PostSharing, Comment } from '../db/mongodb';
 import {
 	authenticate,
 	authenticateOptional,
@@ -7608,6 +7608,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					bucket = 'daily';
 					bucketMs = 24 * 60 * 60 * 1000;
 					break;
+				case 'all':
+					// Retained PageVisit window (TTL 90d) — "all" retained stats
+					startTime = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+					bucket = 'daily';
+					bucketMs = 24 * 60 * 60 * 1000;
+					break;
 				case '7d':
 				default:
 					startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
@@ -7802,7 +7808,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!(await checkOverviewPermission(req, 'overview.heatmap'))) {
 				return res.status(403).json({ message: 'No permission' });
 			}
-		const rangeDaysCount = Math.min(Math.max(parseInt(String(req.query.days), 10) || 30, 1), 90);
+		const rangeDaysCount = Math.min(
+			Math.max(
+				parseInt(String(req.query.days), 10) || 30,
+				1,
+			),
+			90,
+		);
 		const startDate = new Date(Date.now() - rangeDaysCount * 24 * 60 * 60 * 1000);
 		const result = await PageVisit.aggregate([
 			{ $match: { timestamp: { $gte: startDate }, isBot: false } },
@@ -7852,57 +7864,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// 4. Berita leaderboard (top by views)
+	// 4. Berita leaderboard (top by views or comments)
 	app.get('/api/dashboard/berita-leaderboard', authenticate, async (req, res) => {
 		try {
 			if (!(await checkOverviewPermission(req, 'overview.berita_leaderboard'))) {
 				return res.status(403).json({ message: 'No permission' });
 			}
 			const range = (req.query.range as string) || '7d';
+			const metricRaw = String(req.query.metric || 'views').toLowerCase();
+			const metric = metricRaw === 'comments' ? 'comments' : 'views';
 			const now = new Date();
-			let startTime: Date;
+			let startTime: Date | null = null;
 			switch (range) {
-				case '1d': startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); break;
-				case '3d': startTime = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000); break;
-				case '30d': startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
-				default: startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+				case '1d':
+					startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+					break;
+				case '3d':
+					startTime = new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000);
+					break;
+				case '30d':
+					startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+					break;
+				case 'all':
+					startTime = null; // all retained data (PageVisit TTL / all comments)
+					break;
+				case '7d':
+				default:
+					startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+					break;
 			}
-
-			const topPaths = await PageVisit.aggregate([
-				{
-					$match: {
-						timestamp: { $gte: startTime, $lte: now },
-						isBot: false,
-						path: { $regex: /^\/berita\// },
-					},
-				},
-				{ $group: { _id: '$path', views: { $sum: 1 } } },
-				{ $sort: { views: -1 } },
-				{ $limit: 10 },
-			]);
 
 			const storage = resolveStorage(req);
 			const leaderboard: any[] = [];
-			for (const p of topPaths) {
-				const slug = p._id.replace(/^\/berita\//, '');
-				try {
-					const berita = await storage.getBeritaBySlug(slug);
-					if (berita) {
+
+			if (metric === 'comments') {
+				const match: Record<string, unknown> = { targetType: 'berita' };
+				if (startTime) {
+					match.createdAt = { $gte: startTime, $lte: now };
+				}
+				const topCommented = await Comment.aggregate([
+					{ $match: match },
+					{ $sort: { createdAt: -1 } },
+					{
+						$group: {
+							_id: '$targetId',
+							comments: { $sum: 1 },
+							latestBody: { $first: '$body' },
+							latestAuthor: { $first: '$displayName' },
+						},
+					},
+					{ $sort: { comments: -1 } },
+					{ $limit: 10 },
+				]);
+
+				for (const row of topCommented) {
+					try {
+						const berita = await storage.getBeritaById(String(row._id));
+						if (!berita) continue;
+						const preview = String(row.latestBody || '')
+							.replace(/\s+/g, ' ')
+							.trim()
+							.slice(0, 80);
 						leaderboard.push({
 							beritaId: String(berita._id),
 							title: berita.title,
-							slug,
-							views: p.views,
+							slug: berita.slug,
+							comments: row.comments,
 							publishDate: berita.publishedAt || berita.createdAt,
-							path: p._id,
+							latestCommentPreview: preview
+								? `${row.latestAuthor || 'Anon'}: ${preview}`
+								: '',
 						});
+					} catch {
+						// skip missing
 					}
-				} catch {
-					// skip if not found
+				}
+			} else {
+				const match: Record<string, unknown> = {
+					isBot: false,
+					path: { $regex: /^\/berita\// },
+				};
+				if (startTime) {
+					match.timestamp = { $gte: startTime, $lte: now };
+				} else {
+					match.timestamp = { $lte: now };
+				}
+
+				const topPaths = await PageVisit.aggregate([
+					{ $match: match },
+					{ $group: { _id: '$path', views: { $sum: 1 } } },
+					{ $sort: { views: -1 } },
+					{ $limit: 10 },
+				]);
+
+				for (const p of topPaths) {
+					const slug = String(p._id).replace(/^\/berita\//, '');
+					try {
+						const berita = await storage.getBeritaBySlug(slug);
+						if (berita) {
+							leaderboard.push({
+								beritaId: String(berita._id),
+								title: berita.title,
+								slug,
+								views: p.views,
+								publishDate: berita.publishedAt || berita.createdAt,
+								path: p._id,
+							});
+						}
+					} catch {
+						// skip if not found
+					}
 				}
 			}
 
-			res.json({ leaderboard, range });
+			res.json({ leaderboard, range, metric });
 		} catch (error) {
 			console.error('Berita leaderboard error:', error);
 			res.status(500).json({ message: 'Internal server error' });
@@ -7982,7 +8057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!(await checkOverviewPermission(req, 'overview.security_monitor'))) {
 				return res.status(403).json({ message: 'No permission' });
 			}
-			const days = Math.min(Math.max(parseInt(String(req.query.days), 10) || 1, 1), 30);
+			const days = Math.min(Math.max(parseInt(String(req.query.days), 10) || 1, 1), 90);
 			const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 			const matchStage = { timestamp: { $gte: startDate } };
 
@@ -8057,7 +8132,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!(await checkOverviewPermission(req, 'overview.login_attempts'))) {
 				return res.status(403).json({ message: 'No permission' });
 			}
-			const days = Math.min(Math.max(parseInt(String(req.query.days), 10) || 1, 1), 30);
+			const days = Math.min(Math.max(parseInt(String(req.query.days), 10) || 1, 1), 90);
 			const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 			const matchStage = { timestamp: { $gte: startDate } };
 
@@ -8117,7 +8192,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			const beritaCount = await storage.getBeritaCount();
 			const libraryCount = await storage.getLibraryItemsCount();
 
-			const days = Math.min(Math.max(parseInt(String(req.query.range || req.query.days), 10) || 7, 1), 90);
+			const rangeParam = String(req.query.range || req.query.days || '7d');
+			const rangeDaysMap: Record<string, number> = {
+				'1d': 1,
+				'3d': 3,
+				'7d': 7,
+				'30d': 30,
+				all: 90,
+			};
+			const parsedDays = parseInt(rangeParam, 10);
+			const days = Math.min(
+				Math.max(
+					rangeDaysMap[rangeParam] ??
+						(Number.isFinite(parsedDays) ? parsedDays : 7),
+					1,
+				),
+				90,
+			);
 			const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 			const totalPageviews = await PageVisit.countDocuments({
 				timestamp: { $gte: startDate },

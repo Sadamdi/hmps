@@ -14,7 +14,7 @@ export interface IPageVisit {
 	device: 'mobile' | 'desktop' | 'tablet';
 }
 
-const THIRTY_DAYS_SECONDS = 30 * 24 * 60 * 60;
+const NINETY_DAYS_SECONDS = 90 * 24 * 60 * 60;
 
 const pageVisitSchema = new Schema<IPageVisit>(
 	{
@@ -75,10 +75,48 @@ pageVisitSchema.index({ timestamp: 1, path: 1 });
 pageVisitSchema.index({ country: 1 });
 pageVisitSchema.index(
 	{ timestamp: 1 },
-	{ expireAfterSeconds: THIRTY_DAYS_SECONDS },
+	{ name: 'page_visits_ttl', expireAfterSeconds: NINETY_DAYS_SECONDS },
 );
 
 export const PageVisit = model<IPageVisit>('PageVisit', pageVisitSchema);
+
+/** Ensure TTL is 90d (drop legacy 30d index if present). Safe to call on boot. */
+export async function ensurePageVisitTtlIndex(): Promise<void> {
+	try {
+		const collection = PageVisit.collection;
+		const indexes = await collection.indexes();
+		for (const idx of indexes) {
+			const key = idx.key as Record<string, number>;
+			const isTimestampOnly =
+				key &&
+				Object.keys(key).length === 1 &&
+				typeof key.timestamp === 'number';
+			if (!isTimestampOnly || idx.expireAfterSeconds == null) continue;
+			if (
+				idx.expireAfterSeconds === NINETY_DAYS_SECONDS &&
+				idx.name === 'page_visits_ttl'
+			) {
+				return;
+			}
+			if (idx.name) {
+				await collection.dropIndex(idx.name);
+				console.log(
+					`[PageVisit] Dropped legacy TTL index "${idx.name}" (expireAfterSeconds=${idx.expireAfterSeconds})`,
+				);
+			}
+		}
+		await collection.createIndex(
+			{ timestamp: 1 },
+			{ name: 'page_visits_ttl', expireAfterSeconds: NINETY_DAYS_SECONDS },
+		);
+		console.log('[PageVisit] Ensured TTL index page_visits_ttl = 90d');
+	} catch (err) {
+		console.warn(
+			'[PageVisit] Failed to ensure TTL index:',
+			(err as Error).message,
+		);
+	}
+}
 
 export const BOT_UA_REGEX =
 	/Googlebot|Bingbot|Slurp|DuckDuckBot|Baiduspider|YandexBot|facebookexternalhit|Twitterbot|AhrefsBot|SemrushBot|DotBot|MJ12bot|applebot|linkedinbot|AOLBuild|Pingdom|SiteAuditBot|SeznamBot|Sogou|ia_archiver|bytespider|petalbot|facebookbot|Googlebot-Image|Googlebot-News|Googlebot-Video|AdsBot-Google|mediapartners-google/i;
