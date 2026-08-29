@@ -259,6 +259,7 @@ POST /api/upload/filosofi
 POST /api/gdrive/check-access
 POST /api/gdrive/media-url
 POST /api/gdrive/folder-contents
+GET  /api/gdrive/stream/:fileId
 GET  /api/test/protection
 ```
 

@@ -131,6 +131,7 @@ interface SiteSettings {
 	footerText: string;
 	eventsAutoScrollEnabled: boolean;
 	mobileNavBubbleEnabled: boolean;
+	driveVideoNativeProxyEnabled: boolean;
 	feedbackSubmitEnabled: boolean;
 	feedbackCardsEnabled: boolean;
 	feedbackCardsAutoScrollEnabled: boolean;
@@ -286,6 +287,7 @@ export default function SettingsPage() {
 		maintenanceMode: false,
 		eventsAutoScrollEnabled: true,
 		mobileNavBubbleEnabled: false,
+		driveVideoNativeProxyEnabled: true,
 		feedbackSubmitEnabled: true,
 		feedbackCardsEnabled: true,
 		feedbackCardsAutoScrollEnabled: true,
@@ -1328,6 +1330,42 @@ export default function SettingsPage() {
 											Kamu tidak memiliki permission{' '}
 											<strong>settings.animations</strong> untuk mengubah
 											gaya menu navigasi mobile. Hubungi owner/admin.
+										</p>
+									)}
+									<div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t pt-4">
+										<div className="min-w-0">
+											<Label htmlFor="driveVideoNativeProxyEnabled">
+												Video Google Drive: Player Native
+											</Label>
+											<p className="text-sm text-muted-foreground">
+												Coba putar video Google Drive lewat player video
+												bawaan situs (via proxy server) alih-alih iframe
+												Google langsung — mengatasi player Google yang
+												kadang rusak di HP asli. Kalau gagal untuk file
+												tertentu, otomatis kembali ke iframe Google seperti
+												biasa. Matikan untuk menghemat bandwidth server jika
+												diperlukan.
+											</p>
+										</div>
+										<Switch
+											className="flex-shrink-0"
+											id="driveVideoNativeProxyEnabled"
+											checked={formData.driveVideoNativeProxyEnabled ?? true}
+											onCheckedChange={(checked) =>
+												handleSwitchChange(
+													'driveVideoNativeProxyEnabled',
+													checked,
+												)
+											}
+											disabled={!canManageAnimations}
+										/>
+									</div>
+									{!canManageAnimations && (
+										<p className="text-xs text-muted-foreground">
+											Kamu tidak memiliki permission{' '}
+											<strong>settings.animations</strong> untuk mengubah
+											pengaturan player video Google Drive. Hubungi
+											owner/admin.
 										</p>
 									)}
 								</CardContent>

@@ -11,6 +11,19 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.20.0] — 2026-08-29
+
+**Native streaming proxy for Google Drive video embeds** · MINOR · [Full release notes](../release/4.20.0.md)
+
+### Added
+- `GET /api/gdrive/stream/:fileId` — server men-stream byte video Google Drive asli (via service account API, dengan dukungan `Range` header untuk seek) langsung ke `<video>` native di klien, menggantikan ketergantungan pada iframe `/preview` Google yang terbukti (lewat pengujian silang PC-shrunk vs HP asli) menyajikan player rusak khusus di User-Agent mobile asli — di luar kendali kode kita selama masih memakai iframe Google.
+- Toggle owner baru "Video Google Drive: Player Native" di Dashboard → Settings → Appearance (`driveVideoNativeProxyEnabled`, default aktif) — kill-switch instan untuk kembali ke iframe lama tanpa deploy ulang.
+
+### Changed
+- `MediaDisplay.tsx`: video Drive sekarang mencoba `<video>` native via proxy dulu; fallback otomatis per-file ke iframe `/preview` lama kalau proxy gagal (file tidak accessible). Lazy-load on-scroll dari v4.19.5/4.19.6 tetap dipertahankan untuk kedua mode.
+
+---
+
 ## [4.19.6] — 2026-08-28
 
 **Remove debug instrumentation, confirm 4.19.5 fix verified** · PATCH · [Full release notes](../release/4.19.6.md)

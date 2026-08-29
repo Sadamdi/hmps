@@ -374,6 +374,7 @@ const settingsSchema = new mongoose.Schema({
 	eventsAutoScrollEnabled: { type: Boolean, default: true },
 	eventsAllowMultipleYearsOnHome: { type: Boolean, default: false },
 	mobileNavBubbleEnabled: { type: Boolean, default: false },
+	driveVideoNativeProxyEnabled: { type: Boolean, default: true },
 	homeConfig: {
 		blocks: [
 			{
