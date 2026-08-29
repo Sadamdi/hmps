@@ -60,9 +60,96 @@ const OPENAI_CACHE_FILE = path.join(process.cwd(), 'openai-working.json');
 const MAX_TOOL_RESULT_CHARS = 4000;
 const GENERIC_FALLBACK_TEXT =
 	'Maaf, saya tidak dapat memberikan jawaban saat ini. Silakan coba lagi.';
+const RE_OPENAI_KEY_SLOT = /^OPENAI_API_KEY_(\d+)$/;
+const DEFAULT_KEY_COOLDOWN_MS = 90_000;
 
-function getOpenAiApiKey(): string | null {
-	return (process.env.OPENAI_API_KEY || '').trim() || null;
+type OpenAiKeySlot = { slot: number; secret: string };
+
+type OpenAiWorkingCache = OpenAiCache & {
+	keySlot?: number;
+};
+
+/** Per-process cooldown after quota/auth failures — slot → until ms */
+const keyCooldownUntil = new Map<number, number>();
+
+function getOpenAiKeyCooldownMs(): number {
+	const raw = process.env.OPENAI_KEY_COOLDOWN_MS;
+	if (raw) {
+		const n = parseInt(raw, 10);
+		if (!Number.isNaN(n) && n > 0) return n;
+	}
+	return DEFAULT_KEY_COOLDOWN_MS;
+}
+
+/**
+ * Collect OpenAI-compatible API keys.
+ * Prefer OPENAI_API_KEY_1…N; if none set, fall back to legacy OPENAI_API_KEY as slot 1.
+ */
+function getOpenAiApiKeys(): OpenAiKeySlot[] {
+	const maxSlot = 100;
+	const bySlot = new Map<number, string>();
+	for (const envKey of Object.keys(process.env)) {
+		const m = envKey.match(RE_OPENAI_KEY_SLOT);
+		if (!m) continue;
+		const slot = parseInt(m[1], 10);
+		if (slot < 1 || slot > maxSlot) continue;
+		const secret = process.env[envKey]?.trim();
+		if (secret) bySlot.set(slot, secret);
+	}
+	if (bySlot.size === 0) {
+		const legacy = (process.env.OPENAI_API_KEY || '').trim();
+		if (legacy) bySlot.set(1, legacy);
+	}
+	return [...bySlot.entries()]
+		.sort((a, b) => a[0] - b[0])
+		.map(([slot, secret]) => ({ slot, secret }));
+}
+
+function isOpenAiKeyUnavailable(err: unknown): boolean {
+	const message = String((err as Error)?.message || err || '').toLowerCase();
+	if (
+		message.includes('http 401') ||
+		message.includes('http 403') ||
+		message.includes('http 429')
+	) {
+		return true;
+	}
+	return (
+		message.includes('quota') ||
+		message.includes('rate limit') ||
+		message.includes('too many requests') ||
+		message.includes('insufficient_quota') ||
+		message.includes('invalid_api_key') ||
+		message.includes('incorrect api key') ||
+		message.includes('authentication') ||
+		message.includes('unauthorized') ||
+		message.includes('forbidden') ||
+		message.includes('billing') ||
+		message.includes('balance') ||
+		message.includes('exhausted')
+	);
+}
+
+function markKeyCooldown(slot: number, reason: string): void {
+	const until = Date.now() + getOpenAiKeyCooldownMs();
+	keyCooldownUntil.set(slot, until);
+	console.warn(
+		`[AI][OpenAI] Key slot ${slot} cooldown until ${new Date(until).toISOString()} (${reason})`,
+	);
+}
+
+function orderOpenAiKeys(keys: OpenAiKeySlot[]): OpenAiKeySlot[] {
+	const now = Date.now();
+	const cachedSlot = readCachedKeySlot();
+	const available = keys.filter((k) => {
+		const until = keyCooldownUntil.get(k.slot);
+		return !until || until <= now;
+	});
+	const pool = available.length > 0 ? available : keys;
+	if (cachedSlot == null) return pool;
+	const preferred = pool.find((k) => k.slot === cachedSlot);
+	if (!preferred) return pool;
+	return [preferred, ...pool.filter((k) => k.slot !== cachedSlot)];
 }
 
 function getOpenAiBaseUrl(): string {
@@ -79,30 +166,49 @@ function getConfiguredOpenAiModels(): string[] {
 	return configured.length > 0 ? configured : DEFAULT_OPENAI_MODELS;
 }
 
-function readCachedModel(): string | null {
+function readWorkingCache(): OpenAiWorkingCache | null {
 	try {
 		if (!fs.existsSync(OPENAI_CACHE_FILE)) return null;
 		const parsed = JSON.parse(
 			fs.readFileSync(OPENAI_CACHE_FILE, 'utf8'),
-		) as OpenAiCache;
-		return typeof parsed.model === 'string' && parsed.model.trim()
-			? parsed.model.trim()
-			: null;
+		) as OpenAiWorkingCache;
+		return parsed && typeof parsed === 'object' ? parsed : null;
 	} catch {
 		return null;
 	}
 }
 
-async function writeCachedModel(model: string): Promise<void> {
+function readCachedModel(): string | null {
+	const parsed = readWorkingCache();
+	return typeof parsed?.model === 'string' && parsed.model.trim()
+		? parsed.model.trim()
+		: null;
+}
+
+function readCachedKeySlot(): number | null {
+	const parsed = readWorkingCache();
+	const slot = parsed?.keySlot;
+	return typeof slot === 'number' && slot >= 1 ? slot : null;
+}
+
+async function writeWorkingCache(model: string, keySlot: number): Promise<void> {
 	try {
 		await fs.promises.writeFile(
 			OPENAI_CACHE_FILE,
-			JSON.stringify({ model, updatedAt: new Date().toISOString() }, null, 2),
+			JSON.stringify(
+				{
+					model,
+					keySlot,
+					updatedAt: new Date().toISOString(),
+				} satisfies OpenAiWorkingCache,
+				null,
+				2,
+			),
 			'utf8',
 		);
 	} catch (error) {
 		console.warn(
-			'[AI][OpenAI] Failed to persist working model cache:',
+			'[AI][OpenAI] Failed to persist working model/key cache:',
 			(error as Error).message,
 		);
 	}
@@ -357,11 +463,13 @@ async function requestOpenAiCompletion(
 export async function runOpenAiChat(
 	options: OpenAiChatOptions,
 ): Promise<OpenAiChatResult> {
-	const apiKey = getOpenAiApiKey();
-	if (!apiKey) {
+	const apiKeys = getOpenAiApiKeys();
+	if (apiKeys.length === 0) {
 		return {
 			ok: false,
-			lastError: new Error('OPENAI_API_KEY is not configured'),
+			lastError: new Error(
+				'No OpenAI API key configured (set OPENAI_API_KEY_1…N or OPENAI_API_KEY)',
+			),
 		};
 	}
 
@@ -375,113 +483,121 @@ export async function runOpenAiChat(
 
 	let lastError: Error | null = null;
 	for (const model of orderOpenAiModels()) {
-		try {
-			const messages = [...baseMessages];
-			const usedToolNames = new Set<string>();
-			let responseText = '';
+		for (const key of orderOpenAiKeys(apiKeys)) {
+			try {
+				const messages = [...baseMessages];
+				const usedToolNames = new Set<string>();
+				let responseText = '';
 
-			for (
-				let iteration = 0;
-				iteration < (options.maxToolIterations ?? 5);
-				iteration++
-			) {
-				const parsed = await requestOpenAiCompletion(
-					model,
-					apiKey,
-					messages,
-					options,
-				);
-				const toolCalls = options.executeTool
-					? extractOpenAiToolCalls(parsed)
-					: [];
+				for (
+					let iteration = 0;
+					iteration < (options.maxToolIterations ?? 5);
+					iteration++
+				) {
+					const parsed = await requestOpenAiCompletion(
+						model,
+						key.secret,
+						messages,
+						options,
+					);
+					const toolCalls = options.executeTool
+						? extractOpenAiToolCalls(parsed)
+						: [];
 
-				if (toolCalls.length === 0) {
-					responseText = extractOpenAiText(parsed).trim();
-					break;
-				}
+					if (toolCalls.length === 0) {
+						responseText = extractOpenAiText(parsed).trim();
+						break;
+					}
 
-				messages.push({
-					role: 'assistant',
-					content: extractOpenAiText(parsed) || null,
-					tool_calls: toolCalls,
-				});
-
-				const executeTool = options.executeTool;
-				if (!executeTool) {
-					responseText = extractOpenAiText(parsed).trim();
-					break;
-				}
-
-				for (const call of toolCalls) {
-					const name = call.function.name;
-					usedToolNames.add(name);
-				}
-
-				console.log(
-					`[AI Agent][OpenAI] Iteration ${iteration + 1}: executing tools:`,
-					Array.from(new Set(toolCalls.map((call) => call.function.name))).join(
-						', ',
-					),
-				);
-
-				for (const call of toolCalls) {
-					const name = call.function.name;
-					const parsedArgs = parseToolArgumentsSafe(call.function.arguments);
-					const result = parsedArgs.ok
-						? await executeTool(name, parsedArgs.args)
-						: { error: parsedArgs.error };
 					messages.push({
-						role: 'tool',
-						tool_call_id: call.id,
-						content: serializeToolResult(result),
+						role: 'assistant',
+						content: extractOpenAiText(parsed) || null,
+						tool_calls: toolCalls,
 					});
+
+					const executeTool = options.executeTool;
+					if (!executeTool) {
+						responseText = extractOpenAiText(parsed).trim();
+						break;
+					}
+
+					for (const call of toolCalls) {
+						const name = call.function.name;
+						usedToolNames.add(name);
+					}
+
+					console.log(
+						`[AI Agent][OpenAI] Iteration ${iteration + 1}: executing tools:`,
+						Array.from(
+							new Set(toolCalls.map((call) => call.function.name)),
+						).join(', '),
+					);
+
+					for (const call of toolCalls) {
+						const name = call.function.name;
+						const parsedArgs = parseToolArgumentsSafe(call.function.arguments);
+						const result = parsedArgs.ok
+							? await executeTool(name, parsedArgs.args)
+							: { error: parsedArgs.error };
+						messages.push({
+							role: 'tool',
+							tool_call_id: call.id,
+							content: serializeToolResult(result),
+						});
+					}
+				}
+
+				if (
+					!responseText &&
+					usedToolNames.size > 0 &&
+					options.executeTool
+				) {
+					messages.push({
+						role: 'user',
+						content:
+							'Berdasarkan hasil tool di atas, berikan jawaban final lengkap untuk pengguna dalam Bahasa Indonesia. Jangan panggil tool lagi.',
+					});
+					const finalParsed = await requestOpenAiCompletion(
+						model,
+						key.secret,
+						messages,
+						options,
+						false,
+					);
+					responseText = extractOpenAiText(finalParsed).trim();
+				}
+
+				if (
+					!responseText ||
+					responseText === GENERIC_FALLBACK_TEXT
+				) {
+					lastError = new Error(
+						responseText
+							? 'OpenAI returned generic fallback after tool loop'
+							: 'OpenAI returned empty response after tool loop',
+					);
+					continue;
+				}
+
+				await writeWorkingCache(model, key.slot);
+				console.log(
+					`[AI][OpenAI] OK model=${model} keySlot=${key.slot}`,
+				);
+				return {
+					ok: true,
+					responseText,
+					modelName: model,
+					usedToolNames: Array.from(usedToolNames),
+				};
+			} catch (error) {
+				lastError = error as Error;
+				console.warn(
+					`[AI][OpenAI] Failed model=${model} keySlot=${key.slot} - ${lastError.message}`,
+				);
+				if (isOpenAiKeyUnavailable(lastError)) {
+					markKeyCooldown(key.slot, lastError.message.slice(0, 120));
 				}
 			}
-
-			if (
-				!responseText &&
-				usedToolNames.size > 0 &&
-				options.executeTool
-			) {
-				messages.push({
-					role: 'user',
-					content:
-						'Berdasarkan hasil tool di atas, berikan jawaban final lengkap untuk pengguna dalam Bahasa Indonesia. Jangan panggil tool lagi.',
-				});
-				const finalParsed = await requestOpenAiCompletion(
-					model,
-					apiKey,
-					messages,
-					options,
-					false,
-				);
-				responseText = extractOpenAiText(finalParsed).trim();
-			}
-
-			if (
-				!responseText ||
-				responseText === GENERIC_FALLBACK_TEXT
-			) {
-				lastError = new Error(
-					responseText
-						? 'OpenAI returned generic fallback after tool loop'
-						: 'OpenAI returned empty response after tool loop',
-				);
-				continue;
-			}
-
-			await writeCachedModel(model);
-			return {
-				ok: true,
-				responseText,
-				modelName: model,
-				usedToolNames: Array.from(usedToolNames),
-			};
-		} catch (error) {
-			lastError = error as Error;
-			console.warn(
-				`[AI][OpenAI] Failed model: ${model} - ${lastError.message}`,
-			);
 		}
 	}
 

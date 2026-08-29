@@ -11,6 +11,19 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.20.2] — 2026-08-29
+
+**OpenAI multi-key + model rotation** · PATCH · [Full release notes](../release/4.20.2.md)
+
+### Added
+- Support `OPENAI_API_KEY_1…N` dengan cooldown setelah quota/auth fail (`OPENAI_KEY_COOLDOWN_MS`)
+
+### Changed
+- `runOpenAiChat` rotate model × key; cache `openai-working.json` simpan `model` + `keySlot`
+- README env contoh untuk multi-key OpenAI
+
+---
+
 ## [4.20.1] — 2026-08-29
 
 **Remove debug instrumentation, verify 4.20.0 proxy end-to-end** · PATCH · [Full release notes](../release/4.20.1.md)
