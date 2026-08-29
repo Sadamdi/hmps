@@ -11,6 +11,15 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.20.1] — 2026-08-29
+
+**Remove debug instrumentation, verify 4.20.0 proxy end-to-end** · PATCH · [Full release notes](../release/4.20.1.md)
+
+### Changed
+- Hapus `console.log` debug sementara yang ditambahkan untuk investigasi lazy-load pasca-4.20.0. Root cause "video macet sebagai spinner" saat verifikasi ternyata keterbatasan lingkungan pengujian (tab browser tidak compositing), bukan bug kode — dikonfirmasi lewat `curl` langsung ke endpoint proxy (200/206 dengan header benar) dan `<video>` element yang berhasil `loadedmetadata` dengan durasi + dimensi video yang benar saat menunjuk langsung ke `/api/gdrive/stream/:fileId`.
+
+---
+
 ## [4.20.0] — 2026-08-29
 
 **Native streaming proxy for Google Drive video embeds** · MINOR · [Full release notes](../release/4.20.0.md)
