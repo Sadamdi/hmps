@@ -11,7 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { lazy, Suspense, useEffect, useMemo } from 'react';
-import { Route, Switch, useLocation } from 'wouter';
+import { Route, Switch, useLocation, type RouteComponentProps } from 'wouter';
 
 const NotificationPrompt = lazy(() => import('@/components/public/notification-prompt'));
 const NotificationStream = lazy(() => import('@/components/public/notification-stream'));
@@ -291,10 +291,14 @@ function Router() {
 		<Route path="/:slug" component={CommunityShell} />
 
 		{/* Fallback to 404 */}
-				<Route component={NotFound} />
+				<Route component={NotFoundRoute} />
 			</Switch>
 		</Suspense>
 	);
+}
+
+function NotFoundRoute(_props: RouteComponentProps) {
+	return <NotFound />;
 }
 
 function PublicNotifPrompt() {
