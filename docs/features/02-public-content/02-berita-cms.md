@@ -11,7 +11,7 @@ Fitur **Berita Cms** terdokumentasi ulang dari audit code HMPS New, bukan dari p
 ### Editor notes (4.14+)
 
 - **Existing tags** di `BeritaEditor`: default tertutup; saat dibuka ada pencarian + daftar semua tag di area scroll (tanpa potong max 20).
-- **Konten HTML** gaya Medinfo (meta 2–3 baris + pembuka ENCODER + `h3` + gambar di antara section) dipakai AI enhance/Spyro; lihat `09-content-enhance-ai.md`.
+- **Konten HTML** gaya Medinfo (meta 2–3 baris + pembuka ENCODER + `h3` + gambar di antara section) dipakai AI enhance/Enco; lihat `09-content-enhance-ai.md`.
 
 ---
 

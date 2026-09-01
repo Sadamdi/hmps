@@ -49,7 +49,7 @@ import {
 	Share2,
 	Users,
 } from 'lucide-react';
-import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
 import { useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 
@@ -85,15 +85,15 @@ export default function Dashboard() {
 	const { hasPermission: hasDashboardAccess, isLoading: isPermissionLoading } =
 		usePermissionGuard('dashboard.view');
 
-	const homePageDataForSpyro = useMemo(() => {
+	const homePageDataForEnco = useMemo(() => {
 		if (isPermissionLoading) {
-			return buildSimpleSpyroPageData(
+			return buildSimpleEncoPageData(
 				'home',
 				'home.permissions_loading',
 				'Memuat izin halaman Dashboard.',
 			);
 		}
-		return buildSimpleSpyroPageData(
+		return buildSimpleEncoPageData(
 			'home',
 			'home.main',
 			'Ringkasan dashboard: statistik (jika izin), aktivitas terbaru, dan pintasan ke modul.',
@@ -302,7 +302,7 @@ export default function Dashboard() {
 		hasSpecificPermission('overview.storage_activity');
 
 	return (
-		<DashboardLayout title="Dashboard" pageContextExtra={{ pageData: homePageDataForSpyro }}>
+		<DashboardLayout title="Dashboard" pageContextExtra={{ pageData: homePageDataForEnco }}>
 			<div className="mb-6 sm:mb-8">
 				<h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-1 sm:mb-2">
 					Welcome back, {user?.name || user?.username}

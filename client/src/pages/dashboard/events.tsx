@@ -22,7 +22,7 @@ import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
-import { buildEventsSpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildEventsEncoPageData } from '@shared/dashboard-enco-context';
 import type { EventItem, EventYear } from '@shared/schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -271,9 +271,9 @@ export default function DashboardEvents() {
 		[eventYears, selectedYearId],
 	);
 
-	const eventsPageDataForSpyro = useMemo(
+	const eventsPageDataForEnco = useMemo(
 		() =>
-			buildEventsSpyroPageData({
+			buildEventsEncoPageData({
 				requestOnly,
 				manageEnabled,
 				permissionsLoading: isPermLoading,
@@ -673,7 +673,7 @@ export default function DashboardEvents() {
 		return (
 			<DashboardLayout
 				title="Events"
-				pageContextExtra={{ pageData: eventsPageDataForSpyro }}>
+				pageContextExtra={{ pageData: eventsPageDataForEnco }}>
 				<div className="flex items-center justify-center h-64">
 					<Loader2 className="h-8 w-8 animate-spin" />
 				</div>
@@ -686,7 +686,7 @@ export default function DashboardEvents() {
 		return (
 			<DashboardLayout
 				title={requestOnly ? 'Events' : 'Manajemen Event'}
-				pageContextExtra={{ pageData: eventsPageDataForSpyro }}>
+				pageContextExtra={{ pageData: eventsPageDataForEnco }}>
 				<div className="space-y-6">
 					{requestSharingSearchBlock}
 					<DashboardHintCard
@@ -980,7 +980,7 @@ export default function DashboardEvents() {
 	return (
 		<DashboardLayout
 			title={`Event ${selectedYear?.year || ''}`}
-			pageContextExtra={{ pageData: eventsPageDataForSpyro }}>
+			pageContextExtra={{ pageData: eventsPageDataForEnco }}>
 			<div className="space-y-6">
 				{requestSharingSearchBlock}
 				{selectedParentEvent ? (

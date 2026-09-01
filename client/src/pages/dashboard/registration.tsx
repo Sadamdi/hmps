@@ -51,7 +51,7 @@ import {
 	Ban,
 	Users,
 } from 'lucide-react';
-import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
 import { useMemo, useState } from 'react';
 
 function formatDate(d: string | Date) {
@@ -345,9 +345,9 @@ export default function DashboardRegistration() {
 		});
 	};
 
-	const registrationPageDataForSpyro = useMemo(
+	const registrationPageDataForEnco = useMemo(
 		() =>
-			buildSimpleSpyroPageData(
+			buildSimpleEncoPageData(
 				'registration',
 				'registration.main',
 				'Kelola kode undangan registrasi dan daftar komunitas terdaftar (tab Kode / Komunitas).',
@@ -356,7 +356,7 @@ export default function DashboardRegistration() {
 	);
 
 	return (
-	<DashboardLayout title="Registration" pageContextExtra={{ pageData: registrationPageDataForSpyro }}>
+	<DashboardLayout title="Registration" pageContextExtra={{ pageData: registrationPageDataForEnco }}>
 		<div className="space-y-6">
 			<div className="flex items-center justify-between">
 				<div>

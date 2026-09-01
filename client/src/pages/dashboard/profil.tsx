@@ -43,7 +43,7 @@ import {
 	verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
 import type { AboutPageLambangItem, AboutPageTrackRecordItem } from '@shared/schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/lib/tenant-context';
@@ -545,9 +545,9 @@ export default function DashboardProfil() {
 		setDeleteDialog((d) => ({ ...d, open: false }));
 	};
 
-	const profilPageDataForSpyro = useMemo(() => {
+	const profilPageDataForEnco = useMemo(() => {
 		if (isPermissionLoading) {
-			return buildSimpleSpyroPageData(
+			return buildSimpleEncoPageData(
 				'profil',
 				'profil.permissions_loading',
 				'Memuat izin halaman Profil.',
@@ -556,7 +556,7 @@ export default function DashboardProfil() {
 		const loadHint = isPending ? ' Memuat konten dari server.' : '';
 		const editHint =
 			isEditing || isHeroEditing ? ' Mode sunting konten aktif.' : '';
-		return buildSimpleSpyroPageData(
+		return buildSimpleEncoPageData(
 			'profil',
 			'profil.main',
 			`${isTenant ? 'Profil komunitas' : 'Profil himpunan'} — mengelola konten halaman publik (tab aktif).${loadHint}${editHint}`,
@@ -573,7 +573,7 @@ export default function DashboardProfil() {
 
 	if (isPermissionLoading) {
 		return (
-			<DashboardLayout title="Dashboard Profil" pageContextExtra={{ pageData: profilPageDataForSpyro }}>
+			<DashboardLayout title="Dashboard Profil" pageContextExtra={{ pageData: profilPageDataForEnco }}>
 				<div className="flex items-center justify-center h-64">
 					<Loader2 className="h-6 w-6 animate-spin" />
 					<span className="ml-2">Memuat...</span>
@@ -585,7 +585,7 @@ export default function DashboardProfil() {
 	if (!hasAccess) return null;
 
 	return (
-		<DashboardLayout title="Dashboard Profil" pageContextExtra={{ pageData: profilPageDataForSpyro }}>
+		<DashboardLayout title="Dashboard Profil" pageContextExtra={{ pageData: profilPageDataForEnco }}>
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>

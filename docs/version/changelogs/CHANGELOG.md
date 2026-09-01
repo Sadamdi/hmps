@@ -7,7 +7,26 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 ## [Unreleased]
 
-_Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
+_Tidak ada._
+
+---
+
+## [4.22.0] — 2026-09-01
+
+**Enco AI rebrand + Gemini audit + 3D mascot chat** · MINOR · [Full release notes](../release/4.22.0.md)
+
+### Added
+- Rebrand asisten AI: **Enco** (Encoder · Navigate · Connect · Optimized)
+- Maskot 3D di header chat (`enco-mascot-viewer.tsx`, React Three Fiber)
+- Asset 3D: `attached_assets/3d/enco/` + Git LFS untuk `.blend`
+- Script audit model Gemini: `ops/list-gemini-models.ts` + snapshot docs
+
+### Changed
+- `GEMINI_MODELS` fallback: `gemini-3.5-flash-lite`, `gemini-3.6-flash` (smoke OK)
+- Dashboard context: `dashboard-enco-context.ts` menggantikan Spyro
+
+### Removed
+- `shared/dashboard-spyro-context.ts`, folder root `3dasset/`
 
 ---
 

@@ -1,0 +1,44 @@
+# Enco 3D Mascot Assets
+
+Source Blender files for the Himatif Encoder (Enco) mascot.
+
+## Layout
+
+```text
+attached_assets/3d/enco/
+├── source/
+│   ├── maskot-ti.blend      ← primary rigged mascot (chat export source)
+│   └── poses/               ← alternate poses / merch renders
+├── exports/                 ← web exports (GLB) — commit these for deploy
+└── README.md
+
+public/assets/mascot/
+└── enco.glb                 ← served to browser (copy/symlink from exports)
+```
+
+## Export pipeline (Blender 4.x)
+
+1. Open `source/maskot-ti.blend`
+2. Verify armature + action clips (Idle, Talk, Think if available)
+3. Apply transforms, origin at feet/center
+4. Run headless export:
+
+```bash
+blender --background attached_assets/3d/enco/source/maskot-ti.blend \
+  --python ops/blender-export-enco.py
+```
+
+5. Copy result to public:
+
+```bash
+cp attached_assets/3d/enco/exports/enco-mascot.glb public/assets/mascot/enco.glb
+```
+
+## Git LFS
+
+`.blend` files are tracked with Git LFS (~130 MB total). Production deploy only needs `public/assets/mascot/enco.glb`.
+
+## Chat integration
+
+The chat widget loads `/assets/mascot/enco.glb` via React Three Fiber (`enco-mascot-viewer.tsx`).
+Animation states: `idle`, `think`, `talk`, `wave` (matched to action names in GLB when present).

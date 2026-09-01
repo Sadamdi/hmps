@@ -55,7 +55,7 @@ import {
 	Trash2,
 	Users,
 } from 'lucide-react';
-import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -216,15 +216,15 @@ export default function DashboardProdi() {
 		setDirty(true);
 	}, []);
 
-	const prodiPageDataForSpyro = useMemo(() => {
+	const prodiPageDataForEnco = useMemo(() => {
 		if (isLoading || !localContent) {
-			return buildSimpleSpyroPageData(
+			return buildSimpleEncoPageData(
 				'prodi',
 				'prodi.permissions_loading',
 				'Memuat konten Program Studi dari server.',
 			);
 		}
-		return buildSimpleSpyroPageData(
+		return buildSimpleEncoPageData(
 			'prodi',
 			'prodi.main',
 			'Kelola konten Prodi S1 Teknik Informatika: sync dari sumber, profil, dosen, kurikulum, laboratorium.',
@@ -233,7 +233,7 @@ export default function DashboardProdi() {
 
 	if (isLoading || !localContent) {
 		return (
-			<DashboardLayout title="Prodi" pageContextExtra={{ pageData: prodiPageDataForSpyro }}>
+			<DashboardLayout title="Prodi" pageContextExtra={{ pageData: prodiPageDataForEnco }}>
 				<div className="flex justify-center py-24">
 					<Loader2 className="h-8 w-8 animate-spin text-primary" />
 				</div>
@@ -246,7 +246,7 @@ export default function DashboardProdi() {
 	const lastManualSync = doc?.lastManualSyncAt ? new Date(doc.lastManualSyncAt).toLocaleString('id-ID') : '—';
 
 	return (
-		<DashboardLayout title="Prodi" pageContextExtra={{ pageData: prodiPageDataForSpyro }}>
+		<DashboardLayout title="Prodi" pageContextExtra={{ pageData: prodiPageDataForEnco }}>
 			<div className="space-y-6">
 				<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 					<div>

@@ -56,7 +56,7 @@ hmps_new/
 - `schema.ts`: shared contracts/types.
 - `mediaUtils.ts`: media helper utilities.
 - `store-currency.ts`, `store-discounts.ts`, `store-pricing.ts`: store pricing/currency logic.
-- `dashboard-spyro-context.ts`: dashboard context constants.
+- `dashboard-enco-context.ts`: dashboard context constants for Enco AI.
 
 Do not put secrets or server-only dependencies here.
 
