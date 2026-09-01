@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.22.2`  
+**Current version:** `4.22.3`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.22.2`](./release/4.22.2.md) | 2026-09-02 | Fix Enco GLB 404 on nginx /assets path | PATCH | 1 | **Current** |
+| [`4.22.3`](./release/4.22.3.md) | 2026-09-02 | Enco portrait avatars for chat UI | PATCH | 1 | **Current** |
+| [`4.22.2`](./release/4.22.2.md) | 2026-09-02 | Fix Enco GLB 404 on nginx /assets path | PATCH | 1 | Released |
 | [`4.22.1`](./release/4.22.1.md) | 2026-09-02 | Enco 3D mascot GLB export + animated viewer | PATCH | 1 | Released |
 | [`4.22.0`](./release/4.22.0.md) | 2026-09-01 | Enco AI rebrand + Gemini audit + 3D mascot chat | MINOR | 1 | Released |
 | [`4.20.4`](./release/4.20.4.md) | 2026-09-01 | Spyro AI developer profile + Gemini fallback + AI tools audit | PATCH | 1 | Released |

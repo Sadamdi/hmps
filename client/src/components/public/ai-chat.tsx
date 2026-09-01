@@ -6,21 +6,16 @@ import {
 	ArrowRight,
 	Clock,
 	ExternalLink,
-	MessageSquare,
 	PaperclipIcon,
 	Plus,
 	Send,
 	Trash2,
 	X,
 } from 'lucide-react';
-import { Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'wouter';
-
-const EncoMascotViewer = lazy(() =>
-	import('./enco-mascot-viewer').then((m) => ({
-		default: m.EncoMascotViewer,
-	})),
-);
+import { EncoAvatar } from './enco-avatar';
+import type { EncoMascotState } from './enco-mascot-viewer';
 
 // ──────────────── Navigation action parsing ────────────────
 
@@ -327,9 +322,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	const [messages, setMessages] = useState<Message[]>([INITIAL_MESSAGE]);
 	const [inputMessage, setInputMessage] = useState('');
 	const [isLoading, setIsLoading] = useState(false);
-	const [mascotState, setMascotState] = useState<
-		'idle' | 'think' | 'talk' | 'wave'
-	>('idle');
+	const [mascotState, setMascotState] = useState<EncoMascotState>('idle');
 	const [imageFile, setImageFile] = useState<File | null>(null);
 	const [imagePreview, setImagePreview] = useState<string | null>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -777,7 +770,12 @@ export default function AIChat({ pageContext }: AIChatProps) {
 				{isChatOpen ? (
 					<X className="h-6 w-6" />
 				) : (
-					<MessageSquare className="h-6 w-6" />
+					<EncoAvatar
+						size={40}
+						state="idle"
+						className="ring-2 ring-cyan-400/40 shadow-[0_0_10px_rgba(34,211,238,0.35)]"
+						alt="Buka chat Enco"
+					/>
 				)}
 			</Button>
 
@@ -787,16 +785,11 @@ export default function AIChat({ pageContext }: AIChatProps) {
 					style={{ maxHeight: 'min(520px, 70vh)' }}>
 					{/* Header */}
 					<div className="bg-gradient-to-r from-[#1a3a6b] to-[#0e2a56] border-b border-border/70 px-4 py-3 flex items-center gap-3 flex-shrink-0">
-						<Suspense
-							fallback={
-								<div className="flex-shrink-0 w-9 h-9 rounded-full bg-cyan-500/20 border border-cyan-400/40 animate-pulse" />
-							}>
-							<EncoMascotViewer
-								state={mascotState}
-								size={44}
-								className="flex-shrink-0 rounded-full overflow-hidden border border-cyan-400/50 bg-cyan-500/15 shadow-[0_0_12px_rgba(34,211,238,0.25)]"
-							/>
-						</Suspense>
+						<EncoAvatar
+							state={mascotState}
+							size={44}
+							className="flex-shrink-0 border border-cyan-400/50 bg-cyan-500/15 shadow-[0_0_12px_rgba(34,211,238,0.25)]"
+						/>
 						<div className="min-w-0 flex-1">
 							<h3 className="font-semibold text-slate-100 text-sm leading-none">
 								Enco
@@ -904,21 +897,12 @@ export default function AIChat({ pageContext }: AIChatProps) {
 								key={msg.id}
 								className={`flex ${msg.isBot ? 'items-start gap-2' : 'justify-end'}`}>
 								{msg.isBot && (
-									<div className="flex-shrink-0 w-7 h-7 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center mt-0.5">
-										<svg
-											xmlns="http://www.w3.org/2000/svg"
-											className="h-4 w-4 text-cyan-300"
-											fill="none"
-											viewBox="0 0 24 24"
-											stroke="currentColor">
-											<path
-												strokeLinecap="round"
-												strokeLinejoin="round"
-												strokeWidth="2"
-												d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-											/>
-										</svg>
-									</div>
+									<EncoAvatar
+										size={28}
+										state="idle"
+										className="flex-shrink-0 mt-0.5 border border-primary/30 bg-primary/10"
+										alt=""
+									/>
 								)}
 								<div
 									className={`px-3 py-2.5 rounded-xl max-w-[82%] min-w-0 text-sm leading-relaxed break-words [overflow-wrap:anywhere] ${

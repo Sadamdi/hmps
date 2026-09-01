@@ -21,14 +21,23 @@ public/assets/mascot/
 1. Open `source/maskot-ti.blend`
 2. Verify armature + action clips (Idle, Talk, Think if available)
 3. Apply transforms, origin at feet/center
-4. Run headless export:
+4. Export GLB (3D viewer, optional):
 
 ```bash
 blender --background attached_assets/3d/enco/source/maskot-ti.blend \
   --python ops/blender-export-enco.py
 ```
 
-5. Copy result to public:
+5. Render portrait PNG (chat avatars — recommended):
+
+```bash
+blender --background attached_assets/3d/enco/source/maskot-ti.blend \
+  --python ops/blender-render-enco-portrait.py
+```
+
+Portrait lands in `client/public/assets/mascot/enco-portrait.png`.
+
+6. Copy GLB result to public (if needed):
 
 ```bash
 cp attached_assets/3d/enco/exports/enco-mascot.glb public/assets/mascot/enco.glb
@@ -40,5 +49,6 @@ cp attached_assets/3d/enco/exports/enco-mascot.glb public/assets/mascot/enco.glb
 
 ## Chat integration
 
-The chat widget loads `/assets/mascot/enco.glb` via React Three Fiber (`enco-mascot-viewer.tsx`).
-Animation states: `idle`, `think`, `talk`, `wave` (matched to action names in GLB when present).
+Chat uses static portrait `enco-portrait.png` via `enco-avatar.tsx` (header, bubbles, FAB).
+Optional 3D: `/assets/mascot/enco.glb` via `enco-mascot-viewer.tsx`.
+Animation states: `idle`, `think`, `talk`, `wave`.
