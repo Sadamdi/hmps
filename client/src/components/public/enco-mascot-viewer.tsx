@@ -128,9 +128,9 @@ function GlbEnco({ state }: { state: EncoMascotState }) {
 	});
 
 	return (
-		<group ref={group}>
+		<group ref={group} position={[0, -0.95, 0]}>
 			<Center>
-				<primitive object={prepared} scale={1.15} />
+				<primitive object={prepared} scale={1.85} />
 			</Center>
 		</group>
 	);
@@ -262,7 +262,7 @@ function EncoMascotViewerInner({
 			style={{ width: size, height: size }}
 			aria-hidden>
 			<Canvas
-				camera={{ position: [0, 1.1, 2.4], fov: 38 }}
+				camera={{ position: [0, 0.15, 1.55], fov: 32 }}
 				gl={{ antialias: true, alpha: true }}
 				dpr={[1, 2]}
 				style={{ background: 'transparent' }}>

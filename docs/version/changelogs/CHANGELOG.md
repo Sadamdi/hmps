@@ -11,6 +11,26 @@ _Tidak ada._
 
 ---
 
+## [4.22.3] — 2026-09-02
+
+**Enco portrait avatar for chat UI** · PATCH · [Full release notes](../release/4.22.3.md)
+
+### Changed
+- Chat pakai portrait PNG maskot (header, bubble, tombol FAB)
+- Pipeline render Blender `ops/blender-render-enco-portrait.py`
+
+---
+
+## [4.22.3] — 2026-09-02
+
+**Enco portrait avatars for chat UI** · PATCH · [Full release notes](../release/4.22.3.md)
+
+### Changed
+- Chat pakai portrait PNG maskot (header, bubble, tombol FAB)
+- Pipeline render portrait dari Blender (`ops/blender-render-enco-portrait.py`)
+
+---
+
 ## [4.22.2] — 2026-09-02
 
 **Fix Enco GLB 404 on nginx /assets path** · PATCH · [Full release notes](../release/4.22.2.md)
