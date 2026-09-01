@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Component, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import {
 	Center,
@@ -202,6 +202,45 @@ function EncoStaticFallback({
 }
 
 export function EncoMascotViewer({
+	state = 'idle',
+	className,
+	size = 64,
+}: {
+	state?: EncoMascotState;
+	className?: string;
+	size?: number;
+}) {
+	return (
+		<MascotErrorBoundary className={className} size={size}>
+			<EncoMascotViewerInner state={state} className={className} size={size} />
+		</MascotErrorBoundary>
+	);
+}
+
+class MascotErrorBoundary extends Component<
+	{ children: React.ReactNode; className?: string; size: number },
+	{ failed: boolean }
+> {
+	state = { failed: false };
+
+	static getDerivedStateFromError() {
+		return { failed: true };
+	}
+
+	render() {
+		if (this.state.failed) {
+			return (
+				<EncoStaticFallback
+					className={this.props.className}
+					size={this.props.size}
+				/>
+			);
+		}
+		return this.props.children;
+	}
+}
+
+function EncoMascotViewerInner({
 	state = 'idle',
 	className,
 	size = 64,

@@ -11,6 +11,16 @@ _Tidak ada._
 
 ---
 
+## [4.22.2] — 2026-09-02
+
+**Fix Enco GLB 404 on nginx /assets path** · PATCH · [Full release notes](../release/4.22.2.md)
+
+### Fixed
+- `enco.glb` ikut Vite build ke `dist/public/assets/` (nginx `/assets/`)
+- Error boundary lokal pada maskot chat (tidak crash seluruh halaman)
+
+---
+
 ## [4.22.1] — 2026-09-02
 
 **Enco 3D mascot GLB export + animated viewer** · PATCH · [Full release notes](../release/4.22.1.md)
