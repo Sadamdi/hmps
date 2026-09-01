@@ -11,6 +11,18 @@ _Tidak ada._
 
 ---
 
+## [4.22.1] — 2026-09-02
+
+**Enco 3D mascot GLB export + animated viewer** · PATCH · [Full release notes](../release/4.22.1.md)
+
+### Added
+- GLB maskot dari `maskot-ti.blend` di `/assets/mascot/enco.glb`
+
+### Changed
+- Chat header: maskot 3D rigged + animasi (idle / think / talk / wave)
+
+---
+
 ## [4.22.0] — 2026-09-01
 
 **Enco AI rebrand + Gemini audit + 3D mascot chat** · MINOR · [Full release notes](../release/4.22.0.md)

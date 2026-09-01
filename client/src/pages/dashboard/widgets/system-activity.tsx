@@ -200,7 +200,7 @@ export default function SystemActivity() {
 
 								{network.interfaces && network.interfaces.length > 0 && (
 									<div className="mt-2 text-xs text-muted-foreground truncate">
-										if: {network.interfaces.slice(0, 3).map((i) => i.name).join(', ')}
+										if: {network.interfaces.slice(0, 3).map((i: { name: string }) => i.name).join(', ')}
 										{network.interfaces.length > 3 ? ` +${network.interfaces.length - 3}` : ''}
 									</div>
 								)}

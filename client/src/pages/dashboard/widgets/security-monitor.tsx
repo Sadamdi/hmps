@@ -101,7 +101,7 @@ export default function SecurityMonitor() {
 										<YAxis tick={{ fontSize: 9 }} width={28} />
 										<Tooltip />
 										<Bar dataKey="count" radius={4}>
-											{breakdown.map((_, i: number) => (
+											{breakdown.map((_entry: { name: string; count: number }, i: number) => (
 												<Cell
 													key={i}
 													fill={TYPE_COLORS[i % TYPE_COLORS.length]}

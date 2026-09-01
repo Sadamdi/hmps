@@ -100,7 +100,7 @@ function getOpenAiApiKeys(): OpenAiKeySlot[] {
 		const legacy = (process.env.OPENAI_API_KEY || '').trim();
 		if (legacy) bySlot.set(1, legacy);
 	}
-	return [...bySlot.entries()]
+	return Array.from(bySlot.entries())
 		.sort((a, b) => a[0] - b[0])
 		.map(([slot, secret]) => ({ slot, secret }));
 }

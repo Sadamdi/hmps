@@ -330,7 +330,6 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	const [mascotState, setMascotState] = useState<
 		'idle' | 'think' | 'talk' | 'wave'
 	>('idle');
-	const [useSimpleMascot, setUseSimpleMascot] = useState(false);
 	const [imageFile, setImageFile] = useState<File | null>(null);
 	const [imagePreview, setImagePreview] = useState<string | null>(null);
 	const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -351,13 +350,6 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	const [locationPath, setLocation] = useLocation();
 
 	useEffect(() => {
-		const narrow =
-			typeof window !== 'undefined' &&
-			window.matchMedia('(max-width: 639px)').matches;
-		setUseSimpleMascot(narrow);
-	}, []);
-
-	useEffect(() => {
 		if (isLoading) {
 			setMascotState('think');
 			return;
@@ -368,9 +360,21 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	useEffect(() => {
 		if (!isChatOpen || isLoading) return;
 		setMascotState('wave');
-		const t = window.setTimeout(() => setMascotState('idle'), 1400);
+		const t = window.setTimeout(() => setMascotState('idle'), 1600);
 		return () => window.clearTimeout(t);
 	}, [isChatOpen]);
+
+	// Brief "talk" bounce when bot finishes replying
+	const prevLoading = useRef(isLoading);
+	useEffect(() => {
+		if (prevLoading.current && !isLoading && isChatOpen) {
+			setMascotState('talk');
+			const t = window.setTimeout(() => setMascotState('idle'), 2200);
+			prevLoading.current = isLoading;
+			return () => window.clearTimeout(t);
+		}
+		prevLoading.current = isLoading;
+	}, [isLoading, isChatOpen]);
 
 	const resolveTenantAwarePath = useCallback(
 		(rawPath: string): string => {
@@ -789,9 +793,8 @@ export default function AIChat({ pageContext }: AIChatProps) {
 							}>
 							<EncoMascotViewer
 								state={mascotState}
-								size={36}
-								className="flex-shrink-0 rounded-full overflow-hidden border border-cyan-400/40 bg-cyan-500/10"
-								forceProcedural={useSimpleMascot}
+								size={44}
+								className="flex-shrink-0 rounded-full overflow-hidden border border-cyan-400/50 bg-cyan-500/15 shadow-[0_0_12px_rgba(34,211,238,0.25)]"
 							/>
 						</Suspense>
 						<div className="min-w-0 flex-1">
