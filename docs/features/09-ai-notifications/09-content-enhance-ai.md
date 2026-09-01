@@ -15,15 +15,15 @@ Profile `berita` (4.14+) mewajibkan urutan:
 3. Section `<h3>` (Latar Belakang, Pelaksanaan Kegiatan, dll.)
 4. Gambar hanya `<p><img></p>` di antara section — bukan di atas meta
 
-Berlaku untuk Enhance AI dan Spyro tool `create_berita_draft` / `update_berita`.
+Berlaku untuk Enhance AI dan Enco tool `create_berita_draft` / `update_berita`.
 
 ### Cakupan field berita
 
 | Jalur | Judul | Excerpt | Tags | Konten HTML | Cover image |
 |-------|-------|---------|------|-------------|-------------|
-| Enhance AI (editor) | ✅ | ✅ | ✅ (koma) | ✅ | ❌ (upload manual / URL di tool Spyro) |
-| Spyro `create_berita_draft` | ✅ | ✅ | ✅ | ✅ | ✅ opsional (`image` URL / GDrive / `/uploads/...`) |
-| Spyro `update_berita` | ✅ | ✅ | ✅ | ✅ | ✅ opsional |
+| Enhance AI (editor) | ✅ | ✅ | ✅ (koma) | ✅ | ❌ (upload manual / URL di tool Enco) |
+| Enco `create_berita_draft` | ✅ | ✅ | ✅ | ✅ | ✅ opsional (`image` URL / GDrive / `/uploads/...`) |
+| Enco `update_berita` | ✅ | ✅ | ✅ | ✅ | ✅ opsional |
 
 Cover file upload multipart tetap lewat Dashboard; AI tidak mengunggah file biner.
 
@@ -43,7 +43,7 @@ Cover file upload multipart tetap lewat Dashboard; AI tidak mengunggah file bine
 
 OpenAI-compatible utama → Gemini fallback (`runAiTextCompletion`).
 
-## Tool calling (Spyro chat)
+## Tool calling (Enco chat)
 
 - 42 tools dieksekusi via `executeToolCall` (provider-agnostic)
 - OpenAI loop: truncate tool results, final synthesis tanpa tools, fallback Gemini jika respons lemah

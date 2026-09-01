@@ -15,7 +15,7 @@ import { useTenant } from '@/lib/tenant-context';
 import { apiRequest } from '@/lib/queryClient';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, ExternalLink, FileEdit, Loader2 } from 'lucide-react';
-import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface Settings {
@@ -89,9 +89,9 @@ export default function DashboardKelembagaan() {
 		updateMutation.mutate({ ...settings, visionMission });
 	};
 
-	const kelembagaanPageDataForSpyro = useMemo(() => {
+	const kelembagaanPageDataForEnco = useMemo(() => {
 		if (isPermissionLoading) {
-			return buildSimpleSpyroPageData(
+			return buildSimpleEncoPageData(
 				'kelembagaan',
 				'kelembagaan.permissions_loading',
 				'Memuat izin halaman Kelembagaan.',
@@ -103,7 +103,7 @@ export default function DashboardKelembagaan() {
 				: selectedTab === 'struktur'
 					? 'Struktur organisasi'
 					: selectedTab;
-		return buildSimpleSpyroPageData(
+		return buildSimpleEncoPageData(
 			'kelembagaan',
 			'kelembagaan.main',
 			`Kelola konten halaman kelembagaan publik (tab: ${tabLabel}).`,
@@ -115,7 +115,7 @@ export default function DashboardKelembagaan() {
 		return (
 			<DashboardLayout
 				title="Dashboard Kelembagaan"
-				pageContextExtra={{ pageData: kelembagaanPageDataForSpyro }}>
+				pageContextExtra={{ pageData: kelembagaanPageDataForEnco }}>
 				<div className="flex items-center justify-center h-64">
 					<Loader2 className="h-6 w-6 animate-spin" />
 					<span className="ml-2">Memuat...</span>
@@ -129,7 +129,7 @@ export default function DashboardKelembagaan() {
 	return (
 		<DashboardLayout
 			title="Dashboard Kelembagaan"
-			pageContextExtra={{ pageData: kelembagaanPageDataForSpyro }}>
+			pageContextExtra={{ pageData: kelembagaanPageDataForEnco }}>
 			<div className="space-y-6">
 				<div className="flex justify-between items-center">
 					<div>

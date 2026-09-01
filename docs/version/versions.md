@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.20.4`  
+**Current version:** `4.22.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.20.4`](./release/4.20.4.md) | 2026-09-01 | Spyro AI developer profile + Gemini fallback + AI tools audit | PATCH | 1 | **Current** |
+| [`4.22.0`](./release/4.22.0.md) | 2026-09-01 | Enco AI rebrand + Gemini audit + 3D mascot chat | MINOR | 1 | **Current** |
+| [`4.20.4`](./release/4.20.4.md) | 2026-09-01 | Spyro AI developer profile + Gemini fallback + AI tools audit | PATCH | 1 | Released |
 | [`4.20.3`](./release/4.20.3.md) | 2026-08-29 | Berita leaderboard comments + range All + PageVisit TTL 90d | PATCH | 1 | Released |
 | [`4.20.2`](./release/4.20.2.md) | 2026-08-29 | OpenAI multi-key + model rotation | PATCH | 1 | Released |
 | [`4.20.1`](./release/4.20.1.md) | 2026-08-29 | Remove debug instrumentation, verify 4.20.0 proxy end-to-end | PATCH | 2 | Released |

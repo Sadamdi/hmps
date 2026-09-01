@@ -391,7 +391,7 @@
 | ✅ | Artikel detail alias | Redirect ke berita detail |
 | ✅ | Store pricing utilities | `shared/store-pricing.ts`, `store-currency.ts`, `store-discounts.ts` |
 | ✅ | Embed media utils | `shared/mediaUtils.ts`, `embed-default-hosts.ts` |
-| ✅ | Dashboard Spyro context | `shared/dashboard-spyro-context.ts` |
+| ✅ | Dashboard Enco context | `shared/dashboard-enco-context.ts` |
 | ✅ | Frontend route inventory | Documented in feature docs |
 | ✅ | Frontend auth guards | ProtectedRoute, permission guard hook |
 | ✅ | Dashboard shell components | Sidebar, navbar, layout |

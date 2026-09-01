@@ -1,2 +1,4 @@
 # Bash di VPS Linux: CRLF merusak `set -o pipefail` dan shebang
 *.sh text eol=lf
+# Blender source assets (large binaries)
+attached_assets/3d/**/*.blend filter=lfs diff=lfs merge=lfs -text

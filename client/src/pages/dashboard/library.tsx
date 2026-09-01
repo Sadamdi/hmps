@@ -42,7 +42,7 @@ import {
 	getMediaDisplayTypeForSlot,
 	normalizeLibraryImageUrl,
 } from '@/lib/library-display';
-import { buildLibrarySpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildLibraryEncoPageData } from '@shared/dashboard-enco-context';
 import { useMemo, useState } from 'react';
 
 interface LibraryItem {
@@ -113,9 +113,9 @@ export default function DashboardLibrary() {
 
 	const requestOnly = !hasRolePermission && !hasSharedAccess;
 
-	const libraryPageDataForSpyro = useMemo(
+	const libraryPageDataForEnco = useMemo(
 		() =>
-			buildLibrarySpyroPageData({
+			buildLibraryEncoPageData({
 				permissionsLoading: isPermissionLoading,
 				requestOnly,
 				activeTab,
@@ -306,7 +306,7 @@ export default function DashboardLibrary() {
 	}
 
 	return (
-		<DashboardLayout title="Galeri" pageContextExtra={{ pageData: libraryPageDataForSpyro }}>
+		<DashboardLayout title="Galeri" pageContextExtra={{ pageData: libraryPageDataForEnco }}>
 			<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-4">
 				<h1 className="text-2xl font-bold">
 					{requestOnly ? 'Ajukan Akses Galeri' : 'Galeri Media'}

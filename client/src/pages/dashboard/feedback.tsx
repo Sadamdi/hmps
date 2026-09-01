@@ -74,7 +74,7 @@ import {
 	XCircle,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { buildSimpleSpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
 import type {
 	FeedbackItem,
 	FeedbackFormConfig,
@@ -1109,9 +1109,9 @@ export default function FeedbackPage() {
 		onError: () => toast({ title: 'Gagal menghapus', variant: 'destructive' }),
 	});
 
-	const feedbackPageDataForSpyro = useMemo(() => {
+	const feedbackPageDataForEnco = useMemo(() => {
 		if (!user || isPermLoading) {
-			return buildSimpleSpyroPageData(
+			return buildSimpleEncoPageData(
 				'feedback',
 				'feedback.permissions_loading',
 				'Memuat izin atau sesi untuk moderasi saran & kritik.',
@@ -1122,7 +1122,7 @@ export default function FeedbackPage() {
 			replyDialogOpen || deleteDialogOpen || decisionDialogOpen
 				? ' Dialog moderasi (balasan/hapus/keputusan) terbuka.'
 				: '';
-		return buildSimpleSpyroPageData(
+		return buildSimpleEncoPageData(
 			'feedback',
 			'feedback.main',
 			`Moderasi masukan pengunjung.${dialogHint} Filter aktif: ${filterSummary}. Tab: ${activeTab}.`,
@@ -1142,7 +1142,7 @@ export default function FeedbackPage() {
 
 	if (!user || isPermLoading) {
 		return (
-			<DashboardLayout title="Saran & Kritik" pageContextExtra={{ pageData: feedbackPageDataForSpyro }}>
+			<DashboardLayout title="Saran & Kritik" pageContextExtra={{ pageData: feedbackPageDataForEnco }}>
 				<div className="flex items-center justify-center h-64">
 					<Loader2 className="h-6 w-6 animate-spin" />
 				</div>
@@ -1156,7 +1156,7 @@ export default function FeedbackPage() {
 	const counts = countData?.counts || {};
 
 	return (
-		<DashboardLayout title="Saran & Kritik" pageContextExtra={{ pageData: feedbackPageDataForSpyro }}>
+		<DashboardLayout title="Saran & Kritik" pageContextExtra={{ pageData: feedbackPageDataForEnco }}>
 			<Tabs value={activeTab} onValueChange={setActiveTab}>
 				<TabsList className="mb-4 flex-wrap h-auto gap-1">
 					<TabsTrigger value="list">Daftar feedback</TabsTrigger>

@@ -76,7 +76,7 @@ import {
 	Trash2,
 	Upload,
 } from 'lucide-react';
-import { buildTokoSpyroPageData } from '@shared/dashboard-spyro-context';
+import { buildTokoEncoPageData } from '@shared/dashboard-enco-context';
 import {
 	effectiveProductCurrency,
 	formatAmountForInput,
@@ -884,9 +884,9 @@ export default function DashboardToko() {
 		};
 	}, [s]);
 
-	const tokoPageDataForSpyro = useMemo(
+	const tokoPageDataForEnco = useMemo(
 		() =>
-			buildTokoSpyroPageData({
+			buildTokoEncoPageData({
 				permissionsLoading: accessLoading,
 				canManage,
 				activeTab: tokoTab,
@@ -902,7 +902,7 @@ export default function DashboardToko() {
 
 	if (accessLoading || !access?.canOpenDashboard) {
 		return (
-			<DashboardLayout title="Toko" pageContextExtra={{ pageData: tokoPageDataForSpyro }}>
+			<DashboardLayout title="Toko" pageContextExtra={{ pageData: tokoPageDataForEnco }}>
 				<div className="flex justify-center py-20">
 					<Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
 				</div>
@@ -911,7 +911,7 @@ export default function DashboardToko() {
 	}
 
 	return (
-		<DashboardLayout title="Toko" pageContextExtra={{ pageData: tokoPageDataForSpyro }}>
+		<DashboardLayout title="Toko" pageContextExtra={{ pageData: tokoPageDataForEnco }}>
 			<div className="space-y-6 max-w-6xl mx-auto px-4 py-6">
 				<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 					<div>

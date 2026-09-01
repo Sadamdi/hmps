@@ -1,9 +1,9 @@
 /**
- * Metadata UI untuk Spyro AI (pageContext.pageData).
+ * Metadata UI untuk Enco AI (pageContext.pageData).
  * Hanya nilai JSON-serializable (string, number, boolean, null, array datar).
  */
 
-export type DashboardSpyroModule =
+export type DashboardEncoModule =
 	| 'events'
 	| 'berita'
 	| 'library'
@@ -19,7 +19,7 @@ export type DashboardSpyroModule =
 	| 'toko';
 
 /** Lokasi halaman dalam satu modul (URL sering tetap /dashboard/...). */
-export type DashboardSpyroSurface =
+export type DashboardEncoSurface =
 	| 'events.permissions_loading'
 	| 'events.year_list'
 	| 'events.year_events_root'
@@ -52,9 +52,9 @@ export type DashboardSpyroSurface =
 	| 'toko.tab_categories'
 	| 'toko.product_editor_open';
 
-export type DashboardSpyroPageData = {
-	module: DashboardSpyroModule;
-	surface: DashboardSpyroSurface;
+export type DashboardEncoPageData = {
+	module: DashboardEncoModule;
+	surface: DashboardEncoSurface;
 	/** Penjelasan satu baris untuk model */
 	summary?: string;
 	requestOnly?: boolean;
@@ -79,13 +79,13 @@ export type DashboardSpyroPageData = {
 	editingProductSummary?: string;
 };
 
-export function buildLibrarySpyroPageData(input: {
+export function buildLibraryEncoPageData(input: {
 	permissionsLoading: boolean;
 	requestOnly: boolean;
 	activeTab: string;
 	isUploaderOpen: boolean;
 	editingItem: { title?: string } | null;
-}): DashboardSpyroPageData {
+}): DashboardEncoPageData {
 	if (input.permissionsLoading) {
 		return {
 			module: 'library',
@@ -112,12 +112,12 @@ export function buildLibrarySpyroPageData(input: {
 	};
 }
 
-export function buildUsersSpyroPageData(input: {
+export function buildUsersEncoPageData(input: {
 	permissionsLoading: boolean;
 	isUserDialogOpen: boolean;
 	editingUser: { name?: string; username?: string } | null;
 	selectedRoleFilter: string;
-}): DashboardSpyroPageData {
+}): DashboardEncoPageData {
 	if (input.permissionsLoading) {
 		return {
 			module: 'users',
@@ -143,14 +143,14 @@ export function buildUsersSpyroPageData(input: {
 	};
 }
 
-export function buildEventsSpyroPageData(input: {
+export function buildEventsEncoPageData(input: {
 	requestOnly: boolean;
 	manageEnabled: boolean;
 	permissionsLoading: boolean;
 	selectedYearId: string | null;
 	selectedYear: { _id: string; year: number } | null | undefined;
 	selectedParentEvent: { _id: string; title: string } | null;
-}): DashboardSpyroPageData {
+}): DashboardEncoPageData {
 	if (input.permissionsLoading) {
 		return {
 			module: 'events',
@@ -194,13 +194,13 @@ export function buildEventsSpyroPageData(input: {
 	};
 }
 
-export function buildBeritaSpyroPageData(input: {
+export function buildBeritaEncoPageData(input: {
 	permissionsLoading: boolean;
 	requestOnly: boolean;
 	isEditorOpen: boolean;
 	editingBerita: { _id?: string; title?: string } | null;
 	activeTab: string;
-}): DashboardSpyroPageData {
+}): DashboardEncoPageData {
 	if (input.permissionsLoading) {
 		return {
 			module: 'berita',
@@ -236,12 +236,12 @@ export function buildBeritaSpyroPageData(input: {
 	};
 }
 
-export function buildSimpleSpyroPageData(
-	module: DashboardSpyroModule,
-	surface: DashboardSpyroSurface,
+export function buildSimpleEncoPageData(
+	module: DashboardEncoModule,
+	surface: DashboardEncoSurface,
 	summary: string,
 	extras?: Record<string, unknown>,
-): DashboardSpyroPageData {
+): DashboardEncoPageData {
 	return {
 		module,
 		surface,
@@ -250,14 +250,14 @@ export function buildSimpleSpyroPageData(
 	};
 }
 
-export function buildTokoSpyroPageData(input: {
+export function buildTokoEncoPageData(input: {
 	permissionsLoading: boolean;
 	canManage: boolean;
 	activeTab: string;
 	productDialogOpen: boolean;
 	editingProductId: string | null;
 	editingProductName?: string;
-}): DashboardSpyroPageData {
+}): DashboardEncoPageData {
 	if (input.permissionsLoading) {
 		return {
 			module: 'toko',
@@ -266,7 +266,7 @@ export function buildTokoSpyroPageData(input: {
 		};
 	}
 	const tab = input.activeTab;
-	const surface: DashboardSpyroSurface = input.productDialogOpen
+	const surface: DashboardEncoSurface = input.productDialogOpen
 		? 'toko.product_editor_open'
 		: tab === 'settings'
 			? 'toko.tab_settings'
