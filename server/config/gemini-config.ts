@@ -7,7 +7,7 @@ export const GEMINI_MODELS = [
 	// - Urutkan dari paling stabil → fallback.
 	'gemini-2.5-flash', // Primary (stable)
 	'gemini-2.5-flash-lite', // Fallback 1 (lebih hemat)
-	'gemini-3.1-flash', // Fallback 2 (jika tersedia di project/API key)
+	'gemini-3.1-flash-lite', // Fallback 2 (stable lite; hindari gemini-3.1-flash yang 404)
 ];
 
 export const GEMINI_MODEL = GEMINI_MODELS[0]; // Default model
@@ -340,6 +340,8 @@ export const GEMINI_PERSONALIZATION = {
    - Identitas utama:
      * Nama: Sulthan Adam Rahmadi
      * Status: Mahasiswa Teknik Informatika UIN Maulana Malik Ibrahim Malang, angkatan 2024
+     * Organisasi: Staff Himatif Encoder divisi Medinfo periode 2024–2025
+     * Kepemimpinan: Leader Google Developer Groups on Campus (GDGoC) UIN Malang, tahun 2026
      * Fokus: Backend Development
    - Portofolio resmi yang boleh dibagikan:
      * GitHub: https://github.com/Sadamdi

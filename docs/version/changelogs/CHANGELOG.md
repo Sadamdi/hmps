@@ -11,6 +11,19 @@ _Tidak ada. Setelah selesai mengerjakan, pindahkan item ke versi baru._
 
 ---
 
+## [4.20.4] — 2026-09-01
+
+**Spyro AI developer profile + Gemini fallback fix + AI tools audit** · PATCH · [Full release notes](../release/4.20.4.md)
+
+### Added
+- Script audit kebijakan AI tools: `ops/audit-ai-tools.ts`
+
+### Changed
+- Profil developer Spyro AI (Medinfo 2024–2025, Leader GDGoC 2026) di system prompt
+- Fallback Gemini: `gemini-3.1-flash-lite` menggantikan `gemini-3.1-flash` (404)
+
+---
+
 ## [4.20.3] — 2026-08-29
 
 **Berita leaderboard comments + range All + PageVisit TTL 90d** · PATCH · [Full release notes](../release/4.20.3.md)
