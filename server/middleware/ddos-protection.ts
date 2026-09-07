@@ -207,6 +207,13 @@ function shouldSkipConcurrentSlot(path: string, method: string): boolean {
 	if (method !== 'GET' && method !== 'HEAD') return false;
 	if (path === '/api/notifications/webpush/vapid-key') return true;
 	if (path === '/api/health' || path === '/health') return true;
+	if (path === '/api/settings') return true;
+	if (path === '/api/home-images/active') return true;
+	if (path === '/api/berita') return true;
+	if (path === '/api/events/active-home') return true;
+	if (path === '/api/stats') return true;
+	if (path === '/api/organization/periods') return true;
+	if (path === '/api/store/public/settings') return true;
 	return false;
 }
 

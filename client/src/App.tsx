@@ -82,7 +82,7 @@ function Router() {
 		return compact.endsWith('/') ? compact.slice(0, -1) : compact;
 	};
 	const { data: storeNavSettings, isLoading: storePathLoading } = useQuery<{ navbarPath?: string }>({
-		queryKey: ['/api/store/public/settings', 'router-store-path'],
+		queryKey: ['/api/store/public/settings'],
 		queryFn: async () => {
 			const res = await fetch('/api/store/public/settings', { credentials: 'include' });
 			if (!res.ok) return { navbarPath: '/toko' };

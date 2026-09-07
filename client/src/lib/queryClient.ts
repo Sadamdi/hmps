@@ -13,6 +13,20 @@ function isProtectedDashboardPath(pathname: string): boolean {
 	return /^\/dashboard(?:\/|$)/.test(pathname) || /^\/[a-zA-Z0-9_-]+\/dashboard(?:\/|$)/.test(pathname);
 }
 
+/** Status HTTP dari Error `apiRequest` / queryFn: `"503: …"` */
+export function getHttpStatusFromError(error: unknown): number | null {
+	if (!(error instanceof Error)) return null;
+	const m = /^(\d{3}):/.exec(error.message);
+	if (!m) return null;
+	const code = Number(m[1]);
+	return Number.isFinite(code) ? code : null;
+}
+
+function isTransientHttpError(error: unknown): boolean {
+	const status = getHttpStatusFromError(error);
+	return status === 429 || status === 502 || status === 503 || status === 504;
+}
+
 async function throwIfResNotOk(res: Response) {
 	if (!res.ok) {
 		let text = res.statusText;
@@ -104,10 +118,15 @@ export const queryClient = new QueryClient({
 			queryFn: getQueryFn({ on401: 'throw' }),
 			refetchInterval: false,
 			refetchOnWindowFocus: false,
-			refetchOnMount: false,
+			// Remount setelah gagal (navigasi) boleh coba lagi; sukses tetap staleTime
+			refetchOnMount: true,
 			staleTime: 60000,
 			gcTime: 5 * 60 * 1000,
-			retry: false,
+			retry: (failureCount, error) => {
+				if (!isTransientHttpError(error)) return false;
+				return failureCount < 2;
+			},
+			retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 4000),
 		},
 		mutations: {
 			retry: false,

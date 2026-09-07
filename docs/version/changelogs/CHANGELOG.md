@@ -11,6 +11,16 @@ _Tidak ada._
 
 ---
 
+## [4.22.5] — 2026-09-07
+
+**Fix intermittent empty home data on first load** · PATCH · [Full release notes](../release/4.22.5.md)
+
+### Fixed
+- Cold load: retry 429/503 + error UI home; Nginx API limit_conn 32; SSE zone terpisah
+- Dedup home-images / store-settings; hero tidak blok intro saat fetch gagal
+
+---
+
 ## [4.22.4] — 2026-09-07
 
 **Fix false-positive DDoS concurrent 503** · PATCH · [Full release notes](../release/4.22.4.md)

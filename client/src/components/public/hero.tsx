@@ -140,7 +140,8 @@ export default function Hero({
 		enabled: !isPreview,
 	});
 
-	const { data: _homeImages } = useQuery<HomeImagesData>({
+	const { data: _homeImages, isFetched: homeImagesFetched, isError: homeImagesError } =
+		useQuery<HomeImagesData>({
 		queryKey: ['/api/home-images/active'],
 		staleTime: 30 * 1000,
 		refetchOnWindowFocus: false,
@@ -222,7 +223,8 @@ export default function Hero({
 		[homeImages?.people, versionSuffix],
 	);
 
-	const dataReady = !!homeImages;
+	// Jangan blok intro selamanya kalau fetch gagal — pakai fallback DEFAULT
+	const dataReady = isPreview || !!homeImages || homeImagesFetched || homeImagesError;
 
 	const combinedAssetUrls = useMemo(() => {
 		if (desktopMode !== 'combined') return [];

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
+import { queryClient } from '@/lib/queryClient';
 
 const LOAD_SESSION_KEY = 'app-loaded';
 const CRITICAL_ASSETS = [
@@ -15,6 +16,12 @@ function wasLoadedThisSession() {
 		return false;
 	}
 }
+
+type ActiveHomeImages = {
+	desktopMode?: 'bennerfull' | 'combined';
+	banners?: Record<string, string>;
+	people?: Record<string, string>;
+};
 
 export function useAppLoading() {
 	const [isLoading, setIsLoading] = useState(() => !wasLoadedThisSession());
@@ -43,25 +50,19 @@ export function useAppLoading() {
 
 				CRITICAL_ASSETS.forEach((src) => imagePromises.push(decodeImage(src)));
 
-				// Preload active combined assets (banner + people) agar sinkron dengan hero intro.
+				// Dedup dengan Hero: pakai React Query cache key yang sama
 				try {
-					const response = await fetch('/api/home-images/active', {
-						signal: AbortSignal.timeout(5000),
+					const active = await queryClient.fetchQuery<ActiveHomeImages>({
+						queryKey: ['/api/home-images/active'],
+						staleTime: 30 * 1000,
 					});
-					if (response.ok) {
-						const active = await response.json() as {
-							desktopMode?: 'bennerfull' | 'combined';
-							banners?: Record<string, string>;
-							people?: Record<string, string>;
-						};
-						if (active?.desktopMode === 'combined') {
-							const urls = new Set<string>();
-							Object.values(active?.banners || {}).forEach((u) => u && urls.add(u));
-							Object.values(active?.people || {}).forEach((u) => {
-								if (typeof u === 'string' && u) urls.add(u);
-							});
-							urls.forEach((url) => imagePromises.push(decodeImage(url)));
-						}
+					if (active?.desktopMode === 'combined') {
+						const urls = new Set<string>();
+						Object.values(active?.banners || {}).forEach((u) => u && urls.add(u));
+						Object.values(active?.people || {}).forEach((u) => {
+							if (typeof u === 'string' && u) urls.add(u);
+						});
+						urls.forEach((url) => imagePromises.push(decodeImage(url)));
 					}
 				} catch {
 					// ignore fetch errors here; loader will still wait for local critical assets
