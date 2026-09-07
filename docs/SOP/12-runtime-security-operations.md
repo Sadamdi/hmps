@@ -30,9 +30,15 @@ File: `server/middleware/ddos-protection.ts`.
 - Defaults: `DDOS_MAX_CONCURRENT_PER_IP=120`, `DDOS_MAX_CONCURRENT_PER_DEVICE=64` (env override).
 - Slot release must use `finish` + `close` with single-release guard — early returns after acquire must not leak counters.
 - Sweep every 5 minutes clears stuck concurrent maps (do **not** use `Date.now() % interval === 0`).
-- Lightweight SPA GETs (e.g. `GET /api/notifications/webpush/vapid-key`, health) may skip **concurrent slot only**; tier rate limits still apply.
+- Lightweight SPA GETs (vapid-key, health, settings, home-images, berita, events/active-home, stats, organization/periods, store/public/settings) may skip **concurrent slot only**; tier rate limits still apply.
 - Concurrent 503 is anti-abuse, **not** API openness. Access control remains in `api-protection.ts` (Origin/Referer/auth) + JWT/permission on routes.
 - Symptom of false-positive: one browser profile hits 503 while another profile/device works — often many tabs/DevTools + leaked counters until restart/sweep.
+
+### First-load SPA empty sections
+
+- Cold home load fires many parallel `/api/*` GETs. Nginx `limit_conn` / `limit_req` too tight → intermittent 503 → React Query with `retry: false` showed empty UI.
+- Client: retry transient 429/502/503/504; home sections must show error+retry, not “Belum ada data”.
+- Nginx (repo `nginx-himatif-encoder.conf`): API `limit_conn` ~32, rate ~20r/s; SSE `/api/notifications/stream` uses separate `hmps_conn_sse` zone. **Reload nginx on server after deploy** (`nginx -t && systemctl reload nginx`) — auto-deploy app does not always reload nginx.
 
 ## Scheduler & Backup Rules
 

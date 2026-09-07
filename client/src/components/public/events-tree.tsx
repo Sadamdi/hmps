@@ -17,6 +17,7 @@ import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState 
 import { Link } from 'wouter';
 import { toSlug } from '@/utils/slug';
 import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
+import { QuerySectionError } from '@/components/public/query-section-error';
 
 const BASE_SPEED_PPS = 100;
 const EASING_K = 3;
@@ -337,7 +338,7 @@ export default function EventsTree({
 	const registeredNodesRef = useRef<Map<string, HTMLDivElement>>(new Map());
 	const nodeLayoutsRef = useRef<Map<string, NodeLayout>>(new Map());
 
-	const { data, isLoading } = useQuery<HomeEventsResponse>({
+	const { data, isLoading, isError, isFetching, refetch } = useQuery<HomeEventsResponse>({
 		queryKey: ['/api/events/active-home'],
 		staleTime: 30 * 1000,
 	});
@@ -656,6 +657,29 @@ export default function EventsTree({
 							<Skeleton key={i} className="w-40 h-24 rounded-xl flex-shrink-0" />
 						))}
 					</div>
+				</div>
+			</section>
+		);
+	}
+
+	if (isError) {
+		return (
+			<section ref={sectionRef} className="py-16 px-4" id="events">
+				<div className="max-w-7xl mx-auto">
+					<PublicSectionHeader
+						eyebrow="Event"
+						icon={<Calendar />}
+						title="Event"
+						description="Kegiatan dan acara sepanjang tahun"
+						className="mb-6"
+					/>
+					<QuerySectionError
+						message="Gagal memuat event. Coba muat ulang section ini."
+						onRetry={() => {
+							void refetch();
+						}}
+						isRetrying={isFetching}
+					/>
 				</div>
 			</section>
 		);

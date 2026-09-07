@@ -6,6 +6,7 @@ import {
 	getDivisionFromPosition,
 } from '@/lib/org-structure-division';
 import { apiRequest } from '@/lib/queryClient';
+import { QuerySectionError } from '@/components/public/query-section-error';
 import { useTenant } from '@/lib/tenant-context';
 import { usePublicBrand } from '@/hooks/use-public-brand';
 import { Pagination } from '@/components/ui/pagination';
@@ -311,14 +312,20 @@ export default function Structure() {
 	const members = Array.isArray(membersData) ? membersData : [];
 
 	// Fetch organization periods
-	const { data: periods = [], isLoading: periodsLoading } = useQuery({
+	const {
+		data: periodsData,
+		isLoading: periodsLoading,
+		isError: periodsError,
+		isFetching: periodsFetching,
+		refetch: refetchPeriods,
+	} = useQuery({
 		queryKey: [scope, '/api/organization/periods'],
 		queryFn: async () => {
 			const response = await apiRequest('GET', '/api/organization/periods');
 			return response.json();
 		},
-		placeholderData: [],
 	});
+	const periods = Array.isArray(periodsData) ? periodsData : [];
 
 	// Fetch positions for sorting
 	const { data: positionsData = [], isLoading: positionsLoading } = useQuery({
@@ -687,7 +694,19 @@ export default function Structure() {
 					className="mb-8"
 				/>
 
+				{periodsError ? (
+					<QuerySectionError
+						message="Gagal memuat struktur organisasi. Coba lagi."
+						onRetry={() => {
+							void refetchPeriods();
+						}}
+						isRetrying={periodsFetching}
+					/>
+				) : null}
+
 				{/* Period and Division Selector */}
+				{!periodsError ? (
+				<>
 				<div
 					className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-8"
 					data-aos="fade-up"
@@ -866,8 +885,10 @@ export default function Structure() {
 						</TabsContent>
 					</Tabs>
 				)}
+				</>
+				) : null}
 
-				{isHomeEmbedded && (
+				{isHomeEmbedded && !periodsError && (
 					<div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
 						{activeView === 'flow' ? (
 							<a

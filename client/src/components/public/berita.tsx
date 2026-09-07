@@ -20,6 +20,7 @@ import { PublicSectionHeader } from '@/components/public/section-header';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 import { apiRequest } from '@/lib/queryClient';
+import { QuerySectionError } from '@/components/public/query-section-error';
 import { useQuery } from '@tanstack/react-query';
 import { Calendar, FileText, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -62,7 +63,13 @@ export default function BeritaList() {
 	const [showAll, setShowAll] = useState(false);
 	const [isMobile, setIsMobile] = useState(false);
 	const { ref: headingRef, isVisible: headingVisible } = useRevealAnimation();
-	const { data: beritaList = [], isLoading } = useQuery<BeritaItem[]>({
+	const {
+		data: beritaList,
+		isLoading,
+		isError,
+		isFetching,
+		refetch,
+	} = useQuery<BeritaItem[]>({
 		queryKey: ['/api/berita'],
 		queryFn: async () => {
 			const response = await apiRequest('GET', '/api/berita?page=1&limit=12');
@@ -71,9 +78,9 @@ export default function BeritaList() {
 				| PaginatedResponse<BeritaItem>;
 			return Array.isArray(payload) ? payload : payload.data;
 		},
-		placeholderData: [],
 		staleTime: 60 * 1000,
 	});
+	const items = beritaList ?? [];
 
 	useEffect(() => {
 		const checkIsMobile = () => {
@@ -88,8 +95,8 @@ export default function BeritaList() {
 	const maxCount = isMobile ? 8 : 12;
 
 	const displayedBerita = showAll
-		? beritaList.slice(0, maxCount)
-		: beritaList.slice(0, initialCount);
+		? items.slice(0, maxCount)
+		: items.slice(0, initialCount);
 
 	const getBeritaUrl = (item: BeritaItem) => {
 		if (item.slug) return `/berita/${item.slug}`;
@@ -148,7 +155,15 @@ export default function BeritaList() {
 					description={`Kabar terkini dari ${siteName}`}
 				/>
 
-				{beritaList.length === 0 ? (
+				{isError ? (
+					<QuerySectionError
+						message="Gagal memuat berita. Periksa koneksi lalu coba lagi."
+						onRetry={() => {
+							void refetch();
+						}}
+						isRetrying={isFetching}
+					/>
+				) : items.length === 0 ? (
 					<div className="text-center py-12 text-muted-foreground">
 						Belum ada berita yang dipublikasikan
 					</div>
@@ -300,9 +315,9 @@ export default function BeritaList() {
 							})}
 						</div>
 
-						{(beritaList.length > initialCount || showAll) && (
+						{(items.length > initialCount || showAll) && (
 							<div className="text-center mt-8 sm:mt-12">
-								{beritaList.length > initialCount && (
+								{items.length > initialCount && (
 									<Button
 										onClick={() => setShowAll(!showAll)}
 										variant="outline"
