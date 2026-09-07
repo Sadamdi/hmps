@@ -22,6 +22,18 @@ SOP ini berlaku untuk middleware security, rate limit, cache, scheduler, backup/
 - Load shedding must return safe responses under pressure.
 - Tenant resolver must not trust client-supplied tenant context.
 
+### DDoS concurrent connection limits
+
+File: `server/middleware/ddos-protection.ts`.
+
+- Counters are **in-flight requests** per IP and per device fingerprint (`UA|Accept-Language|Accept-Encoding|IP`), not TCP sockets.
+- Defaults: `DDOS_MAX_CONCURRENT_PER_IP=120`, `DDOS_MAX_CONCURRENT_PER_DEVICE=64` (env override).
+- Slot release must use `finish` + `close` with single-release guard — early returns after acquire must not leak counters.
+- Sweep every 5 minutes clears stuck concurrent maps (do **not** use `Date.now() % interval === 0`).
+- Lightweight SPA GETs (e.g. `GET /api/notifications/webpush/vapid-key`, health) may skip **concurrent slot only**; tier rate limits still apply.
+- Concurrent 503 is anti-abuse, **not** API openness. Access control remains in `api-protection.ts` (Origin/Referer/auth) + JWT/permission on routes.
+- Symptom of false-positive: one browser profile hits 503 while another profile/device works — often many tabs/DevTools + leaked counters until restart/sweep.
+
 ## Scheduler & Backup Rules
 
 1. Backup jobs must be idempotent and log safe metadata only.

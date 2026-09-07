@@ -11,6 +11,16 @@ _Tidak ada._
 
 ---
 
+## [4.22.4] — 2026-09-07
+
+**Fix false-positive DDoS concurrent 503** · PATCH · [Full release notes](../release/4.22.4.md)
+
+### Fixed
+- Leak concurrent counter (early return sebelum `finish`) + sweep 5 menit yang tidak pernah jalan
+- Default device concurrent 48 → 64; skip slot untuk vapid-key/health GET
+
+---
+
 ## [4.22.3] — 2026-09-02
 
 **Enco portrait avatar for chat UI** · PATCH · [Full release notes](../release/4.22.3.md)

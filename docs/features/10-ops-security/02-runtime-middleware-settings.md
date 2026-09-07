@@ -116,6 +116,7 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 | Tenant | Middleware settings are main-site only |
 | Master toggle | `allEnabled === false` disables protected modules that check it |
 | Cache | Updating settings clears API protection cache + public rate-limit settings cache |
+| DDoS concurrent | See SOP 12 — device fingerprint limit (`DDOS_MAX_CONCURRENT_PER_DEVICE`); fix leak via finish/close; 503 ≠ open API |
 
 ---
 

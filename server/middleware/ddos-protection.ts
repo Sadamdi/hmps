@@ -154,8 +154,12 @@ const MAX_CONCURRENT_CONNECTIONS_PER_IP = envInt(
 );
 const MAX_CONCURRENT_CONNECTIONS_PER_DEVICE = envInt(
 	'DDOS_MAX_CONCURRENT_PER_DEVICE',
-	48,
+	64,
 );
+
+/** Interval sweep counter stuck/leak (cleanupDdosData jalan tiap 1 menit). */
+const CONNECTION_SWEEP_INTERVAL_MS = 5 * 60 * 1000;
+let lastConnectionSweepAt = 0;
 
 // Special rate limits untuk sensitive endpoints
 const MAX_LOGIN_ATTEMPTS_PER_IP = 10;
@@ -194,6 +198,56 @@ const blockedDevices = new Map<string, { blockUntil: number; tier: number }>();
 
 const activeConnectionsByIP = new Map<string, number>();
 const activeConnectionsByDevice = new Map<string, number>();
+
+/**
+ * Path ringan yang sering di-burst FE saat load SPA — skip concurrent slot saja.
+ * Tier rate-limit / bot / suspicious tetap berlaku.
+ */
+function shouldSkipConcurrentSlot(path: string, method: string): boolean {
+	if (method !== 'GET' && method !== 'HEAD') return false;
+	if (path === '/api/notifications/webpush/vapid-key') return true;
+	if (path === '/api/health' || path === '/health') return true;
+	return false;
+}
+
+function decrementConnectionMap(map: Map<string, number>, key: string) {
+	const n = map.get(key) || 0;
+	if (n <= 1) {
+		map.delete(key);
+	} else {
+		map.set(key, n - 1);
+	}
+}
+
+/**
+ * Ambil slot concurrent + pastikan release sekali di finish/close
+ * (termasuk early return setelah acquire — mencegah leak counter).
+ */
+function acquireConcurrentSlot(
+	res: Response,
+	clientIP: string,
+	deviceId: string,
+): void {
+	activeConnectionsByIP.set(
+		clientIP,
+		(activeConnectionsByIP.get(clientIP) || 0) + 1,
+	);
+	activeConnectionsByDevice.set(
+		deviceId,
+		(activeConnectionsByDevice.get(deviceId) || 0) + 1,
+	);
+
+	let released = false;
+	const release = () => {
+		if (released) return;
+		released = true;
+		decrementConnectionMap(activeConnectionsByIP, clientIP);
+		decrementConnectionMap(activeConnectionsByDevice, deviceId);
+	};
+
+	res.once('finish', release);
+	res.once('close', release);
+}
 
 // Special tracking untuk sensitive endpoints
 const loginAttemptsByIP = new Map<
@@ -645,43 +699,47 @@ export const ddosProtectionMiddleware = async (
 		}
 
 		// ==================== CONCURRENT CONNECTION LIMITING ====================
-		const currentIPConnections = activeConnectionsByIP.get(clientIP) || 0;
-		const currentDeviceConnections =
-			activeConnectionsByDevice.get(deviceId) || 0;
+		const skipConcurrent = shouldSkipConcurrentSlot(path, method);
+		if (!skipConcurrent) {
+			const currentIPConnections = activeConnectionsByIP.get(clientIP) || 0;
+			const currentDeviceConnections =
+				activeConnectionsByDevice.get(deviceId) || 0;
 
-		if (currentIPConnections >= MAX_CONCURRENT_CONNECTIONS_PER_IP) {
-			console.log(
-				`🚨 DDoS Protection: Too many concurrent connections from IP ${clientIP}`,
-			);
-			return sendBeautifulError(
-				res,
-				503,
-				'Service Temporarily Unavailable',
-				'Too many concurrent connections from your IP address. Please try again later.',
-				{
-					maxConnections: MAX_CONCURRENT_CONNECTIONS_PER_IP,
-				},
-			);
+			if (currentIPConnections >= MAX_CONCURRENT_CONNECTIONS_PER_IP) {
+				console.log(
+					`🚨 DDoS Protection: Too many concurrent connections from IP ${clientIP} (count=${currentIPConnections}, path=${path})`,
+				);
+				return sendBeautifulError(
+					res,
+					503,
+					'Service Temporarily Unavailable',
+					'Too many concurrent connections from your IP address. Please try again later.',
+					{
+						maxConnections: MAX_CONCURRENT_CONNECTIONS_PER_IP,
+					},
+				);
+			}
+
+			if (currentDeviceConnections >= MAX_CONCURRENT_CONNECTIONS_PER_DEVICE) {
+				console.log(
+					`🚨 DDoS Protection: Too many concurrent connections from device ${deviceId} (count=${currentDeviceConnections}, path=${path})`,
+				);
+				return sendBeautifulError(
+					res,
+					503,
+					'Service Temporarily Unavailable',
+					'Too many concurrent connections from your device. Please try again later.',
+					{
+						maxConnections: MAX_CONCURRENT_CONNECTIONS_PER_DEVICE,
+						deviceId,
+						path,
+					},
+				);
+			}
+
+			// Acquire + register finish/close release sebelum early returns di bawah
+			acquireConcurrentSlot(res, clientIP, deviceId);
 		}
-
-		if (currentDeviceConnections >= MAX_CONCURRENT_CONNECTIONS_PER_DEVICE) {
-			console.log(
-				`🚨 DDoS Protection: Too many concurrent connections from device ${deviceId}`,
-			);
-			return sendBeautifulError(
-				res,
-				503,
-				'Service Temporarily Unavailable',
-				'Too many concurrent connections from your device. Please try again later.',
-				{
-					maxConnections: MAX_CONCURRENT_CONNECTIONS_PER_DEVICE,
-				},
-			);
-		}
-
-		// Increment connection counts
-		activeConnectionsByIP.set(clientIP, currentIPConnections + 1);
-		activeConnectionsByDevice.set(deviceId, currentDeviceConnections + 1);
 
 		// ==================== SENSITIVE ENDPOINT PROTECTION ====================
 		// Login attempts tracking
@@ -798,19 +856,7 @@ export const ddosProtectionMiddleware = async (
 			);
 		}
 
-		// ==================== CLEANUP ON RESPONSE END ====================
-		res.on('finish', () => {
-			// Decrement connection counts
-			const ipConnections = activeConnectionsByIP.get(clientIP) || 0;
-			const deviceConnections = activeConnectionsByDevice.get(deviceId) || 0;
-
-			if (ipConnections > 0) {
-				activeConnectionsByIP.set(clientIP, ipConnections - 1);
-			}
-			if (deviceConnections > 0) {
-				activeConnectionsByDevice.set(deviceId, deviceConnections - 1);
-			}
-		});
+		// Concurrent release sudah di-register di acquireConcurrentSlot (finish + close).
 
 		// ==================== TIER 2/3 BARU (blok penuh per IP atau per device) ====================
 		// Check Tier 3 first (highest priority)
@@ -980,8 +1026,18 @@ export const cleanupDdosData = () => {
 		}
 	}
 
-	// Cleanup connection counts (reset every 5 minutes)
-	if (now % (5 * 60 * 1000) === 0) {
+	// Sweep concurrent maps tiap 5 menit (bukan now % 300000 — hampir tidak pernah true).
+	// Hapus entry 0/negatif; clear penuh untuk pulihkan dari leak historis.
+	if (now - lastConnectionSweepAt >= CONNECTION_SWEEP_INTERVAL_MS) {
+		lastConnectionSweepAt = now;
+		for (const [key, n] of Array.from(activeConnectionsByIP.entries())) {
+			if (n <= 0) activeConnectionsByIP.delete(key);
+		}
+		for (const [key, n] of Array.from(activeConnectionsByDevice.entries())) {
+			if (n <= 0) activeConnectionsByDevice.delete(key);
+		}
+		// Soft reset: clear stuck counters agar false-positive multi-tab tidak permanen
+		// sampai restart PM2. Rate-tier / blockedIPs tidak disentuh.
 		activeConnectionsByIP.clear();
 		activeConnectionsByDevice.clear();
 	}
@@ -990,16 +1046,26 @@ export const cleanupDdosData = () => {
 // ==================== STATISTICS FUNCTION ====================
 export const getDdosStats = () => {
 	const now = Date.now();
+	const ipConnValues = Array.from(activeConnectionsByIP.values());
+	const deviceConnValues = Array.from(activeConnectionsByDevice.values());
+	const maxDeviceConcurrent =
+		deviceConnValues.length > 0 ? Math.max(...deviceConnValues) : 0;
+	const maxIpConcurrent =
+		ipConnValues.length > 0 ? Math.max(...ipConnValues) : 0;
+
 	const stats = {
 		totalIPs: tier1RequestCountsByIP.size,
 		totalDevices: tier1RequestCountsByDevice.size,
-		activeConnectionsByIP: Array.from(activeConnectionsByIP.values()).reduce(
-			(a, b) => a + b,
-			0,
-		),
-		activeConnectionsByDevice: Array.from(
-			activeConnectionsByDevice.values(),
-		).reduce((a, b) => a + b, 0),
+		activeConnectionsByIP: ipConnValues.reduce((a, b) => a + b, 0),
+		activeConnectionsByDevice: deviceConnValues.reduce((a, b) => a + b, 0),
+		maxConcurrentPerIp: maxIpConcurrent,
+		maxConcurrentPerDevice: maxDeviceConcurrent,
+		concurrentLimits: {
+			perIp: MAX_CONCURRENT_CONNECTIONS_PER_IP,
+			perDevice: MAX_CONCURRENT_CONNECTIONS_PER_DEVICE,
+		},
+		trackedIpKeys: activeConnectionsByIP.size,
+		trackedDeviceKeys: activeConnectionsByDevice.size,
 		topIPs: [] as Array<{ ip: string; requests: number }>,
 		topDevices: [] as Array<{ deviceId: string; requests: number }>,
 		loginAttempts: loginAttemptsByIP.size,
