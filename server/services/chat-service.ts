@@ -344,6 +344,77 @@ export class ChatService {
 		return stalls || generic || longWithoutTool;
 	}
 
+	/**
+	 * Cek apakah user jelas-jelas minta data spesifik dari database publik.
+	 * Pattern: "cari/list/tampilkan berita|event|organisasi|... dari database"
+	 * Digunakan untuk force tool baca publik saat model over-explaining.
+	 */
+	private static looksLikeUserWantsPublicRead(content: string): boolean {
+		const lower = content.toLowerCase();
+		const patterns = [
+			/\b(cari|carikan|cariin|tampilkan|tunjukin|list|listkan|lihat|lihatkan)\b.*\b(berita|event|kegiatan|acara|artikel|lomba|workshop|seminar|kajian|galeri|library|perpustakaan|dokumentasi|struktur|organisasi|pengurus|visi|misi|profil|dosen|kurikulum)\b/,
+			/\b(berita|event|kegiatan|acara|artikel|lomba|workshop|seminar|kajian|galeri|library|perpustakaan|dokumentasi|struktur|organisasi|pengurus|visi|misi|profil|dosen|kurikulum)\b.*\b(dari database|dari sistem|dari hmps|dari himatif|dari website|dari situs|dari portal)\b/,
+			/\b(pra\s*statik|prastatik|pra\s*raker|praraker|statik|raker|upgrading|maulid|isra|porak)\b/,
+		];
+		return patterns.some((p) => p.test(lower));
+	}
+
+	/**
+	 * Retry paksa untuk tool baca publik (search_berita, search_events, dll.)
+	 * ketika user jelas-jelas minta data spesifik dari database tapi model
+	 * over-explaining tanpa memanggil tool.
+	 */
+	private static shouldForceReadToolRetry(
+		responseText: string,
+		usedToolNames: string[],
+		allowedTools: Record<string, unknown>[],
+		userContent: string
+	): boolean {
+		// Sudah pakai tool baca? Jangan retry.
+		const readTools = [
+			'search_berita',
+			'search_events',
+			'search_library_items',
+			'get_organization_structure',
+			'get_berita_detail',
+			'get_event_detail',
+			'get_library_items',
+			'get_visi_misi',
+			'get_profil_info',
+			'get_prodi_info',
+			'get_dashboard_stats',
+			'get_dashboard_berita_list',
+			'get_dashboard_events_list',
+			'get_dashboard_library_list',
+			'get_dashboard_store_products',
+		];
+		if (usedToolNames.some((n) => readTools.includes(n))) return false;
+		if (!this.looksLikeUserWantsPublicRead(userContent)) return false;
+		// Tool baca publik minimal ada?
+		const hasReadTool = allowedTools.some((t) => {
+			const name = String((t as any)?.name || '');
+			return readTools.includes(name);
+		});
+		if (!hasReadTool) return false;
+		const lower = (responseText || '').toLowerCase();
+		const genericPatterns = [
+			'ada yang bisa saya bantu',
+			'silakan beri tahu',
+			'saya bisa membantu',
+			'selamat datang',
+			'anda berada di halaman',
+			'cara menggunakan',
+			'cara mencari',
+			'telusuri daftar',
+			'gunakan kolom pencarian',
+			'beri tahu apa yang',
+			'🔍',
+		];
+		const generic = genericPatterns.some((p) => lower.includes(p));
+		const longWithoutTool = (responseText || '').length > 240;
+		return generic || longWithoutTool;
+	}
+
 	private static shouldForceWebToolRetry(
 		responseText: string,
 		usedToolNames: string[],
@@ -762,6 +833,40 @@ export class ChatService {
 					currentModel = retryResult.modelName;
 				}
 			} else if (
+				this.shouldForceReadToolRetry(
+					responseText,
+					openAiResult.usedToolNames,
+					allowedTools,
+					content
+				)
+			) {
+				// User minta data spesifik dari database publik, tapi model over-explaining
+				// tanpa memanggil tool baca publik. Retry dengan instruksi eksplisit.
+				const retryInstruction =
+					'INSTRUKSI TAMBAHAN WAJIB: User meminta data spesifik dari database publik (mis. cari/list berita, event, organisasi, dll). Pada turn ini WAJIB panggil tool baca publik yang relevan (search_berita / search_events / search_library_items / get_organization_structure / get_visi_misi / get_profil_info / get_prodi_info) PADA TURN INI dengan keyword yang sesuai dari pesan user. Jangan over-explaining/berikan menu/sapaan. Setelah tool berhasil, jawab dengan ringkasan data dan sebut slug/path publik yang siap diklik. JANGAN menulis paragraf niat/promise.';
+				const retryHistory: Content[] = [
+					...history,
+					{ role: 'user', parts: [{ text: retryInstruction }] },
+				];
+				const retryResult = await runOpenAiChat({
+					history: retryHistory,
+					tools: allowedTools,
+					executeTool: (name, args) => executeToolCall(
+						name,
+						args,
+						permissions || [],
+						authUserId,
+						pagePath,
+						tenantDbName,
+						isTenantContext
+					),
+					onStep,
+				});
+				if (retryResult.ok) {
+					responseText = retryResult.responseText;
+					currentModel = retryResult.modelName;
+				}
+			} else if (
 				(this.shouldForceWriteToolRetry(
 					responseText,
 					openAiResult.usedToolNames,
@@ -855,6 +960,35 @@ export class ChatService {
 					) {
 						const retryInstruction =
 							'INSTRUKSI TAMBAHAN WAJIB: Jawaban Anda sebelumnya belum memadai karena belum menggunakan tool web. Sekarang WAJIB panggil internet_search lalu WAJIB panggil fetch_website_content pada hasil yang paling relevan, kemudian berikan jawaban final dengan menyebut sumber URL secara eksplisit.';
+						const retryHistory: Content[] = [
+							...history,
+							{ role: 'user', parts: [{ text: retryInstruction }] },
+						];
+						const retryResult = await this.runGeminiAgenticLoop(
+							gemini,
+							retryHistory,
+							permissions,
+							authUserId,
+							pagePath,
+							geminiTools,
+							tenantDbName,
+							isTenantContext,
+							onStep
+						);
+						if (retryResult.ok) {
+							responseText = retryResult.responseText;
+							currentModel = retryResult.modelName;
+						}
+					} else if (
+						this.shouldForceReadToolRetry(
+							responseText,
+							loopResult.usedToolNames,
+							allowedTools,
+							content
+						)
+					) {
+						const retryInstruction =
+							'INSTRUKSI TAMBAHAN WAJIB: User meminta data spesifik dari database publik (mis. cari/list berita, event, organisasi, dll). Pada turn ini WAJIB panggil tool baca publik yang relevan (search_berita / search_events / search_library_items / get_organization_structure / get_visi_misi / get_profil_info / get_prodi_info) PADA TURN INI dengan keyword yang sesuai dari pesan user. Jangan over-explaining/berikan menu/sapaan. Setelah tool berhasil, jawab dengan ringkasan data dan sebut slug/path publik yang siap diklik. JANGAN menulis paragraf niat/promise.';
 						const retryHistory: Content[] = [
 							...history,
 							{ role: 'user', parts: [{ text: retryInstruction }] },
