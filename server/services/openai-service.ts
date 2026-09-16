@@ -62,13 +62,22 @@ export type OpenAiChatResult = OpenAiChatSuccess | OpenAiChatFailure;
 
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 /**
- * Default model fallback order kalau `OPENAI_MODELS` env TIDAK di-set.
- * `minimax-m3` adalah default utama Enco (konsisten dengan model kerja cache).
- * Lalu GLM-5.3 sebagai fallback kedua, dst.
+ * Default model fallback order kalau `OPENAI_MODELS` env TIDAKdi-set.
+ *
+ * Order dipilih dari pengujian live 2026-09-16:
+ *   - `glm-5.3`, `glm-5.3-flash`, `glm-5.2`, `deepseek-v4-pro`, `gpt-5.5`
+ *     berhasil memanggil `search_berita` saat user minta data DB publik.
+ *   - `minimax-m3` (default sebelumnya) konsisten over-explaining tanpa
+ *     tool call pada query baca spesifik → dipindah ke akhir sebagai
+ *     fallback terakhir, bukan default.
  */
 const DEFAULT_OPENAI_MODELS = [
-	'phantom/vibecode/minimax-m3',
 	'phantom/vibecode/glm-5.3',
+	'phantom/vibecode/glm-5.3-flash',
+	'tokitoV2/glm/glm-5.2',
+	'phantom/vibecode/deepseek-v4-pro',
+	'phantom/vibecode/gpt-5.5',
+	'phantom/vibecode/minimax-m3',
 	'auto',
 ];
 const OPENAI_CACHE_FILE = path.join(process.cwd(), 'openai-working.json');
