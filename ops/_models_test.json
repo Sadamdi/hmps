@@ -1,0 +1,154 @@
+[
+  {
+    "model": "auto",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/glm-5.3",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/glm-5.3-flash",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/glm-5.2",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/deepseek-v4-pro",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/deepseek-v4-flash-0731",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/minimax-m3",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": false,
+    "error": "",
+    "text_first": "Saya cari dulu beritanya ya.  "
+  },
+  {
+    "model": "phantom/vibecode/gpt-5.5",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/gpt-6-astra",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/gpt-5.6-sol",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/gpt-5.6-terra",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/gpt-5.6-luna",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/claude-opus-4.8",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "phantom/vibecode/claude-sonnet-4.6",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": false,
+    "error": "",
+    "text_first": "Saya carikan berita tentang \"pra-statik 2025\" untuk kamu."
+  },
+  {
+    "model": "phantom/vibecode/claude-haiku-4.5",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": false,
+    "error": "",
+    "text_first": ""
+  },
+  {
+    "model": "tokitoV2/gemini/gemini-3.1-flash-lite-preview",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "tokitoV2/gemini/gemini-3-flash-preview",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  },
+  {
+    "model": "tokitoV2/gemini/gemma-4-31b-it",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": false,
+    "error": "",
+    "text_first": ""
+  },
+  {
+    "model": "tokitoV2/gcli/grok-4.6",
+    "http": "",
+    "elapsed": "",
+    "has_tool_call": true,
+    "error": "",
+    "text_first": "tool=search_berita"
+  }
+]

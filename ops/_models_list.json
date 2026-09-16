@@ -1,0 +1,21 @@
+[
+  "auto",
+  "phantom/vibecode/glm-5.3",
+  "phantom/vibecode/glm-5.3-flash",
+  "phantom/vibecode/glm-5.2",
+  "phantom/vibecode/deepseek-v4-pro",
+  "phantom/vibecode/deepseek-v4-flash-0731",
+  "phantom/vibecode/minimax-m3",
+  "phantom/vibecode/gpt-5.5",
+  "phantom/vibecode/gpt-6-astra",
+  "phantom/vibecode/gpt-5.6-sol",
+  "phantom/vibecode/gpt-5.6-terra",
+  "phantom/vibecode/gpt-5.6-luna",
+  "phantom/vibecode/claude-opus-4.8",
+  "phantom/vibecode/claude-sonnet-4.6",
+  "phantom/vibecode/claude-haiku-4.5",
+  "tokitoV2/gemini/gemini-3.1-flash-lite-preview",
+  "tokitoV2/gemini/gemini-3-flash-preview",
+  "tokitoV2/gemini/gemma-4-31b-it",
+  "tokitoV2/gcli/grok-4.6"
+]
