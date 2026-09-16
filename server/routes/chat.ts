@@ -11,6 +11,12 @@ import { authenticateOptional } from '../auth';
 import { Chat } from '../models/chat';
 import { mongoStorage } from '../mongo-storage';
 import { getPublisherDisplayName } from '../user-display';
+import {
+	stepFromToolName,
+	summarizeUsedToolsAsSteps,
+	planningStep,
+} from '../services/ai-agent-progress';
+import type { AgentStep } from '../services/ai-agent-progress';
 import type { Request } from 'express';
 
 function resolveStorage(req: Request): any {
@@ -172,7 +178,7 @@ router.get('/history', async (req, res) => {
 	}
 });
 
-// Mengirim pesan baru
+// Mengirim pesan baru — versi streaming SSE (Server-Sent Events) untuk progress agent.
 router.post(
 	'/message',
 	chatLimiter,
@@ -181,6 +187,54 @@ router.post(
 	authenticateOptional,
 	upload.single('image'),
 	async (req, res) => {
+		// Setup SSE headers up-front (sebelum kerja berat).
+		// Express middleware sebelumnya sudah boleh tulis response kalau blocking;
+		// kita gunakan try/catch & defensive `res.headersSent` check.
+		try {
+			res.status(200);
+			res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+			res.setHeader('Cache-Control', 'no-cache, no-transform');
+			res.setHeader('Connection', 'keep-alive');
+			res.setHeader('X-Accel-Buffering', 'no');
+			res.flushHeaders?.();
+			// Emit planning step awal
+			const initStep: AgentStep = planningStep('Menyiapkan langkah berikutnya');
+			res.write(`event: step\n`);
+			res.write(`data: ${JSON.stringify({ step: initStep })}\n\n`);
+		} catch {
+			/* ignore header setup errors */
+		}
+
+		// Heartbeat supaya proxy / browser tidak memutus koneksi yang lama
+		const heartbeat = setInterval(() => {
+			try {
+				if (res.writableEnded) return;
+				res.write(`: ping\n\n`);
+			} catch {
+				/* ignore */
+			}
+		}, 15000);
+
+		const finish = (status: number, payload: unknown) => {
+			clearInterval(heartbeat);
+			if (res.writableEnded) return;
+			if (status >= 400) {
+				try {
+					res.status(status).json(payload);
+				} catch {
+					/* ignore */
+				}
+				return;
+			}
+			try {
+				res.write(`event: done\n`);
+				res.write(`data: ${JSON.stringify(payload)}\n\n`);
+				res.end();
+			} catch {
+				/* ignore */
+			}
+		};
+
 		try {
 			const userId = req.cookies.userId || uuidv4();
 			const contextScope = getContextScope(req);
@@ -283,17 +337,54 @@ router.post(
 				authUserId,
 				req.tenantDbName,
 				contextScope,
-				fileMimeType
+				fileMimeType,
+				{
+					onStep: (toolName, status) => {
+						try {
+							const step = stepFromToolName(toolName, status);
+							res.write(`event: step\n`);
+							res.write(
+								`data: ${JSON.stringify({ step })}\n\n`
+							);
+							// express flush hint for chunked responses
+							const sock: any = (res as any).socket;
+							if (sock && typeof sock.flushHeaders === 'function') {
+								try {
+									sock.flushHeaders();
+								} catch {
+									/* ignore */
+								}
+							}
+						} catch {
+							/* never break the loop because of progress emit */
+						}
+					},
+				}
 			);
 			// Remove sensitive data before sending response
 			const { apiKeySlot, apiKey, ...safeChat } = updatedChat.toObject() as any;
 			if (Array.isArray(safeChat.messages)) {
 				safeChat.messages = sanitizeChatMessagesForClient(safeChat.messages);
 			}
-			res.json({ chat: safeChat });
+			finish(200, { chat: safeChat });
+			return;
 		} catch (error) {
 			console.error('Error sending message:', error);
-			res.status(500).json({ error: 'Internal server error' });
+			try {
+				res.write(`event: error\n`);
+				res.write(
+					`data: ${JSON.stringify({
+						error: 'Internal server error',
+						message:
+							error instanceof Error
+								? error.message
+								: 'Unknown error',
+					})}\n\n`
+				);
+				res.end();
+			} catch {
+				/* ignore */
+			}
 		}
 	}
 );

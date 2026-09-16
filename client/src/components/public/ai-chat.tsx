@@ -284,6 +284,15 @@ interface Message {
 	linkActions?: ExternalLinkAction[];
 }
 
+/** Step progress agent dari server (SSE). Aman untuk FE — server sudah sanitasi. */
+interface AgentStep {
+	id: string;
+	label: string;
+	status: 'planning' | 'running' | 'done' | 'error' | 'skipped';
+	detail?: string;
+	ts: string;
+}
+
 interface ChatSummary {
 	_id: string;
 	createdAt: string;
@@ -331,6 +340,8 @@ export default function AIChat({ pageContext }: AIChatProps) {
 	const [pendingNav, setPendingNav] = useState<NavAction | null>(null);
 	const [pendingExternalLink, setPendingExternalLink] =
 		useState<ExternalLinkAction | null>(null);
+	/** Daftar step progress agent dari server (SSE). Kosong saat tidak loading. */
+	const [agentSteps, setAgentSteps] = useState<AgentStep[]>([]);
 	/** Tawaran redirect terakhir dari AI — bisa dikonfirmasi lewat teks (ya/oke) tanpa klik tombol. */
 	const [navOfferWaitingConfirm, setNavOfferWaitingConfirm] = useState<
 		NavAction[] | null
@@ -522,6 +533,61 @@ export default function AIChat({ pageContext }: AIChatProps) {
 		}
 	};
 
+	// ──────────────── SSE helpers ────────────────
+
+	/**
+	 * Parser SSE minimal: membaca 1 chunk yang diakhiri `\n\n` (1 event)
+	 * dan mengembalikan `{ event, data }`. Comment lines (`:` diawal) diabaikan.
+	 */
+	function parseSseEvent(chunk: string): { event: string; data: any } | null {
+		const lines = chunk.split(/\r?\n/);
+		let eventName = 'message';
+		const dataLines: string[] = [];
+		for (const ln of lines) {
+			if (!ln) continue;
+			if (ln.startsWith(':')) continue;
+			if (ln.startsWith('event:')) {
+				eventName = ln.slice(6).trim() || 'message';
+			} else if (ln.startsWith('data:')) {
+				dataLines.push(ln.slice(5).trim());
+			}
+		}
+		if (!dataLines.length) return null;
+		const rawData = dataLines.join('\n');
+		try {
+			return { event: eventName, data: JSON.parse(rawData) };
+		} catch {
+			return { event: eventName, data: rawData };
+		}
+	}
+
+	function upsertAgentStep(prev: AgentStep[], step: AgentStep): AgentStep[] {
+		const idx = prev.findIndex((s) => s.id === step.id);
+		if (idx >= 0) {
+			const next = prev.slice();
+			next[idx] = step;
+			return next;
+		}
+		return [...prev, step];
+	}
+
+	function StepStatusDot({ status }: { status: AgentStep['status'] }) {
+		const cls =
+			status === 'done'
+				? 'bg-emerald-400'
+				: status === 'error'
+					? 'bg-red-400'
+					: status === 'running'
+						? 'bg-cyan-400 animate-pulse'
+						: 'bg-amber-300';
+		return (
+			<span
+				className={`mt-1 inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${cls}`}
+				aria-label={status}
+			/>
+		);
+	}
+
 	const handleInputChange = (
 		e: React.ChangeEvent<HTMLTextAreaElement>
 	) => {
@@ -619,6 +685,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 		setImageFile(null);
 		setImagePreview(null);
 		setIsLoading(true);
+		setAgentSteps([]);
 
 		try {
 			let response;
@@ -654,15 +721,21 @@ export default function AIChat({ pageContext }: AIChatProps) {
 					JSON.stringify(effectiveContext)
 				);
 				if (activeChatId) formData.append('chatId', activeChatId);
+				// Penting: EventSource tidak bisa kirim FormData; pakai fetch + ReadableStream.
+				// Untuk path with-image tetap fetch + ReadableStream (Content-Type manual).
 				response = await fetch(`${chatApiBase}/message`, {
 					method: 'POST',
 					body: formData,
 					credentials: 'include',
+					headers: { Accept: 'text/event-stream' },
 				});
 			} else {
 				response = await fetch(`${chatApiBase}/message`, {
 					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
+					headers: {
+						'Content-Type': 'application/json',
+						Accept: 'text/event-stream',
+					},
 					body: JSON.stringify({
 						message: userMessage.text,
 						chatId: activeChatId,
@@ -670,6 +743,75 @@ export default function AIChat({ pageContext }: AIChatProps) {
 					}),
 					credentials: 'include',
 				});
+			}
+
+			// Parse SSE stream — biarkan agentSteps update real-time saat tool berjalan.
+			if (
+				response.headers
+					.get('content-type')
+					?.toLowerCase()
+					.includes('text/event-stream')
+			) {
+				const reader = response.body?.getReader();
+				const decoder = new TextDecoder('utf-8');
+				let buffer = '';
+				let finalChat: any = null;
+				while (reader) {
+					const { value, done } = await reader.read();
+					if (done) break;
+					buffer += decoder.decode(value, { stream: true });
+					// Pisahkan per event (dipisah baris kosong)
+					let idx: number;
+					while ((idx = buffer.indexOf('\n\n')) >= 0) {
+						const raw = buffer.slice(0, idx);
+						buffer = buffer.slice(idx + 2);
+						const ev = parseSseEvent(raw);
+						if (!ev) continue;
+						if (ev.event === 'step' && (ev.data as any)?.step) {
+							const step = (ev.data as any).step as AgentStep;
+							setAgentSteps((prev) => upsertAgentStep(prev, step));
+						} else if (ev.event === 'done' && (ev.data as any)?.chat) {
+							finalChat = (ev.data as any).chat;
+						} else if (ev.event === 'error') {
+							throw new Error(
+								(ev.data as any)?.message || 'AI error'
+							);
+						}
+					}
+				}
+				if (!finalChat) {
+					throw new Error('Stream terputus sebelum ada respons.');
+				}
+				setAgentSteps([]);
+				const lastMsg = finalChat?.messages?.at(-1);
+				const botText =
+					lastMsg?.content || 'Maaf, terjadi kesalahan pada AI.';
+				if (finalChat?._id && !activeChatId) {
+					setActiveChatId(finalChat._id);
+					loadChatList();
+				}
+				const { cleanText, navActions, linkActions } =
+					parseMessageActions(botText);
+				const botResponse: Message = {
+					id: (Date.now() + 1).toString(),
+					isBot: true,
+					text: cleanText,
+					timestamp: new Date(),
+					imageUrl: lastMsg?.imageUrl,
+					navActions:
+						navActions.length > 0 ? navActions : undefined,
+					linkActions:
+						linkActions.length > 0 ? linkActions : undefined,
+				};
+				setMessages((prev) => [...prev, botResponse]);
+				if (navActions.length > 0) {
+					lastNavOfferFromBotRef.current = navActions;
+					setNavOfferWaitingConfirm(navActions);
+				} else {
+					lastNavOfferFromBotRef.current = null;
+					setNavOfferWaitingConfirm(null);
+				}
+				return;
 			}
 
 			const data = await response.json();
@@ -994,16 +1136,40 @@ export default function AIChat({ pageContext }: AIChatProps) {
 										/>
 									</svg>
 								</div>
-								<div className="bg-secondary border border-border/50 rounded-xl rounded-tl-none px-3.5 py-3 flex items-center gap-1.5">
-									<span className="w-1.5 h-1.5 rounded-full bg-cyan-400/70 animate-bounce" />
-									<span
-										className="w-1.5 h-1.5 rounded-full bg-cyan-400/70 animate-bounce"
-										style={{ animationDelay: '0.18s' }}
-									/>
-									<span
-										className="w-1.5 h-1.5 rounded-full bg-cyan-400/70 animate-bounce"
-										style={{ animationDelay: '0.36s' }}
-									/>
+								<div className="bg-secondary border border-border/50 rounded-xl rounded-tl-none px-3.5 py-2.5 flex flex-col gap-1.5 min-w-[180px] max-w-[82%]">
+									{agentSteps.length > 0 ? (
+										agentSteps.map((s) => (
+											<div
+												key={s.id}
+												className="flex items-start gap-2 text-[12px] leading-snug text-muted-foreground">
+													<StepStatusDot
+														status={s.status}
+													/>
+													<div className="flex-1 min-w-0">
+														<div className="truncate text-foreground/90">
+															{s.label}
+														</div>
+														{s.detail && (
+															<div className="truncate text-[11px] text-muted-foreground/70">
+																{s.detail}
+															</div>
+														)}
+													</div>
+												</div>
+										))
+									) : (
+										<div className="flex items-center gap-1.5">
+											<span className="w-1.5 h-1.5 rounded-full bg-cyan-400/70 animate-bounce" />
+											<span
+												className="w-1.5 h-1.5 rounded-full bg-cyan-400/70 animate-bounce"
+												style={{ animationDelay: '0.18s' }}
+											/>
+											<span
+												className="w-1.5 h-1.5 rounded-full bg-cyan-400/70 animate-bounce"
+												style={{ animationDelay: '0.36s' }}
+											/>
+										</div>
+									)}
 								</div>
 							</div>
 						)}

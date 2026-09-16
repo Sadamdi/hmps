@@ -37,6 +37,12 @@ type OpenAiChatOptions = {
 		name: string,
 		args: Record<string, unknown>,
 	) => Promise<Record<string, unknown>>;
+	/**
+	 * Optional callback fired setiap kali agent hendak / selesai memanggil tool.
+	 * Dipakai oleh SSE endpoint untuk mengirim progress ke FE.
+	 * (name) → name tool; (status) → 'running' | 'done' | 'error'
+	 */
+	onStep?: (name: string, status: 'running' | 'done' | 'error') => void;
 	maxToolIterations?: number;
 };
 
@@ -55,7 +61,16 @@ type OpenAiChatFailure = {
 export type OpenAiChatResult = OpenAiChatSuccess | OpenAiChatFailure;
 
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
-const DEFAULT_OPENAI_MODELS = ['auto'];
+/**
+ * Default model fallback order kalau `OPENAI_MODELS` env TIDAK di-set.
+ * `minimax-m3` adalah default utama Enco (konsisten dengan model kerja cache).
+ * Lalu GLM-5.3 sebagai fallback kedua, dst.
+ */
+const DEFAULT_OPENAI_MODELS = [
+	'phantom/vibecode/minimax-m3',
+	'phantom/vibecode/glm-5.3',
+	'auto',
+];
 const OPENAI_CACHE_FILE = path.join(process.cwd(), 'openai-working.json');
 const MAX_TOOL_RESULT_CHARS = 4000;
 const GENERIC_FALLBACK_TEXT =
@@ -537,10 +552,18 @@ export async function runOpenAiChat(
 
 					for (const call of toolCalls) {
 						const name = call.function.name;
+						options.onStep?.(name, 'running');
 						const parsedArgs = parseToolArgumentsSafe(call.function.arguments);
-						const result = parsedArgs.ok
-							? await executeTool(name, parsedArgs.args)
-							: { error: parsedArgs.error };
+						let result: Record<string, unknown>;
+						try {
+							result = parsedArgs.ok
+								? await executeTool(name, parsedArgs.args)
+								: { error: parsedArgs.error };
+						} catch (err) {
+							options.onStep?.(name, 'error');
+							throw err;
+						}
+						options.onStep?.(name, 'done');
 						messages.push({
 							role: 'tool',
 							tool_call_id: call.id,

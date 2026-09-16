@@ -11,6 +11,27 @@ _Tidak ada._
 
 ---
 
+## [4.22.7] — 2026-09-16
+
+### Added
+- SSE streaming agent steps di `POST /api/chat/message` — FE menerima event `step` (planning/running/done/error) untuk setiap tool call.
+- `onStep` callback di OpenAI & Gemini agent loop (server-side).
+- Helper `ChatService.shouldHardForceWriteTool()` untuk mendeteksi over-explaining tanpa tool pada aksi tulis.
+- FE `AgentStep` panel + SSE parser minimal di `client/src/components/public/ai-chat.tsx`.
+
+### Changed
+- Default `OPENAI_MODELS` order: `phantom/vibecode/minimax-m3` → `phantom/vibecode/glm-5.3` → `auto` (override via env masih dihormati).
+- System prompt section `10b` (Enco) diluaskan dengan aturan anti-over-explaining & pola langkah eksplisit untuk aksi tulis.
+- `requireTrustedChatOrigin` menerima `Accept: text/event-stream` atau `*/*` (sebelumnya hanya `application/json`).
+
+### Fixed
+- Enco AI berhenti setelah menyatakan niat tanpa memanggil tool tulis (create_berita_draft, create_event, dll.) walaupun permission & Dashboard path sudah benar. Retry sekarang lebih sering terpicu via `shouldHardForceWriteTool` + retry prompt yang lebih eksplisit.
+
+### Security
+- N/A (gate tetap enforce Origin/Referer + Sec-Fetch-Site; SSE hanyalah tambahan Accept header).
+
+---
+
 ## [4.22.6] — 2026-09-16
 
 **Enco agent: lanjut tool + thinking UI + keamanan chat API** · PATCH · [Full release notes](../release/4.22.6.md)
