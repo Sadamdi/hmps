@@ -175,6 +175,13 @@ export const apiProtectionMiddleware = async (
 			secFetchSite === 'same-origin' ||
 			secFetchSite === 'same-site';
 
+		// Chat mutation: harus same-site ATAU trusted Origin (lihat chat-origin-gate).
+		// Middleware chat-origin-gate dipasang di router chat, tapi sebagai safety net
+		// untuk mutasi /api/chat/* kita tolak di sini juga kalau request via address-bar
+		// (bukan fetch JSON) tanpa origin/referer tepercaya.
+		const isChatMutation =
+			method !== 'GET' && path.startsWith('/api/chat');
+
 		// Cek apakah ada authentication header atau session
 		const hasAuth =
 			req.headers.authorization ||
@@ -187,6 +194,23 @@ export const apiProtectionMiddleware = async (
 			req.headers['accept']?.includes('application/json') ||
 			req.headers['x-requested-with'] === 'XMLHttpRequest' ||
 			req.headers['content-type']?.includes('application/json');
+
+		// Chat mutation tanpa bukti same-site / trusted origin ditolak di sini juga
+		// (pengaman kedua selain chat-origin-gate).
+		if (isChatMutation && !isFromFrontend && !hasAuth) {
+			return sendBeautifulApiError(
+				res,
+				403,
+				'API Access Forbidden',
+				'Chat mutations require a trusted frontend origin.',
+				{
+					path: path,
+					method: method,
+					reason: 'chat-mutation-without-trusted-origin',
+					secFetchSite,
+				},
+			);
+		}
 
 		// ALLOW FRONTEND REQUESTS (hanya dari browser situs sendiri / auth)
 		if (isBrowserRequest && (isFromFrontend || hasProperHeaders || hasAuth)) {

@@ -36,6 +36,8 @@ function normalizePathForTenant(pathValue: unknown, tenantSlug?: string): string
 	return `${base}${p === '/' ? '' : p}`;
 }
 import { chatSessionRateLimiter, chatUploadRateLimiter } from '../middleware/public-rate-limit';
+import { chatLimiter } from '../security';
+import { requireTrustedChatOrigin } from '../middleware/chat-origin-gate';
 import { ChatService } from '../services/chat-service';
 dotenv.config();
 
@@ -173,7 +175,9 @@ router.get('/history', async (req, res) => {
 // Mengirim pesan baru
 router.post(
 	'/message',
+	chatLimiter,
 	chatUploadRateLimiter,
+	requireTrustedChatOrigin,
 	authenticateOptional,
 	upload.single('image'),
 	async (req, res) => {
