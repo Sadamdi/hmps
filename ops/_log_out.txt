@@ -1,0 +1,208 @@
+﻿============================================================
+cd /var/www/hmps && git log -1 --oneline && grep '"version"' package.json | head -1
+5229c8d fix: Enco GLB 404 on nginx /assets path (v4.22.2)
+  "version": "4.22.2",
+============================================================
+export NVM_DIR=/root/.nvm; . $NVM_DIR/nvm.sh; pm2 list
+Γçå PM2+ activated | Instance Name: Himatif-EncoderWeb-1711 | Dash: https://app.pm2.io/#/r/4rrox53hwoftw49
+ΓöîΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö¼ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÉ
+Γöé id Γöé name                Γöé namespace   Γöé version Γöé mode    Γöé pid      Γöé uptime Γöé Γå║    Γöé status    Γöé cpu      Γöé mem      Γöé user     Γöé watching Γöé
+Γö£ΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö╝ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöñ
+Γöé 1  Γöé himatif-banner      Γöé default     Γöé 4.22.2  Γöé cluster Γöé 763514   Γöé 7s     Γöé 2    Γöé online    Γöé 0%       Γöé 92.6mb   Γöé root     Γöé disabled Γöé
+Γöé 0  Γöé hmps-app            Γöé default     Γöé 4.22.2  Γöé cluster Γöé 763478   Γöé 8s     Γöé 7    Γöé online    Γöé 0%       Γöé 259.5mb  Γöé root     Γöé disabled Γöé
+Γöé 2  Γöé hmps-auto-deploy    Γöé default     Γöé N/A     Γöé cluster Γöé 1466863  Γöé 11D    Γöé 3    Γöé online    Γöé 0%       Γöé 35.3mb   Γöé root     Γöé disabled Γöé
+ΓööΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓö┤ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÿ
+============================================================
+export NVM_DIR=/root/.nvm; . $NVM_DIR/nvm.sh; pm2 logs hmps-app --lines 80 --nostream 2>&1
+ex using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+0|hmps-app | 2026-09-01T19:33:52: (node:696290) [MONGOOSE] Warning: Duplicate schema index on {"code":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+0|hmps-app | 2026-09-02T01:58:13: (node:755237) [MONGOOSE] Warning: Duplicate schema index on {"slug":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+0|hmps-app | (Use `node --trace-warnings ...` to show where the warning was created)
+0|hmps-app | 2026-09-02T01:58:13: (node:755237) [MONGOOSE] Warning: Duplicate schema index on {"slug":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+0|hmps-app | 2026-09-02T01:58:13: (node:755237) [MONGOOSE] Warning: Duplicate schema index on {"code":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+0|hmps-app | 2026-09-02T02:45:40: (node:763478) [MONGOOSE] Warning: Duplicate schema index on {"slug":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+0|hmps-app | (Use `node --trace-warnings ...` to show where the warning was created)
+0|hmps-app | 2026-09-02T02:45:40: (node:763478) [MONGOOSE] Warning: Duplicate schema index on {"slug":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+0|hmps-app | 2026-09-02T02:45:40: (node:763478) [MONGOOSE] Warning: Duplicate schema index on {"code":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+
+/var/log/hmps-out-0.log last 80 lines:
+0|hmps-app | 2026-09-02T02:37:37: Γ£à DNS Layer: Valid request to himatif-encoder.com/api/gdrive/media-url
+0|hmps-app | 2026-09-02T02:37:37: Γ£à POST /api/gdrive/media-url - 200 (0ms) - IP: 114.10.46.164
+0|hmps-app | 2026-09-02T02:37:37: Folder check result: https://drive.google.com/file/d/1-tZMadYc6-j8z_j2e_s945eMoVah8a2K/view?usp=drivesdk ΓåÆ false
+0|hmps-app | 2026-09-02T02:37:37: Getting metadata for file ID: 1-tZMadYc6-j8z_j2e_s945eMoVah8a2K
+0|hmps-app | 2026-09-02T02:37:37: Γ£à DNS Layer: Valid request to himatif-encoder.com/api/gdrive/media-url
+0|hmps-app | 2026-09-02T02:37:37: Γ£à POST /api/gdrive/media-url - 200 (0ms) - IP: 114.10.46.164
+0|hmps-app | 2026-09-02T02:37:37: Folder check result: https://drive.google.com/file/d/18zMjoKtNRUFUuyLqxD0JYWJcbJU6qxYP/view?usp=drivesdk ΓåÆ false
+0|hmps-app | 2026-09-02T02:37:37: Getting metadata for file ID: 18zMjoKtNRUFUuyLqxD0JYWJcbJU6qxYP
+0|hmps-app | 2026-09-02T02:37:37: Γ£à DNS Layer: Valid request to himatif-encoder.com/api/notifications/stream
+0|hmps-app | 2026-09-02T02:37:37: Γ£à GET /api/notifications/stream - 200 (0ms) - IP: 114.10.46.164
+0|hmps-app | 2026-09-02T02:37:37: [notif-route] stream-connected: {"tenantSlug":"main","userId":null,"hasGuest":true}
+0|hmps-app | 2026-09-02T02:37:37: File metadata retrieved: IMG_2397.mp4 video/mp4
+0|hmps-app | 2026-09-02T02:37:37: 2:37:37 AM [express] POST /api/gdrive/media-url 200 in 332ms :: {"type":"image","url":"https://lh3.gΓÇª
+0|hmps-app | 2026-09-02T02:37:37: File metadata retrieved: bukber 2026.mp4 video/mp4
+0|hmps-app | 2026-09-02T02:37:37: 2:37:37 AM [express] POST /api/gdrive/media-url 200 in 350ms :: {"type":"image","url":"https://lh3.gΓÇª
+0|hmps-app | 2026-09-02T02:37:38: Γ£à DNS Layer: Valid request to himatif-encoder.com/api/chat/all
+0|hmps-app | 2026-09-02T02:37:38: Γ£à GET /api/chat/all - 200 (0ms) - IP: 114.10.46.164
+0|hmps-app | 2026-09-02T02:37:38: 2:37:38 AM [express] GET /api/chat/all 304 in 10ms :: {"chats":[{"_id":"6a971d156d0900b75674792e","cΓÇª
+0|hmps-app | 2026-09-02T02:37:38: Γ£à Anti-Spoofing: Valid request from IP 114.10.46.164 to /404.html
+0|hmps-app | 2026-09-02T02:37:38: Γ£à DNS Layer: Valid request to himatif-encoder.com/404.html
+0|hmps-app | 2026-09-02T02:37:38: Γ£à GET /404.html - 200 (0ms) - IP: 114.10.46.164
+0|hmps-app | 2026-09-02T02:37:38: Γ£à DNS Layer: Valid request to himatif-encoder.com/api/system-errors/report
+0|hmps-app | 2026-09-02T02:37:38: Γ£à POST /api/system-errors/report - 200 (0ms) - IP: 114.10.46.164
+0|hmps-app | 2026-09-02T02:37:38: 2:37:38 AM [express] POST /api/system-errors/report 202 in 3ms :: {"ok":true}
+0|hmps-app | 2026-09-02T02:37:38: Γ£à DNS Layer: Valid request to himatif-encoder.com/api/system-errors/report
+0|hmps-app | 2026-09-02T02:37:38: Γ£à POST /api/system-errors/report - 200 (0ms) - IP: 114.10.46.164
+0|hmps-app | 2026-09-02T02:37:38: 2:37:38 AM [express] POST /api/system-errors/report 202 in 3ms :: {"ok":true}
+0|hmps-app | 2026-09-02T02:38:13: ≡ƒôè DDoS Protection Stats: {
+0|hmps-app |   totalIPs: 1,
+0|hmps-app |   totalDevices: 1,
+0|hmps-app |   activeConnectionsByIP: 3,
+0|hmps-app |   activeConnectionsByDevice: 3,
+0|hmps-app |   topIPs: [ { ip: '114.10.46.164', requests: 58 } ],
+0|hmps-app |   topDevices: [ { deviceId: 'a22bce4aa6443048', requests: 58 } ],
+0|hmps-app |   loginAttempts: 0,
+0|hmps-app |   uploadRequests: 0,
+0|hmps-app |   blockedIPs: 0,
+0|hmps-app |   blockedDevices: 0,
+0|hmps-app |   tier1Stats: { ips: 1, devices: 1 },
+0|hmps-app |   tier2Stats: { ips: 1, devices: 1 },
+0|hmps-app |   tier3Stats: { ips: 7, devices: 7 }
+0|hmps-app | }
+0|hmps-app | 2026-09-02T02:38:13: ≡ƒôè Server Status: Active
+0|hmps-app | 2026-09-02T02:38:13:    - MongoDB Connection: Γ£à Connected
+0|hmps-app | 2026-09-02T02:38:13:    - Server Uptime: Γ£à Running
+0|hmps-app | 2026-09-02T02:38:13:    - Memory Usage: Γ£à Normal
+0|hmps-app | 2026-09-02T02:38:13:    - Request Handling: Γ£à Active
+0|hmps-app | 2026-09-02T02:38:39: [notif-route] stream-disconnected: {"reason":"req-aborted"}
+0|hmps-app | 2026-09-02T02:38:39: [notif-route] stream-disconnected: {"reason":"req-close"}
+0|hmps-app | 2026-09-02T02:38:52: [notif-route] stream-disconnected: {"reason":"req-aborted"}
+0|hmps-app | 2026-09-02T02:38:52: [notif-route] stream-disconnected: {"reason":"req-close"}
+0|hmps-app | 2026-09-02T02:39:00: Γ£à GET / - 200 (0ms) - IP: 2a01:4f8:2200:4246:1234:4321:abdd:1
+0|hmps-app | 2026-09-02T02:39:00: Γ£à GET / - 200 (0ms) - IP: 127.0.0.1
+0|hmps-app | 2026-09-02T02:40:01: Γ£à Anti-Spoofing: Valid request from IP 2a01:4f8:2200:4246:1234:4321:abdd:1 to /404.html
+0|hmps-app | 2026-09-02T02:40:01: Γ£à DNS Layer: Valid request to himatif-encoder.com/404.html
+0|hmps-app | 2026-09-02T02:40:01: Γ£à HEAD /404.html - 200 (0ms) - IP: 2a01:4f8:2200:4246:1234:4321:abdd:1
+0|hmps-app | 2026-09-02T02:40:01: Γ£à HEAD / - 200 (0ms) - IP: 2a01:4f8:2200:4246:1234:4321:abdd:1
+0|hmps-app | 2026-09-02T02:43:13: ≡ƒôè DDoS Protection Stats: {
+0|hmps-app |   totalIPs: 0,
+0|hmps-app |   totalDevices: 0,
+0|hmps-app |   activeConnectionsByIP: 3,
+0|hmps-app |   activeConnectionsByDevice: 3,
+0|hmps-app |   topIPs: [],
+0|hmps-app |   topDevices: [],
+0|hmps-app |   loginAttempts: 0,
+0|hmps-app |   uploadRequests: 0,
+0|hmps-app |   blockedIPs: 0,
+0|hmps-app |   blockedDevices: 0,
+0|hmps-app |   tier1Stats: { ips: 0, devices: 0 },
+0|hmps-app |   tier2Stats: { ips: 3, devices: 3 },
+0|hmps-app |   tier3Stats: { ips: 8, devices: 8 }
+0|hmps-app | }
+0|hmps-app | 2026-09-02T02:43:13: ≡ƒôè Server Status: Active
+0|hmps-app | 2026-09-02T02:43:13:    - MongoDB Connection: Γ£à Connected
+0|hmps-app | 2026-09-02T02:43:13:    - Server Uptime: Γ£à Running
+0|hmps-app | 2026-09-02T02:43:13:    - Memory Usage: Γ£à Normal
+0|hmps-app | 2026-09-02T02:43:13:    - Request Handling: Γ£à Active
+0|hmps-app | 2026-09-02T02:45:40: Connecting to MongoDB (himatifencoderweb.bknrvqs.mongodb.net/himatifwebmain)...
+0|hmps-app | 2026-09-02T02:45:41: Connected to MongoDB database: himatifwebmain
+0|hmps-app | 2026-09-02T02:45:41: [migration] No legacy databaseName_1 index found ΓÇö OK
+============================================================
+export NVM_DIR=/root/.nvm; . $NVM_DIR/nvm.sh; pm2 logs hmps-auto-deploy --lines 40 --nostream 2>&1
+[TAILING] Tailing last 40 lines for [hmps-auto-deploy] process (change the value with --lines option)
+/var/log/hmps-auto-deploy-error-2.log last 40 lines:
+2|hmps-aut |    f88fc68..c0035ab  HEAD -> main
+2|hmps-aut | 2026-08-30T00:45:40: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * branch            main       -> FETCH_HEAD
+2|hmps-aut | 2026-08-31T00:45:38: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * branch            main       -> FETCH_HEAD
+2|hmps-aut | To https://github.com/Sadamdi/hmps.git
+2|hmps-aut |    c0035ab..105269e  HEAD -> main
+2|hmps-aut | 2026-08-31T00:45:43: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * branch            main       -> FETCH_HEAD
+2|hmps-aut | 2026-09-01T12:45:10: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * branch            main       -> FETCH_HEAD
+2|hmps-aut | To https://github.com/Sadamdi/hmps.git
+2|hmps-aut |    105269e..35b960a  HEAD -> main
+2|hmps-aut | 2026-09-01T12:45:14: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * branch            main       -> FETCH_HEAD
+2|hmps-aut | 2026-09-01T18:52:38: From https://github.com/Sadamdi/hmps
+2|hmps-aut |    35b960a..5d809eb  main       -> origin/main
+2|hmps-aut |  * [new tag]         v4.20.4    -> v4.20.4
+2|hmps-aut | 2026-09-01T18:53:44: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * branch            main       -> FETCH_HEAD
+2|hmps-aut | npm warn config production Use `--omit=dev` instead.
+2|hmps-aut | 2026-09-01T19:32:38: From https://github.com/Sadamdi/hmps
+2|hmps-aut |    5d809eb..386a030  main       -> origin/main
+2|hmps-aut | 2026-09-01T19:33:58: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * branch            main       -> FETCH_HEAD
+2|hmps-aut | npm warn config production Use `--omit=dev` instead.
+2|hmps-aut | npm warn deprecated three-mesh-bvh@0.7.8: Deprecated due to three.js version incompatibility. Please use v0.8.0, instead.
+2|hmps-aut | npm warn deprecated uuid@9.0.1: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+2|hmps-aut | 2026-09-01T19:34:09: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * [new tag]         v4.22.0    -> v4.22.0
+2|hmps-aut | 2026-09-02T01:57:09: From https://github.com/Sadamdi/hmps
+2|hmps-aut |    386a030..df25d12  main       -> origin/main
+2|hmps-aut | 2026-09-02T01:58:19: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * branch            main       -> FETCH_HEAD
+2|hmps-aut | npm warn config production Use `--omit=dev` instead.
+2|hmps-aut | 2026-09-02T01:58:38: From https://github.com/Sadamdi/hmps
+2|hmps-aut |  * [new tag]         v4.22.1    -> v4.22.1
+2|hmps-aut | 2026-09-02T02:44:38: From https://github.com/Sadamdi/hmps
+2|hmps-aut |    df25d12..5229c8d  main       -> origin/main
+2|hmps-aut |  * [new tag]         v4.22.2    -> v4.22.2
+
+/var/log/hmps-auto-deploy-out-2.log last 40 lines:
+2|hmps-aut | 2026-09-02T02:43:38: ≡ƒöä Running: bash /var/www/hmps/ops/auto-push-media.sh
+2|hmps-aut | 2026-09-02T02:43:38: [hmps-media-push] Ada media baru/berubah ΓÇö stage aman...
+2|hmps-aut | [hmps-media-push] Cooldown aktif ΓÇö 5 file staged tapi ditahan. Tunggu 36089s lagi untuk commit harian.
+2|hmps-aut | 2026-09-02T02:43:38: Γ£à Success
+2|hmps-aut | 2026-09-02T02:43:38: ≡ƒöä Running: git fetch origin
+2|hmps-aut | 2026-09-02T02:43:38: Γ£à Success
+2|hmps-aut | 2026-09-02T02:43:38: ≡ƒöä Running: git rev-list HEAD..origin/main --count
+2|hmps-aut | 2026-09-02T02:43:38: 0
+2|hmps-aut | 2026-09-02T02:43:38: Γ£à Success
+2|hmps-aut | 2026-09-02T02:43:38: ≡ƒöä Running: git rev-parse HEAD
+2|hmps-aut | 2026-09-02T02:43:38: df25d12d26fef613464b612d69d84d6b20002297
+2|hmps-aut | 2026-09-02T02:43:38: Γ£à Success
+2|hmps-aut | 2026-09-02T02:43:38: Γ£à code + dist in sync
+2|hmps-aut | 2026-09-02T02:44:08: ≡ƒôñ Check / push media production ΓåÆ GitHub...
+2|hmps-aut | 2026-09-02T02:44:08: ≡ƒöä Running: bash /var/www/hmps/ops/auto-push-media.sh
+2|hmps-aut | 2026-09-02T02:44:08: [hmps-media-push] Ada media baru/berubah ΓÇö stage aman...
+2|hmps-aut | [hmps-media-push] Cooldown aktif ΓÇö 5 file staged tapi ditahan. Tunggu 36059s lagi untuk commit harian.
+2|hmps-aut | 2026-09-02T02:44:08: Γ£à Success
+2|hmps-aut | 2026-09-02T02:44:08: ≡ƒöä Running: git fetch origin
+2|hmps-aut | 2026-09-02T02:44:08: Γ£à Success
+2|hmps-aut | 2026-09-02T02:44:08: ≡ƒöä Running: git rev-list HEAD..origin/main --count
+2|hmps-aut | 2026-09-02T02:44:08: 0
+2|hmps-aut | 2026-09-02T02:44:08: Γ£à Success
+2|hmps-aut | 2026-09-02T02:44:08: ≡ƒöä Running: git rev-parse HEAD
+2|hmps-aut | 2026-09-02T02:44:08: df25d12d26fef613464b612d69d84d6b20002297
+2|hmps-aut | 2026-09-02T02:44:08: Γ£à Success
+2|hmps-aut | 2026-09-02T02:44:08: Γ£à code + dist in sync
+2|hmps-aut | 2026-09-02T02:44:38: ≡ƒôñ Check / push media production ΓåÆ GitHub...
+2|hmps-aut | 2026-09-02T02:44:38: ≡ƒöä Running: bash /var/www/hmps/ops/auto-push-media.sh
+2|hmps-aut | 2026-09-02T02:44:38: [hmps-media-push] Ada media baru/berubah ΓÇö stage aman...
+2|hmps-aut | [hmps-media-push] Cooldown aktif ΓÇö 5 file staged tapi ditahan. Tunggu 36029s lagi untuk commit harian.
+2|hmps-aut | 2026-09-02T02:44:38: Γ£à Success
+2|hmps-aut | 2026-09-02T02:44:38: ≡ƒöä Running: git fetch origin
+2|hmps-aut | 2026-09-02T02:44:38: Γ£à Success
+2|hmps-aut | 2026-09-02T02:44:38: ≡ƒöä Running: git rev-list HEAD..origin/main --count
+2|hmps-aut | 2026-09-02T02:44:38: 1
+2|hmps-aut | 2026-09-02T02:44:38: Γ£à Success
+2|hmps-aut | 2026-09-02T02:44:38: ≡ƒåò origin/main ahead by 1
+2|hmps-aut | 2026-09-02T02:44:38: ≡ƒÜÇ Deploy (origin/main ahead by 1) via ops/deploy-server.sh ...
+2|hmps-aut | 2026-09-02T02:44:38: ≡ƒöä Running: bash /var/www/hmps/ops/deploy-server.sh
+============================================================
+curl -s -o /dev/null -w 'HTTP %{http_code}
+' https://himatif-encoder.com/
+HTTP 502
+============================================================
+curl -s -o /dev/null -w 'HTTP %{http_code}
+' http://127.0.0.1:5000/
+HTTP 000
+============================================================
+ls -lh /var/www/hmps/public/assets/mascot/enco.glb 2>&1
+-rw-r--r-- 1 root root 4.7M Sep  2 01:57 /var/www/hmps/public/assets/mascot/enco.glb
+============================================================
+tail -30 /var/www/hmps/logs/*.log 2>/dev/null || tail -30 /root/.pm2/logs/hmps-app-error.log 2>&1
+tail: cannot open '/root/.pm2/logs/hmps-app-error.log' for reading: No such file or directory
