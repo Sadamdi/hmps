@@ -62,7 +62,7 @@ export type OpenAiChatResult = OpenAiChatSuccess | OpenAiChatFailure;
 
 const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
 /**
- * Default model fallback order kalau `OPENAI_MODELS` env TIDAKdi-set.
+ * Default model fallback order kalau `OPENAI_MODELS` env TIDAK di-set.
  *
  * Order dipilih dari pengujian live 2026-09-16:
  *   - `glm-5.3`, `glm-5.3-flash`, `glm-5.2`, `deepseek-v4-pro`, `gpt-5.5`
@@ -70,14 +70,23 @@ const DEFAULT_OPENAI_BASE_URL = 'https://api.openai.com/v1';
  *   - `minimax-m3` (default sebelumnya) konsisten over-explaining tanpa
  *     tool call pada query baca spesifik → dipindah ke akhir sebagai
  *     fallback terakhir, bukan default.
+ *
+ * Catatan: model GLM tidak mendukung input gambar/media. Saat user kirim
+ * gambar (`/api/chat/message` dengan `image`), pipeline akan otomatis
+ * skip ke entry berikutnya yang support multimodal (deepseek/gpt-5.6/claude/
+ * gemini/grok). Logic fallback ada di `pickOpenAiModelForRequest`.
  */
 const DEFAULT_OPENAI_MODELS = [
 	'phantom/vibecode/glm-5.3',
 	'phantom/vibecode/glm-5.3-flash',
-	'tokitoV2/glm/glm-5.2',
+	'phantom/vibecode/deepseek-v4-flash-0731',
 	'phantom/vibecode/deepseek-v4-pro',
-	'phantom/vibecode/gpt-5.5',
-	'phantom/vibecode/minimax-m3',
+	'phantom/vibecode/gpt-5.6-luna',
+	'phantom/vibecode/gpt-5.6-terra',
+	'phantom/vibecode/claude-opus-4.8',
+	'tokitoV2/gemini/gemini-3.1-flash-lite-preview',
+	'tokitoV2/gemini/gemini-3-flash-preview',
+	'tokitoV2/gcli/grok-4.6',
 	'auto',
 ];
 const OPENAI_CACHE_FILE = path.join(process.cwd(), 'openai-working.json');
@@ -243,6 +252,31 @@ function orderOpenAiModels(): string[] {
 	const cached = readCachedModel();
 	if (!cached || !models.includes(cached)) return models;
 	return [cached, ...models.filter((model) => model !== cached)];
+}
+
+/**
+ * Whitelist model yang mendukung input image/multimodal.
+ * Saat ini hanya GLM (5.3/5.3-flash/5.2) yang TIDAK support image —
+ * pipeline otomatis skip ke entry berikutnya untuk request dengan gambar.
+ * Update jika ada model baru yang diketahui tidak support image.
+ */
+const OPENAI_TEXT_ONLY_MODELS = new Set<string>([
+	'phantom/vibecode/glm-5.3',
+	'phantom/vibecode/glm-5.3-flash',
+	'phantom/vibecode/glm-5.2',
+	'tokitoV2/glm/glm-5.2',
+]);
+
+/**
+ * Order model + filter sesuai konteks request (image vs text-only).
+ * Saat ada image di history, lewati model yang tidak support image.
+ */
+function orderOpenAiModelsForRequest(
+	hasImage: boolean,
+): string[] {
+	const all = orderOpenAiModels();
+	if (!hasImage) return all;
+	return all.filter((model) => !OPENAI_TEXT_ONLY_MODELS.has(model));
 }
 
 function normalizeMimeType(mimeType?: string): string {
@@ -438,6 +472,29 @@ export function isGenericOpenAiFallbackText(text: string): boolean {
 	return text.trim() === GENERIC_FALLBACK_TEXT;
 }
 
+/**
+ * Deteksi apakah salah satu pesan dalam list memuat inline image content.
+ * Dipakai untuk skip model yang tidak mendukung multimodal.
+ */
+function hasImageInMessages(
+	messages: OpenAiMessage[],
+): boolean {
+	for (const msg of messages) {
+		if (Array.isArray(msg.content)) {
+			for (const part of msg.content) {
+				if (
+					part &&
+					typeof part === 'object' &&
+					(part as { type?: string }).type === 'image_url'
+				) {
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 function formatOpenAiError(model: string, status: number, body: string): Error {
 	const safeBody = body
 		.replace(/Bearer\s+[^\s"']+/gi, 'Bearer [REDACTED]')
@@ -508,7 +565,8 @@ export async function runOpenAiChat(
 	// Hoisted so we can extend it across iterations and retry rounds.
 	const maxIterations = Math.max(1, Math.min(options.maxToolIterations ?? 8, 16));
 	let lastError: Error | null = null;
-	for (const model of orderOpenAiModels()) {
+	const modelOrder = orderOpenAiModelsForRequest(hasImageInMessages(baseMessages));
+	for (const model of modelOrder) {
 		for (const key of orderOpenAiKeys(apiKeys)) {
 			try {
 				const messages = [...baseMessages];
