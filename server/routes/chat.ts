@@ -209,11 +209,18 @@ router.post(
 		const heartbeat = setInterval(() => {
 			try {
 				if (res.writableEnded) return;
-				res.write(`: ping\n\n`);
+				if (res.headersSent && !res.writableEnded) {
+					res.write(`: ping\n\n`);
+				}
 			} catch {
 				/* ignore */
 			}
 		}, 15000);
+
+		// clear response handler kalau request abort (FE tutup tab / navigasi)
+		req.on('close', () => {
+			clearInterval(heartbeat);
+		});
 
 		const finish = (status: number, payload: unknown) => {
 			clearInterval(heartbeat);
@@ -238,7 +245,7 @@ router.post(
 		try {
 			const userId = req.cookies.userId || uuidv4();
 			const contextScope = getContextScope(req);
-			if (!req.cookies.userId) {
+			if (!req.cookies.userId && !res.headersSent) {
 				res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 			}
 
