@@ -273,6 +273,77 @@ export class ChatService {
 		return true;
 	}
 
+	/**
+	 * Lebih agresif dari `shouldForceWriteToolRetry`:
+	 * Trigger jika:
+	 * - User meminta aksi tulis (intentPatterns match)
+	 * - Tidak ada tool call yang dipakai
+	 * - Tersedia minimal satu write tool
+	 * - Respons terlalu panjang tanpa tool call (over-explaining) ATAU
+	 *   respons singkat menunda ("sebentar", "tunggu", dsb).
+	 *
+	 * Ini menangkap kasus di mana model BUKAN mengumumkan niat tapi malah
+	 * over-explaining generic ("Saya bisa bantu ..."). Untuk user yang
+	 * mengirim perintah langsung ("buatkan berita X"), ini wajib retry.
+	 */
+	private static shouldHardForceWriteTool(
+		responseText: string,
+		usedToolNames: string[],
+		allowedTools: Record<string, unknown>[]
+	): boolean {
+		if (!this.hasWriteToolMentioned(usedToolNames, allowedTools)) return false;
+		// Sudah pakai search/list? Boleh (search → next move create).
+		if (
+			usedToolNames.some((n) =>
+				[
+					'search_berita',
+					'search_events',
+					'search_library_items',
+					'get_organization_structure',
+					'get_berita_detail',
+					'get_event_detail',
+					'get_library_items',
+					'get_visi_misi',
+					'get_profil_info',
+					'get_prodi_info',
+				].includes(n)
+			)
+		) {
+			return false;
+		}
+		const lower = (responseText || '').toLowerCase();
+		// Tunda/dramatisasi tanpa tool
+		const stallPatterns = [
+			'tunggu sebentar',
+			'sebentar ya',
+			'sebentar',
+			'oke, langsung',
+			'baik, langsung',
+			'sip, langsung',
+			'ya, langsung',
+			'saya cek dulu',
+			'saya cari dulu',
+			'cek dulu',
+			'cari dulu',
+		];
+		const stalls = stallPatterns.some((p) => lower.includes(p));
+		// Over-explaining generic greeting tanpa tool
+		const genericPatterns = [
+			'ada yang bisa saya bantu',
+			'silakan beri tahu',
+			'saya bisa membantu',
+			'saya bisa membantu anda',
+			'saya bisa buatkan',
+			'misalnya',
+			'contoh:',
+			'🔧',
+		];
+		const generic = genericPatterns.some((p) => lower.includes(p));
+		// Respons panjang tapi tidak ada tool sama sekali → over-explaining
+		const longWithoutTool = (responseText || '').length > 320 && !stalls;
+		return stalls || generic || longWithoutTool;
+	}
+
 	private static shouldForceWebToolRetry(
 		responseText: string,
 		usedToolNames: string[],
@@ -378,7 +449,8 @@ export class ChatService {
 		pagePath: string | undefined,
 		geminiTools: FunctionDeclarationsTool[],
 		tenantDbName?: string | null,
-		isTenantContext = false
+		isTenantContext = false,
+		onStep?: (name: string, status: 'running' | 'done' | 'error') => void
 	): Promise<GeminiLoopSuccess | GeminiLoopFailure> {
 		let lastError: Error | null = null;
 		let sawQuotaLike = false;
@@ -414,10 +486,10 @@ export class ChatService {
 
 					// tenantDbName: DB tenant komunitas; authUserId: pemilik konten untuk tool tulis
 					const toolResults = await Promise.all(
-						functionCalls.map(async (fc) => ({
-							functionResponse: {
-								name: fc.name,
-								response: await executeToolCall(
+						functionCalls.map(async (fc) => {
+							onStep?.(fc.name, 'running');
+							try {
+								const out = await executeToolCall(
 									fc.name,
 									(fc.args ?? {}) as Record<string, unknown>,
 									permissions || [],
@@ -425,9 +497,16 @@ export class ChatService {
 									pagePath,
 									tenantDbName,
 									isTenantContext
-								),
-							},
-						}))
+								);
+								onStep?.(fc.name, 'done');
+								return {
+									functionResponse: { name: fc.name, response: out },
+								};
+							} catch (err) {
+								onStep?.(fc.name, 'error');
+								throw err;
+							}
+						})
 					);
 
 					contents = [
@@ -486,8 +565,12 @@ export class ChatService {
 		authUserId?: string,
 		tenantDbName?: string | null,
 		contextScope = 'main',
-		fileMimeType?: string
+		fileMimeType?: string,
+		opts?: {
+			onStep?: (name: string, status: 'running' | 'done' | 'error') => void;
+		}
 	) {
+		const onStep = opts?.onStep;
 		let chat;
 		if (chatId) {
 			chat = await Chat.findOne({ _id: chatId, userId, contextScope });
@@ -652,6 +735,7 @@ export class ChatService {
 				tenantDbName,
 				isTenantContext
 			),
+			onStep,
 		});
 		if (openAiResult.ok && !this.isWeakOpenAiResponse(openAiResult.responseText, openAiResult.usedToolNames)) {
 			responseText = openAiResult.responseText;
@@ -671,23 +755,33 @@ export class ChatService {
 						tenantDbName,
 						isTenantContext
 					),
+					onStep,
 				});
 				if (retryResult.ok) {
 					responseText = retryResult.responseText;
 					currentModel = retryResult.modelName;
 				}
 			} else if (
-				this.shouldForceWriteToolRetry(
+				(this.shouldForceWriteToolRetry(
 					responseText,
 					openAiResult.usedToolNames,
 					allowedTools
-				) &&
+				) ||
+				this.shouldHardForceWriteTool(
+					responseText,
+					openAiResult.usedToolNames,
+					allowedTools
+				)) &&
 				this.looksLikeUserWantsWriteAction(content)
 			) {
 				const retryInstruction =
-					'INSTRUKSI TAMBAHAN WAJIB: Pada turn ini Anda baru menyatakan niat menulis tetapi belum memanggil tool. Sekarang WAJIB panggil tool yang relevan (search/list dulu lalu tool tulis seperti create_berita_draft / create_event / create_library_item). Setelah tool berhasil, berikan jawaban final kepada user. Jika memang tidak ada tool tulis yang sesuai izin di konteks saat ini, jawab dengan sopan bahwa akses tulis tidak tersedia dan arahkan ke Dashboard lewat [[NAV:...]].';
+					'INSTRUKSI TAMBAHAN WAJIB: Pada turn ini Anda baru menyatakan niat menulis atau over-explaining tanpa memanggil tool. Sekarang WAJIB panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item / create_store_product) PADA TURN INI, tanpa basa-basi tambahan. Jika perlu konteks, panggil search/list dulu, lalu LANGSUNG panggil tool tulis. Setelah tool tulis berhasil, berikan jawaban final ringkas kepada user. JANGAN menuliskan paragraf niat/promise lagi.';
+				const retryHistory: Content[] = [
+					...history,
+					{ role: 'user', parts: [{ text: retryInstruction }] },
+				];
 				const retryResult = await runOpenAiChat({
-					history: [...history, { role: 'user', parts: [{ text: retryInstruction }] }],
+					history: retryHistory,
 					tools: allowedTools,
 					executeTool: (name, args) => executeToolCall(
 						name,
@@ -698,6 +792,7 @@ export class ChatService {
 						tenantDbName,
 						isTenantContext
 					),
+					onStep,
 				});
 				if (retryResult.ok) {
 					responseText = retryResult.responseText;
@@ -743,7 +838,8 @@ export class ChatService {
 					pagePath,
 					geminiTools,
 					tenantDbName,
-					isTenantContext
+					isTenantContext,
+					onStep
 				);
 
 				if (loopResult.ok) {
@@ -771,22 +867,28 @@ export class ChatService {
 							pagePath,
 							geminiTools,
 							tenantDbName,
-							isTenantContext
+							isTenantContext,
+							onStep
 						);
 						if (retryResult.ok) {
 							responseText = retryResult.responseText;
 							currentModel = retryResult.modelName;
 						}
 					} else if (
-						this.shouldForceWriteToolRetry(
+						(this.shouldForceWriteToolRetry(
 							responseText,
 							loopResult.usedToolNames,
 							allowedTools
-						) &&
+						) ||
+						this.shouldHardForceWriteTool(
+							responseText,
+							loopResult.usedToolNames,
+							allowedTools
+						)) &&
 						this.looksLikeUserWantsWriteAction(content)
 					) {
 						const retryInstruction =
-							'INSTRUKSI TAMBAHAN WAJIB: Pada turn ini Anda baru menyatakan niat menulis tetapi belum memanggil tool. Sekarang WAJIB panggil tool yang relevan (search/list dulu lalu tool tulis seperti create_berita_draft / create_event / create_library_item). Setelah tool berhasil, berikan jawaban final kepada user. Jika memang tidak ada tool tulis yang sesuai izin di konteks saat ini, jawab dengan sopan bahwa akses tulis tidak tersedia dan arahkan ke Dashboard lewat [[NAV:...]].';
+							'INSTRUKSI TAMBAHAN WAJIB: Pada turn ini Anda baru menyatakan niat menulis atau over-explaining tanpa memanggil tool. Sekarang WAJIB panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item / create_store_product) PADA TURN INI, tanpa basa-basi tambahan. Jika perlu konteks, panggil search/list dulu, lalu LANGSUNG panggil tool tulis. Setelah tool tulis berhasil, berikan jawaban final ringkas kepada user. JANGAN menuliskan paragraf niat/promise lagi.';
 						const retryHistory: Content[] = [
 							...history,
 							{ role: 'user', parts: [{ text: retryInstruction }] },
@@ -799,7 +901,8 @@ export class ChatService {
 							pagePath,
 							geminiTools,
 							tenantDbName,
-							isTenantContext
+							isTenantContext,
+							onStep
 						);
 						if (retryResult.ok) {
 							responseText = retryResult.responseText;

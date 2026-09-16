@@ -42,10 +42,13 @@ export function requireTrustedChatOrigin(
 		// 3. Browser fetch (cors navigation form) biasanya juga membawa
 		//    Accept: application/json atau Sec-Fetch-Mode=cors. Tanpa salah satu pun,
 		//    tolak.
+		//    SSE perlu Accept: text/event-stream (atau */* + Sec-Fetch-Mode=cors).
 		const accept = String(req.headers['accept'] || '');
 		const looksLikeBrowserFetch =
 			(secFetchMode === 'cors' || secFetchMode === 'navigate' || secFetchMode === 'no-cors') ||
-			accept.includes('application/json');
+			accept.includes('application/json') ||
+			accept.includes('text/event-stream') ||
+			accept.includes('*/*');
 
 		const ok = isSameSite || trustedFromOrigin;
 
