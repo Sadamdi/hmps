@@ -11,6 +11,25 @@ _Tidak ada._
 
 ---
 
+## [4.22.6] — 2026-09-16
+
+**Enco agent: lanjut tool + thinking UI + keamanan chat API** · PATCH · [Full release notes](../release/4.22.6.md)
+
+### Changed
+- Agent loop Enco: force-write retry + `maxToolIterations` 5→8 + dedupe history + prompt anti-niat
+- Chat API: `chatLimiter` 30/IP+device/menit + middleware `requireTrustedChatOrigin`
+- API protection global menolak mutasi `/api/chat/*` tanpa same-site origin (safety net)
+- System prompt diperkuat: section 10b (agent rule) + 10c (anti-jailbreak)
+- Soft heuristic server-side prepend refusal untuk pola jailbreak jelas
+
+### Added
+- `server/services/ai-agent-progress.ts`: helper label aman (no args/path/key)
+
+### Security
+- Mutasi `/api/chat/*` tanpa `Sec-Fetch-Site: same-origin|same-site` (atau Origin tepercaya) → 403
+
+---
+
 ## [4.22.5] — 2026-09-07
 
 **Fix intermittent empty home data on first load** · PATCH · [Full release notes](../release/4.22.5.md)

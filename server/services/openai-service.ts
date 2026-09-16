@@ -481,6 +481,8 @@ export async function runOpenAiChat(
 		};
 	}
 
+	// Hoisted so we can extend it across iterations and retry rounds.
+	const maxIterations = Math.max(1, Math.min(options.maxToolIterations ?? 8, 16));
 	let lastError: Error | null = null;
 	for (const model of orderOpenAiModels()) {
 		for (const key of orderOpenAiKeys(apiKeys)) {
@@ -491,7 +493,7 @@ export async function runOpenAiChat(
 
 				for (
 					let iteration = 0;
-					iteration < (options.maxToolIterations ?? 5);
+					iteration < maxIterations;
 					iteration++
 				) {
 					const parsed = await requestOpenAiCompletion(
