@@ -221,7 +221,8 @@ export class ChatService {
 		usedToolNames: string[],
 		allowedTools: Record<string, unknown>[]
 	): boolean {
-		if (!this.hasWriteToolMentioned(usedToolNames, allowedTools)) return false;
+		const writeCalled = usedToolNames.some((n) => this.isWriteToolName(n));
+		if (writeCalled) return false;
 		const lower = (responseText || '').toLowerCase();
 		const announcePatterns = [
 			'saya akan cek',
@@ -250,26 +251,8 @@ export class ChatService {
 		];
 		const announces = announcePatterns.some((p) => lower.includes(p));
 		if (!announces) return false;
-		// Kalau sudah ada tool call yang dipakai (mis. search), jangan retry
-		if (
-			usedToolNames.some((n) =>
-				[
-					'search_berita',
-					'search_events',
-					'search_library_items',
-					'get_organization_structure',
-					'internet_search',
-					'get_berita_detail',
-					'get_event_detail',
-					'get_library_items',
-					'get_visi_misi',
-					'get_profil_info',
-					'get_prodi_info',
-				].includes(n)
-			)
-		) {
-			return false;
-		}
+		// Kalau sudah ada tool tulis terpanggil, jangan retry
+		if (usedToolNames.some((n) => this.isWriteToolName(n))) return false;
 		return true;
 	}
 
@@ -289,28 +272,14 @@ export class ChatService {
 	private static shouldHardForceWriteTool(
 		responseText: string,
 		usedToolNames: string[],
-		allowedTools: Record<string, unknown>[]
+		allowedTools: Record<string, unknown>[],
+		content: string,
 	): boolean {
-		if (!this.hasWriteToolMentioned(usedToolNames, allowedTools)) return false;
-		// Sudah pakai search/list? Boleh (search → next move create).
-		if (
-			usedToolNames.some((n) =>
-				[
-					'search_berita',
-					'search_events',
-					'search_library_items',
-					'get_organization_structure',
-					'get_berita_detail',
-					'get_event_detail',
-					'get_library_items',
-					'get_visi_misi',
-					'get_profil_info',
-					'get_prodi_info',
-				].includes(n)
-			)
-		) {
-			return false;
-		}
+		if (!this.hasWriteToolMentioned(usedToolNames, allowedTools) && usedToolNames.length > 0) return false;
+		// User minta aksi tulis + belum ada tool tulis terpanggil → wajib paksa
+		if (!this.looksLikeUserWantsWriteAction(content)) return false;
+		const writeCalled = usedToolNames.some((n) => this.isWriteToolName(n));
+		if (writeCalled) return false;
 		const lower = (responseText || '').toLowerCase();
 		// Tunda/dramatisasi tanpa tool
 		const stallPatterns = [
@@ -342,6 +311,29 @@ export class ChatService {
 		// Respons panjang tapi tidak ada tool sama sekali → over-explaining
 		const longWithoutTool = (responseText || '').length > 320 && !stalls;
 		return stalls || generic || longWithoutTool;
+	}
+
+	private static isWriteToolName(name: string): boolean {
+		return (
+			name.startsWith('create_') ||
+			name.startsWith('update_') ||
+			name.startsWith('delete_') ||
+			name.startsWith('toggle_') ||
+			name.startsWith('set_') ||
+			name.startsWith('link_') ||
+			name.startsWith('unlink_') ||
+			name.startsWith('copy_') ||
+			name.startsWith('sync_')
+		);
+	}
+
+	private static isReadToolName(name: string): boolean {
+		return (
+			name.startsWith('search_') ||
+			name.startsWith('get_') ||
+			name === 'internet_search' ||
+			name === 'fetch_website_content'
+		);
 	}
 
 	/**
@@ -875,12 +867,12 @@ export class ChatService {
 				this.shouldHardForceWriteTool(
 					responseText,
 					openAiResult.usedToolNames,
-					allowedTools
-				)) &&
-				this.looksLikeUserWantsWriteAction(content)
+					allowedTools,
+					content
+				))
 			) {
 				const retryInstruction =
-					'INSTRUKSI TAMBAHAN WAJIB: Pada turn ini Anda baru menyatakan niat menulis atau over-explaining tanpa memanggil tool. Sekarang WAJIB panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item / create_store_product) PADA TURN INI, tanpa basa-basi tambahan. Jika perlu konteks, panggil search/list dulu, lalu LANGSUNG panggil tool tulis. Setelah tool tulis berhasil, berikan jawaban final ringkas kepada user. JANGAN menuliskan paragraf niat/promise lagi.';
+					'INSTRUKSI TAMBAHAN WAJIB: User meminta pembuatan konten (draft berita/event/galeri). Pada turn ini JANGAN panggil search/list/get_dashboard_*. User sudah menyediakan info lengkap di pesannya. LANGSUNG panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item) PADA TURN INI dengan memakai judul, konten, dan info dari pesan user. JANGAN memotong/mengubah info penting dari user — pertahankan semua paragraf, nama, kutipan, dll. yang sudah diberikan user. Setelah tool tulis berhasil, jawab final 1-3 kalimat menyebut ID dan langkah lanjutan (thumbnail/publish). JANGAN menulis paragraf niat/promise.';
 				const retryHistory: Content[] = [
 					...history,
 					{ role: 'user', parts: [{ text: retryInstruction }] },
@@ -1017,12 +1009,12 @@ export class ChatService {
 						this.shouldHardForceWriteTool(
 							responseText,
 							loopResult.usedToolNames,
-							allowedTools
-						)) &&
-						this.looksLikeUserWantsWriteAction(content)
+							allowedTools,
+							content
+						))
 					) {
 						const retryInstruction =
-							'INSTRUKSI TAMBAHAN WAJIB: Pada turn ini Anda baru menyatakan niat menulis atau over-explaining tanpa memanggil tool. Sekarang WAJIB panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item / create_store_product) PADA TURN INI, tanpa basa-basi tambahan. Jika perlu konteks, panggil search/list dulu, lalu LANGSUNG panggil tool tulis. Setelah tool tulis berhasil, berikan jawaban final ringkas kepada user. JANGAN menuliskan paragraf niat/promise lagi.';
+							'INSTRUKSI TAMBAHAN WAJIB: User meminta pembuatan konten (draft berita/event/galeri). Pada turn ini JANGAN panggil search/list/get_dashboard_*. User sudah menyediakan info lengkap di pesannya. LANGSUNG panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item) PADA TURN INI dengan memakai judul, konten, dan info dari pesan user. JANGAN memotong/mengubah info penting dari user — pertahankan semua paragraf, nama, kutipan, dll. yang sudah diberikan user. Setelah tool tulis berhasil, jawab final 1-3 kalimat menyebut ID dan langkah lanjutan (thumbnail/publish). JANGAN menulis paragraf niat/promise.';
 						const retryHistory: Content[] = [
 							...history,
 							{ role: 'user', parts: [{ text: retryInstruction }] },
