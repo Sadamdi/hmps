@@ -9,6 +9,15 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.22.11] - 2026-09-18
+
+### Fixed — Enco Agent: reorder retry branches (write dulu, baru read)
+
+- `server/services/chat-service.ts`
+  - Tukar urutan branch di handler OpenAI: `shouldForceWriteToolRetry` + `shouldHardForceWriteTool` dicek SEBELUM `shouldForceReadToolRetry`.
+
+Lihat: [release/4.22.11.md](../release/4.22.11.md)
+
 ## [4.22.10] - 2026-09-18
 
 ### Fixed — Enco Agent: deteksi write intent dari news copy lengkap
