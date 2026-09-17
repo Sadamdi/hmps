@@ -9,6 +9,17 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.22.9] - 2026-09-18
+
+### Fixed — Enco Agent: stricter force-write retry + inline reminder
+
+- `server/services/chat-service.ts`
+  - Tambah inline reminder di awal history: ketika user sudah sediakan info lengkap, LANGSUNG panggil tool tulis tanpa search/list/get_dashboard_*.
+  - Perluas `announcePatterns` & `genericPatterns` di `shouldForceWriteToolRetry` & `shouldHardForceWriteTool` (tambah pola halus: 'langsung ya', 'berikutnya', 'akan saya kerjakan', 'mari saya', 'saya tidak yakin', 'biasanya', 'mohon maaf', 'untuk saat ini', 'kurang tepat').
+  - Turunkan threshold `longWithoutTool` 320 → 200 karakter.
+
+Lihat: [release/4.22.9.md](../release/4.22.9.md)
+
 ## [4.22.8] - 2026-09-18
 
 ### Fixed — Enco Agent: langsung tool tulis, jangan over-search
