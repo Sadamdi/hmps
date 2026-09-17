@@ -9,6 +9,17 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.22.10] - 2026-09-18
+
+### Fixed — Enco Agent: deteksi write intent dari news copy lengkap
+
+- `server/services/chat-service.ts`
+  - `looksLikeUserWantsWriteAction()` tambah deteksi:
+    - Pola regex `pra-statik\s*\d{4}`, `statik\s*\d{4}` di awal paragraf.
+    - Pola news copy lengkap: panjang > 600 char + ada signature "Malang, DD Month YYYY".
+
+Lihat: [release/4.22.10.md](../release/4.22.10.md)
+
 ## [4.22.9] - 2026-09-18
 
 ### Fixed — Enco Agent: stricter force-write retry + inline reminder
