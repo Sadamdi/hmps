@@ -212,8 +212,25 @@ export class ChatService {
 			/\bedit\b/,
 			/\bperbar\b/,
 			/\bupdate\b/,
+			// Tambahan: kalau user menulis paragraf panjang berisi judul + isi lengkap,
+			// tetap anggap sebagai aksi tulis (user minta dibuatkan berita dari info tsb).
+			/pra[-\s]?statik\s*\d{4}/i,
+			/statik\s*\d{4}/i,
+			/^\s*pra[-\s]?statik\b/im,
 		];
-		return intentPatterns.some((p) => p.test(lower));
+		// Sinyal lemah: judul berita di awal paragraf (Pra-STATIK, STATIK Day 1, dll.)
+		// selalu dianggap sebagai aksi tulis — user jelas mengirim full news copy untuk dibuatkan.
+		const hasNewsTitlePrefix = /^\s*(pra[-\s]?statik\s*\d{4}|statik\s*\d{4}\s+day\s+\d|pra[-\s]?statik\s*:)/im.test(
+			content || '',
+		);
+		const hasNewsBodyShape =
+			(content?.length || 0) > 600 &&
+			/malang,?\s+\d{1,2}\s+\w+\s+\d{4}/i.test(content || '');
+		return (
+			intentPatterns.some((p) => p.test(lower)) ||
+			hasNewsTitlePrefix ||
+			hasNewsBodyShape
+		);
 	}
 
 	private static shouldForceWriteToolRetry(
