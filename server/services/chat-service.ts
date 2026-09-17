@@ -241,6 +241,7 @@ export class ChatService {
 		const writeCalled = usedToolNames.some((n) => this.isWriteToolName(n));
 		if (writeCalled) return false;
 		const lower = (responseText || '').toLowerCase();
+		// Kalau ada news copy lengkap di response (model paraphrase), anggap sudah ada konteks
 		const announcePatterns = [
 			'saya akan cek',
 			'saya akan carikan',
@@ -264,6 +265,28 @@ export class ChatService {
 			'langsung ya',
 			'berikutnya',
 			'akan saya kerjakan',
+			// Over-explaining generic welcome tanpa tool
+			'silakan sebutkan',
+			'silakan beri tahu',
+			'anda ingin',
+			'anda bisa',
+			'anda dapat',
+			'anda sedang',
+			'anda berada',
+			'misalnya:',
+			'for example',
+			'what would you like',
+			'just tell me',
+			'i will help',
+			'ada yang',
+			'mari kita',
+			'biasanya',
+			'apakah ada',
+			'ada lagi',
+			'silakan pilih',
+			'pilih topik',
+			'topik yang',
+			'kebutuhan spesifik',
 		];
 		const announces = announcePatterns.some((p) => lower.includes(p));
 		if (!announces) return false;
@@ -331,7 +354,7 @@ export class ChatService {
 		];
 		const generic = genericPatterns.some((p) => lower.includes(p));
 		// Respons panjang tapi tidak ada tool sama sekali → over-explaining
-		const longWithoutTool = (responseText || '').length > 200 && !stalls;
+		const longWithoutTool = (responseText || '').length > 150 && !stalls;
 		return stalls || generic || longWithoutTool;
 	}
 
