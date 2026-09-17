@@ -9,6 +9,19 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.22.8] - 2026-09-18
+
+### Fixed — Enco Agent: langsung tool tulis, jangan over-search
+
+- `server/services/chat-service.ts`
+  - Tambah `isWriteToolName()` dan `isReadToolName()` untuk klasifikasi tool tulis vs baca.
+  - `shouldForceWriteToolRetry()` & `shouldHardForceWriteTool()`: berhenti return false setelah tool tulis terpanggil; tambah pengecekan `looksLikeUserWantsWriteAction()`.
+  - Pesan retry dipertegas: JANGAN panggil search/list/get_dashboard_*, LANGSUNG panggil tool tulis, PERTahankan semua info dari pesan user.
+- `server/config/gemini-config.ts`
+  - Tambah aturan di `10b. ATURAN AGENT`: jika user SUDAH menyertakan info lengkap di pesan, LANGSUNG panggil tool tulis tanpa lookup; JANGAN memotong isi pesan user.
+
+Lihat: [release/4.22.8.md](../release/4.22.8.md)
+
 ---
 
 ## [4.22.7] — 2026-09-16
