@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.22.13] - 2026-09-18
+
+### Fixed — Enco Agent: broader announce patterns + lower long-without-tool threshold
+
+- `server/services/chat-service.ts`
+  - Perluas `announcePatterns` di `shouldForceWriteToolRetry` (English welcome generic, "apa yang ingin Anda", dll.).
+  - Turunkan `longWithoutTool` di `shouldHardForceWriteTool` ke 150 char.
+
+Lihat: [release/4.22.13.md](../release/4.22.13.md)
+
 ## [4.22.12] - 2026-09-18
 
 ### Fixed — Enco Agent: skip read-retry saat news copy lengkap
