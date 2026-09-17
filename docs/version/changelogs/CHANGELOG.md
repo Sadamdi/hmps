@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.22.12] - 2026-09-18
+
+### Fixed — Enco Agent: skip read-retry saat news copy lengkap
+
+- `server/services/chat-service.ts`
+  - `shouldForceReadToolRetry()` tambah early-return false kalau user kirim news copy lengkap (Pra-STATIK/STATIK Day N / signature "Malang, DD Month YYYY").
+  - Refactor `hasNewsTitlePrefix` dan `hasNewsBodyShape` jadi method reusable.
+
+Lihat: [release/4.22.12.md](../release/4.22.12.md)
+
 ## [4.22.11] - 2026-09-18
 
 ### Fixed — Enco Agent: reorder retry branches (write dulu, baru read)
