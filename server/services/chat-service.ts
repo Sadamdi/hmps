@@ -240,14 +240,13 @@ export class ChatService {
 			'cari dulu',
 			'tunggu sebentar',
 			'sebentar ya',
-			'saya buatkan',
-			'akan saya buat',
-			'akan saya cek',
-			'akan saya proses',
 			'oke, langsung',
 			'baik, langsung',
 			'sip, langsung',
 			'ya, langsung',
+			'langsung ya',
+			'berikutnya',
+			'akan saya kerjakan',
 		];
 		const announces = announcePatterns.some((p) => lower.includes(p));
 		if (!announces) return false;
@@ -306,10 +305,16 @@ export class ChatService {
 			'misalnya',
 			'contoh:',
 			'🔧',
+			'mohon maaf',
+			'untuk saat ini',
+			'kurang tepat',
+			'saya tidak yakin',
+			'biasanya',
+			'mari saya',
 		];
 		const generic = genericPatterns.some((p) => lower.includes(p));
 		// Respons panjang tapi tidak ada tool sama sekali → over-explaining
-		const longWithoutTool = (responseText || '').length > 320 && !stalls;
+		const longWithoutTool = (responseText || '').length > 200 && !stalls;
 		return stalls || generic || longWithoutTool;
 	}
 
@@ -663,6 +668,12 @@ export class ChatService {
 		history.push({
 			role: 'user',
 			parts: [{ text: this.buildTemporalContextPrompt() }],
+		});
+		// Pengingat tipis di awal bahwa agent harus panggil tool tulis saat user
+		// sudah sediakan info lengkap (konteks pribadi user, bukan pesan user).
+		history.push({
+			role: 'user',
+			parts: [{ text: 'REMINDER (konteks sistem, bukan pesan user): Ketika pesan user terbaru sudah memuat judul + isi konten lengkap dan meminta aksi tulis (buatkan/buat/tolong buat/draft/...), LANGSUNG panggil tool tulis pada turn yang sama. JANGAN panggil search/list/get_dashboard_* lebih dulu. JANGAN memotong isi pesan user.' }],
 		});
 
 		const pagePath = pageContext?.path;
