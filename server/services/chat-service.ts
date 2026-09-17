@@ -975,6 +975,44 @@ export class ChatService {
 					currentModel = retryResult.modelName;
 				}
 			} else if (
+				// Reorder: cek write retry lagi SEBELUM read retry (second pass)
+				(this.shouldForceWriteToolRetry(
+					responseText,
+					openAiResult.usedToolNames,
+					allowedTools
+				) ||
+				this.shouldHardForceWriteTool(
+					responseText,
+					openAiResult.usedToolNames,
+					allowedTools,
+					content
+				))
+			) {
+				const retryInstruction =
+					'INSTRUKSI TAMBAHAN WAJIB: User meminta pembuatan konten (draft berita/event/galeri). Pada turn ini JANGAN panggil search/list/get_dashboard_*. User sudah menyediakan info lengkap di pesannya. LANGSUNG panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item) PADA TURN INI dengan memakai judul, konten, dan info dari pesan user. JANGAN memotong/mengubah info penting dari user — pertahankan semua paragraf, nama, kutipan, dll. yang sudah diberikan user. Setelah tool tulis berhasil, jawab final 1-3 kalimat menyebut ID dan langkah lanjutan (thumbnail/publish). JANGAN menulis paragraf niat/promise.';
+				const retryHistory: Content[] = [
+					...history,
+					{ role: 'user', parts: [{ text: retryInstruction }] },
+				];
+				const retryResult = await runOpenAiChat({
+					history: retryHistory,
+					tools: allowedTools,
+					executeTool: (name, args) => executeToolCall(
+						name,
+						args,
+						permissions || [],
+						authUserId,
+						pagePath,
+						tenantDbName,
+						isTenantContext
+					),
+					onStep,
+				});
+				if (retryResult.ok) {
+					responseText = retryResult.responseText;
+					currentModel = retryResult.modelName;
+				}
+			} else if (
 				this.shouldForceReadToolRetry(
 					responseText,
 					openAiResult.usedToolNames,
