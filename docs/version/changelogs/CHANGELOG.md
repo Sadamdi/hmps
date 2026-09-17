@@ -9,6 +9,15 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.22.14] - 2026-09-18
+
+### Fixed — Enco Agent: second-pass write retry after read retry
+
+- `server/services/chat-service.ts`
+  - Tambah branch kedua: cek write retry sekali lagi setelah read retry, kalau model masih tidak panggil tool tulis.
+
+Lihat: [release/4.22.14.md](../release/4.22.14.md)
+
 ## [4.22.13] - 2026-09-18
 
 ### Fixed — Enco Agent: broader announce patterns + lower long-without-tool threshold
