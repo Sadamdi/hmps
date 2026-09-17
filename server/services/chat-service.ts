@@ -426,7 +426,29 @@ export class ChatService {
 		];
 		const generic = genericPatterns.some((p) => lower.includes(p));
 		const longWithoutTool = (responseText || '').length > 240;
+		// Jika user mengirim news copy lengkap, JANGAN retry ke tool baca.
+		// News copy lengkap = aksi tulis, bukan baca.
+		if (
+			this.looksLikeUserWantsWriteAction(userContent) &&
+			(this.hasNewsTitlePrefix(userContent) ||
+				this.hasNewsBodyShape(userContent))
+		) {
+			return false;
+		}
 		return generic || longWithoutTool;
+	}
+
+	private static hasNewsTitlePrefix(content: string): boolean {
+		return /^\s*(pra[-\s]?statik\s*\d{4}|statik\s*\d{4}\s+day\s+\d|pra[-\s]?statik\s*:)/im.test(
+			content || '',
+		);
+	}
+
+	private static hasNewsBodyShape(content: string): boolean {
+		return (
+			(content?.length || 0) > 600 &&
+			/malang,?\s+\d{1,2}\s+\w+\s+\d{4}/i.test(content || '')
+		);
 	}
 
 	private static shouldForceWebToolRetry(
