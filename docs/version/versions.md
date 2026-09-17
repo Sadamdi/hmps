@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.22.7`  
+**Current version:** `4.22.8`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
