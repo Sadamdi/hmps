@@ -43,3 +43,11 @@ docs/ops/
 
 # Media sync cooldown marker (server-only)
 .media-last-push
+
+# Smoke test artifacts — do not push (DB backup + logs)
+/tests/
+tests/smoke/_*.json
+tests/smoke/_*.md
+tests/smoke/_backup/
+/.ssh-pass
+/.ssh-host.txt
