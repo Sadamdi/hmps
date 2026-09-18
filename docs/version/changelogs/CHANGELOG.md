@@ -9,6 +9,23 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.22.15] - 2026-09-19
+
+### Fixed — Enco Agent: anti-halu prodi + max iterations 50 + get_prodi_info detail
+
+- `server/services/chat-service.ts`
+  - `maxIterations` 8 → 50 di `runGeminiAgenticLoop`
+  - Semua `runOpenAiChat()` pass `maxToolIterations: 50`
+- `server/services/openai-service.ts`
+  - `maxIterations` default 8 → 50, cap 16 → 50
+- `server/config/gemini-config.ts`
+  - Tambah section 5b: ATURAN ANTI-HALU untuk pertanyaan prodi/dosen/kurikulum
+- `server/services/ai-tools.ts`
+  - Tool `get_prodi_info`: tambah param `academicYear` (number) + `semester` (number)
+  - Response `section='curriculum'` sekarang return `semestersDetail[]` dengan subjects lengkap
+
+Lihat: [release/4.22.15.md](../release/4.22.15.md)
+
 ## [4.22.14] - 2026-09-18
 
 ### Fixed — Enco Agent: second-pass write retry after read retry
