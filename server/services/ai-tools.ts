@@ -223,7 +223,7 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 	{
 		name: 'get_prodi_info',
 		description:
-			'Ambil informasi Program Studi S1 Teknik Informatika UIN Malang dari database: profil, dosen, kurikulum, laboratorium, dan akreditasi. Gunakan saat user bertanya tentang prodi, dosen, mata kuliah, lab, atau akreditasi.',
+			'Ambil informasi Program Studi S1 Teknik Informatika UIN Malang dari database: profil, dosen, kurikulum (multi-kurikulum per academicYear + detail semesters + subjects per semester), laboratorium, dan akreditasi. Gunakan saat user bertanya tentang prodi, dosen, mata kuliah, semester N, lab, atau akreditasi. Untuk pertanyaan semester spesifik, panggil dengan section="curriculum" + academicYear untuk dapat daftar mata kuliah lengkap per semester.',
 		parameters: {
 			type: 'object',
 			properties: {
@@ -239,6 +239,16 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 					],
 					description:
 						'Bagian yang ingin diambil. "summary" untuk ringkasan keseluruhan, atau pilih bagian spesifik. Default "summary".',
+				},
+				academicYear: {
+					type: 'number',
+					description:
+						'Tahun kurikulum (academicYear) untuk filter. Mis. 2024 untuk kurikulum 2024-2028. WAJIB diisi jika user menyebut tahun kurikulum spesifik atau semester N (mis. "semester 5 kurikulum 2024"). Tanpa academicYear, response section="curriculum" hanya mengembalikan availablePeriods + summary.',
+				},
+				semester: {
+					type: 'number',
+					description:
+						'Nomor semester (1-8) yang ingin diambil detail mata kuliahnya. Hanya berlaku jika academicYear diisi. Return akan menyertakan subjects[] lengkap untuk semester tersebut.',
 				},
 			},
 			required: [],
@@ -1840,6 +1850,62 @@ export async function executeToolCall(
 				}
 
 				if (section === 'curriculum') {
+					const academicYear = args.academicYear as number | undefined;
+					const semester = args.semester as number | undefined;
+
+					// Resolve target entry by academicYear (fallback: latestEntry)
+					const targetEntry = academicYear
+						? curriculumEntries.find((e: any) => e.academicYear === academicYear)
+						: latestEntry;
+					const targetRawEntry = academicYear
+						? rawEntries.find((e: any) => e.academicYear === academicYear)
+						: rawEntries[0];
+
+					if (!targetEntry || !targetRawEntry) {
+						return {
+							curriculum: {
+								availablePeriods: curriculumEntries.map((entry: any) => ({
+									academicYear: entry.academicYear,
+									periodLabel: entry.periodLabel,
+									guidebookUrl: entry.guidebookUrl,
+									curriculumUrl: entry.curriculumUrl,
+									officialUrl: entry.officialUrl,
+								})),
+								note: `academicYear ${academicYear} tidak ditemukan. Pilih salah satu dari availablePeriods.`,
+							},
+						};
+					}
+
+					// If semester specified, return that semester's subjects
+					let semestersDetail: any = null;
+					if (semester) {
+						const semData = (targetRawEntry.semesters ?? []).find(
+							(s: any) => s.semester === semester,
+						);
+						semestersDetail = semData
+							? {
+								semester: semData.semester,
+								totalSks: semData.totalSks ?? '',
+								subjects: (semData.subjects ?? []).map((s: any) => ({
+									code: s.code ?? '',
+									name: s.name,
+									sks: s.sks ?? '',
+									type: s.type ?? '',
+									description: s.description ?? '',
+									rpsUrl: s.rpsUrl ?? '',
+									semester: s.semester ?? semData.semester,
+								})),
+							}
+							: { semester, note: `Semester ${semester} tidak ada di academicYear ${academicYear}.` };
+					} else {
+						semestersDetail = (targetRawEntry.semesters ?? []).map((s: any) => ({
+							semester: s.semester,
+							totalSks: s.totalSks ?? '',
+							subjectCount: (s.subjects ?? []).length,
+							subjectNames: (s.subjects ?? []).map((sub: any) => sub.name),
+						}));
+					}
+
 					return {
 						curriculum: {
 							availablePeriods: curriculumEntries.map((entry: any) => ({
@@ -1849,29 +1915,26 @@ export async function executeToolCall(
 								curriculumUrl: entry.curriculumUrl,
 								officialUrl: entry.officialUrl,
 							})),
-							active: latestEntry
-								? {
-									academicYear: latestEntry.academicYear,
-									periodLabel: latestEntry.periodLabel,
-									knowledgeGroups: latestEntry.knowledgeGroups,
-									structureSummary: latestEntry.structureSummary,
-									graduateProfileCount: latestEntry.graduateProfileCount,
-									semesterCount: latestEntry.semesterCount,
-									totalSubjects: latestEntry.totalSubjects,
-									optionalSubjectsCount: latestEntry.optionalSubjectsCount,
-								}
-								: {
-									periodLabel: legacyCurriculum.periodLabel ?? '',
-									knowledgeGroups: legacyCurriculum.knowledgeGroups ?? [],
-									structureSummary: legacyCurriculum.structureSummary ?? '',
-									graduateProfileCount: legacyCurriculum.graduateProfile?.length ?? 0,
-									semesterCount: legacyCurriculum.semesters?.length ?? 0,
-									totalSubjects: (legacyCurriculum.semesters ?? []).reduce(
-										(sum: number, s: any) => sum + (s.subjects?.length ?? 0),
-										0
-									),
-									optionalSubjectsCount: legacyCurriculum.optionalSubjects?.length ?? 0,
-								},
+							active: {
+								academicYear: targetEntry.academicYear,
+								periodLabel: targetEntry.periodLabel,
+								knowledgeGroups: targetEntry.knowledgeGroups,
+								structureSummary: targetEntry.structureSummary,
+								graduateProfileCount: targetEntry.graduateProfileCount,
+								semesterCount: targetEntry.semesterCount,
+								totalSubjects: targetEntry.totalSubjects,
+								optionalSubjectsCount: targetEntry.optionalSubjectsCount,
+							},
+							semestersDetail,
+							optionalSubjects: (targetRawEntry.optionalSubjects ?? []).map(
+								(s: any) => ({
+									code: s.code ?? '',
+									name: s.name,
+									sks: s.sks ?? '',
+									description: s.description ?? '',
+									rpsUrl: s.rpsUrl ?? '',
+								}),
+							),
 						},
 					};
 				}

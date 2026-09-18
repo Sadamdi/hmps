@@ -560,7 +560,7 @@ export async function runOpenAiChat(
 	}
 
 	// Hoisted so we can extend it across iterations and retry rounds.
-	const maxIterations = Math.max(1, Math.min(options.maxToolIterations ?? 8, 16));
+	const maxIterations = Math.max(1, Math.min(options.maxToolIterations ?? 50, 50));
 	let lastError: Error | null = null;
 	const modelOrder = orderOpenAiModelsForRequest(hasImageInMessages(baseMessages));
 	for (const model of modelOrder) {

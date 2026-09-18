@@ -594,11 +594,11 @@ export class ChatService {
 
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				let contents: Content[] = history as any;
-				let responseText = '';
-				const usedToolNames = new Set<string>();
-				const maxIterations = 8;
+			let responseText = '';
+			const usedToolNames = new Set<string>();
+			const maxIterations = 50;
 
-				for (let iteration = 0; iteration < maxIterations; iteration++) {
+			for (let iteration = 0; iteration < maxIterations; iteration++) {
 					const result = await model.generateContent({ contents });
 					const response = result.response;
 
@@ -872,6 +872,7 @@ export class ChatService {
 				isTenantContext
 			),
 			onStep,
+			maxToolIterations: 50,
 		});
 		if (openAiResult.ok && !this.isWeakOpenAiResponse(openAiResult.responseText, openAiResult.usedToolNames)) {
 			responseText = openAiResult.responseText;
@@ -892,6 +893,7 @@ export class ChatService {
 						isTenantContext
 					),
 					onStep,
+					maxToolIterations: 50,
 				});
 				if (retryResult.ok) {
 					responseText = retryResult.responseText;
@@ -932,6 +934,7 @@ export class ChatService {
 						isTenantContext
 					),
 					onStep,
+					maxToolIterations: 50,
 				});
 				if (retryResult.ok) {
 					responseText = retryResult.responseText;
@@ -969,6 +972,7 @@ export class ChatService {
 						isTenantContext
 					),
 					onStep,
+					maxToolIterations: 50,
 				});
 				if (retryResult.ok) {
 					responseText = retryResult.responseText;
@@ -1007,6 +1011,7 @@ export class ChatService {
 						isTenantContext
 					),
 					onStep,
+					maxToolIterations: 50,
 				});
 				if (retryResult.ok) {
 					responseText = retryResult.responseText;
@@ -1039,6 +1044,7 @@ export class ChatService {
 						isTenantContext
 					),
 					onStep,
+					maxToolIterations: 50,
 				});
 				if (retryResult.ok) {
 					responseText = retryResult.responseText;
