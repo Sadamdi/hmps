@@ -66,9 +66,22 @@ router.get('/list', authenticate, async (req, res) => {
 	try {
 		if (!requireOwner(req, res)) return;
 
-		const { status, severity, source, page: pageStr, limit: limitStr } = req.query;
+		const {
+			status,
+			severity,
+			source,
+			page: pageStr,
+			limit: limitStr,
+			dateFrom,
+			dateTo,
+			isTenant: isTenantRaw,
+			communitySlug,
+			q,
+			sort: sortRaw,
+		} = req.query;
 		const page = Math.max(1, parseInt(pageStr as string, 10) || 1);
-		const limit = Math.min(100, Math.max(1, parseInt(limitStr as string, 10) || 20));
+		// Default 10 (sesuai UI pagination FE); cap 100 untuk safety.
+		const limit = Math.min(100, Math.max(1, parseInt(limitStr as string, 10) || 10));
 		const skip = (page - 1) * limit;
 
 		const filter: Record<string, unknown> = {};
@@ -82,8 +95,46 @@ router.get('/list', authenticate, async (req, res) => {
 			filter.source = source;
 		}
 
+		// Filter rentang tanggal (lastSeenAt) — ISO date string YYYY-MM-DD.
+		if (dateFrom || dateTo) {
+			const range: Record<string, Date> = {};
+			if (typeof dateFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
+				range.$gte = new Date(`${dateFrom}T00:00:00.000Z`);
+			}
+			if (typeof dateTo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+				range.$lte = new Date(`${dateTo}T23:59:59.999Z`);
+			}
+			if (range.$gte || range.$lte) {
+				filter.lastSeenAt = range;
+			}
+		}
+
+		// Filter tenant / community exact match.
+		if (isTenantRaw === 'true') {
+			filter.isTenant = true;
+		} else if (isTenantRaw === 'false') {
+			filter.isTenant = false;
+		}
+		if (typeof communitySlug === 'string' && communitySlug.trim()) {
+			filter.communitySlug = communitySlug.trim();
+		}
+
+		// Pencarian teks pada name/message/route/file.
+		if (typeof q === 'string' && q.trim()) {
+			const safe = q.trim().slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+			const re = new RegExp(safe, 'i');
+			filter.$or = [
+				{ name: re },
+				{ message: re },
+				{ route: re },
+				{ file: re },
+			];
+		}
+
+		const sortDir = sortRaw === 'oldest' ? 1 : -1;
+
 		const [items, total] = await Promise.all([
-			SystemError.find(filter).sort({ lastSeenAt: -1 }).skip(skip).limit(limit).lean(),
+			SystemError.find(filter).sort({ lastSeenAt: sortDir }).skip(skip).limit(limit).lean(),
 			SystemError.countDocuments(filter),
 		]);
 
