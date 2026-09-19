@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.22.15`  
+**Current version:** `4.23.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.22.6`](./release/4.22.6.md) | 2026-09-16 | Enco agent: lanjut tool + thinking UI + keamanan chat API | PATCH | 1 | **Current** |
+| [`4.23.0`](./release/4.23.0.md) | 2026-09-19 | Pagination + rich filter untuk Daftar Bug & Bug Otomatis | MINOR | 1 | **Current** |
+| [`4.22.6`](./release/4.22.6.md) | 2026-09-16 | Enco agent: lanjut tool + thinking UI + keamanan chat API | PATCH | 1 | Released |
 | [`4.22.5`](./release/4.22.5.md) | 2026-09-07 | Fix intermittent empty home data on first load | PATCH | 1 | Released |
 | [`4.22.4`](./release/4.22.4.md) | 2026-09-07 | Fix false-positive DDoS concurrent 503 | PATCH | 1 | Released |
 | [`4.22.3`](./release/4.22.3.md) | 2026-09-02 | Enco portrait avatars for chat UI | PATCH | 1 | Released |

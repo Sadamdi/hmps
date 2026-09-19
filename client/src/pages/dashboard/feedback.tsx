@@ -75,6 +75,8 @@ import {
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
+import { Pagination } from '@/components/ui/pagination';
+import { BugFilterBar, type BugFilterBarState, type BugFilterSort } from '@/components/dashboard/bug-filter-bar';
 import type {
 	FeedbackItem,
 	FeedbackFormConfig,
@@ -956,12 +958,31 @@ export default function FeedbackPage() {
 	const [bugReplyId, setBugReplyId] = useState<string | null>(null);
 	const [bugReplyMessage, setBugReplyMessage] = useState('');
 	const [expandedBugId, setExpandedBugId] = useState<string | null>(null);
+	const [bugPage, setBugPage] = useState(1);
+	const [bugFilter, setBugFilter] = useState<BugFilterBarState>({
+		dateFrom: '',
+		dateTo: '',
+		query: '',
+		sort: 'newest',
+	});
+	const BUG_PAGE_SIZE = 10;
+
+	const bugListParams = useMemo(() => {
+		const params = new URLSearchParams();
+		params.set('page', String(bugPage));
+		params.set('limit', String(BUG_PAGE_SIZE));
+		if (bugStatusFilter !== 'all') params.set('status', bugStatusFilter);
+		if (bugFilter.dateFrom) params.set('dateFrom', bugFilter.dateFrom);
+		if (bugFilter.dateTo) params.set('dateTo', bugFilter.dateTo);
+		if (bugFilter.query.trim()) params.set('q', bugFilter.query.trim());
+		if (bugFilter.sort !== 'newest') params.set('sort', bugFilter.sort);
+		return params.toString();
+	}, [bugPage, bugStatusFilter, bugFilter]);
 
 	const { data: bugData, isLoading: bugLoading } = useQuery<{ items: BugReportItem[]; total: number }>({
-		queryKey: ['/api/feedback/bug-report/list', bugStatusFilter],
+		queryKey: ['/api/feedback/bug-report/list', bugListParams],
 		queryFn: async () => {
-			const qs = bugStatusFilter !== 'all' ? `?status=${bugStatusFilter}` : '';
-			const res = await fetch(`/api/feedback/bug-report/list${qs}`, { credentials: 'include' });
+			const res = await fetch(`/api/feedback/bug-report/list?${bugListParams}`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Forbidden');
 			return res.json();
 		},
@@ -1045,16 +1066,38 @@ export default function FeedbackPage() {
 	// ── Bug Otomatis (SystemError) state & queries (owner-only) ──
 	const [sysStatusFilter, setSysStatusFilter] = useState<string>('all');
 	const [sysSourceFilter, setSysSourceFilter] = useState<string>('all');
+	const [sysSeverityFilter, setSysSeverityFilter] = useState<string>('all');
+	const [sysTenantFilter, setSysTenantFilter] = useState<string>('all');
 	const [expandedSysId, setExpandedSysId] = useState<string | null>(null);
+	const [sysPage, setSysPage] = useState(1);
+	const [sysFilter, setSysFilter] = useState<BugFilterBarState>({
+		dateFrom: '',
+		dateTo: '',
+		query: '',
+		sort: 'newest',
+	});
+	const SYS_PAGE_SIZE = 10;
+
+	const sysListParams = useMemo(() => {
+		const params = new URLSearchParams();
+		params.set('page', String(sysPage));
+		params.set('limit', String(SYS_PAGE_SIZE));
+		if (sysStatusFilter !== 'all') params.set('status', sysStatusFilter);
+		if (sysSeverityFilter !== 'all') params.set('severity', sysSeverityFilter);
+		if (sysSourceFilter !== 'all') params.set('source', sysSourceFilter);
+		if (sysTenantFilter === 'tenant') params.set('isTenant', 'true');
+		else if (sysTenantFilter === 'main') params.set('isTenant', 'false');
+		if (sysFilter.dateFrom) params.set('dateFrom', sysFilter.dateFrom);
+		if (sysFilter.dateTo) params.set('dateTo', sysFilter.dateTo);
+		if (sysFilter.query.trim()) params.set('q', sysFilter.query.trim());
+		if (sysFilter.sort !== 'newest') params.set('sort', sysFilter.sort);
+		return params.toString();
+	}, [sysPage, sysStatusFilter, sysSeverityFilter, sysSourceFilter, sysTenantFilter, sysFilter]);
 
 	const { data: sysData, isLoading: sysLoading } = useQuery<{ items: SystemErrorItem[]; total: number }>({
-		queryKey: ['/api/system-errors/list', sysStatusFilter, sysSourceFilter],
+		queryKey: ['/api/system-errors/list', sysListParams],
 		queryFn: async () => {
-			const params = new URLSearchParams();
-			if (sysStatusFilter !== 'all') params.set('status', sysStatusFilter);
-			if (sysSourceFilter !== 'all') params.set('source', sysSourceFilter);
-			const qs = params.toString() ? `?${params.toString()}` : '';
-			const res = await fetch(`/api/system-errors/list${qs}`, { credentials: 'include' });
+			const res = await fetch(`/api/system-errors/list?${sysListParams}`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Forbidden');
 			return res.json();
 		},
@@ -1615,17 +1658,39 @@ export default function FeedbackPage() {
 										key={val}
 										variant={bugStatusFilter === val ? 'default' : 'outline'}
 										size="sm"
-										onClick={() => setBugStatusFilter(val)}
+										onClick={() => {
+											setBugStatusFilter(val);
+											setBugPage(1);
+										}}
 									>
 										{label}
 									</Button>
 								))}
 							</div>
 
+							<BugFilterBar
+								value={bugFilter}
+								loading={bugLoading}
+								onApply={(next) => {
+									setBugFilter(next);
+									setBugPage(1);
+								}}
+								onReset={() => {
+									setBugFilter({ dateFrom: '', dateTo: '', query: '', sort: 'newest' });
+									setBugPage(1);
+								}}
+							/>
+
 							{bugLoading ? (
 								<div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
 							) : !bugData?.items?.length ? (
-								<Card><CardContent className="py-12 text-center text-muted-foreground">Belum ada bug report.</CardContent></Card>
+								<Card>
+									<CardContent className="py-12 text-center text-muted-foreground">
+										{(bugData?.total ?? 0) > 0
+											? 'Tidak ada hasil untuk filter saat ini. Reset filter untuk melihat semua.'
+											: 'Belum ada bug report.'}
+									</CardContent>
+								</Card>
 							) : (
 								<div className="space-y-4">
 									{bugData.items.map((bug: BugReportItem) => {
@@ -1759,6 +1824,20 @@ export default function FeedbackPage() {
 									})}
 								</div>
 							)}
+
+							{(bugData?.total ?? 0) > BUG_PAGE_SIZE && (
+								<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-4 border-t">
+									<p className="text-sm text-muted-foreground">
+										Halaman {bugPage} dari {Math.max(1, Math.ceil((bugData?.total ?? 0) / BUG_PAGE_SIZE))}
+										{' · '}Total {bugData?.total ?? 0} bug report
+									</p>
+									<Pagination
+										currentPage={bugPage}
+										totalPages={Math.max(1, Math.ceil((bugData?.total ?? 0) / BUG_PAGE_SIZE))}
+										onPageChange={setBugPage}
+									/>
+								</div>
+							)}
 						</div>
 					</TabsContent>
 				)}
@@ -1790,7 +1869,10 @@ export default function FeedbackPage() {
 										key={val}
 										variant={sysStatusFilter === val ? 'default' : 'outline'}
 										size="sm"
-										onClick={() => setSysStatusFilter(val)}
+										onClick={() => {
+											setSysStatusFilter(val);
+											setSysPage(1);
+										}}
 									>
 										{label}
 									</Button>
@@ -1807,7 +1889,10 @@ export default function FeedbackPage() {
 										key={val}
 										variant={sysSourceFilter === val ? 'secondary' : 'ghost'}
 										size="sm"
-										onClick={() => setSysSourceFilter(val)}
+										onClick={() => {
+											setSysSourceFilter(val);
+											setSysPage(1);
+										}}
 									>
 										{val === 'server' ? <Server className="h-3.5 w-3.5 mr-1" /> : val === 'client' ? <Monitor className="h-3.5 w-3.5 mr-1" /> : null}
 										{label}
@@ -1815,10 +1900,72 @@ export default function FeedbackPage() {
 								))}
 							</div>
 
+							<div className="flex flex-wrap gap-2">
+								{([
+									['all', 'Semua severity'],
+									['low', 'Low'],
+									['medium', 'Medium'],
+									['high', 'High'],
+									['critical', 'Critical'],
+								] as const).map(([val, label]) => (
+									<Button
+										key={val}
+										variant={sysSeverityFilter === val ? 'secondary' : 'ghost'}
+										size="sm"
+										onClick={() => {
+											setSysSeverityFilter(val);
+											setSysPage(1);
+										}}
+									>
+										{label}
+									</Button>
+								))}
+							</div>
+
+							<div className="flex flex-wrap gap-2">
+								{([
+									['all', 'Web Utama + Tenant'],
+									['main', 'Web Utama saja'],
+									['tenant', 'Tenant saja'],
+								] as const).map(([val, label]) => (
+									<Button
+										key={val}
+										variant={sysTenantFilter === val ? 'secondary' : 'ghost'}
+										size="sm"
+										onClick={() => {
+											setSysTenantFilter(val);
+											setSysPage(1);
+										}}
+									>
+										{label}
+									</Button>
+								))}
+							</div>
+
+							<BugFilterBar
+								value={sysFilter}
+								loading={sysLoading}
+								queryPlaceholder="Cari nama error / pesan / route / file…"
+								onApply={(next) => {
+									setSysFilter(next);
+									setSysPage(1);
+								}}
+								onReset={() => {
+									setSysFilter({ dateFrom: '', dateTo: '', query: '', sort: 'newest' });
+									setSysPage(1);
+								}}
+							/>
+
 							{sysLoading ? (
 								<div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
 							) : !sysData?.items?.length ? (
-								<Card><CardContent className="py-12 text-center text-muted-foreground">Belum ada bug otomatis tercatat. 🎉</CardContent></Card>
+								<Card>
+									<CardContent className="py-12 text-center text-muted-foreground">
+										{(sysData?.total ?? 0) > 0
+											? 'Tidak ada hasil untuk filter saat ini. Reset filter untuk melihat semua.'
+											: 'Belum ada bug otomatis tercatat. 🎉'}
+									</CardContent>
+								</Card>
 							) : (
 								<div className="space-y-4">
 									{sysData.items.map((err: SystemErrorItem) => {
@@ -1949,6 +2096,20 @@ export default function FeedbackPage() {
 											</Card>
 										);
 									})}
+								</div>
+							)}
+
+							{(sysData?.total ?? 0) > SYS_PAGE_SIZE && (
+								<div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-4 border-t">
+									<p className="text-sm text-muted-foreground">
+										Halaman {sysPage} dari {Math.max(1, Math.ceil((sysData?.total ?? 0) / SYS_PAGE_SIZE))}
+										{' · '}Total {sysData?.total ?? 0} bug otomatis
+									</p>
+									<Pagination
+										currentPage={sysPage}
+										totalPages={Math.max(1, Math.ceil((sysData?.total ?? 0) / SYS_PAGE_SIZE))}
+										onPageChange={setSysPage}
+									/>
 								</div>
 							)}
 						</div>

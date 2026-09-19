@@ -41,7 +41,7 @@ Flow umum:
 | Method | Endpoint | Source | Observed Input | Observed Response |
 |--------|----------|--------|----------------|-------------------|
 | POST | `/bug-report` | `server/routes/feedback.ts#L880` | body: description, gdriveLinks: gdriveRaw | 400, 201, 500 |
-| GET | `/bug-report/list` | `server/routes/feedback.ts#L948` | query: status, page: pageStr, limit: limitStr | 403, 500, 200/json |
+| GET | `/bug-report/list` | `server/routes/feedback.ts` | query: `status?`, `dateFrom?`, `dateTo?`, `q?`, `sort?`, `page?`, `limit?` | 403, 500, 200/json |
 | GET | `/bug-report/count` | `server/routes/feedback.ts#L981` | none observed in handler window | 403, 500, 200/json |
 | POST | `/bug-report/:id/reply` | `server/routes/feedback.ts#L1006` | params: id; body: message | 403, 400, 404, 500, 200/json |
 | PATCH | `/bug-report/:id/status` | `server/routes/feedback.ts#L1091` | params: id; body: status | 403, 400, 404, 500, 200/json |

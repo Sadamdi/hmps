@@ -60,7 +60,7 @@ Listener `unhandledRejection` juga menangkap promise rejection tak tertangani. H
 | Method | Endpoint | Source | Auth | Observed Input | Observed Response |
 |--------|----------|--------|------|----------------|-------------------|
 | POST | `/api/system-errors/report` | `server/routes/system-errors.ts` | Public + optional auth, rate-limited | body: `{ name?, message?, stack?, source?, route?, url?, componentStack?, breadcrumb? }` | `202 { ok: true }` (selalu soft-success) |
-| GET | `/api/system-errors/list` | `server/routes/system-errors.ts` | Owner | query: `status?`, `severity?`, `source?`, `page?`, `limit?` | `{ items: SystemErrorItem[], total, page, limit }` |
+| GET | `/api/system-errors/list` | `server/routes/system-errors.ts` | Owner | query: `status?`, `severity?`, `source?`, `isTenant?`, `communitySlug?`, `dateFrom?`, `dateTo?`, `q?`, `sort?`, `page?`, `limit?` | `{ items: SystemErrorItem[], total, page, limit }` |
 | GET | `/api/system-errors/count` | `server/routes/system-errors.ts` | Owner | — | `{ total, new, investigating, resolved, ignored, critical, high }` |
 | GET | `/api/system-errors/:id` | `server/routes/system-errors.ts` | Owner | path: `id` | `SystemErrorItem` \| `404` |
 | PATCH | `/api/system-errors/:id/status` | `server/routes/system-errors.ts` | Owner | body: `{ status: 'new'\|'investigating'\|'resolved'\|'ignored' }` | `SystemErrorItem` |
