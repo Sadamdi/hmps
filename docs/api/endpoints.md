@@ -393,14 +393,14 @@ PATCH /manage/config
 PATCH /manage/footer-display
 POST /bug-report
 GET /bug-report/count
-GET /bug-report/list
+GET /bug-report/list          # owner: filter status/dateFrom/dateTo/q/sort/page/limit
 PATCH /bug-report/:id/status
 POST /bug-report/:id/reply
 DELETE /bug-report/:id
 
 # /api/system-errors  (Bug Otomatis)
 POST   /report            # publik + optional auth, rate-limited (lapor dari client)
-GET    /list              # owner: filter status/severity/source/page/limit
+GET    /list              # owner: filter status/severity/source/isTenant/communitySlug/dateFrom/dateTo/q/sort/page/limit
 GET    /count             # owner: ringkasan status & severity
 GET    /:id               # owner: detail
 PATCH  /:id/status        # owner: new|investigating|resolved|ignored

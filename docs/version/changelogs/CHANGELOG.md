@@ -9,6 +9,37 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.23.0] - 2026-09-19
+
+### Added — Pagination + rich filter untuk Daftar Bug & Bug Otomatis
+
+- `client/src/components/dashboard/bug-filter-bar.tsx` (BARU)
+  - Komponen reusable: search input + sort dropdown + date range + tombol Terapkan/Reset
+- `client/src/pages/dashboard/feedback.tsx`
+  - Tab **Daftar Bug**: state `bugPage`, `bugFilter`; queryKey + param `dateFrom/dateTo/q/sort/page/limit`; pagination dengan `<Pagination>` component
+  - Tab **Bug Otomatis**: state `sysPage`, `sysFilter`, `sysSeverityFilter`, `sysTenantFilter`; queryKey + filter severity + tenant; pagination
+  - Empty state updated: "Tidak ada hasil untuk filter saat ini. Reset filter untuk melihat semua."
+  - Reset filter otomatis reset page ke 1
+
+### Changed — Backend query contract
+
+- `server/routes/feedback.ts` — `GET /api/feedback/bug-report/list`
+  - Query params baru: `dateFrom` (YYYY-MM-DD), `dateTo` (YYYY-MM-DD), `q` (regex escaped, max 100 char), `sort` (`newest` | `oldest`)
+  - Filter range `createdAt`, pencarian OR di `description`/`reporterName`/`reporterEmail`/`reporterUsername`
+  - Default `limit` 20 → **10** (sesuai permintaan user), cap 100 untuk safety
+- `server/routes/system-errors.ts` — `GET /api/system-errors/list`
+  - Query params baru: `dateFrom`, `dateTo`, `isTenant` (`true`/`false`), `communitySlug`, `q`, `sort`
+  - Filter range `lastSeenAt`, tenant exact match, pencarian OR di `name`/`message`/`route`/`file`
+  - Default `limit` 20 → **10**
+
+### Docs
+
+- `docs/api/endpoints.md` — signature endpoint updated
+- `docs/features/08-collaboration-feedback/04-bug-reports.md` — query params updated
+- `docs/features/08-collaboration-feedback/06-system-error-monitoring.md` — query params updated
+
+Lihat: [release/4.23.0.md](../release/4.23.0.md)
+
 ## [4.22.15] - 2026-09-19
 
 ### Fixed — Enco Agent: anti-halu prodi + max iterations 50 + get_prodi_info detail

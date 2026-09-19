@@ -975,9 +975,18 @@ router.get(
 				return res.status(403).json({ message: 'Hanya owner yang dapat mengakses daftar bug' });
 			}
 
-			const { status, page: pageStr, limit: limitStr } = req.query;
+			const {
+				status,
+				page: pageStr,
+				limit: limitStr,
+				dateFrom,
+				dateTo,
+				q,
+				sort: sortRaw,
+			} = req.query;
 			const page = Math.max(1, parseInt(pageStr as string, 10) || 1);
-			const limit = Math.min(100, Math.max(1, parseInt(limitStr as string, 10) || 20));
+			// Default 10 (sesuai UI pagination FE); tetap ada cap 100 untuk safety.
+			const limit = Math.min(100, Math.max(1, parseInt(limitStr as string, 10) || 10));
 			const skip = (page - 1) * limit;
 
 			const filter: any = {};
@@ -985,8 +994,37 @@ router.get(
 				filter.status = status;
 			}
 
+			// Filter rentang tanggal (createdAt) — ISO date string YYYY-MM-DD.
+			// dateFrom = awal hari UTC, dateTo = akhir hari UTC.
+			if (dateFrom || dateTo) {
+				const range: any = {};
+				if (typeof dateFrom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateFrom)) {
+					range.$gte = new Date(`${dateFrom}T00:00:00.000Z`);
+				}
+				if (typeof dateTo === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateTo)) {
+					range.$lte = new Date(`${dateTo}T23:59:59.999Z`);
+				}
+				if (range.$gte || range.$lte) {
+					filter.createdAt = range;
+				}
+			}
+
+			// Pencarian teks pada deskripsi, reporter name/email/username.
+			if (typeof q === 'string' && q.trim()) {
+				const safe = q.trim().slice(0, 100).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+				const re = new RegExp(safe, 'i');
+				filter.$or = [
+					{ description: re },
+					{ reporterName: re },
+					{ reporterEmail: re },
+					{ reporterUsername: re },
+				];
+			}
+
+			const sortDir = sortRaw === 'oldest' ? 1 : -1;
+
 			const [items, total] = await Promise.all([
-				BugReport.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+				BugReport.find(filter).sort({ createdAt: sortDir }).skip(skip).limit(limit).lean(),
 				BugReport.countDocuments(filter),
 			]);
 
