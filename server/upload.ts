@@ -193,12 +193,20 @@ export async function uploadHandler(
 			await deleteFile(oldFileUrl);
 		}
 
+		// Deteksi apakah file gambar (HEIC/HEIF/AVIF/JPEG/PNG/WebP/GIF/TIFF/BMP).
+		// Kalau iya → proses ke WebP via pipeline sharp + heic-convert fallback
+		// (lihat `processImage` di `image-processor.ts`). Output WebP konsisten
+		// lintas kategori sehingga FE tidak perlu peduli format input user.
+		const isImage = isProcessableImage(file.mimetype, file.originalname);
+
 		const timestamp = Date.now();
 		const randomName = crypto.randomBytes(8).toString('hex');
 		const safeOriginalName = file.originalname
 			.replace(/[^a-zA-Z0-9.]/g, '_')
 			.substring(0, 20);
-		const fileExtension = path.extname(file.originalname);
+		// Untuk gambar → ekstensi `.webp` (output pipeline). Untuk non-gambar
+		// (video, dokumen, dll.) → pertahankan ekstensi asli.
+		const fileExtension = isImage ? '.webp' : path.extname(file.originalname);
 		const fileName = `${timestamp}_${safeOriginalName}_${randomName}${fileExtension}`;
 
 		const sub = subFolder ? `${category}/${subFolder}` : category;
@@ -211,12 +219,27 @@ export async function uploadHandler(
 			})();
 
 		const filePath = path.join(categoryDir, fileName);
-		await writeFile(filePath, file.buffer);
+
+		let savedBytes = file.size;
+		let savedMime = file.mimetype;
+		if (isImage) {
+			const processedBuffer = await processImage(file.buffer, {
+				quality: 80,
+				maxWidth: 1920,
+				maxHeight: 1080,
+				format: 'webp',
+			});
+			await writeFile(filePath, processedBuffer);
+			savedBytes = processedBuffer.length;
+			savedMime = 'image/webp';
+		} else {
+			await writeFile(filePath, file.buffer);
+		}
 
 		const fileUrl = `${urlPrefix}/${fileName}`;
 		registerUploadedFile({
 			url: fileUrl, diskPath: filePath, originalName: file.originalname,
-			mimeType: file.mimetype, size: file.size, category,
+			mimeType: savedMime, size: savedBytes, category,
 			tenantSlug: tenant?.tenantSlug,
 		});
 		return fileUrl;
