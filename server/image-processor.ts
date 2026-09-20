@@ -6,6 +6,52 @@ import { promisify } from 'util';
 const unlink = promisify(fs.unlink);
 
 /**
+ * Decode HEIC/HEIF input via `heic-convert` (pure-JS implementation, tidak
+ * butuh libheif/libde265 native). Hasil decode adalah raw RGBA buffer yang
+ * kita bungkus ke dalam format JPEG via `sharp` agar pipeline resize/rotate/
+ * webp yang sudah ada bisa jalan tanpa duplikasi.
+ *
+ * Cache lookup `processImage`: kita decode HEIC hanya sekali per call, dan
+ * hasil JPEG intermediate dilempar ke pipeline sharp yang sama.
+ */
+let heicConvertModule: any | null | undefined; // lazy require cache
+async function getHeicConvert(): Promise<any | null> {
+	if (heicConvertModule !== undefined) return heicConvertModule;
+	try {
+		const mod = await import('heic-convert');
+		heicConvertModule = mod.default ?? mod;
+		return heicConvertModule;
+	} catch (e) {
+		console.warn(
+			'[image-processor] heic-convert not available, HEIC/HEIF upload will fail:',
+			(e as Error).message,
+		);
+		heicConvertModule = null;
+		return null;
+	}
+}
+
+/**
+ * Decode HEIC/HEIF buffer ke JPEG buffer (qualitas default 92) atau null jika gagal.
+ * - Pure-JS, cross-platform (Windows/Linux/macOS), tidak butuh system libheif.
+ * - Output adalah JPEG yang siap diproses ulang oleh sharp.
+ */
+async function decodeHeicToJpeg(input: Buffer): Promise<Buffer | null> {
+	const mod = await getHeicConvert();
+	if (!mod) return null;
+	try {
+		const out = await mod({ buffer: input, format: 'JPEG', quality: 0.92 });
+		return Buffer.from(out);
+	} catch (e) {
+		console.warn(
+			'[image-processor] heic-convert decode failed:',
+			(e as Error).message,
+		);
+		return null;
+	}
+}
+
+/**
  * Interface untuk konfigurasi image processing
  */
 interface ImageProcessingOptions {
@@ -16,8 +62,40 @@ interface ImageProcessingOptions {
 }
 
 /**
- * Memproses gambar: konversi ke WebP, kompresi, dan resize jika perlu
- * Mengembalikan buffer gambar yang sudah diproses
+ * Deteksi apakah buffer adalah HEIC/HEIF berdasarkan header bytes.
+ * - HEIC/HEIF dimulai dengan box `ftyp` (bytes 4..8) dan brand salah satu dari
+ *   heic/heix/hevc/hevx/heim/heis/heicm/heics/mif1/msf1/avif.
+ * - Ini lebih reliable dari mimetype saja karena Safari/iOS sering kirim
+ *   application/octet-stream untuk HEIC.
+ */
+function looksLikeHeic(input: Buffer): boolean {
+	if (!input || input.length < 12) return false;
+	// Bytes 4..7 harus ASCII 'ftyp' untuk ISOBMFF container.
+	const brand = input.toString('ascii', 4, 8);
+	if (brand !== 'ftyp') return false;
+	// Bytes 8..12 adalah major brand (4 ASCII chars).
+	const major = input.toString('ascii', 8, 12).toLowerCase();
+	const heicBrands = new Set([
+		'heic',
+		'heix',
+		'hevc',
+		'hevx',
+		'heim',
+		'heis',
+		'heic',
+		'heics',
+		'heicm',
+		'mif1',
+		'msf1',
+	]);
+	return heicBrands.has(major);
+}
+
+/**
+ * Memproses gambar: konversi ke WebP, kompresi, dan resize jika perlu.
+ * - Mendukung HEIC/HEIF via fallback `heic-convert` (pure-JS).
+ * - Mendukung AVIF, JPEG, PNG, WebP, GIF, TIFF, BMP via sharp.
+ * - Mengembalikan buffer gambar yang sudah diproses (WebP by default).
  */
 export async function processImage(
 	inputBuffer: Buffer,
@@ -30,11 +108,23 @@ export async function processImage(
 		format = 'webp',
 	} = options;
 
+	// Decode HEIC/HEIF ke JPEG intermediate sebelum masuk pipeline sharp.
+	let processableBuffer = inputBuffer;
+	if (looksLikeHeic(inputBuffer)) {
+		const jpeg = await decodeHeicToJpeg(inputBuffer);
+		if (!jpeg) {
+			throw new Error(
+				'Gagal decode HEIC/HEIF: heic-convert tidak tersedia atau file rusak.',
+			);
+		}
+		processableBuffer = jpeg;
+	}
+
 	try {
 		// `rotate()` tanpa argumen menerapkan auto-orientasi EXIF, sehingga foto portrait
 		// dari kamera HP (yang menyimpan piksel landscape + tag Orientation) tetap tampil
 		// dalam orientasi yang benar setelah dikonversi ke WebP/JPEG/PNG.
-		let processor = sharp(inputBuffer, { failOn: 'none' }).rotate();
+		let processor = sharp(processableBuffer, { failOn: 'none' }).rotate();
 
 		// Metadata diambil dari processor yang sudah di-rotate agar width/height
 		// merefleksikan dimensi visual akhir (bukan piksel mentah pre-EXIF).
@@ -169,6 +259,8 @@ export function normalizeImageMime(
 		'image/avif': 'avif',
 		'image/heic': 'heic',
 		'image/heif': 'heif',
+		'image/heic-sequence': 'heic',
+		'image/heif-sequence': 'heif',
 	};
 
 	const extByFile: Record<string, string> = {
@@ -217,6 +309,10 @@ export function normalizeImageMime(
  * Mendukung deteksi via mimetype ATAU ekstensi file sebagai safety net
  * (beberapa browser/OS mengirim mimetype kosong atau application/octet-stream
  * untuk format seperti HEIC/HEIF/AVIF).
+ *
+ * Catatan tambahan: dekoder HEIC/HEIF butuh package `heic-convert` (pure-JS),
+ * jadi walaupun mimetype cocok, prosesing bisa gagal kalau dependency ini
+ * tidak terpasang. Pesan error akan membantu diagnosa.
  */
 export function isProcessableImage(
 	mimetype: string,
@@ -233,6 +329,8 @@ export function isProcessableImage(
 		'image/avif',
 		'image/heic',
 		'image/heif',
+		'image/heic-sequence',
+		'image/heif-sequence',
 	];
 	return supported.includes(mime);
 }
