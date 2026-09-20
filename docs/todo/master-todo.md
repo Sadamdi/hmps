@@ -1,6 +1,6 @@
 # Master To-Do — HMPS Project
 
-> Terakhir diperbarui: 2026-09-20 · App version: `4.23.1` — lihat `docs/version/versions.md`
+> Terakhir diperbarui: 2026-09-21 · App version: `4.23.2` — lihat `docs/version/versions.md`
 
 ---
 
@@ -282,7 +282,7 @@
 | ❌ | Media library browser (UI) | Belum ada galeri/browser untuk semua uploaded media |
 | ❌ | Image cropping/editing (UI) | Belum ada crop/edit sebelum upload |
 | ❌ | Video upload & streaming | Upload video langsung (bukan embed saja) |
-| 🔧 | HEIC upload konsisten lintas browser | Backend whitelist & FE accept perlu sync (lihat v4.23.1; AVIF/HEIC/HEIF/TIFF/BMP sudah jalan) |
+| ✅ | HEIC upload konsisten lintas browser | HEIC/HEIF decode pipeline via heic-convert pure-JS + FE accept disinkronkan (v4.23.1 mimetype/ekstensi, v4.23.2 pipeline decode). AVIF/HEIC/HEIF/TIFF/BMP semua upload end-to-end sekarang. |
 | ❌ | CDN integration | Belum ada CDN untuk static assets |
 | ❌ | Bulk upload | Belum bisa upload multiple files sekaligus dengan progress |
 

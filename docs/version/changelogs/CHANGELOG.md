@@ -9,6 +9,28 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.23.2] - 2026-09-21
+
+### Fixed — HEIC/HEIF decode pipeline + section header reveal hardening
+
+- **Backend — `server/image-processor.ts`**
+  - Tambah `looksLikeHeic(buffer)` (deteksi via ISOBMFF `ftyp` box header — tidak percaya mimetype/ekstensi saja).
+  - Tambah `decodeHeicToJpeg()` — decode HEIC/HEIF input ke JPEG intermediate via package `heic-convert` (pure-JS, N-API bindings libheif, cross-platform tanpa butuh system `libheif`/`libde265` terinstall).
+  - `processImage()` sekarang: kalau buffer terdeteksi HEIC → decode dulu ke JPEG via `heic-convert` → masuk pipeline sharp (rotate/resize/webp) seperti biasa.
+  - Lazy import + module cache untuk `heic-convert` — tidak ada overhead kalau HEIC tidak pernah dipakai.
+- **Backend — `package.json`**
+  - Tambah dependency `heic-convert@^2.1.0` (pure-JS HEIC/HEIF → JPEG/PNG decoder).
+- **Backend — `types/heic-convert.d.ts`** (BARU)
+  - Type declarations lokal untuk `heic-convert` (package tidak punya `@types/...` resmi) supaya `npm run check` lulus.
+- **Backend — `tsconfig.json`**
+  - Tambah `types/**/*` ke `include` agar type declarations lokal di-pickup.
+- **Frontend — `client/src/hooks/use-reveal-animation.ts`**
+  - Hardening tambahan: fallback timeout 800 ms **sekarang memaksa `isVisible = true` tanpa peduli posisi viewport** (sebelumnya hanya reveal kalau dalam viewport). Ditambah fallback kedua di 2500 ms sebagai safety net terakhir.
+  - Rationale: section header yang "hilang" adalah bug UX fatal, sedangkan reveal sedikit lebih awal dari yang ideal hanya masalah kosmetik. Lebih baik reveal segera daripada stuck opacity-0 selamanya.
+  - Fix terakhir untuk section header Berita/About/Visi&Misi/Library yang masih bisa invisible di skenario tertentu.
+- **Frontend — `client/src/lib/image-accept.ts`**
+  - `ALL_IMAGE_ACCEPT` sekarang list eksplisit mime+ext (termasuk `image/heic`, `image/heif`, `image/heic-sequence`, `image/heif-sequence`) untuk kompatibilitas maksimum dengan Safari/iOS file picker.
+
 ## [4.23.1] - 2026-09-20
 
 ### Fixed — HEIC/HEIF/AVIF upload support + invisible section header
