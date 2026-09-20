@@ -6886,7 +6886,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Image file is required' });
 				}
 
-				if (!isProcessableImage(req.file.mimetype)) {
+				if (!isProcessableImage(req.file.mimetype, req.file.originalname)) {
 					return res.status(400).json({ message: 'File type not supported' });
 				}
 
@@ -7047,7 +7047,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Image file is required' });
 				}
 
-				if (!isProcessableImage(req.file.mimetype)) {
+				if (!isProcessableImage(req.file.mimetype, req.file.originalname)) {
 					return res.status(400).json({ message: 'File type not supported' });
 				}
 

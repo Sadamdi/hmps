@@ -26,6 +26,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import {
 	closestCenter,
 	DndContext,
@@ -213,7 +214,7 @@ function SortableLambangCard({
 					{item.key && (
 						<Input
 							type="file"
-							accept="image/*"
+							accept={ALL_IMAGE_ACCEPT}
 							className="mt-2 text-xs"
 							onChange={(ev) => {
 								const f = ev.target.files?.[0];
@@ -334,7 +335,7 @@ function LogoKomunitasSection({ settings, canEdit }: { settings: Settings | unde
 						<input
 							ref={fileRef}
 							type="file"
-							accept="image/*"
+							accept={ALL_IMAGE_ACCEPT}
 							className="hidden"
 							onChange={(e) => { if (e.target.files?.[0]) handleUpload(e.target.files[0]); }}
 						/>

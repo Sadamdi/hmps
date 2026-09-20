@@ -945,7 +945,7 @@ function ProdiMemberPhotoUpload({
 			<input
 				ref={inputRef}
 				type="file"
-				accept="image/jpeg,image/png,image/gif,image/webp"
+				accept="image/*,.heic,.heif,.avif,.bmp,.tif,.tiff,.webp,.png,.jpg,.jpeg,.gif"
 				className="hidden"
 				onChange={onPick}
 			/>
@@ -1044,7 +1044,7 @@ function ProdiOrgStructurePhotoUpload({
 			<input
 				ref={inputRef}
 				type="file"
-				accept="image/jpeg,image/png,image/gif,image/webp"
+				accept="image/*,.heic,.heif,.avif,.bmp,.tif,.tiff,.webp,.png,.jpg,.jpeg,.gif"
 				className="hidden"
 				onChange={onPick}
 			/>
@@ -1151,7 +1151,7 @@ function ProdiLabPhotoSlots({
 			<input
 				ref={inputRef}
 				type="file"
-				accept="image/jpeg,image/png,image/gif,image/webp"
+				accept="image/*,.heic,.heif,.avif,.bmp,.tif,.tiff,.webp,.png,.jpg,.jpeg,.gif"
 				className="hidden"
 				onChange={onPick}
 			/>

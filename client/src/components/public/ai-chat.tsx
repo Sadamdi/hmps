@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/lib/auth';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { sanitizeAiAssistantText } from '@shared/ai-response-sanitize';
 import {
@@ -1308,7 +1309,7 @@ export default function AIChat({ pageContext }: AIChatProps) {
 							</button>
 							<input
 								type="file"
-								accept="image/*"
+								accept={ALL_IMAGE_ACCEPT}
 								ref={fileInputRef}
 								onChange={handleFileChange}
 								hidden

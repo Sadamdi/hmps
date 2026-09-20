@@ -56,6 +56,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useTenant } from '@/lib/tenant-context';
 import {
 	closestCenter,
@@ -4400,7 +4401,7 @@ function SlotUploader({
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		const file = e.dataTransfer.files[0];
-		if (file && file.type.startsWith('image/')) handleUpload(file);
+		if (file) handleUpload(file);
 	};
 
 	return (
@@ -4451,7 +4452,7 @@ function SlotUploader({
 			<input
 				ref={fileRef}
 				type="file"
-				accept="image/*"
+				accept={ALL_IMAGE_ACCEPT}
 				className="hidden"
 				onChange={(e) => {
 					const file = e.target.files?.[0];
@@ -4563,7 +4564,7 @@ function PersonSlotUploader({
 	const handleDrop = (e: React.DragEvent) => {
 		e.preventDefault();
 		const file = e.dataTransfer.files[0];
-		if (file && file.type.startsWith('image/')) handleUpload(file);
+		if (file) handleUpload(file);
 	};
 
 	return (
@@ -4614,7 +4615,7 @@ function PersonSlotUploader({
 			<input
 				ref={fileRef}
 				type="file"
-				accept="image/*"
+				accept={ALL_IMAGE_ACCEPT}
 				className="hidden"
 				onChange={(e) => {
 					const file = e.target.files?.[0];

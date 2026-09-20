@@ -3,6 +3,7 @@ import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
 import { z } from 'zod';
+import { isProcessableImage } from './image-processor';
 
 // ==================== RATE LIMITING ====================
 function getClientIp(req: any): string {
@@ -235,11 +236,13 @@ export const validateFileUpload = (req: any, res: any, next: any) => {
 		return res.status(400).json({ error: 'No file uploaded' });
 	}
 
-	// Validate file type
-	const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-	if (!allowedTypes.includes(req.file.mimetype)) {
+	// Validate file type.
+	// Dukung semua format image umum (JPEG, PNG, GIF, WebP, BMP, TIFF, AVIF, HEIC, HEIF)
+	// termasuk fallback deteksi via ekstensi file (beberapa browser/OS kirim mimetype
+	// generic application/octet-stream untuk HEIC/HEIF).
+	if (!isProcessableImage(req.file.mimetype, req.file.originalname)) {
 		return res.status(400).json({
-			error: 'Invalid file type. Only JPEG, PNG, GIF, and WebP are allowed.',
+			error: 'Invalid file type. Only images are allowed (JPEG, PNG, GIF, WebP, BMP, TIFF, AVIF, HEIC, HEIF).',
 		});
 	}
 
