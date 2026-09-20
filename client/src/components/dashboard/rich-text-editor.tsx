@@ -1,4 +1,5 @@
 import { useToast } from '@/hooks/use-toast';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useEffect, useRef } from 'react';
 
 interface RichTextEditorProps {
@@ -222,7 +223,7 @@ export default function RichTextEditor({
 						if (meta.filetype === 'image') {
 							const input = document.createElement('input');
 							input.setAttribute('type', 'file');
-							input.setAttribute('accept', 'image/*');
+							input.setAttribute('accept', ALL_IMAGE_ACCEPT);
 
 							input.addEventListener('change', async (e: any) => {
 								const file = e.target.files[0];

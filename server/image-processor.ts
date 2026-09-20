@@ -138,16 +138,101 @@ export function getFileSizeInfo(sizeInBytes: number): string {
 }
 
 /**
- * Cek apakah file adalah gambar yang bisa diproses
+ * Normalisasi mimetype dari Multer/FileReader agar konsisten lintas browser/OS.
+ * - Beberapa browser/OS mengirim `.heic`/`.heif` sebagai `image/heic`, `image/heif`,
+ *   atau bahkan `application/octet-stream`. Kita tebak dari ekstensi file kalau
+ *   mimetype kosong/generik.
+ * - Return tuple [normalizedMimetype, extensionHint].
  */
-export function isProcessableImage(mimetype: string): boolean {
-	const processableTypes = [
+export function normalizeImageMime(
+	mimetype: string | undefined | null,
+	originalName?: string | null,
+): { mime: string; ext: string } {
+	let mime = (mimetype || '').toLowerCase().trim();
+	const name = (originalName || '').toLowerCase();
+
+	const extFromName = (() => {
+		const m = name.match(/\.([a-z0-9]+)$/);
+		return m ? m[1] : '';
+	})();
+
+	const extByMime: Record<string, string> = {
+		'image/jpeg': 'jpg',
+		'image/jpg': 'jpg',
+		'image/pjpeg': 'jpg',
+		'image/png': 'png',
+		'image/webp': 'webp',
+		'image/gif': 'gif',
+		'image/bmp': 'bmp',
+		'image/x-ms-bmp': 'bmp',
+		'image/tiff': 'tiff',
+		'image/avif': 'avif',
+		'image/heic': 'heic',
+		'image/heif': 'heif',
+	};
+
+	const extByFile: Record<string, string> = {
+		jpg: 'image/jpeg',
+		jpeg: 'image/jpeg',
+		png: 'image/png',
+		webp: 'image/webp',
+		gif: 'image/gif',
+		bmp: 'image/bmp',
+		dib: 'image/bmp',
+		tif: 'image/tiff',
+		tiff: 'image/tiff',
+		avif: 'image/avif',
+		heic: 'image/heic',
+		heif: 'image/heif',
+	};
+
+	// 1) Kalau mimetype generic / kosong, tebak dari ekstensi file
+	if (
+		!mime ||
+		mime === 'application/octet-stream' ||
+		mime === 'binary/octet-stream' ||
+		mime === ''
+	) {
+		if (extFromName && extByFile[extFromName]) {
+			mime = extByFile[extFromName];
+		}
+	}
+
+	// 2) Kalau mimetype valid tapi tidak ada di map, fallback ke ext
+	if (!extByMime[mime] && extFromName && extByFile[extFromName]) {
+		mime = extByFile[extFromName];
+	}
+
+	// 3) Beberapa OS kirim 'image/jpg' (non-standar) → normalkan ke jpeg
+	if (mime === 'image/jpg' || mime === 'image/pjpeg') {
+		mime = 'image/jpeg';
+	}
+
+	const ext = extByMime[mime] || extFromName || 'bin';
+	return { mime, ext };
+}
+
+/**
+ * Cek apakah file adalah gambar yang bisa diproses.
+ * Mendukung deteksi via mimetype ATAU ekstensi file sebagai safety net
+ * (beberapa browser/OS mengirim mimetype kosong atau application/octet-stream
+ * untuk format seperti HEIC/HEIF/AVIF).
+ */
+export function isProcessableImage(
+	mimetype: string,
+	originalName?: string | null,
+): boolean {
+	const { mime } = normalizeImageMime(mimetype, originalName);
+	const supported = [
 		'image/jpeg',
 		'image/png',
 		'image/webp',
 		'image/gif',
 		'image/tiff',
 		'image/bmp',
+		'image/avif',
+		'image/heic',
+		'image/heif',
 	];
-	return processableTypes.includes(mimetype);
+	return supported.includes(mime);
 }

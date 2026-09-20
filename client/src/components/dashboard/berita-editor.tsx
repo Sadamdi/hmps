@@ -22,6 +22,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { CalendarDays, Copy, FileUp, Image, Link2, Loader2, Paperclip, Plus, Search, Trash2, Upload, X } from 'lucide-react';
@@ -1067,7 +1068,7 @@ export default function BeritaEditor({
 						<input
 							ref={fileInputRef}
 							type="file"
-							accept="image/*"
+							accept={ALL_IMAGE_ACCEPT}
 							className="hidden"
 							onChange={handleFileChange}
 						/>
@@ -1112,7 +1113,7 @@ export default function BeritaEditor({
 								<input
 									ref={contentImageInputRef}
 									type="file"
-									accept="image/*"
+									accept={ALL_IMAGE_ACCEPT}
 									className="hidden"
 									onChange={handleContentImageUpload}
 								/>

@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { apiRequest } from '@/lib/queryClient';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { AboutPageLambangItem, AboutPageTrackRecordItem } from '@shared/schema';
@@ -322,7 +323,7 @@ export default function ContentEditor({
 									)}
 									<Input
 										type="file"
-										accept="image/*"
+										accept={ALL_IMAGE_ACCEPT}
 										onChange={(e) => {
 											const file = e.target.files?.[0];
 											if (file) handleHeroImageChange('logoUrl', file);
@@ -340,7 +341,7 @@ export default function ContentEditor({
 									)}
 									<Input
 										type="file"
-										accept="image/*"
+										accept={ALL_IMAGE_ACCEPT}
 										onChange={(e) => {
 											const file = e.target.files?.[0];
 											if (file) handleHeroImageChange('chairpersonPhoto', file);
@@ -378,7 +379,7 @@ export default function ContentEditor({
 									)}
 									<Input
 										type="file"
-										accept="image/*"
+										accept={ALL_IMAGE_ACCEPT}
 										onChange={(e) => {
 											const file = e.target.files?.[0];
 											if (file)
@@ -436,7 +437,7 @@ export default function ContentEditor({
 											)}
 											<Input
 												type="file"
-												accept="image/*"
+												accept={ALL_IMAGE_ACCEPT}
 												onChange={(e) => {
 													const file = e.target.files?.[0];
 													if (file)
@@ -457,7 +458,7 @@ export default function ContentEditor({
 											)}
 											<Input
 												type="file"
-												accept="image/*"
+												accept={ALL_IMAGE_ACCEPT}
 												onChange={(e) => {
 													const file = e.target.files?.[0];
 													if (file) handleHeroDivisionLogoChange(div.key, file);

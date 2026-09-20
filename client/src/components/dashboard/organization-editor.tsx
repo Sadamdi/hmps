@@ -20,6 +20,7 @@ import { useToast } from '@/hooks/use-toast';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { getCroppedImg } from '@/lib/cropImage';
 import { apiRequest, queryClient } from '@/lib/queryClient';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useTenant } from '@/lib/tenant-context';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { Loader2, Plus, User } from 'lucide-react';
@@ -602,7 +603,7 @@ export default function OrganizationEditor({
 							<input
 								ref={fileInputRef}
 								type="file"
-								accept="image/*"
+								accept={ALL_IMAGE_ACCEPT}
 								className="hidden"
 								onChange={handleFileChange}
 							/>

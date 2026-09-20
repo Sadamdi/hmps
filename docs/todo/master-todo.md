@@ -1,6 +1,6 @@
 # Master To-Do — HMPS Project
 
-> Terakhir diperbarui: 2026-08-12 · App version: `4.15.3` — lihat `docs/version/versions.md`
+> Terakhir diperbarui: 2026-09-20 · App version: `4.23.1` — lihat `docs/version/versions.md`
 
 ---
 
@@ -255,7 +255,7 @@
 
 | Status | Fitur | Keterangan |
 |--------|-------|------------|
-| ✅ | General upload | Upload middleware, temp upload, file validation |
+| ✅ | General upload | Upload middleware, temp upload, file validation (HEIC/HEIF/AVIF/TIFF/BMP supported v4.23.1) |
 | ✅ | Editor content media | Berita/event content images via editor |
 | ✅ | Prodi/organization media | Lecturer photo, member image, lab photo |
 | ✅ | Home images & banner render | Home carousel images, dynamic banner generation |
@@ -282,6 +282,7 @@
 | ❌ | Media library browser (UI) | Belum ada galeri/browser untuk semua uploaded media |
 | ❌ | Image cropping/editing (UI) | Belum ada crop/edit sebelum upload |
 | ❌ | Video upload & streaming | Upload video langsung (bukan embed saja) |
+| 🔧 | HEIC upload konsisten lintas browser | Backend whitelist & FE accept perlu sync (lihat v4.23.1; AVIF/HEIC/HEIF/TIFF/BMP sudah jalan) |
 | ❌ | CDN integration | Belum ada CDN untuk static assets |
 | ❌ | Bulk upload | Belum bisa upload multiple files sekaligus dengan progress |
 
