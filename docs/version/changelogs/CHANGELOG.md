@@ -9,6 +9,15 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.23.3] - 2026-09-21
+
+### Fixed — General uploadHandler sekarang proses gambar ke WebP
+
+- **Backend — `server/upload.ts`**
+  - `uploadHandler()` (dipakai `/api/upload` dan beberapa endpoint lain) sekarang mendeteksi gambar via `isProcessableImage()` dan memanggil `processImage()` (sharp pipeline + `heic-convert` untuk HEIC/HEIF) sehingga output selalu `.webp`. Sebelumnya file gambar hanya disimpan dengan ekstensi asli — untuk HEIC hasil upload `.heic` yang tidak bisa di-render di Firefox/Chrome tanpa codec HEVC.
+  - Non-gambar (video/dokumen) tetap pakai ekstensi asli.
+  - Kontrak API tidak berubah — response `{ url }` masih path yang sama, hanya content/extension-nya konsisten WebP untuk gambar.
+
 ## [4.23.2] - 2026-09-21
 
 ### Fixed — HEIC/HEIF decode pipeline + section header reveal hardening
