@@ -671,7 +671,7 @@ function UniversalFilePreview({ url, name, mimeType, size }: { url: string; name
 	const [codeLoading, setCodeLoading] = useState(false);
 
 	const mime = mimeType || '';
-	const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i.test(name);
+	const isImage = mime.startsWith('image/') || /\.(png|jpe?g|gif|webp|svg|bmp|ico|avif|heic|heif|tiff?)$/i.test(name);
 	const isVideo = mime.startsWith('video/') || /\.(mp4|webm|ogg|mov|avi)$/i.test(name);
 	const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(name);
 	const isCode = isCodeLikeFile(name);

@@ -37,6 +37,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useAuth } from '@/lib/auth';
 import {
@@ -94,7 +95,11 @@ const COMMON_CURRENCIES = listCommonCurrencyCodes();
 function isImageLikeFile(file: File): boolean {
 	const mime = String(file.type || '').toLowerCase();
 	if (mime.startsWith('image/')) return true;
-	return /\.(png|jpe?g|webp|gif|bmp|svg|avif)$/i.test(file.name || '');
+	// Fallback ekstensi untuk HEIC/HEIF/AVIF/TIFF yang sering dikirim dengan
+	// mimetype kosong atau application/octet-stream di Safari/iOS/macOS.
+	return /\.(png|jpe?g|webp|gif|bmp|svg|avif|heic|heif|tiff?)$/i.test(
+		file.name || '',
+	);
 }
 
 type AdminProductsPage = { items: any[]; total: number; page: number; limit: number };
@@ -2785,7 +2790,7 @@ export default function DashboardToko() {
 						<input
 							ref={thumbFileRef}
 							type="file"
-							accept="image/*"
+							accept={ALL_IMAGE_ACCEPT}
 							className="hidden"
 							onChange={async (e) => {
 								const file = e.target.files?.[0];
@@ -2858,7 +2863,7 @@ export default function DashboardToko() {
 						<input
 							ref={galleryFileRef}
 							type="file"
-							accept="image/*"
+							accept={ALL_IMAGE_ACCEPT}
 							multiple
 							className="hidden"
 							onChange={async (e) => {

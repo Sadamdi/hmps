@@ -9,6 +9,44 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.23.1] - 2026-09-20
+
+### Fixed — HEIC/HEIF/AVIF upload support + invisible section header
+
+- **Backend — `server/image-processor.ts`**
+  - Tambah `normalizeImageMime(mimetype, originalName)` — fallback deteksi mimetype via ekstensi file untuk Safari/iOS/macOS yang kirim `application/octet-stream` untuk HEIC/HEIF.
+  - Perluas whitelist `isProcessableImage()` ke JPEG/PNG/WEBP/GIF/TIFF/BMP/**AVIF**/**HEIC**/**HEIF**.
+- **Backend — `server/security.ts`**
+  - `validateFileUpload` middleware pakai whitelist baru dengan fallback deteksi via ekstensi.
+- **Backend — `server/upload.ts`**
+  - 10 call-site `isProcessableImage(file.mimetype)` → `isProcessableImage(file.mimetype, file.originalname)` agar HEIC/HEIF/AVIF lolos validasi.
+- **Backend — `server/routes.ts`**
+  - 2 call-site home-images upload (slot & person) ikut pakai parameter originalname.
+- **Backend — `server/routes/chat.ts`**
+  - Filename pakai ekstensi asli dari `originalname` (bukan `.bin` fallback).
+  - Mimetype dinormalisasi sebelum dikirim sebagai `fileMimeType` ke Gemini/OpenAI.
+- **Frontend — `client/src/lib/image-accept.ts`** (BARU)
+  - Konstanta `ALL_IMAGE_ACCEPT = "image/*,.heic,.heif,.avif,.bmp,.tif,.tiff,.webp,.png,.jpg,.jpeg,.gif"` agar file picker di Safari/iOS/Windows membuka tipe yang benar.
+- **Frontend — `client/src/hooks/use-reveal-animation.ts`**
+  - Tambah viewport check di awal effect — kalau node sudah terlihat saat mount, langsung `isVisible=true` (tidak tunggu observer callback).
+  - Fallback timeout 800 ms — kalau IntersectionObserver tidak pernah fire (tab inactive, threshold tidak tercapai), paksa visible setelah cek viewport.
+  - Fix bug section header Berita/About/Visi&Misi tidak muncul.
+- **Frontend — input file accept** (10 tempat): `ai-chat.tsx`, `toko.tsx`, `profil.tsx`, `events.tsx`, `settings.tsx`, `register.tsx`, `berita-editor.tsx`, `organization-editor.tsx`, `banner-editor.tsx`, `content-editor.tsx`, `rich-text-editor.tsx`, `prodi.tsx`, `ui/image-upload.tsx`.
+- **Frontend — fallback regex ekstensi** untuk deteksi image di:
+  - `client/src/components/ui/image-upload.tsx::handleFileUpload`
+  - `client/src/components/dashboard/bug-report-dialog.tsx::isImageFile(type, name)`
+  - `client/src/pages/dashboard/toko.tsx::isImageLikeFile`
+  - `client/src/pages/dashboard/feedback.tsx::isImage`
+  - `client/src/pages/dashboard/settings.tsx::handleDrop` (drag&drop)
+
+### Docs
+
+- `docs/version/versions.md` — Current = `4.23.1`, entry baru.
+- `docs/version/changelogs/CHANGELOG.md` — section `[4.23.1]`.
+- `docs/version/release/4.23.1.md` — release note lengkap.
+- `package.json` version = `4.23.1`.
+- `docs/openapi.json` `info.version` = `4.23.1`.
+
 ## [4.23.0] - 2026-09-19
 
 ### Added — Pagination + rich filter untuk Daftar Bug & Bug Otomatis

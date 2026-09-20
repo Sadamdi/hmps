@@ -41,8 +41,13 @@ function isCodeFile(name: string): boolean {
 	return CODE_EXTENSIONS.has(getFileExtension(name));
 }
 
-function isImageFile(type: string): boolean {
-	return type.startsWith('image/');
+function isImageFile(type: string, name: string = ''): boolean {
+	if (type.startsWith('image/')) return true;
+	// Fallback ekstensi untuk HEIC/HEIF/AVIF/TIFF yang sering dikirim dengan
+	// mimetype kosong atau application/octet-stream di Safari/iOS/macOS.
+	return /\.(png|jpe?g|gif|webp|bmp|avif|heic|heif|tiff?|svg|ico)$/i.test(
+		name,
+	);
 }
 
 function isVideoFile(type: string): boolean {
@@ -93,7 +98,7 @@ export default function BugReportDialog({ open, onOpenChange }: BugReportDialogP
 
 			const fp: FilePreview = { file };
 
-			if (isImageFile(file.type)) {
+			if (isImageFile(file.type, file.name)) {
 				fp.previewUrl = URL.createObjectURL(file);
 			} else if (isVideoFile(file.type)) {
 				fp.previewUrl = URL.createObjectURL(file);
@@ -241,7 +246,7 @@ export default function BugReportDialog({ open, onOpenChange }: BugReportDialogP
 								<div className="grid gap-2">
 									{files.map((fp, i) => (
 										<div key={i} className="flex items-center gap-2 p-2 border rounded-md bg-muted/50">
-											{fp.previewUrl && isImageFile(fp.file.type) ? (
+											{fp.previewUrl && isImageFile(fp.file.type, fp.file.name) ? (
 												<img src={fp.previewUrl} alt="" className="h-10 w-10 rounded object-cover shrink-0" />
 											) : (
 												<FileText className="h-10 w-10 p-2 text-muted-foreground shrink-0" />
@@ -346,7 +351,7 @@ export default function BugReportDialog({ open, onOpenChange }: BugReportDialogP
 								{previewFile.file.type || 'Unknown type'} — {formatFileSize(previewFile.file.size)}
 							</div>
 
-							{isImageFile(previewFile.file.type) && previewFile.previewUrl && (
+							{isImageFile(previewFile.file.type, previewFile.file.name) && previewFile.previewUrl && (
 								<img src={previewFile.previewUrl} alt="" className="max-w-full rounded-md" />
 							)}
 
@@ -368,7 +373,7 @@ export default function BugReportDialog({ open, onOpenChange }: BugReportDialogP
 								</pre>
 							)}
 
-							{!isImageFile(previewFile.file.type) &&
+							{!isImageFile(previewFile.file.type, previewFile.file.name) &&
 								!isVideoFile(previewFile.file.type) &&
 								!isPdfFile(previewFile.file.type) &&
 								!previewFile.textContent && (

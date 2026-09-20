@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useState } from 'react';
 
 interface ImageUploadProps {
@@ -31,8 +32,13 @@ export function ImageUpload({
 			return;
 		}
 
-		// Check file type
-		if (!file.type.startsWith('image/')) {
+		// Check file type.
+		// Beberapa browser/OS mengirim mimetype kosong / application/octet-stream
+		// untuk HEIC/HEIF/AVIF. Fallback ke ekstensi file.
+		const allowedExt = /\.(png|jpe?g|gif|webp|bmp|tiff?|avif|heic|heif)$/i;
+		const looksLikeImage =
+			file.type.startsWith('image/') || allowedExt.test(file.name);
+		if (!looksLikeImage) {
 			toast({
 				title: 'Format file tidak didukung',
 				description: 'Hanya file gambar yang diperbolehkan',
@@ -90,7 +96,7 @@ export function ImageUpload({
 			<div className="flex items-center gap-2">
 				<Input
 					type="file"
-					accept="image/*"
+					accept={ALL_IMAGE_ACCEPT}
 					onChange={handleFileUpload}
 					disabled={isUploading}
 					className="max-w-xs"

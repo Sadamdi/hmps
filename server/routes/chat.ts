@@ -52,7 +52,10 @@ const upload = multer({
 	storage: multer.diskStorage({
 		destination: 'uploads/',
 		filename: (req, file, cb) => {
-			const uniqueName = `${uuidv4()}${path.extname(file.originalname)}`;
+			// Pakai ekstensi dari originalname (lebih reliable dari mimetype,
+			// terutama untuk HEIC/HEIF yang sering dikirim sebagai application/octet-stream).
+			const ext = path.extname(file.originalname) || '.bin';
+			const uniqueName = `${uuidv4()}${ext}`;
 			cb(null, uniqueName);
 		},
 	}),
@@ -251,7 +254,15 @@ router.post(
 
 			const { message, chatId } = req.body;
 			const imageUrl = req.file ? `/uploads/${req.file.filename}` : undefined;
-			const fileMimeType = req.file?.mimetype;
+			// Normalisasi mimetype: kalau browser kirim application/octet-stream
+			// (umum untuk HEIC/HEIF), tebak dari ekstensi file.
+			const { normalizeImageMime } = await import('../image-processor');
+			const fileMimeType = req.file
+				? normalizeImageMime(
+						req.file.mimetype,
+						req.file.originalname,
+				  ).mime
+				: undefined;
 
 			// Resolve server-side permissions (authoritative, not from client)
 			let serverPermissions: string[] = [];

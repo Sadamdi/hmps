@@ -22,6 +22,7 @@ import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { buildEventsEncoPageData } from '@shared/dashboard-enco-context';
 import type { EventItem, EventYear } from '@shared/schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -1246,7 +1247,7 @@ export default function DashboardEvents() {
 								)}
 								<Input
 									type="file"
-									accept="image/*"
+									accept={ALL_IMAGE_ACCEPT}
 									onChange={(e) => setFormThumbnail(e.target.files?.[0] || null)}
 								/>
 							</div>

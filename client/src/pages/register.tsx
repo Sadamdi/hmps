@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { isReservedTenantSlug } from '@shared/tenant-paths';
 import {
 	closestCenter,
@@ -208,7 +209,7 @@ function OnboardSortableLambangCard({
 					</div>
 					<Input
 						type="file"
-						accept="image/*"
+						accept={ALL_IMAGE_ACCEPT}
 						className="text-[10px] w-16"
 						onChange={(e) => {
 							const f = e.target.files?.[0];
@@ -1148,7 +1149,7 @@ export default function RegisterPage() {
 								<input
 									ref={logoInputRef}
 									type="file"
-									accept="image/*"
+									accept={ALL_IMAGE_ACCEPT}
 									className="hidden"
 									onChange={async (e) => {
 										const file = e.target.files?.[0];

@@ -25,6 +25,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { BANNER_TEMPLATE_DEFAULTS } from '@/lib/banner-template-layers';
+import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { Image as ImageIcon, Loader2, Palette, RefreshCw, Save, Wand2, X } from 'lucide-react';
 import {
 	memo,
@@ -454,7 +455,7 @@ export function BannerEditor({
 								<Label>Foto potret (opsional)</Label>
 								<Input
 									type="file"
-									accept="image/*"
+									accept={ALL_IMAGE_ACCEPT}
 									onChange={handlePhotoSelect}
 								/>
 								{photoPreview && (
@@ -494,7 +495,7 @@ export function BannerEditor({
 								<div className="flex flex-wrap items-center gap-2">
 									<Input
 										type="file"
-										accept="image/*"
+										accept={ALL_IMAGE_ACCEPT}
 										onChange={handleLogoSelect}
 										className="flex-1 min-w-[180px]"
 									/>

@@ -242,7 +242,7 @@ export async function uploadBeritaImage(
 			await deleteFile(oldFileUrl);
 		}
 
-		if (!isProcessableImage(file.mimetype)) {
+		if (!isProcessableImage(file.mimetype, file.originalname)) {
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
@@ -295,7 +295,7 @@ export async function uploadStoreProductImage(
 	try {
 		await maybeDeleteLocalUpload(oldFileUrl);
 
-		if (!isProcessableImage(file.mimetype)) {
+		if (!isProcessableImage(file.mimetype, file.originalname)) {
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
@@ -353,7 +353,7 @@ export async function uploadEventContentImage(
 	parentEventId?: string | null,
 	tenant?: TenantPathContext,
 ): Promise<string> {
-	if (!isProcessableImage(file.mimetype)) {
+	if (!isProcessableImage(file.mimetype, file.originalname)) {
 		throw new Error(`File type ${file.mimetype} is not processable`);
 	}
 
@@ -431,7 +431,7 @@ export async function uploadEventThumbnail(
 
 	const filePath = path.join(categoryDir, fileName);
 
-	if (isProcessableImage(file.mimetype)) {
+	if (isProcessableImage(file.mimetype, file.originalname)) {
 		const processedBuffer = await processImage(file.buffer, {
 			quality: 80,
 			maxWidth: 1920,
@@ -602,7 +602,7 @@ export async function uploadOrganizationMemberImage(
 			.substring(0, 20);
 		const fileName = `${timestamp}_${safeOriginalName}_${randomName}.webp`;
 
-		if (!isProcessableImage(file.mimetype)) {
+		if (!isProcessableImage(file.mimetype, file.originalname)) {
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
@@ -681,7 +681,7 @@ export async function uploadProdiLecturerPhoto(
 	try {
 		await maybeDeleteLocalUpload(oldFileUrl);
 
-		if (!isProcessableImage(file.mimetype)) {
+		if (!isProcessableImage(file.mimetype, file.originalname)) {
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
@@ -757,7 +757,7 @@ export async function uploadProdiLabPhoto(
 
 		await maybeDeleteLocalUpload(oldFileUrl);
 
-		if (!isProcessableImage(file.mimetype)) {
+		if (!isProcessableImage(file.mimetype, file.originalname)) {
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
@@ -808,7 +808,7 @@ export async function uploadProdiOrganizationStructureImage(
 	try {
 		await maybeDeleteLocalUpload(oldFileUrl);
 
-		if (!isProcessableImage(file.mimetype)) {
+		if (!isProcessableImage(file.mimetype, file.originalname)) {
 			throw new Error(`File type ${file.mimetype} is not processable`);
 		}
 
@@ -909,7 +909,7 @@ export async function uploadFeedbackImage(
 	file: Express.Multer.File,
 	tenant?: TenantPathContext,
 ): Promise<{ url: string; originalName: string }> {
-	if (!isProcessableImage(file.mimetype)) {
+	if (!isProcessableImage(file.mimetype, file.originalname)) {
 		throw new Error(`File type ${file.mimetype} is not a processable image`);
 	}
 
@@ -963,7 +963,7 @@ export async function uploadUniversalFile(
 		.replace(/[^a-zA-Z0-9.]/g, '_')
 		.substring(0, 40);
 
-	const shouldProcessAsImage = isProcessableImage(file.mimetype);
+	const shouldProcessAsImage = isProcessableImage(file.mimetype, file.originalname);
 
 	const fileExtension = shouldProcessAsImage
 		? '.webp'
