@@ -1,4 +1,5 @@
 import type { ReactNode, Ref } from 'react';
+import { useEffect, useState } from 'react';
 
 type PublicSectionHeaderProps = {
 	/** Label di pill (mis. "Berita", "Instagram") */
@@ -31,7 +32,16 @@ export function PublicSectionHeader({
 	visible = true,
 	actions,
 }: PublicSectionHeaderProps) {
-	const show = visible;
+	// Safety net: kalau prop visible masih false (useRevealAnimation stuck) setelah
+	// 500ms, paksa reveal. Header yang menghilang adalah bug UX yang fatal — lebih
+	// baik reveal tanpa animasi ideal daripada opacity-0 selamanya.
+	const [forcedVisible, setForcedVisible] = useState(false);
+	useEffect(() => {
+		if (visible || forcedVisible) return;
+		const t = window.setTimeout(() => setForcedVisible(true), 500);
+		return () => window.clearTimeout(t);
+	}, [visible, forcedVisible]);
+	const show = visible || forcedVisible;
 	return (
 		<div ref={headingRef} className={`text-center mb-8 sm:mb-12 ${className}`}>
 			<span

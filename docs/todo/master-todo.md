@@ -1,6 +1,6 @@
 # Master To-Do — HMPS Project
 
-> Terakhir diperbarui: 2026-09-21 · App version: `4.23.2` — lihat `docs/version/versions.md`
+> Terakhir diperbarui: 2026-09-22 · App version: `4.23.4` — lihat `docs/version/versions.md`
 
 ---
 

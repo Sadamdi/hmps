@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.23.3`  
+**Current version:** `4.23.4`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.23.3`](./release/4.23.3.md) | 2026-09-21 | Upload general: proses gambar ke WebP via pipeline (HEIC/HEIF/AVIF/JPEG/PNG/etc) | PATCH | 1 | **Current** |
+| [`4.23.4`](./release/4.23.4.md) | 2026-09-22 | PublicSectionHeader safety net + AVIF tidak ikut route ke heic-convert | PATCH | 1 | **Current** |
+| [`4.23.3`](./release/4.23.3.md) | 2026-09-21 | Upload general: proses gambar ke WebP via pipeline (HEIC/HEIF/AVIF/JPEG/PNG/etc) | PATCH | 1 | Released |
 | [`4.23.2`](./release/4.23.2.md) | 2026-09-21 | HEIC/HEIF pipeline: pure-JS decoder + section header reveal hardening | PATCH | 1 | Released |
 | [`4.23.1`](./release/4.23.1.md) | 2026-09-20 | HEIC/HEIF/AVIF upload support + fix invisible section header | PATCH | 1 | Released |
 | [`4.23.0`](./release/4.23.0.md) | 2026-09-19 | Pagination + rich filter untuk Daftar Bug & Bug Otomatis | MINOR | 1 | Released |
