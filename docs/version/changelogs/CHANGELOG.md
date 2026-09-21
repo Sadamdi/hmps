@@ -9,6 +9,24 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.23.4] - 2026-09-22
+
+### Fixed — PublicSectionHeader safety net + AVIF tidak ikut route ke heic-convert
+
+- **Frontend — `client/src/components/public/section-header.tsx`**
+  - Tambah safety net di level komponen: kalau prop `visible` masih `false` setelah 500 ms (mis. `useRevealAnimation` gagal trigger IntersectionObserver atau hook dipanggil di section yang ke-mount di luar viewport), paksa reveal lokal lewat state `forcedVisible`. Header section yang "hilang" adalah bug UX fatal — safety net ini memastikan tidak ada lagi `opacity-0` yang stuck selamanya pada pill/heading/line/description `PublicSectionHeader` di Berita/Events/Library/Visi&Misi/Tentang/Prodi/Toko/Youtube/Instagram.
+  - Animasi `reveal-heading` CSS tetap jalan (animation `text-reveal-up` keyframe), sehingga yang terlihat adalah reveal halus, bukan flicker.
+  - Sebelumnya `useRevealAnimation` sudah punya fallback 800 ms + 2500 ms di level hook; patch ini menambah pengaman ketiga di level komponen sehingga kegagalan hook tidak lagi propagate ke UX.
+- **Backend — `server/image-processor.ts`**
+  - `looksLikeHeic()` sekarang exclude major brand `avif` secara eksplisit. Sebelumnya AVIF ikut matched karena container ISOBMFF share secondary brand `mif1` di header (brand `mif1` adalah HEIF container, tapi file AVIF juga punya `mif1` di `compatible brands`). Akibat salah route: AVIF diproses via `heic-convert` yang hanya support codec HEVC — decode gagal → `processImage()` throw "Gagal decode HEIC/HEIF" walaupun sharp sebenarnya bisa handle AVIF secara native.
+  - Sekarang AVIF lewat pipeline sharp biasa (sudah support AVIF di prebuilt binaries), HEIC/HEIF tetap lewat `heic-convert`. Tidak ada lagi upload AVIF yang gagal.
+- **Docs / Version**
+  - `package.json` version 4.23.3 → 4.23.4.
+  - `docs/openapi.json` `info.version` 4.23.3 → 4.23.4.
+  - `docs/version/versions.md` Current = 4.23.4 + entry baru.
+  - `docs/version/release/4.23.4.md` (BARU).
+  - `docs/version/changelogs/CHANGELOG.md` section `[4.23.4]`.
+
 ## [4.23.3] - 2026-09-21
 
 ### Fixed — General uploadHandler sekarang proses gambar ke WebP
