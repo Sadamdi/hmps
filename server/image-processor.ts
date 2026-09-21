@@ -63,10 +63,13 @@ interface ImageProcessingOptions {
 
 /**
  * Deteksi apakah buffer adalah HEIC/HEIF berdasarkan header bytes.
- * - HEIC/HEIF dimulai dengan box `ftyp` (bytes 4..8) dan brand salah satu dari
- *   heic/heix/hevc/hevx/heim/heis/heicm/heics/mif1/msf1/avif.
- * - Ini lebih reliable dari mimetype saja karena Safari/iOS sering kirim
- *   application/octet-stream untuk HEIC.
+ * - HEIC/HEIF dimulai dengan box `ftyp` (bytes 4..8) dan major brand salah satu
+ *   dari heic/heix/hevc/hevx/heim/heis/heics/heicm/mif1/msf1.
+ * - AVIF juga pakai container ISOBMFF tapi major brand-nya `avif`; AVIF tidak
+ *   boleh di-route ke `heic-convert` (codec AV1 vs HEVC) — sharp sudah bisa
+ *   handle AVIF secara native. Kalau salah route, AVIF akan gagal decode.
+ * - Pendekatan: cek major brand eksplisit agar AVIF tidak ikut salah deteksi
+ *   sebagai HEIC walaupun share secondary brand `mif1` di header.
  */
 function looksLikeHeic(input: Buffer): boolean {
 	if (!input || input.length < 12) return false;
@@ -75,6 +78,8 @@ function looksLikeHeic(input: Buffer): boolean {
 	if (brand !== 'ftyp') return false;
 	// Bytes 8..12 adalah major brand (4 ASCII chars).
 	const major = input.toString('ascii', 8, 12).toLowerCase();
+	// Explicit AVIF exclusion: AVIF major brand = 'avif'. Jangan route ke heic-convert.
+	if (major === 'avif') return false;
 	const heicBrands = new Set([
 		'heic',
 		'heix',
@@ -82,7 +87,7 @@ function looksLikeHeic(input: Buffer): boolean {
 		'hevx',
 		'heim',
 		'heis',
-		'heic',
+		'heic', // duplicate di list sebelumnya (no-op, dibiarkan untuk backward)
 		'heics',
 		'heicm',
 		'mif1',
