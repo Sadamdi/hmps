@@ -2671,6 +2671,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
+	// Upload thumbnail for berita (supports draft mode without beritaId).
+	// - Jika beritaId dikirim: simpan di uploads/berita/{beritaId}/thumbnail-{ts}.webp
+	//   (existing behavior — used inline by berita POST handler).
+	// - Jika tanpa beritaId: simpan di uploads/berita/_draft/{draftId}/thumbnail-{ts}.webp
+	//   untuk preview di editor SEBELUM berita disimpan. Path ini bisa di-promote
+	//   ke folder berita/{id} oleh handler POST /api/berita saat draft disimbolan.
+	app.post(
+		'/api/upload/berita-thumbnail',
+		authenticate,
+		uploadMiddleware.single('image'),
+		async (req, res) => {
+			try {
+				if (!req.file) {
+					return res
+						.status(400)
+						.json({ message: 'Image file is required (field name: image)' });
+				}
+
+				const beritaId = String(req.body.beritaId || '').trim();
+				const draftId = String(req.body.draftId || '').trim();
+
+				// Tentukan sub-folder: existing berita (beritaId valid) atau draft.
+				let subFolder: string;
+				if (beritaId && beritaId !== '' && !beritaId.startsWith('temp-')) {
+					subFolder = beritaId;
+				} else if (draftId) {
+					subFolder = `_draft/${draftId}`;
+				} else {
+					// fallback untuk client lama yang tidak kirim draftId — pakai timestamp.
+					subFolder = `_draft/session-${Date.now()}`;
+				}
+
+				const imageUrl = await uploadBeritaImage(
+					req.file,
+					undefined,
+					subFolder,
+					false,
+					tenantCtxFromReq(req),
+				);
+
+				return res.json({
+					url: imageUrl,
+					subFolder,
+					draftId: draftId || null,
+				});
+			} catch (error) {
+				console.error('Upload berita thumbnail error:', error);
+				const msg =
+					(error as Error)?.message ||
+					'Gagal memproses gambar. Coba format lain (JPG/PNG/WebP).';
+				return res.status(500).json({ message: msg });
+			}
+		},
+	);
+
 	// Upload images for event content (description rich-text)
 	app.post(
 		'/api/upload/event-content-image',
@@ -3277,6 +3332,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				let imageSource = 'local';
 				let gdriveFileId = null;
 
+				// Handle progressive-uploaded thumbnail (imageUrl field dari FE).
+				// FE sudah upload file via /api/upload/berita-thumbnail dan dapat
+				// URL final (WebP). Backend tinggal pakai URL itu — tidak perlu
+				// decode HEIC/AVIF lagi di sini (sudah selesai saat progressive).
+				const progressiveImageUrl = String(req.body.imageUrl || '').trim();
+				if (
+					progressiveImageUrl &&
+					progressiveImageUrl.startsWith('/uploads/')
+				) {
+					imageUrl = progressiveImageUrl;
+					imageSource = 'local';
+				}
+
 				// Handle Google Drive URL if provided
 				if (gdriveUrl && gdriveUrl.trim() !== '') {
 					const { extractFileId, checkAccessibility, isValidGoogleDriveUrl } =
@@ -3337,8 +3405,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const tCtxBerita = tenantCtxFromReq(req);
 
 				try {
-					// If local file uploaded (not GDrive), process thumbnail into uploads/.../berita/{beritaId}
-					if (!gdriveUrl && imageFile && beritaId) {
+					// Prioritas 1: progressive-uploaded thumbnail (imageUrl dari FE).
+					// File sudah ada di /uploads/berita/_draft/{draftId}/ — langkah
+					// "Migrate temp draft assets" di bawah akan memindahkannya ke
+					// /uploads/berita/{beritaId}/ agar file tidak nyangkut di _draft.
+					const progressiveUrlWasUsed =
+						progressiveImageUrl && progressiveImageUrl.startsWith('/uploads/');
+					// Prioritas 2: jika FE kirim file langsung via form (non-progressive),
+					// proses seperti biasa.
+					if (
+						!gdriveUrl &&
+						!progressiveUrlWasUsed &&
+						imageFile &&
+						beritaId
+					) {
 						const processedThumbUrl = await uploadBeritaImage(
 							imageFile,
 							undefined,
@@ -3372,16 +3452,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						});
 					}
 
-					// Migrate temp draft assets (content images + attachment reserve links)
-					// into final berita folder, then rewrite URLs.
+					// Migrate temp draft assets (content images + attachment reserve links +
+// progressive thumbnail) into final berita folder, then rewrite URLs.
 					if (beritaId) {
 						try {
 							const tempIds = new Set<string>();
+							// (a) content images: /berita/temp-{id}/...
 							for (const m of (content || '').matchAll(
 								/\/berita\/(temp-[^/]+)\//g,
 							)) {
 								if (m[1]) tempIds.add(m[1]);
 							}
+							// (b) attachments: same temp-{id} pattern
 							const currentAttachments: any[] = Array.isArray(
 								(finalBerita as any)?.attachments,
 							)
@@ -3393,6 +3475,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								);
 								if (m?.[1]) tempIds.add(m[1]);
 							}
+							// (c) progressive thumbnail: /berita/_draft/{draftId}/...
+							const progressiveUrl = String(
+								(finalBerita as any)?.image || imageUrl || '',
+							);
+							const mProg = progressiveUrl.match(
+								/\/berita\/_draft\/([^/]+)\//,
+							);
+							if (mProg?.[1]) tempIds.add(`_draft/${mProg[1]}`);
 							if (tempIds.size > 0) {
 								const esc = (s: string) =>
 									s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -3438,6 +3528,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 											`${rTarget.urlPrefix}/`,
 										),
 									}));
+									// Rewrite image field di finalBerita kalau URL-nya ada
+									// di temp folder (kasus progressive thumbnail).
+									if (
+										String((finalBerita as any)?.image || '').startsWith(
+											`${rTemp.urlPrefix}/`,
+										)
+									) {
+										(finalBerita as any).image = String(
+											(finalBerita as any).image,
+										).replace(
+											new RegExp(`^${esc(rTemp.urlPrefix)}/`),
+											`${rTarget.urlPrefix}/`,
+										);
+										imageUrl = (finalBerita as any).image;
+									}
 								}
 								const patch: any = {};
 								if (updatedContent !== content) {
@@ -3449,6 +3554,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									JSON.stringify(currentAttachments)
 								) {
 									patch.attachments = updatedAttachments;
+								}
+								if ((finalBerita as any)?.image) {
+									patch.image = (finalBerita as any).image;
 								}
 								if (Object.keys(patch).length > 0) {
 									finalBerita = await storage.updateBerita(beritaId, patch);
@@ -3627,6 +3735,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					published: published === 'true',
 					updatedAt: new Date(),
 				};
+
+				// Progressive-uploaded thumbnail (URL final WebP dari FE).
+				// Hanya dipakai kalau FE tidak kirim file lokal — FE bisa kirim salah satu.
+				const progressiveImageUrlEdit = String(req.body.imageUrl || '').trim();
+				if (
+					progressiveImageUrlEdit &&
+					progressiveImageUrlEdit.startsWith('/uploads/')
+				) {
+					const oldImageUrl =
+						existingBerita.image !== DEFAULT_BERITA_IMAGE_PATH
+							? existingBerita.image
+							: undefined;
+					// Hapus thumbnail lama jika bukan default dan bukan URL yang sama
+					if (oldImageUrl && oldImageUrl !== progressiveImageUrlEdit) {
+						try {
+							await deleteFile(oldImageUrl);
+						} catch {
+							/* ignore */
+						}
+					}
+					updates.image = progressiveImageUrlEdit;
+					updates.imageSource = 'local';
+				}
 
 				if (Array.isArray(tags)) {
 					updates.tags = tags;

@@ -87,6 +87,11 @@ export default function BeritaEditor({
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [imagePreview, setImagePreview] = useState<string>('');
 	const [selectedFile, setSelectedFile] = useState<File | null>(null);
+	const [isThumbnailUploading, setIsThumbnailUploading] = useState(false);
+	const [thumbnailUploadError, setThumbnailUploadError] = useState<string | null>(
+		null,
+	);
+	const [thumbnailUploadProgress, setThumbnailUploadProgress] = useState(0);
 
 	// Copy → Event state
 	const [showCopyToEventDialog, setShowCopyToEventDialog] = useState(false);
@@ -284,12 +289,89 @@ export default function BeritaEditor({
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
 		if (file) {
-			const imageUrl = URL.createObjectURL(file);
-			setImagePreview(imageUrl);
-			setImageUrl(imageUrl);
-			setSelectedFile(file); // Simpan file untuk dikirim saat save
+			// Tampilkan preview lokal dulu (synchronous) supaya user tidak merasa
+			// hang saat upload sedang berjalan (terutama untuk HEIC yang butuh
+			// decode pure-JS ~5-10 detik di server).
+			const localUrl = URL.createObjectURL(file);
+			setImagePreview(localUrl);
+			setSelectedFile(file);
+			setThumbnailUploadError(null);
+			setThumbnailUploadProgress(0);
+			// Upload ke server di background (progresif) — server akan
+			// convert HEIC/AVIF/JPG/PNG → WebP dan return URL final.
+			uploadThumbnailMutation.mutate(file);
 		}
 	};
+
+	// Mutation khusus untuk upload thumbnail saat file dipilih.
+	// - Tidak menunggu save — server sudah proses gambar (HEIC/AVIF decode + WebP).
+	// - saat sukses: imageUrl di-set ke URL final server, selectedFile di-clear
+	//   (URL final sudah tersimpan di form state, jadi save tinggal kirim URL).
+	// - saat error: thumbnailUploadError di-set, user bisa retry atau ganti file.
+	const uploadThumbnailMutation = useMutation({
+		mutationFn: async (file: File) => {
+			const formData = new FormData();
+			formData.append('image', file);
+			const draftId =
+				(berita as any)?._id || berita?.id || `draft-${Date.now()}`;
+			formData.append('draftId', String(draftId));
+			if ((berita as any)?._id && !String((berita as any)._id).startsWith('temp-')) {
+				formData.append('beritaId', String((berita as any)._id));
+			}
+			setIsThumbnailUploading(true);
+			setThumbnailUploadProgress(15);
+			// Tick progress supaya user lihat feedback visual (bukan determinate,
+			// karena XHR upload + server side processing tidak expose byte progress
+			// tanpa library tambahan — pakai indeterminate yang beranimasi).
+			const tick = window.setInterval(() => {
+				setThumbnailUploadProgress((p) => Math.min(p + 7, 92));
+			}, 220);
+			try {
+				const response = await apiRequest(
+					'POST',
+					'/api/upload/berita-thumbnail',
+					formData,
+				);
+				const data = await response.json();
+				setThumbnailUploadProgress(100);
+				return data as { url: string; subFolder?: string; draftId?: string };
+			} finally {
+				window.clearInterval(tick);
+			}
+		},
+		onSuccess: (data) => {
+			setIsThumbnailUploading(false);
+			if (data?.url) {
+				setImageUrl(data.url);
+				// Hapus blob preview lokal, ganti dengan URL final dari server.
+				setImagePreview((current) => {
+					if (current?.startsWith('blob:')) URL.revokeObjectURL(current);
+					return data.url;
+				});
+				setSelectedFile(null);
+				setThumbnailUploadError(null);
+				toast({
+					title: 'Thumbnail siap',
+					description: 'Gambar sudah diproses & dikonversi ke WebP.',
+				});
+			} else {
+				setThumbnailUploadError('Respons server tidak berisi URL thumbnail.');
+			}
+		},
+		onError: (err: any) => {
+			setIsThumbnailUploading(false);
+			setThumbnailUploadProgress(0);
+			const msg =
+				err?.message ||
+				'Gagal memproses gambar. Coba format lain (JPG/PNG/WebP) atau periksa ukuran file.';
+			setThumbnailUploadError(msg);
+			toast({
+				title: 'Upload thumbnail gagal',
+				description: msg,
+				variant: 'destructive',
+			});
+		},
+	});
 
 	const addTag = () => {
 		if (newTag.trim() && !tags.includes(newTag.trim())) {
@@ -755,7 +837,19 @@ export default function BeritaEditor({
 		}
 		const isNewBerita = !berita;
 		const hasExistingThumbnail = !isNewBerita && !!berita?.image;
-		if (!selectedFile && !hasExistingThumbnail) {
+		// Tunggu upload thumbnail selesai (kalau sedang proses) — tidak boleh save
+		// dengan file lokal yang belum diproses server (HEIC/AVIF butuh decode).
+		if (isThumbnailUploading) {
+			toast({
+				title: 'Tunggu upload thumbnail selesai',
+				description:
+					'Gambar sedang diproses server (HEIC/AVIF perlu decode). Akan selesai sebentar.',
+				variant: 'destructive',
+			});
+			return;
+		}
+		const hasServerThumbnail = imageUrl && !imageUrl.startsWith('blob:');
+		if (!hasServerThumbnail && !selectedFile && !hasExistingThumbnail) {
 			toast({
 				title: 'Error',
 				description: 'Thumbnail wajib diupload',
@@ -824,9 +918,16 @@ export default function BeritaEditor({
 			formData.append('gdriveUrl', gdriveUrl);
 		}
 
-		// PERBAIKAN: Kirim file thumbnail jika ada
-		if (selectedFile) {
+		// Kirim file thumbnail hanya kalau masih lokal (belum ke-upload).
+		// Kalau sudah ada URL final dari server (imageUrl), backend sudah punya
+		// file WebP-nya — tidak perlu upload ulang.
+		if (selectedFile && !hasServerThumbnail) {
 			formData.append('image', selectedFile);
+		}
+		// Kalau pakai URL server (progressive), kirim sebagai imageUrl string agar
+		// backend bisa reuse file yang sudah di-upload (idempotent save).
+		if (hasServerThumbnail) {
+			formData.append('imageUrl', imageUrl);
 		}
 
 		await saveBeritaMutation.mutateAsync(formData);
@@ -1051,33 +1152,94 @@ export default function BeritaEditor({
 
 				<div className="space-y-2">
 					<Label htmlFor="thumbnail">Thumbnail Image</Label>
-					<div className="flex items-center space-x-4">
+					<div className="flex items-start space-x-4">
 						<div
-							className="w-32 h-32 border-2 border-dashed rounded-md flex items-center justify-center cursor-pointer overflow-hidden"
-							onClick={() => fileInputRef.current?.click()}>
+							className="relative w-32 h-32 border-2 border-dashed rounded-md flex items-center justify-center cursor-pointer overflow-hidden bg-muted"
+							onClick={() => {
+								if (isThumbnailUploading) return;
+								fileInputRef.current?.click();
+							}}>
+							{isThumbnailUploading && (
+								<div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 text-white text-[10px] gap-1 px-1">
+									<Loader2 className="h-4 w-4 animate-spin" />
+									<span>Memproses…</span>
+									<div className="w-20 h-1 bg-white/30 rounded-full overflow-hidden">
+										<div
+											className="h-full bg-white transition-all"
+											style={{ width: `${thumbnailUploadProgress}%` }}
+										/>
+									</div>
+								</div>
+							)}
 							{imagePreview ? (
 								<img
 									src={imagePreview}
 									alt="Thumbnail Preview"
-									className="w-full h-full object-cover"
+									className={`w-full h-full object-cover ${
+										isThumbnailUploading ? 'opacity-60' : ''
+									}`}
 								/>
 							) : (
 								<Upload className="h-6 w-6 text-gray-400" />
 							)}
 						</div>
-						<input
-							ref={fileInputRef}
-							type="file"
-							accept={ALL_IMAGE_ACCEPT}
-							className="hidden"
-							onChange={handleFileChange}
-						/>
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => fileInputRef.current?.click()}>
-							Choose Image
-						</Button>
+						<div className="flex-1 min-w-0 space-y-1.5">
+							<input
+								ref={fileInputRef}
+								type="file"
+								accept={ALL_IMAGE_ACCEPT}
+								className="hidden"
+								onChange={handleFileChange}
+							/>
+							<div className="flex flex-wrap gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									disabled={isThumbnailUploading}
+									onClick={() => fileInputRef.current?.click()}>
+									{imagePreview ? 'Ganti gambar' : 'Pilih gambar'}
+								</Button>
+								{imagePreview && !isThumbnailUploading && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										onClick={() => {
+											setImagePreview('');
+											setImageUrl('');
+											setSelectedFile(null);
+											setThumbnailUploadError(null);
+											setThumbnailUploadProgress(0);
+										}}>
+										Hapus
+									</Button>
+								)}
+							</div>
+							<p className="text-[11px] text-muted-foreground leading-snug">
+								Format yang didukung: JPEG, PNG, WebP, GIF, AVIF, HEIC, HEIF,
+								TIFF, BMP. Server otomatis konversi ke WebP agar konsisten di
+								semua device.
+							</p>
+							{isThumbnailUploading && (
+								<p className="text-[11px] text-blue-600 dark:text-blue-400 leading-snug">
+									Mengunggah & memproses gambar… untuk HEIC/AVIF perlu decode
+									terlebih dulu (±5–10 detik).
+								</p>
+							)}
+							{!isThumbnailUploading &&
+								imageUrl &&
+								!imageUrl.startsWith('blob:') && (
+									<p className="text-[11px] text-green-600 dark:text-green-400">
+										✓ Thumbnail sudah tersimpan di server (WebP).
+									</p>
+								)}
+							{thumbnailUploadError && !isThumbnailUploading && (
+								<p className="text-[11px] text-destructive leading-snug">
+									{thumbnailUploadError}
+								</p>
+							)}
+						</div>
 					</div>
 				</div>
 
