@@ -9,6 +9,31 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.23.5] - 2026-09-22
+
+### Added — Berita editor: progressive thumbnail upload dengan loading + preview WebP
+
+- **Backend — `server/routes.ts`**
+  - Endpoint baru `POST /api/upload/berita-thumbnail` (auth + multer single 'image'):
+    - Tanpa `beritaId`: simpan ke `uploads/berita/_draft/{draftId}/thumbnail-{ts}.webp` untuk draft mode (preview sebelum simpan).
+    - Dengan `beritaId` valid: simpan ke `uploads/berita/{beritaId}/thumbnail-{ts}.webp`.
+    - Pipeline `processImage()` sudah handle HEIC/HEIF/AVIF/TIFF/BMP/JPEG/PNG/WebP/GIF → output selalu WebP.
+    - Response: `{ url, subFolder, draftId }`.
+  - `POST /api/berita`:
+    - Terima field `imageUrl` (URL final hasil progressive upload). Backend pakai URL itu langsung tanpa upload ulang — idempotent save.
+    - Migration `temp-` → `{beritaId}` sekarang juga handle `_draft/{draftId}/` (progressive thumbnail folder). File WebP thumbnail dipindah ke `uploads/berita/{beritaId}/` saat berita disimpan, lalu URL di-rewrite di field `image` agar konsisten.
+  - `PUT /api/berita/{id}`:
+    - Terima field `imageUrl` juga. Backend pakai URL final WebP dan hapus thumbnail lama (kalau ada dan berbeda).
+- **Frontend — `client/src/components/dashboard/berita-editor.tsx`**
+  - Tambah `uploadThumbnailMutation` yang fire saat user pilih file di input thumbnail — upload ke server langsung (progresif), tidak menunggu tombol Simpan.
+  - Loading state: spinner + progress bar overlay di preview thumbnail + pesan "Mengunggah & memproses gambar… untuk HEIC/AVIF perlu decode terlebih dulu (±5–10 detik)".
+  - Setelah sukses: preview diganti ke URL final WebP dari server, status "✓ Thumbnail sudah tersimpan di server (WebP)" tampil, toast "Thumbnail siap".
+  - Setelah error: tampil pesan error di bawah preview, toast "Upload thumbnail gagal" dengan pesan dari server.
+  - Tombol "Ganti gambar" / "Hapus" ditambahkan untuk UX lebih jelas.
+  - Tombol "Pilih gambar" disabled saat upload sedang berjalan supaya user tidak double-pick.
+  - Tombol "Simpan Berita" cek `isThumbnailUploading` — tidak boleh save dengan file lokal yang belum selesai diproses server (HEIC/AVIF butuh decode).
+  - Help text: "Format yang didukung: JPEG, PNG, WebP, GIF, AVIF, HEIC, HEIF, TIFF, BMP. Server otomatis konversi ke WebP agar konsisten di semua device."
+
 ## [4.23.4] - 2026-09-22
 
 ### Fixed — PublicSectionHeader safety net + AVIF tidak ikut route ke heic-convert
