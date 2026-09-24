@@ -1,71 +1,35 @@
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Pagination } from '@/components/ui/pagination';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
-import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
-import { getEventStatus, formatEventDate, StatusBadge } from '@/components/public/events-tree';
+import { ArchiveHeader } from '@/components/public/archive/archive-header';
+import { ArchiveFilterBar } from '@/components/public/archive/archive-filter-bar';
+import {
+	EventTimeline,
+	EventTimelineSkeleton,
+	groupTimeline,
+	useEventArchiveFilters,
+	type TimelineEventItem,
+} from '@/components/public/events/event-timeline';
+import { usePagination } from '@/hooks/use-pagination';
 import { useQuery } from '@tanstack/react-query';
-import { Calendar, Eye, FileText } from 'lucide-react';
-import { Link } from 'wouter';
-import { toSlug } from '@/utils/slug';
+import { CalendarRange } from 'lucide-react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useTenant } from '@/lib/tenant-context';
 
-const MONTH_NAMES = [
-	'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-	'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-];
-
-interface EventItem {
-	_id: string;
-	title: string;
-	description: string;
-	thumbnail: string;
-	startDate: string;
-	endDate: string;
-	month: number;
+interface EventItem extends TimelineEventItem {
 	published: boolean;
 	yearId: { year: number } | null;
 	attachments?: { name: string; url: string }[];
-	relatedBerita?: { _id: string; title: string; slug?: string }[];
-	viewCount?: number;
 }
 
-interface GroupedByYear {
-	year: number;
-	months: {
-		month: number;
-		events: EventItem[];
-	}[];
-}
-
-function groupEvents(events: EventItem[]): GroupedByYear[] {
-	const byYear = new Map<number, Map<number, EventItem[]>>();
-
-	for (const ev of events) {
-		const yr = ev.yearId?.year ?? new Date(ev.startDate).getFullYear();
-		const mo = ev.month || new Date(ev.startDate).getMonth() + 1;
-
-		if (!byYear.has(yr)) byYear.set(yr, new Map());
-		const monthMap = byYear.get(yr)!;
-		if (!monthMap.has(mo)) monthMap.set(mo, []);
-		monthMap.get(mo)!.push(ev);
-	}
-
-	return Array.from(byYear.entries())
-		.sort((a, b) => b[0] - a[0])
-		.map(([year, monthMap]) => ({
-			year,
-			months: Array.from(monthMap.entries())
-				.sort((a, b) => a[0] - b[0])
-				.map(([month, evs]) => ({ month, events: evs })),
-		}));
+function eventYear(ev: EventItem) {
+	return ev.yearId?.year ?? new Date(ev.startDate).getFullYear();
 }
 
 export default function EventsAllPage() {
-	const { data, isLoading, error } = useQuery<EventItem[]>({
+	const { data, isLoading, error, refetch } = useQuery<EventItem[]>({
 		queryKey: ['/api/events/published'],
 		queryFn: async () => {
 			const res = await fetch('/api/events/published');
@@ -74,7 +38,45 @@ export default function EventsAllPage() {
 		},
 	});
 
-	const grouped = data ? groupEvents(data) : [];
+	// Urutan tampil: tahun terbaru dulu, bulan naik dalam tahun (sama seperti sebelumnya).
+	const events = useMemo(() => {
+		const list = data ?? [];
+		return groupTimeline(list, eventYear).flatMap((g) => g.months.flatMap((m) => m.events as EventItem[]));
+	}, [data]);
+
+	const filters = useEventArchiveFilters(events);
+
+	const { currentPage, totalPages, paginatedData, setCurrentPage } = usePagination({
+		data: filters.filtered,
+		itemsPerPageDesktop: 12,
+		itemsPerPageMobile: 6,
+	});
+
+	useEffect(() => {
+		setCurrentPage(1);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [filters.searchTerm, filters.status]);
+
+	const listRef = useRef<HTMLDivElement>(null);
+	const firstRender = useRef(true);
+	useEffect(() => {
+		if (firstRender.current) {
+			firstRender.current = false;
+			return;
+		}
+		listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}, [currentPage]);
+
+	const groups = useMemo(() => groupTimeline(paginatedData as EventItem[], eventYear), [paginatedData]);
+
+	const stats = useMemo(() => {
+		if (isLoading || error) return undefined;
+		const years = new Set(events.map(eventYear));
+		return [
+			{ label: 'Kegiatan', value: events.length },
+			{ label: 'Tahun', value: years.size },
+		];
+	}, [isLoading, error, events]);
 
 	const { basePath } = useTenant();
 	const bp = basePath || '';
@@ -85,112 +87,66 @@ export default function EventsAllPage() {
 	return (
 		<div className="min-h-screen flex flex-col bg-background">
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
-			<main className="flex-1 py-12 px-4">
-				<div className="max-w-4xl mx-auto">
-					<PageBreadcrumb
-						items={[
-							{ label: 'Beranda', href: '/' },
-							{ label: 'Event', href: '/events' },
-							{ label: 'Semua' },
-						]}
+			<ArchiveHeader
+				breadcrumb={[
+					{ label: 'Beranda', href: '/' },
+					{ label: 'Event', href: '/events' },
+					{ label: 'Semua' },
+				]}
+				eyebrow="Linimasa"
+				icon={<CalendarRange />}
+				title="Semua Event"
+				description="Seluruh kegiatan dan acara yang telah dipublikasikan, dari yang terbaru."
+				stats={stats}
+			/>
+			<main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12 sm:pb-16">
+				<ArchiveFilterBar
+					searchValue={filters.searchTerm}
+					onSearchChange={filters.setSearchTerm}
+					searchPlaceholder="Cari event berdasarkan judul atau deskripsi..."
+					groups={filters.groups}
+					activeChips={filters.activeChips}
+					onClearAll={filters.clearFilters}
+					resultText={
+						isLoading || error ? undefined : (
+							<>
+								{filters.filtered.length} dari {events.length} kegiatan
+							</>
+						)
+					}
+				/>
+
+				<div ref={listRef} className="pt-6 sm:pt-8 scroll-mt-32">
+					{isLoading ? (
+						<EventTimelineSkeleton />
+					) : error ? (
+						<div className="text-center py-12 bg-card border border-border/70 rounded-xl">
+							<p className="text-muted-foreground mb-4">Gagal memuat data event. Silakan coba lagi nanti.</p>
+							<Button variant="outline" size="sm" onClick={() => refetch()}>
+								Coba Lagi
+							</Button>
+						</div>
+					) : filters.filtered.length === 0 ? (
+						<div className="text-center py-12 bg-card border border-border/70 rounded-xl">
+							<p className="text-muted-foreground text-lg mb-2">
+								{events.length === 0 ? 'Belum ada event yang dipublikasikan.' : 'Tidak ada event ditemukan'}
+							</p>
+							{events.length > 0 && (
+								<Button variant="outline" size="sm" onClick={filters.clearFilters}>
+									Reset pencarian
+								</Button>
+							)}
+						</div>
+					) : (
+						<EventTimeline groups={groups} showYearHeadings />
+					)}
+
+					<Pagination
+						currentPage={currentPage}
+						totalPages={totalPages}
+						onPageChange={setCurrentPage}
+						className="mt-10"
 					/>
-
-					<h1 className="text-3xl font-bold mb-2">Semua Event</h1>
-					<p className="text-muted-foreground mb-8">Seluruh kegiatan dan acara yang telah dipublikasikan</p>
-
-					{isLoading && (
-						<div className="space-y-6">
-							<Skeleton className="h-8 w-32" />
-							<div className="grid gap-4 sm:grid-cols-2">
-								{[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-48 w-full rounded-xl" />)}
-							</div>
-						</div>
-					)}
-
-					{error && (
-						<div className="text-center py-12 text-muted-foreground">
-							Gagal memuat data event. Silakan coba lagi nanti.
-						</div>
-					)}
-
-					{!isLoading && !error && grouped.length === 0 && (
-						<div className="text-center py-12 text-muted-foreground">
-							Belum ada event yang dipublikasikan.
-						</div>
-					)}
-
-					<div className="space-y-12">
-						{grouped.map(({ year, months }) => (
-							<div key={year}>
-								<h2 className="text-2xl font-bold text-primary mb-6 flex items-center gap-2">
-									<Calendar className="h-5 w-5" />
-									{year}
-								</h2>
-								<div className="space-y-8">
-									{months.map(({ month, events }) => (
-										<div key={month}>
-											<h3 className="text-lg font-semibold mb-4 text-muted-foreground">
-												{MONTH_NAMES[month - 1]}
-											</h3>
-											<div className="grid gap-4 sm:grid-cols-2">
-												{events.map((ev) => {
-													const status = getEventStatus(ev.startDate, ev.endDate);
-													return (
-														<Link key={ev._id} href={`/events/${year}/${toSlug(ev.title) || ev._id}`}>
-															<Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer h-full">
-																{ev.thumbnail && (
-																	<div className="aspect-video overflow-hidden">
-																		<img src={ev.thumbnail} alt={ev.title} className="w-full h-full object-cover" />
-																	</div>
-																)}
-																<CardContent className="p-4">
-																	<div className="flex items-center gap-2 flex-wrap mb-2">
-																		<h4 className="font-semibold text-lg">{ev.title}</h4>
-																		<StatusBadge status={status} />
-																	</div>
-																	<p className="text-sm text-muted-foreground flex items-center gap-1">
-																		<Calendar className="h-3.5 w-3.5" />
-																		{formatEventDate(ev.startDate)} - {formatEventDate(ev.endDate)} {year}
-																	</p>
-																	<p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
-																		<Eye className="h-3 w-3" />
-																		{ev.viewCount ?? 0} kali dilihat
-																	</p>
-																	{ev.description && (
-																		<p className="text-sm text-muted-foreground mt-2 line-clamp-2">
-																			{ev.description.replace(/<[^>]*>/g, '')}
-																		</p>
-																	)}
-																	{ev.relatedBerita && ev.relatedBerita.length > 0 && (
-																		<div className="mt-2 flex flex-wrap gap-1" onClick={(e) => e.preventDefault()}>
-																			{ev.relatedBerita.map((art) => (
-																				<Link
-																					key={art._id}
-																					href={art.slug ? `/berita/${art.slug}` : `/berita/${art._id}`}
-																				>
-																					<Badge variant="secondary" className="text-xs gap-1 cursor-pointer hover:bg-secondary/80">
-																						<FileText className="h-2.5 w-2.5" />
-																						{art.title.length > 20 ? art.title.slice(0, 20) + '…' : art.title}
-																					</Badge>
-																				</Link>
-																			))}
-																		</div>
-																	)}
-																	<Button variant="link" className="p-0 h-auto mt-2">
-																		Lihat Detail
-																	</Button>
-																</CardContent>
-															</Card>
-														</Link>
-													);
-												})}
-											</div>
-										</div>
-									))}
-								</div>
-							</div>
-						))}
-					</div>
 				</div>
 			</main>
 			<Footer />

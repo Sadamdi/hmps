@@ -3,6 +3,7 @@ import {
 	LibraryItemDetailContent,
 } from '@/components/public/library-item-detail';
 import { PublicSectionHeader } from '@/components/public/section-header';
+import { ArchiveIndex } from '@/components/public/archive/archive-meta';
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
@@ -44,12 +45,15 @@ interface LibraryProps {
 	variant?: LibraryVariant;
 }
 
-function LibraryGalleryCard({
+export function LibraryGalleryCard({
 	item,
 	index,
+	archiveIndex,
 }: {
 	item: LibraryItem;
 	index: number;
+	/** Nomor indeks arsip (halaman /library). Jika diisi, kartu memakai gaya arsip tanpa AOS. */
+	archiveIndex?: number;
 }) {
 	const [slideIndex, setSlideIndex] = useState(0);
 	const [hidePlayHint, setHidePlayHint] = useState(false);
@@ -63,12 +67,16 @@ function LibraryGalleryCard({
 
 	return (
 		<div
-			className="bg-card rounded-xl sm:rounded-lg overflow-hidden shadow-sm sm:shadow-md border border-border/70 hover:shadow-md sm:hover:shadow-lg hover:border-primary/40 transition-all active:scale-[0.99] sm:active:scale-100 flex flex-col h-full"
-			data-aos="fade-up"
-			data-aos-delay={index * 100}>
+			className={
+				archiveIndex !== undefined
+					? 'archive-card bg-card rounded-xl overflow-hidden border border-border/70 hover:border-primary/40 focus-within:ring-2 focus-within:ring-primary/40 flex flex-col h-full'
+					: 'bg-card rounded-xl sm:rounded-lg overflow-hidden shadow-sm sm:shadow-md border border-border/70 hover:shadow-md sm:hover:shadow-lg hover:border-primary/40 transition-all active:scale-[0.99] sm:active:scale-100 flex flex-col h-full'
+			}
+			{...(archiveIndex === undefined ? { 'data-aos': 'fade-up', 'data-aos-delay': index * 100 } : {})}>
 			<div
-				className="aspect-[4/3] sm:h-48 relative overflow-hidden group touch-pan-y"
+				className={`aspect-[4/3] sm:h-48 relative overflow-hidden group touch-pan-y ${archiveIndex !== undefined ? 'archive-card-media' : ''}`}
 				onPointerDownCapture={() => setHidePlayHint(true)}>
+				{archiveIndex !== undefined && <ArchiveIndex n={archiveIndex} overlay />}
 				{item.gdriveEmbedFolders && item.gdriveEmbedFolders.length > 0 ? (
 					<div className="h-full w-full flex flex-col items-center justify-center bg-muted text-muted-foreground">
 						<span className="text-sm font-medium">Folder Drive</span>
@@ -240,7 +248,7 @@ function LibraryGalleryCard({
 	);
 }
 
-function deriveItemYear(item: LibraryItem): number | null {
+export function deriveItemYear(item: LibraryItem): number | null {
 	const raw = item.activityDate || item.createdAt;
 	if (!raw) return null;
 	const d = new Date(raw);
@@ -408,10 +416,10 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 								<div
 									key={i}
 									className="bg-card rounded-xl sm:rounded-lg overflow-hidden shadow-sm border border-border/60">
-									<div className="aspect-[4/3] sm:h-48 bg-gray-200" />
+									<div className="aspect-[4/3] sm:h-48 bg-muted" />
 									<div className="p-2.5 sm:p-6 space-y-2 sm:space-y-3">
-										<div className="h-3 sm:h-4 bg-gray-200 rounded w-full" />
-										<div className="hidden sm:block h-4 bg-gray-200 rounded w-5/6" />
+										<div className="h-3 sm:h-4 bg-muted rounded w-full" />
+										<div className="hidden sm:block h-4 bg-muted rounded w-5/6" />
 									</div>
 								</div>
 							))}

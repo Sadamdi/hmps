@@ -16,6 +16,7 @@ import { Calendar, Download, ExternalLink, Eye, FileText } from 'lucide-react';
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Link } from 'wouter';
 import { toSlug } from '@/utils/slug';
+import { MONTH_NAMES } from '@/constants/month-names';
 import { useAosRefreshOnMount } from '@/hooks/use-aos-refresh-on-mount';
 import { QuerySectionError } from '@/components/public/query-section-error';
 
@@ -29,10 +30,6 @@ const VIEWPORT_BUFFER_PX = 120;
 const SPEED_EPSILON = 0.15;
 const DRAG_THRESHOLD_PX = 5;
 
-const MONTH_NAMES = [
-	'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-	'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-];
 
 export function getEventStatus(startDate: string | Date, endDate: string | Date): EventStatus {
 	const now = new Date();
@@ -52,20 +49,20 @@ export function StatusBadge({ status }: { status: EventStatus }) {
 	switch (status) {
 		case 'ongoing':
 			return (
-				<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-green-500/20 text-green-400 border border-green-500/30">
-					<span className="w-1 h-1 rounded-full bg-green-400 animate-pulse" />
+				<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+					<span className="w-1 h-1 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse motion-reduce:animate-none" />
 					On Going
 				</span>
 			);
 		case 'soon':
 			return (
-				<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-blue-500/20 text-blue-400 border border-blue-500/30">
+				<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/30">
 					Segera
 				</span>
 			);
 		case 'expired':
 			return (
-				<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-gray-500/20 text-gray-400 border border-gray-500/30">
+				<span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-muted text-muted-foreground border border-border">
 					Selesai
 				</span>
 			);

@@ -90,6 +90,7 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 | Server State | TanStack React Query / API helper where implemented |
 | UI States | Loading, empty, error, success state expected for async surfaces |
 | Permission UX | UI guard is convenience only; backend remains source of truth |
+| Public list page (4.24.0) | `client/src/pages/library/index.tsx` kini merender sendiri (bukan `Library variant="page"`): `ArchiveHeader` + `ArchiveFilterBar` + `LibraryGalleryCard` (diekspor dari `components/public/library.tsx`, prop `archiveIndex`) + pagination 9/6. Fetch tetap `/api/library?page=1&limit=100`. Varian `section` di beranda tidak berubah. |
 
 ### Backend Surface
 

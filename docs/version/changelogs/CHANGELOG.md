@@ -9,6 +9,30 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.24.0] - 2026-09-24
+
+### Added — Halaman list Berita, Event, Galeri: identitas "Encoder Archive"
+
+- Komponen bersama `ArchiveHeader`, `ArchiveFilterBar`, `ArchiveIndex`/`ArchiveGridItem` (`client/src/components/public/archive/`) + hook `useArchiveFilters` + konstanta `MONTH_NAMES`.
+- `/berita`: lead story + kolom "Terbaru" bernomor + tab topik; filter bar sticky dengan chip filter aktif.
+- `/events/:year` & `/events/all`: linimasa per bulan (`EventTimeline`), search, filter status, pagination 12/6.
+- `/events`: jumlah kegiatan per tahun + state error.
+- `/library`: pagination 9/6 + nomor indeks; halaman merender sendiri dengan `LibraryGalleryCard` yang diekspor.
+
+### Changed
+
+- Header ketiga halaman diseragamkan dengan bahasa `PublicSectionHeader` (rata kiri + statistik mono).
+- `StatusBadge` pakai warna theme-aware/token (juga tampil di beranda).
+
+### Fixed
+
+- Anchor bersarang di kartu event (badge berita terkait di dalam link kartu).
+- Skeleton galeri `bg-gray-200` tidak dark-mode-aware.
+- `AOS.init` ganda di `/berita`.
+- Sort in-place pada cache `/api/event-years`.
+
+Detail: [release/4.24.0.md](../release/4.24.0.md)
+
 ## [4.23.5] - 2026-09-22
 
 ### Added — Berita editor: progressive thumbnail upload dengan loading + preview WebP
