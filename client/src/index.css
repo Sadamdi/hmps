@@ -1558,3 +1558,107 @@ body {
 .page-content-transition {
 	transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+/* ============================================================
+   ARCHIVE — bahasa visual halaman list (Berita, Event, Galeri).
+   Selaras dengan home: token primary, garis cyan PublicSectionHeader,
+   kartu rounded-xl + border-border/70. Tanpa shadow tebal / scale-105.
+   ============================================================ */
+:root {
+	--ease-archive: cubic-bezier(0.22, 1, 0.36, 1);
+	--dur-fast: 180ms;
+	--dur-base: 320ms;
+	--dur-slow: 560ms;
+}
+
+/* Latar blueprint hairline di belakang header list — fade ke bawah. */
+.archive-grid-bg {
+	position: relative;
+	isolation: isolate;
+}
+.archive-grid-bg::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	pointer-events: none;
+	background-image:
+		linear-gradient(to right, hsl(var(--primary) / 0.07) 1px, transparent 1px),
+		linear-gradient(to bottom, hsl(var(--primary) / 0.07) 1px, transparent 1px);
+	background-size: 40px 40px;
+	-webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 92%);
+	mask-image: linear-gradient(to bottom, black 0%, transparent 92%);
+}
+
+/* Metadata mono: tanggal, jumlah, indeks, label bulan. */
+.archive-meta {
+	@apply font-mono text-[10px] sm:text-[11px] uppercase tracking-wider tabular-nums text-muted-foreground;
+}
+.archive-index {
+	@apply font-mono text-[10px] sm:text-xs font-semibold tabular-nums tracking-wider;
+}
+
+/* Kartu arsip: aksen hairline di tepi atas yang melebar saat hover/fokus. */
+.archive-card {
+	position: relative;
+	transition:
+		border-color var(--dur-fast) var(--ease-archive),
+		background-color var(--dur-fast) var(--ease-archive);
+}
+.archive-card::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	left: 0;
+	height: 2px;
+	width: 100%;
+	z-index: 2;
+	pointer-events: none;
+	background: linear-gradient(to right, hsl(var(--primary)), rgb(34 211 238 / 0.7));
+	transform: scaleX(0);
+	transform-origin: left;
+	transition: transform var(--dur-base) var(--ease-archive);
+}
+.archive-card:hover::after,
+.archive-card:focus-within::after {
+	transform: scaleX(1);
+}
+.archive-card .archive-card-media img {
+	transition: transform var(--dur-slow) var(--ease-archive);
+}
+.archive-card:hover .archive-card-media img {
+	transform: scale(1.02);
+}
+
+/* Rail timeline event: garis menggambar dari atas saat terlihat. */
+.archive-rail {
+	transform-origin: top;
+	transform: scaleY(0);
+	transition: transform 900ms var(--ease-archive);
+}
+.archive-rail[data-drawn='true'] {
+	transform: scaleY(1);
+}
+
+/* Tab tag horizontal (berita) — scroll tanpa scrollbar tebal. */
+.archive-tabs {
+	scrollbar-width: none;
+}
+.archive-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.archive-card,
+	.archive-card::after,
+	.archive-card .archive-card-media img,
+	.archive-rail {
+		transition: none !important;
+	}
+	.archive-rail {
+		transform: none;
+	}
+	.archive-card:hover .archive-card-media img {
+		transform: none;
+	}
+}

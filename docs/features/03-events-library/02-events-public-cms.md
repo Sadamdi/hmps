@@ -96,6 +96,7 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 | Server State | TanStack React Query / API helper where implemented |
 | UI States | Loading, empty, error, success state expected for async surfaces |
 | Permission UX | UI guard is convenience only; backend remains source of truth |
+| Public list pages (4.24.0) | `/events` (kartu tahun + jumlah kegiatan dari `/api/events/published`), `/events/:year` & `/events/all` pakai `EventTimeline` (`client/src/components/public/events/event-timeline.tsx`): label bulan sticky, rail + node status, kartu stretched-link (tanpa anchor bersarang). Tambahan: search judul/deskripsi, filter status (tampil jika >1 status), pagination 12/6. Endpoint tidak berubah. |
 
 ### Backend Surface
 
