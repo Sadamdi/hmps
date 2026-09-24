@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.24.0`  
+**Current version:** `4.25.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.24.0`](./release/4.24.0.md) | 2026-09-24 | Halaman list Berita, Event, Galeri: identitas "Encoder Archive" | MINOR | 1 | **Current** |
+| [`4.25.0`](./release/4.25.0.md) | 2026-09-25 | Media sosial v2 (YouTube per kategori, Instagram gaya profil, fetch harian + log) & tab topik berita dinamis | MINOR | 1 | **Current** |
+| [`4.24.0`](./release/4.24.0.md) | 2026-09-24 | Halaman list Berita, Event, Galeri: identitas "Encoder Archive" | MINOR | 1 | Released |
 | [`4.23.5`](./release/4.23.5.md) | 2026-09-22 | Berita editor: progressive thumbnail upload dengan loading + preview WebP | PATCH | 1 | Released |
 | [`4.23.4`](./release/4.23.4.md) | 2026-09-22 | PublicSectionHeader safety net + AVIF tidak ikut route ke heic-convert | PATCH | 1 | Released |
 | [`4.23.3`](./release/4.23.3.md) | 2026-09-21 | Upload general: proses gambar ke WebP via pipeline (HEIC/HEIF/AVIF/JPEG/PNG/etc) | PATCH | 1 | Released |

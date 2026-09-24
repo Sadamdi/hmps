@@ -2,6 +2,7 @@
  * Creates a storage object with the same interface as mongoStorage
  * but operating on a specific tenant's models/database.
  */
+import { divisionPermissionGrants } from './division-permissions';
 import mongoose from 'mongoose';
 import { DEFAULT_TENANT_HOME_CONFIG } from '@shared/schema';
 import { FileUpload } from '../db/mongodb';
@@ -280,7 +281,7 @@ export function createTenantStorage(models: TenantModels) {
 		const user = await getUserById(userId);
 		if (!user) return [];
 		const role: any = await Role.findOne({ name: (user as any).role, isActive: true }).lean();
-		const basePerms = role?.permissions || [];
+		const basePerms = [...(role?.permissions || []), ...divisionPermissionGrants(user as any)];
 		const overrides = (user as any).permissionOverrides || { allow: [], deny: [] };
 		const perms = new Set<string>(basePerms);
 		for (const p of overrides.allow || []) perms.add(p);
@@ -291,7 +292,7 @@ export function createTenantStorage(models: TenantModels) {
 		const user = await getUserById(userId);
 		if (!user) return [];
 		const role: any = await Role.findOne({ name: (user as any).role, isActive: true }).lean();
-		return role?.permissions || [];
+		return Array.from(new Set([...(role?.permissions || []), ...divisionPermissionGrants(user as any)]));
 	}
 	async function getUserPermissionOverrides(userId: string) {
 		const user = await getUserById(userId);

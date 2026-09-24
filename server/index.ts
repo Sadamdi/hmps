@@ -642,38 +642,55 @@ cron.schedule('15 * * * *', async () => {
 	}
 });
 
-// Schedule: home YouTube/Instagram social feed — check hourly; default interval 3 hours
-cron.schedule('45 * * * *', async () => {
-	try {
-		const { mongoStorage } = await import('./mongo-storage');
-		const settings: any = await mongoStorage.getSettings();
-		const lean =
-			settings && typeof settings.toObject === 'function'
-				? settings.toObject()
-				: settings;
-		const { normalizeSocialFeedConfig } = await import('../shared/social-feed');
-		const config = normalizeSocialFeedConfig(lean?.socialFeedConfig);
-		if (!config.youtube.enabled && !config.instagram.enabled) return;
+// Schedule: social feed YouTube/Instagram — sekali sehari 02:30 WIB untuk situs utama
+// DAN semua komunitas aktif (≤4.24 tenant tidak pernah auto-sync). Tiap storage dicatat di socialFeedLogs.
+let socialFeedCronRunning = false;
+cron.schedule(
+	'30 2 * * *',
+	async () => {
+		if (socialFeedCronRunning) return;
+		socialFeedCronRunning = true;
+		try {
+			const { normalizeSocialFeedConfig } = await import('../shared/social-feed');
+			const { runSocialFeedSync, persistSocialFeedSync } = await import('./services/social-feed');
+			const syncStorage = async (label: string, storage: any) => {
+				try {
+					const settings: any = await storage.getSettings();
+					const lean = settings && typeof settings.toObject === 'function' ? settings.toObject() : settings;
+					const config = normalizeSocialFeedConfig(lean?.socialFeedConfig);
+					if (!config.youtube.enabled && !config.instagram.enabled) return;
+					const result = await runSocialFeedSync(config, lean?.socialFeedCache, { trigger: 'cron' });
+					await persistSocialFeedSync(storage, result, lean?.socialFeedLogs);
+					console.log(
+						`✅ Social feed sync [${label}] yt=${result.cache.youtube?.length || 0} ig=${result.cache.instagram?.length || 0} ok=${result.ok}`,
+					);
+				} catch (err) {
+					console.error(`Scheduled social feed sync error [${label}]:`, err);
+				}
+			};
 
-		const last = lean?.lastSocialFeedSyncAt
-			? new Date(lean.lastSocialFeedSyncAt).getTime()
-			: 0;
-		const dueMs = config.syncIntervalHours * 60 * 60 * 1000;
-		if (Date.now() - last < dueMs) return;
+			const { mongoStorage } = await import('./mongo-storage');
+			await syncStorage('main', mongoStorage);
 
-		const { runSocialFeedSync } = await import('./services/social-feed');
-		const result = await runSocialFeedSync(config, lean?.socialFeedCache);
-		await mongoStorage.updateSettings({
-			socialFeedCache: result.cache,
-			lastSocialFeedSyncAt: new Date(),
-		});
-		console.log(
-			`✅ Social feed sync done (yt=${result.cache.youtube?.length || 0}, ig=${result.cache.instagram?.length || 0}, ok=${result.ok})`,
-		);
-	} catch (err) {
-		console.error('Scheduled social feed sync error:', err);
-	}
-});
+			const { Community } = await import('../db/mongodb');
+			const { getTenantModels } = await import('../db/tenant');
+			const { createTenantStorage } = await import('./tenant-storage');
+			const comms = await Community.find({ status: 'active' }).select('slug dbName').lean();
+			for (const c of comms || []) {
+				const dbName = String((c as any).dbName || '').trim();
+				if (!dbName) continue;
+				// Jeda antar tenant agar tidak memicu rate-limit YouTube/Instagram
+				await new Promise((r) => setTimeout(r, 15000));
+				await syncStorage(`tenant:${(c as any).slug}`, createTenantStorage(getTenantModels(dbName)));
+			}
+		} catch (err) {
+			console.error('Scheduled social feed sync error:', err);
+		} finally {
+			socialFeedCronRunning = false;
+		}
+	},
+	{ timezone: 'Asia/Jakarta' },
+);
 
 // ==================== VISITOR STATS AGGREGATOR ====================
 // Aggregate page_visits -> visitor_stats every 15 min + warm cache.

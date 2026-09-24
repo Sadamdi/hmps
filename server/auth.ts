@@ -366,6 +366,7 @@ export function canManageRole(userRole: string, targetRole: string): boolean {
 		vice_chair: 4,
 		bph: 5,
 		division_head: 6,
+		medinfo: 6,
 	};
 
 	const userLevel = roleLevels[userRole] || 999;

@@ -106,7 +106,7 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 | Server State | TanStack React Query / API helper where implemented |
 | UI States | Loading, empty, error, success state expected for async surfaces |
 | Permission UX | UI guard is convenience only; backend remains source of truth |
-| Public list page (4.24.0) | `client/src/pages/berita/index.tsx` — `ArchiveHeader` + `ArchiveFilterBar` (search, tab topik = tag terpopuler, panel tahun/tag, chip filter aktif) + `BeritaLead` (1 utama + 4 terbaru, hanya tanpa filter/search di halaman 1; grid memaginasi sisanya sehingga tidak ada item ganda). Filter via `useArchiveFilters`; `?tag=` dari URL tetap jadi filter awal. Fetch `/api/berita` tidak berubah. |
+| Public list page (4.24.0) | `client/src/pages/berita/index.tsx` — `ArchiveHeader` + `ArchiveFilterBar` (search, tab topik = 8 tag acak berbobot frekuensi — tag ber-≥2 berita diprioritaskan, berganti tiap load halaman sejak 4.25.0; tag aktif dari `?tag=` selalu ikut, panel tahun/tag, chip filter aktif) + `BeritaLead` (1 utama + 4 terbaru, hanya tanpa filter/search di halaman 1; grid memaginasi sisanya sehingga tidak ada item ganda). Filter via `useArchiveFilters`; `?tag=` dari URL tetap jadi filter awal. Fetch `/api/berita` tidak berubah. |
 
 ### Backend Surface
 

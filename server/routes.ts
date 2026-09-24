@@ -5775,6 +5775,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				socialFeedCache: _sfc,
 				socialFeedConfig: _sfg,
 				lastSocialFeedSyncAt: _lss,
+				socialFeedLogs: _sfl,
 				...publicSettings
 			} = lean || {};
 			const body = JSON.stringify(publicSettings);
@@ -5803,6 +5804,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				delete body.socialFeedCache;
 				delete body.socialFeedConfig;
 				delete body.lastSocialFeedSyncAt;
+				delete body.socialFeedLogs;
 
 				// Auto-convert mapsLocationInput → mapsEmbedUrl
 				if (typeof body.mapsLocationInput === 'string') {
@@ -5881,6 +5883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						socialFeedCache: _sfc,
 						socialFeedConfig: _sfg,
 						lastSocialFeedSyncAt: _lss,
+						socialFeedLogs: _sfl,
 						...publicSettings
 					} = leanUpdated || {};
 					await writePublicJsonCache(

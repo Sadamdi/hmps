@@ -77,9 +77,11 @@ Home YouTube/Instagram auto-scrape feed.
 | Method | Path | Params / Headers | Request Body Fields |
 |--------|------|------------------|---------------------|
 | `GET` | `/api/social-feed` | - | - |
+| `GET` | `/api/social-feed/items` | `platform`, `kind`, `offset`, `limit` (query) | - |
 | `GET` | `/api/social-feed/manage` | - | - |
+| `GET` | `/api/social-feed/manage/logs` | `limit` (query) | - |
 | `PUT` | `/api/social-feed/manage` | - | config fields (verify in `server/routes/social-feed.ts`) |
-| `POST` | `/api/social-feed/sync` | - | - |
+| `POST` | `/api/social-feed/sync` | `platform?` | - |
 
 ---
 

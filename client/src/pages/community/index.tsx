@@ -32,6 +32,8 @@ const EventsAll = lazy(() => import('@/pages/events/all'));
 const EventsYear = lazy(() => import('@/pages/events/[year]'));
 const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
 const LibraryPage = lazy(() => import('@/pages/library/index'));
+const YoutubeMediaPage = lazy(() => import('@/pages/media/youtube'));
+const InstagramMediaPage = lazy(() => import('@/pages/media/instagram'));
 const LibraryDetailPage = lazy(() => import('@/pages/library/detail'));
 const TokoIndexPage = lazy(() => import('@/pages/toko/index'));
 const TokoProductPage = lazy(() => import('@/pages/toko/[slug]'));
@@ -204,6 +206,8 @@ export default function CommunityShell() {
 							<Route path="/events/:year" component={EventsYear} />
 							<Route path="/library/:id" component={LibraryDetailPage} />
 							<Route path="/library" component={LibraryPage} />
+							<Route path="/media/youtube" component={YoutubeMediaPage} />
+							<Route path="/media/instagram" component={InstagramMediaPage} />
 							<Route path="/toko/cart" component={TokoCartPage} />
 							<Route path="/toko/orders" component={TokoOrdersHistoryPage} />
 							<Route path="/toko/order/:orderNo" component={TokoOrderInvoicePage} />
