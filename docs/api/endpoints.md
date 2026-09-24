@@ -36,7 +36,7 @@ Public SSR  : http://localhost:5000/<route>
 | Organization | `/api/organization` | periods, positions, members, auto-fill |
 | Prodi | `/api/prodi` | public, manage, curriculum, media, sync |
 | Settings/Home | `/api/settings`, `/api/info`, `/api/home-images` | site config, tenant/main identity, home assets |
-| Social Feed | `/api/social-feed` | public YT/IG cache + manage/sync |
+| Social Feed | `/api/social-feed` | public YT/IG (beranda + items paginasi) + manage/logs/sync |
 | Dashboard | `/api/stats`, `/api/dashboard` | stats/activity |
 | Upload/GDrive | `/api/upload`, `/api/gdrive` | media and Drive integration |
 | Community | `/api/communities`, `/api/registration`, `/api/register`, `/api/community` | registration + lifecycle |
@@ -242,10 +242,12 @@ GET    /api/dashboard/content-performance
 ## Social Feed (YouTube / Instagram beranda)
 
 ```text
-GET  /api/social-feed           # public cache (title, url, thumb, live)
-GET  /api/social-feed/manage    # auth + social_feed.view
-PUT  /api/social-feed/manage    # auth + social_feed.edit (config only)
-POST /api/social-feed/sync      # auth + social_feed.sync
+GET  /api/social-feed              # public: slice beranda per kategori + counts + live (4.25.0)
+GET  /api/social-feed/items        # public: paginasi ?platform=youtube|instagram&kind=&offset=&limit= (4.25.0)
+GET  /api/social-feed/manage       # auth + social_feed.view (config, cache, status, logs, jadwal)
+GET  /api/social-feed/manage/logs  # auth + social_feed.view (4.25.0)
+PUT  /api/social-feed/manage       # auth + social_feed.edit (config v2, Zod)
+POST /api/social-feed/sync         # auth + social_feed.sync, body {platform?}, cooldown 60 dtk → 429
 ```
 
 ## Upload & Google Drive

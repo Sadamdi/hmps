@@ -2,16 +2,29 @@ import * as cheerio from 'cheerio';
 import fs from 'fs';
 import path from 'path';
 import {
+	countByKind,
 	DEFAULT_SOCIAL_FEED_CACHE,
 	DEFAULT_SOCIAL_FEED_CONFIG,
-	filterInstagramItems,
-	filterYoutubeItems,
-	mixSocialItemsByKind,
+	INSTAGRAM_KINDS,
+	instagramShortcodeToDate,
+	itemKind,
 	normalizeSocialFeedConfig,
+	selectSocialItems,
+	SOCIAL_FEED_LOG_LIMIT,
+	sortSocialItems,
+	visibleSocialItems,
+	YOUTUBE_KINDS,
+	type InstagramConfig,
+	type InstagramKind,
+	type SocialContentKind,
 	type SocialFeedCache,
 	type SocialFeedConfig,
 	type SocialFeedItem,
 	type SocialFeedLiveState,
+	type SocialFeedLogEntry,
+	type SocialPlatform,
+	type YoutubeConfig,
+	type YoutubeKind,
 } from '../../shared/social-feed';
 import { uploadDir } from '../upload';
 
@@ -330,17 +343,20 @@ async function fetchYoutubeViaInnertube(
 }
 
 async function scrapeYoutubeTabHtml(
-	handle: string,
+	/** `https://www.youtube.com/@handle` atau `https://www.youtube.com/channel/UC...` */
+	base: string,
 	tab: 'videos' | 'streams' | 'shorts',
 	kind: 'video' | 'live' | 'short',
 	maxItems: number,
 ): Promise<SocialFeedItem[]> {
-	const url = `https://www.youtube.com/@${encodeURIComponent(handle)}/${tab}`;
+	const url = `${base}/${tab}`;
 	const html = await fetchText(url, 25000, { 'User-Agent': UA_DESKTOP });
 	const items: SocialFeedItem[] = [];
 	const seen = new Set<string>();
 
-	const idRe = /"contentId"\s*:\s*"([\w-]{11})"/g;
+	// Tab Shorts: hanya ID yang benar-benar tertaut sebagai /shorts/ID. Channel tanpa tab Shorts
+	// dialihkan ke beranda channel — `contentId` di sana adalah video biasa (bug ≤4.24).
+	const idRe = tab === 'shorts' ? /\/shorts\/([\w-]{11})/g : /"contentId"\s*:\s*"([\w-]{11})"/g;
 	let m: RegExpExecArray | null;
 	while ((m = idRe.exec(html)) && items.length < maxItems) {
 		const id = m[1];
@@ -398,172 +414,6 @@ async function scrapeYoutubeTabHtml(
 	}
 
 	return items;
-}
-
-export async function syncYoutubeFeed(
-	config: SocialFeedConfig['youtube'],
-): Promise<{ items: SocialFeedItem[]; live: SocialFeedLiveState['youtube'] }> {
-	const channelUrl = config.profileOrChannelUrl || DEFAULT_SOCIAL_FEED_CONFIG.youtube.profileOrChannelUrl;
-	const maxItems = config.maxItems;
-	const handle = extractYoutubeHandle(channelUrl);
-	const channelId = await resolveYoutubeChannelId(channelUrl);
-	if (!channelId) throw new Error('YouTube channelId tidak ditemukan untuk @HimatifEncoder');
-
-	let pools = {
-		video: [] as SocialFeedItem[],
-		short: [] as SocialFeedItem[],
-		live: [] as SocialFeedItem[],
-	};
-
-	// 1) Prefer youtubei.js InnerTube (accurate tabs)
-	let innertubeOk = false;
-	try {
-		const innertube = await fetchYoutubeViaInnertube(channelId, config.content, maxItems);
-		pools = innertube.pools;
-		innertubeOk =
-			pools.video.length + pools.short.length + pools.live.length > 0;
-	} catch (err) {
-		console.warn('youtubei.js failed:', err);
-	}
-
-	// 2) HTML tab scrape (reliable on VPS when InnerTube blocked / incomplete)
-	if (handle) {
-		try {
-			if (config.content.videos) {
-				const vids = await scrapeYoutubeTabHtml(
-					handle,
-					'videos',
-					'video',
-					Math.max(maxItems * 3, 12),
-				);
-				for (const it of vids) {
-					const existing = pools.video.find((x) => x.id === it.id);
-					if (!existing) pools.video.push(it);
-					else if (/^Video [\w-]{11}$/i.test(existing.title) && it.title && !/^Video /i.test(it.title)) {
-						existing.title = it.title;
-					}
-				}
-			}
-			if (config.content.live) {
-				const lives = await scrapeYoutubeTabHtml(
-					handle,
-					'streams',
-					'live',
-					Math.max(maxItems * 3, 12),
-				);
-				for (const it of lives) {
-					const existing = pools.live.find((x) => x.id === it.id);
-					if (!existing) pools.live.push(it);
-					else if (/^(Video|Live) [\w-]{11}$/i.test(existing.title) && it.title && !/^(Video|Live) /i.test(it.title)) {
-						existing.title = it.title;
-					}
-				}
-			}
-			if (config.content.shorts) {
-				try {
-					const shorts = await scrapeYoutubeTabHtml(
-						handle,
-						'shorts',
-						'short',
-						Math.max(maxItems * 2, 8),
-					);
-					for (const it of shorts) {
-						if (!pools.short.some((x) => x.id === it.id)) pools.short.push(it);
-					}
-				} catch {
-					/* no shorts tab */
-				}
-			}
-		} catch (err) {
-			console.warn('YouTube HTML tab scrape failed:', err);
-		}
-	}
-
-	// 3) Last-resort RSS (mark live-looking titles)
-	if (pools.video.length + pools.short.length + pools.live.length === 0) {
-		const rssUrl = `https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`;
-		const xml = await fetchText(rssUrl);
-		for (const it of parseYoutubeRss(xml, Math.max(maxItems * 3, 12))) {
-			const liveTitle = /^live\b|^live\s*\|\|/i.test(it.title);
-			if (liveTitle && config.content.live) pools.live.push({ ...it, kind: 'live' });
-			else if (it.kind === 'short' && config.content.shorts) pools.short.push(it);
-			else if (config.content.videos) pools.video.push({ ...it, kind: 'video' });
-		}
-	}
-
-	let live: SocialFeedLiveState['youtube'] = { isLive: false };
-	if (config.content.live && config.showLiveBadge) {
-		const liveUrl = handle
-			? `https://www.youtube.com/@${handle}/live`
-			: `https://www.youtube.com/channel/${channelId}/live`;
-		try {
-			const controller = new AbortController();
-			const t = setTimeout(() => controller.abort(), 12000);
-			const res = await fetch(liveUrl, {
-				redirect: 'follow',
-				signal: controller.signal,
-				headers: { 'User-Agent': UA_DESKTOP },
-			});
-			clearTimeout(t);
-			const finalUrl = res.url || '';
-			const watch = finalUrl.match(/[?&]v=([\w-]{11})/) || finalUrl.match(/\/shorts\/([\w-]{11})/);
-			const html = await res.text();
-			const isLive =
-				/isLiveNow["\s:]+true|"isLive"\s*:\s*true|hqdefault_live|LIVE_STREAM/i.test(html) ||
-				(!!watch && /live/i.test(finalUrl));
-			if (isLive && watch) {
-				const vid = watch[1];
-				const titleMatch = html.match(/<title>([^<]+)<\/title>/i);
-				const title = (titleMatch?.[1] || 'Live sekarang')
-					.replace(/\s*-\s*YouTube\s*$/i, '')
-					.replace(/\s+/g, ' ')
-					.trim();
-				const thumbRemote = `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`;
-				const thumbLocal = await cacheRemoteImage(thumbRemote, UPLOADS_YT, `${vid}-live.jpg`);
-				live = {
-					isLive: true,
-					url: `https://www.youtube.com/watch?v=${vid}`,
-					title,
-					thumbnailUrl: thumbLocal || thumbRemote,
-				};
-				const liveItem: SocialFeedItem = {
-					id: `yt-live-${vid}`,
-					platform: 'youtube',
-					title: `LIVE: ${title}`,
-					url: live.url!,
-					thumbnailUrl: live.thumbnailUrl!,
-					isLive: true,
-					kind: 'live',
-					publishedAt: new Date().toISOString(),
-				};
-				pools.live = [liveItem, ...pools.live.filter((x) => x.id !== `yt-${vid}`)];
-			}
-		} catch (err) {
-			console.warn('YouTube live check failed:', err);
-		}
-	}
-
-	const order: Array<'live' | 'video' | 'short'> = [];
-	if (config.content.live) order.push('live');
-	if (config.content.videos) order.push('video');
-	if (config.content.shorts) order.push('short');
-
-	let filtered = mixSocialItemsByKind(pools, order, maxItems);
-	if (!filtered.length) {
-		filtered = filterYoutubeItems(
-			[...pools.live, ...pools.video, ...pools.short],
-			config.content,
-		).slice(0, maxItems);
-	}
-	filtered = await enrichYoutubeThumbs(filtered);
-
-	if (!filtered.length && !live.isLive) {
-		throw new Error(
-			'Tidak menemukan konten YouTube sesuai filter (Video / Shorts / Live). Channel @HimatifEncoder tidak punya tab Shorts — aktifkan Video atau Live.',
-		);
-	}
-
-	return { items: filtered, live };
 }
 
 /** Matches both /p/CODE and /username/p/CODE (new Instagram URL shape). */
@@ -747,263 +597,544 @@ function itemsFromIgWebProfile(data: any, username: string, max: number): Social
 	return items;
 }
 
-async function enrichIgViaBochil(url: string): Promise<{ thumb?: string; title?: string } | null> {
+// =====================================================================
+// YouTube v2 — simpan per kategori (video/short/live) + tanggal pasti
+// =====================================================================
+
+type WatchMeta = { publishedAt?: string; isLiveContent?: boolean; lengthSeconds?: number; title?: string };
+
+/** Halaman watch memuat `datePublished` + `isLiveContent` yang akurat (lebih andal dari teks relatif InnerTube). */
+async function fetchYoutubeWatchMeta(videoId: string): Promise<WatchMeta | null> {
 	try {
-		const mod: any = await withTimeout(
-			import('@bochilteam/scraper-instagram'),
-			8000,
-			'bochil-import',
-		);
-		const instagramdl = mod.instagramdl || mod.default?.instagramdl;
-		if (typeof instagramdl !== 'function') return null;
-		const data: any = await withTimeout(instagramdl(url), 12000, 'bochil-dl');
-		const thumb =
-			data?.thumbnail ||
-			data?.thumb ||
-			data?.[0]?.thumbnail ||
-			data?.url?.[0]?.url ||
-			undefined;
-		const title = data?.title || data?.caption || undefined;
-		return { thumb: typeof thumb === 'string' ? thumb : undefined, title };
+		const html = await fetchText(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, 20000, {
+			'Accept-Language': 'en-US,en;q=0.9',
+		});
+		const date =
+			html.match(/<meta itemprop="datePublished" content="([^"]+)"/)?.[1] ||
+			html.match(/<meta itemprop="uploadDate" content="([^"]+)"/)?.[1];
+		const live = html.match(/"isLiveContent":(true|false)/)?.[1];
+		const len = html.match(/"lengthSeconds":"(\d+)"/)?.[1];
+		const title = html
+			.match(/<meta name="title" content="([^"]+)"/)?.[1]
+			?.replace(/&amp;/g, '&')
+			.replace(/&quot;/g, '"')
+			.replace(/&#39;/g, "'")
+			.trim();
+		const parsed = date ? new Date(date) : null;
+		return {
+			publishedAt: parsed && !Number.isNaN(parsed.getTime()) ? parsed.toISOString() : undefined,
+			isLiveContent: live === 'true',
+			lengthSeconds: len ? parseInt(len, 10) : undefined,
+			title,
+		};
 	} catch {
 		return null;
 	}
 }
 
-async function scrapeIgStories(username: string): Promise<SocialFeedItem[]> {
+async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+	const out: R[] = new Array(items.length);
+	let i = 0;
+	const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+		while (i < items.length) {
+			const idx = i++;
+			out[idx] = await fn(items[idx]);
+		}
+	});
+	await Promise.all(workers);
+	return out;
+}
+
+const PLACEHOLDER_TITLE = /^(Video|Short|Live|YouTube) [\w-]{11}$/i;
+const ytVideoId = (it: SocialFeedItem) => it.id.replace(/^yt-live-/, '').replace(/^yt-/, '');
+
+export type PlatformSyncOutcome = {
+	items: SocialFeedItem[];
+	method: string;
+	newCount: number;
+	blocked?: boolean;
+	warning?: string;
+};
+
+export async function syncYoutubeFeed(
+	config: YoutubeConfig,
+	previous: SocialFeedItem[] = [],
+): Promise<PlatformSyncOutcome & { live: SocialFeedLiveState['youtube'] }> {
+	const channelUrl = config.profileOrChannelUrl || DEFAULT_SOCIAL_FEED_CONFIG.youtube.profileOrChannelUrl;
+	const handle = extractYoutubeHandle(channelUrl);
+	const channelId = await resolveYoutubeChannelId(channelUrl);
+	if (!channelId) throw new Error(`Channel YouTube tidak ditemukan dari URL: ${channelUrl}`);
+	const tabBase = handle
+		? `https://www.youtube.com/@${encodeURIComponent(handle)}`
+		: `https://www.youtube.com/channel/${channelId}`;
+	const limits = config.fetchLimits;
+	const methods: string[] = [];
+
+	const pools: Record<YoutubeKind, SocialFeedItem[]> = { video: [], short: [], live: [] };
+	const addTo = (kind: YoutubeKind, list: SocialFeedItem[]) => {
+		for (const it of list) {
+			const existing = pools[kind].find((x) => x.id === it.id);
+			if (!existing) pools[kind].push({ ...it, kind });
+			else if (PLACEHOLDER_TITLE.test(existing.title) && it.title && !PLACEHOLDER_TITLE.test(it.title)) {
+				existing.title = it.title;
+			}
+		}
+	};
+
+	// 1) InnerTube (youtubei.js) — tab akurat
 	try {
-		const mod: any = await withTimeout(
-			import('@bochilteam/scraper-instagram'),
-			8000,
-			'bochil-import-story',
-		);
-		const instagramStory = mod.instagramStory || mod.default?.instagramStory;
-		if (typeof instagramStory !== 'function') return [];
-		const data: any = await withTimeout(
-			instagramStory(`https://www.instagram.com/stories/${username}/`),
-			15000,
-			'bochil-story',
-		);
-		const list = Array.isArray(data) ? data : data?.results || data?.story || [];
-		if (!Array.isArray(list)) return [];
-		return list.slice(0, 5).map((s: any, i: number) => ({
-			id: `ig-story-${s.id || s.pk || i}`,
-			platform: 'instagram' as const,
-			title: `Story @${username}`,
-			url: s.url || `https://www.instagram.com/stories/${username}/`,
-			thumbnailUrl: s.thumbnail || s.thumb || s.url || '',
-			kind: 'story' as const,
-			publishedAt: s.taken_at ? new Date(s.taken_at * 1000).toISOString() : undefined,
-		}));
+		const { pools: p } = await fetchYoutubeViaInnertube(channelId, config.content, Math.max(limits.video, limits.short, limits.live));
+		addTo('video', p.video);
+		addTo('short', p.short);
+		addTo('live', p.live);
+		if (p.video.length + p.short.length + p.live.length) methods.push('innertube');
 	} catch (err) {
-		console.warn('IG stories scrape failed:', err);
-		return [];
+		console.warn('youtubei.js failed:', err);
+	}
+
+	// 2) HTML tab scrape — melengkapi judul / id bila InnerTube terbatas di VPS
+	const tabs: Array<[boolean, 'videos' | 'streams' | 'shorts', YoutubeKind]> = [
+		[config.content.videos, 'videos', 'video'],
+		[config.content.live, 'streams', 'live'],
+		[config.content.shorts, 'shorts', 'short'],
+	];
+	for (const [on, tab, kind] of tabs) {
+		if (!on) continue;
+		try {
+			const found = await scrapeYoutubeTabHtml(tabBase, tab, kind, limits[kind] * 2);
+			if (found.length) methods.push(`html:${tab}`);
+			addTo(kind, found);
+		} catch {
+			/* tab tidak ada (mis. channel tanpa Shorts) */
+		}
+	}
+
+	// 3) RSS — terakhir, hanya bila semua kosong
+	if (pools.video.length + pools.short.length + pools.live.length === 0) {
+		const xml = await fetchText(`https://www.youtube.com/feeds/videos.xml?channel_id=${encodeURIComponent(channelId)}`);
+		for (const it of parseYoutubeRss(xml, 15)) addTo(it.kind === 'short' ? 'short' : 'video', [it]);
+		methods.push('rss');
+	}
+
+	// Satu video hanya boleh di satu kategori: live > short > video
+	const claimed = new Set<string>();
+	for (const kind of ['live', 'short', 'video'] as YoutubeKind[]) {
+		pools[kind] = pools[kind].filter((it) => {
+			const vid = ytVideoId(it);
+			if (claimed.has(vid)) return false;
+			claimed.add(vid);
+			return true;
+		});
+	}
+
+	// Ambil kandidat secukupnya per kategori, lalu isi tanggal (pakai cache lama bila ada)
+	const prevById = new Map(previous.map((p) => [ytVideoId(p), p]));
+	const candidates = (['video', 'short', 'live'] as YoutubeKind[]).flatMap((k) =>
+		config.content[k === 'video' ? 'videos' : k === 'short' ? 'shorts' : 'live']
+			? pools[k].slice(0, limits[k] + 2)
+			: [],
+	);
+	let newCount = 0;
+	const enriched = await mapLimit(candidates, 3, async (it) => {
+		const vid = ytVideoId(it);
+		const prev = prevById.get(vid);
+		let next: SocialFeedItem = {
+			...it,
+			firstSeenAt: prev?.firstSeenAt || new Date().toISOString(),
+			publishedAt: prev?.publishedAt || it.publishedAt,
+			thumbnailUrl: prev?.thumbnailUrl?.startsWith('/uploads/') ? prev.thumbnailUrl : it.thumbnailUrl,
+		};
+		if (prev?.title && !PLACEHOLDER_TITLE.test(prev.title) && PLACEHOLDER_TITLE.test(next.title)) next.title = prev.title;
+		if (!prev) (next as any).__new = true;
+		if (!next.publishedAt || PLACEHOLDER_TITLE.test(next.title)) {
+			const meta = await fetchYoutubeWatchMeta(vid);
+			if (meta?.publishedAt) next.publishedAt = meta.publishedAt;
+			if (meta?.title && PLACEHOLDER_TITLE.test(next.title)) next.title = meta.title.slice(0, 140);
+			// Koreksi kategori dari metadata resmi (Shorts maks 3 menit)
+			if (meta?.isLiveContent && next.kind !== 'live') next.kind = 'live';
+			else if (next.kind === 'short' && (meta?.lengthSeconds ?? 0) > 180) {
+				next.kind = 'video';
+				next.url = `https://www.youtube.com/watch?v=${vid}`;
+			}
+		}
+		if (!next.thumbnailUrl.startsWith('/uploads/')) {
+			const local = await cacheRemoteImage(
+				next.thumbnailUrl || `https://i.ytimg.com/vi/${vid}/hqdefault.jpg`,
+				UPLOADS_YT,
+				`${vid}.jpg`,
+			);
+			if (local) next.thumbnailUrl = local;
+		}
+		return next;
+	});
+	if (enriched.some((e) => e.publishedAt)) methods.push('watch');
+
+	// Batasi per kategori setelah urut terbaru
+	const byKind: Record<YoutubeKind, SocialFeedItem[]> = { video: [], short: [], live: [] };
+	for (const it of sortSocialItems(enriched)) {
+		const k = (it.kind as YoutubeKind) || 'video';
+		if (byKind[k].length < limits[k]) byKind[k].push(it);
+	}
+
+	// Live sekarang
+	let live: SocialFeedLiveState['youtube'] = { isLive: false };
+	if (config.content.live && config.showLiveBadge) {
+		try {
+			const controller = new AbortController();
+			const t = setTimeout(() => controller.abort(), 12000);
+			const res = await fetch(`${tabBase}/live`, {
+				redirect: 'follow',
+				signal: controller.signal,
+				headers: { 'User-Agent': UA_DESKTOP },
+			});
+			clearTimeout(t);
+			const finalUrl = res.url || '';
+			const watch = finalUrl.match(/[?&]v=([\w-]{11})/);
+			const html = await res.text();
+			const isLive = /"isLiveNow":true|"isLive"\s*:\s*true/i.test(html) && !!watch;
+			if (isLive && watch) {
+				const vid = watch[1];
+				const title = (html.match(/<title>([^<]+)<\/title>/i)?.[1] || 'Live sekarang')
+					.replace(/\s*-\s*YouTube\s*$/i, '')
+					.trim();
+				const thumbRemote = `https://i.ytimg.com/vi/${vid}/hqdefault_live.jpg`;
+				const thumbLocal = await cacheRemoteImage(thumbRemote, UPLOADS_YT, `${vid}-live.jpg`);
+				live = { isLive: true, url: `https://www.youtube.com/watch?v=${vid}`, title, thumbnailUrl: thumbLocal || thumbRemote };
+				const liveItem: SocialFeedItem = {
+					id: `yt-live-${vid}`,
+						platform: 'youtube',
+						title,
+						url: live.url!,
+						thumbnailUrl: live.thumbnailUrl!,
+					isLive: true,
+					kind: 'live',
+					publishedAt: new Date().toISOString(),
+					firstSeenAt: new Date().toISOString(),
+				};
+				byKind.live = [liveItem, ...byKind.live.filter((x) => ytVideoId(x) !== vid)].slice(0, limits.live);
+			}
+		} catch (err) {
+			console.warn('YouTube live check failed:', err);
+		}
+	}
+
+	const items = sortSocialItems([...byKind.live, ...byKind.video, ...byKind.short]).map((it) => {
+		if ((it as any).__new) newCount++;
+		const { __new: _n, ...clean } = it as any;
+		return clean as SocialFeedItem;
+	});
+	if (!items.length) {
+		throw new Error('Tidak menemukan konten YouTube sesuai filter (Video / Shorts / Live).');
+	}
+	return { items, live, method: Array.from(new Set(methods)).join('+') || 'none', newCount };
+}
+
+// =====================================================================
+// Instagram v2 — gratis tanpa token: daftar dari profil (bila tidak
+// diblokir / ada sesi dummy) + link manual, lalu enrich via halaman embed.
+// =====================================================================
+
+export type InstagramEmbedInfo = {
+	kind: InstagramKind;
+	isCarousel: boolean;
+	displayUrl?: string;
+	caption?: string;
+};
+
+function decodeHtmlEntities(s: string): string {
+	return s
+		.replace(/&amp;/g, '&')
+		.replace(/&quot;/g, '"')
+		.replace(/&#039;|&#39;/g, "'")
+		.replace(/&lt;/g, '<')
+		.replace(/&gt;/g, '>')
+		.replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+		.replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)));
+}
+
+/** Ambil string JSON ber-escape setelah `"key":"` (menghormati backslash). */
+function readEscapedJsonString(html: string, key: string): string | null {
+	const marker = `"${key}":"`;
+	const start = html.indexOf(marker);
+	if (start < 0) return null;
+	let i = start + marker.length;
+	while (i < html.length) {
+		const ch = html[i];
+		if (ch === '\\') {
+			i += 2;
+			continue;
+		}
+		if (ch === '"') break;
+		i++;
+	}
+	try {
+		return JSON.parse(`"${html.slice(start + marker.length, i)}"`);
+	} catch {
+		return null;
 	}
 }
 
-function itemsFromManualIgUrls(urls: string[], username: string): SocialFeedItem[] {
-	const out: SocialFeedItem[] = [];
-	for (const raw of urls) {
-		const m = raw.match(/instagram\.com\/(?:[\w.-]+\/)?(p|reel|reels)\/([A-Za-z0-9_-]+)/i);
-		if (!m) continue;
-		const kind = m[1].toLowerCase() === 'p' ? 'post' : 'reel';
-		const code = m[2];
-		const pathKind = kind === 'reel' ? 'reel' : 'p';
-		out.push({
-			id: `ig-${code}`,
-			platform: 'instagram',
-			title: kind === 'reel' ? `Reel @${username}` : `Post @${username}`,
-			url: `https://www.instagram.com/${pathKind}/${code}/`,
-			// /p/{code}/media works for both posts and reels ( /reel/.../media often 404 )
-			thumbnailUrl: `https://www.instagram.com/p/${code}/media/?size=l`,
-			kind,
+function deepFind(obj: any, key: string, depth = 0): any {
+	if (!obj || depth > 10 || typeof obj !== 'object') return undefined;
+	if (key in obj) return obj[key];
+	for (const v of Object.values(obj)) {
+		const r = deepFind(v, key, depth + 1);
+		if (r !== undefined) return r;
+	}
+	return undefined;
+}
+
+/**
+ * Parser halaman `/p/{code}/embed/captioned/` (publik, tanpa login).
+ * Reel: data di `contextJSON`. Post/carousel: markup `EmbeddedMediaImage` + `Caption`.
+ * Fungsi murni — diuji dengan fixture HTML nyata.
+ */
+export function parseInstagramEmbed(html: string): InstagramEmbedInfo | null {
+	if (!html || html.length < 500) return null;
+	let kind: InstagramKind | null = null;
+	let isCarousel = false;
+	let displayUrl: string | undefined;
+	let caption: string | undefined;
+
+	const ctxRaw = readEscapedJsonString(html, 'contextJSON');
+	if (ctxRaw) {
+		try {
+			const ctx = JSON.parse(ctxRaw);
+			const typename = String(deepFind(ctx, '__typename') || '');
+			const product = String(deepFind(ctx, 'product_type') || '').toLowerCase();
+			const isVideo = deepFind(ctx, 'is_video') === true;
+			if (product === 'clips' || typename === 'GraphVideo' || isVideo) kind = 'reel';
+			else if (typename === 'GraphSidecar') {
+				kind = 'post';
+				isCarousel = true;
+			} else if (typename === 'GraphImage') kind = 'post';
+			const du = deepFind(ctx, 'display_url');
+			if (typeof du === 'string') displayUrl = du;
+			const capEdges = deepFind(ctx, 'edge_media_to_caption')?.edges;
+			const capText = Array.isArray(capEdges) ? capEdges[0]?.node?.text : undefined;
+			if (typeof capText === 'string') caption = capText;
+		} catch {
+			/* lanjut ke markup */
+		}
+	}
+
+	if (!displayUrl) {
+		const img = html.match(/class="EmbeddedMediaImage"[^>]*src="([^"]+)"/) || html.match(/src="([^"]+)"[^>]*class="EmbeddedMediaImage"/);
+		if (img?.[1]) displayUrl = decodeHtmlEntities(img[1]);
+	}
+	if (!kind) {
+		if (/GraphVideo|"is_video":true|video_url/.test(html)) kind = 'reel';
+		else if (/EmbeddedMediaImage/.test(html)) kind = 'post';
+	}
+	if (kind === 'post' && !isCarousel && /Sidecar/.test(html)) isCarousel = true;
+	if (!caption) {
+		const capBlock = html.match(/<div class="Caption">([\s\S]*?)<\/div>/)?.[1];
+		if (capBlock) {
+			caption = decodeHtmlEntities(
+				capBlock
+					.replace(/<a class="CaptionUsername"[\s\S]*?<\/a>/, '')
+					.replace(/<br\s*\/?>/gi, '\n')
+					.replace(/<[^>]+>/g, '')
+					.trim(),
+			);
+		}
+	}
+	if (!kind && !displayUrl) return null;
+	return {
+		kind: kind || 'post',
+		isCarousel,
+		displayUrl,
+		caption: caption?.replace(/\s+\n/g, '\n').trim() || undefined,
+	};
+}
+
+function captionToTitle(caption: string | undefined, fallback: string): string {
+	const first = (caption || '').split('\n').map((l) => l.trim()).find((l) => l.length > 0);
+	return (first || fallback).replace(/\s+/g, ' ').slice(0, 120);
+}
+
+async function fetchInstagramEmbed(code: string): Promise<InstagramEmbedInfo | null> {
+	// PENTING: dengan UA browser lengkap IG mengirim shell aplikasi JS (tanpa data).
+	// UA sederhana mendapat halaman embed statis yang berisi gambar/caption/tipe.
+	const controller = new AbortController();
+	const t = setTimeout(() => controller.abort(), 20000);
+	try {
+		const res = await fetch(`https://www.instagram.com/p/${encodeURIComponent(code)}/embed/captioned/`, {
+			redirect: 'follow',
+			signal: controller.signal,
+			headers: { 'User-Agent': 'Mozilla/5.0' },
 		});
+		if (!res.ok) return null;
+		return parseInstagramEmbed(await res.text());
+	} catch {
+		return null;
+	} finally {
+		clearTimeout(t);
+	}
+}
+
+type IgDiscovered = { code: string; kindHint?: InstagramKind; item?: SocialFeedItem; source: string };
+
+function codesFromUrls(urls: string[]): { code: string; kindHint: InstagramKind }[] {
+	const out: { code: string; kindHint: InstagramKind }[] = [];
+	for (const raw of urls) {
+		const m = raw.match(/instagram\.com\/(?:[\w.-]+\/)?(p|reel|reels|tv)\/([A-Za-z0-9_-]+)/i);
+		if (!m) continue;
+		out.push({ code: m[2], kindHint: m[1].toLowerCase() === 'p' ? 'post' : 'reel' });
 	}
 	return out;
 }
 
+export function instagramUsernameFromUrl(url: string): string | null {
+	return extractInstagramUsername(url);
+}
+
 export async function syncInstagramFeed(
-	config: SocialFeedConfig['instagram'],
-): Promise<{ items: SocialFeedItem[]; live: SocialFeedLiveState['instagram'] }> {
-	const profileUrl =
-		config.profileOrChannelUrl || DEFAULT_SOCIAL_FEED_CONFIG.instagram.profileOrChannelUrl;
+	config: InstagramConfig,
+	previous: SocialFeedItem[] = [],
+): Promise<PlatformSyncOutcome> {
+	const profileUrl = config.profileOrChannelUrl || DEFAULT_SOCIAL_FEED_CONFIG.instagram.profileOrChannelUrl;
 	const username = extractInstagramUsername(profileUrl);
 	if (!username) throw new Error('Username Instagram tidak valid');
 
-	const pageUrl = `https://www.instagram.com/${encodeURIComponent(username)}/`;
-	const collected: SocialFeedItem[] = [];
-	const byId = new Map<string, SocialFeedItem>();
-	const pushUnique = (list: SocialFeedItem[]) => {
-		for (const it of list) {
-			if (byId.has(it.id)) continue;
-			byId.set(it.id, it);
-			collected.push(it);
-		}
+	const discovered = new Map<string, IgDiscovered>();
+	const add = (d: IgDiscovered) => {
+		if (!discovered.has(d.code)) discovered.set(d.code, d);
 	};
+	const methods: string[] = [];
+	let profileListWorked = false;
 
-	// 1) Official-ish web_profile_info (works more often with INSTAGRAM_SESSION_ID)
+	// 1) web_profile_info — berhasil bila IP tidak dibatasi atau INSTAGRAM_SESSION_ID (akun dummy) terpasang
 	const profileJson = await fetchIgWebProfileInfo(username);
 	if (profileJson) {
-		pushUnique(itemsFromIgWebProfile(profileJson, username, Math.max(config.maxItems * 3, 12)));
-	}
-
-	// 2) HTML profile + reels tab scrape (URL shape: /username/p/CODE)
-	const cookies = await seedInstagramCookies();
-	const pages = [pageUrl, `https://www.instagram.com/${encodeURIComponent(username)}/reels/`];
-	let html = '';
-	for (const page of pages) {
-		try {
-			const body = await fetchText(page, 25000, {
-				'User-Agent': UA_MOBILE,
-				Referer: 'https://www.instagram.com/',
-				...(cookies ? { Cookie: cookies } : {}),
-			});
-			if (body.length > html.length) html = body;
-			const shortcodes = extractIgShortcodes(body);
-			const thumbs = extractThumbCandidates(body);
-			for (let i = 0; i < shortcodes.length; i++) {
-				const { code, kind } = shortcodes[i];
-				const pathKind = kind === 'reel' ? 'reel' : 'p';
-				// Respect content filters early when only one type enabled
-				if (kind === 'reel' && !config.content.reels) continue;
-				if (kind === 'p' && !config.content.posts) continue;
-				pushUnique([
-					{
-						id: `ig-${code}`,
-						platform: 'instagram',
-						title: kind === 'reel' ? `Reel @${username}` : `Post @${username}`,
-						url: `https://www.instagram.com/${pathKind}/${code}/`,
-						thumbnailUrl:
-							thumbs[i] ||
-							thumbs[0] ||
-							`https://www.instagram.com/p/${code}/media/?size=l`,
-						kind: kind === 'reel' ? 'reel' : 'post',
-					},
-				]);
-			}
-		} catch (err) {
-			console.warn('IG HTML scrape failed for', page, err);
+		const fromApi = itemsFromIgWebProfile(profileJson, username, 50);
+		for (const it of fromApi) {
+			const code = it.id.replace(/^ig-/, '');
+			add({ code, kindHint: it.kind === 'reel' ? 'reel' : 'post', item: it, source: 'profile-api' });
+		}
+		if (fromApi.length) {
+			profileListWorked = true;
+			methods.push(process.env.INSTAGRAM_SESSION_ID ? 'profile-api(session)' : 'profile-api');
 		}
 	}
 
-	// 3) Manual / pinned URLs (Settings) — andalan saat IG rate-limit / login wall
-	if (config.manualUrls?.length) {
-		pushUnique(itemsFromManualIgUrls(config.manualUrls, username));
-	}
-
-	// 4) Stories (optional)
-	if (config.content.stories) {
-		pushUnique(await scrapeIgStories(username));
-	}
-
-	// Enrich missing / weak thumbs (og:image first — lebih andal dari bochil di server)
-	for (let i = 0; i < Math.min(collected.length, config.maxItems + 2); i++) {
-		const it = collected[i];
-		const weakThumb =
-			!it.thumbnailUrl || /instagram\.com\/.+\/media\/\?size=/i.test(it.thumbnailUrl);
-		if (!weakThumb) continue;
-
-		try {
-			const postHtml = await fetchText(it.url, 20000, {
-				'User-Agent': UA_DESKTOP,
-				Accept:
-					'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-				'Accept-Language': 'en-US,en;q=0.9',
-				'Sec-Fetch-Dest': 'document',
-				'Sec-Fetch-Mode': 'navigate',
-			});
-			const candidates = extractThumbCandidates(postHtml);
-			if (candidates[0]) {
-				collected[i] = { ...collected[i], thumbnailUrl: candidates[0] };
-			}
-		} catch {
-			/* ignore */
-		}
-
-		if (
-			!collected[i].thumbnailUrl ||
-			/instagram\.com\/.+\/media\/\?size=/i.test(collected[i].thumbnailUrl)
-		) {
-			const enriched = await enrichIgViaBochil(it.url);
-			if (enriched?.thumb) collected[i] = { ...collected[i], thumbnailUrl: enriched.thumb };
-			if (
-				enriched?.title &&
-				(it.title.startsWith('Post @') || it.title.startsWith('Reel @'))
-			) {
-				collected[i] = { ...collected[i], title: String(enriched.title).slice(0, 120) };
+	// 2) HTML profil + tab reels (jarang berhasil tanpa login, murah dicoba)
+	if (!profileListWorked) {
+		const cookies = await seedInstagramCookies();
+		for (const page of [`https://www.instagram.com/${encodeURIComponent(username)}/`, `https://www.instagram.com/${encodeURIComponent(username)}/reels/`]) {
+			try {
+				const body = await fetchText(page, 25000, {
+					'User-Agent': UA_MOBILE,
+					Referer: 'https://www.instagram.com/',
+					...(cookies ? { Cookie: cookies } : {}),
+				});
+				const codes = extractIgShortcodes(body);
+				for (const { code, kind } of codes) add({ code, kindHint: kind === 'reel' ? 'reel' : 'post', source: 'profile-html' });
+				if (codes.length) {
+					profileListWorked = true;
+					methods.push('profile-html');
+				}
+			} catch {
+				/* diblokir */
 			}
 		}
 	}
 
-	// Cache thumbs locally
-	for (let i = 0; i < collected.length; i++) {
-		const it = collected[i];
-		if (!it.thumbnailUrl) continue;
-		const code = it.id.replace(/^ig-/, '');
-		const local = await cacheRemoteImage(it.thumbnailUrl, UPLOADS_IG, `${code}.jpg`);
-		if (local) collected[i] = { ...it, thumbnailUrl: local };
+	// 3) Link manual dari dashboard — selalu dipakai
+	const manual = codesFromUrls(config.manualUrls || []);
+	for (const m of manual) add({ ...m, source: 'manual' });
+	if (manual.length) methods.push('manual');
+
+	// 4) Item lama tetap dipertahankan (data tidak hilang saat IG memblokir)
+	const prevByCode = new Map(previous.map((p) => [p.id.replace(/^ig-/, ''), p]));
+	for (const [code, p] of Array.from(prevByCode.entries())) {
+		const k = itemKind(p);
+		if (k === 'post' || k === 'reel') add({ code, kindHint: k, source: 'cache' });
 	}
 
-	let live: SocialFeedLiveState['instagram'] = { isLive: false };
-	if (config.content.live && config.showLiveBadge) {
-		const liveSignal =
-			/"is_live_broadcast"\s*:\s*true|"broadcast_status"\s*:\s*"LIVE"/i.test(html) ||
-			/instagram\.com\/[^/]+\/live\//i.test(html);
-		if (liveSignal) {
-			live = {
-				isLive: true,
-				url: pageUrl,
-				title: `@${username} sedang live`,
-			};
-			pushUnique([
-				{
-					id: `ig-live-${username}`,
-					platform: 'instagram',
-					title: live.title!,
-					url: pageUrl,
-					thumbnailUrl: collected[0]?.thumbnailUrl || '',
-					isLive: true,
-					kind: 'live',
-				},
-			]);
+	let newCount = 0;
+	const list = Array.from(discovered.values());
+	const items = await mapLimit(list, 3, async (d): Promise<SocialFeedItem | null> => {
+		const prev = prevByCode.get(d.code);
+		const needsEnrich =
+			!prev ||
+			!prev.thumbnailUrl?.startsWith('/uploads/') ||
+			/^(Post|Reel) @/i.test(prev.title) ||
+			prev.isCarousel === undefined;
+		let kind: InstagramKind = (prev && (itemKind(prev) as InstagramKind)) || d.item?.kind as InstagramKind || d.kindHint || 'post';
+		let isCarousel = prev?.isCarousel ?? false;
+		let caption = prev?.caption;
+		let remoteThumb = d.item?.thumbnailUrl;
+		if (needsEnrich) {
+			const info = await fetchInstagramEmbed(d.code);
+			if (info) {
+				kind = info.kind;
+				isCarousel = info.isCarousel;
+				caption = info.caption || caption;
+				remoteThumb = info.displayUrl || remoteThumb;
+			}
 		}
-	}
+		let thumbnailUrl = prev?.thumbnailUrl?.startsWith('/uploads/') ? prev.thumbnailUrl : '';
+		if (!thumbnailUrl && remoteThumb) {
+			thumbnailUrl = (await cacheRemoteImage(remoteThumb, UPLOADS_IG, `${d.code}.jpg`)) || remoteThumb;
+		}
+		if (!thumbnailUrl) return null; // tanpa gambar tidak ditampilkan
+		const pathKind = kind === 'reel' ? 'reel' : 'p';
+		const fallbackTitle = `${kind === 'reel' ? 'Reel' : 'Post'} @${username}`;
+		return {
+			id: `ig-${d.code}`,
+			platform: 'instagram',
+			kind,
+			isCarousel: kind === 'post' ? isCarousel : false,
+			url: `https://www.instagram.com/${pathKind}/${d.code}/`,
+			thumbnailUrl,
+			caption: caption?.slice(0, 600),
+			title: captionToTitle(caption, prev && !/^(Post|Reel) @/i.test(prev.title) ? prev.title : fallbackTitle),
+			publishedAt: instagramShortcodeToDate(d.code) || d.item?.publishedAt || prev?.publishedAt,
+			firstSeenAt: prev?.firstSeenAt || new Date().toISOString(),
+		};
+	});
 
-	let filtered = filterInstagramItems(collected, config.content);
-	const pools = {
-		post: filtered.filter((i) => (i.kind || 'post') === 'post'),
-		reel: filtered.filter((i) => i.kind === 'reel'),
-		story: filtered.filter((i) => i.kind === 'story'),
-		live: filtered.filter((i) => i.kind === 'live' || i.isLive),
-	};
-	const order: Array<'live' | 'post' | 'reel' | 'story'> = [];
-	if (config.content.live) order.push('live');
-	if (config.content.posts) order.push('post');
-	if (config.content.reels) order.push('reel');
-	if (config.content.stories) order.push('story');
-	filtered = mixSocialItemsByKind(pools, order, config.maxItems);
-	if (!filtered.length) {
-		filtered = filterInstagramItems(collected, config.content).slice(0, config.maxItems);
+	const sorted = sortSocialItems(items.filter((x): x is SocialFeedItem => !!x));
+	const byKind: Record<InstagramKind, SocialFeedItem[]> = { post: [], reel: [] };
+	for (const it of sorted) {
+		const k = it.kind as InstagramKind;
+		if (byKind[k] && byKind[k].length < config.fetchLimits[k]) byKind[k].push(it);
 	}
-
-	if (!filtered.length) {
+	const finalItems = sortSocialItems([...byKind.post, ...byKind.reel]);
+	newCount = finalItems.filter((it) => !prevByCode.has(it.id.replace(/^ig-/, ''))).length;
+	const blocked = !profileListWorked;
+	if (!finalItems.length) {
 		throw new Error(
-			'Tidak menemukan post/reel Instagram. Isi "URL manual" di Settings, atau set INSTAGRAM_SESSION_ID di server (sessionid cookie akun publik).',
+			'Instagram memblokir daftar post tanpa login. Tambahkan link post/reel manual di dashboard, atau pasang INSTAGRAM_SESSION_ID dari akun dummy di server.',
 		);
 	}
-
-	return { items: filtered, live };
+	return {
+		items: finalItems,
+		method: (methods.length ? methods : ['cache']).join('+'),
+		newCount,
+		blocked,
+		warning: blocked
+			? 'Daftar post otomatis diblokir Instagram (butuh login / rate limit). Post baru hanya masuk lewat link manual atau sesi akun dummy.'
+			: undefined,
+	};
 }
+
+// =====================================================================
+// Orkestrasi + log
+// =====================================================================
 
 export type SocialSyncResult = {
 	ok: boolean;
 	cache: SocialFeedCache;
 	error?: string;
+	logs: SocialFeedLogEntry[];
 };
 
 export async function runSocialFeedSync(
-	configInput?: Partial<SocialFeedConfig> | null,
+	configInput?: unknown,
 	previous?: SocialFeedCache | null,
+	options: { platform?: SocialPlatform; trigger?: 'cron' | 'manual'; triggeredBy?: string } = {},
 ): Promise<SocialSyncResult> {
 	const config = normalizeSocialFeedConfig(configInput);
 	const prev = previous || DEFAULT_SOCIAL_FEED_CACHE;
@@ -1011,102 +1142,190 @@ export async function runSocialFeedSync(
 		youtube: [...(prev.youtube || [])],
 		instagram: [...(prev.instagram || [])],
 		live: { ...(prev.live || {}) },
+		status: { ...(prev.status || {}) },
 		syncedAt: new Date().toISOString(),
 	};
 	const errors: string[] = [];
+	const logs: SocialFeedLogEntry[] = [];
+	const trigger = options.trigger || 'manual';
 
-	if (config.youtube.enabled) {
+	const runOne = async (platform: SocialPlatform) => {
+		const started = Date.now();
+		const startedAt = new Date(started).toISOString();
 		try {
-			const yt = await syncYoutubeFeed(config.youtube);
-			next.youtube = yt.items;
-			next.live.youtube = yt.live;
-		} catch (err: any) {
-			errors.push(`youtube: ${err?.message || err}`);
-			console.warn('YouTube social sync failed:', err);
-		}
-	} else {
-		next.youtube = [];
-		next.live.youtube = { isLive: false };
-	}
-
-	if (config.instagram.enabled) {
-		try {
-			const seeded = {
-				...config.instagram,
-				manualUrls: [
-					...(config.instagram.manualUrls || []),
-					...((prev.instagram || []).map((i) => i.url).filter(Boolean) as string[]),
-				].slice(0, 12),
-			};
-			const ig = await syncInstagramFeed(seeded);
-			next.instagram = ig.items;
-			next.live.instagram = ig.live;
-		} catch (err: any) {
-			const msg = err?.message || String(err);
-			if ((prev.instagram || []).length) {
-				errors.push(`instagram(keep-cache): ${msg}`);
+			const outcome =
+				platform === 'youtube'
+					? await syncYoutubeFeed(config.youtube, prev.youtube || [])
+					: await syncInstagramFeed(config.instagram, prev.instagram || []);
+			if (platform === 'youtube') {
+				next.youtube = outcome.items;
+				next.live.youtube = (outcome as any).live;
 			} else {
-				errors.push(`instagram: ${msg}`);
+				next.instagram = outcome.items;
 			}
-			console.warn('Instagram social sync failed:', err);
+			const durationMs = Date.now() - started;
+			next.status![platform] = {
+				at: startedAt,
+				ok: true,
+				method: outcome.method,
+				newCount: outcome.newCount,
+				total: outcome.items.length,
+				blocked: outcome.blocked,
+				error: outcome.warning,
+				durationMs,
+			};
+			if (outcome.warning) errors.push(`${platform}(warning): ${outcome.warning}`);
+			logs.push({
+				id: `${started}-${platform}`,
+				platform,
+				trigger,
+				startedAt,
+				durationMs,
+				ok: true,
+				method: outcome.method,
+				newCount: outcome.newCount,
+				total: outcome.items.length,
+				byKind: countByKind(outcome.items),
+				blocked: outcome.blocked,
+				error: outcome.warning,
+				triggeredBy: options.triggeredBy,
+			});
+		} catch (err: any) {
+			const msg = String(err?.message || err).slice(0, 400);
+			const durationMs = Date.now() - started;
+			errors.push(`${platform}: ${msg}`);
+			console.warn(`${platform} social sync failed:`, err);
+			const kept = platform === 'youtube' ? next.youtube : next.instagram;
+			next.status![platform] = { at: startedAt, ok: false, error: msg, total: kept.length, durationMs };
+			logs.push({
+				id: `${started}-${platform}`,
+				platform,
+				trigger,
+				startedAt,
+				durationMs,
+				ok: false,
+				newCount: 0,
+				total: kept.length,
+				byKind: countByKind(kept),
+				error: msg,
+				triggeredBy: options.triggeredBy,
+			});
 		}
-	} else {
-		next.instagram = [];
-		next.live.instagram = { isLive: false };
+	};
+
+	const want = (p: SocialPlatform) => !options.platform || options.platform === p;
+	if (want('youtube')) {
+		if (config.youtube.enabled) await runOne('youtube');
+		else {
+			next.youtube = [];
+			next.live.youtube = { isLive: false };
+		}
+	}
+	if (want('instagram')) {
+		if (config.instagram.enabled) await runOne('instagram');
+		else next.instagram = [];
 	}
 
 	if (errors.length) next.lastError = errors.join('; ');
 	else delete next.lastError;
-
-	const hardFail = errors.some((e) => !e.includes('keep-cache'));
-	return {
-		ok: !hardFail,
-		cache: next,
-		error: errors.length ? errors.join('; ') : undefined,
-	};
+	const hardFail = logs.some((l) => !l.ok);
+	return { ok: !hardFail, cache: next, error: errors.length ? errors.join('; ') : undefined, logs };
 }
 
-export function publicSocialFeedPayload(config: SocialFeedConfig, cache: SocialFeedCache) {
-	const cfg = normalizeSocialFeedConfig(config);
-	const ytItems = cfg.youtube.enabled
-		? filterYoutubeItems(cache.youtube || [], cfg.youtube.content).slice(0, cfg.youtube.maxItems)
-		: [];
-	const igItems = cfg.instagram.enabled
-		? filterInstagramItems(cache.instagram || [], cfg.instagram.content).slice(
-				0,
-				cfg.instagram.maxItems,
-			)
-		: [];
+/** Simpan hasil sync + log (maks SOCIAL_FEED_LOG_LIMIT) ke storage (main atau tenant). */
+export async function persistSocialFeedSync(storage: any, result: SocialSyncResult, previousLogs: unknown) {
+	const old = Array.isArray(previousLogs) ? (previousLogs as SocialFeedLogEntry[]) : [];
+	const socialFeedLogs = [...result.logs.slice().reverse(), ...old].slice(0, SOCIAL_FEED_LOG_LIMIT);
+	await storage.updateSettings({
+		socialFeedCache: result.cache,
+		lastSocialFeedSyncAt: new Date(),
+		socialFeedLogs,
+	});
+	return socialFeedLogs;
+}
+
+// =====================================================================
+// Payload publik
+// =====================================================================
+
+function publicItem(it: SocialFeedItem): SocialFeedItem {
+	const { caption: _c, ...rest } = it;
+	return { ...rest, kind: itemKind(it) };
+}
+
+/**
+ * Payload beranda: per kategori maksimal homeLimit + loadMoreStep (cukup untuk "Lebih banyak"
+ * tanpa request tambahan). Field lama `youtube` / `instagram` tetap ada (tab "Semua").
+ */
+export function publicSocialFeedPayload(configInput: unknown, cache: SocialFeedCache) {
+	const cfg = normalizeSocialFeedConfig(configInput);
+	const yt = visibleSocialItems(cfg, 'youtube', cache);
+	const ig = visibleSocialItems(cfg, 'instagram', cache);
+	const ytCap = cfg.youtube.homeLimit + cfg.youtube.loadMoreStep;
+	const igCap = cfg.instagram.homeLimit + cfg.instagram.loadMoreStep;
+	const slice = (items: SocialFeedItem[], kinds: string[], cap: number) =>
+		Object.fromEntries(kinds.map((k) => [k, selectSocialItems(items, k as any, 0, cap).map(publicItem)]));
 	return {
 		config: {
 			youtube: {
 				enabled: cfg.youtube.enabled,
 				profileOrChannelUrl: cfg.youtube.profileOrChannelUrl,
-				maxItems: cfg.youtube.maxItems,
 				showLiveBadge: cfg.youtube.showLiveBadge,
-				showFeaturedEmbed: !!cfg.youtube.showFeaturedEmbed,
+				showFeaturedEmbed: cfg.youtube.showFeaturedEmbed,
 				content: cfg.youtube.content,
+				homeLimit: cfg.youtube.homeLimit,
+				loadMoreStep: cfg.youtube.loadMoreStep,
+				maxItems: cfg.youtube.homeLimit,
 			},
 			instagram: {
 				enabled: cfg.instagram.enabled,
 				profileOrChannelUrl: cfg.instagram.profileOrChannelUrl,
-				maxItems: cfg.instagram.maxItems,
-				showLiveBadge: cfg.instagram.showLiveBadge,
+				username: extractInstagramUsername(cfg.instagram.profileOrChannelUrl),
+				showLiveBadge: false,
 				content: cfg.instagram.content,
+				homeLimit: cfg.instagram.homeLimit,
+				loadMoreStep: cfg.instagram.loadMoreStep,
+				maxItems: cfg.instagram.homeLimit,
 			},
 		},
-		youtube: ytItems,
-		instagram: igItems,
+		youtube: yt.slice(0, ytCap).map(publicItem),
+		instagram: ig.slice(0, igCap).map(publicItem),
+		youtubeByKind: slice(yt, YOUTUBE_KINDS, ytCap),
+		instagramByKind: slice(ig, INSTAGRAM_KINDS, igCap),
+		counts: {
+			youtube: { all: yt.length, ...countByKind(yt) },
+			instagram: { all: ig.length, ...countByKind(ig) },
+		},
 		live: {
 			youtube:
-				cfg.youtube.enabled && cfg.youtube.showLiveBadge && cfg.youtube.content.live
-					? cache.live?.youtube
-					: undefined,
-			instagram:
-				cfg.instagram.enabled && cfg.instagram.showLiveBadge && cfg.instagram.content.live
-					? cache.live?.instagram
-					: undefined,
+				cfg.youtube.enabled && cfg.youtube.showLiveBadge && cfg.youtube.content.live ? cache.live?.youtube : undefined,
+			instagram: undefined,
 		},
+		syncedAt: cache.syncedAt || null,
+	};
+}
+
+/** Daftar paginasi untuk "Lihat semua" (`/media/youtube`, `/media/instagram`). */
+export function publicSocialFeedItems(
+	configInput: unknown,
+	cache: SocialFeedCache,
+	platform: SocialPlatform,
+	kind: string,
+	offset: number,
+	limit: number,
+) {
+	const cfg = normalizeSocialFeedConfig(configInput);
+	const items = visibleSocialItems(cfg, platform, cache);
+	const allowed = platform === 'youtube' ? YOUTUBE_KINDS : INSTAGRAM_KINDS;
+	const k = (allowed as string[]).includes(kind) ? (kind as SocialContentKind) : 'all';
+	const pool = k === 'all' ? items : items.filter((it) => itemKind(it) === k);
+	return {
+		items: pool.slice(offset, offset + limit).map(publicItem),
+		total: pool.length,
+		counts: { all: items.length, ...countByKind(items) },
+		profileUrl: platform === 'youtube' ? cfg.youtube.profileOrChannelUrl : cfg.instagram.profileOrChannelUrl,
+		username: platform === 'instagram' ? extractInstagramUsername(cfg.instagram.profileOrChannelUrl) : null,
+		enabled: platform === 'youtube' ? cfg.youtube.enabled : cfg.instagram.enabled,
 		syncedAt: cache.syncedAt || null,
 	};
 }

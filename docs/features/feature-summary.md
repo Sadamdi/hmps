@@ -69,7 +69,7 @@ mindmap
 | 04 | [Organization & Prodi](./04-organization-prodi/00-README.md) | 9 | 27 | `organization`, `prodi` |
 | 05 | [Community Tenant](./05-community-tenant/00-README.md) | 7 | 19 | `communities`, `community`, `register`, `registration` |
 | 06 | [Store / Toko](./06-store-toko/00-README.md) | 11 | 57 | `store` |
-| 07 | [Media & Assets](./07-media-assets/00-README.md) | 11 | 25 | `assets`, `gdrive`, `home-images`, `upload`, `social-feed` |
+| 07 | [Media & Assets](./07-media-assets/00-README.md) | 11 | 27 | `assets`, `gdrive`, `home-images`, `upload`, `social-feed` |
 | 08 | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 8 | 46 | `comments`, `feedback`, `system-errors`, `sharing` |
 | 09 | [AI Chat & Notifications](./09-ai-notifications/00-README.md) | 9 | 17 | `chat`, `notifications`, `ai` |
 | 10 | [Ops, Security & Maintenance](./10-ops-security/00-README.md) | 7 | 7 | `admin`, `backups`, `test` |
@@ -113,7 +113,7 @@ Total OpenAPI tags: **34**
 | `gdrive` | [Media & Assets](./07-media-assets/00-README.md) | 3 |
 | `home-images` | [Media & Assets](./07-media-assets/00-README.md) | 12 |
 | `upload` | [Media & Assets](./07-media-assets/00-README.md) | 5 |
-| `social-feed` | [Media & Assets](./07-media-assets/00-README.md) | 4 |
+| `social-feed` | [Media & Assets](./07-media-assets/00-README.md) | 6 |
 | `comments` | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 6 |
 | `feedback` | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 23 |
 | `system-errors` | [Collaboration, Feedback & Sharing](./08-collaboration-feedback/00-README.md) | 7 |

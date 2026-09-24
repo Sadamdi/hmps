@@ -29,6 +29,37 @@ const LEAD_COUNT = 5;
 /** Jumlah tag yang tampil sebagai tab. Sisanya tetap ada di panel Filter. */
 const TAB_TAG_LIMIT = 8;
 
+/** PRNG deterministik kecil (mulberry32) — agar sampel tab stabil selama satu load halaman. */
+function mulberry32(seed: number) {
+	let a = seed >>> 0;
+	return () => {
+		a = (a + 0x6d2b79f5) >>> 0;
+		let t = a;
+		t = Math.imul(t ^ (t >>> 15), t | 1);
+		t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+		return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+	};
+}
+
+/**
+ * Pilih `limit` tag secara acak berbobot jumlah berita (Efraimidis–Spirakis).
+ * Hanya tag dengan >= 2 berita yang jadi kandidat; bila kurang, sisanya diisi tag lain.
+ */
+function pickWeightedTags(list: { tags?: string[] }[], limit: number, seed: number): string[] {
+	const count = new Map<string, number>();
+	list.forEach((b) => b.tags?.forEach((t) => count.set(t, (count.get(t) ?? 0) + 1)));
+	const rand = mulberry32(seed);
+	const keyed = Array.from(count.entries()).map(([tag, w]) => ({
+		tag,
+		w,
+		key: Math.pow(rand() || Number.EPSILON, 1 / w),
+	}));
+	const byKey = (a: { key: number }, b: { key: number }) => b.key - a.key;
+	const primary = keyed.filter((k) => k.w >= 2).sort(byKey);
+	const rest = keyed.filter((k) => k.w < 2).sort(byKey);
+	return [...primary, ...rest].slice(0, limit).map((k) => k.tag);
+}
+
 function readInitialTag(): string[] {
 	if (typeof window === 'undefined') return [];
 	const tag = new URLSearchParams(window.location.search).get('tag');
@@ -123,15 +154,17 @@ export default function AllBerita() {
 		beritaContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	}, [currentPage]);
 
-	// Tab: tag paling sering dipakai.
-	const tabTags = useMemo(() => {
-		const count = new Map<string, number>();
-		beritaList.forEach((b) => b.tags?.forEach((t) => count.set(t, (count.get(t) ?? 0) + 1)));
-		return Array.from(count.entries())
-			.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-			.slice(0, TAB_TAG_LIMIT)
-			.map(([t]) => t);
-	}, [beritaList]);
+	// Tab: sampel acak berbobot frekuensi, berganti tiap load halaman (seed stabil selama halaman terbuka).
+	const [tabSeed] = useState(() => Math.floor(Math.random() * 2 ** 31));
+	const tabTags = useMemo(
+		() => pickWeightedTags(beritaList, TAB_TAG_LIMIT, tabSeed),
+		[beritaList, tabSeed],
+	);
+	// Tag aktif (mis. dari ?tag=) selalu tampil sebagai tab.
+	const visibleTabTags = useMemo(() => {
+		const extra = selectedTags.filter((t) => !tabTags.includes(t));
+		return selectedTags.length === 1 && extra.length ? [...extra, ...tabTags].slice(0, TAB_TAG_LIMIT) : tabTags;
+	}, [tabTags, selectedTags]);
 
 	const yearRange = useMemo(() => {
 		if (filters.allYears.length === 0) return null;
@@ -221,10 +254,10 @@ export default function AllBerita() {
 							{searchTerm && ` untuk "${searchTerm}"`}
 						</>
 					}>
-					{tabTags.length > 0 && (
+					{visibleTabTags.length > 0 && (
 						<nav aria-label="Topik berita" className="archive-tabs -mx-4 px-4 sm:mx-0 sm:px-0 overflow-x-auto">
 							<ul className="flex w-max gap-1 border-b border-border/70">
-								{[null, ...tabTags].map((tag) => {
+								{[null, ...visibleTabTags].map((tag) => {
 									const active = activeTab === tag;
 									return (
 										<li key={tag ?? '__all'}>

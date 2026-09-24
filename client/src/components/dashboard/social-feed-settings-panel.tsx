@@ -1,29 +1,216 @@
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import {
 	DEFAULT_SOCIAL_FEED_CONFIG,
-	clampSocialMaxItems,
+	normalizeManualUrls,
 	normalizeSocialFeedConfig,
-	type SocialFeedConfig,
 	type SocialFeedCache,
+	type SocialFeedConfig,
+	type SocialFeedLogEntry,
+	type SocialPlatform,
+	type SocialPlatformSyncStatus,
 } from '@shared/social-feed';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Instagram, Loader2, RefreshCw, Trash2, XCircle, Youtube } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 type ManagePayload = {
 	config: SocialFeedConfig;
 	cache: SocialFeedCache;
+	status?: Partial<Record<SocialPlatform, SocialPlatformSyncStatus>>;
 	lastSocialFeedSyncAt?: string | null;
-	preview?: unknown;
-	error?: string | null;
+	nextScheduledSyncAt?: string;
+	instagramSessionConfigured?: boolean;
+	logs?: SocialFeedLogEntry[];
 };
+
+const KIND_LABEL: Record<string, string> = { video: 'Video', short: 'Shorts', live: 'Live', post: 'Post', reel: 'Reels' };
+
+function formatWib(iso?: string | null) {
+	if (!iso) return '—';
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return '—';
+	return d.toLocaleString('id-ID', {
+		timeZone: 'Asia/Jakarta',
+		day: 'numeric',
+		month: 'short',
+		year: 'numeric',
+		hour: '2-digit',
+		minute: '2-digit',
+	}) + ' WIB';
+}
+
+function formatRelative(iso?: string | null) {
+	if (!iso) return 'belum pernah';
+	const diff = Date.now() - new Date(iso).getTime();
+	if (!Number.isFinite(diff)) return '—';
+	const future = diff < 0;
+	const abs = Math.abs(diff);
+	const m = Math.round(abs / 60000);
+	const text = m < 1 ? 'baru saja' : m < 60 ? `${m} menit` : m < 1440 ? `${Math.round(m / 60)} jam` : `${Math.round(m / 1440)} hari`;
+	if (text === 'baru saja') return text;
+	return future ? `${text} lagi` : `${text} lalu`;
+}
+
+function countItems(items: { kind?: string; url: string; platform: string; isLive?: boolean }[]) {
+	const out: Record<string, number> = {};
+	for (const it of items || []) {
+		const k =
+			it.kind ||
+			(it.platform === 'youtube' ? (it.isLive ? 'live' : it.url.includes('/shorts/') ? 'short' : 'video') : /\/reels?\//.test(it.url) ? 'reel' : 'post');
+		out[k] = (out[k] ?? 0) + 1;
+	}
+	return out;
+}
+
+function NumberField({
+	id,
+	label,
+	value,
+	min,
+	max,
+	disabled,
+	onChange,
+}: {
+	id: string;
+	label: string;
+	value: number;
+	min: number;
+	max: number;
+	disabled?: boolean;
+	onChange: (n: number) => void;
+}) {
+	return (
+		<div className="space-y-1.5">
+			<Label htmlFor={id} className="text-xs">
+				{label} <span className="text-muted-foreground">({min}–{max})</span>
+			</Label>
+			<Input
+				id={id}
+				type="number"
+				min={min}
+				max={max}
+				value={value}
+				disabled={disabled}
+				onChange={(e) => onChange(Math.min(max, Math.max(min, parseInt(e.target.value, 10) || min)))}
+			/>
+		</div>
+	);
+}
+
+function ToggleRow({
+	id,
+	label,
+	checked,
+	disabled,
+	onChange,
+}: {
+	id: string;
+	label: string;
+	checked: boolean;
+	disabled?: boolean;
+	onChange: (v: boolean) => void;
+}) {
+	return (
+		<div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 px-3 py-2">
+			<Label htmlFor={id} className="text-sm font-normal">
+				{label}
+			</Label>
+			<Switch id={id} checked={checked} disabled={disabled} onCheckedChange={onChange} />
+		</div>
+	);
+}
+
+function StatusCard({
+	platform,
+	status,
+	counts,
+	enabled,
+	canSync,
+	syncing,
+	onSync,
+	nextAt,
+	sessionConfigured,
+}: {
+	platform: SocialPlatform;
+	status?: SocialPlatformSyncStatus;
+	counts: Record<string, number>;
+	enabled: boolean;
+	canSync: boolean;
+	syncing: boolean;
+	onSync: () => void;
+	nextAt?: string;
+	sessionConfigured?: boolean;
+}) {
+	const Icon = platform === 'youtube' ? Youtube : Instagram;
+	const kinds = platform === 'youtube' ? ['video', 'short', 'live'] : ['post', 'reel'];
+	return (
+		<Card>
+			<CardHeader className="pb-3">
+				<div className="flex items-start justify-between gap-3">
+					<div>
+						<CardTitle className="flex items-center gap-2 text-base">
+							<Icon className="h-4 w-4" /> {platform === 'youtube' ? 'YouTube' : 'Instagram'}
+							{!enabled && <Badge variant="outline">Nonaktif</Badge>}
+						</CardTitle>
+						<CardDescription className="mt-1">
+							Fetch terakhir: <span className="font-medium text-foreground">{formatRelative(status?.at)}</span>
+							{status?.at ? <span className="block text-xs">{formatWib(status.at)}</span> : null}
+						</CardDescription>
+					</div>
+					{canSync && (
+						<Button size="sm" variant="outline" onClick={onSync} disabled={syncing || !enabled}>
+							{syncing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="mr-1.5 h-3.5 w-3.5" />}
+							Fetch sekarang
+						</Button>
+					)}
+				</div>
+			</CardHeader>
+			<CardContent className="space-y-3 text-sm">
+				<div className="flex flex-wrap gap-2">
+					{kinds.map((k) => (
+						<span key={k} className="rounded-md border border-border/70 px-2 py-1 font-mono text-xs tabular-nums">
+							{KIND_LABEL[k]} {String(counts[k] ?? 0).padStart(2, '0')}
+						</span>
+					))}
+				</div>
+				{status ? (
+					<p className="flex items-center gap-1.5">
+						{status.ok ? <CheckCircle2 className="h-4 w-4 text-emerald-500" /> : <XCircle className="h-4 w-4 text-destructive" />}
+						{status.ok ? 'Berhasil' : 'Gagal'}
+						{typeof status.newCount === 'number' && status.ok ? ` · ${status.newCount} baru` : ''}
+						{status.method ? <span className="text-xs text-muted-foreground"> · {status.method}</span> : null}
+					</p>
+				) : null}
+				{status?.error && (
+					<p className={`flex gap-1.5 rounded-md p-2 text-xs ${status.ok ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300' : 'bg-destructive/10 text-destructive'}`}>
+						<AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+						{status.error}
+					</p>
+				)}
+				{platform === 'instagram' && (
+					<p className="text-xs text-muted-foreground">
+						Sesi akun dummy IG di server:{' '}
+						<span className={sessionConfigured ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}>
+							{sessionConfigured ? 'terpasang' : 'tidak terpasang'}
+						</span>
+					</p>
+				)}
+				<p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+					<Clock className="h-3.5 w-3.5" /> Jadwal otomatis berikutnya: {formatWib(nextAt)}
+				</p>
+			</CardContent>
+		</Card>
+	);
+}
 
 export default function SocialFeedSettingsPanel() {
 	const { toast } = useToast();
@@ -32,7 +219,7 @@ export default function SocialFeedSettingsPanel() {
 	const canEdit = hasSpecificPermission('social_feed.edit');
 	const canSync = hasSpecificPermission('social_feed.sync');
 
-	const { data, isLoading } = useQuery<ManagePayload>({
+	const { data, isLoading, isError, refetch } = useQuery<ManagePayload>({
 		queryKey: ['/api/social-feed/manage'],
 		queryFn: async () => {
 			const r = await apiRequest('GET', '/api/social-feed/manage');
@@ -42,408 +229,281 @@ export default function SocialFeedSettingsPanel() {
 	});
 
 	const [config, setConfig] = useState<SocialFeedConfig>(DEFAULT_SOCIAL_FEED_CONFIG);
-
+	const [pasteLinks, setPasteLinks] = useState('');
 	useEffect(() => {
 		if (data?.config) setConfig(normalizeSocialFeedConfig(data.config));
 	}, [data?.config]);
 
+	const setYt = (patch: Partial<SocialFeedConfig['youtube']>) => setConfig((c) => ({ ...c, youtube: { ...c.youtube, ...patch } }));
+	const setIg = (patch: Partial<SocialFeedConfig['instagram']>) => setConfig((c) => ({ ...c, instagram: { ...c.instagram, ...patch } }));
+
 	const saveMut = useMutation({
-		mutationFn: async (next: SocialFeedConfig) => {
-			const r = await apiRequest('PUT', '/api/social-feed/manage', { config: next });
-			return r.json();
-		},
-		onSuccess: (json) => {
-			queryClient.setQueryData(['/api/social-feed/manage'], json.data);
+		mutationFn: async (next: SocialFeedConfig) => (await apiRequest('PUT', '/api/social-feed/manage', { config: next })).json(),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ['/api/social-feed/manage'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/social-feed'] });
-			toast({ title: 'Tersimpan', description: 'Pengaturan media sosial beranda diperbarui.' });
+			queryClient.invalidateQueries({ queryKey: ['/api/social-feed/items'] });
+			toast({ title: 'Tersimpan', description: 'Pengaturan media sosial diperbarui.' });
 		},
-		onError: (err: any) => {
-			toast({
-				title: 'Gagal menyimpan',
-				description: err?.message || 'Coba lagi',
-				variant: 'destructive',
-			});
-		},
+		onError: (err: any) => toast({ title: 'Gagal menyimpan', description: err?.message || 'Coba lagi', variant: 'destructive' }),
 	});
 
+	const [syncing, setSyncing] = useState<SocialPlatform | 'all' | null>(null);
 	const syncMut = useMutation({
-		mutationFn: async () => {
-			const r = await apiRequest('POST', '/api/social-feed/sync', { config });
+		mutationFn: async (platform: SocialPlatform | 'all') => {
+			setSyncing(platform);
+			const r = await apiRequest('POST', '/api/social-feed/sync', platform === 'all' ? {} : { platform });
 			return r.json();
 		},
 		onSuccess: (json) => {
-			if (json.data) {
-				queryClient.setQueryData(['/api/social-feed/manage'], {
-					config: json.data.config,
-					cache: json.data.cache,
-					preview: json.data.preview,
-					lastSocialFeedSyncAt: new Date().toISOString(),
-				});
-			}
+			queryClient.invalidateQueries({ queryKey: ['/api/social-feed/manage'] });
 			queryClient.invalidateQueries({ queryKey: ['/api/social-feed'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/social-feed/items'] });
 			toast({
-				title: json.success ? 'Sync selesai' : 'Sync dengan peringatan',
-				description: json.data?.error || json.message,
+				title: json.success ? 'Fetch selesai' : 'Fetch selesai dengan masalah',
+				description: json.success ? 'Konten media sosial diperbarui.' : json.data?.error || json.message,
+				variant: json.success ? undefined : 'destructive',
 			});
 		},
-		onError: (err: any) => {
-			toast({
-				title: 'Sync gagal',
-				description: err?.message || 'Cache lama tetap dipakai',
-				variant: 'destructive',
-			});
-		},
+		onError: (err: any) => toast({ title: 'Fetch gagal', description: err?.message || 'Coba lagi', variant: 'destructive' }),
+		onSettled: () => setSyncing(null),
 	});
 
 	if (isLoading) {
 		return (
-			<div className="flex h-40 items-center justify-center">
-				<Loader2 className="h-8 w-8 animate-spin text-primary" />
+			<div className="flex items-center gap-2 py-10 text-muted-foreground">
+				<Loader2 className="h-4 w-4 animate-spin" /> Memuat pengaturan media sosial…
+			</div>
+		);
+	}
+	if (isError || !data) {
+		return (
+			<div className="py-10 text-center">
+				<p className="mb-3 text-destructive">Gagal memuat pengaturan media sosial.</p>
+				<Button variant="outline" onClick={() => refetch()}>
+					Coba Lagi
+				</Button>
 			</div>
 		);
 	}
 
-	const cache = data?.cache;
-	const ytThumbs = (cache?.youtube || []).slice(0, 5);
-	const igThumbs = (cache?.instagram || []).slice(0, 5);
+	const ytCounts = countItems(data.cache?.youtube || []);
+	const igCounts = countItems(data.cache?.instagram || []);
+	const manual = config.instagram.manualUrls || [];
+	const addPasted = () => {
+		const incoming = normalizeManualUrls(pasteLinks).filter((u) => /instagram\.com\/(?:[\w.-]+\/)?(p|reel|reels|tv)\//i.test(u));
+		if (!incoming.length) {
+			toast({ title: 'Tidak ada link valid', description: 'Tempel link post/reel Instagram, satu per baris.', variant: 'destructive' });
+			return;
+		}
+		setIg({ manualUrls: normalizeManualUrls([...incoming, ...manual]) });
+		setPasteLinks('');
+		toast({ title: `${incoming.length} link ditambahkan`, description: 'Klik Simpan, lalu Fetch Instagram.' });
+	};
 
 	return (
 		<div className="space-y-6">
+			<div className="flex flex-wrap items-center justify-between gap-3">
+				<div>
+					<h3 className="text-lg font-semibold">Media Sosial</h3>
+					<p className="text-sm text-muted-foreground">
+						Fetch otomatis sekali sehari pukul 02:30 WIB. Terakhir: {formatWib(data.lastSocialFeedSyncAt)}.
+					</p>
+				</div>
+				{canSync && (
+					<Button onClick={() => syncMut.mutate('all')} disabled={!!syncing}>
+						{syncing === 'all' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+						Fetch semua sekarang
+					</Button>
+				)}
+			</div>
+
+			<div className="grid gap-4 lg:grid-cols-2">
+				<StatusCard
+					platform="youtube"
+					status={data.status?.youtube}
+					counts={ytCounts}
+					enabled={config.youtube.enabled}
+					canSync={canSync}
+					syncing={syncing === 'youtube' || syncing === 'all'}
+					onSync={() => syncMut.mutate('youtube')}
+					nextAt={data.nextScheduledSyncAt}
+				/>
+				<StatusCard
+					platform="instagram"
+					status={data.status?.instagram}
+					counts={igCounts}
+					enabled={config.instagram.enabled}
+					canSync={canSync}
+					syncing={syncing === 'instagram' || syncing === 'all'}
+					onSync={() => syncMut.mutate('instagram')}
+					nextAt={data.nextScheduledSyncAt}
+					sessionConfigured={data.instagramSessionConfigured}
+				/>
+			</div>
+
+			<div className="grid gap-4 lg:grid-cols-2">
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2 text-base">
+							<Youtube className="h-4 w-4" /> Pengaturan YouTube
+						</CardTitle>
+						<CardDescription>Jumlah yang disimpan per kategori tiap fetch, dan jumlah tampil di beranda.</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<ToggleRow id="yt-enabled" label="Tampilkan di beranda" checked={config.youtube.enabled} disabled={!canEdit} onChange={(v) => setYt({ enabled: v })} />
+						<div className="space-y-1.5">
+							<Label htmlFor="yt-url">URL kanal</Label>
+							<Input id="yt-url" value={config.youtube.profileOrChannelUrl} disabled={!canEdit} onChange={(e) => setYt({ profileOrChannelUrl: e.target.value })} placeholder="https://www.youtube.com/c/NamaKanal" />
+						</div>
+						<div className="grid grid-cols-3 gap-2">
+							<ToggleRow id="yt-v" label="Video" checked={config.youtube.content.videos} disabled={!canEdit} onChange={(v) => setYt({ content: { ...config.youtube.content, videos: v } })} />
+							<ToggleRow id="yt-s" label="Shorts" checked={config.youtube.content.shorts} disabled={!canEdit} onChange={(v) => setYt({ content: { ...config.youtube.content, shorts: v } })} />
+							<ToggleRow id="yt-l" label="Live" checked={config.youtube.content.live} disabled={!canEdit} onChange={(v) => setYt({ content: { ...config.youtube.content, live: v } })} />
+						</div>
+						<div className="grid grid-cols-3 gap-3">
+							<NumberField id="yt-fv" label="Simpan video" value={config.youtube.fetchLimits.video} min={1} max={30} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, video: n } })} />
+							<NumberField id="yt-fs" label="Simpan shorts" value={config.youtube.fetchLimits.short} min={1} max={30} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, short: n } })} />
+							<NumberField id="yt-fl" label="Simpan live" value={config.youtube.fetchLimits.live} min={1} max={15} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, live: n } })} />
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<NumberField id="yt-home" label="Tampil di beranda" value={config.youtube.homeLimit} min={4} max={16} disabled={!canEdit} onChange={(n) => setYt({ homeLimit: n })} />
+							<NumberField id="yt-step" label='Tambahan "Lebih banyak"' value={config.youtube.loadMoreStep} min={4} max={16} disabled={!canEdit} onChange={(n) => setYt({ loadMoreStep: n })} />
+						</div>
+						<ToggleRow id="yt-embed" label="Tampilkan video unggulan (embed)" checked={config.youtube.showFeaturedEmbed} disabled={!canEdit} onChange={(v) => setYt({ showFeaturedEmbed: v })} />
+						<ToggleRow id="yt-live" label="Deteksi & tampilkan badge LIVE" checked={config.youtube.showLiveBadge} disabled={!canEdit} onChange={(v) => setYt({ showLiveBadge: v })} />
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2 text-base">
+							<Instagram className="h-4 w-4" /> Pengaturan Instagram
+						</CardTitle>
+						<CardDescription>
+							Instagram memblokir daftar post tanpa login. Post baru masuk otomatis bila sesi akun dummy terpasang di server; selain itu tambahkan link post/reel di bawah.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-4">
+						<ToggleRow id="ig-enabled" label="Tampilkan di beranda" checked={config.instagram.enabled} disabled={!canEdit} onChange={(v) => setIg({ enabled: v })} />
+						<div className="space-y-1.5">
+							<Label htmlFor="ig-url">URL profil</Label>
+							<Input id="ig-url" value={config.instagram.profileOrChannelUrl} disabled={!canEdit} onChange={(e) => setIg({ profileOrChannelUrl: e.target.value })} placeholder="https://www.instagram.com/username/" />
+						</div>
+						<div className="grid grid-cols-2 gap-2">
+							<ToggleRow id="ig-p" label="Post" checked={config.instagram.content.posts} disabled={!canEdit} onChange={(v) => setIg({ content: { ...config.instagram.content, posts: v } })} />
+							<ToggleRow id="ig-r" label="Reels" checked={config.instagram.content.reels} disabled={!canEdit} onChange={(v) => setIg({ content: { ...config.instagram.content, reels: v } })} />
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<NumberField id="ig-home" label="Tampil di beranda" value={config.instagram.homeLimit} min={3} max={18} disabled={!canEdit} onChange={(n) => setIg({ homeLimit: n })} />
+							<NumberField id="ig-step" label='Tambahan "Lebih banyak"' value={config.instagram.loadMoreStep} min={3} max={18} disabled={!canEdit} onChange={(n) => setIg({ loadMoreStep: n })} />
+						</div>
+						<div className="grid grid-cols-2 gap-3">
+							<NumberField id="ig-fp" label="Simpan post" value={config.instagram.fetchLimits.post} min={1} max={60} disabled={!canEdit} onChange={(n) => setIg({ fetchLimits: { ...config.instagram.fetchLimits, post: n } })} />
+							<NumberField id="ig-fr" label="Simpan reels" value={config.instagram.fetchLimits.reel} min={1} max={60} disabled={!canEdit} onChange={(n) => setIg({ fetchLimits: { ...config.instagram.fetchLimits, reel: n } })} />
+						</div>
+
+						<div className="space-y-2">
+							<Label htmlFor="ig-paste">Tambah link post/reel</Label>
+							<Textarea
+								id="ig-paste"
+								rows={3}
+								value={pasteLinks}
+								disabled={!canEdit}
+								onChange={(e) => setPasteLinks(e.target.value)}
+								placeholder={'https://www.instagram.com/p/XXXXXXXXXXX/\nhttps://www.instagram.com/reel/YYYYYYYYYYY/'}
+							/>
+							<Button type="button" size="sm" variant="outline" onClick={addPasted} disabled={!canEdit || !pasteLinks.trim()}>
+								Tambahkan
+							</Button>
+						</div>
+						{manual.length > 0 && (
+							<div className="space-y-1.5">
+								<p className="text-xs text-muted-foreground">Link manual ({manual.length})</p>
+								<ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border border-border/70 p-2">
+									{manual.map((u) => (
+										<li key={u} className="flex items-center justify-between gap-2 text-xs">
+											<a href={u} target="_blank" rel="noopener noreferrer" className="truncate text-primary hover:underline">
+												{u.replace(/^https?:\/\/(www\.)?instagram\.com/, '')}
+											</a>
+											{canEdit && (
+												<button
+													type="button"
+													aria-label={`Hapus ${u}`}
+													onClick={() => setIg({ manualUrls: manual.filter((x) => x !== u) })}
+													className="shrink-0 text-muted-foreground hover:text-destructive">
+													<Trash2 className="h-3.5 w-3.5" />
+												</button>
+											)}
+										</li>
+									))}
+								</ul>
+							</div>
+						)}
+					</CardContent>
+				</Card>
+			</div>
+
+			{canEdit && (
+				<div className="flex justify-end">
+					<Button onClick={() => saveMut.mutate(config)} disabled={saveMut.isPending}>
+						{saveMut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+						Simpan pengaturan
+					</Button>
+				</div>
+			)}
+
 			<Card>
 				<CardHeader>
-					<CardTitle>Media Sosial Beranda</CardTitle>
-					<CardDescription>
-						YouTube lewat youtubei.js (tab Video / Live / Shorts). Instagram lewat
-						web_profile_info + cookie seed. Filter tipe konten di-round-robin supaya
-						campuran adil. Section + item navbar YouTube/Instagram bisa digabung ke
-						grup Media di tab Beranda.
-					</CardDescription>
+					<CardTitle className="text-base">Log fetch</CardTitle>
+					<CardDescription>20 fetch terakhir (otomatis & manual).</CardDescription>
 				</CardHeader>
-				<CardContent className="space-y-8">
-					<div className="space-y-4 rounded-lg border p-4">
-						<div className="flex items-center justify-between gap-4">
-							<div>
-								<p className="font-medium">YouTube</p>
-								<p className="text-sm text-muted-foreground">Channel RSS + deteksi live</p>
-							</div>
-							<Switch
-								checked={config.youtube.enabled}
-								disabled={!canEdit}
-								onCheckedChange={(v) =>
-									setConfig((c) => ({
-										...c,
-										youtube: { ...c.youtube, enabled: v },
-									}))
-								}
-							/>
+				<CardContent>
+					{!data.logs?.length ? (
+						<p className="text-sm text-muted-foreground">Belum ada log. Log mulai tercatat sejak versi 4.25.0.</p>
+					) : (
+						<div className="overflow-x-auto">
+							<table className="w-full text-left text-xs">
+								<thead className="text-muted-foreground">
+									<tr className="border-b border-border/70">
+										<th className="py-2 pr-3 font-medium">Waktu</th>
+										<th className="py-2 pr-3 font-medium">Platform</th>
+										<th className="py-2 pr-3 font-medium">Pemicu</th>
+										<th className="py-2 pr-3 font-medium">Hasil</th>
+										<th className="py-2 pr-3 font-medium">Baru / total</th>
+										<th className="py-2 font-medium">Keterangan</th>
+									</tr>
+								</thead>
+								<tbody>
+									{data.logs.map((l) => (
+										<tr key={l.id} className="border-b border-border/40 align-top">
+											<td className="whitespace-nowrap py-2 pr-3">{formatWib(l.startedAt)}</td>
+											<td className="py-2 pr-3 capitalize">{l.platform}</td>
+											<td className="py-2 pr-3">
+												{l.trigger === 'cron' ? 'Otomatis' : 'Manual'}
+												{l.triggeredBy ? <span className="block text-muted-foreground">{l.triggeredBy}</span> : null}
+											</td>
+											<td className="py-2 pr-3">
+												{l.ok ? (
+													<span className="text-emerald-600 dark:text-emerald-400">Berhasil</span>
+												) : (
+													<span className="text-destructive">Gagal</span>
+												)}
+												<span className="block text-muted-foreground">{(l.durationMs / 1000).toFixed(1)} dtk</span>
+											</td>
+											<td className="whitespace-nowrap py-2 pr-3 font-mono tabular-nums">
+												{l.newCount} / {l.total}
+											</td>
+											<td className="py-2 text-muted-foreground">
+												{l.method ? <span className="block">{l.method}</span> : null}
+												{l.error ? <span className={l.ok ? 'text-amber-700 dark:text-amber-300' : 'text-destructive'}>{l.error}</span> : null}
+											</td>
+										</tr>
+									))}
+								</tbody>
+							</table>
 						</div>
-						<div className="grid gap-3 md:grid-cols-2">
-							<div className="space-y-2">
-								<Label>URL channel</Label>
-								<Input
-									disabled={!canEdit}
-									value={config.youtube.profileOrChannelUrl}
-									onChange={(e) =>
-										setConfig((c) => ({
-											...c,
-											youtube: { ...c.youtube, profileOrChannelUrl: e.target.value },
-										}))
-									}
-								/>
-							</div>
-							<div className="space-y-2">
-								<Label>Jumlah item (1–5)</Label>
-								<Input
-									type="number"
-									min={1}
-									max={5}
-									disabled={!canEdit}
-									value={config.youtube.maxItems}
-									onChange={(e) =>
-										setConfig((c) => ({
-											...c,
-											youtube: {
-												...c.youtube,
-												maxItems: clampSocialMaxItems(e.target.value),
-											},
-										}))
-									}
-								/>
-							</div>
-						</div>
-						<div className="flex flex-wrap gap-6">
-							<label className="flex items-center gap-2 text-sm">
-								<Switch
-									checked={config.youtube.showLiveBadge}
-									disabled={!canEdit}
-									onCheckedChange={(v) =>
-										setConfig((c) => ({
-											...c,
-											youtube: { ...c.youtube, showLiveBadge: v },
-										}))
-									}
-								/>
-								Badge LIVE
-							</label>
-							<label className="flex items-center gap-2 text-sm">
-								<Switch
-									checked={!!config.youtube.showFeaturedEmbed}
-									disabled={!canEdit}
-									onCheckedChange={(v) =>
-										setConfig((c) => ({
-											...c,
-											youtube: { ...c.youtube, showFeaturedEmbed: v },
-										}))
-									}
-								/>
-								Embed unggulan
-							</label>
-						</div>
-						<div className="space-y-2">
-							<Label>Tipe konten YouTube</Label>
-							<div className="flex flex-wrap gap-4 text-sm">
-								{(
-									[
-										['videos', 'Video'],
-										['shorts', 'Shorts'],
-										['live', 'Live'],
-									] as const
-								).map(([key, label]) => (
-									<label key={key} className="flex items-center gap-2">
-										<Switch
-											checked={!!config.youtube.content[key]}
-											disabled={!canEdit}
-											onCheckedChange={(v) =>
-												setConfig((c) => ({
-													...c,
-													youtube: {
-														...c.youtube,
-														content: { ...c.youtube.content, [key]: v },
-													},
-												}))
-											}
-										/>
-										{label}
-									</label>
-								))}
-							</div>
-						</div>
-						<p className="text-xs text-muted-foreground">
-							Scrape lewat youtubei.js (InnerTube): tab <strong>Video</strong>,{' '}
-							<strong>Live/Streams</strong>, dan <strong>Shorts</strong> (jika ada).
-							Channel @HimatifEncoder saat ini tidak punya tab Shorts — filter Shorts
-							pakai video ≤60 dtk dari tab Video. Filter campur di-round-robin supaya
-							Live tidak menelan slot Video.
-						</p>
-						{ytThumbs.length > 0 && (
-							<div className="flex flex-wrap gap-2">
-								{ytThumbs.map((item) => (
-									<img
-										key={item.id}
-										src={item.thumbnailUrl}
-										alt=""
-										className="h-14 w-24 rounded object-cover ring-1 ring-border"
-										title={`${item.kind || 'video'}: ${item.title}`}
-									/>
-								))}
-							</div>
-						)}
-					</div>
-
-					<div className="space-y-4 rounded-lg border p-4">
-						<div className="flex items-center justify-between gap-4">
-							<div>
-								<p className="font-medium">Instagram</p>
-								<p className="text-sm text-muted-foreground">
-									web_profile_info + cookie seed + enrich media thumb
-								</p>
-							</div>
-							<Switch
-								checked={config.instagram.enabled}
-								disabled={!canEdit}
-								onCheckedChange={(v) =>
-									setConfig((c) => ({
-										...c,
-										instagram: { ...c.instagram, enabled: v },
-									}))
-								}
-							/>
-						</div>
-						<div className="grid gap-3 md:grid-cols-2">
-							<div className="space-y-2">
-								<Label>URL profil</Label>
-								<Input
-									disabled={!canEdit}
-									value={config.instagram.profileOrChannelUrl}
-									onChange={(e) =>
-										setConfig((c) => ({
-											...c,
-											instagram: {
-												...c.instagram,
-												profileOrChannelUrl: e.target.value,
-											},
-										}))
-									}
-								/>
-							</div>
-							<div className="space-y-2">
-								<Label>Jumlah item (1–5)</Label>
-								<Input
-									type="number"
-									min={1}
-									max={5}
-									disabled={!canEdit}
-									value={config.instagram.maxItems}
-									onChange={(e) =>
-										setConfig((c) => ({
-											...c,
-											instagram: {
-												...c.instagram,
-												maxItems: clampSocialMaxItems(e.target.value),
-											},
-										}))
-									}
-								/>
-							</div>
-						</div>
-						<label className="flex items-center gap-2 text-sm">
-							<Switch
-								checked={config.instagram.showLiveBadge}
-								disabled={!canEdit}
-								onCheckedChange={(v) =>
-									setConfig((c) => ({
-										...c,
-										instagram: { ...c.instagram, showLiveBadge: v },
-									}))
-								}
-							/>
-							Badge LIVE (hanya jika sinyal andal)
-						</label>
-						<div className="space-y-2">
-							<Label>Tipe konten Instagram</Label>
-							<div className="flex flex-wrap gap-4 text-sm">
-								{(
-									[
-										['posts', 'Post'],
-										['reels', 'Reels'],
-										['live', 'Live'],
-										['stories', 'Story'],
-									] as const
-								).map(([key, label]) => (
-									<label key={key} className="flex items-center gap-2">
-										<Switch
-											checked={!!config.instagram.content[key]}
-											disabled={!canEdit}
-											onCheckedChange={(v) =>
-												setConfig((c) => ({
-													...c,
-													instagram: {
-														...c.instagram,
-														content: { ...c.instagram.content, [key]: v },
-													},
-												}))
-											}
-										/>
-										{label}
-									</label>
-								))}
-							</div>
-							<p className="text-xs text-muted-foreground">
-								Post vs Reel dipisah dari product_type / URL. Story butuh{' '}
-								<code className="text-[10px]">INSTAGRAM_SESSION_ID</code>. URL manual
-								hanya fallback jika scrape IP kena rate-limit.
-							</p>
-						</div>
-						<div className="space-y-2">
-							<Label>URL manual (fallback, 1 baris 1 URL post/reel)</Label>
-							<textarea
-								disabled={!canEdit}
-								className="min-h-[88px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-								value={(config.instagram.manualUrls || []).join('\n')}
-								onChange={(e) =>
-									setConfig((c) => ({
-										...c,
-										instagram: {
-											...c.instagram,
-											manualUrls: e.target.value
-												.split(/\r?\n/)
-												.map((s) => s.trim())
-												.filter(Boolean)
-												.slice(0, 12),
-										},
-									}))
-								}
-								placeholder="https://www.instagram.com/himatif.encoder/reel/...."
-							/>
-						</div>
-						{igThumbs.length > 0 && (
-							<div className="flex flex-wrap gap-2">
-								{igThumbs.map((item) => (
-									<img
-										key={item.id}
-										src={item.thumbnailUrl}
-										alt=""
-										className="h-14 w-14 rounded object-cover ring-1 ring-border"
-									/>
-								))}
-							</div>
-						)}
-					</div>
-
-					<div className="space-y-2 max-w-xs">
-						<Label>Interval sync (jam)</Label>
-						<Input
-							type="number"
-							min={1}
-							max={24}
-							disabled={!canEdit}
-							value={config.syncIntervalHours}
-							onChange={(e) =>
-								setConfig((c) => ({
-									...c,
-									syncIntervalHours: Math.min(
-										24,
-										Math.max(1, parseInt(e.target.value, 10) || 3),
-									),
-								}))
-							}
-						/>
-						{data?.lastSocialFeedSyncAt ? (
-							<p className="text-xs text-muted-foreground">
-								Terakhir sync:{' '}
-								{new Date(data.lastSocialFeedSyncAt).toLocaleString('id-ID')}
-							</p>
-						) : null}
-						{cache?.lastError ? (
-							<p className="text-xs text-amber-700">Peringatan: {cache.lastError}</p>
-						) : null}
-					</div>
-
-					<div className="flex flex-wrap gap-3">
-						{canEdit && (
-							<Button
-								onClick={() => saveMut.mutate(normalizeSocialFeedConfig(config))}
-								disabled={saveMut.isPending}>
-								{saveMut.isPending ? (
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								) : null}
-								Simpan pengaturan
-							</Button>
-						)}
-						{canSync && (
-							<Button
-								variant="outline"
-								onClick={() => syncMut.mutate()}
-								disabled={syncMut.isPending}>
-								{syncMut.isPending ? (
-									<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-								) : (
-									<RefreshCw className="mr-2 h-4 w-4" />
-								)}
-								Sync sekarang
-							</Button>
-						)}
-					</div>
+					)}
 				</CardContent>
 			</Card>
 		</div>
