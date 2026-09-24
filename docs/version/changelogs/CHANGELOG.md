@@ -9,6 +9,31 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.25.0] - 2026-09-25
+
+### Added — Media sosial v2 & tab topik berita dinamis
+
+- YouTube disimpan per kategori (video 10 / shorts 10 / live 5) dengan tanggal terbit dari halaman watch.
+- Instagram gratis tanpa token: enrich halaman embed publik (gambar, caption, carousel/reel), tanggal dari shortcode, link manual dari dashboard, sesi akun dummy opsional.
+- Halaman `/media/youtube` & `/media/instagram` (main + komunitas); endpoint `GET /api/social-feed/items` dan `GET /api/social-feed/manage/logs`.
+- Dashboard: Fetch sekarang per platform, last fetch, jadwal berikutnya, log 20 terakhir, pengelola link manual IG.
+- Role `medinfo` + izin divisi Medinfo.
+- Tab topik `/berita` berganti acak berbobot tiap refresh.
+
+### Changed
+
+- Beranda: YouTube tab Semua/Video/Shorts/Live + Lebih banyak (8→16) + Lihat semua; Instagram gaya profil aplikasi (Post/Reels, 9→18).
+- Cron social feed: sekali sehari 02:30 WIB untuk situs utama dan semua komunitas aktif.
+- Akses social feed: owner, admin, ketua, wakil, Medinfo (bph & division_head dicabut di situs utama).
+
+### Fixed
+
+- Instagram tidak update sejak ~Juni 2026 (daftar post diblokir tanpa login, kegagalan tertelan).
+- Video biasa berlabel Shorts pada kanal tanpa tab Shorts.
+- Item tanpa tanggal terbit; tenant tidak pernah auto-sync.
+
+Detail: [release/4.25.0.md](../release/4.25.0.md)
+
 ## [4.24.0] - 2026-09-24
 
 ### Added — Halaman list Berita, Event, Galeri: identitas "Encoder Archive"

@@ -340,6 +340,10 @@ const settingsSchema = new mongoose.Schema({
 	/** Cached scraped feed items (server-only write via sync) */
 	socialFeedCache: { type: mongoose.Schema.Types.Mixed, default: () => ({}) },
 	lastSocialFeedSyncAt: { type: Date, default: null },
+	/** Log fetch social feed terbaru (maks 50, lihat shared/social-feed.ts) */
+	socialFeedLogs: { type: mongoose.Schema.Types.Mixed, default: () => [] },
+	/** Penanda migrasi data sekali jalan (mis. 'social-feed-roles-v2') */
+	appliedMigrations: { type: [String], default: [] },
 	links: {
 		uinMalang: {
 			type: String,

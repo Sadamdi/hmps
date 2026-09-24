@@ -17,7 +17,7 @@ Media & Assets feature category for HMPS. This README is the local index for fea
 | [07-asset-cleanup-service.md](./07-asset-cleanup-service.md) | Asset Cleanup Service |
 | [08-file-scanner-service.md](./08-file-scanner-service.md) | File Scanner Service |
 | [09-banner-theme-render-services.md](./09-banner-theme-render-services.md) | Banner Theme & Render Services |
-| [10-home-social-feed.md](./10-home-social-feed.md) | Home YouTube/Instagram auto-scrape feed |
+| [10-home-social-feed.md](./10-home-social-feed.md) | Media sosial YouTube/Instagram: beranda, `/media/*`, fetch harian, log |
 | [99-openapi-endpoint-coverage.md](./99-openapi-endpoint-coverage.md) | OpenAPI Endpoint Coverage — Media & Assets |
 
 ## OpenAPI Tag Mapping
@@ -28,7 +28,7 @@ Media & Assets feature category for HMPS. This README is the local index for fea
 | `gdrive` | 3 | Google Drive media operations. |
 | `home-images` | 12 | Home/banner image slots, person slots, render, active year, and copy flows. |
 | `upload` | 5 | General upload endpoints. |
-| `social-feed` | 4 | Home YT/IG feed public cache + manage/sync. |
+| `social-feed` | 6 | YT/IG publik (beranda + items paginasi) + manage/logs/sync. |
 
 ## Endpoint Family Coverage
 

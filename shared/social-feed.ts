@@ -1,61 +1,67 @@
-/** Public social feed config + cache shapes (YouTube / Instagram home sections). */
+/** Social feed (YouTube / Instagram) — config, cache, dan helper seleksi. Dipakai server + client. */
 
-export type SocialContentKind =
-	| 'video'
-	| 'short'
-	| 'live'
-	| 'post'
-	| 'reel'
-	| 'story';
+export type YoutubeKind = 'video' | 'short' | 'live';
+export type InstagramKind = 'post' | 'reel';
+/** `story` dipertahankan hanya agar cache lama tetap ter-parse; tidak lagi ditampilkan. */
+export type SocialContentKind = YoutubeKind | InstagramKind | 'story';
+export type SocialPlatform = 'youtube' | 'instagram';
 
 export type SocialFeedItem = {
 	id: string;
-	platform: 'youtube' | 'instagram';
+	platform: SocialPlatform;
 	title: string;
 	url: string;
 	thumbnailUrl: string;
+	/** ISO date — YouTube dari halaman watch, Instagram dari shortcode */
 	publishedAt?: string;
+	/** Pertama kali item terlihat oleh sync (fallback urutan) */
+	firstSeenAt?: string;
 	isLive?: boolean;
-	/** Content flavour for filter UI */
 	kind?: SocialContentKind;
+	/** Instagram: post berisi beberapa slide */
+	isCarousel?: boolean;
+	caption?: string;
 };
 
-export type YoutubeContentFilters = {
-	/** Tab Videos channel (@handle/videos) */
-	videos: boolean;
-	/** Tab Shorts; jika tab kosong, fallback video berdurasi ≤60 dtk */
-	shorts: boolean;
-	/** Tab Live/Streams (arsip live) + badge live sekarang */
-	live: boolean;
-};
-
+export type YoutubeContentFilters = { videos: boolean; shorts: boolean; live: boolean };
 export type InstagramContentFilters = {
-	/** Post feed (/p/) */
 	posts: boolean;
-	/** Reels (product_type clips / /reel/) */
 	reels: boolean;
-	/** Live broadcast (badge only when reliable) */
-	live: boolean;
-	/** Stories (best-effort; butuh INSTAGRAM_SESSION_ID) */
-	stories: boolean;
+	/** Tidak dipakai lagi (4.25.0) — hanya kompatibilitas config lama */
+	live?: boolean;
+	stories?: boolean;
 };
 
-export type SocialPlatformConfig = {
+type PlatformBase = {
 	enabled: boolean;
 	profileOrChannelUrl: string;
-	maxItems: number;
 	showLiveBadge: boolean;
-	showFeaturedEmbed?: boolean;
-	/**
-	 * Optional fallback / pinned post URLs (1 per line di UI).
-	 * Dipakai jika scrape profil kosong / kena rate-limit.
-	 */
+	/** Jumlah item yang tampil pertama di beranda (per tab) */
+	homeLimit: number;
+	/** Tambahan item saat klik "Lebih banyak" (beranda maks homeLimit + loadMoreStep) */
+	loadMoreStep: number;
+	/** Legacy (≤4.24): dulu batas tampil 1–5. Dibaca untuk kompatibilitas, tidak dipakai. */
+	maxItems?: number;
+};
+
+export type YoutubeConfig = PlatformBase & {
+	showFeaturedEmbed: boolean;
+	content: YoutubeContentFilters;
+	/** Jumlah item yang disimpan per kategori saat sync */
+	fetchLimits: Record<YoutubeKind, number>;
 	manualUrls?: string[];
 };
 
+export type InstagramConfig = PlatformBase & {
+	content: InstagramContentFilters;
+	fetchLimits: Record<InstagramKind, number>;
+	/** Link post/reel yang ditambahkan manual dari dashboard */
+	manualUrls: string[];
+};
+
 export type SocialFeedConfig = {
-	youtube: SocialPlatformConfig & { content: YoutubeContentFilters };
-	instagram: SocialPlatformConfig & { content: InstagramContentFilters };
+	youtube: YoutubeConfig;
+	instagram: InstagramConfig;
 	syncIntervalHours: number;
 };
 
@@ -64,45 +70,77 @@ export type SocialFeedLiveState = {
 	instagram?: { isLive: boolean; url?: string; title?: string };
 };
 
+/** Status sync terakhir per platform (untuk dashboard). */
+export type SocialPlatformSyncStatus = {
+	at: string;
+	ok: boolean;
+	/** Sumber yang berhasil, mis. "innertube+watch", "embed", "manual" */
+	method?: string;
+	newCount?: number;
+	total?: number;
+	/** Instagram: daftar profil diblokir (butuh login / rate limit) */
+	blocked?: boolean;
+	error?: string;
+	durationMs?: number;
+};
+
 export type SocialFeedCache = {
 	youtube: SocialFeedItem[];
 	instagram: SocialFeedItem[];
 	live: SocialFeedLiveState;
 	syncedAt?: string;
 	lastError?: string;
+	status?: Partial<Record<SocialPlatform, SocialPlatformSyncStatus>>;
 };
 
-export const DEFAULT_YOUTUBE_CONTENT: YoutubeContentFilters = {
-	videos: true,
-	shorts: true,
-	live: true,
+export type SocialFeedLogEntry = {
+	id: string;
+	platform: SocialPlatform;
+	trigger: 'cron' | 'manual';
+	startedAt: string;
+	durationMs: number;
+	ok: boolean;
+	method?: string;
+	newCount: number;
+	total: number;
+	byKind: Record<string, number>;
+	blocked?: boolean;
+	error?: string;
+	triggeredBy?: string;
 };
 
-export const DEFAULT_INSTAGRAM_CONTENT: InstagramContentFilters = {
-	posts: true,
-	reels: true,
-	live: true,
-	stories: false,
-};
+/** Log disimpan di dokumen Settings, dibatasi N terakhir. */
+export const SOCIAL_FEED_LOG_LIMIT = 50;
+
+export const YOUTUBE_KINDS: YoutubeKind[] = ['video', 'short', 'live'];
+export const INSTAGRAM_KINDS: InstagramKind[] = ['post', 'reel'];
+
+export const DEFAULT_YOUTUBE_URL = 'https://www.youtube.com/c/HimatifEncoder';
+export const DEFAULT_INSTAGRAM_URL = 'https://www.instagram.com/himatif.encoder/';
 
 export const DEFAULT_SOCIAL_FEED_CONFIG: SocialFeedConfig = {
 	youtube: {
 		enabled: true,
-		profileOrChannelUrl: 'https://www.youtube.com/@HimatifEncoder',
-		maxItems: 4,
+		profileOrChannelUrl: DEFAULT_YOUTUBE_URL,
 		showLiveBadge: true,
 		showFeaturedEmbed: true,
-		content: { ...DEFAULT_YOUTUBE_CONTENT },
+		homeLimit: 8,
+		loadMoreStep: 8,
+		content: { videos: true, shorts: true, live: true },
+		fetchLimits: { video: 10, short: 10, live: 5 },
+		manualUrls: [],
 	},
 	instagram: {
 		enabled: true,
-		profileOrChannelUrl: 'https://www.instagram.com/himatif.encoder/',
-		maxItems: 4,
-		showLiveBadge: true,
-		content: { ...DEFAULT_INSTAGRAM_CONTENT },
+		profileOrChannelUrl: DEFAULT_INSTAGRAM_URL,
+		showLiveBadge: false,
+		homeLimit: 9,
+		loadMoreStep: 9,
+		content: { posts: true, reels: true },
+		fetchLimits: { post: 36, reel: 36 },
 		manualUrls: [],
 	},
-	syncIntervalHours: 3,
+	syncIntervalHours: 24,
 };
 
 export const DEFAULT_SOCIAL_FEED_CACHE: SocialFeedCache = {
@@ -111,53 +149,26 @@ export const DEFAULT_SOCIAL_FEED_CACHE: SocialFeedCache = {
 	live: {},
 };
 
-export function clampSocialMaxItems(n: unknown): number {
+const LIMITS = {
+	ytFetch: { video: [1, 30], short: [1, 30], live: [1, 15] } as Record<YoutubeKind, [number, number]>,
+	igFetch: [1, 60] as [number, number],
+	ytHome: [4, 16] as [number, number],
+	igHome: [3, 18] as [number, number],
+};
+
+export function clampInt(n: unknown, min: number, max: number, fallback: number): number {
 	const v = parseInt(String(n), 10);
-	if (!Number.isFinite(v)) return 4;
-	return Math.min(5, Math.max(1, v));
+	if (!Number.isFinite(v)) return fallback;
+	return Math.min(max, Math.max(min, v));
 }
 
-export function normalizeSocialFeedConfig(raw?: Partial<SocialFeedConfig> | null): SocialFeedConfig {
-	const base = DEFAULT_SOCIAL_FEED_CONFIG;
-	const ytIn = raw?.youtube || {};
-	const igIn = raw?.instagram || {};
-	const yt = {
-		...base.youtube,
-		...ytIn,
-		content: { ...base.youtube.content, ...(ytIn as any).content },
-	};
-	const ig = {
-		...base.instagram,
-		...igIn,
-		content: { ...base.instagram.content, ...(igIn as any).content },
-	};
-	yt.maxItems = clampSocialMaxItems(yt.maxItems);
-	ig.maxItems = clampSocialMaxItems(ig.maxItems);
-	yt.profileOrChannelUrl = String(yt.profileOrChannelUrl || base.youtube.profileOrChannelUrl).trim();
-	ig.profileOrChannelUrl = String(ig.profileOrChannelUrl || base.instagram.profileOrChannelUrl).trim();
-	yt.manualUrls = normalizeManualUrls(
-		Array.isArray((ytIn as any).manualUrls) && (ytIn as any).manualUrls.length
-			? (ytIn as any).manualUrls
-			: base.youtube.manualUrls,
-	);
-	ig.manualUrls = normalizeManualUrls(
-		Array.isArray((igIn as any).manualUrls) && (igIn as any).manualUrls.length
-			? (igIn as any).manualUrls
-			: base.instagram.manualUrls,
-	);
-	const syncIntervalHours = Math.min(
-		24,
-		Math.max(1, Number(raw?.syncIntervalHours) || base.syncIntervalHours),
-	);
-	return { youtube: yt, instagram: ig, syncIntervalHours };
+/** @deprecated dipertahankan untuk import lama. */
+export function clampSocialMaxItems(n: unknown): number {
+	return clampInt(n, 1, 5, 4);
 }
 
-export function normalizeManualUrls(raw: unknown): string[] {
-	const list = Array.isArray(raw)
-		? raw
-		: typeof raw === 'string'
-			? raw.split(/\r?\n|,/)
-			: [];
+export function normalizeManualUrls(raw: unknown, max = 200): string[] {
+	const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? raw.split(/\r?\n|,/) : [];
 	const out: string[] = [];
 	const seen = new Set<string>();
 	for (const entry of list) {
@@ -165,63 +176,152 @@ export function normalizeManualUrls(raw: unknown): string[] {
 		if (!u || seen.has(u)) continue;
 		seen.add(u);
 		out.push(u);
-		if (out.length >= 12) break;
+		if (out.length >= max) break;
 	}
 	return out;
 }
 
-export function filterYoutubeItems(
-	items: SocialFeedItem[],
-	content: YoutubeContentFilters,
-): SocialFeedItem[] {
-	return items.filter((it) => {
-		const kind = it.kind || (it.isLive ? 'live' : it.url.includes('/shorts/') ? 'short' : 'video');
-		if (kind === 'live') return content.live;
-		if (kind === 'short') return content.shorts;
-		return content.videos;
+/** Terima config lama (≤4.24, dengan maxItems 1–5) maupun v2. Tidak pernah melempar. */
+export function normalizeSocialFeedConfig(raw?: any): SocialFeedConfig {
+	const base = DEFAULT_SOCIAL_FEED_CONFIG;
+	const ytIn = (raw && typeof raw.youtube === 'object' && raw.youtube) || {};
+	const igIn = (raw && typeof raw.instagram === 'object' && raw.instagram) || {};
+
+	const ytFetchIn = ytIn.fetchLimits || {};
+	const youtube: YoutubeConfig = {
+		enabled: ytIn.enabled !== undefined ? !!ytIn.enabled : base.youtube.enabled,
+		profileOrChannelUrl: String(ytIn.profileOrChannelUrl || base.youtube.profileOrChannelUrl).trim(),
+		showLiveBadge: ytIn.showLiveBadge !== undefined ? !!ytIn.showLiveBadge : base.youtube.showLiveBadge,
+		showFeaturedEmbed:
+			ytIn.showFeaturedEmbed !== undefined ? !!ytIn.showFeaturedEmbed : base.youtube.showFeaturedEmbed,
+		homeLimit: clampInt(ytIn.homeLimit, ...LIMITS.ytHome, base.youtube.homeLimit),
+		loadMoreStep: clampInt(ytIn.loadMoreStep, ...LIMITS.ytHome, base.youtube.loadMoreStep),
+		content: {
+			videos: ytIn.content?.videos !== undefined ? !!ytIn.content.videos : true,
+			shorts: ytIn.content?.shorts !== undefined ? !!ytIn.content.shorts : true,
+			live: ytIn.content?.live !== undefined ? !!ytIn.content.live : true,
+		},
+		fetchLimits: {
+			video: clampInt(ytFetchIn.video, ...LIMITS.ytFetch.video, base.youtube.fetchLimits.video),
+			short: clampInt(ytFetchIn.short, ...LIMITS.ytFetch.short, base.youtube.fetchLimits.short),
+			live: clampInt(ytFetchIn.live, ...LIMITS.ytFetch.live, base.youtube.fetchLimits.live),
+		},
+		manualUrls: normalizeManualUrls(ytIn.manualUrls, 50),
+	};
+
+	const igFetchIn = igIn.fetchLimits || {};
+	const instagram: InstagramConfig = {
+		enabled: igIn.enabled !== undefined ? !!igIn.enabled : base.instagram.enabled,
+		profileOrChannelUrl: String(igIn.profileOrChannelUrl || base.instagram.profileOrChannelUrl).trim(),
+		showLiveBadge: false,
+		homeLimit: clampInt(igIn.homeLimit, ...LIMITS.igHome, base.instagram.homeLimit),
+		loadMoreStep: clampInt(igIn.loadMoreStep, ...LIMITS.igHome, base.instagram.loadMoreStep),
+		content: {
+			posts: igIn.content?.posts !== undefined ? !!igIn.content.posts : true,
+			reels: igIn.content?.reels !== undefined ? !!igIn.content.reels : true,
+		},
+		fetchLimits: {
+			post: clampInt(igFetchIn.post, ...LIMITS.igFetch, base.instagram.fetchLimits.post),
+			reel: clampInt(igFetchIn.reel, ...LIMITS.igFetch, base.instagram.fetchLimits.reel),
+		},
+		manualUrls: normalizeManualUrls(igIn.manualUrls, 200),
+	};
+
+	const syncIntervalHours = clampInt(raw?.syncIntervalHours, 1, 168, base.syncIntervalHours);
+	return { youtube, instagram, syncIntervalHours };
+}
+
+/** Jenis item dengan fallback dari URL (cache lama bisa tanpa `kind`). */
+export function itemKind(it: SocialFeedItem): SocialContentKind {
+	if (it.kind) return it.kind;
+	if (it.platform === 'youtube') return it.isLive ? 'live' : it.url.includes('/shorts/') ? 'short' : 'video';
+	return /\/reels?\//.test(it.url) ? 'reel' : 'post';
+}
+
+function itemTime(it: SocialFeedItem): number {
+	const t = Date.parse(it.publishedAt || it.firstSeenAt || '');
+	return Number.isFinite(t) ? t : 0;
+}
+
+/** Terbaru dulu; item live-sekarang selalu di depan. */
+export function sortSocialItems(items: SocialFeedItem[]): SocialFeedItem[] {
+	return [...items].sort((a, b) => {
+		if (!!b.isLive !== !!a.isLive) return b.isLive ? 1 : -1;
+		return itemTime(b) - itemTime(a);
 	});
 }
 
-export function filterInstagramItems(
+export function dedupeSocialItems(items: SocialFeedItem[]): SocialFeedItem[] {
+	const seen = new Set<string>();
+	const out: SocialFeedItem[] = [];
+	for (const it of items) {
+		const key = it.id.replace(/^yt-live-/, 'yt-');
+		if (seen.has(key)) continue;
+		seen.add(key);
+		out.push(it);
+	}
+	return out;
+}
+
+/** Item yang boleh tampil publik sesuai filter konten + platform aktif. */
+export function visibleSocialItems(config: SocialFeedConfig, platform: SocialPlatform, cache: SocialFeedCache) {
+	if (platform === 'youtube') {
+		if (!config.youtube.enabled) return [];
+		const c = config.youtube.content;
+		return sortSocialItems(
+			dedupeSocialItems(cache.youtube || []).filter((it) => {
+				const k = itemKind(it);
+				return k === 'live' ? c.live : k === 'short' ? c.shorts : k === 'video' ? c.videos : false;
+			}),
+		);
+	}
+	if (!config.instagram.enabled) return [];
+	const c = config.instagram.content;
+	return sortSocialItems(
+		dedupeSocialItems(cache.instagram || []).filter((it) => {
+			const k = itemKind(it);
+			return k === 'reel' ? c.reels : k === 'post' ? c.posts : false;
+		}),
+	);
+}
+
+export function countByKind(items: SocialFeedItem[]): Record<string, number> {
+	const out: Record<string, number> = {};
+	for (const it of items) {
+		const k = itemKind(it);
+		out[k] = (out[k] ?? 0) + 1;
+	}
+	return out;
+}
+
+export function selectSocialItems(
 	items: SocialFeedItem[],
-	content: InstagramContentFilters,
+	kind: SocialContentKind | 'all',
+	offset: number,
+	limit: number,
 ): SocialFeedItem[] {
-	return items.filter((it) => {
-		const kind =
-			it.kind ||
-			(it.isLive ? 'live' : it.url.includes('/reel/') || it.url.includes('/reels/') ? 'reel' : 'post');
-		if (kind === 'live') return content.live;
-		if (kind === 'story') return content.stories;
-		if (kind === 'reel') return content.reels;
-		return content.posts;
-	});
+	const pool = kind === 'all' ? items : items.filter((it) => itemKind(it) === kind);
+	return pool.slice(offset, offset + limit);
 }
 
 /**
- * Round-robin antar pool jenis konten supaya filter Video+Live+Shorts
- * tidak didominasi satu sumber (mis. RSS live VOD).
+ * Waktu posting Instagram dari shortcode: shortcode → media id (base64 IG),
+ * `id >> 23` = milidetik sejak epoch Instagram.
  */
-export function mixSocialItemsByKind(
-	pools: Partial<Record<SocialContentKind, SocialFeedItem[]>>,
-	order: SocialContentKind[],
-	maxItems: number,
-): SocialFeedItem[] {
-	const queues = order
-		.map((kind) => ({ kind, items: [...(pools[kind] || [])] }))
-		.filter((q) => q.items.length > 0);
-	const out: SocialFeedItem[] = [];
-	const seen = new Set<string>();
-	while (out.length < maxItems && queues.some((q) => q.items.length)) {
-		for (const q of queues) {
-			if (out.length >= maxItems) break;
-			while (q.items.length) {
-				const next = q.items.shift()!;
-				if (seen.has(next.id)) continue;
-				seen.add(next.id);
-				out.push(next);
-				break;
-			}
-		}
+const IG_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+const IG_EPOCH_MS = 1314220021721;
+export function instagramShortcodeToDate(code: string): string | undefined {
+	if (!/^[A-Za-z0-9_-]{6,14}$/.test(code)) return undefined;
+	try {
+		let n = BigInt(0);
+		const base = BigInt(64);
+		for (const ch of code) n = n * base + BigInt(IG_ALPHABET.indexOf(ch));
+		const ms = Number(n >> BigInt(23)) + IG_EPOCH_MS;
+		const d = new Date(ms);
+		const year = d.getUTCFullYear();
+		if (year < 2011 || year > 2100) return undefined;
+		return d.toISOString();
+	} catch {
+		return undefined;
 	}
-	return out;
 }

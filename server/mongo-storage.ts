@@ -19,6 +19,7 @@ import {
 	User,
 } from '../db/mongodb';
 import { hashPassword } from './auth';
+import { divisionPermissionGrants, SOCIAL_FEED_PERMISSIONS } from './division-permissions';
 import { DEFAULT_IMAGE_URL } from './constants/default-image';
 import { MONGO_QUERY_MAX_TIME_MS } from './lib/mongo-query-limits';
 import { deleteFile } from './upload';
@@ -2100,7 +2101,9 @@ async function getUserBasePermissions(userId: string): Promise<string[]> {
 		const user = await User.findById(userId);
 		if (!user) return [];
 		const role = await getRoleByName(user.role);
-		return role ? role.permissions : [];
+		const base = role ? role.permissions : [];
+		const extra = divisionPermissionGrants(user as any);
+		return extra.length ? Array.from(new Set([...base, ...extra])) : base;
 	} catch (error) {
 		console.error('Error getting user base permissions:', error);
 		throw error;
@@ -2990,9 +2993,11 @@ async function initializeDefaultPermissions() {
 			}
 		}
 
-		// Ensure operational roles can manage home social feed (Medinfo / BPH path).
+		// Social feed dikelola owner (otomatis semua), admin, ketua, wakil, dan Medinfo
+		// (role `medinfo` + grant divisi di server/division-permissions.ts).
+		await migrateSocialFeedRolesV2();
 		await Role.updateMany(
-			{ name: { $in: ['chair', 'vice_chair', 'division_head', 'admin'] } },
+			{ name: { $in: ['admin', 'chair', 'vice_chair', 'medinfo'] } },
 			{
 				$addToSet: {
 					permissions: {
@@ -3117,6 +3122,54 @@ async function initializeDefaultPermissions() {
 	console.log('✅ Backfilled + reconciled overview permissions to eligible roles');
 } catch (e) {
 		console.error('Error backfilling overview permissions:', e);
+	}
+}
+
+/**
+ * Migrasi sekali jalan (4.25.0): akses social feed hanya owner, admin, ketua, wakil, Medinfo.
+ * - cabut social_feed.* dari `bph` & `division_head` (sebelumnya di-backfill tiap startup)
+ * - buat role `medinfo` bila belum ada (salinan izin division_head + social_feed.*)
+ * Penanda di Settings.appliedMigrations agar pemberian manual owner setelahnya tidak ditimpa.
+ */
+const SOCIAL_FEED_ROLES_MIGRATION = 'social-feed-roles-v2';
+async function migrateSocialFeedRolesV2() {
+	try {
+		const settings: any = await Settings.findOne().select('appliedMigrations').lean();
+		if (!settings) return;
+		const applied: string[] = Array.isArray(settings.appliedMigrations) ? settings.appliedMigrations : [];
+		if (applied.includes(SOCIAL_FEED_ROLES_MIGRATION)) return;
+
+		await Role.updateMany(
+			{ name: { $in: ['bph', 'division_head'] } },
+			{ $pull: { permissions: { $in: [...SOCIAL_FEED_PERMISSIONS] } }, $set: { updatedAt: new Date() } },
+		);
+
+		const existingMedinfo = await Role.findOne({ name: 'medinfo' }).lean();
+		if (!existingMedinfo) {
+			const template: any = await Role.findOne({ name: 'division_head' }).lean();
+			if (template?.createdBy) {
+				await Role.create({
+					name: 'medinfo',
+					displayName: 'Medinfo',
+					description: 'Divisi Media dan Informasi — konten + kelola media sosial',
+					level: template.level ?? 6,
+					permissions: Array.from(
+						new Set([
+							...((template.permissions as string[]) || []).filter((p) => !p.startsWith('social_feed.')),
+							...SOCIAL_FEED_PERMISSIONS,
+						]),
+					),
+					isActive: true,
+					createdBy: template.createdBy,
+				});
+				console.log('✅ Created role medinfo (social feed manager)');
+			}
+		}
+
+		await Settings.updateOne({ _id: settings._id }, { $addToSet: { appliedMigrations: SOCIAL_FEED_ROLES_MIGRATION } });
+		console.log(`🔧 Migration ${SOCIAL_FEED_ROLES_MIGRATION} applied`);
+	} catch (error) {
+		console.error('Migration social-feed-roles-v2 failed:', error);
 	}
 }
 
@@ -3327,9 +3380,6 @@ async function initializeDefaultRoles() {
 					'events.view_others',
 					'events.edit_others',
 					'events.delete_others',
-					'social_feed.view',
-					'social_feed.edit',
-					'social_feed.sync',
 				],
 				isActive: true,
 				createdBy: creatorObjectId,
