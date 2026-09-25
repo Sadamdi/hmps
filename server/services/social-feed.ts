@@ -1080,6 +1080,8 @@ async function syncInstagramViaInstagrapi(
 	const res = await fetchInstagramViaInstagrapi(username, full ? 0 : dailyLimit);
 	if (!res.ok || !res.items?.length) return null;
 
+	// Backfill terpotong rate limit: perlakukan sebagai merge biasa (jangan buang arsip), ulangi nanti
+	const complete = full && !res.partial;
 	const prevByCode = new Map(previous.map((it) => [it.id.replace(/^ig-/, ''), it]));
 	const freshCodes = new Set(res.items.map((m) => m.code));
 	const manualCodes = new Set(codesFromUrls(config.manualUrls || []).map((m) => m.code));
@@ -1116,7 +1118,7 @@ async function syncInstagramViaInstagrapi(
 	for (const [code, prev] of Array.from(prevByCode)) {
 		if (freshCodes.has(code)) continue;
 		// Backfill penuh = daftar lengkap akun: item yang sudah dihapus di IG dibuang, kecuali link manual
-		if (full && !manualCodes.has(code)) continue;
+		if (complete && !manualCodes.has(code)) continue;
 		const k = itemKind(prev);
 		if (k !== 'post' && k !== 'reel') continue;
 		merged.push({ ...prev, pinned: undefined, pinnedRank: undefined });
@@ -1144,10 +1146,13 @@ async function syncInstagramViaInstagrapi(
 
 	return {
 		items,
-		method: `instagrapi(${res.method})${full ? '+backfill' : ''}`,
+		method: `instagrapi(${res.method})${complete ? '+backfill' : full ? '+backfill(parsial)' : ''}`,
 		newCount,
 		profile,
-		backfilled: full,
+		backfilled: complete,
+		warning: full && res.partial
+			? `Backfill Instagram terhenti oleh rate limit (${items.length} item tersimpan); dilanjutkan pada fetch berikutnya.`
+			: undefined,
 	};
 }
 

@@ -35,6 +35,8 @@ export interface InstagrapiResult {
 	method?: string;
 	items?: InstagrapiMedia[];
 	profile?: InstagrapiProfile | null;
+	/** Paginasi terhenti (rate limit) — daftar belum lengkap */
+	partial?: boolean;
 	error?: string;
 }
 
