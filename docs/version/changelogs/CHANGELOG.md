@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.27.1] - 2026-09-25
+
+### Fixed
+
+- Backfill Instagram yang terpotong rate limit menyimpan hasil parsial dan dilanjutkan pada fetch berikutnya.
+- Rate limit Instagram tidak lagi memicu login ulang dengan password akun dummy.
+
 ## [4.27.0] - 2026-09-25
 
 ### Added — Media sosial: arsip penuh & route top-level

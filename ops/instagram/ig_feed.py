@@ -88,21 +88,33 @@ def raw_item(x, rank):
 
 
 def fetch_feed(cl, uid, limit):
-    """Paginasi feed/user (urutan profil asli, pinned di atas). limit 0 = semua."""
-    items, max_id = [], None
+    """Paginasi feed/user (urutan profil asli, pinned di atas). limit 0 = semua.
+
+    Kembalikan (items, partial). Bila Instagram membatasi di tengah paginasi, halaman yang
+    sudah terambil tetap dikembalikan (partial=True) agar tidak hilang; backfill dilanjutkan
+    pada sync berikutnya.
+    """
+    items, max_id, partial = [], None, False
     while True:
         params = {"count": 33}
         if max_id:
             params["max_id"] = max_id
-        r = cl.private_request(f"feed/user/{uid}/", params=params)
+        try:
+            r = cl.private_request(f"feed/user/{uid}/", params=params)
+        except Exception:  # noqa: BLE001
+            if not items:
+                raise
+            partial = True
+            break
         for x in r.get("items", []):
             if x.get("code"):
                 items.append(raw_item(x, len(items)))
         max_id = r.get("next_max_id")
         if not r.get("more_available") or not max_id or (limit and len(items) >= limit):
             break
-        time.sleep(random.uniform(2.0, 4.0))
-    return items[:limit] if limit else items
+        # Jeda lebih panjang saat backfill penuh agar tidak memicu rate limit
+        time.sleep(random.uniform(4.0, 8.0) if not limit else random.uniform(2.0, 4.0))
+    return (items[:limit] if limit else items), partial
 
 
 def fetch_profile(cl, uid):
@@ -132,7 +144,7 @@ def main():
 
     try:
         from instagrapi import Client
-        from instagrapi.exceptions import LoginRequired, ChallengeRequired, ClientError
+        from instagrapi.exceptions import ChallengeRequired, LoginRequired, PleaseWaitFewMinutes
     except ImportError:
         out({"ok": False, "error": "instagrapi belum terpasang (pip3 install instagrapi)"})
         return 3
@@ -166,20 +178,25 @@ def main():
 
         try:
             uid = cl.user_id_from_username(username)
-            items = fetch_feed(cl, uid, limit)
-        except (LoginRequired, ClientError):
+            items, partial = fetch_feed(cl, uid, limit)
+        except LoginRequired:
+            # Hanya sesi mati yang memicu login ulang; rate limit (PleaseWaitFewMinutes) tidak
             # Sesi tersimpan mati → login ulang (device tetap sama) lalu coba sekali lagi
             keep = cl.get_settings()
             cl.set_settings({k: v for k, v in keep.items() if k in ("uuids", "device_settings", "user_agent")})
             method = login_fresh() + "(relogin)"
             save(cl)
             uid = cl.user_id_from_username(username)
-            items = fetch_feed(cl, uid, limit)
+            items, partial = fetch_feed(cl, uid, limit)
 
         profile = fetch_profile(cl, uid)
         save(cl)
-        out({"ok": True, "method": method, "profile": profile, "items": items})
+        out({"ok": True, "method": method, "profile": profile, "items": items, "partial": partial})
         return 0
+    except PleaseWaitFewMinutes:
+        save(cl)
+        out({"ok": False, "error": "rate limit Instagram (PleaseWaitFewMinutes) — dicoba lagi pada fetch berikutnya"})
+        return 5
     except ChallengeRequired:
         out({"ok": False, "error": "checkpoint: Instagram minta verifikasi akun dummy, login manual di app lalu export ulang cookie"})
         return 4
