@@ -59,3 +59,9 @@ ops/_*.mjs
 
 # Local photos (sample gambar iPhone yang dipakai untuk verifikasi HEIC) — do not push
 local_photos/
+
+# Instagram auto-login session cache
+.instagram-session.json
+.instagram-instagrapi.json
+.instagram-instagrapi.json.tmp
+.instagram-session.json.expired

@@ -9,6 +9,8 @@ import {
 } from '../../shared/social-feed';
 import { authenticate, requirePermission } from '../auth';
 import { mongoStorage } from '../mongo-storage';
+import { lastInstagrapiError } from '../services/instagram-instagrapi';
+import { instagramSessionStatus } from '../services/instagram-session';
 import {
 	persistSocialFeedSync,
 	publicSocialFeedItems,
@@ -122,7 +124,8 @@ router.get('/manage', authenticate, requirePermission('social_feed.view'), async
 				lastSocialFeedSyncAt: settings.lastSocialFeedSyncAt || null,
 				nextScheduledSyncAt: nextScheduledSync(),
 				/** Hanya boolean — nilai cookie tidak pernah dikirim ke klien */
-				instagramSessionConfigured: !!process.env.INSTAGRAM_SESSION_ID?.trim(),
+				instagramSessionConfigured: instagramSessionStatus().configured,
+				instagramSession: { ...instagramSessionStatus(), instagrapiError: lastInstagrapiError },
 				logs: readLogs(settings).slice(0, 20),
 				preview: publicSocialFeedPayload(config, cache),
 			},
