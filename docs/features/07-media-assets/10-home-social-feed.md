@@ -31,12 +31,25 @@ Sumber: `shared/social-feed.ts`, `server/services/social-feed.ts`, `server/route
 
 Instagram memblokir **daftar post** tanpa login dari IP mana pun (diuji 2026-09-25: `web_profile_info` 429, GraphQL `require_login`, HTML profil tanpa shortcode, viewer pihak ketiga mati). Halaman **embed per post** (`/p/{code}/embed/captioned/`) tetap publik. Maka rantainya:
 
-1. `web_profile_info` — berhasil bila IP tidak dibatasi atau env `INSTAGRAM_SESSION_ID` (+ opsional `INSTAGRAM_CSRF_TOKEN`) dari **akun dummy** terpasang di server.
+0. **instagrapi (utama, v4.26.0)** — `server/services/instagram-instagrapi.ts` menjalankan `python3 ops/instagram/ig_feed.py <username> <limit>` (API mobile Instagram, akun dummy). Mengembalikan kode, jenis (post/reel/carousel), caption, thumbnail, tanggal; item ini tidak perlu enrich embed.
+1. `web_profile_info` — fallback bila instagrapi gagal; memakai cookie sesi yang sama.
 2. Scrape HTML profil/reels (murah, jarang berhasil).
 3. **Link manual** dari dashboard (maks 200) — selalu berhasil.
 4. Item cache lama selalu dipertahankan.
 
 Setiap shortcode baru di-enrich via embed: gambar (disimpan ke `uploads/social/instagram/`), caption → judul, tipe (`GraphImage`/`GraphSidecar` → post, carousel ditandai; `GraphVideo`/`clips` → reel). **Penting:** embed harus diminta dengan UA sederhana (`Mozilla/5.0`); dengan UA browser lengkap IG mengirim shell aplikasi JS tanpa data. Tanggal dihitung dari shortcode (`media id >> 23` + epoch IG 1314220021721 ms) — akurat tanpa request tambahan.
+
+### Sesi akun dummy & auto refresh
+
+| File / env (server `/var/www/hmps`) | Fungsi |
+|---|---|
+| `.instagram-session.json` (gitignore, chmod 600) | Export cookie browser akun dummy (array `{name,value}`) — bootstrap sesi. Kirim manual via `scp`, **jangan commit**. |
+| `.instagram-instagrapi.json` (gitignore) | State instagrapi (cookie + device). Ditulis ulang setiap sync → cookie yang dirotasi Instagram otomatis tersimpan. |
+| `INSTAGRAM_DUMMY_USERNAME` / `INSTAGRAM_DUMMY_PASSWORD` | Login ulang otomatis (device sama) bila sesi mati. Checkpoint/2FA tidak di-bypass → error dicatat, owner login manual lalu export ulang cookie. |
+| `INSTAGRAM_SESSION_ID` / `INSTAGRAM_CSRF_TOKEN` | Alternatif bootstrap tanpa file. |
+| `INSTAGRAM_INSTAGRAPI=off`, `INSTAGRAM_PYTHON` | Matikan bridge / override binary Python. |
+
+Setup server sekali: `pip3 install -r ops/instagram/requirements.txt`. Status aman (tanpa nilai cookie) ada di `GET /api/social-feed/manage` → `data.instagramSession` (`configured`, `source`, `lastLoginError`, `instagrapiError`).
 
 Hanya **post & reel** yang disimpan/ditampilkan (story/live dihapus dari tampilan). Simpan per jenis default 36 (1–60). Status `blocked` dicatat bila daftar otomatis gagal.
 

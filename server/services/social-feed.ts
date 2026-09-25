@@ -27,6 +27,14 @@ import {
 	type YoutubeKind,
 } from '../../shared/social-feed';
 import { uploadDir } from '../upload';
+import {
+	absorbInstagramCookies,
+	getInstagramSession,
+	instagramCookieHeader,
+	invalidateInstagramSession,
+	looksLikeInstagramLoginRequired,
+} from './instagram-session';
+import { fetchInstagramViaInstagrapi } from './instagram-instagrapi';
 
 const UA_DESKTOP =
 	'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
@@ -478,54 +486,48 @@ function extractThumbCandidates(html: string): string[] {
 	return urls;
 }
 
-let igCookieJar = '';
+let igAnonCookies = '';
 
+/** Cookie anonim instagram.com + cookie sesi akun dummy (auto-login bila perlu). */
 async function seedInstagramCookies(): Promise<string> {
-	if (igCookieJar) return igCookieJar;
-	try {
-		const res = await fetch('https://www.instagram.com/', {
-			redirect: 'follow',
-			headers: {
-				'User-Agent': UA_DESKTOP,
-				Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-				'Accept-Language': 'en-US,en;q=0.9,id;q=0.8',
-			},
-		});
-		const raw = typeof (res as any).headers?.getSetCookie === 'function'
-			? (res as any).headers.getSetCookie()
-			: [];
-		const fromHeader = Array.isArray(raw) ? raw : [];
-		const single = res.headers.get('set-cookie');
-		const parts = [
-			...fromHeader,
-			...(single ? [single] : []),
-		]
-			.map((c: string) => c.split(';')[0])
-			.filter(Boolean);
-		const session = process.env.INSTAGRAM_SESSION_ID?.trim();
-		const csrf = process.env.INSTAGRAM_CSRF_TOKEN?.trim();
-		if (session) parts.push(`sessionid=${session}`);
-		if (csrf) parts.push(`csrftoken=${csrf}`);
-		igCookieJar = Array.from(new Set(parts)).join('; ');
-	} catch {
-		const session = process.env.INSTAGRAM_SESSION_ID?.trim();
-		igCookieJar = session ? `sessionid=${session}` : '';
+	if (!igAnonCookies) {
+		try {
+			const res = await fetch('https://www.instagram.com/', {
+				redirect: 'follow',
+				headers: {
+					'User-Agent': UA_DESKTOP,
+					Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+					'Accept-Language': 'en-US,en;q=0.9,id;q=0.8',
+				},
+			});
+			const raw = typeof (res as any).headers?.getSetCookie === 'function'
+				? (res as any).headers.getSetCookie()
+				: [];
+			igAnonCookies = (Array.isArray(raw) ? raw : [])
+				.map((c: string) => c.split(';')[0])
+				.filter((c: string) => c && !/^(sessionid|csrftoken)=/.test(c))
+				.join('; ');
+		} catch {
+			igAnonCookies = '';
+		}
 	}
-	return igCookieJar;
+	const session = instagramCookieHeader(await getInstagramSession());
+	return session || igAnonCookies;
 }
 
-async function fetchIgWebProfileInfo(username: string): Promise<any | null> {
+let lastIgProfileUsedSession = false;
+
+async function fetchIgWebProfileInfo(username: string, retried = false): Promise<any | null> {
 	try {
 		const cookies = await seedInstagramCookies();
+		lastIgProfileUsedSession = /sessionid=/.test(cookies);
 		const url = `https://www.instagram.com/api/v1/users/web_profile_info/?username=${encodeURIComponent(username)}`;
-		const csrf =
-			process.env.INSTAGRAM_CSRF_TOKEN?.trim() ||
-			cookies.match(/csrftoken=([^;]+)/)?.[1] ||
-			'';
+		const csrf = cookies.match(/csrftoken=([^;]+)/)?.[1] || '';
 		const headers: Record<string, string> = {
 			'User-Agent': UA_DESKTOP,
 			'X-IG-App-ID': '936619743392459',
 			Accept: '*/*',
+			'Accept-Language': 'en-US,en;q=0.9,id;q=0.8',
 			Referer: `https://www.instagram.com/${username}/`,
 			'X-Requested-With': 'XMLHttpRequest',
 			'X-ASBD-ID': '359341',
@@ -533,8 +535,22 @@ async function fetchIgWebProfileInfo(username: string): Promise<any | null> {
 		};
 		if (cookies) headers.Cookie = cookies;
 		if (csrf) headers['X-CSRFToken'] = csrf;
-		const text = await fetchText(url, 20000, headers);
-		if (!text || text.length < 20) return null;
+		const controller = new AbortController();
+		const t = setTimeout(() => controller.abort(), 20000);
+		let res: Response;
+		try {
+			res = await fetch(url, { redirect: 'manual', signal: controller.signal, headers });
+		} finally {
+			clearTimeout(t);
+		}
+		if (lastIgProfileUsedSession) absorbInstagramCookies(res);
+		const text = await res.text();
+		const redirectedToLogin = res.status >= 300 && res.status < 400;
+		if (lastIgProfileUsedSession && (redirectedToLogin || looksLikeInstagramLoginRequired(res.status, text))) {
+			invalidateInstagramSession(`web_profile_info HTTP ${res.status}`);
+			return retried ? null : fetchIgWebProfileInfo(username, true);
+		}
+		if (!res.ok || !text || text.length < 20) return null;
 		return JSON.parse(text);
 	} catch {
 		return null;
@@ -1004,8 +1020,34 @@ export async function syncInstagramFeed(
 	const methods: string[] = [];
 	let profileListWorked = false;
 
+	// 0) instagrapi (API mobile, sesi akun dummy dikelola ops/instagram/ig_feed.py)
+	const igLimit = Math.max(12, (config.fetchLimits.post || 0) + (config.fetchLimits.reel || 0));
+	const viaPy = await fetchInstagramViaInstagrapi(username, Math.min(igLimit, 50));
+	if (viaPy.ok && viaPy.items?.length) {
+		for (const m of viaPy.items) {
+			add({
+				code: m.code,
+				kindHint: m.kind,
+				source: 'instagrapi',
+				item: {
+					id: `ig-${m.code}`,
+					platform: 'instagram',
+					kind: m.kind,
+					isCarousel: m.isCarousel,
+					caption: m.caption,
+					title: m.caption,
+					url: `https://www.instagram.com/${m.kind === 'reel' ? 'reel' : 'p'}/${m.code}/`,
+					thumbnailUrl: m.thumbnailUrl || '',
+					publishedAt: m.takenAt || undefined,
+				},
+			});
+		}
+		profileListWorked = true;
+		methods.push(`instagrapi(${viaPy.method})`);
+	}
+
 	// 1) web_profile_info — berhasil bila IP tidak dibatasi atau INSTAGRAM_SESSION_ID (akun dummy) terpasang
-	const profileJson = await fetchIgWebProfileInfo(username);
+	const profileJson = profileListWorked ? null : await fetchIgWebProfileInfo(username);
 	if (profileJson) {
 		const fromApi = itemsFromIgWebProfile(profileJson, username, 50);
 		for (const it of fromApi) {
@@ -1014,7 +1056,7 @@ export async function syncInstagramFeed(
 		}
 		if (fromApi.length) {
 			profileListWorked = true;
-			methods.push(process.env.INSTAGRAM_SESSION_ID ? 'profile-api(session)' : 'profile-api');
+			methods.push(lastIgProfileUsedSession ? 'profile-api(session)' : 'profile-api');
 		}
 	}
 
@@ -1065,7 +1107,11 @@ export async function syncInstagramFeed(
 		let isCarousel = prev?.isCarousel ?? false;
 		let caption = prev?.caption;
 		let remoteThumb = d.item?.thumbnailUrl;
-		if (needsEnrich) {
+		if (needsEnrich && d.source === 'instagrapi' && d.item) {
+			kind = d.item.kind as InstagramKind;
+			isCarousel = !!d.item.isCarousel;
+			caption = d.item.caption || caption;
+		} else if (needsEnrich) {
 			const info = await fetchInstagramEmbed(d.code);
 			if (info) {
 				kind = info.kind;
@@ -1090,7 +1136,7 @@ export async function syncInstagramFeed(
 			thumbnailUrl,
 			caption: caption?.slice(0, 600),
 			title: captionToTitle(caption, prev && !/^(Post|Reel) @/i.test(prev.title) ? prev.title : fallbackTitle),
-			publishedAt: instagramShortcodeToDate(d.code) || d.item?.publishedAt || prev?.publishedAt,
+			publishedAt: d.item?.publishedAt || instagramShortcodeToDate(d.code) || prev?.publishedAt,
 			firstSeenAt: prev?.firstSeenAt || new Date().toISOString(),
 		};
 	});
@@ -1106,7 +1152,7 @@ export async function syncInstagramFeed(
 	const blocked = !profileListWorked;
 	if (!finalItems.length) {
 		throw new Error(
-			'Instagram memblokir daftar post tanpa login. Tambahkan link post/reel manual di dashboard, atau pasang INSTAGRAM_SESSION_ID dari akun dummy di server.',
+			'Instagram memblokir daftar post tanpa login. Tambahkan link post/reel manual di dashboard, atau pasang sesi akun dummy (INSTAGRAM_DUMMY_USERNAME/PASSWORD untuk auto-login, atau INSTAGRAM_SESSION_ID).',
 		);
 	}
 	return {
