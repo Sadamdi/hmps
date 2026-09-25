@@ -1,4 +1,5 @@
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { scrollToSection as smoothScrollToSection } from '@/lib/scroll-to-section';
 import MaintenanceMode from '@/components/maintenance-mode';
 import About from '@/components/public/about';
 import AIChat from '@/components/public/ai-chat';
@@ -282,6 +283,8 @@ export default function Home() {
 		'prodi',
 		'berita',
 		'library',
+		'youtube',
+		'instagram',
 		'toko',
 		'profil-tentangKami',
 		'profil-sejarah',
@@ -304,8 +307,7 @@ export default function Home() {
 		const hash = window.location.hash.slice(1);
 		if (!hash || !validSections.includes(hash)) return;
 		const t = setTimeout(() => {
-			const el = document.getElementById(hash);
-			el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			smoothScrollToSection(hash);
 		}, 350);
 		return () => clearTimeout(t);
 	// eslint-disable-next-line react-hooks/exhaustive-deps
@@ -313,10 +315,7 @@ export default function Home() {
 
 	const scrollToSection = (id: string) => {
 		setActiveSection(id);
-		const element = document.getElementById(id);
-		if (element) {
-			element.scrollIntoView({ behavior: 'smooth' });
-		}
+		smoothScrollToSection(id);
 	};
 
 	useEffect(() => {
@@ -339,6 +338,8 @@ export default function Home() {
 				{ id: 'prodi', navId: 'prodi' },
 				{ id: 'berita', navId: 'berita' },
 				{ id: 'library', navId: 'library' },
+				{ id: 'youtube', navId: 'youtube' },
+				{ id: 'instagram', navId: 'instagram' },
 				{ id: 'toko', navId: 'toko' },
 			];
 			const currentPosition = window.scrollY + 200;

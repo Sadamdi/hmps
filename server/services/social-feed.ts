@@ -1,6 +1,7 @@
 import * as cheerio from 'cheerio';
 import fs from 'fs';
 import path from 'path';
+import sharp from 'sharp';
 import {
 	countByKind,
 	DEFAULT_SOCIAL_FEED_CACHE,
@@ -22,6 +23,7 @@ import {
 	type SocialFeedItem,
 	type SocialFeedLiveState,
 	type SocialFeedLogEntry,
+	type SocialProfile,
 	type SocialPlatform,
 	type YoutubeConfig,
 	type YoutubeKind,
@@ -129,6 +131,28 @@ async function cacheRemoteImage(
 	if (!buf || buf.length < 200) return null;
 	const dest = path.join(dir, filename);
 	fs.writeFileSync(dest, buf);
+	const rel = path.relative(uploadDir, dest).replace(/\\/g, '/');
+	return `/uploads/${rel}`;
+}
+
+/** Unduh gambar lalu simpan sebagai WebP kecil (arsip besar tetap ringan di uploads/). */
+async function cacheRemoteImageWebp(
+	remoteUrl: string,
+	dir: string,
+	basename: string,
+	width = 480,
+): Promise<string | null> {
+	const safe = assertSafeHttpUrl(remoteUrl);
+	if (!safe) return null;
+	ensureDir(dir);
+	const buf = await fetchBuffer(safe.toString());
+	if (!buf || buf.length < 200) return null;
+	const dest = path.join(dir, `${basename}.webp`);
+	try {
+		await sharp(buf).rotate().resize({ width, withoutEnlargement: true }).webp({ quality: 72 }).toFile(dest);
+	} catch {
+		return null;
+	}
 	const rel = path.relative(uploadDir, dest).replace(/\\/g, '/');
 	return `/uploads/${rel}`;
 }
@@ -290,8 +314,25 @@ async function fetchYoutubeViaInnertube(
 	channelId: string,
 	content: SocialFeedConfig['youtube']['content'],
 	maxItems: number,
+	full = false,
 ): Promise<{ pools: { video: SocialFeedItem[]; short: SocialFeedItem[]; live: SocialFeedItem[] } }> {
 	const { Innertube } = await import('youtubei.js');
+	/** Kumpulkan isi tab; saat backfill ikuti continuation sampai habis (maks 80 halaman). */
+	const collect = async (tab: any, take: number): Promise<any[]> => {
+		const list: any[] = Array.isArray(tab?.videos) ? [...tab.videos] : [];
+		let cur = tab;
+		let pages = 0;
+		while (full && cur?.has_continuation && pages < 80) {
+			try {
+				cur = await cur.getContinuation();
+			} catch {
+				break;
+			}
+			list.push(...(Array.isArray(cur?.videos) ? cur.videos : []));
+			pages++;
+		}
+		return full ? list : list.slice(0, take);
+	};
 	const yt = await Innertube.create({ generate_session_locally: true });
 	const channel = await yt.getChannel(channelId);
 	const pools = {
@@ -302,9 +343,8 @@ async function fetchYoutubeViaInnertube(
 	const take = Math.max(maxItems * 4, 12);
 
 	if (content.videos || content.shorts) {
-		const tab = await channel.getVideos();
-		const list = Array.isArray(tab?.videos) ? tab.videos : [];
-		for (const raw of list.slice(0, take) as any[]) {
+		const list = await collect(await channel.getVideos(), take);
+		for (const raw of list) {
 			const badge = raw?.content_image?.overlays
 				?.flatMap((o: any) => o?.badges || [])
 				?.map((b: any) => b?.text)
@@ -323,9 +363,8 @@ async function fetchYoutubeViaInnertube(
 
 	if (content.shorts) {
 		try {
-			const tab = await channel.getShorts();
-			const list = Array.isArray(tab?.videos) ? tab.videos : [];
-			for (const raw of list.slice(0, take) as any[]) {
+			const list = await collect(await channel.getShorts(), take);
+			for (const raw of list) {
 				const item = mapYtLockup(raw, 'short');
 				if (item && !pools.short.some((x) => x.id === item.id)) pools.short.push(item);
 			}
@@ -336,9 +375,8 @@ async function fetchYoutubeViaInnertube(
 
 	if (content.live) {
 		try {
-			const tab = await (channel as any).getLiveStreams();
-			const list = Array.isArray(tab?.videos) ? tab.videos : [];
-			for (const raw of list.slice(0, take) as any[]) {
+			const list = await collect(await (channel as any).getLiveStreams(), take);
+			for (const raw of list) {
 				const item = mapYtLockup(raw, 'live');
 				if (item) pools.live.push(item);
 			}
@@ -670,11 +708,15 @@ export type PlatformSyncOutcome = {
 	newCount: number;
 	blocked?: boolean;
 	warning?: string;
+	profile?: SocialProfile;
+	/** true bila sync ini mengambil seluruh isi akun */
+	backfilled?: boolean;
 };
 
 export async function syncYoutubeFeed(
 	config: YoutubeConfig,
 	previous: SocialFeedItem[] = [],
+	opts: { full?: boolean } = {},
 ): Promise<PlatformSyncOutcome & { live: SocialFeedLiveState['youtube'] }> {
 	const channelUrl = config.profileOrChannelUrl || DEFAULT_SOCIAL_FEED_CONFIG.youtube.profileOrChannelUrl;
 	const handle = extractYoutubeHandle(channelUrl);
@@ -699,7 +741,12 @@ export async function syncYoutubeFeed(
 
 	// 1) InnerTube (youtubei.js) — tab akurat
 	try {
-		const { pools: p } = await fetchYoutubeViaInnertube(channelId, config.content, Math.max(limits.video, limits.short, limits.live));
+		const { pools: p } = await fetchYoutubeViaInnertube(
+			channelId,
+			config.content,
+			Math.max(limits.video, limits.short, limits.live),
+			!!opts.full,
+		);
 		addTo('video', p.video);
 		addTo('short', p.short);
 		addTo('live', p.live);
@@ -747,7 +794,9 @@ export async function syncYoutubeFeed(
 	const prevById = new Map(previous.map((p) => [ytVideoId(p), p]));
 	const candidates = (['video', 'short', 'live'] as YoutubeKind[]).flatMap((k) =>
 		config.content[k === 'video' ? 'videos' : k === 'short' ? 'shorts' : 'live']
-			? pools[k].slice(0, limits[k] + 2)
+			? opts.full
+				? pools[k]
+				: pools[k].slice(0, limits[k] + 2)
 			: [],
 	);
 	let newCount = 0;
@@ -785,11 +834,16 @@ export async function syncYoutubeFeed(
 	});
 	if (enriched.some((e) => e.publishedAt)) methods.push('watch');
 
-	// Batasi per kategori setelah urut terbaru
+	// Arsip tidak dibuang: gabungkan hasil baru dengan item lama yang tidak ikut terambil.
+	// Backfill penuh = daftar lengkap kanal, jadi item lama yang sudah hilang dari kanal dibuang.
+	const freshIds = new Set(enriched.map((it) => ytVideoId(it)));
+	const kept = opts.full
+		? []
+		: previous.filter((p) => !p.isLive && !String(p.id).startsWith('yt-live-') && !freshIds.has(ytVideoId(p)));
 	const byKind: Record<YoutubeKind, SocialFeedItem[]> = { video: [], short: [], live: [] };
-	for (const it of sortSocialItems(enriched)) {
-		const k = (it.kind as YoutubeKind) || 'video';
-		if (byKind[k].length < limits[k]) byKind[k].push(it);
+	for (const it of sortSocialItems([...enriched, ...kept])) {
+		const k = (itemKind(it) as YoutubeKind) || 'video';
+		if (byKind[k]) byKind[k].push(it);
 	}
 
 	// Live sekarang
@@ -827,7 +881,7 @@ export async function syncYoutubeFeed(
 					publishedAt: new Date().toISOString(),
 					firstSeenAt: new Date().toISOString(),
 				};
-				byKind.live = [liveItem, ...byKind.live.filter((x) => ytVideoId(x) !== vid)].slice(0, limits.live);
+				byKind.live = [liveItem, ...byKind.live.filter((x) => ytVideoId(x) !== vid)];
 			}
 		} catch (err) {
 			console.warn('YouTube live check failed:', err);
@@ -842,7 +896,13 @@ export async function syncYoutubeFeed(
 	if (!items.length) {
 		throw new Error('Tidak menemukan konten YouTube sesuai filter (Video / Shorts / Live).');
 	}
-	return { items, live, method: Array.from(new Set(methods)).join('+') || 'none', newCount };
+	return {
+		items,
+		live,
+		method: (Array.from(new Set(methods)).join('+') || 'none') + (opts.full ? '+backfill' : ''),
+		newCount,
+		backfilled: !!opts.full,
+	};
 }
 
 // =====================================================================
@@ -1005,13 +1065,103 @@ export function instagramUsernameFromUrl(url: string): string | null {
 	return extractInstagramUsername(url);
 }
 
+/**
+ * Sumber utama: instagrapi (ops/instagram/ig_feed.py). `full` = ambil seluruh isi akun (backfill),
+ * selain itu hanya N terbaru lalu digabung dengan arsip. Mengembalikan null bila bridge gagal
+ * sehingga rantai fallback lama berjalan.
+ */
+async function syncInstagramViaInstagrapi(
+	config: InstagramConfig,
+	username: string,
+	previous: SocialFeedItem[],
+	full: boolean,
+): Promise<PlatformSyncOutcome | null> {
+	const dailyLimit = Math.min(60, Math.max(12, config.fetchLimits.post + config.fetchLimits.reel));
+	const res = await fetchInstagramViaInstagrapi(username, full ? 0 : dailyLimit);
+	if (!res.ok || !res.items?.length) return null;
+
+	const prevByCode = new Map(previous.map((it) => [it.id.replace(/^ig-/, ''), it]));
+	const freshCodes = new Set(res.items.map((m) => m.code));
+	const manualCodes = new Set(codesFromUrls(config.manualUrls || []).map((m) => m.code));
+	const pinnedCodes = res.items.filter((m) => m.pinned).map((m) => m.code);
+	const now = new Date().toISOString();
+
+	const fresh = await mapLimit(res.items, 6, async (m): Promise<SocialFeedItem | null> => {
+		const prev = prevByCode.get(m.code);
+		let thumbnailUrl = prev?.thumbnailUrl?.startsWith('/uploads/') ? prev.thumbnailUrl : '';
+		if (!thumbnailUrl && m.thumbnailUrl) {
+			thumbnailUrl = (await cacheRemoteImageWebp(m.thumbnailUrl, UPLOADS_IG, m.code)) || '';
+		}
+		if (!thumbnailUrl) return null;
+		const caption = m.caption || prev?.caption;
+		const fallbackTitle = `${m.kind === 'reel' ? 'Reel' : 'Post'} @${username}`;
+		const pinIdx = pinnedCodes.indexOf(m.code);
+		return {
+			id: `ig-${m.code}`,
+			platform: 'instagram',
+			kind: m.kind,
+			isCarousel: m.kind === 'post' ? m.isCarousel : false,
+			url: `https://www.instagram.com/${m.kind === 'reel' ? 'reel' : 'p'}/${m.code}/`,
+			thumbnailUrl,
+			caption: caption?.slice(0, 600),
+			title: captionToTitle(caption, fallbackTitle),
+			publishedAt: m.takenAt || prev?.publishedAt || instagramShortcodeToDate(m.code),
+			firstSeenAt: prev?.firstSeenAt || now,
+			pinned: pinIdx >= 0 || undefined,
+			pinnedRank: pinIdx >= 0 ? pinIdx : undefined,
+		};
+	});
+
+	const merged = fresh.filter((x): x is SocialFeedItem => !!x);
+	for (const [code, prev] of Array.from(prevByCode)) {
+		if (freshCodes.has(code)) continue;
+		// Backfill penuh = daftar lengkap akun: item yang sudah dihapus di IG dibuang, kecuali link manual
+		if (full && !manualCodes.has(code)) continue;
+		const k = itemKind(prev);
+		if (k !== 'post' && k !== 'reel') continue;
+		merged.push({ ...prev, pinned: undefined, pinnedRank: undefined });
+	}
+	const items = sortSocialItems(merged);
+	const newCount = items.filter((it) => !prevByCode.has(it.id.replace(/^ig-/, ''))).length;
+
+	let profile: SocialProfile | undefined;
+	if (res.profile) {
+		const p = res.profile;
+		const avatar = p.profilePicUrl ? await cacheRemoteImageWebp(p.profilePicUrl, UPLOADS_IG, '_avatar', 320) : null;
+		profile = {
+			username: p.username || username,
+			fullName: p.fullName || undefined,
+			biography: p.biography || undefined,
+			avatarUrl: avatar || undefined,
+			followerCount: p.followerCount ?? undefined,
+			followingCount: p.followingCount ?? undefined,
+			mediaCount: p.mediaCount ?? undefined,
+			isVerified: p.isVerified,
+			externalUrl: p.externalUrl || undefined,
+			updatedAt: now,
+		};
+	}
+
+	return {
+		items,
+		method: `instagrapi(${res.method})${full ? '+backfill' : ''}`,
+		newCount,
+		profile,
+		backfilled: full,
+	};
+}
+
 export async function syncInstagramFeed(
 	config: InstagramConfig,
 	previous: SocialFeedItem[] = [],
+	opts: { full?: boolean } = {},
 ): Promise<PlatformSyncOutcome> {
 	const profileUrl = config.profileOrChannelUrl || DEFAULT_SOCIAL_FEED_CONFIG.instagram.profileOrChannelUrl;
 	const username = extractInstagramUsername(profileUrl);
 	if (!username) throw new Error('Username Instagram tidak valid');
+
+	const viaPy = await syncInstagramViaInstagrapi(config, username, previous, !!opts.full);
+	if (viaPy) return viaPy;
 
 	const discovered = new Map<string, IgDiscovered>();
 	const add = (d: IgDiscovered) => {
@@ -1020,34 +1170,8 @@ export async function syncInstagramFeed(
 	const methods: string[] = [];
 	let profileListWorked = false;
 
-	// 0) instagrapi (API mobile, sesi akun dummy dikelola ops/instagram/ig_feed.py)
-	const igLimit = Math.max(12, (config.fetchLimits.post || 0) + (config.fetchLimits.reel || 0));
-	const viaPy = await fetchInstagramViaInstagrapi(username, Math.min(igLimit, 50));
-	if (viaPy.ok && viaPy.items?.length) {
-		for (const m of viaPy.items) {
-			add({
-				code: m.code,
-				kindHint: m.kind,
-				source: 'instagrapi',
-				item: {
-					id: `ig-${m.code}`,
-					platform: 'instagram',
-					kind: m.kind,
-					isCarousel: m.isCarousel,
-					caption: m.caption,
-					title: m.caption,
-					url: `https://www.instagram.com/${m.kind === 'reel' ? 'reel' : 'p'}/${m.code}/`,
-					thumbnailUrl: m.thumbnailUrl || '',
-					publishedAt: m.takenAt || undefined,
-				},
-			});
-		}
-		profileListWorked = true;
-		methods.push(`instagrapi(${viaPy.method})`);
-	}
-
 	// 1) web_profile_info — berhasil bila IP tidak dibatasi atau INSTAGRAM_SESSION_ID (akun dummy) terpasang
-	const profileJson = profileListWorked ? null : await fetchIgWebProfileInfo(username);
+	const profileJson = await fetchIgWebProfileInfo(username);
 	if (profileJson) {
 		const fromApi = itemsFromIgWebProfile(profileJson, username, 50);
 		for (const it of fromApi) {
@@ -1107,11 +1231,7 @@ export async function syncInstagramFeed(
 		let isCarousel = prev?.isCarousel ?? false;
 		let caption = prev?.caption;
 		let remoteThumb = d.item?.thumbnailUrl;
-		if (needsEnrich && d.source === 'instagrapi' && d.item) {
-			kind = d.item.kind as InstagramKind;
-			isCarousel = !!d.item.isCarousel;
-			caption = d.item.caption || caption;
-		} else if (needsEnrich) {
+		if (needsEnrich) {
 			const info = await fetchInstagramEmbed(d.code);
 			if (info) {
 				kind = info.kind;
@@ -1142,12 +1262,8 @@ export async function syncInstagramFeed(
 	});
 
 	const sorted = sortSocialItems(items.filter((x): x is SocialFeedItem => !!x));
-	const byKind: Record<InstagramKind, SocialFeedItem[]> = { post: [], reel: [] };
-	for (const it of sorted) {
-		const k = it.kind as InstagramKind;
-		if (byKind[k] && byKind[k].length < config.fetchLimits[k]) byKind[k].push(it);
-	}
-	const finalItems = sortSocialItems([...byKind.post, ...byKind.reel]);
+	// Arsip tidak dibuang: semua item yang pernah tersimpan dipertahankan
+	const finalItems = sorted.filter((it) => it.kind === 'post' || it.kind === 'reel');
 	newCount = finalItems.filter((it) => !prevByCode.has(it.id.replace(/^ig-/, ''))).length;
 	const blocked = !profileListWorked;
 	if (!finalItems.length) {
@@ -1180,7 +1296,13 @@ export type SocialSyncResult = {
 export async function runSocialFeedSync(
 	configInput?: unknown,
 	previous?: SocialFeedCache | null,
-	options: { platform?: SocialPlatform; trigger?: 'cron' | 'manual'; triggeredBy?: string } = {},
+	options: {
+		platform?: SocialPlatform;
+		trigger?: 'cron' | 'manual';
+		triggeredBy?: string;
+		/** Paksa ambil seluruh isi akun (backfill). Otomatis bila belum pernah backfill. */
+		full?: boolean;
+	} = {},
 ): Promise<SocialSyncResult> {
 	const config = normalizeSocialFeedConfig(configInput);
 	const prev = previous || DEFAULT_SOCIAL_FEED_CACHE;
@@ -1189,6 +1311,8 @@ export async function runSocialFeedSync(
 		instagram: [...(prev.instagram || [])],
 		live: { ...(prev.live || {}) },
 		status: { ...(prev.status || {}) },
+		profiles: { ...(prev.profiles || {}) },
+		backfilledAt: { ...(prev.backfilledAt || {}) },
 		syncedAt: new Date().toISOString(),
 	};
 	const errors: string[] = [];
@@ -1199,10 +1323,13 @@ export async function runSocialFeedSync(
 		const started = Date.now();
 		const startedAt = new Date(started).toISOString();
 		try {
-			const outcome =
+			const full = !!options.full || !prev.backfilledAt?.[platform];
+			const outcome: PlatformSyncOutcome =
 				platform === 'youtube'
-					? await syncYoutubeFeed(config.youtube, prev.youtube || [])
-					: await syncInstagramFeed(config.instagram, prev.instagram || []);
+					? await syncYoutubeFeed(config.youtube, prev.youtube || [], { full })
+					: await syncInstagramFeed(config.instagram, prev.instagram || [], { full });
+			if (outcome.profile) next.profiles![platform] = outcome.profile;
+			if (outcome.backfilled) next.backfilledAt![platform] = startedAt;
 			if (platform === 'youtube') {
 				next.youtube = outcome.items;
 				next.live.youtube = (outcome as any).live;
@@ -1347,11 +1474,15 @@ export function publicSocialFeedPayload(configInput: unknown, cache: SocialFeedC
 				cfg.youtube.enabled && cfg.youtube.showLiveBadge && cfg.youtube.content.live ? cache.live?.youtube : undefined,
 			instagram: undefined,
 		},
+		profiles: {
+			youtube: cfg.youtube.enabled ? cache.profiles?.youtube : undefined,
+			instagram: cfg.instagram.enabled ? cache.profiles?.instagram : undefined,
+		},
 		syncedAt: cache.syncedAt || null,
 	};
 }
 
-/** Daftar paginasi untuk "Lihat semua" (`/media/youtube`, `/media/instagram`). */
+/** Daftar paginasi untuk "Lihat semua" (`/youtube`, `/instagram`). */
 export function publicSocialFeedItems(
 	configInput: unknown,
 	cache: SocialFeedCache,
@@ -1372,6 +1503,7 @@ export function publicSocialFeedItems(
 		profileUrl: platform === 'youtube' ? cfg.youtube.profileOrChannelUrl : cfg.instagram.profileOrChannelUrl,
 		username: platform === 'instagram' ? extractInstagramUsername(cfg.instagram.profileOrChannelUrl) : null,
 		enabled: platform === 'youtube' ? cfg.youtube.enabled : cfg.instagram.enabled,
+		profile: cache.profiles?.[platform] || null,
 		syncedAt: cache.syncedAt || null,
 	};
 }

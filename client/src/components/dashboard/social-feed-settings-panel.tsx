@@ -249,16 +249,26 @@ export default function SocialFeedSettingsPanel() {
 	});
 
 	const [syncing, setSyncing] = useState<SocialPlatform | 'all' | null>(null);
+	const invalidateFeed = () => {
+		queryClient.invalidateQueries({ queryKey: ['/api/social-feed/manage'] });
+		queryClient.invalidateQueries({ queryKey: ['/api/social-feed'] });
+		queryClient.invalidateQueries({ queryKey: ['/api/social-feed/items'] });
+	};
 	const syncMut = useMutation({
-		mutationFn: async (platform: SocialPlatform | 'all') => {
-			setSyncing(platform);
-			const r = await apiRequest('POST', '/api/social-feed/sync', platform === 'all' ? {} : { platform });
+		mutationFn: async (target: SocialPlatform | 'all' | 'full') => {
+			setSyncing(target === 'full' ? 'all' : target);
+			const body = target === 'all' ? {} : target === 'full' ? { full: true } : { platform: target };
+			const r = await apiRequest('POST', '/api/social-feed/sync', body);
 			return r.json();
 		},
 		onSuccess: (json) => {
-			queryClient.invalidateQueries({ queryKey: ['/api/social-feed/manage'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/social-feed'] });
-			queryClient.invalidateQueries({ queryKey: ['/api/social-feed/items'] });
+			invalidateFeed();
+			if (json.data?.backfill) {
+				// Backfill jalan di background: segarkan status beberapa kali
+				for (const ms of [30_000, 90_000, 180_000, 300_000, 480_000]) window.setTimeout(invalidateFeed, ms);
+				toast({ title: 'Mengambil semua isi akun', description: json.message });
+				return;
+			}
 			toast({
 				title: json.success ? 'Fetch selesai' : 'Fetch selesai dengan masalah',
 				description: json.success ? 'Konten media sosial diperbarui.' : json.data?.error || json.message,
@@ -304,16 +314,29 @@ export default function SocialFeedSettingsPanel() {
 	return (
 		<div className="space-y-6">
 			<div className="flex flex-wrap items-center justify-between gap-3">
-				<div>
+				<div className="mr-auto">
 					<h3 className="text-lg font-semibold">Media Sosial</h3>
 					<p className="text-sm text-muted-foreground">
-						Fetch otomatis sekali sehari pukul 02:30 WIB. Terakhir: {formatWib(data.lastSocialFeedSyncAt)}.
+						Fetch otomatis sekali sehari pukul 00:00 WIB. Terakhir: {formatWib(data.lastSocialFeedSyncAt)}.
 					</p>
 				</div>
 				{canSync && (
 					<Button onClick={() => syncMut.mutate('all')} disabled={!!syncing}>
 						{syncing === 'all' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
 						Fetch semua sekarang
+					</Button>
+				)}
+				{canSync && (
+					<Button
+						variant="outline"
+						onClick={() => {
+							if (window.confirm('Ambil ulang SELURUH isi akun YouTube & Instagram? Bisa beberapa menit dan berjalan di background.')) {
+								syncMut.mutate('full');
+							}
+						}}
+						disabled={!!syncing}>
+						<RefreshCw className="mr-2 h-4 w-4" />
+						Ambil ulang semua isi akun
 					</Button>
 				)}
 			</div>
@@ -348,7 +371,7 @@ export default function SocialFeedSettingsPanel() {
 						<CardTitle className="flex items-center gap-2 text-base">
 							<Youtube className="h-4 w-4" /> Pengaturan YouTube
 						</CardTitle>
-						<CardDescription>Jumlah yang disimpan per kategori tiap fetch, dan jumlah tampil di beranda.</CardDescription>
+						<CardDescription>Arsip menyimpan seluruh isi akun (fetch pertama mengambil semua). Angka Cek = jumlah terbaru yang diperiksa tiap fetch harian.</CardDescription>
 					</CardHeader>
 					<CardContent className="space-y-4">
 						<ToggleRow id="yt-enabled" label="Tampilkan di beranda" checked={config.youtube.enabled} disabled={!canEdit} onChange={(v) => setYt({ enabled: v })} />
@@ -362,9 +385,9 @@ export default function SocialFeedSettingsPanel() {
 							<ToggleRow id="yt-l" label="Live" checked={config.youtube.content.live} disabled={!canEdit} onChange={(v) => setYt({ content: { ...config.youtube.content, live: v } })} />
 						</div>
 						<div className="grid grid-cols-3 gap-3">
-							<NumberField id="yt-fv" label="Simpan video" value={config.youtube.fetchLimits.video} min={1} max={30} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, video: n } })} />
-							<NumberField id="yt-fs" label="Simpan shorts" value={config.youtube.fetchLimits.short} min={1} max={30} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, short: n } })} />
-							<NumberField id="yt-fl" label="Simpan live" value={config.youtube.fetchLimits.live} min={1} max={15} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, live: n } })} />
+							<NumberField id="yt-fv" label="Cek video" value={config.youtube.fetchLimits.video} min={1} max={30} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, video: n } })} />
+							<NumberField id="yt-fs" label="Cek shorts" value={config.youtube.fetchLimits.short} min={1} max={30} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, short: n } })} />
+							<NumberField id="yt-fl" label="Cek live" value={config.youtube.fetchLimits.live} min={1} max={15} disabled={!canEdit} onChange={(n) => setYt({ fetchLimits: { ...config.youtube.fetchLimits, live: n } })} />
 						</div>
 						<div className="grid grid-cols-2 gap-3">
 							<NumberField id="yt-home" label="Tampil di beranda" value={config.youtube.homeLimit} min={4} max={16} disabled={!canEdit} onChange={(n) => setYt({ homeLimit: n })} />
@@ -399,8 +422,8 @@ export default function SocialFeedSettingsPanel() {
 							<NumberField id="ig-step" label='Tambahan "Lebih banyak"' value={config.instagram.loadMoreStep} min={3} max={18} disabled={!canEdit} onChange={(n) => setIg({ loadMoreStep: n })} />
 						</div>
 						<div className="grid grid-cols-2 gap-3">
-							<NumberField id="ig-fp" label="Simpan post" value={config.instagram.fetchLimits.post} min={1} max={60} disabled={!canEdit} onChange={(n) => setIg({ fetchLimits: { ...config.instagram.fetchLimits, post: n } })} />
-							<NumberField id="ig-fr" label="Simpan reels" value={config.instagram.fetchLimits.reel} min={1} max={60} disabled={!canEdit} onChange={(n) => setIg({ fetchLimits: { ...config.instagram.fetchLimits, reel: n } })} />
+							<NumberField id="ig-fp" label="Cek post" value={config.instagram.fetchLimits.post} min={1} max={60} disabled={!canEdit} onChange={(n) => setIg({ fetchLimits: { ...config.instagram.fetchLimits, post: n } })} />
+							<NumberField id="ig-fr" label="Cek reels" value={config.instagram.fetchLimits.reel} min={1} max={60} disabled={!canEdit} onChange={(n) => setIg({ fetchLimits: { ...config.instagram.fetchLimits, reel: n } })} />
 						</div>
 
 						<div className="space-y-2">
