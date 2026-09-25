@@ -9,6 +9,18 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.26.0] - 2026-09-25
+
+### Added — Instagram feed via instagrapi
+
+- Sumber utama daftar post/reel Instagram: bridge Python `ops/instagram/ig_feed.py` (instagrapi, akun dummy) dipanggil dari `server/services/instagram-instagrapi.ts`.
+- Sesi akun dummy dari export cookie browser (`.instagram-session.json`, gitignore); state instagrapi disimpan ulang tiap sync (auto refresh cookie) dan login ulang otomatis bila sesi mati.
+- `GET /api/social-feed/manage` menambah `data.instagramSession` (status tanpa nilai cookie).
+
+### Changed
+
+- Jalur web `web_profile_info` jadi fallback, memakai cookie sesi yang sama dan menyerap `set-cookie` baru.
+
 ## [4.25.0] - 2026-09-25
 
 ### Added — Media sosial v2 & tab topik berita dinamis
