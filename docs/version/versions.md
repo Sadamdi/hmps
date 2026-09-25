@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.26.0`  
+**Current version:** `4.27.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.26.0`](./release/4.26.0.md) | 2026-09-25 | Instagram feed via instagrapi + sesi akun dummy auto refresh | MINOR | 1 | **Current** |
+| [`4.27.0`](./release/4.27.0.md) | 2026-09-25 | Media sosial: route /youtube & /instagram, arsip penuh, pinned & badge, profil IG, navbar dinamis, scroll beranda | MINOR | 1 | **Current** |
+| [`4.26.0`](./release/4.26.0.md) | 2026-09-25 | Instagram feed via instagrapi + sesi akun dummy auto refresh | MINOR | 1 | Released |
 | [`4.25.0`](./release/4.25.0.md) | 2026-09-25 | Media sosial v2 (YouTube per kategori, Instagram gaya profil, fetch harian + log) & tab topik berita dinamis | MINOR | 1 | Released |
 | [`4.24.0`](./release/4.24.0.md) | 2026-09-24 | Halaman list Berita, Event, Galeri: identitas "Encoder Archive" | MINOR | 1 | Released |
 | [`4.23.5`](./release/4.23.5.md) | 2026-09-22 | Berita editor: progressive thumbnail upload dengan loading + preview WebP | PATCH | 1 | Released |

@@ -242,12 +242,12 @@ GET    /api/dashboard/content-performance
 ## Social Feed (YouTube / Instagram beranda)
 
 ```text
-GET  /api/social-feed              # public: slice beranda per kategori + counts + live (4.25.0)
-GET  /api/social-feed/items        # public: paginasi ?platform=youtube|instagram&kind=&offset=&limit= (4.25.0)
+GET  /api/social-feed              # public: slice beranda per kategori + counts + live (4.25.0; profiles + pinned 4.27.0)
+GET  /api/social-feed/items        # public: paginasi ?platform=youtube|instagram&kind=&offset=&limit= (4.25.0; profiles + pinned 4.27.0)
 GET  /api/social-feed/manage       # auth + social_feed.view (config, cache, status, logs, jadwal, instagramSession 4.26.0)
 GET  /api/social-feed/manage/logs  # auth + social_feed.view (4.25.0)
 PUT  /api/social-feed/manage       # auth + social_feed.edit (config v2, Zod)
-POST /api/social-feed/sync         # auth + social_feed.sync, body {platform?}, cooldown 60 dtk → 429
+POST /api/social-feed/sync         # auth + social_feed.sync, body {platform?, full?}, cooldown 60 dtk → 429; backfill → 202 (4.27.0)
 ```
 
 ## Upload & Google Drive

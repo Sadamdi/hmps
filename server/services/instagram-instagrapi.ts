@@ -14,17 +14,33 @@ export interface InstagrapiMedia {
 	isCarousel: boolean;
 	thumbnailUrl: string | null;
 	takenAt: string | null;
+	pinned: boolean;
+	rank: number;
+}
+
+export interface InstagrapiProfile {
+	username?: string;
+	fullName?: string;
+	biography?: string;
+	profilePicUrl?: string | null;
+	followerCount?: number;
+	followingCount?: number;
+	mediaCount?: number;
+	isVerified?: boolean;
+	externalUrl?: string | null;
 }
 
 export interface InstagrapiResult {
 	ok: boolean;
 	method?: string;
 	items?: InstagrapiMedia[];
+	profile?: InstagrapiProfile | null;
 	error?: string;
 }
 
 const SCRIPT = path.join(process.cwd(), 'ops', 'instagram', 'ig_feed.py');
-const TIMEOUT_MS = 150_000;
+/** Backfill penuh (ribuan post, jeda antar halaman) bisa lama */
+const TIMEOUT_MS = 20 * 60_000;
 
 export let lastInstagrapiError: string | null = null;
 

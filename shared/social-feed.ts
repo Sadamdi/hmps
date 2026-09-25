@@ -21,7 +21,33 @@ export type SocialFeedItem = {
 	/** Instagram: post berisi beberapa slide */
 	isCarousel?: boolean;
 	caption?: string;
+	/** Instagram: di-pin di profil (tampil paling atas seperti di aplikasi) */
+	pinned?: boolean;
+	/** Urutan pin di profil (0 = paling atas) */
+	pinnedRank?: number;
 };
+
+/** Profil akun/kanal untuk header feed (diambil saat sync, avatar di-cache lokal). */
+export type SocialProfile = {
+	username?: string;
+	fullName?: string;
+	biography?: string;
+	avatarUrl?: string;
+	followerCount?: number;
+	followingCount?: number;
+	/** Jumlah post total di akun (bukan jumlah yang tersimpan) */
+	mediaCount?: number;
+	isVerified?: boolean;
+	externalUrl?: string;
+	updatedAt?: string;
+};
+
+/** Item dianggap "baru" bila terbit dalam N hari terakhir. */
+export const SOCIAL_NEW_DAYS = 7;
+export function isNewSocialItem(it: SocialFeedItem, days = SOCIAL_NEW_DAYS, now = Date.now()): boolean {
+	const t = Date.parse(it.publishedAt || '');
+	return Number.isFinite(t) && now - t <= days * 86_400_000 && t <= now + 86_400_000;
+}
 
 export type YoutubeContentFilters = { videos: boolean; shorts: boolean; live: boolean };
 export type InstagramContentFilters = {
@@ -47,7 +73,7 @@ type PlatformBase = {
 export type YoutubeConfig = PlatformBase & {
 	showFeaturedEmbed: boolean;
 	content: YoutubeContentFilters;
-	/** Jumlah item yang disimpan per kategori saat sync */
+	/** Jumlah item terbaru yang dicek per kategori pada sync harian (arsip lama tidak dibuang) */
 	fetchLimits: Record<YoutubeKind, number>;
 	manualUrls?: string[];
 };
@@ -91,6 +117,9 @@ export type SocialFeedCache = {
 	syncedAt?: string;
 	lastError?: string;
 	status?: Partial<Record<SocialPlatform, SocialPlatformSyncStatus>>;
+	profiles?: Partial<Record<SocialPlatform, SocialProfile>>;
+	/** Waktu backfill penuh terakhir (ambil semua isi akun) per platform */
+	backfilledAt?: Partial<Record<SocialPlatform, string>>;
 };
 
 export type SocialFeedLogEntry = {
@@ -243,10 +272,12 @@ function itemTime(it: SocialFeedItem): number {
 	return Number.isFinite(t) ? t : 0;
 }
 
-/** Terbaru dulu; item live-sekarang selalu di depan. */
+/** Urutan seperti di aplikasi: live-sekarang → pinned (urutan pin) → terbaru. */
 export function sortSocialItems(items: SocialFeedItem[]): SocialFeedItem[] {
 	return [...items].sort((a, b) => {
 		if (!!b.isLive !== !!a.isLive) return b.isLive ? 1 : -1;
+		if (!!b.pinned !== !!a.pinned) return b.pinned ? 1 : -1;
+		if (a.pinned && b.pinned) return (a.pinnedRank ?? 0) - (b.pinnedRank ?? 0);
 		return itemTime(b) - itemTime(a);
 	});
 }

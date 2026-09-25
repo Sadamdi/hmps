@@ -37,10 +37,10 @@ function readLogs(settings: any): SocialFeedLogEntry[] {
 	return Array.isArray(settings?.socialFeedLogs) ? settings.socialFeedLogs : [];
 }
 
-/** Waktu cron harian berikutnya (02:30 WIB = 19:30 UTC). */
+/** Waktu cron harian berikutnya (00:00 WIB = 17:00 UTC). */
 function nextScheduledSync(now = new Date()): string {
 	const next = new Date(now);
-	next.setUTCHours(19, 30, 0, 0);
+	next.setUTCHours(17, 0, 0, 0);
 	if (next.getTime() <= now.getTime()) next.setUTCDate(next.getUTCDate() + 1);
 	return next.toISOString();
 }
@@ -65,7 +65,7 @@ router.get('/', async (req, res) => {
 const itemsQuery = z.object({
 	platform: z.enum(['youtube', 'instagram']),
 	kind: z.string().max(10).optional().default('all'),
-	offset: z.coerce.number().int().min(0).max(1000).optional().default(0),
+	offset: z.coerce.number().int().min(0).max(20000).optional().default(0),
 	limit: z.coerce.number().int().min(1).max(48).optional().default(12),
 });
 
@@ -95,6 +95,7 @@ router.get('/items', async (req, res) => {
 				profileUrl: result.profileUrl,
 				username: result.username,
 				enabled: result.enabled,
+				profile: result.profile,
 				syncedAt: result.syncedAt,
 			},
 		});
@@ -218,7 +219,12 @@ router.put('/manage', authenticate, requirePermission('social_feed.edit'), async
 /** Cegah klik beruntun "Fetch sekarang" (scrape eksternal berat). */
 const lastManualSync = new Map<string, number>();
 const MANUAL_SYNC_COOLDOWN_MS = 60 * 1000;
-const syncBody = z.object({ platform: z.enum(['youtube', 'instagram']).optional() }).passthrough();
+const syncBody = z
+	.object({ platform: z.enum(['youtube', 'instagram']).optional(), full: z.boolean().optional() })
+	.passthrough();
+
+/** Backfill yang sedang berjalan per storage (main / tenant). */
+const backfillRunning = new Set<string>();
 
 router.post('/sync', authenticate, requirePermission('social_feed.sync'), async (req, res) => {
 	const parsed = syncBody.safeParse(req.body || {});
@@ -242,11 +248,47 @@ router.post('/sync', authenticate, requirePermission('social_feed.sync'), async 
 		const config = normalizeSocialFeedConfig(settings.socialFeedConfig);
 		const previous = settings.socialFeedCache || DEFAULT_SOCIAL_FEED_CACHE;
 		const user: any = (req as any).user;
-		const result = await runSocialFeedSync(config, previous, {
-			platform: parsed.data.platform as SocialPlatform | undefined,
-			trigger: 'manual',
-			triggeredBy: user?.name || user?.username || user?.email || undefined,
-		});
+		const platform = parsed.data.platform as SocialPlatform | undefined;
+		const triggeredBy = user?.name || user?.username || user?.email || undefined;
+		const targets: SocialPlatform[] = platform ? [platform] : ['youtube', 'instagram'];
+		const needsBackfill =
+			!!parsed.data.full ||
+			targets.some((p) => config[p].enabled && !previous.backfilledAt?.[p]);
+
+		// Backfill (ambil seluruh isi akun) bisa beberapa menit → jalan di background, hasil lewat log dashboard.
+		if (needsBackfill) {
+			if (backfillRunning.has(key)) {
+				return res.status(409).json({
+					success: false,
+					message: 'Fetch semua isi akun sedang berjalan',
+					error: { code: 'SOCIAL_FEED_BACKFILL_RUNNING' },
+				});
+			}
+			backfillRunning.add(key);
+			void (async () => {
+				try {
+					const result = await runSocialFeedSync(config, previous, {
+						platform,
+						trigger: 'manual',
+						triggeredBy,
+						full: !!parsed.data.full,
+					});
+					const latest = leanSettings(await storage.getSettings());
+					await persistSocialFeedSync(storage, result, latest.socialFeedLogs);
+				} catch (err) {
+					console.error('social feed backfill error:', err);
+				} finally {
+					backfillRunning.delete(key);
+				}
+			})();
+			return res.status(202).json({
+				success: true,
+				message: 'Fetch semua isi akun dimulai di background (beberapa menit). Cek log untuk hasilnya.',
+				data: { backfill: true, platform: platform || null },
+			});
+		}
+
+		const result = await runSocialFeedSync(config, previous, { platform, trigger: 'manual', triggeredBy });
 		const logs = await persistSocialFeedSync(storage, result, settings.socialFeedLogs);
 		res.json({
 			success: result.ok,

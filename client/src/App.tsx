@@ -49,6 +49,9 @@ const EventDetail = lazy(() => import('@/pages/events/[year]/[eventId]'));
 const LibraryPage = lazy(() => import('@/pages/library/index'));
 const YoutubeMediaPage = lazy(() => import('@/pages/media/youtube'));
 const InstagramMediaPage = lazy(() => import('@/pages/media/instagram'));
+const LegacyMediaRedirect = lazy(() =>
+	import('@/pages/media/legacy-redirect').then((m) => ({ default: m.LegacyMediaRedirect })),
+);
 const LibraryDetailPage = lazy(() => import('@/pages/library/detail'));
 const TokoIndexPage = lazy(() => import('@/pages/toko/index'));
 const TokoProductPage = lazy(() => import('@/pages/toko/[slug]'));
@@ -105,6 +108,9 @@ function Router() {
 		'/prodi',
 		'/events',
 		'/library',
+		'/youtube',
+		'/instagram',
+		'/media',
 		'/toko',
 		'/dashboard',
 		'/communities',
@@ -177,8 +183,10 @@ function Router() {
 				<Route path="/events/:year" component={EventsYear} />
 				<Route path="/library/:id" component={LibraryDetailPage} />
 				<Route path="/library" component={LibraryPage} />
-				<Route path="/media/youtube" component={YoutubeMediaPage} />
-				<Route path="/media/instagram" component={InstagramMediaPage} />
+				<Route path="/youtube" component={YoutubeMediaPage} />
+				<Route path="/instagram" component={InstagramMediaPage} />
+				<Route path="/media/youtube">{() => <LegacyMediaRedirect to="/youtube" />}</Route>
+				<Route path="/media/instagram">{() => <LegacyMediaRedirect to="/instagram" />}</Route>
 				<Route path="/toko/cart" component={TokoCartPage} />
 				<Route path="/toko/orders" component={TokoOrdersHistoryPage} />
 				<Route path="/toko/order/:orderNo" component={TokoOrderInvoicePage} />

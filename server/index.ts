@@ -191,6 +191,18 @@ app.get('/sitemap.xml', async (_req, res) => {
 				lastmod: now,
 			},
 			{
+				loc: `${host}/youtube`,
+				changefreq: 'daily',
+				priority: '0.6',
+				lastmod: now,
+			},
+			{
+				loc: `${host}/instagram`,
+				changefreq: 'daily',
+				priority: '0.6',
+				lastmod: now,
+			},
+			{
 				loc: `${host}/toko`,
 				changefreq: 'weekly',
 				priority: '0.7',
@@ -642,11 +654,11 @@ cron.schedule('15 * * * *', async () => {
 	}
 });
 
-// Schedule: social feed YouTube/Instagram — sekali sehari 02:30 WIB untuk situs utama
+// Schedule: social feed YouTube/Instagram — sekali sehari 00:00 WIB untuk situs utama
 // DAN semua komunitas aktif (≤4.24 tenant tidak pernah auto-sync). Tiap storage dicatat di socialFeedLogs.
 let socialFeedCronRunning = false;
 cron.schedule(
-	'30 2 * * *',
+	'0 0 * * *',
 	async () => {
 		if (socialFeedCronRunning) return;
 		socialFeedCronRunning = true;

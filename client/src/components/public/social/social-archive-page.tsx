@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/pagination';
 import { usePublicBrand } from '@/hooks/use-public-brand';
 import { useTenant } from '@/lib/tenant-context';
-import type { SocialFeedItem, SocialPlatform } from '@shared/social-feed';
+import type { SocialFeedItem, SocialPlatform, SocialProfile } from '@shared/social-feed';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { ExternalLink, Instagram, Youtube } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -28,6 +28,7 @@ type ItemsResponse = {
 		profileUrl: string;
 		username: string | null;
 		enabled: boolean;
+		profile?: SocialProfile | null;
 		syncedAt: string | null;
 	};
 };
@@ -109,7 +110,7 @@ export default function SocialArchivePage({ platform }: { platform: SocialPlatfo
 		<div className="min-h-screen flex flex-col bg-background">
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
 			<ArchiveHeader
-				breadcrumb={[{ label: 'Beranda', href: '/' }, { label: 'Media' }, { label: platform === 'youtube' ? 'YouTube' : 'Instagram' }]}
+				breadcrumb={[{ label: 'Beranda', href: '/' }, { label: platform === 'youtube' ? 'YouTube' : 'Instagram' }]}
 				eyebrow={platform === 'youtube' ? 'YouTube' : 'Instagram'}
 				icon={<Icon />}
 				title={title}
@@ -130,7 +131,12 @@ export default function SocialArchivePage({ platform }: { platform: SocialPlatfo
 			<main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-10">
 				{platform === 'instagram' && data?.meta && (
 					<div className="mx-auto mb-6 max-w-3xl rounded-xl border border-border/70 bg-card p-4 sm:p-6">
-						<InstagramProfileHeader username={data.meta.username} profileUrl={data.meta.profileUrl} counts={counts} />
+						<InstagramProfileHeader
+							username={data.meta.username}
+							profileUrl={data.meta.profileUrl}
+							counts={counts}
+							profile={data.meta.profile}
+						/>
 					</div>
 				)}
 
@@ -175,7 +181,7 @@ export default function SocialArchivePage({ platform }: { platform: SocialPlatfo
 								{Array.from({ length: platform === 'youtube' ? 8 : 9 }).map((_, i) => (
 									<div
 										key={i}
-										className={`animate-pulse bg-muted ${platform === 'youtube' ? 'aspect-video rounded-xl' : 'aspect-[4/5]'}`}
+										className={`animate-pulse bg-muted ${platform === 'youtube' ? 'aspect-video rounded-xl' : 'aspect-[3/4]'}`}
 									/>
 								))}
 							</div>
@@ -213,7 +219,7 @@ export default function SocialArchivePage({ platform }: { platform: SocialPlatfo
 				</div>
 			</main>
 			<Footer />
-			<AIChat pageContext={{ path: `/media/${platform}`, permissions: [] }} />
+			<AIChat pageContext={{ path: `/${platform}`, permissions: [] }} />
 		</div>
 	);
 }
