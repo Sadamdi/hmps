@@ -1,6 +1,6 @@
 import { cn } from '@/lib/utils';
-import type { SocialContentKind, SocialFeedItem } from '@shared/social-feed';
-import { Clapperboard, GalleryHorizontalEnd, Play, Radio, Youtube } from 'lucide-react';
+import { isNewSocialItem, type SocialContentKind, type SocialFeedItem } from '@shared/social-feed';
+import { Clapperboard, GalleryHorizontalEnd, Pin, Play, Radio, Youtube } from 'lucide-react';
 
 export const YT_KIND_LABEL: Record<string, string> = { all: 'Semua', video: 'Video', short: 'Shorts', live: 'Live' };
 export const IG_KIND_LABEL: Record<string, string> = { all: 'Semua', post: 'Post', reel: 'Reels' };
@@ -30,6 +30,19 @@ export function extractYoutubeVideoId(url: string): string | null {
 	}
 }
 
+/** Badge kecil di atas thumbnail (Baru / Pinned). */
+export function SocialBadge({ tone, children }: { tone: 'new' | 'pinned'; children: React.ReactNode }) {
+	return (
+		<span
+			className={cn(
+				'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider shadow-sm',
+				tone === 'new' ? 'bg-emerald-500 text-white' : 'bg-black/75 text-white',
+			)}>
+			{children}
+		</span>
+	);
+}
+
 /** Kartu YouTube 16:9 — bahasa kartu sama dengan halaman arsip (border hairline, tanpa shadow tebal). */
 export function YoutubeCard({ item, className }: { item: SocialFeedItem; className?: string }) {
 	const kind = kindOf(item);
@@ -51,14 +64,17 @@ export function YoutubeCard({ item, className }: { item: SocialFeedItem; classNa
 						<Youtube className="h-8 w-8 opacity-50" />
 					</div>
 				)}
-				<span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-white">
-					{item.isLive ? (
-						<>
-							<Radio className="h-3 w-3 text-red-400 motion-safe:animate-pulse" /> Live
-						</>
-					) : (
-						YT_KIND_LABEL[kind] || kind
-					)}
+				<span className="absolute left-2 top-2 flex flex-wrap items-center gap-1">
+					<span className="inline-flex items-center gap-1 rounded-md bg-black/75 px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider text-white">
+						{item.isLive ? (
+							<>
+								<Radio className="h-3 w-3 text-red-400 motion-safe:animate-pulse" /> Live
+							</>
+						) : (
+							YT_KIND_LABEL[kind] || kind
+						)}
+					</span>
+					{!item.isLive && isNewSocialItem(item) && <SocialBadge tone="new">Baru</SocialBadge>}
 				</span>
 				<span className="absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
 					<span className="rounded-full bg-black/60 p-3 text-white">
@@ -82,7 +98,7 @@ export function YoutubeCard({ item, className }: { item: SocialFeedItem; classNa
 
 /**
  * Tile grid ala profil Instagram mobile: rapat, tanpa teks di bawah; ikon carousel/reel di pojok,
- * caption muncul saat hover/fokus (desktop). Post 4:5, reel 9:16 (rasio grid IG saat ini).
+ * caption muncul saat hover/fokus (desktop). Semua tile 3:4 (rasio grid profil IG) agar baris rata saat post & reel bercampur.
  */
 export function InstagramTile({ item }: { item: SocialFeedItem }) {
 	const kind = kindOf(item);
@@ -95,7 +111,7 @@ export function InstagramTile({ item }: { item: SocialFeedItem }) {
 			aria-label={`${isReel ? 'Reel' : 'Post'}: ${item.title}`}
 			className={cn(
 				'group relative block overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary',
-				isReel ? 'aspect-[9/16]' : 'aspect-[4/5]',
+				'aspect-[3/4]',
 			)}>
 			{item.thumbnailUrl ? (
 				<img
@@ -105,6 +121,17 @@ export function InstagramTile({ item }: { item: SocialFeedItem }) {
 					className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
 				/>
 			) : null}
+			{(item.pinned || isNewSocialItem(item)) && (
+				<span className="absolute left-1.5 top-1.5 flex flex-col items-start gap-1">
+					{item.pinned && (
+						<SocialBadge tone="pinned">
+							<Pin className="h-3 w-3" aria-hidden /> <span className="hidden sm:inline">Pinned</span>
+							<span className="sr-only sm:hidden">Pinned</span>
+						</SocialBadge>
+					)}
+					{isNewSocialItem(item) && <SocialBadge tone="new">Baru</SocialBadge>}
+				</span>
+			)}
 			<span className="absolute right-1.5 top-1.5 text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]">
 				{isReel ? (
 					<Clapperboard className="h-4 w-4" />

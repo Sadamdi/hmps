@@ -37,6 +37,9 @@ import {
 	X,
 } from 'lucide-react';
 import { FaInstagram, FaYoutube } from 'react-icons/fa';
+import { useSocialFeed } from '@/components/public/social-feed-sections';
+import { scrollToSection as smoothScrollToSection } from '@/lib/scroll-to-section';
+import { DEFAULT_INSTAGRAM_URL, DEFAULT_YOUTUBE_URL } from '@shared/social-feed';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
@@ -105,6 +108,9 @@ const sectionMap: Record<string, string> = {
 	kelembagaan: 'vision-mission',
 	prodi: 'prodi',
 	berita: 'berita',
+	library: 'library',
+	youtube: 'youtube',
+	instagram: 'instagram',
 };
 
 /** Prefix an internal path with the tenant basePath (e.g. "/gdgoc") when applicable; external / absolute URLs and "/" itself are left untouched so portal/community links stay correct. */
@@ -192,11 +198,9 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 		icon: <FaYoutube className="h-4 w-4" />,
 		homeSection: 'youtube',
 		children: [
-			{ label: 'Kanal di beranda', href: '/#youtube' },
-			{
-				label: 'Buka YouTube',
-				href: 'https://www.youtube.com/@HimatifEncoder',
-			},
+			{ label: 'YouTube', href: '/#youtube' },
+			{ label: 'Lihat semua video', href: '/youtube' },
+			{ label: 'Buka di YouTube', href: DEFAULT_YOUTUBE_URL },
 		],
 	},
 	{
@@ -205,11 +209,9 @@ const baseNavItemsWithoutEvents: NavItem[] = [
 		icon: <FaInstagram className="h-4 w-4" />,
 		homeSection: 'instagram',
 		children: [
-			{ label: 'Feed di beranda', href: '/#instagram' },
-			{
-				label: 'Buka Instagram',
-				href: 'https://www.instagram.com/himatif.encoder/',
-			},
+			{ label: 'Instagram', href: '/#instagram' },
+			{ label: 'Lihat semua post', href: '/instagram' },
+			{ label: 'Buka di Instagram', href: DEFAULT_INSTAGRAM_URL },
 		],
 	},
 	{
@@ -514,6 +516,10 @@ export default function Navbar({
 		return Array.from(months).sort((a, b) => a - b);
 	}, [eventsData]);
 
+	// URL kanal & status aktif YouTube/Instagram mengikuti pengaturan Media Sosial di dashboard (bukan hardcode)
+	const { data: socialFeed } = useSocialFeed();
+	const socialCfg = socialFeed?.config;
+
 	const navCfgArr: HomeNavbarItem[] | undefined = settings?.homeConfig?.navbar;
 	const navGroupsCfg = settings?.homeConfig?.navbarGroups ?? [];
 	const showDashLink = settings?.homeConfig?.showDashboardLink ?? true;
@@ -557,6 +563,20 @@ export default function Navbar({
 				} as NavItem;
 			} else {
 				prefixed = raw;
+			}
+			if (prefixed.id === 'youtube' || prefixed.id === 'instagram') {
+				const platformCfg = socialCfg?.[prefixed.id];
+				// Platform dimatikan di dashboard → item tidak ditampilkan
+				if (platformCfg && !platformCfg.enabled) continue;
+				const external = platformCfg?.profileOrChannelUrl;
+				if (external && prefixed.children) {
+					prefixed = {
+						...prefixed,
+						children: prefixed.children.map((c) =>
+							c.href && /^https?:\/\//i.test(c.href) ? { ...c, href: external } : c,
+						),
+					} as NavItem;
+				}
 			}
 			navItemMap.set(prefixed.id, prefixed);
 		}
@@ -776,6 +796,7 @@ export default function Navbar({
 		hasTrackRecord,
 		hasLambang,
 		storeNavSettings,
+		socialCfg,
 	]);
 
 	const [desktopVisibleNavCount, setDesktopVisibleNavCount] = useState(7);
@@ -1188,8 +1209,7 @@ export default function Navbar({
 		if (targetPath === location && targetHash) {
 			window.history.pushState(null, '', href);
 			setTimeout(() => {
-				const el = document.getElementById(targetHash.slice(1));
-				el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+				smoothScrollToSection(targetHash.slice(1));
 			}, 50);
 			return;
 		}

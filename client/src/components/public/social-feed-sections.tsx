@@ -10,8 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { usePublicBrand } from '@/hooks/use-public-brand';
 import { useQuery } from '@tanstack/react-query';
-import type { SocialFeedItem, SocialFeedLiveState } from '@shared/social-feed';
-import { ArrowRight, Clapperboard, ExternalLink, Grid3x3, Instagram, Youtube } from 'lucide-react';
+import type { SocialFeedItem, SocialFeedLiveState, SocialProfile } from '@shared/social-feed';
+import { ArrowRight, BadgeCheck, Clapperboard, ExternalLink, Grid3x3, Instagram, Youtube } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'wouter';
 
@@ -41,6 +41,7 @@ export type PublicSocialFeed = {
 	instagramByKind?: Record<string, SocialFeedItem[]>;
 	counts?: { youtube: Counts; instagram: Counts };
 	live: SocialFeedLiveState;
+	profiles?: { youtube?: SocialProfile; instagram?: SocialProfile };
 	syncedAt: string | null;
 };
 
@@ -203,7 +204,7 @@ export function YoutubeHomeSection() {
 						<MoreControls
 							canExpand={canExpand}
 							onExpand={() => setExpanded(true)}
-							allHref={tab === 'all' ? '/media/youtube' : `/media/youtube?kind=${tab}`}
+							allHref={tab === 'all' ? '/youtube' : `/youtube?kind=${tab}`}
 							allLabel={`Lihat semua${total ? ` (${total})` : ''}`}
 						/>
 					</>
@@ -217,37 +218,58 @@ export function YoutubeHomeSection() {
 
 type IgTab = 'post' | 'reel';
 
-/** Header profil ala aplikasi Instagram di HP: avatar ber-ring, handle, hitungan, tombol ikuti. */
+const compactNumber = (n?: number) =>
+	typeof n === 'number' ? new Intl.NumberFormat('id-ID', { notation: n >= 10_000 ? 'compact' : 'standard' }).format(n) : null;
+
+/** Header profil ala aplikasi Instagram di HP: avatar asli ber-ring, handle, nama, bio, statistik akun, tombol ikuti. */
 export function InstagramProfileHeader({
 	username,
 	profileUrl,
 	counts,
+	profile,
 }: {
 	username: string | null | undefined;
 	profileUrl: string;
 	counts?: Counts;
+	profile?: SocialProfile | null;
 }) {
 	const { siteName } = usePublicBrand();
+	const handle = profile?.username || username || 'instagram';
+	const stats = [
+		{ label: 'post', value: compactNumber(profile?.mediaCount ?? (counts ? (counts.post ?? 0) + (counts.reel ?? 0) : undefined)) },
+		{ label: 'pengikut', value: compactNumber(profile?.followerCount) },
+		{ label: 'mengikuti', value: compactNumber(profile?.followingCount) },
+	].filter((s) => s.value !== null);
 	return (
-		<div className="flex items-center gap-4 sm:gap-6">
+		<div className="flex items-start gap-4 sm:gap-6">
 			<span className="shrink-0 rounded-full bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 p-[2.5px]">
-				<span className="flex h-16 w-16 items-center justify-center rounded-full bg-background sm:h-20 sm:w-20">
-					<Instagram className="h-7 w-7 text-foreground sm:h-8 sm:w-8" />
+				<span className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-background bg-background sm:h-20 sm:w-20">
+					{profile?.avatarUrl ? (
+						<img src={profile.avatarUrl} alt={`Foto profil @${handle}`} className="h-full w-full object-cover" loading="lazy" />
+					) : (
+						<Instagram className="h-7 w-7 text-foreground sm:h-8 sm:w-8" />
+					)}
 				</span>
 			</span>
 			<div className="min-w-0 flex-1">
-				<p className="truncate text-base font-semibold text-foreground sm:text-lg">@{username || 'instagram'}</p>
-				<p className="truncate text-sm text-muted-foreground">{siteName}</p>
-				<dl className="mt-2 flex gap-5 text-sm">
-					<div className="flex items-baseline gap-1">
-						<dd className="font-mono font-semibold tabular-nums text-foreground">{counts?.post ?? 0}</dd>
-						<dt className="text-muted-foreground">post</dt>
-					</div>
-					<div className="flex items-baseline gap-1">
-						<dd className="font-mono font-semibold tabular-nums text-foreground">{counts?.reel ?? 0}</dd>
-						<dt className="text-muted-foreground">reels</dt>
-					</div>
+				<p className="flex items-center gap-1 truncate text-base font-semibold text-foreground sm:text-lg">
+					@{handle}
+					{profile?.isVerified && <BadgeCheck className="h-4 w-4 shrink-0 text-sky-500" aria-label="Terverifikasi" />}
+				</p>
+				<p className="truncate text-sm text-muted-foreground">{profile?.fullName || siteName}</p>
+				<dl className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+					{stats.map((s) => (
+						<div key={s.label} className="flex items-baseline gap-1">
+							<dd className="font-mono font-semibold tabular-nums text-foreground">{s.value}</dd>
+							<dt className="text-muted-foreground">{s.label}</dt>
+						</div>
+					))}
 				</dl>
+				{profile?.biography && (
+					<p className="mt-2 line-clamp-3 whitespace-pre-line text-xs leading-relaxed text-muted-foreground sm:text-sm">
+						{profile.biography}
+					</p>
+				)}
 			</div>
 			<a
 				href={profileUrl}
@@ -294,7 +316,12 @@ export function InstagramHomeSection() {
 
 				<div className="mx-auto max-w-3xl">
 					<div className="rounded-xl border border-border/70 bg-card p-4 sm:p-6">
-						<InstagramProfileHeader username={cfg.username ?? igUsernameFromUrl(cfg.profileOrChannelUrl)} profileUrl={cfg.profileOrChannelUrl} counts={counts} />
+						<InstagramProfileHeader
+							username={cfg.username ?? igUsernameFromUrl(cfg.profileOrChannelUrl)}
+							profileUrl={cfg.profileOrChannelUrl}
+							counts={counts}
+							profile={data?.profiles?.instagram}
+						/>
 						<a
 							href={cfg.profileOrChannelUrl}
 							target="_blank"
@@ -357,7 +384,7 @@ export function InstagramHomeSection() {
 						<MoreControls
 							canExpand={canExpand}
 							onExpand={() => setExpanded(true)}
-							allHref={`/media/instagram?kind=${effectiveTab}`}
+							allHref={`/instagram?kind=${effectiveTab}`}
 							allLabel={`Lihat semua${counts?.all ? ` (${counts.all})` : ''}`}
 						/>
 					)}

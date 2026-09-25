@@ -19,6 +19,8 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
 	'events',
 	'library',
 	'media',
+	'youtube',
+	'instagram',
 	'toko',
 	'dashboard',
 	'communities',

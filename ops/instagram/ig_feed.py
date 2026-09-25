@@ -16,7 +16,10 @@ Output: satu baris JSON ke stdout. Tidak pernah mencetak cookie/password.
 """
 import json
 import os
+import random
 import sys
+import time
+from datetime import datetime, timezone
 from urllib.parse import unquote
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -56,22 +59,68 @@ def save(cl):
         pass
 
 
-def media_item(m, username):
-    product = (m.product_type or "").lower()
-    kind = "reel" if product in ("clips", "reel", "reels") or m.media_type == 2 else "post"
-    thumb = m.thumbnail_url
-    if not thumb and m.resources:
-        thumb = m.resources[0].thumbnail_url
-    caption = (m.caption_text or "").strip()
+def raw_thumb(x):
+    cands = ((x.get("image_versions2") or {}).get("candidates")) or []
+    if not cands and x.get("carousel_media"):
+        cands = ((x["carousel_media"][0].get("image_versions2") or {}).get("candidates")) or []
+    if not cands:
+        return None
+    # pilih kandidat terkecil yang lebarnya >= 480 agar hemat bandwidth
+    good = sorted([c for c in cands if c.get("width", 0) >= 480], key=lambda c: c.get("width", 0))
+    return (good[0] if good else cands[0]).get("url")
+
+
+def raw_item(x, rank):
+    product = (x.get("product_type") or "").lower()
+    kind = "reel" if product in ("clips", "reel", "reels") or x.get("media_type") == 2 else "post"
+    caption = ((x.get("caption") or {}) or {}).get("text") or ""
+    taken = x.get("taken_at")
     return {
-        "code": m.code,
+        "code": x.get("code"),
         "kind": kind,
-        "caption": caption,
-        "isCarousel": m.media_type == 8,
-        "thumbnailUrl": str(thumb) if thumb else None,
-        "takenAt": m.taken_at.isoformat() if m.taken_at else None,
-        "username": username,
+        "caption": caption.strip(),
+        "isCarousel": x.get("media_type") == 8,
+        "thumbnailUrl": raw_thumb(x),
+        "takenAt": datetime.fromtimestamp(taken, tz=timezone.utc).isoformat() if taken else None,
+        "pinned": bool(x.get("timeline_pinned_user_ids")),
+        "rank": rank,
     }
+
+
+def fetch_feed(cl, uid, limit):
+    """Paginasi feed/user (urutan profil asli, pinned di atas). limit 0 = semua."""
+    items, max_id = [], None
+    while True:
+        params = {"count": 33}
+        if max_id:
+            params["max_id"] = max_id
+        r = cl.private_request(f"feed/user/{uid}/", params=params)
+        for x in r.get("items", []):
+            if x.get("code"):
+                items.append(raw_item(x, len(items)))
+        max_id = r.get("next_max_id")
+        if not r.get("more_available") or not max_id or (limit and len(items) >= limit):
+            break
+        time.sleep(random.uniform(2.0, 4.0))
+    return items[:limit] if limit else items
+
+
+def fetch_profile(cl, uid):
+    try:
+        u = cl.user_info(uid)
+        return {
+            "username": u.username,
+            "fullName": u.full_name,
+            "biography": (u.biography or "")[:400],
+            "profilePicUrl": str(u.profile_pic_url_hd or u.profile_pic_url or "") or None,
+            "followerCount": u.follower_count,
+            "followingCount": u.following_count,
+            "mediaCount": u.media_count,
+            "isVerified": bool(u.is_verified),
+            "externalUrl": str(u.external_url) if u.external_url else None,
+        }
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def main():
@@ -79,7 +128,7 @@ def main():
         out({"ok": False, "error": "usage: ig_feed.py <username> [limit]"})
         return 2
     username = sys.argv[1].strip().lstrip("@")
-    limit = int(sys.argv[2]) if len(sys.argv) > 2 else 24
+    limit = int(sys.argv[2]) if len(sys.argv) > 2 else 24  # 0 = semua
 
     try:
         from instagrapi import Client
@@ -117,7 +166,7 @@ def main():
 
         try:
             uid = cl.user_id_from_username(username)
-            medias = cl.user_medias(uid, limit)
+            items = fetch_feed(cl, uid, limit)
         except (LoginRequired, ClientError):
             # Sesi tersimpan mati → login ulang (device tetap sama) lalu coba sekali lagi
             keep = cl.get_settings()
@@ -125,10 +174,11 @@ def main():
             method = login_fresh() + "(relogin)"
             save(cl)
             uid = cl.user_id_from_username(username)
-            medias = cl.user_medias(uid, limit)
+            items = fetch_feed(cl, uid, limit)
 
+        profile = fetch_profile(cl, uid)
         save(cl)
-        out({"ok": True, "method": method, "items": [media_item(m, username) for m in medias]})
+        out({"ok": True, "method": method, "profile": profile, "items": items})
         return 0
     except ChallengeRequired:
         out({"ok": False, "error": "checkpoint: Instagram minta verifikasi akun dummy, login manual di app lalu export ulang cookie"})

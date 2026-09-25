@@ -9,6 +9,23 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.27.0] - 2026-09-25
+
+### Added — Media sosial: arsip penuh & route top-level
+
+- Route `/youtube` & `/instagram` (main + komunitas); `/media/*` di-redirect.
+- Arsip penuh YouTube/Instagram: backfill pertama (atau tombol "Ambil ulang semua isi akun", `POST /sync {full}` → 202) lalu merge harian tanpa membuang arsip.
+- Urutan asli Instagram (pinned dulu), badge Pinned & Baru (≤7 hari), header profil IG asli (avatar, bio, statistik).
+- Navbar YouTube/Instagram: Di beranda / Lihat semua / Buka di … dari config dashboard, ikut grup merge.
+
+### Changed
+
+- Cron social feed 00:00 WIB; thumbnail IG WebP 480 px; grid IG 3:4 seragam.
+
+### Fixed
+
+- Scroll navbar ke section beranda berhenti di tengah saat konten lazy dimuat; `/#youtube`/`/#instagram` dari halaman lain.
+
 ## [4.26.0] - 2026-09-25
 
 ### Added — Instagram feed via instagrapi

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.26.0",
+    "version": "4.27.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -18030,6 +18030,19 @@
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "202": {
+            "description": "Backfill dimulai di background",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Backfill masih berjalan (SOCIAL_FEED_BACKFILL_RUNNING)"
           }
         },
         "requestBody": {
@@ -18046,7 +18059,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Body `{ platform?: \"youtube\"|\"instagram\", full?: boolean }`. Bila `full` atau platform belum pernah backfill, proses ambil seluruh isi akun berjalan di background dan respons 202 `data.backfill=true`."
       }
     },
     "/api/stats": {
