@@ -284,17 +284,40 @@ function parseDurationBadge(badge?: string): number | null {
 	return null;
 }
 
+const REL_UNIT_MS: Record<string, number> = {
+	second: 1000,
+	minute: 60_000,
+	hour: 3_600_000,
+	day: 86_400_000,
+	week: 7 * 86_400_000,
+	month: 30 * 86_400_000,
+	year: 365 * 86_400_000,
+};
+
+/** "Streamed 6 days ago" / "3 years ago" → ISO perkiraan (dipakai bila tanggal pasti dari watch gagal). */
+export function parseYoutubeRelativeDate(text: string | undefined, now = Date.now()): string | undefined {
+	const m = String(text || '').match(/(\d+)\s+(second|minute|hour|day|week|month|year)s?\s+ago/i);
+	if (!m) return undefined;
+	return new Date(now - Number(m[1]) * REL_UNIT_MS[m[2].toLowerCase()]).toISOString();
+}
+
+function lockupRelativeText(v: any): string | undefined {
+	const rows = v?.metadata?.metadata?.metadata_rows || [];
+	for (const row of rows) {
+		for (const part of row?.metadata_parts || []) {
+			const t = part?.text?.text;
+			if (typeof t === 'string' && /\bago\b/i.test(t)) return t;
+		}
+	}
+	return undefined;
+}
+
 function mapYtLockup(v: any, kind: 'video' | 'short' | 'live'): SocialFeedItem | null {
 	const id = v?.content_id;
 	if (!id) return null;
 	const title = String(v?.metadata?.title?.text || `YouTube ${id}`).replace(/\s+/g, ' ').trim();
 	const thumb =
 		v?.content_image?.image?.[0]?.url || `https://i.ytimg.com/vi/${id}/hqdefault.jpg`;
-	const badge = v?.content_image?.overlays
-		?.flatMap((o: any) => o?.badges || [])
-		?.map((b: any) => b?.text)
-		?.find((t: any) => !!t);
-	const durationSec = parseDurationBadge(badge);
 	const url =
 		kind === 'short'
 			? `https://www.youtube.com/shorts/${id}`
@@ -306,8 +329,8 @@ function mapYtLockup(v: any, kind: 'video' | 'short' | 'live'): SocialFeedItem |
 		url,
 		thumbnailUrl: thumb,
 		kind,
-		...(durationSec != null ? { publishedAt: undefined } : {}),
-	};
+		approxPublishedAt: parseYoutubeRelativeDate(lockupRelativeText(v)),
+	} as SocialFeedItem & { approxPublishedAt?: string };
 }
 
 async function fetchYoutubeViaInnertube(
@@ -800,19 +823,27 @@ export async function syncYoutubeFeed(
 			: [],
 	);
 	let newCount = 0;
+	// Halaman watch dibatasi per sync (YouTube membatasi request massal dari VPS); sisanya pakai perkiraan
+	let watchBudget = 40;
 	const enriched = await mapLimit(candidates, 3, async (it) => {
 		const vid = ytVideoId(it);
 		const prev = prevById.get(vid);
+		const approx = (it as any).approxPublishedAt as string | undefined;
+		delete (it as any).approxPublishedAt;
 		let next: SocialFeedItem = {
 			...it,
 			firstSeenAt: prev?.firstSeenAt || new Date().toISOString(),
 			publishedAt: prev?.publishedAt || it.publishedAt,
+			...(prev?.publishedApprox ? { publishedApprox: true } : {}),
 			thumbnailUrl: prev?.thumbnailUrl?.startsWith('/uploads/') ? prev.thumbnailUrl : it.thumbnailUrl,
 		};
 		if (prev?.title && !PLACEHOLDER_TITLE.test(prev.title) && PLACEHOLDER_TITLE.test(next.title)) next.title = prev.title;
 		if (!prev) (next as any).__new = true;
-		if (!next.publishedAt || PLACEHOLDER_TITLE.test(next.title)) {
+		const needsExact = !next.publishedAt || (next as any).publishedApprox || PLACEHOLDER_TITLE.test(next.title);
+		if (needsExact && watchBudget > 0) {
+			watchBudget--;
 			const meta = await fetchYoutubeWatchMeta(vid);
+			if (meta?.publishedAt) delete (next as any).publishedApprox;
 			if (meta?.publishedAt) next.publishedAt = meta.publishedAt;
 			if (meta?.title && PLACEHOLDER_TITLE.test(next.title)) next.title = meta.title.slice(0, 140);
 			// Koreksi kategori dari metadata resmi (Shorts maks 3 menit)
@@ -821,6 +852,10 @@ export async function syncYoutubeFeed(
 				next.kind = 'video';
 				next.url = `https://www.youtube.com/watch?v=${vid}`;
 			}
+		}
+		if (!next.publishedAt && approx) {
+			next.publishedAt = approx;
+			(next as any).publishedApprox = true;
 		}
 		if (!next.thumbnailUrl.startsWith('/uploads/')) {
 			const local = await cacheRemoteImage(
