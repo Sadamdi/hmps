@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.27.2] - 2026-09-25
+
+### Fixed
+
+- Arsip YouTube: tanggal perkiraan dari teks relatif bila halaman watch gagal di VPS, tanggal pasti diambil bertahap (40/sync), item tanpa tanggal tidak lagi naik ke atas.
+
 ## [4.27.1] - 2026-09-25
 
 ### Fixed

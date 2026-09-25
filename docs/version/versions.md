@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.27.1`  
+**Current version:** `4.27.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.27.1`](./release/4.27.1.md) | 2026-09-25 | Backfill Instagram tahan rate limit | PATCH | 1 | **Current** |
+| [`4.27.2`](./release/4.27.2.md) | 2026-09-25 | Tanggal & urutan arsip YouTube | PATCH | 1 | **Current** |
+| [`4.27.1`](./release/4.27.1.md) | 2026-09-25 | Backfill Instagram tahan rate limit | PATCH | 1 | Released |
 | [`4.27.0`](./release/4.27.0.md) | 2026-09-25 | Media sosial: route /youtube & /instagram, arsip penuh, pinned & badge, profil IG, navbar dinamis, scroll beranda | MINOR | 1 | Released |
 | [`4.26.0`](./release/4.26.0.md) | 2026-09-25 | Instagram feed via instagrapi + sesi akun dummy auto refresh | MINOR | 1 | Released |
 | [`4.25.0`](./release/4.25.0.md) | 2026-09-25 | Media sosial v2 (YouTube per kategori, Instagram gaya profil, fetch harian + log) & tab topik berita dinamis | MINOR | 1 | Released |

@@ -25,6 +25,8 @@ export type SocialFeedItem = {
 	pinned?: boolean;
 	/** Urutan pin di profil (0 = paling atas) */
 	pinnedRank?: number;
+	/** `publishedAt` berupa perkiraan dari teks relatif ("3 years ago"); diganti tanggal pasti bila tersedia */
+	publishedApprox?: boolean;
 };
 
 /** Profil akun/kanal untuk header feed (diambil saat sync, avatar di-cache lokal). */
@@ -267,8 +269,9 @@ export function itemKind(it: SocialFeedItem): SocialContentKind {
 	return /\/reels?\//.test(it.url) ? 'reel' : 'post';
 }
 
+/** Item tanpa tanggal terbit ditaruh paling akhir (bukan memakai waktu pertama terlihat, yang membuat arsip lama naik ke atas). */
 function itemTime(it: SocialFeedItem): number {
-	const t = Date.parse(it.publishedAt || it.firstSeenAt || '');
+	const t = Date.parse(it.publishedAt || '');
 	return Number.isFinite(t) ? t : 0;
 }
 
