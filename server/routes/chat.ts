@@ -30,6 +30,38 @@ function getContextScope(req: Request): string {
 	return 'main';
 }
 
+/**
+ * pageData dikirim browser → data TIDAK tepercaya yang masuk ke prompt AI.
+ * Hanya field yang dipakai server (allowlist), tipe dicek, teks dipendekkan dan dibersihkan
+ * dari baris baru / tanda kurung blok / backtick agar tidak bisa menyisipkan "instruksi".
+ */
+const PAGE_DATA_STRING_KEYS = ['module', 'surface', 'summary', 'parentEventTitle', 'beritaTitle', 'tab', 'settingsTab', 'title', 'excerpt'] as const;
+const PAGE_DATA_BOOL_KEYS = ['requestOnly', 'isNewBerita', 'manageEnabled'] as const;
+function cleanPromptText(value: unknown, max: number): string | undefined {
+	if (typeof value !== 'string') return undefined;
+	const cleaned = value
+		.replace(/[\u0000-\u001f\u007f]+/g, ' ')
+		.replace(/[`<>{}\[\]]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, max);
+	return cleaned || undefined;
+}
+function sanitizePageData(raw: unknown): Record<string, unknown> | undefined {
+	if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+	const src = raw as Record<string, unknown>;
+	const out: Record<string, unknown> = {};
+	for (const k of PAGE_DATA_STRING_KEYS) {
+		const v = cleanPromptText(src[k], k === 'excerpt' || k === 'summary' ? 240 : 120);
+		if (v) out[k] = v;
+	}
+	for (const k of PAGE_DATA_BOOL_KEYS) if (typeof src[k] === 'boolean') out[k] = src[k];
+	if (typeof src.eventsYear === 'number' && Number.isInteger(src.eventsYear) && src.eventsYear > 1990 && src.eventsYear < 2200) {
+		out.eventsYear = src.eventsYear;
+	}
+	return out;
+}
+
 function normalizePathForTenant(pathValue: unknown, tenantSlug?: string): string {
 	const fallback = tenantSlug ? `/${tenantSlug}` : '/';
 	if (typeof pathValue !== 'string' || !pathValue.trim()) return fallback;
@@ -290,6 +322,7 @@ router.post(
 			// Override client-sent permissions with server-verified permissions
 			if (parsedContext && typeof parsedContext === 'object') {
 				parsedContext.permissions = serverPermissions;
+				parsedContext.pageData = sanitizePageData(parsedContext.pageData);
 			} else {
 				parsedContext = undefined;
 			}

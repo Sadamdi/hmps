@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.3] - 2026-09-28
+
+### Fixed
+
+- AI: "buatin berita" tanpa isi → minta judul/isi (tidak list); naskah lanjutan → langsung draft; cabang retry tulis/baca yang tertukar.
+
+### Security
+
+- AI: instruksi sistem sebagai role `system`, `pageData` browser disanitasi, hasil tool diberi label data, aturan keamanan agent. Izin tetap dicek server saat eksekusi tool.
+
 ## [4.29.2] - 2026-09-28
 
 ### Security

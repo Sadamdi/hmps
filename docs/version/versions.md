@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.29.2`  
+**Current version:** `4.29.3`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.29.2`](./release/4.29.2.md) | 2026-09-28 | Hardening login: IP tepercaya, throttle per akun, tanpa password bawaan | PATCH | 1 | **Current** |
+| [`4.29.3`](./release/4.29.3.md) | 2026-09-28 | AI: niat tulis yang benar & pengerasan prompt injection | PATCH | 1 | **Current** |
+| [`4.29.2`](./release/4.29.2.md) | 2026-09-28 | Hardening login: IP tepercaya, throttle per akun, tanpa password bawaan | PATCH | 1 | Released |
 | [`4.29.1`](./release/4.29.1.md) | 2026-09-28 | Reload dashboard tidak lagi terpental ke login | PATCH | 1 | Released |
 | [`4.29.0`](./release/4.29.0.md) | 2026-09-27 | Masuk dengan Google (Firebase Auth) | MINOR | 1 | Released |
 | [`4.28.3`](./release/4.28.3.md) | 2026-09-27 | Deploy: stop clamd selama build (anti-OOM) | PATCH | 1 | Released |
