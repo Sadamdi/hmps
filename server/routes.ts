@@ -110,6 +110,26 @@ import {
 import { VisitorStats } from './models/visitor-stats';
 import { SecurityEvent, logSecurityEvent } from './models/security-event';
 import { LoginAttempt, logLoginAttempt } from './models/login-attempt';
+import {
+	accountLockRemaining,
+	recordAccountLoginFailure,
+	resetAccountLoginFailures,
+} from './middleware/account-login-throttle';
+
+import { randomBytes } from 'node:crypto';
+const COMMON_WEAK_PASSWORDS = new Set([
+	'admin123', 'admin', 'administrator', 'password', 'password123', '12345678', '123456789',
+	'qwerty123', '11111111', 'passw0rd', 'admin1234', 'himatif123', 'encoder123',
+]);
+function isCommonWeakPassword(pw: string): boolean {
+	return COMMON_WEAK_PASSWORDS.has(String(pw || '').trim().toLowerCase());
+}
+/** Password acak 14 karakter (tanpa karakter mirip: 0/O, 1/l/I). */
+function generateStrongPassword(): string {
+	const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+	const bytes = randomBytes(14);
+	return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+}
 
 function envIntRoutes(name: string, fallback: number): number {
 	const v = parseInt(process.env[name] || '', 10);
@@ -1291,6 +1311,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		tenantDbName: string | undefined,
 	) {
 		await storage.updateUser(user._id, { lastLogin: new Date() });
+		if (user.username) resetAccountLoginFailures(String(user.username));
+		if (user.email) resetAccountLoginFailures(String(user.email));
 		const sessionId = await createSessionRecord(
 			req,
 			String(user._id),
@@ -1366,7 +1388,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						success: false,
 						reason,
 					});
+					if (reason === 'invalid_password' || reason === 'not_found') {
+						recordAccountLoginFailure(String(username || ''));
+					}
 				};
+
+				// Throttle per akun: tahan brute force terdistribusi (banyak IP) ke satu username
+				const lockedFor = accountLockRemaining(String(username || ''));
+				if (lockedFor > 0) {
+					void logLoginAttempt({
+						ip: clientIp,
+						email: String(username || ''),
+						success: false,
+						reason: 'locked',
+					});
+					return res.status(429).json({
+						message: 'Terlalu banyak percobaan login untuk akun ini. Coba lagi nanti.',
+						retryAfter: lockedFor,
+						error: { code: 'ACCOUNT_LOGIN_THROTTLED' },
+					});
+				}
 
 				if (!username || !password) {
 					return res
@@ -1928,11 +1969,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	// ══════════════════════════════════════════════════════════════
 
 	function getRequestIp(req: any): string {
-		return (
-			(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-			req.socket?.remoteAddress ||
-			''
-		);
+		return getRealClientIp(req);
 	}
 
 	// --- Forgot password (no auth required) ---
@@ -11056,9 +11093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					email: u.email,
 					userId: u._id?.toString?.() || u._id,
 					requestIp:
-						(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-						req.socket.remoteAddress ||
-						'',
+						getRealClientIp(req),
 				});
 				res.json({ challengeId, message: 'OTP telah dikirim ke email Anda' });
 			} catch (error: any) {
@@ -11269,9 +11304,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					email: user.email,
 					userId: (user._id as any)?.toString?.() || user._id,
 					requestIp:
-						(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-						req.socket.remoteAddress ||
-						'',
+						getRealClientIp(req),
 				});
 				res.json({ challengeId, message: 'OTP telah dikirim ke email Anda' });
 			} catch (error: any) {
@@ -11538,6 +11571,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const communityId = String((community as any)._id);
 
+			// Password akun awal yang DIBUAT server (bila dikosongkan) — ditampilkan sekali ke pendaftar
+			const generatedCredentials: Array<{ username: string; password: string }> = [];
 			// Provision tenant database — rollback community record if this fails
 			try {
 				await mongoStorage.redeemRegistrationCode(
@@ -11639,8 +11674,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					for (const entry of accountEntries) {
 						const uname = (entry.username || '').trim();
 						if (!uname) continue;
-						const pw = (entry.password || '').trim() || 'admin123';
-						const isDefault = !entry.password || !entry.password.trim();
+						// Tidak ada lagi password bawaan (dulu 'admin123' → bisa ditebak siapa pun).
+						// Kosong = password acak kuat; diisi manual = minimal 8 karakter & bukan password umum.
+						const manualPw = (entry.password || '').trim();
+						const isDefault = !manualPw;
+						if (manualPw && (manualPw.length < 8 || isCommonWeakPassword(manualPw))) {
+							console.warn(`Registrasi: password lemah untuk ${uname} diganti password acak`);
+						}
+						const pw =
+							manualPw && manualPw.length >= 8 && !isCommonWeakPassword(manualPw)
+								? manualPw
+								: generateStrongPassword();
+						if (pw !== manualPw) generatedCredentials.push({ username: uname, password: pw });
 						const email =
 							(entry.email || '').trim() ||
 							`${uname.toLowerCase()}@no-email.local`;
@@ -11800,6 +11845,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.status(201).json({
 				message: 'Komunitas berhasil dibuat!',
 				community: { name: communityName, slug, _id: communityId },
+				// Hanya dikirim sekali ke pendaftar; tidak disimpan dalam bentuk plaintext
+				generatedCredentials,
 			});
 		} catch (error: any) {
 			console.error('Error registering community:', error);

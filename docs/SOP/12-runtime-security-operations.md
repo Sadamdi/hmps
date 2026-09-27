@@ -8,7 +8,9 @@ SOP ini berlaku untuk middleware security, rate limit, cache, scheduler, backup/
 
 1. Fail closed for auth, permission, tenant resolver, upload validation, and suspicious traffic.
 2. Do not expose internal middleware rule details to clients.
-3. Respect trusted proxy/network configuration when reading client IP.
+3. Respect trusted proxy/network configuration when reading client IP. **Wajib pakai `getTrustedClientIp` (`server/lib/client-ip.ts`)** — urutan `CF-Connecting-IP` → (hanya bila peer = proxy lokal) hop **paling kanan** `X-Forwarded-For`/`X-Real-IP` → socket. **Dilarang** membaca hop pertama `X-Forwarded-For` langsung: nilainya diisi client dan terbukti (27–28 Sep 2026) bisa mem-bypass rate limit login. Origin produksi hanya bisa diakses lewat Cloudflare Tunnel.
+4. Login dilindungi dua lapis: `loginLimiter` (5/menit per IP tepercaya+device) **dan** throttle per akun `server/middleware/account-login-throttle.ts` (10 gagal / 15 menit per username/email → 429 `ACCOUNT_LOGIN_THROTTLED`, tercatat `reason: locked`). Throttle per akun tidak bisa dimatikan dari settings.
+5. Tidak ada password bawaan untuk akun baru (registrasi komunitas): kosong/lemah → password acak 14 karakter ditampilkan sekali ke pendaftar.
 4. Cache only public-safe data unless explicitly scoped and protected.
 5. Keep service account and API credentials **out of git**. Jangan commit JSON credential di `server/` atau root.
 6. Global input hardening harus tetap mempertahankan flow publik yang sah (feedback, register, dll.).

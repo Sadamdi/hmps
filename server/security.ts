@@ -4,12 +4,12 @@ import helmet from 'helmet';
 import hpp from 'hpp';
 import { z } from 'zod';
 import { isProcessableImage } from './image-processor';
+import { getTrustedClientIp } from './lib/client-ip';
 
 // ==================== RATE LIMITING ====================
 function getClientIp(req: any): string {
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	return forwardedIp || req.ip || req.connection?.remoteAddress || 'unknown';
+	// Jangan pakai hop pertama X-Forwarded-For (bisa dipalsukan → bypass rate limit login)
+	return getTrustedClientIp(req);
 }
 
 function getDeviceId(req: any): string {
@@ -324,10 +324,7 @@ export const securityLogger = (req: any, res: any, next: any) => {
 	}
 
 	const start = Date.now();
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	const ip =
-		forwardedIp || req.ip || req.connection?.remoteAddress || 'unknown';
+	const ip = getTrustedClientIp(req);
 	const userAgent = req.get('User-Agent') || 'Unknown';
 
 	// Log request

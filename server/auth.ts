@@ -4,6 +4,7 @@ import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { Session } from '../db/mongodb';
 import { mongoStorage } from './mongo-storage';
+import { getTrustedClientIp } from './lib/client-ip';
 
 // Define user type for MongoDB
 interface UserWithRole {
@@ -296,10 +297,7 @@ export async function createSessionRecord(req: Request, userId: string, tenantSe
 		else if (/Firefox\//i.test(ua)) browser = 'Firefox';
 		else if (/Edg\//i.test(ua)) browser = 'Edge';
 
-		const ip =
-			(req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-			req.socket.remoteAddress ||
-			'';
+		const ip = getTrustedClientIp(req as any);
 
 		const location = await resolveGeoLocation(ip);
 		const Model = tenantSessionModel || Session;

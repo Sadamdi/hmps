@@ -1,5 +1,6 @@
 import { createRequire } from 'module';
 import type { Request } from 'express';
+import { getTrustedClientIp } from './client-ip';
 
 interface GeoResult {
 	country: string;
@@ -67,12 +68,6 @@ export function lookupGeo(ip: string): GeoResult {
 }
 
 export function getRealClientIp(req: Request): string {
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	if (xfwd) {
-		const first = xfwd.split(',')[0]?.trim();
-		if (first) return first;
-	}
-	if (req.ip) return req.ip;
-	if (req.socket?.remoteAddress) return req.socket.remoteAddress;
-	return '0.0.0.0';
+	const ip = getTrustedClientIp(req);
+	return ip && ip !== 'unknown' ? ip : '0.0.0.0';
 }

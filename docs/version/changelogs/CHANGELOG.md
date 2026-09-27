@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.2] - 2026-09-28
+
+### Security
+
+- Rate limit & log login memakai IP tepercaya (`CF-Connecting-IP`); `X-Forwarded-For` palsu tidak lagi mem-bypass batas percobaan.
+- Throttle per akun: 10 gagal / 15 menit → 429 `ACCOUNT_LOGIN_THROTTLED`.
+- Registrasi komunitas tidak lagi memakai password bawaan `admin123`; password kosong/lemah → acak, ditampilkan sekali.
+
 ## [4.29.1] - 2026-09-28
 
 ### Fixed
