@@ -705,7 +705,7 @@ cron.schedule(
 );
 
 // Lanjutan backfill Instagram (situs utama): Instagram membatasi akun dummy setelah 1–2 halaman,
-// jadi seluruh arsip diambil bertahap — maks 3 halaman per jam selama cursor backfill masih ada.
+// jadi seluruh arsip diambil bertahap — maks 3 halaman per jam sampai backfill tuntas.
 cron.schedule(
 	'17 * * * *',
 	async () => {
@@ -715,7 +715,9 @@ cron.schedule(
 			const { mongoStorage } = await import('./mongo-storage');
 			const settings: any = await mongoStorage.getSettings();
 			const lean = settings && typeof settings.toObject === 'function' ? settings.toObject() : settings;
-			if (!lean?.socialFeedCache?.backfillCursor?.instagram) return;
+			const cache = lean?.socialFeedCache;
+			// Jalan selama backfill IG belum selesai (ada cursor, atau belum pernah tuntas)
+			if (!cache?.backfillCursor?.instagram && cache?.backfilledAt?.instagram) return;
 			const { resolveSocialFeedConfig } = await import('../shared/social-feed');
 			const config = resolveSocialFeedConfig(lean.socialFeedConfig, false);
 			if (!config.instagram.enabled) return;

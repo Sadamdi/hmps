@@ -1,7 +1,7 @@
 # Feature: Media Sosial (YouTube / Instagram) — v2
 
 **Author**: HMPS Project Team  
-**Created**: 2026-07-16 · **Updated**: 2026-09-27 (4.28.1)  
+**Created**: 2026-07-16 · **Updated**: 2026-09-27 (4.28.2)  
 **Status**: Active  
 **Contract Confidence**: Verified from code + uji fetch nyata (2026-09-25)  
 **Category**: 07-media-assets  
@@ -16,7 +16,7 @@ Section YouTube & Instagram di beranda (main dan komunitas) + halaman "Lihat sem
 
 **Arsip penuh (4.27.0):** fetch pertama per platform (`cache.backfilledAt[platform]` kosong) atau tombol **Ambil ulang semua isi akun** mengambil **seluruh** isi akun (IG ±1.200 post, YT seluruh tab via continuation). Fetch harian hanya memeriksa N terbaru (`fetchLimits`, label "Cek …" di dashboard) lalu **menggabung** dengan arsip — item lama tidak dibuang. Backfill penuh membuang item yang sudah dihapus di sumber (kecuali link manual IG) — hanya bila seluruh daftar terambil dalam satu run. Backfill manual berjalan di background (HTTP 202).
 
-**Backfill Instagram bertahap (4.28.1):** akun dummy dibatasi Instagram setelah 1–2 halaman (±12 post/halaman). Posisi terakhir disimpan di `cache.backfillCursor.instagram` (`next_max_id`); cron `17 * * * *` (situs utama) melanjutkan maks 3 halaman per jam sampai cursor habis, lalu `backfilledAt.instagram` diisi. Status pin dipertahankan saat melanjutkan.
+**Backfill Instagram bertahap (4.28.1):** akun dummy dibatasi Instagram setelah 1–2 halaman (±12 post/halaman). Posisi terakhir disimpan di `cache.backfillCursor.instagram` (`next_max_id`); cron `17 * * * *` (situs utama) berjalan selama backfill belum tuntas (cursor ada atau `backfilledAt.instagram` kosong), maks 3 halaman per run, lalu `backfilledAt.instagram` diisi. Status pin dipertahankan saat melanjutkan.
 
 Sumber: `shared/social-feed.ts`, `server/services/social-feed.ts`, `server/routes/social-feed.ts`, `server/division-permissions.ts`, `client/src/components/public/social-feed-sections.tsx`, `client/src/components/public/social/*`, `client/src/pages/media/*`, `client/src/components/dashboard/social-feed-settings-panel.tsx`.
 

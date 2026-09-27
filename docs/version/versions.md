@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.28.1`  
+**Current version:** `4.28.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.28.1`](./release/4.28.1.md) | 2026-09-27 | Backfill Instagram bertahap dengan cursor | PATCH | 1 | **Current** |
+| [`4.28.2`](./release/4.28.2.md) | 2026-09-27 | Backfill Instagram per jam sampai tuntas | PATCH | 1 | **Current** |
+| [`4.28.1`](./release/4.28.1.md) | 2026-09-27 | Backfill Instagram bertahap dengan cursor | PATCH | 1 | Released |
 | [`4.28.0`](./release/4.28.0.md) | 2026-09-27 | ID akun Instagram tersimpan & social feed tenant default nonaktif | MINOR | 1 | Released |
 | [`4.27.2`](./release/4.27.2.md) | 2026-09-25 | Tanggal & urutan arsip YouTube | PATCH | 1 | Released |
 | [`4.27.1`](./release/4.27.1.md) | 2026-09-25 | Backfill Instagram tahan rate limit | PATCH | 1 | Released |
