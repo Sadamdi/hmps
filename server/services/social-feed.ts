@@ -1117,13 +1117,13 @@ async function syncInstagramViaInstagrapi(
 	cursor?: string,
 ): Promise<PlatformSyncOutcome | null> {
 	const dailyLimit = Math.min(60, Math.max(12, config.fetchLimits.post + config.fetchLimits.reel));
-	// Lanjutan backfill: mulai dari cursor, maks 3 halaman per run (hemat rate limit)
+	// Backfill bertahap: maks 3 halaman per run (hemat rate limit); lanjut dari cursor bila ada
 	const resume = full && !!cursor;
 	const res = await fetchInstagramViaInstagrapi(
 		username,
 		full ? 0 : dailyLimit,
 		knownUserId,
-		resume ? { startMaxId: cursor, maxPages: 3 } : {},
+		full ? { startMaxId: resume ? cursor : undefined, maxPages: 3 } : {},
 	);
 	if (!res.ok || !res.items?.length) return null;
 

@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.28.2] - 2026-09-27
+
+### Fixed
+
+- Job lanjutan backfill Instagram jalan selama backfill belum tuntas (tidak menunggu cursor pertama); semua run backfill maks 3 halaman.
+
 ## [4.28.1] - 2026-09-27
 
 ### Fixed
