@@ -9,6 +9,17 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.0] - 2026-09-27
+
+### Added — Masuk dengan Google
+
+- Tombol "Masuk dengan Google" (Firebase Auth) di login utama & komunitas; server memverifikasi ID token Google dan mencocokkan email ke user terdaftar (tanpa membuat akun).
+- Endpoint `POST /api/auth/login/google`, `GET /api/auth/firebase-config`.
+
+### Changed
+
+- Helmet COOP `same-origin-allow-popups` dan CSP untuk popup Google.
+
 ## [4.28.3] - 2026-09-27
 
 ### Fixed

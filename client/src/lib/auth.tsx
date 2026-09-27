@@ -15,6 +15,8 @@ interface AuthContextType {
 	isLoading: boolean;
 	permissions: string[];
 	login: (username: string, password: string, loginTarget?: string) => Promise<void>;
+	/** Login dengan Firebase ID token Google (email harus sudah terdaftar). Melempar error status 409 bila perlu pilih tujuan. */
+	loginWithGoogle: (idToken: string, loginTarget?: string) => Promise<void>;
 	logout: () => Promise<void>;
 	hasPermission: (roles: string[]) => boolean;
 	hasSpecificPermission: (permission: string) => boolean;
@@ -170,6 +172,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 		}
 	};
 
+	const loginWithGoogle = async (idToken: string, loginTarget?: string) => {
+		setIsLoading(true);
+		try {
+			const body: Record<string, string> = { idToken };
+			if (loginTarget) body.loginTarget = loginTarget;
+			const response = await fetch('/api/auth/login/google', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(body),
+				credentials: 'include',
+			});
+			const data = await response.json().catch(() => ({ message: 'Login Google gagal' }));
+			if (response.status === 409 && data.ambiguous) {
+				const error = new Error('LOGIN_AMBIGUOUS');
+				(error as any).status = 409;
+				(error as any).targets = data.targets;
+				throw error;
+			}
+			if (!response.ok) {
+				const error = new Error(data.message || 'Login Google gagal');
+				(error as any).status = response.status;
+				(error as any).retryAfter = data.retryAfter;
+				throw error;
+			}
+			setUser(data);
+			await fetchUserPermissions();
+			toast({
+				title: 'Login Berhasil',
+				description: `Selamat datang kembali, ${data.name || data.username}!`,
+			});
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
 	const logout = async () => {
 		try {
 			await fetch('/api/auth/logout', {
@@ -220,6 +257,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				isLoading,
 				permissions,
 				login,
+				loginWithGoogle,
 				logout,
 				hasPermission,
 				hasSpecificPermission,

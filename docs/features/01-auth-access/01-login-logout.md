@@ -149,4 +149,34 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 - Some handlers build response objects through storage/service return values; inspect service/model before changing contracts.
 - Client-side payload may include transformed fields not visible from backend static scan.
 
+---
 
+## Masuk dengan Google (4.29.0)
+
+| Item | Value |
+|------|-------|
+| UI | Tombol **Masuk dengan Google** di `/login` dan `/:slug/login` (di atas form, pemisah "atau"), gaya standar Google (logo G 4 warna, terang putih/border `#747775`, gelap `#131314`/border `#8E918F`) |
+| Client | `client/src/components/auth/google-sign-in-button.tsx`, `client/src/lib/google-signin.ts` (Firebase SDK di-lazy-load saat klik, popup `select_account`, persistence in-memory, langsung `signOut` Firebase setelah token didapat), `useAuth().loginWithGoogle` (`lib/auth.tsx`, `lib/tenant-auth.tsx`) |
+| Server | `POST /api/auth/login/google` (`server/routes.ts`), verifikasi `server/services/google-login.ts` (jose + JWKS securetoken Google) |
+| Config | `GET /api/auth/firebase-config` → `{ enabled, config: { apiKey, authDomain, projectId, appId } }` dari env server `FIREBASE_API_KEY`, `FIREBASE_AUTH_DOMAIN`, `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` (config publik Web SDK, bukan secret; ganti env cukup restart tanpa build). Tombol tersembunyi bila belum dikonfigurasi. |
+
+Keamanan:
+
+- ID token diverifikasi server: tanda tangan RS256 (JWKS Google), `iss=https://securetoken.google.com/<project>`, `aud=<project>`, `exp`/`iat`, `auth_time` ≤ 10 menit, `firebase.sign_in_provider=google.com`, `email_verified=true`.
+- Pencocokan **hanya email persis** (lowercase) ke user yang sudah ada — **tidak pernah membuat akun baru**. Email tidak terdaftar → 403 `GOOGLE_EMAIL_NOT_REGISTERED` (tercatat di login attempts sebagai `not_found`).
+- Konteks sama dengan login password: halaman komunitas → hanya user komunitas itu; `loginTarget` → konteks itu; auto-detect utama + komunitas aktif → 409 `ambiguous` bila lebih dari satu (UI menyimpan token sementara untuk memilih tujuan).
+- Sesi tetap dari `finalizeLogin` (cookie `authToken` + `sid`, log sukses, retensi sesi) dan rate limit `loginLimiter`/proteksi `/api/auth/login*`.
+- Helmet: COOP `same-origin-allow-popups` (popup Google), CSP `script-src https://apis.google.com`, `frame-src https://*.firebaseapp.com https://accounts.google.com`.
+- Firebase Analytics sengaja tidak dipasang (tidak ada consent banner).
+
+Setup Firebase Console (sekali): Authentication → Sign-in method → Google **Enabled**; Authentication → Settings → **Authorized domains**: `himatif-encoder.com` (+ `localhost` untuk dev).
+
+| Status | Code |
+|--------|------|
+| 200 | user tanpa password + `authScope`, `tenantSlug` |
+| 400 | `VALIDATION_ERROR` |
+| 401 | `GOOGLE_TOKEN_INVALID`, `GOOGLE_TOKEN_STALE`, `GOOGLE_EMAIL_UNVERIFIED`, `GOOGLE_PROVIDER_INVALID` |
+| 403 | `GOOGLE_EMAIL_NOT_REGISTERED` |
+| 409 | `{ ambiguous: true, targets[] }` |
+| 429 | rate limit login |
+| 503 | `GOOGLE_LOGIN_DISABLED` |

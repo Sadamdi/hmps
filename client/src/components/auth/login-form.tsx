@@ -1,3 +1,4 @@
+import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
 import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -13,6 +14,7 @@ import {
 } from '@/components/ui/select';
 import { useErrorHandler } from '@/hooks/use-error-handler';
 import { useAuth } from '@/lib/auth';
+import { fetchFirebaseConfig, getGoogleIdToken, GoogleSignInCancelled } from '@/lib/google-signin';
 import { useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
 import { AlertCircle, Building2, Clock, Eye, EyeOff, Loader2, Lock, User } from 'lucide-react';
@@ -34,7 +36,15 @@ export default function LoginForm() {
 	const [retryAfter, setRetryAfter] = useState<number>(0);
 	const [loginTarget, setLoginTarget] = useState<string>('auto');
 	const [ambiguousTargets, setAmbiguousTargets] = useState<LoginTargetOption[] | null>(null);
-	const { user, login, isLoading } = useAuth();
+	const { user, login, loginWithGoogle, isLoading } = useAuth();
+	// Token Google disimpan sementara hanya untuk memilih tujuan login (409), lalu dibuang
+	const [pendingGoogleToken, setPendingGoogleToken] = useState<string | null>(null);
+	const [googleLoading, setGoogleLoading] = useState(false);
+	const { data: googleEnabled } = useQuery({
+		queryKey: ['firebase-config'],
+		queryFn: async () => !!(await fetchFirebaseConfig()),
+		staleTime: 5 * 60_000,
+	});
 	const { handleError } = useErrorHandler();
 	const [, navigate] = useLocation();
 	const [showPassword, setShowPassword] = useState(false);
@@ -118,6 +128,7 @@ export default function LoginForm() {
 		setError('');
 		setIsRateLimited(false);
 		setAmbiguousTargets(null);
+		setPendingGoogleToken(null);
 
 		try {
 			const target = loginTarget === 'auto' ? undefined : loginTarget;
@@ -139,11 +150,57 @@ export default function LoginForm() {
 		}
 	};
 
+	const handleGoogleLogin = async () => {
+		setError('');
+		setAmbiguousTargets(null);
+		setGoogleLoading(true);
+		try {
+			const idToken = await getGoogleIdToken();
+			const target = !isTenant && loginTarget !== 'auto' ? loginTarget : undefined;
+			try {
+				await loginWithGoogle(idToken, target);
+			} catch (err: any) {
+				if (err?.status === 409 && err?.targets) {
+					setPendingGoogleToken(idToken);
+					setAmbiguousTargets(err.targets);
+					setError('Akun Google ini terdaftar di beberapa konteks. Pilih tujuan login di bawah.');
+					return;
+				}
+				throw err;
+			}
+		} catch (err: any) {
+			if (err instanceof GoogleSignInCancelled) return;
+			if (err?.status === 429) {
+				const retryTime = err?.retryAfter || 60;
+				setIsRateLimited(true);
+				setRetryAfter(retryTime);
+				setError(`Terlalu banyak percobaan login. Silakan tunggu ${retryTime} detik.`);
+				return;
+			}
+			setError(err?.message || 'Login Google gagal');
+		} finally {
+			setGoogleLoading(false);
+		}
+	};
+
 	const handleAmbiguousChoice = async (target: LoginTargetOption) => {
 		setError('');
 		setAmbiguousTargets(null);
+		const slug = target.scope === 'main' ? 'main' : target.slug;
+		if (pendingGoogleToken) {
+			const token = pendingGoogleToken;
+			setPendingGoogleToken(null);
+			setGoogleLoading(true);
+			try {
+				await loginWithGoogle(token, slug);
+			} catch (err: any) {
+				setError(err?.message || 'Login Google gagal');
+			} finally {
+				setGoogleLoading(false);
+			}
+			return;
+		}
 		try {
-			const slug = target.scope === 'main' ? 'main' : target.slug;
 			await login(username, password, slug);
 		} catch (err: any) {
 			if (err?.status === 429) {
@@ -247,7 +304,7 @@ export default function LoginForm() {
 										variant="outline"
 										className="w-full justify-start gap-2 h-auto py-3 text-left"
 										onClick={() => handleAmbiguousChoice(t)}
-										disabled={isLoading}
+										disabled={isLoading || googleLoading}
 									>
 										<Building2 className="h-4 w-4 shrink-0 text-cyan-600" />
 										<div>
@@ -260,6 +317,21 @@ export default function LoginForm() {
 								))}
 							</div>
 						</div>
+					)}
+
+					{googleEnabled && (
+						<>
+							<GoogleSignInButton
+								onClick={handleGoogleLogin}
+								loading={googleLoading}
+								disabled={isLoading || isRateLimited}
+							/>
+							<div className="my-5 flex items-center gap-3" aria-hidden="true">
+								<span className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+								<span className="text-xs uppercase tracking-wider text-slate-500">atau</span>
+								<span className="h-px flex-1 bg-slate-200 dark:bg-white/10" />
+							</div>
+						</>
 					)}
 
 					<form onSubmit={handleSubmit} className="space-y-5">
@@ -400,6 +472,11 @@ export default function LoginForm() {
 						<p className="text-xs text-slate-500 dark:text-slate-500">
 							Hanya untuk pengurus {siteName} yang berwenang
 						</p>
+						{googleEnabled && (
+							<p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
+								Masuk dengan Google hanya untuk email yang sudah terdaftar sebagai pengurus.
+							</p>
+						)}
 					</div>
 				</CardContent>
 			</Card>

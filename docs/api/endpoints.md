@@ -56,6 +56,8 @@ Public SSR  : http://localhost:5000/<route>
 ```text
 GET  /api/auth/login-targets
 POST /api/auth/login
+POST /api/auth/login/google       # public + loginLimiter: Firebase ID token Google → sesi (email terdaftar saja; 4.29.0)
+GET  /api/auth/firebase-config    # public: config publik Firebase Web SDK (enabled?) (4.29.0)
 POST /api/auth/logout
 POST /api/auth/revoke-all-sessions
 GET  /api/auth/me
