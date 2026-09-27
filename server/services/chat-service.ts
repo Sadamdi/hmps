@@ -4,6 +4,7 @@ import path from 'path';
 import {
 	GEMINI_MODEL,
 	GEMINI_MODELS,
+	AI_SECURITY_RULES,
 	GEMINI_PERSONALIZATION,
 	buildPageContextPrompt,
 	initGeminiClient,
@@ -80,6 +81,68 @@ function dedupeTrailingUserMessage(
 }
 
 export class ChatService {
+	// ---------------------------------------------------------------------------
+	// Niat pengguna untuk aksi tulis (menggantikan regex khusus "STATIK 2026" dll.)
+	// ---------------------------------------------------------------------------
+	private static readonly CREATE_VERB_RE =
+		/\b(buat|buatkan|buatin|bikin|bikinkan|bikinin|tulis|tuliskan|tulisin|susun|susunkan|draft|drafkan|drafin|posting|postingkan|unggah|upload)\b/i;
+	private static readonly CONTENT_NOUN_RE =
+		/\b(berita|artikel|news|event|acara|kegiatan|agenda|galeri|dokumentasi|album|draft|draf|konten|post|postingan)\b/i;
+
+	/** Naskah konten utuh: cukup panjang & berbentuk paragraf (bukan pertanyaan singkat). */
+	static hasArticleBody(text: string): boolean {
+		const t = String(text || '').trim();
+		if (t.length < 350) return false;
+		const sentenceEnds = (t.match(/[.!?](\s|$)/g) || []).length;
+		return sentenceEnds >= 3;
+	}
+
+	static wantsCreateContent(text: string): boolean {
+		const t = String(text || '');
+		return this.CREATE_VERB_RE.test(t) && this.CONTENT_NOUN_RE.test(t);
+	}
+
+	/**
+	 * writeWithBody: naskah lengkap ada di pesan ini DAN user minta dibuatkan (di pesan ini atau
+	 * pesan user sebelumnya — mis. "buatin berita" lalu kirim naskah).
+	 * createNoBody: minta dibuatkan tapi belum ada naskah → minta isi, jangan list data.
+	 */
+	static classifyWriteIntent(content: string, previousUserText?: string): { writeWithBody: boolean; createNoBody: boolean } {
+		const body = this.hasArticleBody(content);
+		const asksNow = this.wantsCreateContent(content);
+		const askedBefore = this.wantsCreateContent(previousUserText || '') && !this.hasArticleBody(previousUserText || '');
+		return {
+			writeWithBody: body && (asksNow || askedBefore),
+			createNoBody: asksNow && !body,
+		};
+	}
+
+	private static readonly WRITE_RETRY_INSTRUCTION =
+		'INSTRUKSI SISTEM (bukan pesan user): Pesan user terbaru berisi naskah konten lengkap dan user meminta dibuatkan. Panggil tool tulis yang sesuai SEKARANG (create_berita_draft untuk berita; create_event / create_library_item bila jelas event/galeri) memakai judul dari naskah dan SELURUH isi tanpa dipotong atau diubah faktanya. Jangan panggil tool list/search/get_dashboard_*. Setelah berhasil, jawab 1-3 kalimat: ID draft dan langkah lanjut (thumbnail/publish).';
+	private static readonly WEB_RETRY_INSTRUCTION =
+		'INSTRUKSI SISTEM (bukan pesan user): Jawaban sebelumnya belum memakai tool web. Panggil internet_search lalu fetch_website_content pada hasil paling relevan, kemudian jawab final dengan menyebut URL sumber.';
+	private static readonly READ_RETRY_INSTRUCTION =
+		'INSTRUKSI SISTEM (bukan pesan user): User meminta data spesifik dari database. Panggil tool baca yang relevan (search_berita / search_events / search_library_items / get_organization_structure / get_visi_misi / get_profil_info / get_prodi_info) dengan keyword dari pesan user, lalu jawab ringkas dengan path publik yang bisa diklik. Jangan memberi menu/sapaan.';
+
+	/** Satu keputusan retry untuk jalur OpenAI & Gemini (urutan: tulis → web → baca). */
+	private static pickRetryInstruction(
+		responseText: string,
+		usedToolNames: string[],
+		allowedTools: Record<string, unknown>[],
+		content: string,
+		intent: { writeWithBody: boolean; createNoBody: boolean },
+	): string | null {
+		const names = new Set(allowedTools.map((t) => String((t as any)?.name || '')));
+		const hasCreateTool = ['create_berita_draft', 'create_event', 'create_library_item'].some((n) => names.has(n));
+		const usedWrite = usedToolNames.some((n) => this.isWriteToolName(n));
+		if (intent.writeWithBody && hasCreateTool && !usedWrite) return this.WRITE_RETRY_INSTRUCTION;
+		// Niat membuat konten: jangan pernah dipaksa ke tool baca/web
+		if (intent.writeWithBody || intent.createNoBody) return null;
+		if (this.shouldForceWebToolRetry(responseText, usedToolNames, allowedTools)) return this.WEB_RETRY_INSTRUCTION;
+		if (this.shouldForceReadToolRetry(responseText, usedToolNames, allowedTools, content)) return this.READ_RETRY_INSTRUCTION;
+		return null;
+	}
+
 	private static buildTemporalContextPrompt(): string {
 		const timezone = (process.env.SPYRO_TIMEZONE || process.env.TZ || 'Asia/Jakarta').trim();
 		const now = new Date();
@@ -140,7 +203,7 @@ export class ChatService {
 		await add('library', (n) => n.includes('library'));
 		if (!hints.length) return;
 		history.push({
-			role: 'user',
+			role: 'system',
 			parts: [
 				{
 					text: `PANDUAN GAYA KONTEN HMPS (internal, untuk tool tulis):\n${hints.join('\n\n')}`,
@@ -592,8 +655,12 @@ export class ChatService {
 					tools: geminiTools,
 				});
 
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				let contents: Content[] = history as any;
+				// Gemini contents hanya user/model: instruksi sistem dikirim sebagai 'user' berlabel
+				let contents: Content[] = history.map((h) =>
+					(h.role as string) === 'system'
+						? { role: 'user', parts: (h.parts || []).map((p: any) => ('text' in p ? { text: `[SISTEM] ${p.text}` } : p)) }
+						: h,
+				) as Content[];
 			let responseText = '';
 			const usedToolNames = new Set<string>();
 			const maxIterations = 50;
@@ -724,28 +791,24 @@ export class ChatService {
 		const MAX_HISTORY = 50; // Batasi jumlah history message
 
 		// Selalu tambahkan system prompt di awal, tapi tidak masuk ke history
+		// Instruksi sistem memakai role 'system' (bukan 'user') agar tidak setara dengan pesan user
+		// dan lebih tahan prompt injection. Gemini fallback mengubahnya kembali ke 'user'.
 		const history: Content[] = [
-			{ role: 'user', parts: [{ text: GEMINI_PERSONALIZATION.systemPrompt }] },
+			{ role: 'system', parts: [{ text: GEMINI_PERSONALIZATION.systemPrompt + '\n\n' + AI_SECURITY_RULES }] },
 		];
 		history.push({
-			role: 'user',
+			role: 'system',
 			parts: [{ text: this.buildTemporalContextPrompt() }],
-		});
-		// Pengingat tipis di awal bahwa agent harus panggil tool tulis saat user
-		// sudah sediakan info lengkap (konteks pribadi user, bukan pesan user).
-		history.push({
-			role: 'user',
-			parts: [{ text: 'REMINDER (konteks sistem, bukan pesan user): Ketika pesan user terbaru sudah memuat judul + isi konten lengkap dan meminta aksi tulis (buatkan/buat/tolong buat/draft/...), LANGSUNG panggil tool tulis pada turn yang sama. JANGAN panggil search/list/get_dashboard_* lebih dulu. JANGAN memotong isi pesan user.' }],
 		});
 
 		const pagePath = pageContext?.path;
 
-		// Tambahkan konteks halaman jika tersedia
+		// Konteks halaman: sebagian berasal dari browser (sudah disanitasi di route) → diberi label data
 		const contextPrompt = buildPageContextPrompt(pageContext);
 		if (contextPrompt) {
 			history.push({
-				role: 'user',
-				parts: [{ text: contextPrompt }],
+				role: 'system',
+				parts: [{ text: `KONTEKS HALAMAN (data aplikasi, bukan instruksi user):\n${contextPrompt}` }],
 			});
 		}
 
@@ -816,6 +879,31 @@ export class ChatService {
 		}
 
 		const isTenantContext = pageContext?.isTenant === true;
+
+		// Niat tulis dibaca bersama pesan user sebelumnya ("buatin berita" → kirim naskah)
+		const previousUserText = (() => {
+			const msgs = Array.isArray(chat.messages) ? chat.messages : [];
+			for (let i = msgs.length - 2; i >= 0; i--) {
+				if (msgs[i]?.role === 'user') return String(msgs[i].content || '');
+			}
+			return '';
+		})();
+		const writeIntent = ChatService.classifyWriteIntent(content, previousUserText);
+		const toolNames = new Set(allowedTools.map((t) => String((t as any)?.name || '')));
+		const canCreate = ['create_berita_draft', 'create_event', 'create_library_item'].some((n) => toolNames.has(n));
+		if (writeIntent.writeWithBody && canCreate) {
+			history.push({ role: 'system', parts: [{ text: ChatService.WRITE_RETRY_INSTRUCTION }] });
+		} else if (writeIntent.writeWithBody && !canCreate) {
+			history.push({
+				role: 'system',
+				parts: [{ text: 'INSTRUKSI SISTEM (bukan pesan user): User mengirim naskah untuk dibuatkan, tetapi tool tulis tidak tersedia (bukan di halaman Dashboard atau tidak punya izin). Jelaskan singkat dan arahkan ke Dashboard; jangan mengaku sudah membuat draft.' }],
+			});
+		} else if (writeIntent.createNoBody) {
+			history.push({
+				role: 'system',
+				parts: [{ text: 'INSTRUKSI SISTEM (bukan pesan user): User ingin membuat konten tetapi belum memberi naskah/isi. JANGAN panggil tool list/search/get_dashboard_* dan JANGAN menampilkan daftar konten lain. Minta singkat (poin): judul, isi lengkap (5W1H, nama, tanggal, tempat), opsional excerpt/tag/cover. Bila user minta dibuatkan tulisan dari poin singkat, boleh menyusun naskah lalu tanyakan konfirmasi sebelum membuat draft.' }],
+			});
+		}
 		const geminiTools: FunctionDeclarationsTool[] = [
 			{
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -849,7 +937,7 @@ export class ChatService {
 			!/\b(himatif|encoder|uin|teknik informatika|ti)\b/.test(userTextLower);
 		if (isLikelyOffScope) {
 			history.push({
-				role: 'user',
+				role: 'system',
 				parts: [
 					{
 						text:
@@ -877,162 +965,16 @@ export class ChatService {
 		if (openAiResult.ok && !this.isWeakOpenAiResponse(openAiResult.responseText, openAiResult.usedToolNames)) {
 			responseText = openAiResult.responseText;
 			currentModel = openAiResult.modelName;
-			if (this.shouldForceWebToolRetry(responseText, openAiResult.usedToolNames, allowedTools)) {
-				const retryInstruction =
-					'INSTRUKSI TAMBAHAN WAJIB: Jawaban Anda sebelumnya belum memadai karena belum menggunakan tool web. Sekarang WAJIB panggil internet_search lalu WAJIB panggil fetch_website_content pada hasil yang paling relevan, kemudian berikan jawaban final dengan menyebut sumber URL secara eksplisit.';
+			const retryInstruction = this.pickRetryInstruction(
+				responseText,
+				openAiResult.usedToolNames,
+				allowedTools,
+				content,
+				writeIntent,
+			);
+			if (retryInstruction) {
 				const retryResult = await runOpenAiChat({
-					history: [...history, { role: 'user', parts: [{ text: retryInstruction }] }],
-					tools: allowedTools,
-					executeTool: (name, args) => executeToolCall(
-						name,
-						args,
-						permissions || [],
-						authUserId,
-						pagePath,
-						tenantDbName,
-						isTenantContext
-					),
-					onStep,
-					maxToolIterations: 50,
-				});
-				if (retryResult.ok) {
-					responseText = retryResult.responseText;
-					currentModel = retryResult.modelName;
-				}
-			} else if (
-				// Cek WRITE retry dulu karena intent user sudah jelas (news copy lengkap)
-				(this.shouldForceWriteToolRetry(
-					responseText,
-					openAiResult.usedToolNames,
-					allowedTools
-				) ||
-				this.shouldHardForceWriteTool(
-					responseText,
-					openAiResult.usedToolNames,
-					allowedTools,
-					content
-				))
-			) {
-				// User minta data spesifik dari database publik, tapi model over-explaining
-				// tanpa memanggil tool baca publik. Retry dengan instruksi eksplisit.
-				const retryInstruction =
-					'INSTRUKSI TAMBAHAN WAJIB: User meminta data spesifik dari database publik (mis. cari/list berita, event, organisasi, dll). Pada turn ini WAJIB panggil tool baca publik yang relevan (search_berita / search_events / search_library_items / get_organization_structure / get_visi_misi / get_profil_info / get_prodi_info) PADA TURN INI dengan keyword yang sesuai dari pesan user. Jangan over-explaining/berikan menu/sapaan. Setelah tool berhasil, jawab dengan ringkasan data dan sebut slug/path publik yang siap diklik. JANGAN menulis paragraf niat/promise.';
-				const retryHistory: Content[] = [
-					...history,
-					{ role: 'user', parts: [{ text: retryInstruction }] },
-				];
-				const retryResult = await runOpenAiChat({
-					history: retryHistory,
-					tools: allowedTools,
-					executeTool: (name, args) => executeToolCall(
-						name,
-						args,
-						permissions || [],
-						authUserId,
-						pagePath,
-						tenantDbName,
-						isTenantContext
-					),
-					onStep,
-					maxToolIterations: 50,
-				});
-				if (retryResult.ok) {
-					responseText = retryResult.responseText;
-					currentModel = retryResult.modelName;
-				}
-			} else if (
-				(this.shouldForceWriteToolRetry(
-					responseText,
-					openAiResult.usedToolNames,
-					allowedTools
-				) ||
-				this.shouldHardForceWriteTool(
-					responseText,
-					openAiResult.usedToolNames,
-					allowedTools,
-					content
-				))
-			) {
-				const retryInstruction =
-					'INSTRUKSI TAMBAHAN WAJIB: User meminta pembuatan konten (draft berita/event/galeri). Pada turn ini JANGAN panggil search/list/get_dashboard_*. User sudah menyediakan info lengkap di pesannya. LANGSUNG panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item) PADA TURN INI dengan memakai judul, konten, dan info dari pesan user. JANGAN memotong/mengubah info penting dari user — pertahankan semua paragraf, nama, kutipan, dll. yang sudah diberikan user. Setelah tool tulis berhasil, jawab final 1-3 kalimat menyebut ID dan langkah lanjutan (thumbnail/publish). JANGAN menulis paragraf niat/promise.';
-				const retryHistory: Content[] = [
-					...history,
-					{ role: 'user', parts: [{ text: retryInstruction }] },
-				];
-				const retryResult = await runOpenAiChat({
-					history: retryHistory,
-					tools: allowedTools,
-					executeTool: (name, args) => executeToolCall(
-						name,
-						args,
-						permissions || [],
-						authUserId,
-						pagePath,
-						tenantDbName,
-						isTenantContext
-					),
-					onStep,
-					maxToolIterations: 50,
-				});
-				if (retryResult.ok) {
-					responseText = retryResult.responseText;
-					currentModel = retryResult.modelName;
-				}
-			} else if (
-				// Reorder: cek write retry lagi SEBELUM read retry (second pass)
-				(this.shouldForceWriteToolRetry(
-					responseText,
-					openAiResult.usedToolNames,
-					allowedTools
-				) ||
-				this.shouldHardForceWriteTool(
-					responseText,
-					openAiResult.usedToolNames,
-					allowedTools,
-					content
-				))
-			) {
-				const retryInstruction =
-					'INSTRUKSI TAMBAHAN WAJIB: User meminta pembuatan konten (draft berita/event/galeri). Pada turn ini JANGAN panggil search/list/get_dashboard_*. User sudah menyediakan info lengkap di pesannya. LANGSUNG panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item) PADA TURN INI dengan memakai judul, konten, dan info dari pesan user. JANGAN memotong/mengubah info penting dari user — pertahankan semua paragraf, nama, kutipan, dll. yang sudah diberikan user. Setelah tool tulis berhasil, jawab final 1-3 kalimat menyebut ID dan langkah lanjutan (thumbnail/publish). JANGAN menulis paragraf niat/promise.';
-				const retryHistory: Content[] = [
-					...history,
-					{ role: 'user', parts: [{ text: retryInstruction }] },
-				];
-				const retryResult = await runOpenAiChat({
-					history: retryHistory,
-					tools: allowedTools,
-					executeTool: (name, args) => executeToolCall(
-						name,
-						args,
-						permissions || [],
-						authUserId,
-						pagePath,
-						tenantDbName,
-						isTenantContext
-					),
-					onStep,
-					maxToolIterations: 50,
-				});
-				if (retryResult.ok) {
-					responseText = retryResult.responseText;
-					currentModel = retryResult.modelName;
-				}
-			} else if (
-				this.shouldForceReadToolRetry(
-					responseText,
-					openAiResult.usedToolNames,
-					allowedTools,
-					content
-				)
-			) {
-				const retryInstruction =
-					'INSTRUKSI TAMBAHAN WAJIB: User meminta data spesifik dari database publik (mis. cari/list berita, event, organisasi, dll). Pada turn ini WAJIB panggil tool baca publik yang relevan (search_berita / search_events / search_library_items / get_organization_structure / get_visi_misi / get_profil_info / get_prodi_info) PADA TURN INI dengan keyword yang sesuai dari pesan user. Jangan over-explaining/berikan menu/sapaan. Setelah tool berhasil, jawab dengan ringkasan data dan sebut slug/path publik yang siap diklik. JANGAN menulis paragraf niat/promise.';
-				const retryHistory: Content[] = [
-					...history,
-					{ role: 'user', parts: [{ text: retryInstruction }] },
-				];
-				const retryResult = await runOpenAiChat({
-					history: retryHistory,
+					history: [...history, { role: 'system', parts: [{ text: retryInstruction }] }],
 					tools: allowedTools,
 					executeTool: (name, args) => executeToolCall(
 						name,
@@ -1098,85 +1040,17 @@ export class ChatService {
 					responseText = loopResult.responseText;
 					currentModel = loopResult.modelName;
 
-					if (
-						this.shouldForceWebToolRetry(
-							responseText,
-							loopResult.usedToolNames,
-							allowedTools
-						)
-					) {
-						const retryInstruction =
-							'INSTRUKSI TAMBAHAN WAJIB: Jawaban Anda sebelumnya belum memadai karena belum menggunakan tool web. Sekarang WAJIB panggil internet_search lalu WAJIB panggil fetch_website_content pada hasil yang paling relevan, kemudian berikan jawaban final dengan menyebut sumber URL secara eksplisit.';
-						const retryHistory: Content[] = [
-							...history,
-							{ role: 'user', parts: [{ text: retryInstruction }] },
-						];
+					const retryInstruction = this.pickRetryInstruction(
+						responseText,
+						loopResult.usedToolNames,
+						allowedTools,
+						content,
+						writeIntent,
+					);
+					if (retryInstruction) {
 						const retryResult = await this.runGeminiAgenticLoop(
 							gemini,
-							retryHistory,
-							permissions,
-							authUserId,
-							pagePath,
-							geminiTools,
-							tenantDbName,
-							isTenantContext,
-							onStep
-						);
-						if (retryResult.ok) {
-							responseText = retryResult.responseText;
-							currentModel = retryResult.modelName;
-						}
-					} else if (
-						this.shouldForceReadToolRetry(
-							responseText,
-							loopResult.usedToolNames,
-							allowedTools,
-							content
-						)
-					) {
-						const retryInstruction =
-							'INSTRUKSI TAMBAHAN WAJIB: User meminta data spesifik dari database publik (mis. cari/list berita, event, organisasi, dll). Pada turn ini WAJIB panggil tool baca publik yang relevan (search_berita / search_events / search_library_items / get_organization_structure / get_visi_misi / get_profil_info / get_prodi_info) PADA TURN INI dengan keyword yang sesuai dari pesan user. Jangan over-explaining/berikan menu/sapaan. Setelah tool berhasil, jawab dengan ringkasan data dan sebut slug/path publik yang siap diklik. JANGAN menulis paragraf niat/promise.';
-						const retryHistory: Content[] = [
-							...history,
-							{ role: 'user', parts: [{ text: retryInstruction }] },
-						];
-						const retryResult = await this.runGeminiAgenticLoop(
-							gemini,
-							retryHistory,
-							permissions,
-							authUserId,
-							pagePath,
-							geminiTools,
-							tenantDbName,
-							isTenantContext,
-							onStep
-						);
-						if (retryResult.ok) {
-							responseText = retryResult.responseText;
-							currentModel = retryResult.modelName;
-						}
-					} else if (
-						(this.shouldForceWriteToolRetry(
-							responseText,
-							loopResult.usedToolNames,
-							allowedTools
-						) ||
-						this.shouldHardForceWriteTool(
-							responseText,
-							loopResult.usedToolNames,
-							allowedTools,
-							content
-						))
-					) {
-						const retryInstruction =
-							'INSTRUKSI TAMBAHAN WAJIB: User meminta pembuatan konten (draft berita/event/galeri). Pada turn ini JANGAN panggil search/list/get_dashboard_*. User sudah menyediakan info lengkap di pesannya. LANGSUNG panggil tool tulis yang relevan (create_berita_draft / create_event / create_library_item) PADA TURN INI dengan memakai judul, konten, dan info dari pesan user. JANGAN memotong/mengubah info penting dari user — pertahankan semua paragraf, nama, kutipan, dll. yang sudah diberikan user. Setelah tool tulis berhasil, jawab final 1-3 kalimat menyebut ID dan langkah lanjutan (thumbnail/publish). JANGAN menulis paragraf niat/promise.';
-						const retryHistory: Content[] = [
-							...history,
-							{ role: 'user', parts: [{ text: retryInstruction }] },
-						];
-						const retryResult = await this.runGeminiAgenticLoop(
-							gemini,
-							retryHistory,
+							[...history, { role: 'system', parts: [{ text: retryInstruction }] }],
 							permissions,
 							authUserId,
 							pagePath,
