@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.1] - 2026-09-28
+
+### Fixed
+
+- Reload dashboard kadang terpental ke `/login` lalu login lagi: `authenticate` kini 401 hanya untuk token invalid, gangguan sementara → 503; cek sesi client mencoba ulang.
+
 ## [4.29.0] - 2026-09-27
 
 ### Added — Masuk dengan Google

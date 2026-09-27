@@ -150,7 +150,17 @@ export async function authenticate(
 		(req as any)._authTokenTenant = (decoded as any).tenant || null;
 		next();
 	} catch (error) {
-		return res.status(401).json({ message: 'Invalid or expired token' });
+		// Hanya token rusak/kedaluwarsa = 401 (logout). Gangguan sementara (DB lambat/putus)
+		// dijawab 503 agar client mencoba lagi, bukan menendang pengguna ke halaman login.
+		const name = (error as any)?.name;
+		if (name === 'JsonWebTokenError' || name === 'TokenExpiredError' || name === 'NotBeforeError') {
+			return res.status(401).json({ message: 'Invalid or expired token' });
+		}
+		console.error('authenticate transient error:', (error as Error)?.message);
+		return res.status(503).json({
+			message: 'Layanan autentikasi sementara tidak tersedia, coba lagi',
+			error: { code: 'AUTH_TEMPORARILY_UNAVAILABLE' },
+		});
 	}
 }
 

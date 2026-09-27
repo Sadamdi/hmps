@@ -36,36 +36,52 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 	const apiBase = `/api/c/${slug}`;
 
 	useEffect(() => {
-		const ac = new AbortController();
-		const timer = window.setTimeout(() => ac.abort(), 8000);
+		// Hanya 401/403 = belum login; timeout/jaringan/429/5xx dicoba ulang (lihat lib/auth.tsx).
+		let cancelled = false;
+		const controllers: AbortController[] = [];
+		const sleep = (ms: number) => new Promise((r) => window.setTimeout(r, ms));
 		const fetchCurrentUser = async () => {
-			try {
-				const response = await fetch(`${apiBase}/auth/me`, {
-					credentials: 'include',
-					headers: { 'Cache-Control': 'no-cache' },
-					signal: ac.signal,
-				});
-				if (response.ok) {
-					const userData = await response.json();
-					if (userData.tenantSlug === slug && userData.authScope !== 'main') {
-						setUser({ ...userData, authScope: 'tenant', tenantSlug: slug });
-						await fetchUserPermissions();
-						return;
+			const delays = [0, 800, 2000, 4000];
+			for (let attempt = 0; attempt < delays.length && !cancelled; attempt++) {
+				if (delays[attempt]) await sleep(delays[attempt]);
+				if (cancelled) return;
+				const ac = new AbortController();
+				controllers.push(ac);
+				const timer = window.setTimeout(() => ac.abort(), 10000);
+				try {
+					const response = await fetch(`${apiBase}/auth/me`, {
+						credentials: 'include',
+						headers: { 'Cache-Control': 'no-cache' },
+						signal: ac.signal,
+					});
+					if (response.ok) {
+						const userData = await response.json();
+						if (cancelled) return;
+						if (userData.tenantSlug === slug && userData.authScope !== 'main') {
+							setUser({ ...userData, authScope: 'tenant', tenantSlug: slug });
+							await fetchUserPermissions();
+							return;
+						}
+						break; // sesi milik konteks lain
 					}
+					if (response.status === 401 || response.status === 403) break;
+				} catch {
+					/* timeout / jaringan → coba lagi */
+				} finally {
+					window.clearTimeout(timer);
 				}
-			} catch { /* tenant session absent / timeout */ }
-
+			}
+			if (cancelled) return;
 			setUser(null);
 			setPermissions([]);
 		};
 
 		fetchCurrentUser().finally(() => {
-			window.clearTimeout(timer);
-			setIsLoading(false);
+			if (!cancelled) setIsLoading(false);
 		});
 		return () => {
-			ac.abort();
-			window.clearTimeout(timer);
+			cancelled = true;
+			controllers.forEach((c) => c.abort());
 		};
 	}, [slug]);
 
