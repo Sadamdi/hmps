@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.28.3] - 2026-09-27
+
+### Fixed
+
+- Deploy: `clamav-daemon` (±1GB) ikut di-stop selama install/build dan dinyalakan lagi (tunggu socket siap) sebelum app restart — cegah OOM/server hang di VPS 2GB OpenVZ tanpa swap.
+
 ## [4.28.2] - 2026-09-27
 
 ### Fixed

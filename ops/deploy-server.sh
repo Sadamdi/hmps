@@ -9,6 +9,8 @@
 #   - .deploy-built-head: tandai dist sukses untuk HEAD git
 #   - dist stale → paksa rebuild meski commit sudah sync
 #   - ensure-swap: VPS 2GB tanpa swap → vite OOM → dist lama ter-restore
+#   - 4.28.3: clamav-daemon (±1GB) ikut di-stop saat build, dinyalakan lagi & ditunggu
+#     siap sebelum app restart (ssh/cloudflared/nginx/auto-deploy tidak disentuh)
 #   - build retry 2x + NODE_OPTIONS memory cap
 #   - auto-deploy.js juga deploy jika HEAD != .deploy-built-head
 #
@@ -37,6 +39,12 @@ BACKUP_RETENTION="${HMPS_BACKUP_RETENTION:-3}"
 # App yang di-stop selama install/build (jangan sentuh hmps-auto-deploy)
 PM2_APPS="${HMPS_PM2_APPS:-hmps-app himatif-banner}"
 HEALTH_URL="${HMPS_HEALTH_URL:-http://127.0.0.1:5000/}"
+# Service systemd berat yang ikut di-stop selama build (VPS 2GB, container OpenVZ tidak bisa swap).
+# clamd ±1GB RSS → tanpa di-stop, vite build memicu OOM & server hang (27 Sep 2026).
+# JANGAN masukkan ssh, cloudflared (jalur masuk situs), nginx, pm2-root, atau akses remote.
+STOP_SERVICES="${HMPS_STOP_SERVICES:-clamav-daemon}"
+CLAMD_SOCKET="${CLAMAV_SOCKET:-/var/run/clamav/clamd.ctl}"
+CLAMD_READY_TIMEOUT="${HMPS_CLAMD_READY_TIMEOUT:-180}"
 
 # Path yang tidak boleh hilang isinya (server = sumber media runtime)
 PROTECTED_PATHS=(
@@ -139,7 +147,46 @@ pm2_stop_apps() {
 	fi
 }
 
+SERVICES_STOPPED=""
+
+stop_heavy_services() {
+	command -v systemctl >/dev/null 2>&1 || return 0
+	for svc in $STOP_SERVICES; do
+		if systemctl is-active --quiet "$svc" 2>/dev/null; then
+			systemctl stop "$svc" >/dev/null 2>&1 || true
+			SERVICES_STOPPED="$SERVICES_STOPPED $svc"
+			log "systemctl stop: $svc (hemat RAM saat build)"
+		fi
+	done
+	if command -v free >/dev/null 2>&1; then
+		free -h | sed 's/^/[hmps-deploy] /' || true
+	fi
+}
+
+# Nyalakan lagi service yang tadi di-stop. clamd ditunggu sampai socket siap SEBELUM app
+# di-restart: file-scanner meng-cache status ClamAV saat init, jadi app tidak boleh start duluan.
+start_heavy_services() {
+	[[ -n "${SERVICES_STOPPED// /}" ]] || return 0
+	for svc in $SERVICES_STOPPED; do
+		systemctl start "$svc" >/dev/null 2>&1 && log "systemctl start: $svc" || log "WARNING: gagal start $svc"
+		if [[ "$svc" == clamav-daemon ]]; then
+			local waited=0
+			while [[ ! -S "$CLAMD_SOCKET" ]] && [[ "$waited" -lt "$CLAMD_READY_TIMEOUT" ]]; do
+				sleep 3
+				waited=$((waited + 3))
+			done
+			if [[ -S "$CLAMD_SOCKET" ]]; then
+				log "clamd siap (${waited}s)"
+			else
+				log "WARNING: socket clamd belum siap setelah ${CLAMD_READY_TIMEOUT}s — app tetap di-restart"
+			fi
+		fi
+	done
+	SERVICES_STOPPED=""
+}
+
 pm2_start_apps() {
+	start_heavy_services
 	if ! command -v pm2 >/dev/null 2>&1; then
 		return 1
 	fi
@@ -248,8 +295,9 @@ npm_install_with_dev() {
 cd "$APP_DIR"
 mkdir -p "$BACKUP_DIR"
 
-# Swap mencegah OOM silent kill saat vite build (VPS 2GB sering swap=0)
-if [[ -x "$APP_DIR/ops/ensure-swap.sh" ]]; then
+# Swap mencegah OOM silent kill saat vite build (VPS 2GB sering swap=0).
+# Catatan: server produksi = container OpenVZ → swapon "Operation not permitted"; skrip hanya memberi warning.
+if [[ -f "$APP_DIR/ops/ensure-swap.sh" ]]; then
 	bash "$APP_DIR/ops/ensure-swap.sh" || log "ensure-swap warning (non-fatal)"
 fi
 
@@ -326,6 +374,8 @@ cleanup_start_apps() {
 		log "Install/build gagal — restore dist lama agar tidak 404/502"
 		restore_dist
 	fi
+	# Selalu nyalakan lagi service yang di-stop (clamd), termasuk bila build gagal
+	start_heavy_services
 	if [[ "$APPS_STOPPED" -eq 1 ]] || ! wait_healthy; then
 		if pm2_start_apps; then
 			:
@@ -357,6 +407,7 @@ cleanup_start_apps() {
 trap cleanup_start_apps EXIT
 
 pm2_stop_apps
+stop_heavy_services
 APPS_STOPPED=1
 
 npm_install_with_dev

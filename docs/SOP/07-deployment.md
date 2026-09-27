@@ -23,7 +23,7 @@ Alur aman (auto + manual):
 1. **Media baru di server** → `ops/auto-push-media.sh` commit+push (author Adam).
 2. **Code baru di GitHub** → `git fetch` + `reset --hard origin/main` + restore media/`.env`.
 3. **Hanya docs/skills/ops** → jangan stop app, jangan npm/build.
-4. **Runtime baru** (`client/` `server/` `shared/` `db/` `public/` / lockfile) → backup `dist` → stop app → `npm install --include=dev` → build → restart + healthcheck `:5000`. Jika build/health gagal → restore `dist` lama (hindari 404/502).
+4. **Runtime baru** (`client/` `server/` `shared/` `db/` `public/` / lockfile) → backup `dist` → stop app (`hmps-app`, `himatif-banner`) **+ stop `clamav-daemon`** → `npm install --include=dev` → build → start `clamav-daemon` & tunggu socket `/var/run/clamav/clamd.ctl` siap (maks 180s) → restart app + healthcheck `:5000`. Jika build/health gagal → restore `dist` lama (hindari 404/502); clamd tetap dinyalakan lagi. **Tidak pernah di-stop:** `ssh`, `cloudflared` (jalur masuk situs), `nginx`, `pm2-root`, `hmps-auto-deploy`, akses remote. Selama build situs memang 502 (~3–4 menit) — kelompokkan perubahan runtime dalam satu push.
 
 | Jalur | Path | Perilaku |
 |-------|------|----------|
@@ -31,7 +31,7 @@ Alur aman (auto + manual):
 | Auto watcher | PM2 `hmps-auto-deploy` → `/root/auto-deploy.js` | Tiap ~30s: langkah 1 lalu deploy jika `origin/main` lebih baru **atau** dist stale (`.deploy-built-head` ≠ HEAD) |
 | Reboot | systemd `pm2-root.service` + `pm2 save` | Resurrect `hmps-app`, `himatif-banner`, `hmps-auto-deploy` |
 
-VPS ~2 GB RAM: jalankan `bash ops/ensure-swap.sh` sekali (swap 2GB). Build retry 2x + `NODE_OPTIONS=--max-old-space-size=1280`. Jangan `npm ci` sambil app masih jalan.
+VPS ~2 GB RAM, **container OpenVZ**: `swapon` ditolak (`Operation not permitted`) walau `/swapfile` 2GB ada — swap hanya bisa lewat panel/provider VPS. `ops/ensure-swap.sh` tetap dipanggil tiap deploy (hanya warning). Karena itu `clamd` (±1GB) di-stop saat build (`HMPS_STOP_SERVICES`, default `clamav-daemon`). Build retry 2x + `NODE_OPTIONS=--max-old-space-size=1280`. Jangan `npm ci` sambil app masih jalan.
 
 **Dist stale (4.16.4+):** bila build gagal, trap restore dist lama → site tetap jalan tapi bundle lama. Auto-deploy **retry tiap 30s** sampai `.deploy-built-head` = HEAD. Update watcher: `bash ops/install-auto-deploy.sh` (salin `ops/auto-deploy.js` → `/root/auto-deploy.js`).
 
