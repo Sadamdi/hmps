@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
 import { getMiddlewareSettings } from '../models/middleware-settings';
+import { getTrustedClientIp } from '../lib/client-ip';
 
 // ==================== SETTINGS CACHE ====================
 let settingsCache: any = null;
@@ -33,9 +34,7 @@ async function isRateLimitEnabled(): Promise<boolean> {
 
 // ==================== HELPERS ====================
 export function getClientIp(req: Request): string {
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	return forwardedIp || req.ip || (req.connection as any)?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+	return getTrustedClientIp(req);
 }
 
 /** Device fingerprint WITHOUT IP — IP rotation must not reset device bucket. */

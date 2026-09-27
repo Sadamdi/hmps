@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { getMiddlewareSettings } from '../models/middleware-settings';
+import { getTrustedClientIp } from '../lib/client-ip';
 
 // Cache for middleware settings
 let sqlMiddlewareSettingsCache: any = null;
@@ -255,13 +256,7 @@ export const sqlInjectionProtectionMiddleware = async (
 			return next();
 		}
 
-		const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-		const forwardedIp = xfwd.split(',')[0]?.trim();
-		const clientIP =
-			forwardedIp ||
-			(req as any).ip ||
-			(req as any).connection?.remoteAddress ||
-			'unknown';
+		const clientIP = getTrustedClientIp(req as any);
 		let isInjectionDetected = false;
 		let injectionType = '';
 		let detectedPattern = '';
@@ -557,13 +552,7 @@ export const noSqlInjectionProtectionMiddleware = async (
 			return next();
 		}
 
-		const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-		const forwardedIp = xfwd.split(',')[0]?.trim();
-		const clientIP =
-			forwardedIp ||
-			(req as any).ip ||
-			(req as any).connection?.remoteAddress ||
-			'unknown';
+		const clientIP = getTrustedClientIp(req as any);
 		let isInjectionDetected = false;
 		let detectedPattern = '';
 

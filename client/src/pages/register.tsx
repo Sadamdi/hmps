@@ -287,6 +287,7 @@ export default function RegisterPage() {
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [showPassword, setShowPassword] = useState(false);
 	const [createdSlug, setCreatedSlug] = useState('');
+	const [generatedCredentials, setGeneratedCredentials] = useState<Array<{ username: string; password: string }>>([]);
 
 	const [form, setForm] = useState({
 		communityName: '',
@@ -572,6 +573,7 @@ export default function RegisterPage() {
 			}
 			if (!res.ok) throw new Error(data.message);
 			setCreatedSlug(data.community.slug);
+			setGeneratedCredentials(Array.isArray(data.generatedCredentials) ? data.generatedCredentials : []);
 			setStep('success');
 			toast({
 				title: 'Berhasil!',
@@ -1266,12 +1268,9 @@ export default function RegisterPage() {
 							{autoCreateAccounts && (
 								<div className="space-y-3">
 									<p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2">
-										Password kosong = default{' '}
-										<code className="bg-amber-100 dark:bg-amber-900 px-1 rounded">
-											admin123
-										</code>
-										. Pastikan setiap user mengganti password setelah login
-										pertama.
+										Password kosong atau kurang dari 8 karakter akan dibuatkan
+										password acak yang kuat dan ditampilkan <strong>sekali</strong> setelah
+										pendaftaran selesai. Bagikan ke masing-masing pengurus secara pribadi.
 									</p>
 									{accountEntries.map((entry, idx) => (
 										<div
@@ -1312,7 +1311,7 @@ export default function RegisterPage() {
 														ne[idx] = { ...ne[idx], password: e.target.value };
 														setAccountEntries(ne);
 													}}
-													placeholder="Password (kosong=admin123)"
+													placeholder="Password (kosong = dibuat otomatis)"
 													type="password"
 													className="text-sm h-8"
 												/>
@@ -1384,14 +1383,29 @@ export default function RegisterPage() {
 							<p className="text-sm text-muted-foreground">
 								Komunitas kamu sudah dibuat dan siap digunakan!
 							</p>
-							{autoCreateAccounts &&
-								accountEntries.some((e) => !e.password.trim()) && (
-									<p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-2">
-										Beberapa akun dibuat dengan password default{' '}
-										<strong>admin123</strong>. Segera minta setiap user
-										mengganti password mereka.
+							{generatedCredentials.length > 0 && (
+								<div className="text-left text-xs text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg p-3 space-y-2">
+									<p className="font-semibold">
+										Simpan sekarang — password ini hanya ditampilkan sekali:
 									</p>
-								)}
+									<ul className="space-y-1 font-mono">
+										{generatedCredentials.map((c) => (
+											<li key={c.username} className="flex items-center justify-between gap-2">
+												<span>
+													{c.username}: <span className="select-all">{c.password}</span>
+												</span>
+												<button
+													type="button"
+													className="text-primary hover:underline font-sans"
+													onClick={() => navigator.clipboard?.writeText(`${c.username}: ${c.password}`)}>
+													Salin
+												</button>
+											</li>
+										))}
+									</ul>
+									<p>Bagikan ke masing-masing pengurus secara pribadi dan minta mereka menggantinya setelah login.</p>
+								</div>
+							)}
 							<div className="flex gap-3 justify-center">
 								<Button
 									variant="outline"

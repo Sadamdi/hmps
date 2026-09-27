@@ -1,4 +1,5 @@
 import type { Request } from 'express';
+import { getTrustedClientIp } from '../lib/client-ip';
 
 const WINDOW_MS = 60 * 60 * 1000; // 1 jam
 const MAX_FAILURES = 10;
@@ -21,9 +22,7 @@ setInterval(() => {
 }, 5 * 60 * 1000);
 
 function getClientIp(req: Request): string {
-	const xfwd = (req.headers['x-forwarded-for'] as string) || '';
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	return forwardedIp || req.ip || (req.connection as any)?.remoteAddress || req.socket?.remoteAddress || 'unknown';
+	return getTrustedClientIp(req);
 }
 
 function getOrCreate(ip: string): AttemptRecord {

@@ -4,6 +4,7 @@
  */
 
 import crypto from 'crypto';
+import { getTrustedClientIp } from '../lib/client-ip';
 
 const XSS_LIKE =
 	/<script\b|<\/script\s*>|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|on\w+\s*=|<\s*xss\b|<\s*iframe\b|<\s*object\b|<\s*embed\b|<\s*svg\b[^>]*\bon|expression\s*\(|eval\s*\(/i;
@@ -77,7 +78,5 @@ export function hashIp(ip: string, pepper?: string): string {
 }
 
 export function getRequestClientIp(req: { headers?: Record<string, unknown>; ip?: string; socket?: { remoteAddress?: string } }): string {
-	const xfwd = String(req.headers?.['x-forwarded-for'] || '');
-	const forwardedIp = xfwd.split(',')[0]?.trim();
-	return forwardedIp || req.ip || req.socket?.remoteAddress || 'unknown';
+	return getTrustedClientIp(req as any);
 }
