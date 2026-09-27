@@ -735,6 +735,8 @@ export type PlatformSyncOutcome = {
 	profile?: SocialProfile;
 	/** true bila sync ini mengambil seluruh isi akun */
 	backfilled?: boolean;
+	/** Cursor lanjutan backfill (null = tidak ada / selesai) */
+	backfillCursor?: string | null;
 };
 
 export async function syncYoutubeFeed(
@@ -1112,13 +1114,24 @@ async function syncInstagramViaInstagrapi(
 	previous: SocialFeedItem[],
 	full: boolean,
 	knownUserId?: string,
+	cursor?: string,
 ): Promise<PlatformSyncOutcome | null> {
 	const dailyLimit = Math.min(60, Math.max(12, config.fetchLimits.post + config.fetchLimits.reel));
-	const res = await fetchInstagramViaInstagrapi(username, full ? 0 : dailyLimit, knownUserId);
+	// Lanjutan backfill: mulai dari cursor, maks 3 halaman per run (hemat rate limit)
+	const resume = full && !!cursor;
+	const res = await fetchInstagramViaInstagrapi(
+		username,
+		full ? 0 : dailyLimit,
+		knownUserId,
+		resume ? { startMaxId: cursor, maxPages: 3 } : {},
+	);
 	if (!res.ok || !res.items?.length) return null;
 
-	// Backfill terpotong rate limit: perlakukan sebagai merge biasa (jangan buang arsip), ulangi nanti
+	// Backfill terpotong / lanjutan: merge biasa (jangan buang arsip). Pembersihan item terhapus
+	// hanya bila seluruh daftar terambil dalam satu run dari halaman pertama.
 	const complete = full && !res.partial;
+	const pruneDeleted = complete && !resume;
+	const nextCursor = full && res.partial ? res.nextMaxId || null : null;
 	const prevByCode = new Map(previous.map((it) => [it.id.replace(/^ig-/, ''), it]));
 	const freshCodes = new Set(res.items.map((m) => m.code));
 	const manualCodes = new Set(codesFromUrls(config.manualUrls || []).map((m) => m.code));
@@ -1155,10 +1168,11 @@ async function syncInstagramViaInstagrapi(
 	for (const [code, prev] of Array.from(prevByCode)) {
 		if (freshCodes.has(code)) continue;
 		// Backfill penuh = daftar lengkap akun: item yang sudah dihapus di IG dibuang, kecuali link manual
-		if (complete && !manualCodes.has(code)) continue;
+		if (pruneDeleted && !manualCodes.has(code)) continue;
 		const k = itemKind(prev);
 		if (k !== 'post' && k !== 'reel') continue;
-		merged.push({ ...prev, pinned: undefined, pinnedRank: undefined });
+		// Status pin hanya diketahui dari halaman pertama; saat melanjutkan backfill pertahankan yang lama
+		merged.push(resume ? prev : { ...prev, pinned: undefined, pinnedRank: undefined });
 	}
 	const items = sortSocialItems(merged);
 	const newCount = items.filter((it) => !prevByCode.has(it.id.replace(/^ig-/, ''))).length;
@@ -1184,20 +1198,22 @@ async function syncInstagramViaInstagrapi(
 
 	return {
 		items,
-		method: `instagrapi(${res.method})${complete ? '+backfill' : full ? '+backfill(parsial)' : ''}`,
+		method: `instagrapi(${res.method})${complete ? '+backfill' : full ? `+backfill(${resume ? 'lanjutan' : 'parsial'})` : ''}`,
 		newCount,
 		profile,
 		backfilled: complete,
-		warning: full && res.partial
-			? `Backfill Instagram terhenti oleh rate limit (${items.length} item tersimpan); dilanjutkan pada fetch berikutnya.`
-			: undefined,
+		backfillCursor: full ? nextCursor : undefined,
+		warning:
+			full && res.partial
+				? `Backfill Instagram bertahap: ${items.length} item tersimpan, dilanjutkan otomatis tiap jam.`
+				: undefined,
 	};
 }
 
 export async function syncInstagramFeed(
 	config: InstagramConfig,
 	previous: SocialFeedItem[] = [],
-	opts: { full?: boolean; profile?: SocialProfile } = {},
+	opts: { full?: boolean; profile?: SocialProfile; cursor?: string } = {},
 ): Promise<PlatformSyncOutcome> {
 	const profileUrl = config.profileOrChannelUrl || DEFAULT_SOCIAL_FEED_CONFIG.instagram.profileOrChannelUrl;
 	const username = extractInstagramUsername(profileUrl);
@@ -1209,7 +1225,7 @@ export async function syncInstagramFeed(
 		(config.userId && same(config.userIdUsername) ? config.userId : undefined) ||
 		(opts.profile?.userId && same(opts.profile.username) ? opts.profile.userId : undefined);
 
-	const viaPy = await syncInstagramViaInstagrapi(config, username, previous, !!opts.full, knownUserId);
+	const viaPy = await syncInstagramViaInstagrapi(config, username, previous, !!opts.full, knownUserId, opts.cursor);
 	if (viaPy) return viaPy;
 
 	const discovered = new Map<string, IgDiscovered>();
@@ -1364,6 +1380,7 @@ export async function runSocialFeedSync(
 		status: { ...(prev.status || {}) },
 		profiles: { ...(prev.profiles || {}) },
 		backfilledAt: { ...(prev.backfilledAt || {}) },
+		backfillCursor: { ...(prev.backfillCursor || {}) },
 		syncedAt: new Date().toISOString(),
 	};
 	const errors: string[] = [];
@@ -1378,13 +1395,21 @@ export async function runSocialFeedSync(
 			const outcome: PlatformSyncOutcome =
 				platform === 'youtube'
 					? await syncYoutubeFeed(config.youtube, prev.youtube || [], { full })
-					: await syncInstagramFeed(config.instagram, prev.instagram || [], { full, profile: prev.profiles?.instagram });
+					: await syncInstagramFeed(config.instagram, prev.instagram || [], {
+							full,
+							profile: prev.profiles?.instagram,
+							cursor: prev.backfillCursor?.instagram,
+						});
 			if (outcome.profile) {
 				// Gabung dengan profil lama: field kosong (mis. statistik saat endpoint info ditolak) tidak menimpa
 				const fresh = Object.fromEntries(Object.entries(outcome.profile).filter(([, v]) => v !== undefined && v !== null));
 				next.profiles![platform] = { ...(prev.profiles?.[platform] || {}), ...fresh };
 			}
 			if (outcome.backfilled) next.backfilledAt![platform] = startedAt;
+			if (outcome.backfillCursor !== undefined) {
+				if (outcome.backfillCursor) next.backfillCursor![platform] = outcome.backfillCursor;
+				else delete next.backfillCursor![platform];
+			}
 			if (platform === 'youtube') {
 				next.youtube = outcome.items;
 				next.live.youtube = (outcome as any).live;
