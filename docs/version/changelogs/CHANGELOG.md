@@ -9,6 +9,21 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.28.0] - 2026-09-27
+
+### Added
+
+- ID akun Instagram tersimpan (`instagram.userId`, default @himatif.encoder `3058764066`, kolom dashboard) — lookup username→ID via web (429) dilewati.
+
+### Changed
+
+- Social feed komunitas default nonaktif sampai komunitas menyimpan pengaturan Media Sosial sendiri.
+- Profil IG via `user_info_v1` dengan cadangan dari data feed.
+
+### Fixed
+
+- Sync Instagram cron 26–27 Sep gagal 429 di langkah lookup ID.
+
 ## [4.27.2] - 2026-09-25
 
 ### Fixed

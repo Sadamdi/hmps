@@ -10,6 +10,7 @@ import {
 	instagramShortcodeToDate,
 	itemKind,
 	normalizeSocialFeedConfig,
+	resolveSocialFeedConfig,
 	selectSocialItems,
 	SOCIAL_FEED_LOG_LIMIT,
 	sortSocialItems,
@@ -1110,9 +1111,10 @@ async function syncInstagramViaInstagrapi(
 	username: string,
 	previous: SocialFeedItem[],
 	full: boolean,
+	knownUserId?: string,
 ): Promise<PlatformSyncOutcome | null> {
 	const dailyLimit = Math.min(60, Math.max(12, config.fetchLimits.post + config.fetchLimits.reel));
-	const res = await fetchInstagramViaInstagrapi(username, full ? 0 : dailyLimit);
+	const res = await fetchInstagramViaInstagrapi(username, full ? 0 : dailyLimit, knownUserId);
 	if (!res.ok || !res.items?.length) return null;
 
 	// Backfill terpotong rate limit: perlakukan sebagai merge biasa (jangan buang arsip), ulangi nanti
@@ -1166,6 +1168,7 @@ async function syncInstagramViaInstagrapi(
 		const p = res.profile;
 		const avatar = p.profilePicUrl ? await cacheRemoteImageWebp(p.profilePicUrl, UPLOADS_IG, '_avatar', 320) : null;
 		profile = {
+			userId: p.userId || res.userId || knownUserId,
 			username: p.username || username,
 			fullName: p.fullName || undefined,
 			biography: p.biography || undefined,
@@ -1194,13 +1197,19 @@ async function syncInstagramViaInstagrapi(
 export async function syncInstagramFeed(
 	config: InstagramConfig,
 	previous: SocialFeedItem[] = [],
-	opts: { full?: boolean } = {},
+	opts: { full?: boolean; profile?: SocialProfile } = {},
 ): Promise<PlatformSyncOutcome> {
 	const profileUrl = config.profileOrChannelUrl || DEFAULT_SOCIAL_FEED_CONFIG.instagram.profileOrChannelUrl;
 	const username = extractInstagramUsername(profileUrl);
 	if (!username) throw new Error('Username Instagram tidak valid');
 
-	const viaPy = await syncInstagramViaInstagrapi(config, username, previous, !!opts.full);
+	// ID akun: dari config (situs utama / diisi di dashboard) atau hasil sync sebelumnya, asal untuk username yang sama
+	const same = (u?: string) => !!u && u.toLowerCase() === username.toLowerCase();
+	const knownUserId =
+		(config.userId && same(config.userIdUsername) ? config.userId : undefined) ||
+		(opts.profile?.userId && same(opts.profile.username) ? opts.profile.userId : undefined);
+
+	const viaPy = await syncInstagramViaInstagrapi(config, username, previous, !!opts.full, knownUserId);
 	if (viaPy) return viaPy;
 
 	const discovered = new Map<string, IgDiscovered>();
@@ -1338,13 +1347,15 @@ export async function runSocialFeedSync(
 	previous?: SocialFeedCache | null,
 	options: {
 		platform?: SocialPlatform;
+		/** Storage komunitas: platform tanpa pengaturan sendiri dianggap nonaktif */
+		isTenant?: boolean;
 		trigger?: 'cron' | 'manual';
 		triggeredBy?: string;
 		/** Paksa ambil seluruh isi akun (backfill). Otomatis bila belum pernah backfill. */
 		full?: boolean;
 	} = {},
 ): Promise<SocialSyncResult> {
-	const config = normalizeSocialFeedConfig(configInput);
+	const config = resolveSocialFeedConfig(configInput, !!options.isTenant);
 	const prev = previous || DEFAULT_SOCIAL_FEED_CACHE;
 	const next: SocialFeedCache = {
 		youtube: [...(prev.youtube || [])],
@@ -1367,8 +1378,12 @@ export async function runSocialFeedSync(
 			const outcome: PlatformSyncOutcome =
 				platform === 'youtube'
 					? await syncYoutubeFeed(config.youtube, prev.youtube || [], { full })
-					: await syncInstagramFeed(config.instagram, prev.instagram || [], { full });
-			if (outcome.profile) next.profiles![platform] = outcome.profile;
+					: await syncInstagramFeed(config.instagram, prev.instagram || [], { full, profile: prev.profiles?.instagram });
+			if (outcome.profile) {
+				// Gabung dengan profil lama: field kosong (mis. statistik saat endpoint info ditolak) tidak menimpa
+				const fresh = Object.fromEntries(Object.entries(outcome.profile).filter(([, v]) => v !== undefined && v !== null));
+				next.profiles![platform] = { ...(prev.profiles?.[platform] || {}), ...fresh };
+			}
 			if (outcome.backfilled) next.backfilledAt![platform] = startedAt;
 			if (platform === 'youtube') {
 				next.youtube = outcome.items;

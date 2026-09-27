@@ -4,6 +4,7 @@ import { z } from 'zod';
 import {
 	DEFAULT_SOCIAL_FEED_CACHE,
 	normalizeSocialFeedConfig,
+	resolveSocialFeedConfig,
 	type SocialFeedLogEntry,
 	type SocialPlatform,
 } from '../../shared/social-feed';
@@ -33,6 +34,11 @@ function leanSettings(settings: any) {
 	return typeof settings.toObject === 'function' ? settings.toObject() : settings;
 }
 
+/** Config efektif storage ini (komunitas tanpa pengaturan sendiri → YouTube/Instagram nonaktif). */
+function feedConfig(req: Request, settings: any) {
+	return resolveSocialFeedConfig(settings?.socialFeedConfig, !!req.tenantSlug);
+}
+
 function readLogs(settings: any): SocialFeedLogEntry[] {
 	return Array.isArray(settings?.socialFeedLogs) ? settings.socialFeedLogs : [];
 }
@@ -51,7 +57,7 @@ router.get('/', async (req, res) => {
 	try {
 		const settings = leanSettings(await resolveStorage(req).getSettings());
 		const cache = settings.socialFeedCache || DEFAULT_SOCIAL_FEED_CACHE;
-		res.json({ success: true, data: publicSocialFeedPayload(settings.socialFeedConfig, cache) });
+		res.json({ success: true, data: publicSocialFeedPayload(feedConfig(req, settings), cache) });
 	} catch (error) {
 		console.error('GET /api/social-feed error:', error);
 		res.status(500).json({
@@ -82,7 +88,7 @@ router.get('/items', async (req, res) => {
 		const { platform, kind, offset, limit } = parsed.data;
 		const settings = leanSettings(await resolveStorage(req).getSettings());
 		const cache = settings.socialFeedCache || DEFAULT_SOCIAL_FEED_CACHE;
-		const result = publicSocialFeedItems(settings.socialFeedConfig, cache, platform, kind, offset, limit);
+		const result = publicSocialFeedItems(feedConfig(req, settings), cache, platform, kind, offset, limit);
 		res.json({
 			success: true,
 			message: 'OK',
@@ -114,7 +120,7 @@ router.get('/items', async (req, res) => {
 router.get('/manage', authenticate, requirePermission('social_feed.view'), async (req, res) => {
 	try {
 		const settings = leanSettings(await resolveStorage(req).getSettings());
-		const config = normalizeSocialFeedConfig(settings.socialFeedConfig);
+		const config = feedConfig(req, settings);
 		const cache = settings.socialFeedCache || DEFAULT_SOCIAL_FEED_CACHE;
 		res.json({
 			success: true,
@@ -245,7 +251,7 @@ router.post('/sync', authenticate, requirePermission('social_feed.sync'), async 
 	try {
 		const storage = resolveStorage(req);
 		const settings = leanSettings(await storage.getSettings());
-		const config = normalizeSocialFeedConfig(settings.socialFeedConfig);
+		const config = feedConfig(req, settings);
 		const previous = settings.socialFeedCache || DEFAULT_SOCIAL_FEED_CACHE;
 		const user: any = (req as any).user;
 		const platform = parsed.data.platform as SocialPlatform | undefined;

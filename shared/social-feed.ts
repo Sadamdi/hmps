@@ -31,6 +31,8 @@ export type SocialFeedItem = {
 
 /** Profil akun/kanal untuk header feed (diambil saat sync, avatar di-cache lokal). */
 export type SocialProfile = {
+	/** Instagram: ID numerik akun (pk) */
+	userId?: string;
 	username?: string;
 	fullName?: string;
 	biography?: string;
@@ -81,6 +83,13 @@ export type YoutubeConfig = PlatformBase & {
 };
 
 export type InstagramConfig = PlatformBase & {
+	/**
+	 * ID numerik akun Instagram (pk). Dipakai langsung saat sync agar tidak perlu lookup
+	 * username→ID lewat endpoint web yang sering kena 429. Hanya berlaku bila username di URL
+	 * profil sama dengan `userIdUsername`.
+	 */
+	userId?: string;
+	userIdUsername?: string;
 	content: InstagramContentFilters;
 	fetchLimits: Record<InstagramKind, number>;
 	/** Link post/reel yang ditambahkan manual dari dashboard */
@@ -148,6 +157,9 @@ export const INSTAGRAM_KINDS: InstagramKind[] = ['post', 'reel'];
 
 export const DEFAULT_YOUTUBE_URL = 'https://www.youtube.com/c/HimatifEncoder';
 export const DEFAULT_INSTAGRAM_URL = 'https://www.instagram.com/himatif.encoder/';
+/** ID akun @himatif.encoder (situs utama). */
+export const DEFAULT_INSTAGRAM_USER_ID = '3058764066';
+export const DEFAULT_INSTAGRAM_USERNAME = 'himatif.encoder';
 
 export const DEFAULT_SOCIAL_FEED_CONFIG: SocialFeedConfig = {
 	youtube: {
@@ -164,6 +176,8 @@ export const DEFAULT_SOCIAL_FEED_CONFIG: SocialFeedConfig = {
 	instagram: {
 		enabled: true,
 		profileOrChannelUrl: DEFAULT_INSTAGRAM_URL,
+		userId: DEFAULT_INSTAGRAM_USER_ID,
+		userIdUsername: DEFAULT_INSTAGRAM_USERNAME,
 		showLiveBadge: false,
 		homeLimit: 9,
 		loadMoreStep: 9,
@@ -212,6 +226,44 @@ export function normalizeManualUrls(raw: unknown, max = 200): string[] {
 	return out;
 }
 
+/** Username dari URL profil Instagram (tanpa @), atau null. */
+export function instagramUsernameOf(url: string): string | null {
+	try {
+		const first = new URL(url).pathname.split('/').filter(Boolean)[0];
+		return first && !['p', 'reel', 'reels', 'tv'].includes(first) ? first.replace(/^@/, '').toLowerCase() : null;
+	} catch {
+		return null;
+	}
+}
+
+function normalizeIgUserId(igIn: any, base: InstagramConfig): Pick<InstagramConfig, 'userId' | 'userIdUsername'> {
+	const url = String(igIn.profileOrChannelUrl || base.profileOrChannelUrl).trim();
+	const username = instagramUsernameOf(url);
+	const rawId = String(igIn.userId ?? '').trim();
+	if (/^\d{3,25}$/.test(rawId)) {
+		const owner = String(igIn.userIdUsername || username || '').trim().toLowerCase().replace(/^@/, '');
+		return { userId: rawId, userIdUsername: owner || undefined };
+	}
+	// Belum diisi: pakai ID bawaan hanya untuk akun bawaan
+	if (igIn.userId === undefined && username === DEFAULT_INSTAGRAM_USERNAME) {
+		return { userId: DEFAULT_INSTAGRAM_USER_ID, userIdUsername: DEFAULT_INSTAGRAM_USERNAME };
+	}
+	return {};
+}
+
+/**
+ * Config untuk storage tertentu. Komunitas (tenant) yang belum pernah menyimpan pengaturan
+ * Media Sosial sendiri → YouTube & Instagram nonaktif (tidak mewarisi kanal Himatif).
+ */
+export function resolveSocialFeedConfig(raw: any, isTenant: boolean): SocialFeedConfig {
+	const cfg = normalizeSocialFeedConfig(raw);
+	if (!isTenant) return cfg;
+	const hasOwn = (p: 'youtube' | 'instagram') => !!(raw && typeof raw[p] === 'object' && raw[p]);
+	if (!hasOwn('youtube')) cfg.youtube = { ...cfg.youtube, enabled: false };
+	if (!hasOwn('instagram')) cfg.instagram = { ...cfg.instagram, enabled: false, userId: undefined, userIdUsername: undefined };
+	return cfg;
+}
+
 /** Terima config lama (≤4.24, dengan maxItems 1–5) maupun v2. Tidak pernah melempar. */
 export function normalizeSocialFeedConfig(raw?: any): SocialFeedConfig {
 	const base = DEFAULT_SOCIAL_FEED_CONFIG;
@@ -244,6 +296,7 @@ export function normalizeSocialFeedConfig(raw?: any): SocialFeedConfig {
 	const instagram: InstagramConfig = {
 		enabled: igIn.enabled !== undefined ? !!igIn.enabled : base.instagram.enabled,
 		profileOrChannelUrl: String(igIn.profileOrChannelUrl || base.instagram.profileOrChannelUrl).trim(),
+		...normalizeIgUserId(igIn, base.instagram),
 		showLiveBadge: false,
 		homeLimit: clampInt(igIn.homeLimit, ...LIMITS.igHome, base.instagram.homeLimit),
 		loadMoreStep: clampInt(igIn.loadMoreStep, ...LIMITS.igHome, base.instagram.loadMoreStep),
