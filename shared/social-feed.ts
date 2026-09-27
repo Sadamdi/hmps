@@ -131,6 +131,8 @@ export type SocialFeedCache = {
 	profiles?: Partial<Record<SocialPlatform, SocialProfile>>;
 	/** Waktu backfill penuh terakhir (ambil semua isi akun) per platform */
 	backfilledAt?: Partial<Record<SocialPlatform, string>>;
+	/** Cursor backfill yang belum selesai (Instagram: next_max_id); dilanjutkan oleh sync berikutnya */
+	backfillCursor?: Partial<Record<SocialPlatform, string>>;
 };
 
 export type SocialFeedLogEntry = {

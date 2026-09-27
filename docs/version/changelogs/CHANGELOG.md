@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.28.1] - 2026-09-27
+
+### Fixed
+
+- Backfill Instagram bertahap: cursor `next_max_id` disimpan, cron per jam melanjutkan maks 3 halaman sampai arsip lengkap.
+
 ## [4.28.0] - 2026-09-27
 
 ### Added

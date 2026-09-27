@@ -39,6 +39,8 @@ export interface InstagrapiResult {
 	userId?: string;
 	/** Paginasi terhenti (rate limit) — daftar belum lengkap */
 	partial?: boolean;
+	/** Cursor untuk melanjutkan backfill (ada bila `partial`) */
+	nextMaxId?: string | null;
 	error?: string;
 }
 
@@ -60,6 +62,7 @@ export function fetchInstagramViaInstagrapi(
 	username: string,
 	limit: number,
 	userId?: string,
+	opts: { startMaxId?: string; maxPages?: number } = {},
 ): Promise<InstagrapiResult> {
 	if (!instagrapiEnabled()) return Promise.resolve({ ok: false, error: 'instagrapi dimatikan (INSTAGRAM_INSTAGRAPI=off)' });
 	return new Promise((resolve) => {
@@ -75,7 +78,12 @@ export function fetchInstagramViaInstagrapi(
 		const args = [SCRIPT, username, String(limit), ...(userId && /^\d+$/.test(userId) ? [userId] : [])];
 		const child = spawn(pythonBin(), args, {
 			cwd: process.cwd(),
-			env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+			env: {
+				...process.env,
+				PYTHONIOENCODING: 'utf-8',
+				IG_START_MAX_ID: opts.startMaxId || '',
+				IG_MAX_PAGES: String(opts.maxPages || 0),
+			},
 			stdio: ['ignore', 'pipe', 'ignore'],
 		});
 		const timer = setTimeout(() => {

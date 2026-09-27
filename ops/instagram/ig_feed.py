@@ -87,14 +87,16 @@ def raw_item(x, rank):
     }
 
 
-def fetch_feed(cl, uid, limit):
+def fetch_feed(cl, uid, limit, start_max_id=None, max_pages=0):
     """Paginasi feed/user (urutan profil asli, pinned di atas). limit 0 = semua.
 
-    Kembalikan (items, partial). Bila Instagram membatasi di tengah paginasi, halaman yang
-    sudah terambil tetap dikembalikan (partial=True) agar tidak hilang; backfill dilanjutkan
-    pada sync berikutnya.
+    `start_max_id` melanjutkan backfill dari cursor tersimpan; `max_pages` membatasi jumlah
+    halaman per run (0 = tanpa batas). Kembalikan (items, partial, next_max_id): bila Instagram
+    membatasi di tengah jalan atau batas halaman tercapai, halaman yang sudah terambil tetap
+    dikembalikan dan `next_max_id` dipakai untuk melanjutkan pada run berikutnya.
     """
-    items, max_id, partial = [], None, False
+    items, max_id, partial = [], start_max_id, False
+    pages = 0
     global FEED_OWNER
     while True:
         params = {"count": 33}
@@ -107,17 +109,22 @@ def fetch_feed(cl, uid, limit):
                 raise
             partial = True
             break
+        pages += 1
         for x in r.get("items", []):
             if FEED_OWNER is None and isinstance(x.get("user"), dict):
                 FEED_OWNER = x["user"]
             if x.get("code"):
                 items.append(raw_item(x, len(items)))
-        max_id = r.get("next_max_id")
-        if not r.get("more_available") or not max_id or (limit and len(items) >= limit):
+        max_id = r.get("next_max_id") if r.get("more_available") else None
+        if not max_id or (limit and len(items) >= limit):
+            break
+        if max_pages and pages >= max_pages:
+            partial = True
             break
         # Jeda lebih panjang saat backfill penuh agar tidak memicu rate limit
         time.sleep(random.uniform(4.0, 8.0) if not limit else random.uniform(2.0, 4.0))
-    return (items[:limit] if limit else items), partial
+    next_cursor = max_id if (partial and not limit) else None
+    return (items[:limit] if limit else items), partial, next_cursor
 
 
 FEED_OWNER = None
@@ -166,6 +173,8 @@ def main():
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 24  # 0 = semua
     # ID akun tersimpan → lewati lookup username→ID (endpoint web web_profile_info sering 429)
     known_uid = sys.argv[3].strip() if len(sys.argv) > 3 and sys.argv[3].strip().isdigit() else None
+    start_cursor = os.environ.get("IG_START_MAX_ID", "").strip() or None
+    max_pages = int(os.environ.get("IG_MAX_PAGES", "0") or 0)
 
     try:
         from instagrapi import Client
@@ -206,7 +215,7 @@ def main():
 
         try:
             uid = resolve_uid()
-            items, partial = fetch_feed(cl, uid, limit)
+            items, partial, next_cursor = fetch_feed(cl, uid, limit, start_cursor, max_pages)
         except LoginRequired:
             # Hanya sesi mati yang memicu login ulang; rate limit (PleaseWaitFewMinutes) tidak
             # Sesi tersimpan mati → login ulang (device tetap sama) lalu coba sekali lagi
@@ -215,11 +224,11 @@ def main():
             method = login_fresh() + "(relogin)"
             save(cl)
             uid = resolve_uid()
-            items, partial = fetch_feed(cl, uid, limit)
+            items, partial, next_cursor = fetch_feed(cl, uid, limit, start_cursor, max_pages)
 
         profile = fetch_profile(cl, uid)
         save(cl)
-        out({"ok": True, "method": method, "userId": str(uid), "profile": profile, "items": items, "partial": partial})
+        out({"ok": True, "method": method, "userId": str(uid), "profile": profile, "items": items, "partial": partial, "nextMaxId": next_cursor})
         return 0
     except PleaseWaitFewMinutes:
         save(cl)
