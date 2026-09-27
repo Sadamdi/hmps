@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import cookieParser from 'cookie-parser';
 import type { Express, Request } from 'express';
 import fs from 'fs';
@@ -1563,6 +1564,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 		},
 	);
+
+	/**
+	 * Masuk dengan Google (Firebase Auth). Client mengirim Firebase ID token; server memverifikasi
+	 * token (tanda tangan Google, project, email terverifikasi, provider google.com, auth_time baru)
+	 * lalu mencocokkan EMAIL ke user yang sudah ada. Tidak pernah membuat akun baru.
+	 * Konteks main/tenant sama dengan login password (tenant path, loginTarget, auto-detect, 409 pilih tujuan).
+	 */
+	const googleLoginSchema = z.object({
+		idToken: z.string().min(100).max(8192),
+		loginTarget: z.string().max(100).optional(),
+	});
+	app.post('/api/auth/login/google', loginLimiter, async (req, res) => {
+		const clientIp = getRealClientIp(req);
+		const parsed = googleLoginSchema.safeParse(req.body || {});
+		if (!parsed.success) {
+			return res.status(400).json({
+				success: false,
+				message: 'Permintaan login Google tidak valid',
+				error: { code: 'VALIDATION_ERROR' },
+			});
+		}
+		const { verifyGoogleIdToken, GoogleLoginError } = await import('./services/google-login');
+		let email: string;
+		try {
+			({ email } = await verifyGoogleIdToken(parsed.data.idToken));
+		} catch (err) {
+			if (err instanceof GoogleLoginError) {
+				const status = err.code === 'GOOGLE_LOGIN_DISABLED' ? 503 : 401;
+				return res.status(status).json({ success: false, message: err.message, error: { code: err.code } });
+			}
+			console.error('Google login verify error:', err);
+			return res.status(500).json({ success: false, message: 'Gagal memverifikasi login Google' });
+		}
+
+		const notRegistered = () => {
+			void logLoginAttempt({ ip: clientIp, email, success: false, reason: 'not_found' });
+			return res.status(403).json({
+				success: false,
+				message: 'Email Google ini belum terdaftar sebagai pengurus. Hubungi admin atau masuk dengan username & password.',
+				error: { code: 'GOOGLE_EMAIL_NOT_REGISTERED' },
+			});
+		};
+
+		try {
+			const { loginTarget } = parsed.data;
+
+			// Halaman login komunitas → hanya akun di komunitas itu
+			if (req.isTenantRequest && req.tenantModels) {
+				const { createTenantStorage } = await import('./tenant-storage');
+				const storage = createTenantStorage(req.tenantModels);
+				const user: any = await storage.getUserByEmail(email);
+				if (!user) return notRegistered();
+				return await finalizeLogin(req, res, user, storage, req.tenantModels.Session, req.tenantDbName);
+			}
+
+			const { Session, Community } = await import('../db/mongodb');
+			const { getTenantModels } = await import('../db/tenant');
+			const { createTenantStorage } = await import('./tenant-storage');
+
+			if (loginTarget && loginTarget !== 'main') {
+				const community: any = await Community.findOne({ slug: loginTarget, status: 'active' }).lean();
+				if (!community) return notRegistered();
+				const models = getTenantModels(community.dbName);
+				const storage = createTenantStorage(models);
+				const user: any = await storage.getUserByEmail(email);
+				if (!user) return notRegistered();
+				return await finalizeLogin(req, res, user, storage, models.Session, community.dbName);
+			}
+
+			const mainUser: any = await mongoStorage.getUserByEmail(email);
+			if (loginTarget === 'main') {
+				if (!mainUser) return notRegistered();
+				return await finalizeLogin(req, res, mainUser, mongoStorage, Session, undefined);
+			}
+
+			// Auto-detect: web utama + semua komunitas aktif
+			const tenantMatches: { user: any; dbName: string; slug: string; name: string }[] = [];
+			const activeCommunities: any[] = await Community.find({ status: 'active' }).lean();
+			await Promise.all(
+				activeCommunities.map(async (c: any) => {
+					try {
+						const tUser: any = await createTenantStorage(getTenantModels(c.dbName)).getUserByEmail(email);
+						if (tUser) tenantMatches.push({ user: tUser, dbName: c.dbName, slug: c.slug, name: c.name });
+					} catch (e) {
+						console.warn(`Google login auto-detect: failed checking tenant ${c.slug}:`, e);
+					}
+				}),
+			);
+
+			const total = (mainUser ? 1 : 0) + tenantMatches.length;
+			if (total === 0) return notRegistered();
+			if (total === 1) {
+				if (mainUser) return await finalizeLogin(req, res, mainUser, mongoStorage, Session, undefined);
+				const m = tenantMatches[0];
+				const models = getTenantModels(m.dbName);
+				return await finalizeLogin(req, res, m.user, createTenantStorage(models), models.Session, m.dbName);
+			}
+
+			const targets: { scope: 'main' | 'tenant'; slug?: string; name: string }[] = [];
+			if (mainUser) targets.push({ scope: 'main', name: 'Himatif (Web Utama)' });
+			for (const m of tenantMatches) targets.push({ scope: 'tenant', slug: m.slug, name: m.name });
+			return res.status(409).json({
+				ambiguous: true,
+				targets,
+				message: 'Akun ditemukan di beberapa konteks. Pilih tujuan login.',
+			});
+		} catch (error) {
+			console.error('Google login error:', error);
+			return res.status(500).json({ success: false, message: 'Internal server error' });
+		}
+	});
+
+	app.get('/api/auth/firebase-config', (_req, res) => {
+		// Konfigurasi publik Firebase Web SDK (bukan secret) — dipakai tombol "Masuk dengan Google"
+		const cfg = {
+			apiKey: process.env.VITE_FIREBASE_API_KEY || process.env.FIREBASE_API_KEY || '',
+			authDomain: process.env.VITE_FIREBASE_AUTH_DOMAIN || process.env.FIREBASE_AUTH_DOMAIN || '',
+			projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || '',
+			appId: process.env.VITE_FIREBASE_APP_ID || process.env.FIREBASE_APP_ID || '',
+		};
+		const enabled = !!(cfg.apiKey && cfg.authDomain && cfg.projectId);
+		res.set('Cache-Control', 'public, max-age=300');
+		res.json({ success: true, data: { enabled, config: enabled ? cfg : null } });
+	});
 
 	app.get('/api/auth/login-targets', async (_req, res) => {
 		try {

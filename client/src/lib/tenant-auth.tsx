@@ -14,6 +14,8 @@ interface TenantAuthContextType {
 	isLoading: boolean;
 	permissions: string[];
 	login: (username: string, password: string) => Promise<void>;
+	/** Login komunitas dengan Firebase ID token Google (email harus terdaftar di komunitas ini). */
+	loginWithGoogle: (idToken: string, loginTarget?: string) => Promise<void>;
 	logout: () => Promise<void>;
 	hasPermission: (roles: string[]) => boolean;
 	hasSpecificPermission: (permission: string) => boolean;
@@ -92,6 +94,30 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 		} catch {}
 	};
 
+	const loginWithGoogle = async (idToken: string) => {
+		setIsLoading(true);
+		try {
+			const response = await fetch(`${apiBase}/auth/login/google`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ idToken }),
+				credentials: 'include',
+			});
+			const data = await response.json().catch(() => ({ message: 'Login Google gagal' }));
+			if (!response.ok) {
+				const error = new Error(data.message || 'Login Google gagal');
+				(error as any).status = response.status;
+				(error as any).retryAfter = data.retryAfter;
+				throw error;
+			}
+			setUser({ ...data, authScope: 'tenant', tenantSlug: slug });
+			await fetchUserPermissions();
+			toast({ title: 'Login Berhasil', description: `Selamat datang, ${data.name || data.username}!` });
+		} finally {
+			setIsLoading(false);
+		}
+	};
+
 	const login = async (username: string, password: string) => {
 		setIsLoading(true);
 		try {
@@ -159,7 +185,7 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 
 	return (
 		<TenantAuthContext.Provider
-			value={{ user, isLoading, permissions, login, logout, hasPermission, hasSpecificPermission, refreshPermissions }}>
+			value={{ user, isLoading, permissions, login, loginWithGoogle, logout, hasPermission, hasSpecificPermission, refreshPermissions }}>
 			{children}
 		</TenantAuthContext.Provider>
 	);

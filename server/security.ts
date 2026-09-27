@@ -97,6 +97,8 @@ export const securityMiddleware = {
 					"'unsafe-inline'",
 					'https://cdn.tiny.cloud',
 					'https://static.cloudflareinsights.com',
+					// Masuk dengan Google (Firebase Auth popup)
+					'https://apis.google.com',
 				],
 				imgSrc: ["'self'", 'data:', 'https:', 'blob:', 'https://*.google.com', 'https://*.googleapis.com', 'https://*.gstatic.com', 'https://*.ggpht.com'],
 				connectSrc: [
@@ -129,9 +131,14 @@ export const securityMiddleware = {
 					'https://www.youtube-nocookie.com',
 					'https://drive.google.com',
 					'https://docs.google.com',
+					// Firebase Auth helper iframe (authDomain)
+					'https://*.firebaseapp.com',
+					'https://accounts.google.com',
 				],
 			},
 		},
+		// signInWithPopup butuh window.opener tetap tersambung ke popup Google
+		crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
 		hsts: {
 			maxAge: 31536000,
 			includeSubDomains: true,
