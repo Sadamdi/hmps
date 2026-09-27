@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import {
 	DEFAULT_SOCIAL_FEED_CONFIG,
+	instagramUsernameOf,
 	normalizeManualUrls,
 	normalizeSocialFeedConfig,
 	type SocialFeedCache,
@@ -412,6 +413,34 @@ export default function SocialFeedSettingsPanel() {
 						<div className="space-y-1.5">
 							<Label htmlFor="ig-url">URL profil</Label>
 							<Input id="ig-url" value={config.instagram.profileOrChannelUrl} disabled={!canEdit} onChange={(e) => setIg({ profileOrChannelUrl: e.target.value })} placeholder="https://www.instagram.com/username/" />
+						</div>
+						<div className="space-y-1.5">
+							<Label htmlFor="ig-uid">ID akun Instagram</Label>
+							<Input
+								id="ig-uid"
+								inputMode="numeric"
+								value={config.instagram.userId || ''}
+								disabled={!canEdit}
+								onChange={(e) => {
+									const v = e.target.value.replace(/\D/g, '');
+									setIg({
+										userId: v || undefined,
+										userIdUsername: v ? instagramUsernameOf(config.instagram.profileOrChannelUrl) || undefined : undefined,
+									});
+								}}
+								placeholder={data.cache?.profiles?.instagram?.userId || 'mis. 3058764066'}
+							/>
+							<p className="text-xs text-muted-foreground">
+								Dipakai langsung saat fetch agar tidak perlu mencari ID dari username (sering dibatasi Instagram).
+								{config.instagram.userId &&
+								config.instagram.userIdUsername &&
+								config.instagram.userIdUsername !== instagramUsernameOf(config.instagram.profileOrChannelUrl)
+									? ` ID ini milik @${config.instagram.userIdUsername} — tidak dipakai untuk URL profil sekarang.`
+									: ''}
+								{data.cache?.profiles?.instagram?.userId
+									? ` Terdeteksi saat sync: ${data.cache.profiles.instagram.userId} (@${data.cache.profiles.instagram.username}).`
+									: ''}
+							</p>
 						</div>
 						<div className="grid grid-cols-2 gap-2">
 							<ToggleRow id="ig-p" label="Post" checked={config.instagram.content.posts} disabled={!canEdit} onChange={(v) => setIg({ content: { ...config.instagram.content, posts: v } })} />

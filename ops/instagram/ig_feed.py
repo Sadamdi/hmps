@@ -95,6 +95,7 @@ def fetch_feed(cl, uid, limit):
     pada sync berikutnya.
     """
     items, max_id, partial = [], None, False
+    global FEED_OWNER
     while True:
         params = {"count": 33}
         if max_id:
@@ -107,6 +108,8 @@ def fetch_feed(cl, uid, limit):
             partial = True
             break
         for x in r.get("items", []):
+            if FEED_OWNER is None and isinstance(x.get("user"), dict):
+                FEED_OWNER = x["user"]
             if x.get("code"):
                 items.append(raw_item(x, len(items)))
         max_id = r.get("next_max_id")
@@ -117,10 +120,30 @@ def fetch_feed(cl, uid, limit):
     return (items[:limit] if limit else items), partial
 
 
+FEED_OWNER = None
+
+
+def profile_from_feed_owner(uid):
+    """Cadangan bila endpoint info user ditolak: objek `user` di item feed (tanpa statistik)."""
+    u = FEED_OWNER or {}
+    if not u:
+        return None
+    pic = ((u.get("hd_profile_pic_url_info") or {}).get("url")) or u.get("profile_pic_url")
+    return {
+        "userId": str(uid),
+        "username": u.get("username"),
+        "fullName": u.get("full_name"),
+        "profilePicUrl": pic,
+        "isVerified": bool(u.get("is_verified")),
+    }
+
+
 def fetch_profile(cl, uid):
     try:
-        u = cl.user_info(uid)
+        # API mobile langsung (user_info biasa mencoba endpoint web dulu yang sering 429)
+        u = cl.user_info_v1(uid)
         return {
+            "userId": str(uid),
             "username": u.username,
             "fullName": u.full_name,
             "biography": (u.biography or "")[:400],
@@ -132,15 +155,17 @@ def fetch_profile(cl, uid):
             "externalUrl": str(u.external_url) if u.external_url else None,
         }
     except Exception:  # noqa: BLE001
-        return None
+        return profile_from_feed_owner(uid)
 
 
 def main():
     if len(sys.argv) < 2:
-        out({"ok": False, "error": "usage: ig_feed.py <username> [limit]"})
+        out({"ok": False, "error": "usage: ig_feed.py <username> [limit] [user_id]"})
         return 2
     username = sys.argv[1].strip().lstrip("@")
     limit = int(sys.argv[2]) if len(sys.argv) > 2 else 24  # 0 = semua
+    # ID akun tersimpan → lewati lookup username→ID (endpoint web web_profile_info sering 429)
+    known_uid = sys.argv[3].strip() if len(sys.argv) > 3 and sys.argv[3].strip().isdigit() else None
 
     try:
         from instagrapi import Client
@@ -176,8 +201,11 @@ def main():
             method = login_fresh()
         save(cl)
 
+        def resolve_uid():
+            return known_uid or cl.user_id_from_username(username)
+
         try:
-            uid = cl.user_id_from_username(username)
+            uid = resolve_uid()
             items, partial = fetch_feed(cl, uid, limit)
         except LoginRequired:
             # Hanya sesi mati yang memicu login ulang; rate limit (PleaseWaitFewMinutes) tidak
@@ -186,12 +214,12 @@ def main():
             cl.set_settings({k: v for k, v in keep.items() if k in ("uuids", "device_settings", "user_agent")})
             method = login_fresh() + "(relogin)"
             save(cl)
-            uid = cl.user_id_from_username(username)
+            uid = resolve_uid()
             items, partial = fetch_feed(cl, uid, limit)
 
         profile = fetch_profile(cl, uid)
         save(cl)
-        out({"ok": True, "method": method, "profile": profile, "items": items, "partial": partial})
+        out({"ok": True, "method": method, "userId": str(uid), "profile": profile, "items": items, "partial": partial})
         return 0
     except PleaseWaitFewMinutes:
         save(cl)

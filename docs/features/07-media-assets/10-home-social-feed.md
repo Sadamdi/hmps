@@ -1,11 +1,11 @@
 # Feature: Media Sosial (YouTube / Instagram) — v2
 
 **Author**: HMPS Project Team  
-**Created**: 2026-07-16 · **Updated**: 2026-09-25 (4.27.0)  
+**Created**: 2026-07-16 · **Updated**: 2026-09-27 (4.28.0)  
 **Status**: Active  
 **Contract Confidence**: Verified from code + uji fetch nyata (2026-09-25)  
 **Category**: 07-media-assets  
-**Tenant-Aware**: Yes (storage per tenant via `/api/c/:slug/social-feed…`; cron harian mencakup semua komunitas aktif)  
+**Tenant-Aware**: Yes (storage per tenant via `/api/c/:slug/social-feed…`; cron harian mencakup komunitas aktif yang **sudah menyimpan pengaturan Media Sosial sendiri** — sejak 4.28.0 default tenant = YouTube & Instagram nonaktif, `resolveSocialFeedConfig`)  
 **Permission Scope**: Public read + `social_feed.view|edit|sync` untuk kelola  
 
 ---
@@ -33,7 +33,8 @@ Sumber: `shared/social-feed.ts`, `server/services/social-feed.ts`, `server/route
 
 Instagram memblokir **daftar post** tanpa login dari IP mana pun (diuji 2026-09-25: `web_profile_info` 429, GraphQL `require_login`, HTML profil tanpa shortcode, viewer pihak ketiga mati). Halaman **embed per post** (`/p/{code}/embed/captioned/`) tetap publik. Maka rantainya:
 
-0. **instagrapi (utama, v4.26.0)** — `server/services/instagram-instagrapi.ts` menjalankan `python3 ops/instagram/ig_feed.py <username> <limit>` (API mobile Instagram, akun dummy). Mengembalikan kode, jenis (post/reel/carousel), caption, thumbnail, tanggal; item ini tidak perlu enrich embed.
+0. **instagrapi (utama, v4.26.0)** — memakai **ID akun tersimpan** (`config.instagram.userId`, default `3058764066` untuk @himatif.encoder, bisa diisi di dashboard; atau `cache.profiles.instagram.userId` hasil sync) sehingga lookup username→ID lewat `web_profile_info` (sering 429) dilewati. ID hanya dipakai bila `userIdUsername` sama dengan username di URL profil. Profil diambil via `user_info_v1`; bila ditolak, cadangan dari objek `user` di feed (foto, nama, verified) digabung dengan statistik lama.
+   — `server/services/instagram-instagrapi.ts` menjalankan `python3 ops/instagram/ig_feed.py <username> <limit>` (API mobile Instagram, akun dummy). Mengembalikan kode, jenis (post/reel/carousel), caption, thumbnail, tanggal; item ini tidak perlu enrich embed.
 1. `web_profile_info` — fallback bila instagrapi gagal; memakai cookie sesi yang sama.
 2. Scrape HTML profil/reels (murah, jarang berhasil).
 3. **Link manual** dari dashboard (maks 200) — selalu berhasil.

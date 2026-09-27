@@ -19,6 +19,7 @@ export interface InstagrapiMedia {
 }
 
 export interface InstagrapiProfile {
+	userId?: string;
 	username?: string;
 	fullName?: string;
 	biography?: string;
@@ -35,6 +36,7 @@ export interface InstagrapiResult {
 	method?: string;
 	items?: InstagrapiMedia[];
 	profile?: InstagrapiProfile | null;
+	userId?: string;
 	/** Paginasi terhenti (rate limit) — daftar belum lengkap */
 	partial?: boolean;
 	error?: string;
@@ -54,7 +56,11 @@ function pythonBin(): string {
 	return process.env.INSTAGRAM_PYTHON?.trim() || (process.platform === 'win32' ? 'python' : 'python3');
 }
 
-export function fetchInstagramViaInstagrapi(username: string, limit: number): Promise<InstagrapiResult> {
+export function fetchInstagramViaInstagrapi(
+	username: string,
+	limit: number,
+	userId?: string,
+): Promise<InstagrapiResult> {
 	if (!instagrapiEnabled()) return Promise.resolve({ ok: false, error: 'instagrapi dimatikan (INSTAGRAM_INSTAGRAPI=off)' });
 	return new Promise((resolve) => {
 		let stdout = '';
@@ -66,7 +72,8 @@ export function fetchInstagramViaInstagrapi(username: string, limit: number): Pr
 			if (!r.ok) console.warn('[instagram-instagrapi]', lastInstagrapiError);
 			resolve(r);
 		};
-		const child = spawn(pythonBin(), [SCRIPT, username, String(limit)], {
+		const args = [SCRIPT, username, String(limit), ...(userId && /^\d+$/.test(userId) ? [userId] : [])];
+		const child = spawn(pythonBin(), args, {
 			cwd: process.cwd(),
 			env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
 			stdio: ['ignore', 'pipe', 'ignore'],
