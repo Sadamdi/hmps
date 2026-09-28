@@ -65,3 +65,10 @@ local_photos/
 .instagram-instagrapi.json
 .instagram-instagrapi.json.tmp
 .instagram-session.json.expired
+
+# Skrip/log sekali pakai (bisa berisi kredensial) — jangan pernah di-commit
+ops/_*
+scripts/_*
+/_*
+.env.bak*
+*.bak-*

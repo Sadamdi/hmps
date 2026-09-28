@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.7] - 2026-09-28
+
+### Security
+
+- Skrip debug `ops/_*` (sebagian berisi kredensial SSH) dihapus dari repo dan riwayat; skrip sekali pakai di-gitignore.
+
+### Fixed
+
+- Media sync server: lockfile kotor tidak lagi menggagalkan pull; commit media gagal push dibatalkan tanpa menghapus file; unstage sebelum reset deploy.
+
 ## [4.29.6] - 2026-09-28
 
 ### Fixed

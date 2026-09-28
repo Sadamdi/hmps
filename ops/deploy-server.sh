@@ -318,6 +318,9 @@ backup_dist
 
 log "=== 2/5 Sync code dari GitHub (origin/main)"
 git fetch origin main
+# Lepas stage dulu: media baru yang sudah di-`git add` (belum ter-push) menjadi untracked sehingga
+# tidak dihapus oleh reset. Media juga sudah di-backup di langkah 1 dan dikembalikan di langkah 3.
+git reset -q || true
 git reset --hard origin/main
 NEW_HEAD="$(git rev-parse HEAD)"
 CHANGED="$(git diff --name-only "$PREV_HEAD" "$NEW_HEAD" || true)"

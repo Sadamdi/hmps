@@ -17,6 +17,10 @@ cd "$APP_DIR"
 
 log() { echo "[hmps-media-push] $*"; }
 
+# npm install di server menulis ulang versi di package-lock.json → working tree kotor → pull --rebase
+# gagal. Lockfile server tidak pernah di-commit dari sini, jadi kembalikan ke versi git.
+git checkout -- package-lock.json 2>/dev/null || true
+
 MEDIA_PATHS=(
 	uploads
 	attached_assets/community
@@ -82,7 +86,9 @@ elapsed=$((now_epoch - last_epoch))
 
 if [[ "$elapsed" -lt "$COOLDOWN_SECONDS" ]]; then
 	remaining=$((COOLDOWN_SECONDS - elapsed))
-	log "Cooldown aktif — $STAGED file staged tapi ditahan. Tunggu ${remaining}s lagi untuk commit harian."
+	# Jangan biarkan ter-stage selama menunggu (menghalangi pull); file tetap aman di disk
+	git reset -q 2>/dev/null || true
+	log "Cooldown aktif — $STAGED file media menunggu. ${remaining}s lagi untuk commit harian."
 	exit 0
 fi
 
@@ -93,15 +99,24 @@ MSG="chore(media): auto-sync uploads from production $(date -u +%Y-%m-%dT%H%MZ)"
 # Jangan pakai Auto-Deploy Bot — grafik GitHub Contributors mengikuti author email
 git -c user.name="Sulthan Adam Rahmadi" -c user.email="sultanadamr@gmail.com" commit -m "$MSG"
 
-# Catat timestamp commit sukses
-echo "$now_epoch" > "$LAST_COMMIT_FILE"
-
+push_ok=0
 BEHIND="$(git rev-list HEAD..origin/${BRANCH} --count 2>/dev/null | tr -d ' ' || echo 0)"
 if [[ "${BEHIND:-0}" -gt 0 ]]; then
 	log "Remote ahead ($BEHIND) — rebase lalu push"
-	git pull --rebase origin "$BRANCH"
+	git pull --rebase --autostash origin "$BRANCH" || git rebase --abort 2>/dev/null || true
+fi
+if git push origin "HEAD:${BRANCH}"; then push_ok=1; fi
+
+if [[ "$push_ok" -ne 1 ]]; then
+	# Jangan tinggalkan commit lokal: deploy memakai reset --hard origin/main dan akan membuang
+	# commit ini beserta file medianya. Batalkan commit, file tetap di disk untuk dicoba lagi.
+	log "Push gagal — batalkan commit lokal, coba lagi siklus berikutnya"
+	git reset -q --soft "origin/${BRANCH}" 2>/dev/null || git reset -q --soft HEAD~1 || true
+	git reset -q 2>/dev/null || true
+	exit 1
 fi
 
-git push origin "HEAD:${BRANCH}"
+# Catat timestamp hanya bila push sukses
+echo "$now_epoch" > "$LAST_COMMIT_FILE"
 log "Push media selesai."
 git status -sb | head -5 || true
