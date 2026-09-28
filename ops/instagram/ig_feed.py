@@ -203,7 +203,11 @@ def main():
         raise RuntimeError("tidak ada sesi valid dan INSTAGRAM_DUMMY_USERNAME/PASSWORD kosong")
 
     try:
-        if os.path.exists(SETTINGS):
+        # Cookie browser yang baru diekspor (lebih baru dari sesi tersimpan) → pakai cookie itu
+        cookie_newer = os.path.exists(COOKIE_FILE) and (
+            not os.path.exists(SETTINGS) or os.path.getmtime(COOKIE_FILE) > os.path.getmtime(SETTINGS)
+        )
+        if os.path.exists(SETTINGS) and not cookie_newer:
             cl.load_settings(SETTINGS)
             method = "settings"
         else:

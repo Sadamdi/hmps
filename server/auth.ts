@@ -21,6 +21,11 @@ interface UserWithRole {
 }
 
 // Environment variables with fallbacks
+// Kunci bawaan hanya untuk development. Di produksi WAJIB JWT_SECRET kuat: kunci bawaan tercantum di
+// repo publik sehingga siapa pun bisa memalsukan token.
+if (process.env.NODE_ENV === 'production' && String(process.env.JWT_SECRET || '').length < 32) {
+	throw new Error('JWT_SECRET wajib di-set (minimal 32 karakter) di produksi');
+}
 const JWT_SECRET_STRING =
 	process.env.JWT_SECRET || 'hmti-secret-key-change-in-production';
 const JWT_SECRET_KEY = JWT_SECRET_STRING; // Use string format instead of Buffer
@@ -86,10 +91,15 @@ export async function authenticate(
 		}
 
 		// @ts-ignore
-		const decoded = jwt.verify(token, JWT_SECRET_KEY) as { id: string } & {
+		const decoded = jwt.verify(token, JWT_SECRET_KEY, { algorithms: ['HS256'] }) as { id: string } & {
 			sid?: string;
 			tenant?: string;
 		};
+
+		// Semua token sah dibuat saat login bersama sesi (sid); token tanpa sid = palsu/lama
+		if (!decoded?.sid) {
+			return res.status(401).json({ message: 'Authentication required' });
+		}
 
 		let user: any;
 		let SessionModel: any;
@@ -180,12 +190,13 @@ export async function authenticateOptional(
 			return next();
 		}
 		// @ts-ignore
-		const decoded = jwt.verify(token, JWT_SECRET_KEY) as { id: string } & {
+		const decoded = jwt.verify(token, JWT_SECRET_KEY, { algorithms: ['HS256'] }) as { id: string } & {
 			sid?: string;
 			tv?: number;
 			tenant?: string;
 		};
 
+		if (!decoded?.sid) return next();
 		let user: any;
 		let SessionModel: any;
 		if (req.isTenantRequest && req.tenantModels) {
