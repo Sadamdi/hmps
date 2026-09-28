@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.6] - 2026-09-28
+
+### Fixed
+
+- Import PDF kepengurusan mencoba semua slot kunci Gemini (sebelumnya hanya slot pertama).
+
 ## [4.29.5] - 2026-09-28
 
 ### Security
