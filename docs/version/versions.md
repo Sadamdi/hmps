@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.29.5`  
+**Current version:** `4.29.6`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.29.5`](./release/4.29.5.md) | 2026-09-28 | Kunci JWT wajib di produksi & token tanpa sesi ditolak | PATCH | 1 | **Current** |
+| [`4.29.6`](./release/4.29.6.md) | 2026-09-28 | Import PDF kepengurusan memakai semua kunci Gemini | PATCH | 1 | **Current** |
+| [`4.29.5`](./release/4.29.5.md) | 2026-09-28 | Kunci JWT wajib di produksi & token tanpa sesi ditolak | PATCH | 1 | Released |
 | [`4.29.4`](./release/4.29.4.md) | 2026-09-28 | Login via email bersama, kepengurusan lengkap untuk AI, sync IG harian | PATCH | 1 | Released |
 | [`4.29.3`](./release/4.29.3.md) | 2026-09-28 | AI: niat tulis yang benar & pengerasan prompt injection | PATCH | 1 | Released |
 | [`4.29.2`](./release/4.29.2.md) | 2026-09-28 | Hardening login: IP tepercaya, throttle per akun, tanpa password bawaan | PATCH | 1 | Released |

@@ -440,23 +440,26 @@ async function callGeminiWithModelFallback(
 	if (!slots.length) {
 		throw new Error('GEMINI_API_KEY_1 (atau slot lain) belum dikonfigurasi');
 	}
-	const gemini = initGeminiClient(slots[0].secret);
 	const mergedParts: Array<
 		| { text: string }
 		| { inlineData: { mimeType: string; data: string } }
 	> = [{ text: prompt }, ...parts];
 	let lastErr: unknown;
 	const models = GEMINI_MODELS.length ? GEMINI_MODELS : ['gemini-2.5-flash'];
-	for (const modelName of models) {
-		try {
-			const model = gemini.getGenerativeModel({ model: modelName });
-			const result = await model.generateContent({
-				contents: [{ role: 'user', parts: mergedParts as any }],
-			});
-			const text = result.response.text();
-			if (text && String(text).trim()) return text;
-		} catch (e) {
-			lastErr = e;
+	// Coba semua slot kunci (dulu hanya slot pertama → kuota habis = import PDF gagal total)
+	for (const slot of slots) {
+		const gemini = initGeminiClient(slot.secret);
+		for (const modelName of models) {
+			try {
+				const model = gemini.getGenerativeModel({ model: modelName });
+				const result = await model.generateContent({
+					contents: [{ role: 'user', parts: mergedParts as any }],
+				});
+				const text = result.response.text();
+				if (text && String(text).trim()) return text;
+			} catch (e) {
+				lastErr = e;
+			}
 		}
 	}
 	const msg =
