@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.5] - 2026-09-28
+
+### Security
+
+- Produksi wajib `JWT_SECRET` kuat (sebelumnya memakai kunci bawaan publik); JWT hanya HS256; token tanpa `sid` ditolak. Semua pengguna login ulang sekali.
+
+### Changed
+
+- Bridge Instagram memakai cookie browser yang baru diekspor.
+
 ## [4.29.4] - 2026-09-28
 
 ### Security
