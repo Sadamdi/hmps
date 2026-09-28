@@ -118,7 +118,7 @@ export class ChatService {
 	}
 
 	private static readonly WRITE_RETRY_INSTRUCTION =
-		'INSTRUKSI SISTEM (bukan pesan user): Pesan user terbaru berisi naskah konten lengkap dan user meminta dibuatkan. Panggil tool tulis yang sesuai SEKARANG (create_berita_draft untuk berita; create_event / create_library_item bila jelas event/galeri) memakai judul dari naskah dan SELURUH isi tanpa dipotong atau diubah faktanya. Jangan panggil tool list/search/get_dashboard_*. Setelah berhasil, jawab 1-3 kalimat: ID draft dan langkah lanjut (thumbnail/publish).';
+		'INSTRUKSI SISTEM (bukan pesan user): Pesan user terbaru berisi naskah konten lengkap dan user meminta dibuatkan. Panggil tool tulis yang sesuai SEKARANG (create_berita_draft untuk berita; create_event / create_library_item bila jelas event/galeri) memakai judul dari naskah dan SELURUH isi tanpa dipotong atau diubah faktanya. Boleh SATU kali tool cari (search_berita / search_events / search_library_items, keyword topik yang relevan) hanya untuk menyamakan format (gaya judul, struktur paragraf, tag/kategori) dengan konten sejenis; jangan tampilkan daftar hasilnya ke user dan jangan mengambil fakta dari konten lain. Setelah berhasil, jawab 1-3 kalimat: ID draft dan langkah lanjut (thumbnail/publish).';
 	private static readonly WEB_RETRY_INSTRUCTION =
 		'INSTRUKSI SISTEM (bukan pesan user): Jawaban sebelumnya belum memakai tool web. Panggil internet_search lalu fetch_website_content pada hasil paling relevan, kemudian jawab final dengan menyebut URL sumber.';
 	private static readonly READ_RETRY_INSTRUCTION =
@@ -901,7 +901,7 @@ export class ChatService {
 		} else if (writeIntent.createNoBody) {
 			history.push({
 				role: 'system',
-				parts: [{ text: 'INSTRUKSI SISTEM (bukan pesan user): User ingin membuat konten tetapi belum memberi naskah/isi. JANGAN panggil tool list/search/get_dashboard_* dan JANGAN menampilkan daftar konten lain. Minta singkat (poin): judul, isi lengkap (5W1H, nama, tanggal, tempat), opsional excerpt/tag/cover. Bila user minta dibuatkan tulisan dari poin singkat, boleh menyusun naskah lalu tanyakan konfirmasi sebelum membuat draft.' }],
+				parts: [{ text: 'INSTRUKSI SISTEM (bukan pesan user): User ingin membuat konten tetapi belum memberi naskah/isi. JANGAN menampilkan daftar konten lain ke user (boleh cari 1 konten sejenis hanya sebagai referensi format). Minta singkat (poin): judul, isi lengkap (5W1H, nama, tanggal, tempat), opsional excerpt/tag/cover. Bila user minta dibuatkan tulisan dari poin singkat, boleh menyusun naskah lalu tanyakan konfirmasi sebelum membuat draft.' }],
 			});
 		}
 		const geminiTools: FunctionDeclarationsTool[] = [
