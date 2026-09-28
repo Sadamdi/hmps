@@ -111,12 +111,23 @@ async function getUserByUsernameOrEmail(
 	if (!identifier) return null;
 	const byUsername = await User.findOne({ username: identifier }).lean();
 	if (byUsername) return byUsername;
-	return await User.findOne({ email: identifier.trim().toLowerCase() }).lean();
+	return await getUniqueUserByEmail(identifier);
 }
 
 async function getUserByEmail(email: string): Promise<any | null> {
 	if (!email) return null;
 	return await User.findOne({ email: email.trim().toLowerCase() }).lean();
+}
+
+/**
+ * User untuk login via email: hanya bila email itu dipakai TEPAT satu akun. Email bersama
+ * (mis. email organisasi dipakai beberapa akun) tidak boleh dipakai login — hasil findOne
+ * tidak deterministik dan bisa mendarat di akun lain (mis. `admin`).
+ */
+async function getUniqueUserByEmail(email: string): Promise<any | null> {
+	if (!email) return null;
+	const rows = await User.find({ email: email.trim().toLowerCase() }).limit(2).lean();
+	return rows.length === 1 ? rows[0] : null;
 }
 
 async function createUser(userData: any): Promise<any> {
@@ -1832,6 +1843,7 @@ const mongoDBStorage = {
 	getUserByUsername,
 	getUserByUsernameOrEmail,
 	getUserByEmail,
+	getUniqueUserByEmail,
 	createUser,
 	updateUser,
 	deleteUser,

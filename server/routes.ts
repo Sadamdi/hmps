@@ -1655,7 +1655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (req.isTenantRequest && req.tenantModels) {
 				const { createTenantStorage } = await import('./tenant-storage');
 				const storage = createTenantStorage(req.tenantModels);
-				const user: any = await storage.getUserByEmail(email);
+				const user: any = await storage.getUniqueUserByEmail(email);
 				if (!user) return notRegistered();
 				return await finalizeLogin(req, res, user, storage, req.tenantModels.Session, req.tenantDbName);
 			}
@@ -1669,12 +1669,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (!community) return notRegistered();
 				const models = getTenantModels(community.dbName);
 				const storage = createTenantStorage(models);
-				const user: any = await storage.getUserByEmail(email);
+				const user: any = await storage.getUniqueUserByEmail(email);
 				if (!user) return notRegistered();
 				return await finalizeLogin(req, res, user, storage, models.Session, community.dbName);
 			}
 
-			const mainUser: any = await mongoStorage.getUserByEmail(email);
+			const mainUser: any = await mongoStorage.getUniqueUserByEmail(email);
 			if (loginTarget === 'main') {
 				if (!mainUser) return notRegistered();
 				return await finalizeLogin(req, res, mainUser, mongoStorage, Session, undefined);
@@ -1686,7 +1686,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			await Promise.all(
 				activeCommunities.map(async (c: any) => {
 					try {
-						const tUser: any = await createTenantStorage(getTenantModels(c.dbName)).getUserByEmail(email);
+						const tUser: any = await createTenantStorage(getTenantModels(c.dbName)).getUniqueUserByEmail(email);
 						if (tUser) tenantMatches.push({ user: tUser, dbName: c.dbName, slug: c.slug, name: c.name });
 					} catch (e) {
 						console.warn(`Google login auto-detect: failed checking tenant ${c.slug}:`, e);
@@ -1981,14 +1981,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			const models = resolveModels(req);
-			const user = (await models.User.findOne({
+			const matches = (await models.User.find({
 				email: email.trim().toLowerCase(),
-			}).lean()) as any;
-			if (!user) {
+			})
+				.limit(2)
+				.lean()) as any[];
+			if (!matches.length) {
 				return res
 					.status(404)
 					.json({ message: 'Tidak ada email yang tersedia' });
 			}
+			// Email bersama (dipakai >1 akun) tidak boleh dipakai reset: akun mana yang direset tidak pasti
+			if (matches.length > 1) {
+				return res.status(409).json({
+					message: 'Email ini dipakai lebih dari satu akun. Hubungi admin untuk reset password.',
+					error: { code: 'EMAIL_SHARED_BY_MULTIPLE_ACCOUNTS' },
+				});
+			}
+			const user = matches[0];
 
 			const { challengeId } = await createOtpChallenge({
 				purpose: 'forgot_password',
@@ -2062,9 +2072,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			const storage = resolveStorage(req);
 			const models = resolveModels(req);
-			const user = (await models.User.findOne({
-				email: result.email,
-			}).lean()) as any;
+			// Reset akun yang tercatat di challenge (userId), bukan sembarang akun dengan email sama
+			const user = (await models.User.findOne(
+				result.userId ? { _id: result.userId, email: result.email } : { email: result.email },
+			).lean()) as any;
 			if (!user) {
 				return res.status(404).json({ message: 'User tidak ditemukan' });
 			}

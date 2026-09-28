@@ -209,8 +209,15 @@ const PUBLIC_READ_TOOLS: AIToolDef[] = [
 	{
 		name: 'get_organization_structure',
 		description:
-			'Ambil struktur organisasi Himatif Encoder termasuk ketua, wakil, divisi, dan kepala divisi. Gunakan saat user bertanya tentang pengurus atau struktur organisasi.',
-		parameters: { type: 'object', properties: {}, required: [] },
+			'Ambil struktur organisasi Himatif Encoder: ketua, wakil, divisi, kepala divisi, dan SELURUH anggota kepengurusan per periode (data lengkap, termasuk hasil impor PDF). Tanpa argumen = periode terbaru + daftar semua periode. Isi `period` (mis. "2024-2025" atau "all") dan/atau `query` (nama/jabatan/divisi) untuk periode atau orang tertentu.',
+		parameters: {
+			type: 'object',
+			properties: {
+				period: { type: 'string', description: 'Periode kepengurusan, mis. "2025-2026"; "all" untuk semua periode.' },
+				query: { type: 'string', description: 'Filter nama atau jabatan (tidak peka huruf besar/kecil).' },
+			},
+			required: [],
+		},
 		isPublic: true,
 	},
 	{
@@ -1706,10 +1713,27 @@ export async function executeToolCall(
 						'chairpersonName chairpersonTitle chairpersonPhoto viceChairpersonName viceChairpersonTitle viceChairpersonPhoto divisionNames divisionHeads siteName'
 					)
 					.lean();
-				const members = await Organization.find()
-					.select('name position period imageUrl')
-					.sort({ createdAt: -1 })
-					.limit(50)
+				// Data kepengurusan ratusan orang lintas periode: jangan potong 50 terbaru (dulu AI
+				// tidak bisa melihat sebagian besar anggota). Default = periode terbaru, lengkap.
+				const periods = ((await Organization.distinct('period')) as string[])
+					.filter(Boolean)
+					.sort()
+					.reverse();
+				const reqPeriod = String(args?.period || '').trim();
+				const q = String(args?.query || '').trim().slice(0, 80);
+				const filter: Record<string, unknown> = {};
+				if (reqPeriod.toLowerCase() !== 'all') {
+					const chosen = periods.includes(reqPeriod) ? reqPeriod : q ? '' : periods[0];
+					if (chosen) filter.period = chosen;
+				}
+				if (q) {
+					const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+					filter.$or = [{ name: rx }, { position: rx }];
+				}
+				const members = await Organization.find(filter)
+					.select('name position period')
+					.sort({ period: -1, createdAt: 1 })
+					.limit(600)
 					.lean();
 				return {
 					leadership: {
@@ -1731,6 +1755,9 @@ export async function executeToolCall(
 					},
 					divisions: (settings as any)?.divisionNames ?? {},
 					divisionHeads: (settings as any)?.divisionHeads ?? {},
+					availablePeriods: periods,
+					shownPeriod: (filter.period as string) || (q ? 'semua (hasil pencarian)' : 'semua'),
+					memberCount: members.length,
 					members: members.map((m) => ({
 						name: (m as any).name,
 						position: (m as any).position,

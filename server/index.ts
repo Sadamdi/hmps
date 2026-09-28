@@ -704,42 +704,6 @@ cron.schedule(
 	{ timezone: 'Asia/Jakarta' },
 );
 
-// Lanjutan backfill Instagram (situs utama): Instagram membatasi akun dummy setelah 1–2 halaman,
-// jadi seluruh arsip diambil bertahap — maks 3 halaman per jam sampai backfill tuntas.
-cron.schedule(
-	'17 * * * *',
-	async () => {
-		if (socialFeedCronRunning) return;
-		socialFeedCronRunning = true;
-		try {
-			const { mongoStorage } = await import('./mongo-storage');
-			const settings: any = await mongoStorage.getSettings();
-			const lean = settings && typeof settings.toObject === 'function' ? settings.toObject() : settings;
-			const cache = lean?.socialFeedCache;
-			// Jalan selama backfill IG belum selesai (ada cursor, atau belum pernah tuntas)
-			if (!cache?.backfillCursor?.instagram && cache?.backfilledAt?.instagram) return;
-			const { resolveSocialFeedConfig } = await import('../shared/social-feed');
-			const config = resolveSocialFeedConfig(lean.socialFeedConfig, false);
-			if (!config.instagram.enabled) return;
-			const { runSocialFeedSync, persistSocialFeedSync } = await import('./services/social-feed');
-			const result = await runSocialFeedSync(config, lean.socialFeedCache, {
-				platform: 'instagram',
-				trigger: 'cron',
-				full: true,
-			});
-			await persistSocialFeedSync(mongoStorage, result, lean.socialFeedLogs);
-			console.log(
-				`✅ Instagram backfill lanjutan ig=${result.cache.instagram?.length || 0} cursor=${result.cache.backfillCursor?.instagram ? 'lanjut' : 'selesai'}`,
-			);
-		} catch (err) {
-			console.error('Instagram backfill resume error:', err);
-		} finally {
-			socialFeedCronRunning = false;
-		}
-	},
-	{ timezone: 'Asia/Jakarta' },
-);
-
 // ==================== VISITOR STATS AGGREGATOR ====================
 // Aggregate page_visits -> visitor_stats every 15 min + warm cache.
 // TTL auto-cleans raw page_visits (90d) and security_events (7d) and login_attempts (30d).

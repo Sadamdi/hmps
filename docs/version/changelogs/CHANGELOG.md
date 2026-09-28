@@ -9,6 +9,20 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.4] - 2026-09-28
+
+### Security
+
+- Login Google, login dengan email, dan lupa password menolak email yang dipakai lebih dari satu akun (sebelumnya bisa mendarat di akun `admin`); reset password memakai `userId` challenge.
+
+### Fixed
+
+- Tool AI `get_organization_structure` membaca seluruh kepengurusan (filter periode/nama), bukan 50 terbaru; AI boleh mencari konten sejenis sebagai referensi format.
+
+### Removed
+
+- Cron backfill Instagram per jam (memicu rate limit); sync Instagram hanya harian 00:00 WIB.
+
 ## [4.29.3] - 2026-09-28
 
 ### Fixed

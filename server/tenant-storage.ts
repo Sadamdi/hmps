@@ -67,7 +67,12 @@ export function createTenantStorage(models: TenantModels) {
 	async function getUserByUsernameOrEmail(identifier: string) {
 		const byUser = await User.findOne({ username: identifier }).lean();
 		if (byUser) return byUser;
-		return User.findOne({ email: identifier.trim().toLowerCase() }).lean();
+		return getUniqueUserByEmail(identifier);
+	}
+	/** Login via email hanya bila email dipakai tepat satu akun (lihat mongo-storage). */
+	async function getUniqueUserByEmail(email: string) {
+		const rows = await User.find({ email: String(email || '').trim().toLowerCase() }).limit(2).lean();
+		return rows.length === 1 ? rows[0] : null;
 	}
 	async function createUser(userData: any) {
 		if (userData.password) userData.password = await hashPassword(userData.password);
@@ -1284,7 +1289,7 @@ export function createTenantStorage(models: TenantModels) {
 
 	return {
 		// User
-		getAllUsers, getUserById, getUserByUsername, getUserByUsernameOrEmail, getUserByEmail,
+		getAllUsers, getUserById, getUserByUsername, getUserByUsernameOrEmail, getUserByEmail, getUniqueUserByEmail,
 		createUser, updateUser, deleteUser, getUsersCount,
 		// Berita
 		getAllBerita, getPublishedBerita, getBeritaById, getBeritaBySlug, getBeritaByAuthorId,
