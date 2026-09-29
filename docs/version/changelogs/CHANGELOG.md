@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.35.3] - 2026-09-29
+
+### Fixed
+
+- Thumbnail og:image Drive dikompres dengan sharp (maks 1000px, JPEG q80); sebelumnya ada yang 1200×1600 / 582 KB.
+
 ## [4.35.2] - 2026-09-29
 
 ### Fixed

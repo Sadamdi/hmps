@@ -133,11 +133,17 @@ export async function driveOgImageHandler(req: Request, res: Response) {
 		let r = await fetch(thumbUrl);
 		if (!r.ok) r = await fetch(thumbUrl, { headers: { Authorization: `Bearer ${await getDriveAccessToken()}` } });
 		if (!r.ok || !String(r.headers.get('content-type')).startsWith('image/')) return res.status(502).end();
-		const buf = Buffer.from(await r.arrayBuffer());
+		// Ukuran Drive tidak selalu mengikuti parameter lebar → kecilkan sendiri agar preview WhatsApp (< ~300 KB) aman
+		const sharp = (await import('sharp')).default;
+		const buf = await sharp(Buffer.from(await r.arrayBuffer()))
+			.rotate()
+			.resize({ width: 1000, height: 1000, fit: 'inside', withoutEnlargement: true })
+			.jpeg({ quality: 80, mozjpeg: true })
+			.toBuffer();
 		fs.mkdirSync(CACHE_DIR, { recursive: true });
 		fs.writeFileSync(cached, buf);
 		res.set('Cache-Control', 'public, max-age=86400');
-		return res.type(r.headers.get('content-type') || 'image/jpeg').send(buf);
+		return res.type('image/jpeg').send(buf);
 	} catch (e) {
 		console.warn('[og-drive]', fileId, (e as Error)?.message);
 		return res.status(502).end();
