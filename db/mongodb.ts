@@ -1794,6 +1794,35 @@ const storeOrderItemSchema = new mongoose.Schema(
 	{ _id: false },
 );
 
+/** Chat produk pembeli ↔ admin toko (tamu via cookie sesi toko, seperti keranjang). */
+const storeChatSchema = new mongoose.Schema(
+	{
+		guestSessionKeyHash: { type: String, required: true, index: true },
+		productId: { type: mongoose.Schema.Types.ObjectId, ref: 'StoreProduct', default: null },
+		productName: { type: String, default: '' },
+		productSlug: { type: String, default: '' },
+		customerName: { type: String, default: '' },
+		messages: {
+			type: [
+				{
+					_id: false,
+					from: { type: String, enum: ['buyer', 'admin'], required: true },
+					text: { type: String, required: true },
+					senderName: { type: String, default: '' },
+					at: { type: Date, default: Date.now },
+				},
+			],
+			default: [],
+		},
+		unreadForAdmin: { type: Number, default: 0 },
+		unreadForBuyer: { type: Number, default: 0 },
+		status: { type: String, enum: ['open', 'closed'], default: 'open' },
+		lastMessageAt: { type: Date, default: Date.now, index: true },
+	},
+	{ timestamps: true },
+);
+storeChatSchema.index({ guestSessionKeyHash: 1, productId: 1 });
+
 const storeOrderSchema = new mongoose.Schema(
 	{
 		orderNo: { type: String, required: true, unique: true },
@@ -1818,6 +1847,14 @@ const storeOrderSchema = new mongoose.Schema(
 		storeAddressSnapshot: { type: String, default: '' },
 		whatsappPhoneUsed: { type: String, default: '' },
 		whatsappMessageSnapshot: { type: String, default: '' },
+		/** Admin WA yang dipilih (nama untuk dashboard) */
+		whatsappAdminName: { type: String, default: '' },
+		/** Stok yang dikurangi saat checkout — dikembalikan bila pesanan dibatalkan/dihapus */
+		stockDecrements: {
+			type: [{ _id: false, productId: mongoose.Schema.Types.ObjectId, qty: Number }],
+			default: [],
+		},
+		stockRestoredAt: { type: Date, default: null },
 		/** Konsumsi campaign one-time (order-level idempotency) */
 		appliedCampaignIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'StoreDiscountCampaign' }],
 		status: {
@@ -1959,6 +1996,8 @@ const GuestStoreSession =
 	mongoose.model('GuestStoreSession', guestStoreSessionSchema);
 const StoreOrder =
 	mongoose.models.StoreOrder || mongoose.model('StoreOrder', storeOrderSchema);
+const StoreChat =
+	mongoose.models.StoreChat || mongoose.model('StoreChat', storeChatSchema);
 
 const BugReport =
 	mongoose.models.BugReport || mongoose.model('BugReport', bugReportSchema);
@@ -2192,6 +2231,7 @@ export const allSchemas = {
 	storeBundle: storeBundleSchema,
 	guestStoreSession: guestStoreSessionSchema,
 	storeOrder: storeOrderSchema,
+	storeChat: storeChatSchema,
 };
 
 export {
@@ -2217,6 +2257,7 @@ export {
 	Session,
 	Settings,
 	StoreOrder,
+	StoreChat,
 	StoreProduct,
 	StoreProductCategory,
 	StoreProductShare,

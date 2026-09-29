@@ -6,6 +6,7 @@ import { createServer, type Server } from 'http';
 import path from 'path';
 import { Readable } from 'stream';
 import { PostSharing, Comment } from '../db/mongodb';
+import * as mainDbModels from '../db/mongodb';
 import {
 	authenticate,
 	authenticateOptional,
@@ -162,8 +163,8 @@ function resolveStorage(req: Request): any {
 
 function resolveModels(req: Request): any {
 	if (req.tenantModels) return req.tenantModels;
-	// Lazy-require main models to avoid circular deps
-	return require('../db/mongodb');
+	// Import statis (modul sudah di-import di atas); `require` tidak ada di mode dev ESM
+	return mainDbModels;
 }
 
 function tenantCacheKey(req: Request): string {

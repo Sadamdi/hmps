@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 import type { Request, Response, NextFunction } from 'express';
 import { Router } from 'express';
 import { authenticate } from '../auth';
+import * as mainDbModels from '../../db/mongodb';
 import { mongoStorage } from '../mongo-storage';
 import {
 	effectiveProductCurrency,
@@ -58,7 +59,8 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 function resolveModels(req: Request) {
 	if ((req as any).tenantModels) return (req as any).tenantModels;
-	return require('../../db/mongodb');
+	// Import statis: `require` tidak ada di mode dev (tsx/ESM), hanya jalan di bundle esbuild
+	return mainDbModels;
 }
 
 function hashSessionKey(secret: string): string {
@@ -783,6 +785,16 @@ router.get('/public/products', async (req, res) => {
 			filter.$or = textOr;
 		}
 
+		// Favorit (disimpan di browser): ?ids=a,b,c
+		const idsParam = String(req.query.ids || '').trim();
+		if (idsParam) {
+			const ids = idsParam
+				.split(',')
+				.map((x) => x.trim())
+				.filter((x) => mongoose.Types.ObjectId.isValid(x))
+				.slice(0, 200);
+			filter._id = { $in: ids };
+		}
 		const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
 		const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit || '9'), 10) || 9));
 		const skip = (page - 1) * limit;
@@ -1759,6 +1771,28 @@ router.get('/admin/orders', authenticate, requireTokoManage, async (req, res) =>
 	}
 });
 
+async function restoreOrderStock(StoreProduct: any, order: any) {
+	for (const d of order?.stockDecrements || []) {
+		if (!d?.productId || !(Number(d.qty) > 0)) continue;
+		await StoreProduct.updateOne({ _id: d.productId }, { $inc: { stock: Number(d.qty) } });
+	}
+}
+
+async function retakeOrderStock(StoreProduct: any, order: any): Promise<boolean> {
+	const done: { productId: any; qty: number }[] = [];
+	for (const d of order?.stockDecrements || []) {
+		const qty = Number(d?.qty) || 0;
+		if (!d?.productId || qty <= 0) continue;
+		const r = await StoreProduct.updateOne({ _id: d.productId, stock: { $gte: qty } }, { $inc: { stock: -qty } });
+		if (r.modifiedCount !== 1) {
+			for (const x of done) await StoreProduct.updateOne({ _id: x.productId }, { $inc: { stock: x.qty } });
+			return false;
+		}
+		done.push({ productId: d.productId, qty });
+	}
+	return true;
+}
+
 const STORE_ORDER_STATUSES = ['pending', 'confirmed', 'paid', 'completed', 'cancelled'] as const;
 
 router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (req, res) => {
@@ -1770,12 +1804,23 @@ router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (r
 		if (!STORE_ORDER_STATUSES.includes(status as any)) {
 			return res.status(400).json({ message: 'Status tidak valid' });
 		}
-		const order = await StoreOrder.findOneAndUpdate(
-			{ orderNo },
-			{ $set: { status, updatedAt: new Date() } },
-			{ new: true },
-		).lean();
-		if (!order) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+		const { StoreProduct } = resolveModels(req);
+		const current: any = await StoreOrder.findOne({ orderNo }).lean();
+		if (!current) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+		const set: Record<string, unknown> = { status, updatedAt: new Date() };
+		if (status === 'cancelled' && current.status !== 'cancelled') {
+			// Dibatalkan/ditolak → stok dikembalikan (sekali saja)
+			if (!current.stockRestoredAt) {
+				await restoreOrderStock(StoreProduct, current);
+				set.stockRestoredAt = new Date();
+			}
+		} else if (status !== 'cancelled' && current.status === 'cancelled' && current.stockRestoredAt) {
+			// Dibuka lagi → ambil stok lagi; gagal bila stok sudah tidak cukup
+			const ok = await retakeOrderStock(StoreProduct, current);
+			if (!ok) return res.status(400).json({ message: 'Stok tidak mencukupi untuk membuka kembali pesanan' });
+			set.stockRestoredAt = null;
+		}
+		const order = await StoreOrder.findOneAndUpdate({ orderNo }, { $set: set }, { new: true }).lean();
 		res.json(order);
 	} catch (e) {
 		console.error(e);
@@ -1788,6 +1833,13 @@ router.delete('/admin/orders/:orderNo', authenticate, requireTokoManage, async (
 		const { StoreOrder } = resolveModels(req);
 		const orderNo = String(req.params.orderNo || '').trim();
 		if (!orderNo) return res.status(400).json({ message: 'Nomor pesanan wajib' });
+		const { StoreProduct } = resolveModels(req);
+		const existing: any = await StoreOrder.findOne({ orderNo }).lean();
+		if (!existing) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+		// Hapus pesanan yang belum selesai/dibatalkan → kembalikan stoknya
+		if (!existing.stockRestoredAt && !['completed', 'cancelled'].includes(existing.status)) {
+			await restoreOrderStock(StoreProduct, existing);
+		}
 		const r = await StoreOrder.deleteOne({ orderNo });
 		if (r.deletedCount !== 1) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
 		res.json({ ok: true });
@@ -2462,6 +2514,8 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 			storeAddressSnapshot: storeAddr,
 			whatsappPhoneUsed: waUsed,
 			whatsappMessageSnapshot: msgWithGreeting,
+			whatsappAdminName: waAdmin.name,
+			stockDecrements: decremented.map((d) => ({ productId: d.id, qty: d.qty })),
 			status: 'pending',
 			appliedCampaignIds: Array.from(campaignIds)
 				.filter((x) => mongoose.Types.ObjectId.isValid(x))
@@ -2583,6 +2637,242 @@ router.post('/buy-link', storeCheckoutRateLimiter, async (req, res) => {
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal membuat link WhatsApp' });
+	}
+});
+
+// ── Chat produk (pembeli tamu ↔ admin toko) ──
+// Pembeli dikenali lewat cookie sesi toko (sama seperti keranjang). Satu utas per produk per sesi.
+// Dari utas chat pembeli bisa lanjut ke WhatsApp admin (whatsappUrl).
+
+const CHAT_TEXT_MAX = 1000;
+const CHAT_MESSAGES_MAX = 300;
+
+function cleanChatText(raw: unknown): string {
+	return String(raw || '')
+		.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+		.trim()
+		.slice(0, CHAT_TEXT_MAX);
+}
+
+function chatForBuyer(chat: any) {
+	return {
+		_id: String(chat._id),
+		productId: chat.productId ? String(chat.productId) : null,
+		productName: chat.productName,
+		productSlug: chat.productSlug,
+		customerName: chat.customerName,
+		status: chat.status,
+		unreadForBuyer: chat.unreadForBuyer || 0,
+		lastMessageAt: chat.lastMessageAt,
+		messages: (chat.messages || []).map((m: any) => ({
+			from: m.from,
+			text: m.text,
+			senderName: m.from === 'admin' ? m.senderName || 'Admin' : m.senderName || '',
+			at: m.at,
+		})),
+	};
+}
+
+/** Link WA untuk melanjutkan chat: admin aktif (pilihan pembeli bila >1). */
+function chatWaLink(settings: any, product: any, adminId: unknown, chat: any, base: string, storePath: string) {
+	const pick = pickStoreWaAdmin(settings, product || undefined, adminId);
+	if (!pick.ok) return { waUrl: null as string | null, pick };
+	const lastBuyer = [...(chat?.messages || [])].reverse().find((m: any) => m.from === 'buyer');
+	const productLine = chat?.productName
+		? `saya mau tanya tentang *${chat.productName}* (${base}${storePath}/${chat.productSlug}).`
+		: 'saya mau tanya tentang produk toko.';
+	const text = `${waGreeting(pick.admin)}${productLine}${lastBuyer ? `\n\n${lastBuyer.text}` : ''}`;
+	return { waUrl: `https://wa.me/${pick.admin.phone}?text=${encodeURIComponent(text)}`, pick };
+}
+
+router.get('/chats', async (req, res) => {
+	try {
+		const { StoreChat } = resolveModels(req);
+		const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
+		const productId = String(req.query.productId || '').trim();
+		const filter: any = { guestSessionKeyHash: sessionKeyHash };
+		if (productId && mongoose.Types.ObjectId.isValid(productId)) filter.productId = productId;
+		const list = await StoreChat.find(filter).sort({ lastMessageAt: -1 }).limit(50).lean();
+		res.json(list.map(chatForBuyer));
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memuat chat' });
+	}
+});
+
+router.post('/chats', storeCheckoutRateLimiter, async (req, res) => {
+	try {
+		const { StoreChat, StoreProduct } = resolveModels(req);
+		const text = cleanChatText(req.body?.text);
+		if (!text) return res.status(400).json({ message: 'Pesan wajib diisi' });
+		const customerName = String(req.body?.customerName || '').trim().slice(0, 80);
+		const productId = String(req.body?.productId || '').trim();
+		let product: any = null;
+		if (productId) {
+			if (!mongoose.Types.ObjectId.isValid(productId)) return res.status(400).json({ message: 'Produk tidak valid' });
+			product = await StoreProduct.findOne({ _id: productId, published: true }).select('name slug').lean();
+			if (!product) return res.status(404).json({ message: 'Produk tidak ditemukan' });
+		}
+		const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
+		const now = new Date();
+		let chat = await StoreChat.findOne({ guestSessionKeyHash: sessionKeyHash, productId: product?._id || null });
+		if (!chat) {
+			chat = new StoreChat({
+				guestSessionKeyHash: sessionKeyHash,
+				productId: product?._id || null,
+				productName: product?.name || '',
+				productSlug: product?.slug || '',
+				customerName,
+				messages: [],
+			});
+		}
+		if (customerName) chat.customerName = customerName;
+		if (chat.messages.length >= CHAT_MESSAGES_MAX) {
+			return res.status(400).json({ message: 'Percakapan terlalu panjang, lanjutkan lewat WhatsApp' });
+		}
+		chat.messages.push({ from: 'buyer', text, senderName: chat.customerName || '', at: now });
+		chat.unreadForAdmin = (chat.unreadForAdmin || 0) + 1;
+		chat.status = 'open';
+		chat.lastMessageAt = now;
+		await chat.save();
+		res.status(201).json(chatForBuyer(chat.toObject()));
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal mengirim pesan' });
+	}
+});
+
+router.get('/chats/:id', async (req, res) => {
+	try {
+		const { StoreChat } = resolveModels(req);
+		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
+		const chat = await StoreChat.findOneAndUpdate(
+			{ _id: req.params.id, guestSessionKeyHash: sessionKeyHash },
+			{ $set: { unreadForBuyer: 0 } },
+			{ new: true },
+		).lean();
+		if (!chat) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		res.json(chatForBuyer(chat));
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memuat chat' });
+	}
+});
+
+/** Lanjut ke WhatsApp dari utas chat (409 STORE_CLOSED / CHOOSE_ADMIN seperti checkout). */
+router.post('/chats/:id/whatsapp', async (req, res) => {
+	try {
+		const { StoreChat, StoreProduct } = resolveModels(req);
+		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
+		const chat: any = await StoreChat.findOne({ _id: req.params.id, guestSessionKeyHash: sessionKeyHash }).lean();
+		if (!chat) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		const settings: any = await ensureSettings(req);
+		const product = chat.productId ? await StoreProduct.findById(chat.productId).lean() : null;
+		const link = chatWaLink(
+			settings,
+			product,
+			req.body?.adminId,
+			chat,
+			publicBaseUrl(req),
+			normalizeStorePath(settings?.navbarPath),
+		);
+		if (!link.pick.ok) return res.status(link.pick.status).json(link.pick.body);
+		res.json({ whatsappUrl: link.waUrl });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal membuat link WhatsApp' });
+	}
+});
+
+// Admin
+router.get('/admin/chats', authenticate, requireStoreDashboard, async (req, res) => {
+	try {
+		const { StoreChat } = resolveModels(req);
+		const status = String(req.query.status || '').trim();
+		const filter: any = {};
+		if (status === 'open' || status === 'closed') filter.status = status;
+		const list = await StoreChat.find(filter)
+			.sort({ lastMessageAt: -1 })
+			.limit(200)
+			.select('productName productSlug customerName status unreadForAdmin lastMessageAt messages')
+			.lean();
+		res.json(
+			list.map((c: any) => {
+				const last = (c.messages || [])[c.messages.length - 1];
+				return {
+					_id: String(c._id),
+					productName: c.productName,
+					productSlug: c.productSlug,
+					customerName: c.customerName || 'Pembeli',
+					status: c.status,
+					unreadForAdmin: c.unreadForAdmin || 0,
+					lastMessageAt: c.lastMessageAt,
+					lastMessage: last ? { from: last.from, text: String(last.text).slice(0, 140) } : null,
+				};
+			}),
+		);
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memuat chat' });
+	}
+});
+
+router.get('/admin/chats/:id', authenticate, requireStoreDashboard, async (req, res) => {
+	try {
+		const { StoreChat } = resolveModels(req);
+		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		const chat = await StoreChat.findByIdAndUpdate(req.params.id, { $set: { unreadForAdmin: 0 } }, { new: true }).lean();
+		if (!chat) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		const { guestSessionKeyHash: _g, ...rest } = chat as any;
+		res.json(rest);
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memuat chat' });
+	}
+});
+
+router.post('/admin/chats/:id/messages', authenticate, requireStoreDashboard, async (req, res) => {
+	try {
+		const { StoreChat } = resolveModels(req);
+		const text = cleanChatText(req.body?.text);
+		if (!text) return res.status(400).json({ message: 'Pesan wajib diisi' });
+		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		const chat = await StoreChat.findById(req.params.id);
+		if (!chat) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		if (chat.messages.length >= CHAT_MESSAGES_MAX) {
+			return res.status(400).json({ message: 'Percakapan terlalu panjang' });
+		}
+		const u: any = req.user || {};
+		const now = new Date();
+		chat.messages.push({ from: 'admin', text, senderName: String(u.name || u.username || 'Admin'), at: now });
+		chat.unreadForBuyer = (chat.unreadForBuyer || 0) + 1;
+		chat.unreadForAdmin = 0;
+		chat.lastMessageAt = now;
+		await chat.save();
+		const { guestSessionKeyHash: _g, ...rest } = chat.toObject() as any;
+		res.status(201).json(rest);
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal mengirim balasan' });
+	}
+});
+
+router.patch('/admin/chats/:id', authenticate, requireStoreDashboard, async (req, res) => {
+	try {
+		const { StoreChat } = resolveModels(req);
+		const status = String(req.body?.status || '');
+		if (!['open', 'closed'].includes(status)) return res.status(400).json({ message: 'Status tidak valid' });
+		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		const chat = await StoreChat.findByIdAndUpdate(req.params.id, { $set: { status } }, { new: true })
+			.select('-guestSessionKeyHash')
+			.lean();
+		if (!chat) return res.status(404).json({ message: 'Chat tidak ditemukan' });
+		res.json(chat);
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memperbarui chat' });
 	}
 });
 

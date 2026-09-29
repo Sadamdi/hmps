@@ -9,6 +9,19 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.31.0] - 2026-09-29
+
+### Added
+
+- Toko: "Chat penjual" di halaman produk (tamu, per produk) + inbox Chat di dashboard + lanjut ke WhatsApp.
+- Toko: Favorit di browser (kartu & detail produk) + filter Favorit di katalog.
+
+### Fixed
+
+- Tombol "Tambah admin" WhatsApp di dashboard tidak memunculkan baris baru.
+- Pembatalan/penghapusan pesanan kini mengembalikan stok (dibuka lagi → stok diambil lagi).
+- Server dev gagal memuat model toko (`require` di ESM).
+
 ## [4.30.0] - 2026-09-29
 
 ### Added

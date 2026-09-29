@@ -1,3 +1,6 @@
+import { StoreChatPanel } from '@/components/toko/store-chat-panel';
+import { StoreFavoriteButton } from '@/components/toko/store-favorite-button';
+import { MessageCircle } from 'lucide-react';
 import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
 import { STORE_CLOSED_MESSAGE, type StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
@@ -250,6 +253,7 @@ export default function TokoProductDetailPage() {
 		useState<'pickup' | 'delivery'>('pickup');
 	const [buyerAddress, setBuyerAddress] = useState('');
 	const [waAdminId, setWaAdminId] = useState('');
+	const [chatOpen, setChatOpen] = useState(false);
 	const waAdmins = product?.waAdmins as StoreWaAdminPublic[] | undefined;
 	const storeClosed = product?.storeOpen === false;
 	const [formErrors, setFormErrors] = useState<{
@@ -585,6 +589,11 @@ export default function TokoProductDetailPage() {
 									<ShoppingCart className="h-4 w-4 mr-2" />
 									Masukkan keranjang
 								</Button>
+								<Button size="lg" variant="outline" onClick={() => setChatOpen(true)}>
+									<MessageCircle className="h-4 w-4 mr-2" />
+									Chat penjual
+								</Button>
+								<StoreFavoriteButton productId={String(product._id)} withLabel />
 							</div>
 							{(effectiveContactName || effectiveStoreAddress) && (
 								<Card className="mt-6">
@@ -710,6 +719,14 @@ export default function TokoProductDetailPage() {
 					</DialogFooter>
 				</DialogContent>
 			</Dialog>
+			<StoreChatPanel
+				open={chatOpen}
+				onOpenChange={setChatOpen}
+				productId={String(product._id)}
+				productName={product.name}
+				waAdmins={waAdmins}
+				defaultName={buyerName}
+			/>
 			<Footer />
 			<AIChat pageContext={{ path: storeBasePath, permissions: [] }} />
 		</div>

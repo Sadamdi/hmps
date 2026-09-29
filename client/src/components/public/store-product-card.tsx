@@ -9,6 +9,7 @@ import {
 } from '@shared/store-currency';
 import { getStoreStockAvailable } from '@shared/store-pricing';
 import { Badge } from '@/components/ui/badge';
+import { StoreFavoriteButton } from '@/components/toko/store-favorite-button';
 
 export interface StoreProductCardProps {
 	product: any;
@@ -64,6 +65,9 @@ export function StoreProductCard({
 					/>
 				</div>
 			</Link>
+			<div className="relative">
+				<StoreFavoriteButton productId={String(product._id)} className="absolute right-3 -top-12 z-10" />
+			</div>
 			<CardContent className="p-4">
 				<div className="flex items-start justify-between gap-2">
 					<Link href={detailHref} className="min-w-0 flex-1">

@@ -14,7 +14,8 @@ import { apiRequest } from '@/lib/queryClient';
 import { useApiUrl } from '@/lib/tenant-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, Loader2, Package, Search, ShoppingCart } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, Heart, Loader2, Package, Search, ShoppingCart } from 'lucide-react';
+import { useStoreFavorites } from '@/hooks/use-store-favorites';
 import { useTenant } from '@/lib/tenant-context';
 import { useEffect, useMemo, useState } from 'react';
 import { computeDiscountedBundleSubtotal, computeDiscountedSubtotal } from '@shared/store-discounts';
@@ -93,10 +94,12 @@ export default function TokoIndexPage() {
 	const [categoryFilter, setCategoryFilter] = useState('');
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [page, setPage] = useState(1);
+	const [favOnly, setFavOnly] = useState(false);
+	const { favoriteIds } = useStoreFavorites();
 
 	useEffect(() => {
 		setPage(1);
-	}, [q, categoryFilter]);
+	}, [q, categoryFilter, favOnly]);
 
 	const productsListUrl = useMemo(() => {
 		const params = new URLSearchParams();
@@ -105,8 +108,9 @@ export default function TokoIndexPage() {
 		if (q.trim()) params.set('q', q.trim());
 		if (categoryFilter === '__none') params.set('category', '__none');
 		else if (categoryFilter) params.set('category', categoryFilter);
+		if (favOnly) params.set('ids', favoriteIds.join(',') || 'none');
 		return `${productsUrl}?${params.toString()}`;
-	}, [productsUrl, q, categoryFilter, page]);
+	}, [productsUrl, q, categoryFilter, page, favOnly, favoriteIds]);
 
 	const { data: productsPayload, isLoading: loadingProducts } = useQuery<PublicProductsPage>({
 		queryKey: [productsListUrl],
@@ -183,6 +187,16 @@ export default function TokoIndexPage() {
 							<h1 className="text-3xl font-bold tracking-tight">{storeLabel}</h1>
 							<p className="text-muted-foreground mt-1">Katalog produk</p>
 						</div>
+						<div className="flex w-full sm:w-auto items-center gap-2">
+						<Button
+							type="button"
+							variant={favOnly ? 'default' : 'outline'}
+							aria-pressed={favOnly}
+							onClick={() => setFavOnly((v) => !v)}
+							className="shrink-0">
+							<Heart className={`h-4 w-4 mr-1.5 ${favOnly ? 'fill-current' : ''}`} />
+							Favorit{favoriteIds.length ? ` (${favoriteIds.length})` : ''}
+						</Button>
 						<div className="relative w-full sm:w-64 shrink-0">
 							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 							<Input
@@ -191,6 +205,7 @@ export default function TokoIndexPage() {
 								value={q}
 								onChange={(e) => setQ(e.target.value)}
 							/>
+						</div>
 						</div>
 					</div>
 
@@ -351,6 +366,13 @@ export default function TokoIndexPage() {
 											</div>
 										) : (
 											<>
+											{products.length === 0 && (
+												<p className="py-12 text-center text-muted-foreground">
+													{favOnly
+														? 'Belum ada produk favorit. Tekan ikon ❤ pada produk untuk menyimpannya.'
+														: 'Produk tidak ditemukan.'}
+												</p>
+											)}
 											<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 												{products.map((p: any) => {
 													const pr = computeDiscountedSubtotal(p, 1, publicCampaigns);
