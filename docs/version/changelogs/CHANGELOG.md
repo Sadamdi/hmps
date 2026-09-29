@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.35.0] - 2026-09-29
+
+### Added
+
+- Widget **Process Monitor** di Analitik Overview dashboard: tabel proses server ala Task Manager (CPU %, RAM MB/%, disk baca/tulis & %, koneksi, thread, lama berjalan), total CPU/RAM/disk/jaringan, urut naik/turun per kolom, cari, 10–100 baris, jeda.
+- Endpoint `GET /api/dashboard/processes` + permission `overview.process_monitor` (default hanya Owner; situs utama saja).
+
 ## [4.34.4] - 2026-09-29
 
 ### Fixed

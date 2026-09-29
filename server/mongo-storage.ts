@@ -2468,6 +2468,12 @@ async function initializeDefaultPermissions() {
 				description: 'Lihat penggunaan disk storage',
 				category: 'overview',
 			},
+			{
+				name: 'overview.process_monitor',
+				displayName: 'View Process Monitor',
+				description: 'Lihat daftar proses server (CPU, RAM, disk, socket) ala Task Manager — default hanya Owner',
+				category: 'overview',
+			},
 		{
 			name: 'overview.content_performance',
 			displayName: 'View Content Performance',
@@ -3231,7 +3237,8 @@ async function initializeDefaultRoles() {
 					(p) =>
 						!p.includes('roles.delete') &&
 						!p.includes('users.delete') &&
-						!p.includes('settings.edit'),
+						!p.includes('settings.edit') &&
+						p !== 'overview.process_monitor',
 				),
 				isActive: true,
 				createdBy: creatorObjectId,

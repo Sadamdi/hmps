@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.34.4",
+    "version": "4.35.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -5635,6 +5635,80 @@
           },
           "503": {
             "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        }
+      }
+    },
+    "/api/dashboard/processes": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Process monitor server (Task Manager)",
+        "description": "Top-N proses server (CPU %, RAM MB/%, disk baca/tulis B/s & porsi %, jumlah socket, thread, uptime) + total CPU/RAM/disk/jaringan. Perlu permission overview.process_monitor (default hanya Owner). Hanya situs utama; tenant mendapat 404. Di non-Linux `supported=false`.",
+        "operationId": "get_api_dashboard_processes",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cpu",
+                "memBytes",
+                "diskReadRate",
+                "diskWriteRate",
+                "diskPercent",
+                "sockets",
+                "threads",
+                "uptimeSec",
+                "pid",
+                "name"
+              ]
+            }
+          },
+          {
+            "name": "dir",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil"
+          },
+          "401": {
+            "description": "Belum login"
+          },
+          "403": {
+            "description": "Tanpa permission"
+          },
+          "404": {
+            "description": "Request tenant"
           }
         }
       }
