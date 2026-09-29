@@ -3,9 +3,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
-import { History, ShoppingCart } from 'lucide-react';
+import { History, MessageCircle, ShoppingCart } from 'lucide-react';
+import { StoreChatPanel, useMyStoreChat } from '@/components/toko/store-chat-panel';
+import type { StoreWaAdminPublic } from '@shared/store-wa';
 import { Link } from 'wouter';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 type Props = {
@@ -24,6 +26,7 @@ export function StorePublicHeaderRow({ items, className }: Props) {
 	const { data: storeSettings } = useQuery<{
 		navbarPath?: string;
 		navbarLabel?: string;
+		waAdmins?: StoreWaAdminPublic[];
 	}>({
 		queryKey: [settingsUrl],
 		queryFn: async () => {
@@ -57,6 +60,11 @@ export function StorePublicHeaderRow({ items, className }: Props) {
 		return rows.reduce((s, it) => s + Math.max(0, Math.floor(Number(it.qty) || 0)), 0);
 	}, [cart]);
 
+	const [chatOpen, setChatOpen] = useState(false);
+	// Badge balasan admin yang belum dibaca (cek tiap 30 dtk)
+	const { data: myChat } = useMyStoreChat({ poll: 30000 });
+	const chatUnread = myChat?.chat?.unreadForBuyer || 0;
+
 	const ordersHref = prefix(`${storeBasePath}/orders`);
 	const cartHref = prefix(`${storeBasePath}/cart`);
 
@@ -68,6 +76,17 @@ export function StorePublicHeaderRow({ items, className }: Props) {
 			)}>
 			<PageBreadcrumb items={items} className="mb-0 flex-1 min-w-0" />
 			<div className="flex items-center gap-2 shrink-0 self-stretch sm:self-auto justify-end">
+				<Button variant="outline" size="sm" className="relative gap-2" onClick={() => setChatOpen(true)}>
+					<MessageCircle className="h-4 w-4" />
+					Chat
+					{chatUnread > 0 && (
+						<Badge
+							variant="default"
+							className="absolute -top-2.5 -right-3 h-5 min-w-[1.25rem] px-1 flex items-center justify-center p-0 text-[10px] font-bold tabular-nums">
+							{chatUnread > 99 ? '99+' : chatUnread}
+						</Badge>
+					)}
+				</Button>
 				<Button variant="outline" size="sm" className="gap-2" asChild>
 					<Link href={ordersHref}>
 						<History className="h-4 w-4" />
@@ -90,6 +109,7 @@ export function StorePublicHeaderRow({ items, className }: Props) {
 					</Link>
 				</Button>
 			</div>
+			<StoreChatPanel open={chatOpen} onOpenChange={setChatOpen} waAdmins={storeSettings?.waAdmins} />
 		</div>
 	);
 }

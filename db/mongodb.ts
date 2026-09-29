@@ -1798,16 +1798,35 @@ const storeOrderItemSchema = new mongoose.Schema(
 const storeChatSchema = new mongoose.Schema(
 	{
 		guestSessionKeyHash: { type: String, required: true, index: true },
+		/** Lama (satu utas per produk); utas baru memakai pesan kartu produk */
 		productId: { type: mongoose.Schema.Types.ObjectId, ref: 'StoreProduct', default: null },
 		productName: { type: String, default: '' },
 		productSlug: { type: String, default: '' },
+		/** Snapshot kartu produk di awal chat (seperti marketplace) */
+		productThumbnail: { type: String, default: '' },
+		productPrice: { type: Number, default: null },
+		productCurrency: { type: String, default: '' },
 		customerName: { type: String, default: '' },
 		messages: {
 			type: [
 				{
 					_id: false,
 					from: { type: String, enum: ['buyer', 'admin'], required: true },
-					text: { type: String, required: true },
+					/** 'product' = kartu produk yang ditanyakan (seperti marketplace) */
+					kind: { type: String, enum: ['text', 'product'], default: 'text' },
+					text: { type: String, default: '' },
+					product: {
+						type: {
+							_id: false,
+							productId: mongoose.Schema.Types.ObjectId,
+							name: String,
+							slug: String,
+							thumbnail: String,
+							price: Number,
+							currency: String,
+						},
+						default: undefined,
+					},
 					senderName: { type: String, default: '' },
 					at: { type: Date, default: Date.now },
 				},
@@ -1818,10 +1837,13 @@ const storeChatSchema = new mongoose.Schema(
 		unreadForBuyer: { type: Number, default: 0 },
 		status: { type: String, enum: ['open', 'closed'], default: 'open' },
 		lastMessageAt: { type: Date, default: Date.now, index: true },
+		expireAt: { type: Date, default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
 	},
 	{ timestamps: true },
 );
 storeChatSchema.index({ guestSessionKeyHash: 1, productId: 1 });
+// Hapus otomatis 7 hari setelah pesan terakhir (diperbarui setiap pesan)
+storeChatSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 });
 
 const storeOrderSchema = new mongoose.Schema(
 	{
