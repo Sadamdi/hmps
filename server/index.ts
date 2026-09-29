@@ -1869,7 +1869,7 @@ process.on('unhandledRejection', (reason: any) => {
 						title: pageTitle ? `${pageTitle} | ${siteName}` : siteName,
 						description,
 						canonicalUrl: `https://himatif-encoder.com/${comm.slug}${suffix}`,
-						ogImage: settings?.logoUrl ? resolveOgImage(settings.logoUrl) : undefined,
+						ogImage: settings?.logoUrl || comm.logoUrl ? resolveOgImage(settings?.logoUrl || comm.logoUrl) : undefined,
 						ogImageAlt: `Logo ${siteName}`,
 						jsonLd: {
 							'@context': 'https://schema.org',

@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.35.2] - 2026-09-29
+
+### Fixed
+
+- og:image galeri Drive: menelusuri subfolder (2 tingkat) untuk mencari gambar; thumbnail 800px (lebih ringan untuk WhatsApp); URL `data:` tidak lagi dijadikan link gambar; komunitas tanpa logo di pengaturan memakai logo dari data komunitas.
+
 ## [4.35.1] - 2026-09-29
 
 ### Fixed
