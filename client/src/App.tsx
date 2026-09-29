@@ -16,7 +16,6 @@ import { Route, Switch, useLocation, type RouteComponentProps } from 'wouter';
 const NotificationPrompt = lazy(() => import('@/components/public/notification-prompt'));
 const NotificationStream = lazy(() => import('@/components/public/notification-stream'));
 import { queryClient } from './lib/queryClient';
-import { getTenantSlugFromPathname } from './lib/tenant-api-rewrite';
 
 const Home = lazy(() => import('@/pages/index'));
 const AllBerita = lazy(() => import('@/pages/berita/index'));
@@ -77,7 +76,6 @@ function RouteLoadingFallback() {
 function Router() {
 	const [location] = useLocation();
 	const pathname = location.split('?')[0].split('#')[0] || '/';
-	const isTenantPath = !!getTenantSlugFromPathname(pathname);
 	const normalizeStorePath = (raw?: string): string => {
 		const cleaned = String(raw || '/toko').trim();
 		if (!cleaned) return '/toko';
@@ -89,12 +87,16 @@ function Router() {
 	const { data: storeNavSettings, isLoading: storePathLoading } = useQuery<{ navbarPath?: string }>({
 		queryKey: ['/api/store/public/settings'],
 		queryFn: async () => {
-			const res = await fetch('/api/store/public/settings', { credentials: 'include' });
+			// URL absolut: selalu setting toko situs utama (tidak di-rewrite ke /api/c/:slug)
+			const res = await fetch(`${window.location.origin}/api/store/public/settings`, {
+				credentials: 'include',
+			});
 			if (!res.ok) return { navbarPath: '/toko' };
 			return res.json();
 		},
 		staleTime: 60_000,
-		enabled: !isTenantPath,
+		// Selalu diambil: path toko bisa custom (mis. /EncoderStore) dan tanpa setting ini
+		// segmen pertama yang tidak dikenal dianggap slug komunitas → 404 saat reload.
 	});
 	const storeBasePath = normalizeStorePath(storeNavSettings?.navbarPath);
 	const staticPrefixes = [
@@ -115,8 +117,8 @@ function Router() {
 		'/dashboard',
 		'/communities',
 	];
+	// Selama setting toko belum ada, segmen tak dikenal bisa toko ATAU komunitas → tunggu dulu
 	const isLikelyDynamicStorePath =
-		!isTenantPath &&
 		pathname !== '/' &&
 		!pathname.startsWith('/api/') &&
 		!staticPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
