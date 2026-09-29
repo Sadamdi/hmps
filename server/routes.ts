@@ -100,6 +100,7 @@ import { getPublisherDisplayName } from './user-display';
 import rateLimit from 'express-rate-limit';
 import { lookupGeo, getRealClientIp } from './lib/geoip';
 import { getSystemHealth, getStorageBreakdown } from './lib/system-health';
+import { getProcessSnapshot, type ProcessRow } from './lib/process-monitor';
 import {
 	PageVisit,
 	BOT_UA_REGEX,
@@ -8307,6 +8308,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		res.status(500).json({ message: 'Internal server error' });
 	}
 });
+
+	// 5a. Process monitor (Task Manager) — hanya situs utama; data proses server tidak untuk tenant
+	const PROCESS_SORT_KEYS = ['cpu', 'memBytes', 'diskReadRate', 'diskWriteRate', 'diskPercent', 'sockets', 'threads', 'uptimeSec', 'pid', 'name'] as const;
+	app.get('/api/dashboard/processes', authenticate, async (req, res) => {
+		try {
+			if ((req as any).isTenantRequest || (req as any).tenantStorage) {
+				return res.status(404).json({ success: false, message: 'Not found' });
+			}
+			if (!(await checkOverviewPermission(req, 'overview.process_monitor'))) {
+				return res.status(403).json({ success: false, message: 'No permission' });
+			}
+			const sort = (PROCESS_SORT_KEYS as readonly string[]).includes(String(req.query.sort))
+				? (String(req.query.sort) as (typeof PROCESS_SORT_KEYS)[number])
+				: 'cpu';
+			const dir = req.query.dir === 'asc' ? 1 : -1;
+			const limit = Math.min(100, Math.max(5, Number(req.query.limit) || 20));
+			const snap = getProcessSnapshot();
+			const key = (p: ProcessRow) => (sort === 'diskReadRate' || sort === 'diskWriteRate' ? p.diskReadRate + p.diskWriteRate : p[sort]);
+			const sorted = [...snap.processes].sort((a, b) => {
+				const x = key(a);
+				const y = key(b);
+				const c = typeof x === 'string' ? String(x).localeCompare(String(y)) : Number(x) - Number(y);
+				// tie-breaker: memori terbesar dulu agar urutan stabil
+				return c * dir || b.memBytes - a.memBytes;
+			});
+			res.setHeader('Cache-Control', 'no-store');
+			res.json({ success: true, data: { ...snap, sort, dir: dir === 1 ? 'asc' : 'desc', processes: sorted.slice(0, limit) } });
+		} catch (error) {
+			console.error('Process monitor error:', error);
+			res.status(500).json({ success: false, message: 'Internal server error' });
+		}
+	});
 
 	// 5b. System health SSE stream — push tiap 2s (real-time, no poll)
 	app.get('/api/dashboard/system-health/stream', authenticate, async (req, res) => {

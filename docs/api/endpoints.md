@@ -236,6 +236,7 @@ GET    /api/dashboard/active-visitors
 GET    /api/dashboard/engagement-heatmap
 GET    /api/dashboard/berita-leaderboard   # ?range=1d|3d|7d|30d|all&metric=views|comments
 GET    /api/dashboard/system-health
+GET    /api/dashboard/processes        # ?sort=cpu|memBytes|diskReadRate|diskPercent|sockets|threads|uptimeSec|pid|name&dir=asc|desc&limit=5..100 · perm overview.process_monitor (default Owner) · situs utama saja
 GET    /api/dashboard/security-monitor
 GET    /api/dashboard/login-attempts
 GET    /api/dashboard/content-performance

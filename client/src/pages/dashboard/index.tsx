@@ -25,6 +25,7 @@ import { Suspense, lazy } from 'react';
 const VisitorGraph = lazy(() => import('./widgets/visitor-graph'));
 const ActiveVisitors = lazy(() => import('./widgets/active-visitors'));
 const SystemHealth = lazy(() => import('./widgets/system-health'));
+const ProcessMonitor = lazy(() => import('./widgets/process-monitor'));
 const SystemActivity = lazy(() => import('./widgets/system-activity'));
 const SecurityMonitor = lazy(() => import('./widgets/security-monitor'));
 const EngagementHeatmap = lazy(() => import('./widgets/engagement-heatmap'));
@@ -292,6 +293,7 @@ export default function Dashboard() {
 	const showOverviewSuite =
 		hasSpecificPermission('overview.realtime_visitors') ||
 		hasSpecificPermission('overview.system_health') ||
+		hasSpecificPermission('overview.process_monitor') ||
 		hasSpecificPermission('overview.security_monitor') ||
 		hasSpecificPermission('overview.visitor_graph') ||
 		hasSpecificPermission('overview.heatmap') ||
@@ -628,6 +630,13 @@ export default function Dashboard() {
 							</Suspense>
 						)}
 					</div>
+
+					{/* Task Manager server — lebar penuh tepat di bawah kartu kesehatan server */}
+					{hasSpecificPermission('overview.process_monitor') && (
+						<Suspense fallback={null}>
+							<ProcessMonitor />
+						</Suspense>
+					)}
 
 					{hasSpecificPermission('overview.visitor_graph') && (
 						<Suspense fallback={null}>
