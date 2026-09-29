@@ -28,27 +28,35 @@ export function StoreWaAdminsEditor({ value, onChange, emptyText }: StoreWaAdmin
 		setEditingId(a.id);
 		setDraft({ name: a.name, phone: a.phone });
 	};
+	// Admin baru ditahan lokal sampai disimpan: parent menormalisasi daftar dan membuang admin
+	// tanpa nomor, jadi baris kosong tidak boleh dikirim ke parent lebih dulu.
+	const [pendingNew, setPendingNew] = useState<StoreWaAdmin | null>(null);
+	const rows = pendingNew ? [...value, pendingNew] : value;
+
 	const startCreate = () => {
-		const id = newId();
-		const next = [...value, { id, name: `Admin ${value.length + 1}`, phone: '', active: true }];
-		onChange(next);
-		setEditingId(id);
-		setDraft({ name: `Admin ${value.length + 1}`, phone: '' });
+		const a: StoreWaAdmin = { id: newId(), name: `Admin ${value.length + 1}`, phone: '', active: true };
+		setPendingNew(a);
+		setEditingId(a.id);
+		setDraft({ name: a.name, phone: '' });
 	};
 	const save = () => {
 		if (!editingId) return;
-		onChange(
-			value.map((a, i) =>
-				a.id === editingId
-					? { ...a, name: draft.name.trim() || `Admin ${i + 1}`, phone: draft.phone.replace(/\D/g, '') }
-					: a,
-			),
-		);
+		const phone = draft.phone.replace(/\D/g, '');
+		if (!phone) return;
+		if (pendingNew && pendingNew.id === editingId) {
+			onChange([...value, { ...pendingNew, name: draft.name.trim() || pendingNew.name, phone }]);
+			setPendingNew(null);
+		} else {
+			onChange(
+				value.map((a, i) =>
+					a.id === editingId ? { ...a, name: draft.name.trim() || `Admin ${i + 1}`, phone } : a,
+				),
+			);
+		}
 		setEditingId(null);
 	};
 	const cancel = () => {
-		// Admin baru yang belum diisi nomor dibuang saat batal
-		onChange(value.filter((a) => a.id !== editingId || a.phone));
+		setPendingNew(null);
 		setEditingId(null);
 	};
 	const remove = (id: string) => onChange(value.filter((a) => a.id !== id));
@@ -59,12 +67,12 @@ export function StoreWaAdminsEditor({ value, onChange, emptyText }: StoreWaAdmin
 
 	return (
 		<div className="space-y-2">
-			{value.length === 0 && (
+			{rows.length === 0 && (
 				<p className="rounded-md border border-dashed border-border px-3 py-2 text-sm text-muted-foreground">
 					{emptyText || 'Belum ada admin WhatsApp.'}
 				</p>
 			)}
-			{value.map((a) =>
+			{rows.map((a) =>
 				editingId === a.id ? (
 					<div key={a.id} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_1fr_auto]">
 						<Input

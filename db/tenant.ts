@@ -30,6 +30,7 @@ export interface TenantModels {
 	StoreBundle: Model<any>;
 	GuestStoreSession: Model<any>;
 	StoreOrder: Model<any>;
+	StoreChat: Model<any>;
 }
 
 const modelCache = new Map<string, TenantModels>();
@@ -72,6 +73,7 @@ function createModelsForConnection(conn: Connection): TenantModels {
 		StoreBundle: getOrCreateModel(conn, 'StoreBundle', allSchemas.storeBundle),
 		GuestStoreSession: getOrCreateModel(conn, 'GuestStoreSession', allSchemas.guestStoreSession),
 		StoreOrder: getOrCreateModel(conn, 'StoreOrder', allSchemas.storeOrder),
+		StoreChat: getOrCreateModel(conn, 'StoreChat', allSchemas.storeChat),
 	};
 }
 

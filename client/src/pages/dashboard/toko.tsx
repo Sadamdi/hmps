@@ -1,3 +1,5 @@
+import { StoreChatInbox } from '@/components/dashboard/store-chat-inbox';
+import { MessageCircle } from 'lucide-react';
 import { StoreWaAdminsEditor } from '@/components/dashboard/store-wa-admins-editor';
 import { globalStoreWaAdmins, productStoreWaAdmins, type StoreWaAdmin } from '@shared/store-wa';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
@@ -1123,6 +1125,10 @@ export default function DashboardToko() {
 							<Package className="h-4 w-4" />
 							Produk
 						</TabsTrigger>
+						<TabsTrigger value="chat" className="gap-2">
+							<MessageCircle className="h-4 w-4" />
+							Chat
+						</TabsTrigger>
 						<TabsTrigger value="settings" className="gap-2" disabled={!canManage}>
 							<Settings2 className="h-4 w-4" />
 							Pengaturan toko
@@ -1152,6 +1158,10 @@ export default function DashboardToko() {
 							</TabsTrigger>
 						)}
 					</TabsList>
+
+					<TabsContent value="chat" className="mt-6">
+						<StoreChatInbox />
+					</TabsContent>
 
 					<TabsContent value="products" className="mt-6">
 						<Card>
