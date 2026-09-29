@@ -2023,6 +2023,34 @@ function queueSheetSync(req: Request, orderNo: string, opts: { stock?: boolean }
 	})();
 }
 
+/** Tulis ulang semua pesanan + stok ke Google Sheet (route resync & skrip ops). count -1 = sheet belum diatur. */
+async function resyncStoreSheet(req: any): Promise<{ ok: boolean; count: number; message?: string }> {
+	const settings: any = await ensureSettings(req);
+	const id = String(settings?.googleSheetId || '');
+	if (!id) return { ok: false, count: -1, message: 'Google Sheet belum diatur' };
+	const { StoreOrder } = resolveModels(req);
+	const { syncOrderToSheet, syncStockToSheet, getSheetSyncStatus } = await import('../services/store-sheet-sync');
+	const orders: any[] = await StoreOrder.find({}).sort({ createdAt: 1 }).limit(5000).lean();
+	for (const o of orders) await syncOrderToSheet(id, sheetOrderFrom(req, o, settings));
+	await syncStockToSheet(id, await stockRowsFor(req));
+	const st = getSheetSyncStatus(id);
+	if (st.lastError && (!st.lastOkAt || st.lastErrorAt! > st.lastOkAt)) return { ok: false, count: orders.length, message: st.lastError };
+	return { ok: true, count: orders.length };
+}
+
+export async function resyncStoreSheetForSite(ctx: { tenantModels?: any; tenantDbName?: string; tenantSlug?: string; host?: string } = {}) {
+	const req: any = {
+		tenantModels: ctx.tenantModels,
+		isTenantRequest: !!ctx.tenantModels,
+		tenantDbName: ctx.tenantDbName,
+		tenantSlug: ctx.tenantSlug || '',
+		protocol: 'https',
+		headers: { host: ctx.host || 'himatif-encoder.com' },
+		get(h: string) { return h.toLowerCase() === 'host' ? ctx.host || 'himatif-encoder.com' : undefined; },
+	};
+	return resyncStoreSheet(req);
+}
+
 router.get('/admin/sheet-sync', authenticate, requireTokoManage, async (req, res) => {
 	const settings: any = await ensureSettings(req);
 	const id = String(settings?.googleSheetId || '');
@@ -2046,19 +2074,9 @@ router.post('/admin/sheet-sync/test', authenticate, requireTokoManage, async (re
 /** Tulis ulang semua pesanan + stok ke sheet (dipakai pertama kali / bila sempat gagal). */
 router.post('/admin/sheet-sync/resync', authenticate, requireTokoManage, async (req, res) => {
 	try {
-		const settings: any = await ensureSettings(req);
-		const id = String(settings?.googleSheetId || '');
-		if (!id) return res.status(400).json({ message: 'Google Sheet belum diatur' });
-		const { StoreOrder } = resolveModels(req);
-		const { syncOrderToSheet, syncStockToSheet, getSheetSyncStatus } = await import('../services/store-sheet-sync');
-		const orders: any[] = await StoreOrder.find({}).sort({ createdAt: 1 }).limit(5000).lean();
-		for (const o of orders) await syncOrderToSheet(id, sheetOrderFrom(req, o, settings));
-		await syncStockToSheet(id, await stockRowsFor(req));
-		const st = getSheetSyncStatus(id);
-		if (st.lastError && (!st.lastOkAt || st.lastErrorAt! > st.lastOkAt)) {
-			return res.status(502).json({ message: st.lastError, count: orders.length });
-		}
-		res.json({ ok: true, count: orders.length });
+		const r = await resyncStoreSheet(req);
+		if (!r.ok) return res.status(r.count < 0 ? 400 : 502).json({ message: r.message, count: Math.max(0, r.count) });
+		res.json({ ok: true, count: r.count });
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Sinkron ulang gagal' });
