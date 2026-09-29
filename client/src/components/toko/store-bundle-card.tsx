@@ -6,7 +6,16 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatStoreMoney } from '@shared/store-currency';
 
+export interface BundleChoice {
+	id: string;
+	label: string;
+	available: boolean;
+	priceDiff: number;
+	thumbnail: string;
+}
+
 export interface BundleComponent {
+	itemIndex?: number;
 	productId: string;
 	slug: string;
 	name: string;
@@ -14,6 +23,15 @@ export interface BundleComponent {
 	qty: number;
 	unitPrice: number;
 	thumbnail: string;
+	/** true = pembeli memilih varian ("semua ukuran") */
+	choose?: boolean;
+	groupName?: string;
+	choices?: BundleChoice[];
+}
+
+export interface BundleSelectionInput {
+	itemIndex: number;
+	variantId: string;
 }
 
 export interface PublicBundle {
@@ -27,11 +45,15 @@ export interface PublicBundle {
 	normalTotal?: number;
 	saving?: number;
 	available?: boolean;
+	needsChoice?: boolean;
+	addVariantPriceDiff?: boolean;
 }
 
 /** "2× Topi, 2× Hoodie (Ukuran M)" — ringkasan isi paket untuk kartu. */
 export function bundleContentsText(components: BundleComponent[] = []): string {
-	return components.map((c) => `${c.qty}× ${c.name}${c.variantLabel ? ` (${c.variantLabel})` : ''}`).join(', ');
+	return components
+		.map((c) => `${c.qty}× ${c.name}${c.choose ? ` (pilih ${(c.groupName || 'varian').toLowerCase()})` : c.variantLabel ? ` (${c.variantLabel})` : ''}`)
+		.join(', ');
 }
 
 function Thumb({ src, alt, className }: { src?: string; alt: string; className: string }) {
@@ -64,14 +86,25 @@ export function StoreBundleCard({
 	compareAt?: number;
 	currency: string;
 	adding: boolean;
-	onAdd: (el: HTMLElement) => void;
+	onAdd: (el: HTMLElement, selections: BundleSelectionInput[]) => void;
 	compact?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
+	// pilihan varian untuk isi paket bermode "pilih" (itemIndex → variantId)
+	const [picked, setPicked] = useState<Record<number, string>>({});
 	const comps = bundle.components || [];
 	const normal = Number(bundle.normalTotal) || 0;
 	const hemat = Math.max(0, normal - price);
 	const soldOut = bundle.available === false;
+	const chooseItems = comps.filter((c) => c.choose);
+	const allPicked = chooseItems.every((c) => picked[c.itemIndex ?? -1]);
+	const selections: BundleSelectionInput[] = chooseItems.map((c) => ({ itemIndex: c.itemIndex ?? 0, variantId: picked[c.itemIndex ?? -1] || '' }));
+	// selisih harga varian terpilih (bila paket menambah selisih)
+	const extra = chooseItems.reduce((sum, c) => sum + (c.choices?.find((x) => x.id === picked[c.itemIndex ?? -1])?.priceDiff || 0), 0);
+	const shownPrice = price + extra;
+	const startsFrom = bundle.addVariantPriceDiff && chooseItems.length > 0 && extra === 0;
+	// tombol cepat di kartu: bila perlu memilih, buka rincian dulu
+	const quickAdd = (el: HTMLElement) => (bundle.needsChoice ? setOpen(true) : onAdd(el, []));
 	return (
 		<>
 			<Card className="overflow-hidden">
@@ -87,7 +120,10 @@ export function StoreBundleCard({
 							{Math.max(normal, compareAt || 0) > price && (
 								<p className="text-xs text-muted-foreground line-through">{formatStoreMoney(Math.max(normal, compareAt || 0), currency)}</p>
 							)}
-							<p className="text-primary font-bold">{formatStoreMoney(price, currency)}</p>
+							<p className="text-primary font-bold">
+								{startsFrom ? 'Mulai ' : ''}
+								{formatStoreMoney(price, currency)}
+							</p>
 							{hemat > 0 && (
 								<p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
 									<Tag className="h-3 w-3" /> Hemat {formatStoreMoney(hemat, currency)}
@@ -98,7 +134,7 @@ export function StoreBundleCard({
 							<Button type="button" size="sm" variant="ghost" onClick={() => setOpen(true)}>
 								Lihat isi
 							</Button>
-							<Button type="button" size="icon" variant="secondary" disabled={adding || soldOut} aria-label="Tambah paket ke keranjang" onClick={(e) => onAdd(e.currentTarget)}>
+							<Button type="button" size="icon" variant="secondary" disabled={adding || soldOut} aria-label="Tambah paket ke keranjang" onClick={(e) => quickAdd(e.currentTarget)}>
 								{adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
 							</Button>
 						</div>
@@ -125,6 +161,26 @@ export function StoreBundleCard({
 											{c.qty}× {c.name}
 										</p>
 										{c.variantLabel && <p className="text-xs text-muted-foreground">{c.variantLabel}</p>}
+										{c.choose && (
+											<div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label={`Pilih ${c.groupName || 'varian'} ${c.name}`}>
+												{(c.choices || []).map((ch) => {
+													const on = picked[c.itemIndex ?? -1] === ch.id;
+													return (
+														<button
+															key={ch.id}
+															type="button"
+															role="radio"
+															aria-checked={on}
+															disabled={!ch.available}
+															onClick={() => setPicked((p) => ({ ...p, [c.itemIndex ?? -1]: ch.id }))}
+															className={`rounded-md border px-2.5 py-1 text-xs transition-colors ${on ? 'border-primary bg-primary/10 text-primary font-semibold' : 'hover:bg-muted'} ${ch.available ? '' : 'opacity-40 line-through'}`}>
+															{ch.label}
+															{ch.priceDiff > 0 ? ` +${formatStoreMoney(ch.priceDiff, currency)}` : ''}
+														</button>
+													);
+												})}
+											</div>
+										)}
 									</div>
 									<span className="shrink-0 text-xs text-muted-foreground tabular-nums">{formatStoreMoney(c.unitPrice * c.qty, currency)}</span>
 								</li>
@@ -139,7 +195,7 @@ export function StoreBundleCard({
 							)}
 							<div className="flex justify-between font-semibold">
 								<span>Harga paket</span>
-								<span className="text-primary">{formatStoreMoney(price, currency)}</span>
+								<span className="text-primary">{formatStoreMoney(shownPrice, currency)}</span>
 							</div>
 							{hemat > 0 && (
 								<div className="flex justify-between text-emerald-600 dark:text-emerald-400">
@@ -149,7 +205,10 @@ export function StoreBundleCard({
 							)}
 						</div>
 					</div>
-					<Button className="w-full" disabled={adding || soldOut} onClick={(e) => onAdd(e.currentTarget)}>
+					{chooseItems.length > 0 && !allPicked && !soldOut && (
+						<p className="text-xs text-amber-600 dark:text-amber-400">Pilih {chooseItems.map((c) => (c.groupName || 'varian').toLowerCase()).join(' & ')} dulu untuk menambah paket.</p>
+					)}
+					<Button className="w-full" disabled={adding || soldOut || !allPicked} onClick={(e) => onAdd(e.currentTarget, selections)}>
 						<ShoppingCart className="h-4 w-4 mr-2" /> {soldOut ? 'Stok habis' : 'Tambah paket ke keranjang'}
 					</Button>
 				</DialogContent>

@@ -17,6 +17,7 @@ import { FaWhatsapp } from 'react-icons/fa';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { StoreOrderPaymentPanel, type OrderPaymentData } from '@/components/toko/store-order-payment-panel';
+import { StoreOrderEmailBox } from '@/components/toko/store-order-email-box';
 
 function normalizeWaDigits(phone: string): string {
 	return String(phone || '').replace(/\D/g, '');
@@ -24,6 +25,7 @@ function normalizeWaDigits(phone: string): string {
 
 interface OrderData extends Omit<OrderPaymentData, 'orderNo' | 'status' | 'total' | 'whatsappPhoneUsed' | 'customerName'> {
 	checkoutGroupId?: string;
+	customerEmail?: string;
 	orderNo: string;
 	items: {
 		name: string;
@@ -253,6 +255,15 @@ export default function TokoOrderInvoicePage() {
 									apiBase={storeApiBase}
 									inv={invQuery}
 									currency={orderCur}
+									onChanged={() => void refetch()}
+								/>
+
+								<StoreOrderEmailBox
+									orderNo={order.orderNo}
+									apiBase={storeApiBase}
+									inv={invQuery}
+									email={order.customerEmail}
+									enabled={!!(storeSettings as any)?.emailNotify}
 									onChanged={() => void refetch()}
 								/>
 

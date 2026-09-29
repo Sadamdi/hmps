@@ -733,6 +733,35 @@ cron.schedule(
 	{ timezone: 'Asia/Jakarta' },
 );
 
+// Pesanan toko belum dibayar: pengingat email, batal otomatis (default 3 hari, stok kembali), pengingat pelunasan DP.
+// Tiap jam agar batas waktu akurat (main + komunitas).
+cron.schedule(
+	'10 * * * *',
+	async () => {
+		try {
+			const { runStoreUnpaidMaintenance } = await import('./routes/store');
+			const main = await runStoreUnpaidMaintenance({});
+			if (main.cancelled || main.reminded) console.log(`🛒 Pesanan belum dibayar [main]: batal ${main.cancelled}, pengingat ${main.reminded}`);
+			const { Community } = await import('../db/mongodb');
+			const { getTenantModels } = await import('../db/tenant');
+			const comms = await Community.find({ status: 'active' }).select('slug dbName').lean();
+			for (const c of comms || []) {
+				const dbName = String((c as any).dbName || '').trim();
+				if (!dbName) continue;
+				const r = await runStoreUnpaidMaintenance({
+					tenantModels: getTenantModels(dbName),
+					tenantDbName: dbName,
+					tenantSlug: String((c as any).slug || ''),
+				});
+				if (r.cancelled || r.reminded) console.log(`🛒 Pesanan belum dibayar [${(c as any).slug}]: batal ${r.cancelled}, pengingat ${r.reminded}`);
+			}
+		} catch (err) {
+			console.error('Store unpaid maintenance error:', err);
+		}
+	},
+	{ timezone: 'Asia/Jakarta' },
+);
+
 // ==================== VISITOR STATS AGGREGATOR ====================
 // Aggregate page_visits -> visitor_stats every 15 min + warm cache.
 // TTL auto-cleans raw page_visits (90d) and security_events (7d) and login_attempts (30d).

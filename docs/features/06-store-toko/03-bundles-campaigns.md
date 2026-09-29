@@ -167,3 +167,12 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 - **Detail produk**: `/public/products/:slug` membawa `bundles[]` (maks 6, hanya yang tersedia), ditampilkan sebagai "Tersedia dalam paket" di halaman produk.
 - **Katalog**: kartu paket menampilkan isi, coret harga normal, dan "Hemat"; tombol Lihat isi membuka rincian. Filter kategori punya chip **Bundling**.
 - **Keranjang**: produk satuan dan paket boleh dicampur (batasan lama dihapus). Mata uang dicocokkan dengan produk satuan pertama. Baris paket menampilkan isinya, dan invoice menampilkan snapshot isi.
+
+## Bundling "pilih ukuran" (4.38.0)
+
+- Isi paket produk bervarian punya dua mode: **tetap** (admin memilih varian) atau **pembeli memilih** (opsi "Pembeli memilih (semua ukuran)" di editor; `variantChoice=true`).
+- Harga paket tetap `bundlePrice`. Toggle **Tambah selisih harga varian otomatis** (`addVariantPriceDiff`): varian pilihan yang lebih mahal dari harga dasar produk menambah selisihnya × qty isi ke harga paket. Mati = harga sama untuk semua ukuran.
+- Pembeli memilih ukuran di dialog "Lihat isi"; tombol tambah aktif setelah semua pilihan terisi. Ukuran dengan stok habis dinonaktifkan.
+- Pilihan tersimpan di baris keranjang (`selections[{itemIndex,variantId}]`); paket yang sama dengan ukuran berbeda menjadi baris terpisah (`lineKey`). PATCH/DELETE keranjang memakai `?lineKey=`.
+- Checkout, pratinjau bayar, stok, dan pembatalan memakai varian yang dipilih; snapshot isi di invoice memuat ukuran.
+- Perbaikan: PATCH keranjang bundel sebelumnya bisa mengubah baris bundel pertama, bukan yang dimaksud.

@@ -148,8 +148,8 @@ export default function TokoIndexPage() {
 	});
 
 	const addBundleMutation = useMutation({
-		mutationFn: async (vars: { bundleId: string; fromEl?: HTMLElement | null }) => {
-			const r = await apiRequest('POST', cartBundlesUrl, { bundleId: vars.bundleId, qty: 1 });
+		mutationFn: async (vars: { bundleId: string; fromEl?: HTMLElement | null; selections?: { itemIndex: number; variantId: string }[] }) => {
+			const r = await apiRequest('POST', cartBundlesUrl, { bundleId: vars.bundleId, qty: 1, selections: vars.selections || [] });
 			if (!r.ok) throw new Error('cart');
 		},
 		onSuccess: (_d, vars) => {
@@ -298,7 +298,7 @@ export default function TokoIndexPage() {
 											compareAt={bPr.compareSubtotal}
 											currency={defaultCur}
 											adding={addBundleMutation.isPending}
-											onAdd={(el) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el })}
+											onAdd={(el, selections) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el, selections })}
 										/>
 									);
 								})}

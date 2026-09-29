@@ -2,6 +2,7 @@ import { storeOrderStatusLabel } from '@shared/store-order-status';
 import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
 import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/toko/store-checkout-payment';
+import { EMAIL_PATTERN, StoreEmailField, readSavedBuyerEmail, saveBuyerEmail } from '@/components/toko/store-email-field';
 import type { StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -33,7 +34,7 @@ function lineKeyOfCartItem(it: { lineKey?: string; lineKind?: string; bundleId?:
 function buildCheckoutItemsFromCart(items: any[]) {
 	return items.map((it: any) =>
 		it.lineKind === 'bundle' || it.bundleId
-			? { bundleId: it.bundleId, qty: it.qty }
+			? { bundleId: it.bundleId, qty: it.qty, selections: it.selections || [] }
 			: { productId: it.productId, variantId: it.variantId || '', qty: it.qty },
 	);
 }
@@ -60,6 +61,7 @@ export default function TokoCartPage() {
 		shipping?: { enabled: boolean; hasGlobalOrigin: boolean };
 		waAdmins?: StoreWaAdminPublic[];
 		storeOpen?: boolean;
+		emailNotify?: boolean;
 	}>({
 		queryKey: [settingsUrl],
 		queryFn: async () => {
@@ -118,6 +120,7 @@ export default function TokoCartPage() {
 
 	const [name, setName] = useState('');
 	const [phone, setPhone] = useState('');
+	const [email, setEmail] = useState(() => readSavedBuyerEmail());
 	const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>('pickup');
 	const [address, setAddress] = useState('');
 	const [destVillage, setDestVillage] = useState('');
@@ -218,6 +221,7 @@ export default function TokoCartPage() {
 				items: buildCheckoutItemsFromCart(selectedItems),
 				customerName: name.trim(),
 				customerPhone: phone.trim(),
+				customerEmail: email.trim(),
 				fulfillment,
 				shippingAddress: fulfillment === 'delivery' ? address.trim() : '',
 				destinationVillageCode: fulfillment === 'delivery' ? destVillage.trim() : '',
@@ -237,6 +241,7 @@ export default function TokoCartPage() {
 			return data;
 		},
 		onSuccess: (data: { whatsappUrl?: string; invoiceUrl?: string; payOnWeb?: boolean; orders?: unknown[] }) => {
+			saveBuyerEmail(email.trim());
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
 			queryClient.invalidateQueries({ queryKey: [myOrdersUrl] });
 			if (data.payOnWeb && data.invoiceUrl) {
@@ -264,7 +269,7 @@ export default function TokoCartPage() {
 	const onRemove = (it: any) => {
 		const isB = it.lineKind === 'bundle' || it.bundleId;
 		const url = isB
-			? `${cartBundlesUrlBase}/${it.bundleId}`
+			? `${cartBundlesUrlBase}/${it.bundleId}?lineKey=${encodeURIComponent(it.lineKey || '')}`
 			: `${cartItemsUrlBase}/${it.productId}${it.variantId ? `?variantId=${encodeURIComponent(it.variantId)}` : ''}`;
 		apiRequest('DELETE', url).then(() => {
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
@@ -278,7 +283,7 @@ export default function TokoCartPage() {
 		}
 		const isB = it.lineKind === 'bundle' || it.bundleId;
 		const url = isB
-			? `${cartBundlesUrlBase}/${it.bundleId}`
+			? `${cartBundlesUrlBase}/${it.bundleId}?lineKey=${encodeURIComponent(it.lineKey || '')}`
 			: `${cartItemsUrlBase}/${it.productId}${it.variantId ? `?variantId=${encodeURIComponent(it.variantId)}` : ''}`;
 		apiRequest('PATCH', url, { qty: nextQty }).then(() => {
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
@@ -474,6 +479,7 @@ export default function TokoCartPage() {
 									<Label>Nomor WhatsApp</Label>
 									<Input value={phone} onChange={(e) => setPhone(e.target.value)} />
 								</div>
+								<StoreEmailField value={email} onChange={setEmail} enabled={!!storeSettings?.emailNotify} />
 								<div className="space-y-2">
 									<Label>Pengiriman</Label>
 									<RadioGroup
@@ -530,6 +536,7 @@ export default function TokoCartPage() {
 										storeClosed ||
 										!name.trim() ||
 										!phone.trim() ||
+										(email.trim() !== '' && !EMAIL_PATTERN.test(email.trim())) ||
 										selectedItems.length === 0 ||
 										(payOnWeb && !acceptPolicy)
 									}

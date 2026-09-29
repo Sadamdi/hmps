@@ -110,6 +110,8 @@ export function StorePaymentSettingsCard({
 	const queryClient = useQueryClient();
 	const [channels, setChannels] = useState<StorePaymentChannel[]>([]);
 	const [dp, setDp] = useState<StoreDpSettings>(DEFAULT_DP_SETTINGS);
+	const [autoCancelDays, setAutoCancelDays] = useState(3);
+	const [notifyEmail, setNotifyEmail] = useState(true);
 	const [uploadingId, setUploadingId] = useState('');
 	// kanal tertutup secara default (hemat tempat); kanal baru langsung terbuka
 	const [openIds, setOpenIds] = useState<Set<string>>(new Set());
@@ -119,6 +121,8 @@ export function StorePaymentSettingsCard({
 
 	useEffect(() => {
 		setChannels(Array.isArray(settings?.paymentChannels) ? settings.paymentChannels : []);
+		setAutoCancelDays(typeof settings?.unpaidAutoCancelDays === 'number' ? settings.unpaidAutoCancelDays : 3);
+		setNotifyEmail(settings?.notifyBuyerEmail !== false);
 		setDp({ ...DEFAULT_DP_SETTINGS, ...(settings?.dp || {}), cancelPolicyText: settings?.dp?.cancelPolicyText || DEFAULT_CANCEL_POLICY });
 	}, [settings]);
 
@@ -133,7 +137,7 @@ export function StorePaymentSettingsCard({
 		});
 
 	const save = useMutation({
-		mutationFn: () => apiRequest('PUT', settingsUrl, { paymentChannels: channels, dp }),
+		mutationFn: () => apiRequest('PUT', settingsUrl, { paymentChannels: channels, dp, unpaidAutoCancelDays: autoCancelDays, notifyBuyerEmail: notifyEmail }),
 		onSuccess: () => {
 			for (const k of invalidateKeys) queryClient.invalidateQueries({ queryKey: k });
 			toast({ title: 'Pengaturan pembayaran disimpan' });
@@ -309,6 +313,29 @@ export function StorePaymentSettingsCard({
 					<div className="space-y-1.5">
 						<Label className="text-xs">Ketentuan pembatalan (wajib dicentang pembeli saat checkout)</Label>
 						<Textarea rows={3} value={dp.cancelPolicyText} onChange={(e) => setDp((d) => ({ ...d, cancelPolicyText: e.target.value.slice(0, 600) }))} />
+					</div>
+				</div>
+
+				<div className="space-y-3 border-t pt-4">
+					<p className="font-medium text-sm">Batas bayar & email pembeli</p>
+					<div className="grid gap-3 sm:grid-cols-2">
+						<div className="space-y-1.5">
+							<Label className="text-xs">Batalkan otomatis pesanan belum dibayar setelah (hari, 0 = nonaktif)</Label>
+							<Input type="number" min={0} max={30} value={autoCancelDays} onChange={(e) => setAutoCancelDays(Math.max(0, Math.min(30, Number(e.target.value) || 0)))} />
+							<p className="text-[11px] text-muted-foreground">
+								Stok dikembalikan otomatis. Hanya pesanan alur bayar-di-web yang belum ada bukti; pesanan yang sudah DP tidak dibatalkan otomatis.
+								Pembeli yang mengisi email diingatkan 24 jam sebelumnya.
+							</p>
+						</div>
+						<div className="flex items-start justify-between gap-3 rounded-md border p-3">
+							<div>
+								<p className="text-sm font-medium">Kirim email ke pembeli</p>
+								<p className="text-[11px] text-muted-foreground">
+									Invoice, bukti diterima/ditolak, DP/lunas, status (dikonfirmasi, dikirim, selesai), pembatalan, dan pengingat — hanya untuk pembeli yang mengisi email.
+								</p>
+							</div>
+							<Switch checked={notifyEmail} onCheckedChange={setNotifyEmail} aria-label="Kirim email ke pembeli" />
+						</div>
 					</div>
 				</div>
 

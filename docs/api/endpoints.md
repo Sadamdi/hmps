@@ -312,9 +312,9 @@ GET    /cart
 POST   /cart/items
 PATCH  /cart/items/:productId
 DELETE /cart/items/:productId
-POST   /cart/bundles
-PATCH  /cart/bundles/:bundleId
-DELETE /cart/bundles/:bundleId
+POST   /cart/bundles                             # body: bundleId, qty, selections[{itemIndex,variantId}] (isi paket mode "pilih ukuran")
+PATCH  /cart/bundles/:bundleId                   # ?lineKey= untuk baris dengan pilihan ukuran tertentu
+DELETE /cart/bundles/:bundleId                   # ?lineKey=
 POST   /cart/draft
 POST   /checkout
 POST   /direct-checkout
@@ -325,6 +325,7 @@ GET    /orders/:orderNo
 POST   /payment-preview                          # hitung DP/sisa & pemisahan pesanan per kanal bayar (sebelum checkout)
 POST   /orders/:orderNo/payment-proof            # pembeli upload bukti bayar (gambar ≤5MB → WebP di DB); ?inv= / sesi
 GET    /orders/:orderNo/payment-proof/:paymentId # pembeli lihat bukti sendiri (private, no-store)
+POST   /orders/:orderNo/email                     # pembeli menambah/mengganti email (kabar pesanan); ?inv= / sesi
 POST   /orders/:orderNo/cancel                   # batal sendiri bila belum bayar; selain itu permintaan batal ke admin
 GET    /admin/orders/:orderNo/payment-proof/:paymentId   # admin lihat bukti
 PATCH  /admin/orders/:orderNo/payments/:paymentId        # admin verify|reject{reason}[, amount]

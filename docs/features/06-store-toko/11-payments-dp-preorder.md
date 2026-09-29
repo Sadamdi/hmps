@@ -111,3 +111,31 @@ Pembeli membayar lewat **kanal bayar** yang diatur admin (QRIS, rekening bank, e
 - Client:
   - `components/toko/store-checkout-payment.tsx`, `store-order-payment-panel.tsx`, `store-product-payment-info.tsx`
   - `components/dashboard/store-payment-settings-card.tsx`, `store-product-payment-editor.tsx`, `store-order-payments-admin.tsx`, `store-preorder-panel.tsx`
+
+## Email pembeli, auto-batal, dan sinkron status (4.38.0)
+
+**Email (opsional)**
+- Checkout dan beli-langsung punya kolom email (opsional) beserta penjelasan gunanya. Pembeli yang belum mengisi bisa menambahkannya dari halaman invoice (`POST /orders/:orderNo/email`).
+- Email dikirim lewat SMTP yang sama dengan email sistem (`EMAIL`/`EMAIL_PW`), dengan satu layout serasi: header brand, lencana status, ringkasan pesanan, tombol aksi, dan footer alasan pengiriman. Tabel + gaya inline, tanpa gambar eksternal, dengan versi teks.
+- Jenis email:
+  - pesanan diterima (dengan batas bayar);
+  - bukti diterima;
+  - bukti ditolak (alasan + tombol upload ulang);
+  - DP/lunas terverifikasi;
+  - status: dikonfirmasi, pre-order diproses, dibayar, siap diambil/dikirim, selesai;
+  - dibatalkan (admin/pembeli/otomatis);
+  - permintaan batal diterima;
+  - pengingat batas bayar;
+  - pengingat pelunasan DP;
+  - email ditambahkan.
+- Pengaturan → Pembayaran → **Kirim email ke pembeli** untuk mematikan seluruhnya. Tanpa `EMAIL`/`EMAIL_PW`, kolom email tidak tampil dan tidak ada yang dikirim.
+- Pengingat otomatis memakai `emailLog` agar tidak terkirim ganda. Pengiriman tidak pernah menghambat respons; kegagalan hanya dicatat di log.
+
+**Auto-batal**
+- Pesanan alur bayar-di-web yang belum ada bukti dibatalkan otomatis setelah `unpaidAutoCancelDays` (default 3 hari, 0 = nonaktif); stok kembali dan admin mendapat ringkasan.
+- Tidak dibatalkan: ada bukti menunggu/terverifikasi, bukti baru ditolak <24 jam, ada permintaan batal, sudah DP terverifikasi, dan pesanan alur lama tanpa kanal bayar.
+- Pengingat email 24 jam sebelum batas. Job berjalan tiap jam (`runStoreUnpaidMaintenance`), main + komunitas, dan juga mengirim pengingat pelunasan DP (≤3 hari sebelum tenggat).
+
+**Sinkron status dan pembayaran**
+- Admin boleh menandai status Dibayar/Dikirim/Selesai tanpa verifikasi bukti (sah). Bukti yang menunggu otomatis dianggap terverifikasi, sisa tagihan dicatat sebagai pembayaran manual, dan status bayar menjadi Lunas (Excel/Sheet konsisten).
+- Tidak sah: status Lunas mundur ke Menunggu/Dikonfirmasi (pakai Dibatalkan), serta verifikasi/tolak pada pesanan yang sudah lunas atau pada bukti yang sudah diputuskan (409).
