@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.34.0] - 2026-09-29
+
+### Added
+
+- Toko: sinkron otomatis pesanan (dan stok) ke Google Sheet berformat template rekap; pengaturan, tes koneksi, dan sinkron ulang di Dashboard → Toko → Pengaturan toko.
+
 ## [4.33.1] - 2026-09-29
 
 ### Added

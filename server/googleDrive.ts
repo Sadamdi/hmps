@@ -55,6 +55,11 @@ const __dirname = path.dirname(__filename);
 
 const credentialPath = resolveServiceAccountKeyPath();
 
+/** Path JSON service account (dipakai juga oleh sinkron Google Sheet toko). */
+export function getGoogleServiceAccountKeyPath(): string {
+	return credentialPath;
+}
+
 const auth = new google.auth.GoogleAuth({
 	keyFile: credentialPath,
 	scopes: [

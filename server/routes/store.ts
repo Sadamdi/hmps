@@ -1134,6 +1134,14 @@ router.put('/admin/settings', authenticate, requireTokoManage, async (req, res) 
 			'storeAddress',
 			'defaultCurrency',
 		];
+		if (body.googleSheetId !== undefined) {
+			const { extractSpreadsheetId } = await import('../services/store-sheet-sync');
+			const raw = String(body.googleSheetId || '').trim();
+			const id = raw ? extractSpreadsheetId(raw) : '';
+			if (raw && !id) return res.status(400).json({ message: 'Link Google Sheet tidak valid' });
+			update.googleSheetId = id;
+		}
+		if (body.googleSheetSyncEnabled !== undefined) update.googleSheetSyncEnabled = !!body.googleSheetSyncEnabled;
 		const legacyOnly =
 			Array.isArray(body.whatsappAdmins) &&
 			body.whatsappAdmins.length === 0 &&
@@ -1949,10 +1957,111 @@ router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (r
 			set.stockRestoredAt = null;
 		}
 		const order = await StoreOrder.findOneAndUpdate({ orderNo }, { $set: set }, { new: true }).lean();
+		queueSheetSync(req, orderNo, { stock: status === 'cancelled' || current.status === 'cancelled' });
 		res.json(order);
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal memperbarui pesanan' });
+	}
+});
+
+// ── Sinkron Google Sheet (cermin database) ──
+function sheetOrderFrom(req: Request, o: any, settings: any) {
+	const base = publicBaseUrl(req);
+	const storePath = normalizeStorePath(settings?.navbarPath);
+	return {
+		orderNo: o.orderNo,
+		createdAt: o.createdAt,
+		customerName: o.customerName,
+		customerPhone: o.customerPhone,
+		fulfillment: o.fulfillment,
+		shippingAddress: o.shippingAddress,
+		whatsappAdminName: o.whatsappAdminName,
+		shippingCost: o.shippingCost,
+		taxAmount: o.taxAmount,
+		status: o.status,
+		paymentMethod: o.paymentMethod,
+		paidAt: o.paidAt,
+		adminNote: o.adminNote,
+		invoiceUrl: `${base}${storePath}/order/${encodeURIComponent(o.orderNo)}?inv=${encodeURIComponent(o.invoiceAccessToken || '')}`,
+		items: (o.items || []).map((it: any) => ({
+			name: it.name,
+			variantLabel: it.variantLabel || '',
+			qty: it.qty,
+			unitPrice: it.unitPrice,
+		})),
+	};
+}
+
+async function stockRowsFor(req: Request) {
+	const { StoreProduct } = resolveModels(req);
+	const products: any[] = await StoreProduct.find({}).select('name stock variants').sort({ name: 1 }).lean();
+	return products.flatMap((p) => {
+		const vs = activeVariants(p);
+		if (vs.length) {
+			return vs.map((v) => ({ product: `${p.name} (${v.label})`, stock: isStoreStockUnlimited(v.stock) ? null : Number(v.stock) }));
+		}
+		return [{ product: p.name, stock: isStoreStockUnlimited(p.stock) ? null : Number(p.stock) }];
+	});
+}
+
+/** Kirim pesanan (+ stok terbaru) ke Google Sheet bila diatur. Tidak pernah menghambat respons. */
+function queueSheetSync(req: Request, orderNo: string, opts: { stock?: boolean } = {}) {
+	void (async () => {
+		try {
+			const settings: any = await ensureSettings(req);
+			const sheetId = String(settings?.googleSheetId || '');
+			if (!sheetId || settings?.googleSheetSyncEnabled === false) return;
+			const { StoreOrder } = resolveModels(req);
+			const o: any = await StoreOrder.findOne({ orderNo }).lean();
+			const { syncOrderToSheet, syncStockToSheet } = await import('../services/store-sheet-sync');
+			if (o) await syncOrderToSheet(sheetId, sheetOrderFrom(req, o, settings));
+			if (opts.stock) await syncStockToSheet(sheetId, await stockRowsFor(req));
+		} catch (e) {
+			console.error('queueSheetSync:', e);
+		}
+	})();
+}
+
+router.get('/admin/sheet-sync', authenticate, requireTokoManage, async (req, res) => {
+	const settings: any = await ensureSettings(req);
+	const id = String(settings?.googleSheetId || '');
+	const { getSheetSyncStatus } = await import('../services/store-sheet-sync');
+	res.json({
+		googleSheetId: id,
+		enabled: !!id && settings?.googleSheetSyncEnabled !== false,
+		status: id ? getSheetSyncStatus(id) : null,
+	});
+});
+
+router.post('/admin/sheet-sync/test', authenticate, requireTokoManage, async (req, res) => {
+	const { extractSpreadsheetId, testSheetAccess } = await import('../services/store-sheet-sync');
+	const settings: any = await ensureSettings(req);
+	const id = extractSpreadsheetId(req.body?.googleSheetId || settings?.googleSheetId);
+	if (!id) return res.status(400).json({ message: 'Link / ID Google Sheet tidak valid' });
+	const r = await testSheetAccess(id);
+	res.status(r.ok ? 200 : 400).json(r);
+});
+
+/** Tulis ulang semua pesanan + stok ke sheet (dipakai pertama kali / bila sempat gagal). */
+router.post('/admin/sheet-sync/resync', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const settings: any = await ensureSettings(req);
+		const id = String(settings?.googleSheetId || '');
+		if (!id) return res.status(400).json({ message: 'Google Sheet belum diatur' });
+		const { StoreOrder } = resolveModels(req);
+		const { syncOrderToSheet, syncStockToSheet, getSheetSyncStatus } = await import('../services/store-sheet-sync');
+		const orders: any[] = await StoreOrder.find({}).sort({ createdAt: 1 }).limit(5000).lean();
+		for (const o of orders) await syncOrderToSheet(id, sheetOrderFrom(req, o, settings));
+		await syncStockToSheet(id, await stockRowsFor(req));
+		const st = getSheetSyncStatus(id);
+		if (st.lastError && (!st.lastOkAt || st.lastErrorAt! > st.lastOkAt)) {
+			return res.status(502).json({ message: st.lastError, count: orders.length });
+		}
+		res.json({ ok: true, count: orders.length });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Sinkron ulang gagal' });
 	}
 });
 
@@ -2793,6 +2902,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 		sessDoc.cartItems = cart;
 		await sessDoc.save();
 
+		queueSheetSync(req, orderNo, { stock: true });
 		notifyStoreAdmins(req, 'store_order', {
 			title: `Pesanan baru ${orderNo}`,
 			description: `${customerName} · ${orderLines.map((l) => `${l.name}${l.variantLabel ? ` (${l.variantLabel})` : ''} x${l.qty}`).join(', ')} · ${formatStoreMoney(total, orderCur)}`,

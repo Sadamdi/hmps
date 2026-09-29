@@ -1464,6 +1464,9 @@ const storeSettingsSchema = new mongoose.Schema(
 		navbarPath: { type: String, default: '/toko' },
 		whatsappPhone: { type: String, default: '' },
 		whatsappContactName: { type: String, default: '' },
+		/** Google Sheet cermin pesanan (ID spreadsheet) — lihat server/services/store-sheet-sync.ts */
+		googleSheetId: { type: String, default: '' },
+		googleSheetSyncEnabled: { type: Boolean, default: true },
 		/** Multi admin WA (shared/store-wa.ts); kosong = pakai whatsappPhone lama */
 		whatsappAdmins: {
 			type: [
