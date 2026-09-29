@@ -137,6 +137,14 @@ async function shouldDeploy(commitsBehind) {
 	const built = readBuiltHead();
 	if (!built) return { needed: true, reason: 'missing .deploy-built-head marker' };
 	if (head === built) return { needed: false, reason: 'code + dist in sync' };
+	try {
+		const failed = fs.readFileSync(path.join(PROJECT_PATH, '.deploy-failed-head'), 'utf8').trim();
+		if (failed === head) {
+			return { needed: false, reason: `build ${head.slice(0, 7)} gagal start sebelumnya — tunggu commit baru` };
+		}
+	} catch {
+		/* belum ada marker gagal */
+	}
 	if (await runtimeChangedSinceBuilt(built, head)) {
 		return {
 			needed: true,
