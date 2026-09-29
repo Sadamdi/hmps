@@ -1,3 +1,4 @@
+import { storeOrderStatusLabel } from '@shared/store-order-status';
 import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
 import type { StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
@@ -24,33 +25,17 @@ import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency
 function lineKeyOfCartItem(it: { lineKey?: string; lineKind?: string; bundleId?: string; productId?: string }): string {
 	if (it?.lineKey) return String(it.lineKey);
 	if (it?.lineKind === 'bundle' || it?.bundleId) return `b:${it.bundleId}`;
-	return `p:${it.productId}`;
+	return (it as any).variantId ? `p:${it.productId}:v:${(it as any).variantId}` : `p:${it.productId}`;
 }
 
 function buildCheckoutItemsFromCart(items: any[]) {
 	return items.map((it: any) =>
 		it.lineKind === 'bundle' || it.bundleId
 			? { bundleId: it.bundleId, qty: it.qty }
-			: { productId: it.productId, qty: it.qty },
+			: { productId: it.productId, variantId: it.variantId || '', qty: it.qty },
 	);
 }
 
-function storeOrderStatusLabel(status: string): string {
-	switch (status) {
-		case 'pending':
-			return 'Menunggu';
-		case 'paid':
-			return 'Dibayar';
-		case 'confirmed':
-			return 'Dikonfirmasi';
-		case 'completed':
-			return 'Diterima';
-		case 'cancelled':
-			return 'Dibatalkan';
-		default:
-			return status;
-	}
-}
 
 export default function TokoCartPage() {
 	const { toast } = useToast();
@@ -240,7 +225,9 @@ export default function TokoCartPage() {
 
 	const onRemove = (it: any) => {
 		const isB = it.lineKind === 'bundle' || it.bundleId;
-		const url = isB ? `${cartBundlesUrlBase}/${it.bundleId}` : `${cartItemsUrlBase}/${it.productId}`;
+		const url = isB
+			? `${cartBundlesUrlBase}/${it.bundleId}`
+			: `${cartItemsUrlBase}/${it.productId}${it.variantId ? `?variantId=${encodeURIComponent(it.variantId)}` : ''}`;
 		apiRequest('DELETE', url).then(() => {
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
 		});
@@ -252,7 +239,9 @@ export default function TokoCartPage() {
 			return;
 		}
 		const isB = it.lineKind === 'bundle' || it.bundleId;
-		const url = isB ? `${cartBundlesUrlBase}/${it.bundleId}` : `${cartItemsUrlBase}/${it.productId}`;
+		const url = isB
+			? `${cartBundlesUrlBase}/${it.bundleId}`
+			: `${cartItemsUrlBase}/${it.productId}${it.variantId ? `?variantId=${encodeURIComponent(it.variantId)}` : ''}`;
 		apiRequest('PATCH', url, { qty: nextQty }).then(() => {
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
 		});
@@ -349,6 +338,9 @@ export default function TokoCartPage() {
 													</span>
 												) : null}
 												{it.name}
+												{it.variantLabel && (
+													<span className="ml-1 text-sm font-normal text-muted-foreground">({it.variantLabel})</span>
+												)}
 											</div>
 											<div className="text-sm text-muted-foreground mt-1">
 												{formatStoreMoney(unit, cur)} × {it.qty}

@@ -18,14 +18,15 @@ import { Loader2, PackageSearch } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'wouter';
 
-type FilterKey = '' | 'pending' | 'paid' | 'confirmed' | 'completed' | 'cancelled';
+type FilterKey = '' | 'pending' | 'paid' | 'confirmed' | 'shipped' | 'completed' | 'cancelled';
 
 const FILTERS: { key: FilterKey; label: string }[] = [
 	{ key: '', label: 'Semua' },
 	{ key: 'pending', label: 'Menunggu' },
 	{ key: 'paid', label: 'Dibayar' },
 	{ key: 'confirmed', label: 'Dikonfirmasi' },
-	{ key: 'completed', label: 'Diterima' },
+	{ key: 'shipped', label: 'Dikirim/Diambil' },
+	{ key: 'completed', label: 'Selesai' },
 	{ key: 'cancelled', label: 'Dibatalkan' },
 ];
 
@@ -201,7 +202,7 @@ export default function TokoOrdersHistoryPage() {
 														<ul className="text-xs text-muted-foreground space-y-0.5">
 															{o.items.slice(0, 3).map((li: any, i: number) => (
 																<li key={i}>
-																	{li.name} × {li.qty}
+																	{li.name}{li.variantLabel ? ` (${li.variantLabel})` : ''} × {li.qty}
 																</li>
 															))}
 															{o.items.length > 3 && (

@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.33.0] - 2026-09-29
+
+### Added
+
+- Toko: varian produk (desain/ukuran) dengan foto, harga, stok, judul & deskripsi per varian.
+- Toko: status Dikirim/Diambil, metode & tanggal bayar, catatan admin; tombol Export Excel (rekap: ringkasan, pesanan, item, stok).
+- Notifikasi admin toko untuk pesanan & chat baru, dan pengingat harian pesanan menunggu > 24 jam.
+
 ## [4.32.0] - 2026-09-29
 
 ### Changed

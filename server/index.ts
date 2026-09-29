@@ -705,6 +705,34 @@ cron.schedule(
 	{ timezone: 'Asia/Jakarta' },
 );
 
+// Pengingat pesanan toko yang masih "Menunggu" > 24 jam (09:00 WIB, main + komunitas)
+cron.schedule(
+	'0 9 * * *',
+	async () => {
+		try {
+			const { remindPendingStoreOrders } = await import('./routes/store');
+			const main = await remindPendingStoreOrders({});
+			if (main) console.log(`🛒 Pengingat pesanan menunggu [main]: ${main}`);
+			const { Community } = await import('../db/mongodb');
+			const { getTenantModels } = await import('../db/tenant');
+			const comms = await Community.find({ status: 'active' }).select('slug dbName').lean();
+			for (const c of comms || []) {
+				const dbName = String((c as any).dbName || '').trim();
+				if (!dbName) continue;
+				const n = await remindPendingStoreOrders({
+					tenantModels: getTenantModels(dbName),
+					tenantDbName: dbName,
+					tenantSlug: String((c as any).slug || ''),
+				});
+				if (n) console.log(`🛒 Pengingat pesanan menunggu [${(c as any).slug}]: ${n}`);
+			}
+		} catch (err) {
+			console.error('Store pending-order reminder error:', err);
+		}
+	},
+	{ timezone: 'Asia/Jakarta' },
+);
+
 // ==================== VISITOR STATS AGGREGATOR ====================
 // Aggregate page_visits -> visitor_stats every 15 min + warm cache.
 // TTL auto-cleans raw page_visits (90d) and security_events (7d) and login_attempts (30d).

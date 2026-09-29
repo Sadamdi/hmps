@@ -14,7 +14,7 @@ import {
 import { fetchShippingCost, findCourier, type ShippingCourierOption } from '../services/shipping-api-co-id';
 
 export type CartLineInput =
-	| { lineKind: 'product'; productId: string; qty: number; lineKey?: string }
+	| { lineKind: 'product'; productId: string; variantId?: string; qty: number; lineKey?: string }
 	| { lineKind: 'bundle'; bundleId: string; qty: number; lineKey?: string };
 
 export function ensureCartLineKey(row: {
@@ -25,7 +25,7 @@ export function ensureCartLineKey(row: {
 }): string {
 	if (row.lineKey) return String(row.lineKey);
 	if (row.lineKind === 'bundle' && row.bundleId) return `b:${row.bundleId}`;
-	if (row.productId) return `p:${row.productId}`;
+	if (row.productId) return (row as any).variantId ? `p:${row.productId}:v:${(row as any).variantId}` : `p:${row.productId}`;
 	return '';
 }
 
@@ -45,7 +45,13 @@ export function parseCartLinesFromBody(
 		} else {
 			const id = String(o.productId || '').trim();
 			if (!id) return { ok: false, message: 'productId wajib' };
-			lines.push({ lineKind: 'product', productId: id, qty, lineKey: o.lineKey ? String(o.lineKey) : undefined });
+			lines.push({
+				lineKind: 'product',
+				productId: id,
+				variantId: o.variantId ? String(o.variantId).slice(0, 40) : '',
+				qty,
+				lineKey: o.lineKey ? String(o.lineKey) : undefined,
+			});
 		}
 	}
 	if (!lines.length) return { ok: false, message: 'Tidak ada item valid' };
