@@ -31,6 +31,7 @@ export interface TenantModels {
 	GuestStoreSession: Model<any>;
 	StoreOrder: Model<any>;
 	StoreChat: Model<any>;
+	StorePaymentProof: Model<any>;
 }
 
 const modelCache = new Map<string, TenantModels>();
@@ -74,6 +75,7 @@ function createModelsForConnection(conn: Connection): TenantModels {
 		GuestStoreSession: getOrCreateModel(conn, 'GuestStoreSession', allSchemas.guestStoreSession),
 		StoreOrder: getOrCreateModel(conn, 'StoreOrder', allSchemas.storeOrder),
 		StoreChat: getOrCreateModel(conn, 'StoreChat', allSchemas.storeChat),
+		StorePaymentProof: getOrCreateModel(conn, 'StorePaymentProof', allSchemas.storePaymentProof),
 	};
 }
 

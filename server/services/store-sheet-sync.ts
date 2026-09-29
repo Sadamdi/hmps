@@ -11,6 +11,7 @@
 import { google, type sheets_v4 } from 'googleapis';
 import { getGoogleServiceAccountKeyPath } from '../googleDrive';
 import { STORE_ORDER_STATUS_LABEL, STORE_PAYMENT_METHOD_LABEL } from '../../shared/store-order-status';
+import { STORE_PAYMENT_STATUS_LABEL } from '../../shared/store-payment';
 
 const HEADER_ROW = 4;
 const FIRST = HEADER_ROW + 1;
@@ -83,6 +84,13 @@ export type SheetOrder = {
 	paidAt?: unknown;
 	adminNote?: string;
 	invoiceUrl: string;
+	paymentPlan?: string;
+	channelTitle?: string;
+	dpAmount?: number;
+	amountPaid?: number;
+	balanceDue?: number;
+	paymentStatus?: string;
+	settleBy?: unknown;
 	items: { name: string; variantLabel?: string; qty: number; unitPrice: number }[];
 };
 
@@ -117,6 +125,19 @@ function pesananRanges(o: SheetOrder, r: number): sheets_v4.Schema$ValueRange[] 
 				o.invoiceUrl, // URL biasa → otomatis jadi link di Google Sheets
 			]],
 		},
+		{
+			// Kolom pembayaran (data saja, tanpa rumus); header R4:X4 dipastikan ensurePaymentHeaders
+			range: `Pesanan!R${r}:X${r}`,
+			values: [[
+				o.paymentPlan === 'dp' ? 'DP' : 'Penuh',
+				o.channelTitle || '',
+				o.paymentPlan === 'dp' ? Number(o.dpAmount) || 0 : 0,
+				Number(o.amountPaid) || 0,
+				Number(o.balanceDue) || 0,
+				STORE_PAYMENT_STATUS_LABEL[o.paymentStatus || 'unpaid'] || '',
+				wibText(o.settleBy).slice(0, 10),
+			]],
+		},
 	];
 }
 
@@ -136,9 +157,29 @@ async function readColumnA(id: string, sheet: string): Promise<string[]> {
 	return ((res.data.values || [])[0] || []).map((v) => String(v ?? ''));
 }
 
+const PAYMENT_HEADERS = ['Skema Bayar', 'Kanal Bayar', 'Nominal DP', 'Sudah Dibayar', 'Sisa Tagihan', 'Status Bayar', 'Tenggat Pelunasan'];
+const headerChecked = new Set<string>();
+/** Sheet dari template lama belum punya header R4:X4 → tambahkan sekali per proses. */
+async function ensurePaymentHeaders(id: string) {
+	if (headerChecked.has(id)) return;
+	const api = sheetsClient();
+	const cur = await api.spreadsheets.values.get({ spreadsheetId: id, range: `Pesanan!R${HEADER_ROW}:X${HEADER_ROW}` });
+	const row = (cur.data.values || [])[0] || [];
+	if (row.join('|') !== PAYMENT_HEADERS.join('|')) {
+		await api.spreadsheets.values.update({
+			spreadsheetId: id,
+			range: `Pesanan!R${HEADER_ROW}:X${HEADER_ROW}`,
+			valueInputOption: 'RAW',
+			requestBody: { values: [PAYMENT_HEADERS] },
+		});
+	}
+	headerChecked.add(id);
+}
+
 /** Tulis / perbarui satu pesanan (+ item bila belum ada di sheet). */
 async function upsertOrderNow(id: string, o: SheetOrder) {
 	const api = sheetsClient();
+	await ensurePaymentHeaders(id);
 	const pA = await readColumnA(id, 'Pesanan');
 	let idx = pA.indexOf(o.orderNo);
 	if (idx < 0) {

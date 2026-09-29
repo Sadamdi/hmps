@@ -1,10 +1,11 @@
 /** Status pesanan toko & labelnya (dipakai web, dashboard, dan export Excel). */
-export const STORE_ORDER_STATUS_FLOW = ['pending', 'confirmed', 'paid', 'shipped', 'completed', 'cancelled'] as const;
+export const STORE_ORDER_STATUS_FLOW = ['pending', 'confirmed', 'preorder', 'paid', 'shipped', 'completed', 'cancelled'] as const;
 export type StoreOrderStatus = (typeof STORE_ORDER_STATUS_FLOW)[number];
 
 export const STORE_ORDER_STATUS_LABEL: Record<string, string> = {
 	pending: 'Menunggu',
 	confirmed: 'Dikonfirmasi',
+	preorder: 'Pre-order diproses',
 	paid: 'Dibayar',
 	shipped: 'Dikirim/Diambil',
 	completed: 'Selesai',

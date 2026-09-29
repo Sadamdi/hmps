@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { formatStoreMoney } from '@shared/store-currency';
+import { StoreOrderPaymentsAdmin } from './store-order-payments-admin';
 import {
 	STORE_ORDER_STATUS_FLOW,
 	STORE_ORDER_STATUS_LABEL,
@@ -17,6 +18,7 @@ import {
 const STATUS_BADGE: Record<string, string> = {
 	pending: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
 	confirmed: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
+	preorder: 'bg-violet-500/15 text-violet-600 dark:text-violet-400',
 	paid: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
 	shipped: 'bg-cyan-500/15 text-cyan-600 dark:text-cyan-400',
 	completed: 'bg-green-600/15 text-green-700 dark:text-green-400',
@@ -31,6 +33,9 @@ interface StoreOrderAdminCardProps {
 	saving: boolean;
 	onPatch: (orderNo: string, patch: OrderPatch) => void;
 	onDelete: (orderNo: string) => void;
+	/** URL admin orders (untuk verifikasi bukti bayar) + refresh setelah aksi pembayaran */
+	ordersUrl?: string;
+	onChanged?: () => void;
 }
 
 function toDateInput(v: unknown): string {
@@ -40,7 +45,7 @@ function toDateInput(v: unknown): string {
 }
 
 /** Kartu pesanan di Dashboard → Toko → Pesanan: status, pembayaran, catatan, rincian barang. */
-export function StoreOrderAdminCard({ order: o, currency, saving, onPatch, onDelete }: StoreOrderAdminCardProps) {
+export function StoreOrderAdminCard({ order: o, currency, saving, onPatch, onDelete, ordersUrl, onChanged }: StoreOrderAdminCardProps) {
 	const [note, setNote] = useState(o.adminNote || '');
 	useEffect(() => setNote(o.adminNote || ''), [o.adminNote]);
 
@@ -80,6 +85,10 @@ export function StoreOrderAdminCard({ order: o, currency, saving, onPatch, onDel
 					<span className="tabular-nums">{formatStoreMoney(o.total, currency)}</span>
 				</li>
 			</ul>
+
+			{ordersUrl && (
+				<StoreOrderPaymentsAdmin order={o} currency={currency} ordersUrl={ordersUrl} onChanged={onChanged || (() => undefined)} />
+			)}
 
 			<div className="grid gap-3 sm:grid-cols-3">
 				<div className="space-y-1">

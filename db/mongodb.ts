@@ -1505,6 +1505,33 @@ const storeSettingsSchema = new mongoose.Schema(
 		/** Mata uang default katalog (ISO 4217, mis. IDR) */
 		defaultCurrency: { type: String, default: 'IDR' },
 		layoutBlocks: { type: [storeLayoutBlockSchema], default: [] },
+		/** Kanal bayar (QRIS / rekening / e-wallet) — lihat shared/store-payment.ts */
+		paymentChannels: {
+			type: [
+				{
+					_id: false,
+					id: { type: String, required: true },
+					type: { type: String, enum: ['qris', 'bank', 'ewallet'], default: 'qris' },
+					active: { type: Boolean, default: true },
+					qrisImageUrl: { type: String, default: '' },
+					merchantName: { type: String, default: '' },
+					providerId: { type: String, default: '' },
+					providerName: { type: String, default: '' },
+					accountNumber: { type: String, default: '' },
+					accountHolder: { type: String, default: '' },
+					note: { type: String, default: '' },
+				},
+			],
+			default: [],
+		},
+		/** Default DP pre-order (produk bisa override) */
+		dp: {
+			enabled: { type: Boolean, default: false },
+			mode: { type: String, enum: ['percent', 'amount'], default: 'percent' },
+			percent: { type: Number, default: 30 },
+			amount: { type: Number, default: 0 },
+			cancelPolicyText: { type: String, default: '' },
+		},
 	},
 	{ timestamps: true },
 );
@@ -1639,6 +1666,15 @@ const storeProductSchema = new mongoose.Schema(
 		},
 		buyMessageTemplateOverride: { type: String, default: '' },
 		storeAddressOverride: { type: String, default: '' },
+		/** Kanal bayar: global (semua kanal aktif) atau custom (paymentChannelIds) */
+		paymentChannelMode: { type: String, enum: ['global', 'custom'], default: 'global' },
+		paymentChannelIds: [{ type: String }],
+		/** DP pre-order: default (pengaturan toko) | percent | amount | full (wajib bayar penuh) */
+		dpMode: { type: String, enum: ['default', 'percent', 'amount', 'full'], default: 'default' },
+		dpPercent: { type: Number, default: 0 },
+		dpAmount: { type: Number, default: 0 },
+		/** Batas pelunasan; kosong = estimatedReadyAt / preOrderCloseAt */
+		dpSettleBy: { type: Date, default: null },
 		published: { type: Boolean, default: false },
 		/** Urutan tampilan katalog (naik); drag-and-drop di dashboard */
 		sortOrder: { type: Number, default: 0 },
@@ -1908,12 +1944,48 @@ const storeOrderSchema = new mongoose.Schema(
 		paymentMethod: { type: String, default: '' },
 		paidAt: { type: Date, default: null },
 		adminNote: { type: String, default: '' },
+		/** Pembayaran (shared/store-payment.ts) */
+		checkoutGroupId: { type: String, default: '' },
+		paymentChannelIds: [{ type: String }],
+		paymentChannelsSnapshot: { type: [mongoose.Schema.Types.Mixed], default: [] },
+		paymentPlan: { type: String, enum: ['full', 'dp'], default: 'full' },
+		dpAmount: { type: Number, default: 0 },
+		amountPaid: { type: Number, default: 0 },
+		balanceDue: { type: Number, default: 0 },
+		settleBy: { type: Date, default: null },
+		paymentStatus: {
+			type: String,
+			enum: ['unpaid', 'awaiting_verification', 'dp_verified', 'balance_awaiting_verification', 'paid', 'rejected', 'refunded'],
+			default: 'unpaid',
+		},
+		payments: {
+			type: [
+				{
+					_id: false,
+					id: { type: String, required: true },
+					kind: { type: String, enum: ['dp', 'full', 'balance'], default: 'full' },
+					amount: { type: Number, default: 0 },
+					proofUrl: { type: String, default: '' },
+					method: { type: String, enum: ['proof', 'manual'], default: 'proof' },
+					channelId: { type: String, default: '' },
+					uploadedAt: { type: Date, default: Date.now },
+					status: { type: String, enum: ['submitted', 'verified', 'rejected'], default: 'submitted' },
+					rejectReason: { type: String, default: '' },
+					verifiedBy: { type: String, default: '' },
+					verifiedAt: { type: Date, default: null },
+				},
+			],
+			default: [],
+		},
+		hasPreOrderItems: { type: Boolean, default: false },
+		cancelRequestedAt: { type: Date, default: null },
+		cancelRequestReason: { type: String, default: '' },
 		/** Konsumsi campaign one-time (order-level idempotency) */
 		appliedCampaignIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'StoreDiscountCampaign' }],
 		status: {
 			type: String,
 			// pending → confirmed → paid → shipped (dikirim/diambil) → completed; cancelled = batal/tolak
-			enum: ['pending', 'confirmed', 'paid', 'shipped', 'completed', 'cancelled'],
+			enum: ['pending', 'confirmed', 'preorder', 'paid', 'shipped', 'completed', 'cancelled'],
 			default: 'pending',
 		},
 	},
@@ -1921,6 +1993,8 @@ const storeOrderSchema = new mongoose.Schema(
 );
 storeOrderSchema.index({ createdAt: -1 });
 storeOrderSchema.index({ guestSessionKeyHash: 1, createdAt: -1 });
+storeOrderSchema.index({ hasPreOrderItems: 1, createdAt: -1 });
+storeOrderSchema.index({ paymentStatus: 1, createdAt: -1 });
 
 // Community Schema - registry of all communities (stored in main DB only)
 const communitySchema = new mongoose.Schema({
@@ -2050,6 +2124,25 @@ const GuestStoreSession =
 	mongoose.model('GuestStoreSession', guestStoreSessionSchema);
 const StoreOrder =
 	mongoose.models.StoreOrder || mongoose.model('StoreOrder', storeOrderSchema);
+/**
+ * Bukti bayar toko (gambar WebP) disimpan di database, bukan di disk/uploads:
+ * ikut backup database otomatis, tidak pernah masuk git (repo publik), dan hanya
+ * bisa diakses lewat API (pemilik pesanan / admin toko).
+ */
+const storePaymentProofSchema = new mongoose.Schema(
+	{
+		orderNo: { type: String, required: true },
+		paymentId: { type: String, required: true },
+		mimeType: { type: String, default: 'image/webp' },
+		size: { type: Number, default: 0 },
+		data: { type: Buffer, required: true },
+	},
+	{ timestamps: true },
+);
+storePaymentProofSchema.index({ orderNo: 1, paymentId: 1 }, { unique: true });
+const StorePaymentProof =
+	mongoose.models.StorePaymentProof || mongoose.model('StorePaymentProof', storePaymentProofSchema);
+
 const StoreChat =
 	mongoose.models.StoreChat || mongoose.model('StoreChat', storeChatSchema);
 
@@ -2286,6 +2379,7 @@ export const allSchemas = {
 	guestStoreSession: guestStoreSessionSchema,
 	storeOrder: storeOrderSchema,
 	storeChat: storeChatSchema,
+	storePaymentProof: storePaymentProofSchema,
 };
 
 export {
@@ -2312,6 +2406,7 @@ export {
 	Settings,
 	StoreOrder,
 	StoreChat,
+	StorePaymentProof,
 	StoreProduct,
 	StoreProductCategory,
 	StoreProductShare,

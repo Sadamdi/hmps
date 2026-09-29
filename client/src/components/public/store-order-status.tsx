@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 
-type StatusKey = 'pending' | 'confirmed' | 'paid' | 'completed' | 'cancelled';
+type StatusKey = 'pending' | 'confirmed' | 'preorder' | 'paid' | 'shipped' | 'completed' | 'cancelled';
 
 interface StatusMeta {
 	label: string;
@@ -26,6 +26,22 @@ const STATUS_MAP: Record<StatusKey, StatusMeta> = {
 		text: 'text-blue-600 dark:text-blue-400',
 		border: 'border-blue-500/30',
 		dot: 'bg-blue-500',
+		pulse: false,
+	},
+	preorder: {
+		label: 'Pre-order diproses',
+		bg: 'bg-violet-500/15',
+		text: 'text-violet-600 dark:text-violet-400',
+		border: 'border-violet-500/30',
+		dot: 'bg-violet-500',
+		pulse: true,
+	},
+	shipped: {
+		label: 'Dikirim/Diambil',
+		bg: 'bg-cyan-500/15',
+		text: 'text-cyan-600 dark:text-cyan-400',
+		border: 'border-cyan-500/30',
+		dot: 'bg-cyan-500',
 		pulse: false,
 	},
 	paid: {
@@ -107,7 +123,9 @@ const PROGRESS_STEPS = [
 const STATUS_STEP_INDEX: Record<string, number> = {
 	pending: 0,
 	paid: 1,
+	preorder: 1,
 	confirmed: 2,
+	shipped: 2,
 	completed: 3,
 };
 
