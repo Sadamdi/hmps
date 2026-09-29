@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.8] - 2026-09-29
+
+### Fixed
+
+- Reload di path toko custom (mis. `/EncoderStore`) tidak lagi 404; path toko divalidasi agar tidak bentrok dengan route sistem/komunitas.
+
 ## [4.29.7] - 2026-09-28
 
 ### Security

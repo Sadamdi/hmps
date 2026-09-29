@@ -974,6 +974,35 @@ router.put('/admin/settings', authenticate, requireTokoManage, async (req, res) 
 			'storeAddress',
 			'defaultCurrency',
 		];
+		if (body.navbarPath !== undefined) {
+			// Path toko = segmen pertama URL situs utama; jangan bentrok dengan route sistem/komunitas
+			const p = normalizeStorePath(body.navbarPath);
+			const seg = p.slice(1);
+			if (!/^[A-Za-z0-9_-]{2,40}$/.test(seg)) {
+				return res.status(400).json({
+					message: 'Path toko harus satu segmen (huruf, angka, - atau _), mis. /toko',
+					error: { code: 'STORE_PATH_INVALID' },
+				});
+			}
+			const { isReservedTenantSlug } = await import('@shared/tenant-paths');
+			if (seg.toLowerCase() !== 'toko' && isReservedTenantSlug(seg.toLowerCase())) {
+				return res.status(400).json({
+					message: `Path /${seg} sudah dipakai halaman sistem`,
+					error: { code: 'STORE_PATH_RESERVED' },
+				});
+			}
+			const { Community } = await import('../../db/mongodb');
+			const clash = await Community.findOne({
+				slug: new RegExp(`^${seg.replace(/[-]/g, '\\-')}$`, 'i'),
+			}).lean();
+			if (clash) {
+				return res.status(400).json({
+					message: `Path /${seg} sudah dipakai komunitas`,
+					error: { code: 'STORE_PATH_TAKEN' },
+				});
+			}
+			body.navbarPath = p;
+		}
 		for (const k of allowed) {
 			if (body[k] !== undefined) {
 				if (k === 'defaultCurrency') {

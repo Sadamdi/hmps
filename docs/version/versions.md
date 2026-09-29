@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.29.7`  
+**Current version:** `4.29.8`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.29.7`](./release/4.29.7.md) | 2026-09-28 | Hapus skrip berkredensial, media sync aman | PATCH | 1 | **Current** |
+| [`4.29.8`](./release/4.29.8.md) | 2026-09-29 | Reload path toko custom tidak lagi 404 | PATCH | 1 | **Current** |
+| [`4.29.7`](./release/4.29.7.md) | 2026-09-28 | Hapus skrip berkredensial, media sync aman | PATCH | 1 | Released |
 | [`4.29.6`](./release/4.29.6.md) | 2026-09-28 | Import PDF kepengurusan memakai semua kunci Gemini | PATCH | 1 | Released |
 | [`4.29.5`](./release/4.29.5.md) | 2026-09-28 | Kunci JWT wajib di produksi & token tanpa sesi ditolak | PATCH | 1 | Released |
 | [`4.29.4`](./release/4.29.4.md) | 2026-09-28 | Login via email bersama, kepengurusan lengkap untuk AI, sync IG harian | PATCH | 1 | Released |

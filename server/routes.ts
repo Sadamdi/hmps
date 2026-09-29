@@ -11543,6 +11543,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.status(400)
 					.json({ message: 'URL slug ini sudah digunakan oleh sistem' });
 			}
+			// Path toko custom (mis. /EncoderStore) juga route situs utama
+			try {
+				const StoreSettingsModel: any = (await import('mongoose')).default.models.StoreSettings;
+				const st: any = StoreSettingsModel
+					? await StoreSettingsModel.findOne({ key: 'default' }).select('navbarPath').lean()
+					: null;
+				const storeSeg = String(st?.navbarPath || '/toko').replace(/^\/+/, '').split('/')[0].toLowerCase();
+				if (storeSeg && storeSeg === slug.toLowerCase()) {
+					return res.status(400).json({ message: 'URL slug ini sudah digunakan oleh toko' });
+				}
+			} catch {
+				/* abaikan: validasi lain tetap berjalan */
+			}
 
 			const existingCommunity = await mongoStorage.getCommunityBySlug(slug);
 			if (existingCommunity) {
