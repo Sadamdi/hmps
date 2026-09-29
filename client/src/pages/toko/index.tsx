@@ -197,7 +197,7 @@ export default function TokoIndexPage() {
 							<Heart className={`h-4 w-4 mr-1.5 ${favOnly ? 'fill-current' : ''}`} />
 							Favorit{favoriteIds.length ? ` (${favoriteIds.length})` : ''}
 						</Button>
-						<div className="relative w-full sm:w-64 shrink-0">
+						<div className="relative min-w-0 flex-1 sm:flex-none sm:w-64">
 							<Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
 							<Input
 								className="pl-9"
