@@ -1,3 +1,5 @@
+import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
+import type { StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -68,6 +70,8 @@ export default function TokoCartPage() {
 		navbarLabel?: string;
 		defaultCurrency?: string;
 		shipping?: { enabled: boolean; hasGlobalOrigin: boolean };
+		waAdmins?: StoreWaAdminPublic[];
+		storeOpen?: boolean;
 	}>({
 		queryKey: [settingsUrl],
 		queryFn: async () => {
@@ -85,6 +89,11 @@ export default function TokoCartPage() {
 		return compact.endsWith('/') ? compact.slice(0, -1) : compact;
 	})();
 	const storeLabel = storeSettings?.navbarLabel || 'Toko';
+	const [waAdminId, setWaAdminId] = useState('');
+	// Default admin global; server bisa membalas daftar lain (override produk) lewat CHOOSE_ADMIN
+	const [adminOptionsOverride, setAdminOptionsOverride] = useState<StoreWaAdminPublic[] | null>(null);
+	const adminOptions = adminOptionsOverride ?? storeSettings?.waAdmins;
+	const storeClosed = !adminOptionsOverride && storeSettings?.storeOpen === false;
 
 	const { data: cart, isLoading } = useQuery({
 		queryKey: [cartUrl],
@@ -190,7 +199,12 @@ export default function TokoCartPage() {
 
 	const checkoutMutation = useMutation({
 		mutationFn: async () => {
-			const res = await apiRequest('POST', checkoutUrl, {
+			const res = await fetch(checkoutUrl, {
+				method: 'POST',
+				credentials: 'include',
+				headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+				adminId: waAdminId,
 				items: buildCheckoutItemsFromCart(selectedItems),
 				customerName: name.trim(),
 				customerPhone: phone.trim(),
@@ -198,8 +212,17 @@ export default function TokoCartPage() {
 				shippingAddress: fulfillment === 'delivery' ? address.trim() : '',
 				destinationVillageCode: fulfillment === 'delivery' ? destVillage.trim() : '',
 				shippingCourierCode: fulfillment === 'delivery' ? (selectedCourier || quotedShipping?.code || '') : '',
+				}),
 			});
-			return res.json();
+			const data = await res.json().catch(() => ({}));
+			if (!res.ok) {
+				if (data?.error?.code === 'CHOOSE_ADMIN' && Array.isArray(data.admins)) {
+					setAdminOptionsOverride(data.admins);
+					setWaAdminId('');
+				}
+				throw new Error(data?.message || 'Checkout gagal');
+			}
+			return data;
 		},
 		onSuccess: (data: { whatsappUrl?: string }) => {
 			if (data.whatsappUrl) {
@@ -450,11 +473,13 @@ export default function TokoCartPage() {
 										</Button>
 									</div>
 								)}
+								<StoreWaAdminPicker admins={adminOptions} value={waAdminId} onChange={setWaAdminId} />
 								<Button
 									className="w-full"
 									size="lg"
 									disabled={
 										checkoutMutation.isPending ||
+										storeClosed ||
 										!name.trim() ||
 										!phone.trim() ||
 										selectedItems.length === 0
@@ -480,6 +505,10 @@ export default function TokoCartPage() {
 											!/^\d{10}$/.test(destVillage.trim())
 										) {
 											toast({ title: 'Kode kelurahan 10 digit wajib', variant: 'destructive' });
+											return;
+										}
+										if (needsAdminChoice(adminOptions, waAdminId)) {
+											toast({ title: 'Pilih admin tujuan dulu', variant: 'destructive' });
 											return;
 										}
 										checkoutMutation.mutate();

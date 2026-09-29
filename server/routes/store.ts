@@ -17,6 +17,15 @@ import {
 	lineSubtotalForProduct,
 	normalizePriceTiersInput,
 } from '../../shared/store-pricing';
+import {
+	STORE_CLOSED_MESSAGE,
+	activeStoreWaAdmins,
+	normalizeStoreWaAdmins,
+	normalizeWaDigits,
+	toPublicWaAdmins,
+	waGreeting,
+	type StoreWaAdmin,
+} from '../../shared/store-wa';
 import { storeCheckoutRateLimiter } from '../middleware/public-rate-limit';
 import { sanitizeRichHtml } from '../utils/input-sanitize';
 import {
@@ -174,8 +183,37 @@ async function resolveCategoryIdForWrite(
 	return doc._id as mongoose.Types.ObjectId;
 }
 
-function normalizeWaDigits(phone: string): string {
-	return String(phone || '').replace(/\D/g, '');
+/**
+ * Pilih admin WA untuk pesanan. `adminId` dari pembeli hanya dipakai bila termasuk admin aktif.
+ * Hasil: admin terpilih, atau error `STORE_CLOSED` (0 aktif) / `CHOOSE_ADMIN` (>1 aktif, belum pilih).
+ */
+function pickStoreWaAdmin(
+	settings: any,
+	product: any | undefined,
+	adminId: unknown,
+):
+	| { ok: true; admin: StoreWaAdmin }
+	| { ok: false; status: number; body: Record<string, unknown> } {
+	const list = activeStoreWaAdmins(settings, product);
+	if (!list.length) {
+		return {
+			ok: false,
+			status: 409,
+			body: { message: STORE_CLOSED_MESSAGE, error: { code: 'STORE_CLOSED' } },
+		};
+	}
+	if (list.length === 1) return { ok: true, admin: list[0] };
+	const chosen = list.find((a) => a.id === String(adminId || ''));
+	if (chosen) return { ok: true, admin: chosen };
+	return {
+		ok: false,
+		status: 409,
+		body: {
+			message: 'Pilih admin tujuan',
+			error: { code: 'CHOOSE_ADMIN' },
+			admins: toPublicWaAdmins(list),
+		},
+	};
 }
 
 function applyTemplate(tpl: string, vars: Record<string, string>): string {
@@ -535,6 +573,9 @@ router.get('/public/settings', async (req, res) => {
 			taxPercent: typeof s.taxPercent === 'number' ? s.taxPercent : 0,
 			taxEnabled: !!s.taxEnabled,
 			whatsappContactName: s.whatsappContactName || '',
+			// Hanya id + nama admin yang aktif (nomor tidak dikirim ke publik)
+			waAdmins: toPublicWaAdmins(activeStoreWaAdmins(s)),
+			storeOpen: activeStoreWaAdmins(s).length > 0,
 			storeAddress: s.storeAddress || '',
 			defaultCurrency: normalizeStoreCurrency(s.defaultCurrency),
 			layoutBlocks: Array.isArray(s.layoutBlocks) ? s.layoutBlocks : defaultLayoutBlocks(),
@@ -779,7 +820,11 @@ router.get('/public/products/:slug', async (req, res) => {
 			.populate({ path: 'categoryId', select: 'name slug' })
 			.lean();
 		if (!p) return res.status(404).json({ message: 'Produk tidak ditemukan' });
-		res.json(p);
+		const settings: any = await ensureSettings(req);
+		const active = activeStoreWaAdmins(settings, p);
+		// Nomor admin tidak dikirim ke publik; hanya id + nama admin yang aktif
+		const { whatsappAdmins: _wa, whatsappPhoneOverride: _wp, ...rest } = p as any;
+		res.json({ ...rest, waAdmins: toPublicWaAdmins(active), storeOpen: active.length > 0 });
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal memuat produk' });
@@ -974,6 +1019,20 @@ router.put('/admin/settings', authenticate, requireTokoManage, async (req, res) 
 			'storeAddress',
 			'defaultCurrency',
 		];
+		const legacyOnly =
+			Array.isArray(body.whatsappAdmins) &&
+			body.whatsappAdmins.length === 0 &&
+			!!normalizeWaDigits(body.whatsappPhone);
+		// Draft lama (daftar kosong tapi nomor lama ada) → jangan hapus nomor lama
+		if (body.whatsappAdmins !== undefined && !legacyOnly) {
+			const admins = normalizeStoreWaAdmins(body.whatsappAdmins);
+			update.whatsappAdmins = admins;
+			// Field lama tetap diisi admin pertama (kompatibel dengan kode/data lama)
+			update.whatsappPhone = admins[0]?.phone || '';
+			update.whatsappContactName = admins[0]?.name || '';
+			delete body.whatsappPhone;
+			delete body.whatsappContactName;
+		}
 		if (body.navbarPath !== undefined) {
 			// Path toko = segmen pertama URL situs utama; jangan bentrok dengan route sistem/komunitas
 			const p = normalizeStorePath(body.navbarPath);
@@ -1448,6 +1507,7 @@ router.post('/admin/products', authenticate, requireTokoManage, async (req, res)
 			videoType: vid.type,
 			whatsappPhoneOverride: String(body.whatsappPhoneOverride || ''),
 			whatsappContactNameOverride: String(body.whatsappContactNameOverride || ''),
+			whatsappAdmins: normalizeStoreWaAdmins(body.whatsappAdmins),
 			buyMessageTemplateOverride: String(body.buyMessageTemplateOverride || ''),
 			storeAddressOverride: String(body.storeAddressOverride || ''),
 			published: !!body.published,
@@ -1491,6 +1551,7 @@ router.patch('/admin/products/:id', authenticate, requireStoreDashboard, async (
 				'videoType',
 				'whatsappPhoneOverride',
 				'whatsappContactNameOverride',
+				'whatsappAdmins',
 				'buyMessageTemplateOverride',
 				'storeAddressOverride',
 				'published',
@@ -1557,6 +1618,12 @@ router.patch('/admin/products/:id', authenticate, requireStoreDashboard, async (
 		if (body.whatsappPhoneOverride !== undefined) p.whatsappPhoneOverride = String(body.whatsappPhoneOverride || '');
 		if (body.whatsappContactNameOverride !== undefined) {
 			p.whatsappContactNameOverride = String(body.whatsappContactNameOverride || '');
+		}
+		if (body.whatsappAdmins !== undefined) {
+			p.whatsappAdmins = normalizeStoreWaAdmins(body.whatsappAdmins);
+			// override lama digantikan daftar override baru
+			p.whatsappPhoneOverride = '';
+			p.whatsappContactNameOverride = '';
 		}
 		if (body.buyMessageTemplateOverride !== undefined) {
 			p.buyMessageTemplateOverride = String(body.buyMessageTemplateOverride || '');
@@ -2158,8 +2225,15 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 
 		const settings: any = await ensureSettings(req);
 		const sh = normalizeStoreShippingInDoc(settings);
-		const globalWa = normalizeWaDigits(settings.whatsappPhone || '');
-		if (!globalWa) return res.status(400).json({ message: 'Nomor WhatsApp toko belum diatur' });
+		// Admin WA: satu produk → admin produk (override) / global; keranjang campuran → global.
+		// Ditentukan SEBELUM stok dikurangi agar toko tutup / pilih admin tidak membuat pesanan.
+		const singleProductLine =
+			parsed.lines.length === 1 && parsed.lines[0].lineKind === 'product'
+				? await StoreProduct.findById(parsed.lines[0].productId).lean()
+				: undefined;
+		const pick = pickStoreWaAdmin(settings, singleProductLine || undefined, body.adminId);
+		if (!pick.ok) return res.status(pick.status).json(pick.body);
+		const waAdmin = pick.admin;
 		if (fulfillment === 'delivery' && sh.enabled) {
 			if (!/^\d{10}$/.test(destinationVillageCode)) {
 				return res.status(400).json({ message: 'Kode kelurahan tujuan 10 digit wajib (ongkir)' });
@@ -2319,12 +2393,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 
 		const storeAddr = settings.storeAddress || '';
 
-		let waUsed = globalWa;
-		if (orderLines.length === 1 && orderLines[0].lineKind === 'product' && orderLines[0].productId) {
-			const p0 = await StoreProduct.findById(orderLines[0].productId).lean();
-			const w = normalizeWaDigits(p0?.whatsappPhoneOverride || '');
-			if (w) waUsed = w;
-		}
+		const waUsed = waAdmin.phone;
 
 		const tplBase = String(settings.checkoutMessageTemplate || '');
 		const tpl = tplBase.includes('{{invoiceUrl}}')
@@ -2345,6 +2414,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 			orderNo,
 			invoiceUrl,
 		});
+		const msgWithGreeting = `${waGreeting(waAdmin)}${msg}`;
 
 		const { doc: sessDoc, sessionKeyHash } = await getOrCreateGuestSession(req, res);
 		const decremented: { id: any; qty: number }[] = [];
@@ -2391,7 +2461,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 			shippingAddress: fulfillment === 'delivery' ? shippingAddress : '',
 			storeAddressSnapshot: storeAddr,
 			whatsappPhoneUsed: waUsed,
-			whatsappMessageSnapshot: msg,
+			whatsappMessageSnapshot: msgWithGreeting,
 			status: 'pending',
 			appliedCampaignIds: Array.from(campaignIds)
 				.filter((x) => mongoose.Types.ObjectId.isValid(x))
@@ -2438,7 +2508,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 		sessDoc.cartItems = cart;
 		await sessDoc.save();
 
-		const waUrl = `https://wa.me/${waUsed}?text=${encodeURIComponent(msg)}`;
+		const waUrl = `https://wa.me/${waUsed}?text=${encodeURIComponent(msgWithGreeting)}`;
 		res.json({
 			order: stripInvoiceTokenFromOrder(order.toObject()),
 			whatsappUrl: waUrl,
@@ -2476,10 +2546,9 @@ router.post('/buy-link', storeCheckoutRateLimiter, async (req, res) => {
 		if (!p || !p.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
 
 		const settings: any = await ensureSettings(req);
-		const itemWa = normalizeWaDigits(p.whatsappPhoneOverride || '');
-		const globalWa = normalizeWaDigits(settings.whatsappPhone || '');
-		const wa = itemWa || globalWa;
-		if (!wa) return res.status(400).json({ message: 'Nomor WhatsApp belum diatur' });
+		const pick = pickStoreWaAdmin(settings, p, req.body?.adminId);
+		if (!pick.ok) return res.status(pick.status).json(pick.body);
+		const wa = pick.admin.phone;
 
 		const base = publicBaseUrl(req);
 		const storePath = normalizeStorePath(settings?.navbarPath);
@@ -2508,8 +2577,9 @@ router.post('/buy-link', storeCheckoutRateLimiter, async (req, res) => {
 			shortDescription: stripHtml(p.shortDescription || ''),
 		});
 
-		const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(msg)}`;
-		res.json({ whatsappUrl: waUrl, message: msg });
+		const text = `${waGreeting(pick.admin)}${msg}`;
+		const waUrl = `https://wa.me/${wa}?text=${encodeURIComponent(text)}`;
+		res.json({ whatsappUrl: waUrl, message: text });
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal membuat link WhatsApp' });

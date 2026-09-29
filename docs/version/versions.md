@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.29.9`  
+**Current version:** `4.30.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.29.9`](./release/4.29.9.md) | 2026-09-29 | Env dimuat sebelum modul; deploy gagal tidak tersembunyi | PATCH | 1 | **Current** |
+| [`4.30.0`](./release/4.30.0.md) | 2026-09-29 | Multi admin WhatsApp toko (global & per produk) | MINOR | 1 | **Current** |
+| [`4.29.9`](./release/4.29.9.md) | 2026-09-29 | Env dimuat sebelum modul; deploy gagal tidak tersembunyi | PATCH | 1 | Released |
 | [`4.29.8`](./release/4.29.8.md) | 2026-09-29 | Reload path toko custom tidak lagi 404 | PATCH | 1 | Released |
 | [`4.29.7`](./release/4.29.7.md) | 2026-09-28 | Hapus skrip berkredensial, media sync aman | PATCH | 1 | Released |
 | [`4.29.6`](./release/4.29.6.md) | 2026-09-28 | Import PDF kepengurusan memakai semua kunci Gemini | PATCH | 1 | Released |

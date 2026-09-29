@@ -1,3 +1,5 @@
+import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
+import { STORE_CLOSED_MESSAGE, type StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -188,8 +190,7 @@ export default function TokoProductDetailPage() {
 	const activeImageSrc = galleryImages[safeGalleryIndex] || '';
 
 	const effectiveContactName =
-		String(product?.whatsappContactNameOverride || '').trim() ||
-		String(storeSettings?.whatsappContactName || '').trim();
+		((product?.waAdmins as StoreWaAdminPublic[] | undefined) || []).map((a) => a.name).join(', ');
 	const effectiveStoreAddress =
 		String(product?.storeAddressOverride || '').trim() ||
 		String(storeSettings?.storeAddress || '').trim();
@@ -248,6 +249,9 @@ export default function TokoProductDetailPage() {
 	const [buyerFulfillment, setBuyerFulfillment] =
 		useState<'pickup' | 'delivery'>('pickup');
 	const [buyerAddress, setBuyerAddress] = useState('');
+	const [waAdminId, setWaAdminId] = useState('');
+	const waAdmins = product?.waAdmins as StoreWaAdminPublic[] | undefined;
+	const storeClosed = product?.storeOpen === false;
 	const [formErrors, setFormErrors] = useState<{
 		name?: string;
 		phone?: string;
@@ -276,6 +280,7 @@ export default function TokoProductDetailPage() {
 				customerName: buyerName.trim(),
 				customerPhone: buyerPhone.trim(),
 				fulfillment: buyerFulfillment,
+				adminId: waAdminId,
 				shippingAddress:
 					buyerFulfillment === 'delivery' ? buyerAddress.trim() : '',
 			};
@@ -321,6 +326,10 @@ export default function TokoProductDetailPage() {
 		}
 		if (Object.keys(errs).length > 0) {
 			setFormErrors(errs);
+			return;
+		}
+		if (needsAdminChoice(waAdmins, waAdminId)) {
+			toast({ title: 'Pilih admin tujuan dulu', variant: 'destructive' });
 			return;
 		}
 		setFormErrors({});
@@ -554,11 +563,16 @@ export default function TokoProductDetailPage() {
 							{product.shortDescription && (
 								<p className="text-muted-foreground mt-4">{product.shortDescription}</p>
 							)}
+							{storeClosed && (
+								<p className="mt-6 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+									{STORE_CLOSED_MESSAGE}
+								</p>
+							)}
 							<div className="flex flex-wrap gap-3 mt-8">
 								<Button
 									size="lg"
 									onClick={openBuyDialog}
-									disabled={productOutOfStock}>
+									disabled={productOutOfStock || storeClosed}>
 									Beli via WhatsApp
 								</Button>
 								<Button
@@ -672,6 +686,7 @@ export default function TokoProductDetailPage() {
 								)}
 							</div>
 						)}
+						<StoreWaAdminPicker admins={waAdmins} value={waAdminId} onChange={setWaAdminId} />
 					</div>
 					<DialogFooter>
 						<Button
@@ -682,7 +697,7 @@ export default function TokoProductDetailPage() {
 						</Button>
 						<Button
 							onClick={submitBuyForm}
-							disabled={directCheckoutMutation.isPending}>
+							disabled={directCheckoutMutation.isPending || storeClosed}>
 							{directCheckoutMutation.isPending ? (
 								<>
 									<Loader2 className="h-4 w-4 mr-2 animate-spin" />

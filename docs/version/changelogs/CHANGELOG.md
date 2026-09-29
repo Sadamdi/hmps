@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.30.0] - 2026-09-29
+
+### Added
+
+- Toko: daftar admin WhatsApp (nama, nomor, on/off) global & override per produk; pembeli memilih admin bila >1 aktif; semua off = "Mohon maaf, toko sedang tutup."; pesan diawali "Permisi Kak {nama}".
+
+### Security
+
+- Nomor admin tidak lagi diekspos di respons produk publik.
+
 ## [4.29.9] - 2026-09-29
 
 ### Fixed
