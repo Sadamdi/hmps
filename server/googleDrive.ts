@@ -4,7 +4,8 @@ import path from 'path';
 import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
 
-const SERVICE_ACCOUNT_JSON = 'gen-lang-client-0095636115-01e39d148e40.json';
+// Kunci akun layanan (Drive + Sheets); bisa di-override lewat GOOGLE_APPLICATION_CREDENTIALS
+const SERVICE_ACCOUNT_JSON = 'google-service-account.json';
 
 /** JSON lives under server/; when running from dist/, __dirname alone breaks (ENOENT). */
 function resolveServiceAccountKeyPath(): string {

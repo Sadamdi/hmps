@@ -73,3 +73,7 @@ scripts/_*
 .env.bak*
 *.bak-*
 .deploy-failed-head
+
+# Kunci akun layanan Google (Drive + Sheets) — JANGAN di-commit
+server/google-service-account.json
+*service-account*.json
