@@ -722,8 +722,14 @@ export default function TokoProductDetailPage() {
 			<StoreChatPanel
 				open={chatOpen}
 				onOpenChange={setChatOpen}
-				productId={String(product._id)}
-				productName={product.name}
+				product={{
+					productId: String(product._id),
+					name: product.name,
+					slug: product.slug,
+					thumbnail: product.thumbnail || '',
+					price: Number(product.price) || 0,
+					currency: effectiveProductCurrency(product, defaultCur),
+				}}
 				waAdmins={waAdmins}
 				defaultName={buyerName}
 			/>

@@ -9,6 +9,21 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.32.0] - 2026-09-29
+
+### Changed
+
+- Chat penjual gaya marketplace: satu percakapan per pembeli dengan kartu produk (thumbnail, nama, harga, link) per barang yang ditanyakan; inbox admin menampilkan nama pembeli + daftar barang; tombol Chat + badge di header toko.
+
+### Added
+
+- Chat dihapus otomatis 7 hari setelah pesan terakhir (TTL).
+- Rate limit khusus chat, keranjang, dan cek ongkir.
+
+### Fixed
+
+- Pembeli dengan browser/HP sejenis tidak lagi berbagi kuota rate limit; pesan 429 tampil jelas.
+
 ## [4.31.0] - 2026-09-29
 
 ### Added

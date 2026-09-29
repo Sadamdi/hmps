@@ -45,6 +45,19 @@ export function getDeviceId(req: Request): string {
 	return crypto.createHash('sha256').update(`${ua}|${lang}|${enc}`).digest('hex').substring(0, 16);
 }
 
+/**
+ * Kunci "perangkat" untuk limiter: cookie sesi toko bila ada (unik per pembeli), selain itu
+ * fingerprint header. Tanpa cookie, fingerprint dipakai bersama semua pengguna browser/HP sejenis,
+ * jadi jangan jadikan satu-satunya pembeda. Cookie baru tetap dibatasi bucket IP.
+ */
+function getLimiterDeviceKey(req: Request): string {
+	const storeSession = (req as any).cookies?.hmps_store_session as string | undefined;
+	if (storeSession && storeSession.length >= 16) {
+		return 's' + crypto.createHash('sha256').update(storeSession).digest('hex').substring(0, 16);
+	}
+	return getDeviceId(req);
+}
+
 function getGuestKeyHash(req: Request): string | null {
 	const raw = (req.headers['x-guest-key'] as string | undefined)?.trim();
 	if (!raw) return null;
@@ -87,6 +100,7 @@ cleanupTimer.unref?.();
 function send429(res: Response, retryAfterSec: number, windowLabel: string) {
 	res.status(429).json({
 		error: `Terlalu banyak request. Silakan coba lagi dalam ${windowLabel}.`,
+		message: `Terlalu banyak request. Silakan coba lagi dalam ${windowLabel}.`,
 		retryAfter: retryAfterSec,
 	});
 }
@@ -116,7 +130,7 @@ export function createPublicRateLimiter(
 			if (!enabled) return next();
 
 			const ip = getClientIp(req);
-			const device = getDeviceId(req);
+			const device = getLimiterDeviceKey(req);
 			const guest = getGuestKeyHash(req);
 
 			for (const rule of rules) {
@@ -187,6 +201,22 @@ export const chatUploadRateLimiter = createPublicRateLimiter('chat-upload', [
 /** Soft cap: store checkout / buy-link */
 export const storeCheckoutRateLimiter = createPublicRateLimiter('store-checkout', [
 	{ windowMs: 60 * 60 * 1000, maxPerIp: 30, maxPerDevice: 20, label: '1 jam' },
+]);
+
+/** Keranjang toko: tambah/ubah/hapus item & simpan draft (batas wajar klik cepat) */
+export const storeCartRateLimiter = createPublicRateLimiter('store-cart', [
+	{ windowMs: 60_000, maxPerIp: 90, maxPerDevice: 60, label: '1 menit' },
+]);
+
+/** Cek ongkir: memanggil API ongkir pihak ketiga */
+export const storeShippingQuoteRateLimiter = createPublicRateLimiter('store-shipping-quote', [
+	{ windowMs: 60_000, maxPerIp: 30, maxPerDevice: 20, label: '1 menit' },
+]);
+
+/** Chat penjual toko: kirim pesan / lanjut WA (terpisah dari kuota checkout) */
+export const storeChatRateLimiter = createPublicRateLimiter('store-chat', [
+	{ windowMs: 60_000, maxPerIp: 15, maxPerDevice: 10, label: '1 menit' },
+	{ windowMs: 60 * 60 * 1000, maxPerIp: 120, maxPerDevice: 80, label: '1 jam' },
 ]);
 
 /** Soft cap: GDrive proxy POSTs */

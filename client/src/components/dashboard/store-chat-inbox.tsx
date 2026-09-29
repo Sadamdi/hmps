@@ -7,12 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
-import { useApiUrl } from '@/lib/tenant-context';
+import { useApiUrl, useTenant } from '@/lib/tenant-context';
+import MediaDisplay from '@/components/MediaDisplay';
+import { StoreChatProductCard, type ChatProductCardData } from '@/components/toko/store-chat-product-card';
 
 type ChatSummary = {
 	_id: string;
-	productName: string;
 	customerName: string;
+	products: { name: string; thumbnail: string }[];
 	status: 'open' | 'closed';
 	unreadForAdmin: number;
 	lastMessageAt: string;
@@ -20,11 +22,19 @@ type ChatSummary = {
 };
 type ChatDetail = {
 	_id: string;
-	productName: string;
-	productSlug: string;
 	customerName: string;
 	status: 'open' | 'closed';
-	messages: { from: 'buyer' | 'admin'; text: string; senderName: string; at: string }[];
+	storePath: string;
+	expireAt?: string;
+	products: ChatProductCardData[];
+	messages: {
+		from: 'buyer' | 'admin';
+		kind: 'text' | 'product';
+		text: string;
+		senderName: string;
+		product: ChatProductCardData | null;
+		at: string;
+	}[];
 };
 
 function fmt(at: string) {
@@ -36,6 +46,8 @@ export function StoreChatInbox() {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
 	const listUrl = useApiUrl('/store/admin/chats');
+	const { basePath } = useTenant();
+	const productHref = (d: ChatDetail, slug: string) => `${basePath || ''}${d.storePath || '/toko'}/${slug}`;
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [reply, setReply] = useState('');
 	const bottomRef = useRef<HTMLDivElement | null>(null);
@@ -101,7 +113,18 @@ export function StoreChatInbox() {
 									<span className="truncate font-medium">{c.customerName}</span>
 									{c.unreadForAdmin > 0 && <Badge className="shrink-0">{c.unreadForAdmin}</Badge>}
 								</div>
-								<p className="truncate text-xs text-muted-foreground">{c.productName || 'Umum'}</p>
+								{c.products.length > 0 && (
+									<div className="mt-1 flex items-center gap-1">
+										{c.products.slice(0, 4).map((p, i) => (
+											<div key={i} className="h-7 w-7 overflow-hidden rounded bg-muted" title={p.name}>
+												{p.thumbnail && <MediaDisplay src={p.thumbnail} alt={p.name} className="h-full w-full object-cover" />}
+											</div>
+										))}
+										<span className="truncate text-xs text-muted-foreground">
+											{c.products.length === 1 ? c.products[0].name : `${c.products.length} produk ditanyakan`}
+										</span>
+									</div>
+								)}
 								{c.lastMessage && (
 									<p className="truncate text-xs text-muted-foreground">
 										{c.lastMessage.from === 'admin' ? 'Anda: ' : ''}
@@ -124,7 +147,11 @@ export function StoreChatInbox() {
 							<div className="flex flex-wrap items-center justify-between gap-2">
 								<div>
 									<p className="font-semibold">{detail.customerName || 'Pembeli'}</p>
-									<p className="text-xs text-muted-foreground">{detail.productName || 'Umum'}</p>
+									<p className="text-xs text-muted-foreground">
+										{detail.products.length
+											? `Menanyakan: ${detail.products.map((p) => p.name).join(', ')}`
+											: 'Belum menanyakan produk tertentu'}
+									</p>
 								</div>
 								<Button
 									size="sm"
@@ -135,7 +162,16 @@ export function StoreChatInbox() {
 								</Button>
 							</div>
 							<div className="max-h-[380px] min-h-0 flex-1 space-y-2 overflow-y-auto rounded-md border border-border bg-muted/30 p-3">
-								{detail.messages.map((m, i) => (
+								{detail.messages.map((m, i) =>
+									m.kind === 'product' && m.product ? (
+										<div key={i} className="flex justify-start">
+											<StoreChatProductCard
+												product={m.product}
+												href={productHref(detail, m.product.slug)}
+												caption={`${detail.customerName || 'Pembeli'} menanyakan produk ini`}
+											/>
+										</div>
+									) : (
 									<div key={i} className={`flex ${m.from === 'admin' ? 'justify-end' : 'justify-start'}`}>
 										<div
 											className={`max-w-[85%] whitespace-pre-wrap break-words rounded-lg px-3 py-2 text-sm ${
@@ -148,7 +184,8 @@ export function StoreChatInbox() {
 											<p className="mt-1 text-right text-[10px] opacity-70">{fmt(m.at)}</p>
 										</div>
 									</div>
-								))}
+									),
+								)}
 								<div ref={bottomRef} />
 							</div>
 							<div className="flex gap-2">
