@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowUp, ImageUp, Loader2, Plus, QrCode, Trash2, Wallet, Landmark } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronDown, ImageUp, Loader2, Plus, QrCode, Trash2, Wallet, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -111,6 +111,9 @@ export function StorePaymentSettingsCard({
 	const [channels, setChannels] = useState<StorePaymentChannel[]>([]);
 	const [dp, setDp] = useState<StoreDpSettings>(DEFAULT_DP_SETTINGS);
 	const [uploadingId, setUploadingId] = useState('');
+	// kanal tertutup secara default (hemat tempat); kanal baru langsung terbuka
+	const [openIds, setOpenIds] = useState<Set<string>>(new Set());
+	const toggleOpen = (id: string) => setOpenIds((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 	const fileRef = useRef<HTMLInputElement>(null);
 	const uploadTarget = useRef('');
 
@@ -158,16 +161,16 @@ export function StorePaymentSettingsCard({
 	};
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Pembayaran</CardTitle>
-				<CardDescription>
-					Kanal yang aktif tampil di invoice pembeli (QRIS / nomor rekening) beserta tombol upload bukti bayar. Produk bisa
-					memilih kanal sendiri di editor produk. Kosongkan semua kanal untuk kembali ke alur lama (checkout langsung ke
-					WhatsApp).
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="space-y-6">
+		<CollapsibleCard
+			title="Pembayaran"
+			description="Kanal yang aktif tampil di invoice pembeli (QRIS / nomor rekening) beserta tombol upload bukti bayar. Produk bisa memilih kanal sendiri di editor produk. Kosongkan semua kanal untuk kembali ke alur lama (checkout langsung ke WhatsApp)."
+			summary={
+				channels.length
+					? `${channels.filter((c) => c.active).length} kanal aktif · DP ${dp.enabled ? (dp.mode === 'percent' ? `${dp.percent}%` : 'nominal') : 'nonaktif'}`
+					: 'Belum ada kanal — checkout masih lewat WhatsApp'
+			}
+			storageKey="toko-set-payment"
+			contentClassName="space-y-6">
 				<input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => void onPickQris(e.target.files?.[0] || null)} />
 				<div className="space-y-3">
 					{channels.length === 0 && (
@@ -178,10 +181,18 @@ export function StorePaymentSettingsCard({
 						return (
 							<div key={c.id} className={`rounded-lg border p-3 space-y-3 ${c.active ? '' : 'opacity-60'}`}>
 								<div className="flex flex-wrap items-center justify-between gap-2">
-									<p className="font-medium text-sm flex items-center gap-1.5">
-										<Meta.icon className="h-4 w-4" /> {Meta.label}
-										<span className="text-xs text-muted-foreground font-normal">#{i + 1}</span>
-									</p>
+									<button type="button" className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => toggleOpen(c.id)} aria-expanded={openIds.has(c.id)}>
+										<ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${openIds.has(c.id) ? 'rotate-180' : ''}`} />
+										<span className="min-w-0">
+											<span className="block font-medium text-sm flex items-center gap-1.5">
+												<Meta.icon className="h-4 w-4" /> {Meta.label}
+												<span className="text-xs text-muted-foreground font-normal">#{i + 1}</span>
+											</span>
+											<span className="block truncate text-xs text-muted-foreground">
+												{c.type === 'qris' ? c.merchantName || 'Nama merchant belum diisi' : `${c.providerName || 'Pilih bank/e-wallet'} · ${c.accountNumber || 'nomor belum diisi'}${c.accountHolder ? ` · a.n. ${c.accountHolder}` : ''}`}
+											</span>
+										</span>
+									</button>
 									<div className="flex items-center gap-1">
 										<span className="text-xs text-muted-foreground mr-1">{c.active ? 'Aktif' : 'Nonaktif'}</span>
 										<Switch checked={c.active} onCheckedChange={(v) => patch(c.id, { active: v })} aria-label="Aktifkan kanal" />
@@ -196,7 +207,7 @@ export function StorePaymentSettingsCard({
 										</Button>
 									</div>
 								</div>
-								{c.type === 'qris' ? (
+								{!openIds.has(c.id) ? null : c.type === 'qris' ? (
 									<div className="grid gap-3 sm:grid-cols-[160px_1fr]">
 										<div className="space-y-2">
 											{c.qrisImageUrl ? (
@@ -249,7 +260,11 @@ export function StorePaymentSettingsCard({
 					})}
 					<div className="flex flex-wrap gap-2">
 						{(Object.keys(TYPE_META) as PaymentChannelType[]).map((t) => (
-							<Button key={t} variant="outline" size="sm" onClick={() => setChannels((cs) => [...cs, blankChannel(t)])}>
+							<Button key={t} variant="outline" size="sm" onClick={() => {
+									const nc = blankChannel(t);
+									setChannels((cs) => [...cs, nc]);
+									setOpenIds((p) => new Set(p).add(nc.id));
+								}}>
 								<Plus className="h-4 w-4 mr-1" /> {TYPE_META[t].label}
 							</Button>
 						))}
@@ -300,7 +315,6 @@ export function StorePaymentSettingsCard({
 				<Button onClick={() => save.mutate()} disabled={save.isPending}>
 					{save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Simpan pembayaran'}
 				</Button>
-			</CardContent>
-		</Card>
+		</CollapsibleCard>
 	);
 }

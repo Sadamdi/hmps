@@ -158,3 +158,12 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 - Client-side payload may include transformed fields not visible from backend static scan.
 
 
+
+## Bundling (diperbarui 4.37.0)
+
+- **Isi paket bervarian**: produk yang punya varian (ukuran/desain) wajib memilih varian per isi paket. Stok, foto, harga normal, dan snapshot pesanan mengikuti varian tersebut. Server menolak isi tanpa varian dan menolak menambah paket ke keranjang bila varian sudah dihapus atau stoknya habis (pesan jelas, bukan error umum).
+- **Thumbnail paket**: upload di dialog bundling (`thumbnail`); hanya hasil upload toko atau URL https.
+- **Rincian publik**: `/public/bundles` dan `/public/bundles/:slug` membawa `components[]` (nama, varian, qty, foto, harga satuan), `normalTotal`, `saving`, `available`, `maxQty`.
+- **Detail produk**: `/public/products/:slug` membawa `bundles[]` (maks 6, hanya yang tersedia), ditampilkan sebagai "Tersedia dalam paket" di halaman produk.
+- **Katalog**: kartu paket menampilkan isi, coret harga normal, dan "Hemat"; tombol Lihat isi membuka rincian. Filter kategori punya chip **Bundling**.
+- **Keranjang**: produk satuan dan paket boleh dicampur (batasan lama dihapus). Mata uang dicocokkan dengan produk satuan pertama. Baris paket menampilkan isinya, dan invoice menampilkan snapshot isi.

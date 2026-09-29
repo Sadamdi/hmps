@@ -65,6 +65,12 @@ async function throwIfResNotOk(res: Response) {
 	}
 }
 
+/** Pesan error server (mis. "400: Pilih varian dulu") tanpa awalan status, atau fallback. */
+export function apiErrorText(e: unknown, fallback: string): string {
+	const m = String((e as Error)?.message || '').replace(/^\d{3}:\s*/, '').trim();
+	return m && m !== 'cart' && !/^\{/.test(m) ? m : fallback;
+}
+
 export async function apiRequest(
 	method: string,
 	url: string,

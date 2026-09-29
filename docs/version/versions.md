@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.36.0`  
+**Current version:** `4.37.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.36.0`](./release/4.36.0.md) | 2026-09-29 | Pembayaran toko: kanal bayar (QRIS/rekening/e-wallet), DP pre-order, bukti bayar | MINOR | 1 | **Current** |
+| [`4.37.0`](./release/4.37.0.md) | 2026-09-30 | Bundling bervarian + thumbnail + tampil di detail produk, kartu dashboard bisa dilipat, perbaikan beli-langsung | MINOR | 1 | **Current** |
+| [`4.36.0`](./release/4.36.0.md) | 2026-09-29 | Pembayaran toko: kanal bayar (QRIS/rekening/e-wallet), DP pre-order, bukti bayar | MINOR | 1 | Released |
 | [`4.35.3`](./release/4.35.3.md) | 2026-09-29 | Thumbnail embed Drive dikompres (maks 1000px, JPEG) | PATCH | 1 | Released |
 | [`4.35.2`](./release/4.35.2.md) | 2026-09-29 | Embed galeri: cari gambar di subfolder Drive, thumbnail lebih ringan, logo komunitas fallback | PATCH | 1 | Released |
 | [`4.35.1`](./release/4.35.1.md) | 2026-09-29 | Embed link (og:image/judul/deskripsi) dinamis untuk toko, galeri, komunitas | PATCH | 1 | Released |

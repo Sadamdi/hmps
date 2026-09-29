@@ -32,6 +32,7 @@ interface OrderData extends Omit<OrderPaymentData, 'orderNo' | 'status' | 'total
 		unitPrice: number;
 		lineSubtotal: number;
 		currency?: string;
+		bundleComponentSnapshot?: { name: string; qty: number }[];
 	}[];
 	subtotal: number;
 	total: number;
@@ -208,6 +209,11 @@ export default function TokoOrderInvoicePage() {
 											<li key={i} className="flex justify-between gap-2">
 												<span>
 													{li.name}{li.variantLabel ? ` (${li.variantLabel})` : ''} × {li.qty}
+													{Array.isArray(li.bundleComponentSnapshot) && li.bundleComponentSnapshot.length > 0 && (
+														<span className="block text-xs text-muted-foreground">
+															Isi: {li.bundleComponentSnapshot.map((c) => `${c.qty}× ${c.name}`).join(', ')}
+														</span>
+													)}
 												</span>
 												<span className="tabular-nums shrink-0">
 													{formatStoreMoney(

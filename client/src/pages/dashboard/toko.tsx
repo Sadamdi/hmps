@@ -1,5 +1,6 @@
 import { StoreSheetSyncCard } from '@/components/dashboard/store-sheet-sync-card';
 import { StorePaymentSettingsCard } from '@/components/dashboard/store-payment-settings-card';
+import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { StorePreorderPanel } from '@/components/dashboard/store-preorder-panel';
 import { StoreVariantsEditor } from '@/components/dashboard/store-variants-editor';
 import {
@@ -428,7 +429,8 @@ export default function DashboardToko() {
 		bundlePrice: 0,
 		published: true,
 		isActive: true,
-		items: [] as { productId: string; qty: number }[],
+		thumbnail: '',
+		items: [] as { productId: string; qty: number; variantId: string }[],
 	});
 	const [productOpen, setProductOpen] = useState(false);
 	const [editingId, setEditingId] = useState<string | null>(null);
@@ -738,9 +740,10 @@ export default function DashboardToko() {
 				bundlePrice: Number(bundleForm.bundlePrice) || 0,
 				published: bundleForm.published,
 				isActive: bundleForm.isActive,
+				thumbnail: bundleForm.thumbnail,
 				items: bundleForm.items
 					.filter((r) => r.productId)
-					.map((r) => ({ productId: r.productId, qty: Math.max(1, r.qty) })),
+					.map((r) => ({ productId: r.productId, qty: Math.max(1, r.qty), variantId: r.variantId || '' })),
 			};
 			if (bundleEditId) {
 				return apiRequest('PATCH', `${adminBundlesUrl}/${bundleEditId}`, body);
@@ -1484,12 +1487,12 @@ export default function DashboardToko() {
 							<Loader2 className="h-8 w-8 animate-spin mx-auto" />
 						) : (
 							<>
-								<Card>
-									<CardHeader>
-										<CardTitle>Navbar & kontak</CardTitle>
-										<CardDescription>Label dan path menu publik, serta WhatsApp admin.</CardDescription>
-									</CardHeader>
-									<CardContent className="grid gap-4 sm:grid-cols-2">
+								<CollapsibleCard
+									title="Navbar & kontak"
+									description="Label dan path menu publik, serta WhatsApp admin."
+									summary={`Menu "${s.navbarLabel || 'Toko'}" di ${s.navbarPath || '/toko'} · ${(globalStoreWaAdmins(s) || []).filter((a: any) => a.active).length} admin WA aktif`}
+									storageKey="toko-set-navbar"
+									contentClassName="grid gap-4 sm:grid-cols-2">
 										<div className="space-y-2">
 											<Label>Label menu</Label>
 											<Input
@@ -1622,8 +1625,7 @@ export default function DashboardToko() {
 												Simpan navbar & kontak
 											</Button>
 										</div>
-									</CardContent>
-								</Card>
+									</CollapsibleCard>
 
 								{canManage && (
 									<StorePaymentSettingsCard
@@ -1634,11 +1636,11 @@ export default function DashboardToko() {
 									/>
 								)}
 
-								<Card>
-									<CardHeader>
-										<CardTitle>Pajak & pesan WhatsApp</CardTitle>
-									</CardHeader>
-									<CardContent className="space-y-4">
+								<CollapsibleCard
+									title="Pajak & pesan WhatsApp"
+									summary={s.taxEnabled ? `Pajak aktif ${s.taxPercent ?? 0}%` : 'Pajak nonaktif · template pesan checkout'}
+									storageKey="toko-set-tax"
+									contentClassName="space-y-4">
 										<div className="flex items-center gap-3">
 											<Switch
 												checked={!!s.taxEnabled}
@@ -1704,17 +1706,12 @@ export default function DashboardToko() {
 											onClick={() => saveSettingsMutation.mutate(settingsDraft)}>
 											Simpan pajak & template pesan
 										</Button>
-									</CardContent>
-								</Card>
+									</CollapsibleCard>
 
-								<Card>
-									<CardHeader>
-										<CardTitle>Layout beranda toko</CardTitle>
-										<CardDescription>
-											Seret untuk mengurutkan blok. Nonaktifkan blok yang tidak dipakai.
-										</CardDescription>
-									</CardHeader>
-									<CardContent>
+								<CollapsibleCard
+									title="Layout beranda toko"
+									description="Seret untuk mengurutkan blok. Nonaktifkan blok yang tidak dipakai."
+									storageKey="toko-set-layout">
 										<DndContext
 											sensors={sensors}
 											collisionDetection={closestCenter}
@@ -1807,8 +1804,7 @@ export default function DashboardToko() {
 											disabled={saveSettingsMutation.isPending}>
 											Simpan layout
 										</Button>
-									</CardContent>
-								</Card>
+									</CollapsibleCard>
 							</>
 						)}
 					</TabsContent>
@@ -2063,7 +2059,8 @@ export default function DashboardToko() {
 												bundlePrice: 0,
 												published: true,
 												isActive: true,
-												items: [{ productId: '', qty: 1 }],
+												thumbnail: '',
+												items: [{ productId: '', qty: 1, variantId: '' }],
 											});
 											setBundleDialogOpen(true);
 										}}>
@@ -2117,6 +2114,7 @@ export default function DashboardToko() {
 																							)
 																						: '',
 																					qty: Math.max(1, Number(row?.qty) || 1),
+																					variantId: String(row?.variantId || ''),
 																				}))
 																			: [];
 																		setBundleForm({
@@ -2125,7 +2123,8 @@ export default function DashboardToko() {
 																			bundlePrice: Number(b.bundlePrice) || 0,
 																			published: !!b.published,
 																			isActive: b.isActive !== false,
-																			items: its.length ? its : [{ productId: '', qty: 1 }],
+																			thumbnail: b.thumbnail || '',
+																			items: its.length ? its : [{ productId: '', qty: 1, variantId: '' }],
 																		});
 																		setBundleDialogOpen(true);
 																	}}>
@@ -2388,6 +2387,41 @@ export default function DashboardToko() {
 								onChange={(e) => setBundleForm((f) => ({ ...f, shortDescription: e.target.value }))}
 							/>
 						</div>
+						<div className="space-y-2">
+							<Label>Gambar / thumbnail paket</Label>
+							<div className="flex items-center gap-3">
+								{bundleForm.thumbnail ? (
+									<img src={bundleForm.thumbnail} alt="Thumbnail paket" className="h-20 w-32 rounded-md border object-cover" />
+								) : (
+									<div className="grid h-20 w-32 place-items-center rounded-md border border-dashed text-xs text-muted-foreground">
+										Belum ada gambar
+									</div>
+								)}
+								<div className="space-y-1">
+									<Input
+										type="file"
+										accept="image/*"
+										onChange={async (e) => {
+											const f = e.target.files?.[0];
+											if (!f) return;
+											try {
+												const url = await uploadStoreImage(f);
+												setBundleForm((b) => ({ ...b, thumbnail: url }));
+											} catch {
+												toast({ title: 'Upload gambar gagal', variant: 'destructive' });
+											}
+											e.target.value = '';
+										}}
+									/>
+									{bundleForm.thumbnail && (
+										<Button type="button" variant="ghost" size="sm" onClick={() => setBundleForm((b) => ({ ...b, thumbnail: '' }))}>
+											Hapus gambar
+										</Button>
+									)}
+									<p className="text-[11px] text-muted-foreground">Kalau kosong, pembeli melihat ikon paket.</p>
+								</div>
+							</div>
+						</div>
 						<div className="space-y-1">
 							<Label>Harga paket ({defaultStoreCurrency})</Label>
 							<Input
@@ -2411,7 +2445,8 @@ export default function DashboardToko() {
 											value={row.productId || undefined}
 											onValueChange={(v) => {
 												const next = [...bundleForm.items];
-												next[idx] = { ...next[idx], productId: v };
+												// ganti produk → varian lama tidak berlaku lagi
+												next[idx] = { ...next[idx], productId: v, variantId: '' };
 												setBundleForm((f) => ({ ...f, items: next }));
 											}}>
 											<SelectTrigger>
@@ -2428,6 +2463,31 @@ export default function DashboardToko() {
 											</SelectContent>
 										</Select>
 									</div>
+									{(() => {
+										const prod: any = pickProducts.find((p: any) => String(p._id) === row.productId);
+										const vs = (prod?.variants || []).filter((v: any) => v?.active !== false);
+										if (!vs.length) return null;
+										return (
+											<div className="w-44 space-y-1">
+												<Label className="text-xs">{prod.variantGroupName || 'Varian'} (wajib)</Label>
+												<select
+													className={`w-full rounded-md border bg-background px-2 py-2 text-sm ${row.variantId ? '' : 'border-destructive'}`}
+													value={row.variantId}
+													onChange={(e) => {
+														const next = [...bundleForm.items];
+														next[idx] = { ...next[idx], variantId: e.target.value };
+														setBundleForm((f) => ({ ...f, items: next }));
+													}}>
+													<option value="">— pilih —</option>
+													{vs.map((v: any) => (
+														<option key={v.id} value={v.id}>
+															{v.label}
+														</option>
+													))}
+												</select>
+											</div>
+										);
+									})()}
 									<div className="w-20 space-y-1">
 										<Label className="text-xs">Qty</Label>
 										<Input
@@ -2467,7 +2527,7 @@ export default function DashboardToko() {
 								onClick={() =>
 									setBundleForm((f) => ({
 										...f,
-										items: [...f.items, { productId: '', qty: 1 }],
+										items: [...f.items, { productId: '', qty: 1, variantId: '' }],
 									}))
 								}>
 								<Plus className="h-4 w-4 mr-1" />

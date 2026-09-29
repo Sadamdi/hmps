@@ -4,6 +4,8 @@ import { StoreFavoriteButton } from '@/components/toko/store-favorite-button';
 import { MessageCircle } from 'lucide-react';
 import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
 import { StoreProductPaymentInfo } from '@/components/toko/store-product-payment-info';
+import { StoreBundleCard } from '@/components/toko/store-bundle-card';
+import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/toko/store-checkout-payment';
 import { STORE_CLOSED_MESSAGE, type StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -25,7 +27,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { useApiUrl } from '@/lib/tenant-context';
-import { apiRequest } from '@/lib/queryClient';
+import { apiErrorText, apiRequest } from '@/lib/queryClient';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
 import { useToast } from '@/hooks/use-toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,7 +41,7 @@ import {
 	ShoppingCart,
 	UserRound,
 } from 'lucide-react';
-import { useParams } from 'wouter';
+import { useLocation, useParams } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -249,9 +251,10 @@ export default function TokoProductDetailPage() {
 			toast({ title: 'Ditambahkan ke keranjang' });
 			flyStoreCartIcon(vars.fromEl ?? null);
 		},
-		onError: () =>
+		onError: (e: Error) =>
 			toast({
 				title: 'Gagal menambah ke keranjang',
+				description: apiErrorText(e, 'Cek stok atau coba lagi.'),
 				variant: 'destructive',
 			}),
 	});
@@ -303,6 +306,42 @@ export default function TokoProductDetailPage() {
 		setBuyerAddress((prev) => prev || String(draft.shippingAddress || ''));
 	}, [cartData?.checkoutDraft]);
 
+	const cartBundlesUrl = useApiUrl('/store/cart/bundles');
+	const addBundleMutation = useMutation({
+		mutationFn: async (vars: { bundleId: string; fromEl?: HTMLElement | null }) => {
+			await apiRequest('POST', cartBundlesUrl, { bundleId: vars.bundleId, qty: 1 });
+		},
+		onSuccess: (_d, vars) => {
+			queryClient.invalidateQueries({ queryKey: [cartUrl] });
+			toast({ title: 'Paket ditambahkan ke keranjang' });
+			flyStoreCartIcon(vars.fromEl ?? null);
+		},
+		onError: (e: Error) =>
+			toast({ title: 'Gagal menambah paket', description: apiErrorText(e, 'Coba lagi.'), variant: 'destructive' }),
+	});
+
+	// Pembayaran beli-langsung: hitungan DP dari server + persetujuan ketentuan batal
+	const paymentPreviewUrl = useApiUrl('/store/payment-preview');
+	const [buyPlan, setBuyPlan] = useState<'full' | 'dp'>('dp');
+	const [buyAcceptPolicy, setBuyAcceptPolicy] = useState(false);
+	const { data: buyPreview } = useQuery<StorePaymentPreview>({
+		queryKey: [paymentPreviewUrl, product?._id, selVariant?.id || '', qty],
+		enabled: buyDialogOpen && !!product?._id,
+		queryFn: async () => {
+			const r = await fetch(paymentPreviewUrl, {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ items: [{ productId: product!._id, variantId: selVariant?.id || '', qty }], shippingCost: 0 }),
+			});
+			if (!r.ok) throw new Error('preview');
+			return r.json();
+		},
+	});
+	const buyEffectivePlan: 'full' | 'dp' = buyPreview?.dpAllowed ? buyPlan : 'full';
+	const buyPayOnWeb = !!buyPreview?.payOnWeb;
+	const [, navigateTo] = useLocation();
+
 	const directCheckoutMutation = useMutation({
 		mutationFn: async () => {
 			if (!product?._id) throw new Error('no product');
@@ -316,13 +355,15 @@ export default function TokoProductDetailPage() {
 				adminId: waAdminId,
 				shippingAddress:
 					buyerFulfillment === 'delivery' ? buyerAddress.trim() : '',
+				paymentPlan: buyEffectivePlan,
+				acceptCancelPolicy: buyAcceptPolicy,
 			};
 			const res = await apiRequest('POST', directCheckoutUrl, payload);
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || 'Checkout langsung gagal');
 			}
-			return res.json() as Promise<{ whatsappUrl: string; invoiceUrl: string }>;
+			return res.json() as Promise<{ whatsappUrl: string; invoiceUrl: string; payOnWeb?: boolean }>;
 		},
 		onSuccess: (data) => {
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
@@ -332,6 +373,12 @@ export default function TokoProductDetailPage() {
 				description: 'WhatsApp dibuka. Order juga tersimpan di riwayat.',
 			});
 			setBuyDialogOpen(false);
+			if (data.payOnWeb && data.invoiceUrl) {
+				// Alur bayar di web: ke invoice (QRIS/rekening + upload bukti)
+				const u = new URL(data.invoiceUrl, window.location.origin);
+				navigateTo(`${u.pathname}${u.search}`);
+				return;
+			}
 			if (data.whatsappUrl) {
 				window.open(data.whatsappUrl, '_blank', 'noopener,noreferrer');
 			}
@@ -363,6 +410,10 @@ export default function TokoProductDetailPage() {
 		}
 		if (needsAdminChoice(waAdmins, waAdminId)) {
 			toast({ title: 'Pilih admin tujuan dulu', variant: 'destructive' });
+			return;
+		}
+		if (buyPayOnWeb && !buyAcceptPolicy) {
+			toast({ title: 'Setujui ketentuan pembatalan dulu', variant: 'destructive' });
 			return;
 		}
 		setFormErrors({});
@@ -693,6 +744,25 @@ export default function TokoProductDetailPage() {
 							)}
 						</div>
 					</div>
+					{Array.isArray((product as any).bundles) && (product as any).bundles.length > 0 && (
+						<section className="mt-10 border-t pt-8 space-y-3">
+							<h2 className="text-lg font-semibold">Tersedia dalam paket</h2>
+							<p className="text-sm text-muted-foreground">Beli {product.name} bersama barang lain dengan harga paket yang lebih hemat.</p>
+							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+								{(product as any).bundles.map((b: any) => (
+									<StoreBundleCard
+										key={b._id}
+										bundle={b}
+										compact
+										price={Number(b.bundlePrice) || 0}
+										currency={defaultCur}
+										adding={addBundleMutation.isPending}
+										onAdd={(el) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el })}
+									/>
+								))}
+							</div>
+						</section>
+					)}
 				</div>
 			</main>
 			<Dialog open={buyDialogOpen} onOpenChange={setBuyDialogOpen}>
@@ -767,6 +837,14 @@ export default function TokoProductDetailPage() {
 							</div>
 						)}
 						<StoreWaAdminPicker admins={waAdmins} value={waAdminId} onChange={setWaAdminId} />
+						<StoreCheckoutPayment
+							preview={buyPreview}
+							currency={effectiveProductCurrency(view, defaultCur)}
+							plan={buyEffectivePlan}
+							onPlanChange={setBuyPlan}
+							accepted={buyAcceptPolicy}
+							onAcceptedChange={setBuyAcceptPolicy}
+						/>
 					</div>
 					<DialogFooter>
 						<Button
@@ -784,7 +862,7 @@ export default function TokoProductDetailPage() {
 									Memproses...
 								</>
 							) : (
-								'Lanjut ke WhatsApp'
+								buyPayOnWeb ? (buyEffectivePlan === 'dp' ? 'Pesan & bayar DP' : 'Pesan & bayar') : 'Lanjut ke WhatsApp'
 							)}
 						</Button>
 					</DialogFooter>
