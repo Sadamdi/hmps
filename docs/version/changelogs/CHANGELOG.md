@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.34.1] - 2026-09-29
+
+### Fixed
+
+- Export Excel: angka Ringkasan kosong di Excel desktop — workbook kini dihitung ulang saat dibuka.
+
 ## [4.34.0] - 2026-09-29
 
 ### Added

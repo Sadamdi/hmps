@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.34.0`  
+**Current version:** `4.34.1`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.34.0`](./release/4.34.0.md) | 2026-09-29 | Sinkron otomatis pesanan toko ke Google Sheet | MINOR | 1 | **Current** |
+| [`4.34.1`](./release/4.34.1.md) | 2026-09-29 | Export Excel langsung menghitung angka saat dibuka | PATCH | 1 | **Current** |
+| [`4.34.0`](./release/4.34.0.md) | 2026-09-29 | Sinkron otomatis pesanan toko ke Google Sheet | MINOR | 1 | Released |
 | [`4.33.1`](./release/4.33.1.md) | 2026-09-29 | Export Excel: rekap bulanan & tahunan, tanggal WIB | PATCH | 1 | Released |
 | [`4.33.0`](./release/4.33.0.md) | 2026-09-29 | Varian produk, pembayaran pesanan, export Excel, notifikasi admin toko | MINOR | 1 | Released |
 | [`4.32.0`](./release/4.32.0.md) | 2026-09-29 | Chat penjual gaya marketplace, auto-hapus 7 hari, rate limit toko | MINOR | 1 | Released |

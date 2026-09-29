@@ -105,6 +105,8 @@ export async function buildStoreRecapWorkbook(opts: {
 	const wb = new ExcelJS.Workbook();
 	wb.creator = opts.storeName;
 	wb.created = new Date();
+	// exceljs tidak menyimpan hasil rumus → minta Excel menghitung ulang semua saat file dibuka
+	wb.calcProperties = { fullCalcOnLoad: true };
 
 	const HR = 4;
 	const FIRST = HR + 1;
