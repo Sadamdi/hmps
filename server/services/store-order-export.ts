@@ -48,6 +48,16 @@ export type ExportOrder = {
 };
 export type ExportStockRow = { product: string; stock: number | null };
 
+/**
+ * Excel tidak punya zona waktu: exceljs menulis Date sebagai UTC. Geser ke jam dinding WIB agar
+ * pesanan 00:30 WIB tanggal 1 tidak terhitung di bulan sebelumnya.
+ */
+function toWib(d: Date | string | null | undefined): Date | null {
+	if (!d) return null;
+	const t = new Date(d).getTime();
+	return Number.isNaN(t) ? null : new Date(t + 7 * 60 * 60 * 1000);
+}
+
 function itemKey(name: string, variant?: string) {
 	return variant ? `${name} (${variant})` : name;
 }
@@ -90,6 +100,7 @@ export async function buildStoreRecapWorkbook(opts: {
 	periodLabel: string;
 	orders: ExportOrder[];
 	stock: ExportStockRow[];
+	extraRows?: number;
 }): Promise<Buffer> {
 	const wb = new ExcelJS.Workbook();
 	wb.creator = opts.storeName;
@@ -97,7 +108,8 @@ export async function buildStoreRecapWorkbook(opts: {
 
 	const HR = 4;
 	const FIRST = HR + 1;
-	const extra = 200; // baris kosong siap diisi manual
+	// Baris kosong berumus siap diisi (manual / sinkron Google Sheet). Template sinkron memakai kapasitas besar.
+	const extra = Math.max(50, Math.min(20000, opts.extraRows ?? 200));
 	const orders = opts.orders;
 	const itemRows = orders.flatMap((o) => o.items.map((it) => ({ o, it })));
 	const P_LAST = FIRST + orders.length + extra - 1;
@@ -105,6 +117,8 @@ export async function buildStoreRecapWorkbook(opts: {
 	const S_LAST = FIRST + opts.stock.length + 50 - 1;
 
 	const wsRing = wb.addWorksheet('Ringkasan', { properties: { tabColor: { argb: NAVY } } });
+	const wsBulan = wb.addWorksheet('Bulanan', { properties: { tabColor: { argb: 'FF16A34A' } } });
+	const wsTahun = wb.addWorksheet('Tahunan', { properties: { tabColor: { argb: 'FF16A34A' } } });
 	const wsP = wb.addWorksheet('Pesanan');
 	const wsI = wb.addWorksheet('Item');
 	const wsS = wb.addWorksheet('Stok');
@@ -120,7 +134,7 @@ export async function buildStoreRecapWorkbook(opts: {
 		const r = FIRST + i;
 		const row = wsP.getRow(r);
 		row.getCell(1).value = o.orderNo;
-		row.getCell(2).value = new Date(o.createdAt);
+		row.getCell(2).value = toWib(o.createdAt);
 		row.getCell(3).value = o.customerName;
 		row.getCell(4).value = o.customerPhone;
 		row.getCell(5).value = o.fulfillment === 'delivery' ? 'Diantar' : 'Ambil di tempat';
@@ -130,7 +144,7 @@ export async function buildStoreRecapWorkbook(opts: {
 		row.getCell(11).value = Number(o.taxAmount) || 0;
 		row.getCell(13).value = ORDER_STATUS_LABEL[o.status] || o.status;
 		row.getCell(14).value = PAYMENT_LABEL[o.paymentMethod || ''] || '';
-		row.getCell(15).value = o.paidAt ? new Date(o.paidAt) : null;
+		row.getCell(15).value = toWib(o.paidAt);
 		row.getCell(16).value = o.adminNote || '';
 		row.getCell(17).value = { text: 'Buka invoice', hyperlink: o.invoiceUrl };
 	});
@@ -160,9 +174,9 @@ export async function buildStoreRecapWorkbook(opts: {
 
 	// ───────── Item ─────────
 	title(wsI, 'Item Pesanan', 'Satu baris per barang. Kolom "Produk (Varian)" dipakai sheet Stok.');
-	const iCols = ['No Pesanan', 'Produk', 'Varian', 'Qty', 'Harga Satuan', 'Subtotal', 'Produk (Varian)', 'Status Pesanan'];
+	const iCols = ['No Pesanan', 'Produk', 'Varian', 'Qty', 'Harga Satuan', 'Subtotal', 'Produk (Varian)', 'Status Pesanan', 'Tanggal Pesanan'];
 	wsI.getRow(HR).values = iCols;
-	styleHeader(wsI, HR, [20, 30, 16, 8, 15, 16, 36, 17]);
+	styleHeader(wsI, HR, [20, 30, 16, 8, 15, 16, 36, 17, 17]);
 	itemRows.forEach(({ o, it }, i) => {
 		const row = wsI.getRow(FIRST + i);
 		row.getCell(1).value = o.orderNo;
@@ -178,8 +192,11 @@ export async function buildStoreRecapWorkbook(opts: {
 		row.getCell(8).value = {
 			formula: `IF($A${r}="","",IFERROR(INDEX(Pesanan!$M:$M,MATCH($A${r},Pesanan!$A:$A,0)),"(No Pesanan tidak ada)"))`,
 		};
+		row.getCell(9).value = {
+			formula: `IF($A${r}="","",IFERROR(INDEX(Pesanan!$B:$B,MATCH($A${r},Pesanan!$A:$A,0)),""))`,
+		};
 	}
-	styleBody(wsI, FIRST, I_LAST, iCols.length, { 4: '0', 5: RP, 6: RP });
+	styleBody(wsI, FIRST, I_LAST, iCols.length, { 4: '0', 5: RP, 6: RP, 9: 'dd/mm/yyyy' });
 	wsI.autoFilter = { from: { row: HR, column: 1 }, to: { row: HR, column: iCols.length } };
 
 	// ───────── Stok ─────────
@@ -355,6 +372,160 @@ export async function buildStoreRecapWorkbook(opts: {
 		});
 	}
 
+	// ───────── Bulanan (pilih tahun di C3) ─────────
+	{
+		const B = wsBulan;
+		[3, 16, 12, 12, 12, 18, 14, 16].forEach((w, i) => (B.getColumn(i + 1).width = w));
+		B.getCell('B2').value = 'Rekap Bulanan';
+		B.getCell('B2').font = { name: FONT, bold: true, size: 16, color: { argb: NAVY } };
+		B.getCell('B3').value = 'Tahun:';
+		B.getCell('B3').font = { name: FONT, bold: true };
+		B.getCell('C3').value = new Date().getFullYear();
+		B.getCell('C3').font = { name: FONT, bold: true, size: 12, color: { argb: 'FF1D4ED8' } };
+		B.getCell('C3').fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7CC' } };
+		B.getCell('C3').border = BORDER;
+		B.getCell('C3').dataValidation = {
+			type: 'list', allowBlank: false,
+			formulae: [`"${Array.from({ length: 8 }, (_, i) => 2025 + i).join(',')}"`],
+		};
+		B.getCell('D3').value = '← ganti tahun, semua angka menyesuaikan';
+		B.getCell('D3').font = { name: FONT, italic: true, size: 9, color: { argb: 'FF5B6475' } };
+		const hdr = ['Bulan', 'Pesanan', 'Lunas', 'Batal', 'Omzet', 'Barang terjual', 'Rata-rata/pesanan'];
+		hdr.forEach((h, i) => {
+			const c = B.getCell(5, 2 + i);
+			c.value = h;
+			c.font = { name: FONT, bold: true, color: { argb: 'FFFFFFFF' } };
+			c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+			c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+			c.border = BORDER;
+		});
+		B.getRow(5).height = 26;
+		const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+		const PB = `Pesanan!$B$${FIRST}:$B$${P_LAST}`;
+		const IT = `Item!$I$${FIRST}:$I$${I_LAST}`;
+		const IQ = `Item!$D$${FIRST}:$D$${I_LAST}`;
+		const IS = `Item!$H$${FIRST}:$H$${I_LAST}`;
+		BULAN.forEach((name, i) => {
+			const r = 6 + i;
+			const m = i + 1;
+			const start = `DATE($C$3,${m},1)`;
+			const end = `DATE($C$3,${m + 1},1)`;
+			const inP = `${PB},">="&${start},${PB},"<"&${end}`;
+			const inI = `${IT},">="&${start},${IT},"<"&${end}`;
+			B.getCell(`B${r}`).value = name;
+			B.getCell(`C${r}`).value = { formula: `COUNTIFS(${inP})` };
+			B.getCell(`D${r}`).value = { formula: PAID_LABELS.map((l) => `COUNTIFS(${inP},${PM},"${l}")`).join('+') };
+			B.getCell(`E${r}`).value = { formula: `COUNTIFS(${inP},${PM},"Dibatalkan")` };
+			B.getCell(`F${r}`).value = { formula: PAID_LABELS.map((l) => `SUMIFS(${PL},${inP},${PM},"${l}")`).join('+') };
+			B.getCell(`G${r}`).value = { formula: `SUMIFS(${IQ},${inI})-SUMIFS(${IQ},${inI},${IS},"Dibatalkan")` };
+			B.getCell(`H${r}`).value = { formula: `IF(D${r}=0,0,F${r}/D${r})` };
+			for (const col of ['B', 'C', 'D', 'E', 'F', 'G', 'H']) {
+				const c = B.getCell(`${col}${r}`);
+				c.border = BORDER;
+				c.font = { name: FONT, size: 10 };
+				if (i % 2) c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F9FC' } };
+			}
+			B.getCell(`F${r}`).numFmt = RP;
+			B.getCell(`H${r}`).numFmt = RP;
+		});
+		const tr = 18;
+		B.getCell(`B${tr}`).value = 'Total';
+		['C', 'D', 'E', 'F', 'G'].forEach((col) => (B.getCell(`${col}${tr}`).value = { formula: `SUM(${col}6:${col}17)` }));
+		B.getCell(`H${tr}`).value = { formula: `IF(D${tr}=0,0,F${tr}/D${tr})` };
+		for (const col of ['B', 'C', 'D', 'E', 'F', 'G', 'H']) {
+			const c = B.getCell(`${col}${tr}`);
+			c.font = { name: FONT, bold: true };
+			c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF7' } };
+			c.border = BORDER;
+		}
+		B.getCell(`F${tr}`).numFmt = RP;
+		B.getCell(`H${tr}`).numFmt = RP;
+		B.getCell('B20').value = 'Bulan terbaik (omzet)';
+		B.getCell('B20').font = { name: FONT, bold: true, color: { argb: NAVY } };
+		B.getCell('D20').value = { formula: `IF(MAX(F6:F17)=0,"-",INDEX(B6:B17,MATCH(MAX(F6:F17),F6:F17,0)))` };
+		B.getCell('D20').font = { name: FONT, bold: true, color: { argb: 'FF16A34A' } };
+		B.addConditionalFormatting({
+			ref: 'F6:F17',
+			rules: [{ type: 'dataBar', priority: 1, minLength: 0, maxLength: 100, cfvo: [{ type: 'num', value: 0 }, { type: 'max' }], color: { argb: 'FF34D399' } } as any],
+		});
+		B.addConditionalFormatting({
+			ref: 'C6:C17',
+			rules: [{ type: 'dataBar', priority: 1, minLength: 0, maxLength: 100, cfvo: [{ type: 'num', value: 0 }, { type: 'max' }], color: { argb: 'FF60A5FA' } } as any],
+		});
+		B.views = [{ state: 'frozen', ySplit: 5 }];
+	}
+
+	// ───────── Tahunan ─────────
+	{
+		const T = wsTahun;
+		[3, 12, 12, 12, 12, 18, 14, 16, 14].forEach((w, i) => (T.getColumn(i + 1).width = w));
+		T.getCell('B2').value = 'Rekap Tahunan';
+		T.getCell('B2').font = { name: FONT, bold: true, size: 16, color: { argb: NAVY } };
+		T.getCell('B3').value = 'Tahun bisa diubah/ditambah di kolom Tahun (kuning).';
+		T.getCell('B3').font = { name: FONT, italic: true, size: 9, color: { argb: 'FF5B6475' } };
+		const hdr = ['Tahun', 'Pesanan', 'Lunas', 'Batal', 'Omzet', 'Barang terjual', 'Rata-rata/pesanan', 'Pertumbuhan omzet'];
+		hdr.forEach((h, i) => {
+			const c = T.getCell(5, 2 + i);
+			c.value = h;
+			c.font = { name: FONT, bold: true, color: { argb: 'FFFFFFFF' } };
+			c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NAVY } };
+			c.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+			c.border = BORDER;
+		});
+		T.getRow(5).height = 26;
+		const PB = `Pesanan!$B$${FIRST}:$B$${P_LAST}`;
+		const IT = `Item!$I$${FIRST}:$I$${I_LAST}`;
+		const IQ = `Item!$D$${FIRST}:$D$${I_LAST}`;
+		const IS = `Item!$H$${FIRST}:$H$${I_LAST}`;
+		const firstYear = 2025;
+		for (let i = 0; i < 8; i++) {
+			const r = 6 + i;
+			const inP = `${PB},">="&DATE($B${r},1,1),${PB},"<"&DATE($B${r}+1,1,1)`;
+			const inI = `${IT},">="&DATE($B${r},1,1),${IT},"<"&DATE($B${r}+1,1,1)`;
+			T.getCell(`B${r}`).value = firstYear + i;
+			T.getCell(`B${r}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF7CC' } };
+			T.getCell(`C${r}`).value = { formula: `COUNTIFS(${inP})` };
+			T.getCell(`D${r}`).value = { formula: PAID_LABELS.map((l) => `COUNTIFS(${inP},${PM},"${l}")`).join('+') };
+			T.getCell(`E${r}`).value = { formula: `COUNTIFS(${inP},${PM},"Dibatalkan")` };
+			T.getCell(`F${r}`).value = { formula: PAID_LABELS.map((l) => `SUMIFS(${PL},${inP},${PM},"${l}")`).join('+') };
+			T.getCell(`G${r}`).value = { formula: `SUMIFS(${IQ},${inI})-SUMIFS(${IQ},${inI},${IS},"Dibatalkan")` };
+			T.getCell(`H${r}`).value = { formula: `IF(D${r}=0,0,F${r}/D${r})` };
+			T.getCell(`I${r}`).value = i === 0 ? '-' : { formula: `IF(F${r - 1}=0,"-",F${r}/F${r - 1}-1)` };
+			for (const col of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']) {
+				const c = T.getCell(`${col}${r}`);
+				c.border = BORDER;
+				c.font = { name: FONT, size: 10 };
+			}
+			T.getCell(`F${r}`).numFmt = RP;
+			T.getCell(`H${r}`).numFmt = RP;
+			T.getCell(`I${r}`).numFmt = '+0.0%;-0.0%;0.0%';
+		}
+		const tr = 14;
+		T.getCell(`B${tr}`).value = 'Total';
+		['C', 'D', 'E', 'F', 'G'].forEach((col) => (T.getCell(`${col}${tr}`).value = { formula: `SUM(${col}6:${col}13)` }));
+		T.getCell(`H${tr}`).value = { formula: `IF(D${tr}=0,0,F${tr}/D${tr})` };
+		for (const col of ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']) {
+			const c = T.getCell(`${col}${tr}`);
+			c.font = { name: FONT, bold: true };
+			c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EEF7' } };
+			c.border = BORDER;
+		}
+		T.getCell(`F${tr}`).numFmt = RP;
+		T.getCell(`H${tr}`).numFmt = RP;
+		T.addConditionalFormatting({
+			ref: 'I7:I13',
+			rules: [
+				{ type: 'cellIs', operator: 'greaterThan', formulae: ['0'], priority: 1, style: { font: { color: { argb: 'FF16A34A' }, bold: true } } },
+				{ type: 'cellIs', operator: 'lessThan', formulae: ['0'], priority: 2, style: { font: { color: { argb: 'FFDC2626' }, bold: true } } },
+			] as any,
+		});
+		T.addConditionalFormatting({
+			ref: 'F6:F13',
+			rules: [{ type: 'dataBar', priority: 3, minLength: 0, maxLength: 100, cfvo: [{ type: 'num', value: 0 }, { type: 'max' }], color: { argb: 'FF34D399' } } as any],
+		});
+		T.views = [{ state: 'frozen', ySplit: 5 }];
+	}
+
 	// ───────── Panduan ─────────
 	wsG.getColumn(1).width = 4;
 	wsG.getColumn(2).width = 24;
@@ -363,6 +534,8 @@ export async function buildStoreRecapWorkbook(opts: {
 		['Rekap toko', `${opts.storeName} · ${opts.periodLabel}`],
 		['', ''],
 		['Ringkasan', 'Dashboard otomatis: omzet, pesanan perlu dicek, status, admin, produk terlaris.'],
+		['Bulanan', 'Pilih tahun di sel kuning → pesanan, lunas, batal, omzet, barang terjual per bulan + bulan terbaik.'],
+		['Tahunan', 'Rekap per tahun + pertumbuhan omzet dibanding tahun sebelumnya (hijau naik, merah turun).'],
 		['Pesanan', 'Satu baris per pesanan dari web. Kolom Status/Metode Bayar bisa diubah via dropdown; Total dihitung ulang otomatis.'],
 		['Item', 'Satu baris per barang (termasuk varian).'],
 		['Stok', 'Stok saat ekspor + terjual & omzet per produk/varian. Menipis = sisa ≤ 5.'],
