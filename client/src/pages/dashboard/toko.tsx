@@ -1,3 +1,6 @@
+import { StoreVariantsEditor } from '@/components/dashboard/store-variants-editor';
+import { normalizeVariantsInput, type StoreVariant } from '@shared/store-variants';
+import { StoreOrderAdminCard, StoreOrderExportBar, type OrderPatch } from '@/components/dashboard/store-order-admin';
 import { StoreChatInbox } from '@/components/dashboard/store-chat-inbox';
 import { MessageCircle } from 'lucide-react';
 import { StoreWaAdminsEditor } from '@/components/dashboard/store-wa-admins-editor';
@@ -380,7 +383,15 @@ export default function DashboardToko() {
 		setLayoutBlocks(next);
 	};
 
-	const [tokoTab, setTokoTab] = useState('products');
+	// ?tab=orders / ?tab=chat (link dari notifikasi) membuka tab yang sesuai
+	const [tokoTab, setTokoTab] = useState(() => {
+		try {
+			const t = new URLSearchParams(window.location.search).get('tab') || '';
+			return ['products', 'chat', 'settings', 'orders', 'categories', 'diskon', 'bundling'].includes(t) ? t : 'products';
+		} catch {
+			return 'products';
+		}
+	});
 	const [campaignDialogOpen, setCampaignDialogOpen] = useState(false);
 	const [campaignEditId, setCampaignEditId] = useState<string | null>(null);
 	const [campaignForm, setCampaignForm] = useState({
@@ -430,6 +441,8 @@ export default function DashboardToko() {
 		whatsappPhoneOverride: '',
 		whatsappContactNameOverride: '',
 		whatsappAdmins: [] as StoreWaAdmin[],
+		variantGroupName: '',
+		variants: [] as StoreVariant[],
 		buyMessageTemplateOverride: '',
 		storeAddressOverride: '',
 		published: false,
@@ -451,6 +464,11 @@ export default function DashboardToko() {
 		if (String(f.thumbnail || '').startsWith('/uploads/')) out.push(String(f.thumbnail));
 		for (const g of f.gallery || []) {
 			const u = String(g?.url || '');
+			if (u.startsWith('/uploads/')) out.push(u);
+		}
+		// Foto varian juga dipakai produk → jangan dibersihkan sebagai upload yatim
+		for (const v of f.variants || []) {
+			const u = String(v?.thumbnail || '');
 			if (u.startsWith('/uploads/')) out.push(u);
 		}
 		return Array.from(new Set(out));
@@ -527,6 +545,8 @@ export default function DashboardToko() {
 			whatsappPhoneOverride: '',
 			whatsappContactNameOverride: '',
 			whatsappAdmins: [] as StoreWaAdmin[],
+			variantGroupName: '',
+			variants: [] as StoreVariant[],
 			buyMessageTemplateOverride: '',
 			storeAddressOverride: '',
 			published: false,
@@ -567,6 +587,8 @@ export default function DashboardToko() {
 			whatsappPhoneOverride: p.whatsappPhoneOverride || '',
 			whatsappContactNameOverride: p.whatsappContactNameOverride || '',
 			whatsappAdmins: productStoreWaAdmins(p),
+			variantGroupName: p.variantGroupName || '',
+			variants: normalizeVariantsInput(p.variants),
 			buyMessageTemplateOverride: p.buyMessageTemplateOverride || '',
 			storeAddressOverride: p.storeAddressOverride || '',
 			published: !!p.published,
@@ -774,13 +796,13 @@ export default function DashboardToko() {
 	});
 
 	const updateOrderStatusMutation = useMutation({
-		mutationFn: ({ orderNo, status }: { orderNo: string; status: string }) =>
-			apiRequest('PATCH', `${ordersUrl}/${encodeURIComponent(orderNo)}`, { status }),
+		mutationFn: ({ orderNo, ...patch }: { orderNo: string } & OrderPatch) =>
+			apiRequest('PATCH', `${ordersUrl}/${encodeURIComponent(orderNo)}`, patch),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: [ordersUrl] });
-			toast({ title: 'Status pesanan diperbarui' });
+			toast({ title: 'Pesanan diperbarui' });
 		},
-		onError: () => toast({ title: 'Gagal memperbarui status', variant: 'destructive' }),
+		onError: (e: Error) => toast({ title: 'Gagal memperbarui pesanan', description: e.message, variant: 'destructive' }),
 	});
 
 	const [orderNoToDelete, setOrderNoToDelete] = useState<string | null>(null);
@@ -1741,59 +1763,21 @@ export default function DashboardToko() {
 									</Button>
 								)}
 							</CardHeader>
-							<CardContent>
+							<CardContent className="space-y-4">
+								<StoreOrderExportBar exportUrl={`${ordersUrl}/export.xlsx`} />
 								{orders.length === 0 ? (
 									<p className="text-muted-foreground text-center py-6">Belum ada pesanan.</p>
 								) : (
 									<div className="overflow-x-auto text-sm space-y-4">
 										{orders.map((o: any) => (
-											<div key={o._id} className="border rounded-lg p-3 space-y-2">
-												<div className="flex flex-wrap items-start justify-between gap-2">
-													<div className="font-semibold">{o.orderNo}</div>
-													<Button
-														type="button"
-														variant="outline"
-														size="icon"
-														className="h-8 w-8 shrink-0 text-destructive border-destructive/40 hover:bg-destructive/10"
-														aria-label="Hapus pesanan"
-														onClick={() => setOrderNoToDelete(o.orderNo)}>
-														<Trash2 className="h-4 w-4" />
-													</Button>
-												</div>
-												<div className="text-muted-foreground">
-													{new Date(o.createdAt).toLocaleString('id-ID')} · {o.customerName} ·{' '}
-													{o.customerPhone}
-												</div>
-												<div className="flex flex-wrap items-center gap-2">
-													<span className="text-sm shrink-0">Status</span>
-													<Select
-														value={o.status}
-														disabled={updateOrderStatusMutation.isPending}
-														onValueChange={(status) =>
-															updateOrderStatusMutation.mutate({
-																orderNo: o.orderNo,
-																status,
-															})
-														}>
-														<SelectTrigger className="w-[200px] h-9">
-															<SelectValue />
-														</SelectTrigger>
-														<SelectContent>
-															<SelectItem value="pending">Menunggu</SelectItem>
-															<SelectItem value="paid">Dibayar</SelectItem>
-															<SelectItem value="confirmed">Dikonfirmasi</SelectItem>
-															<SelectItem value="completed">Diterima</SelectItem>
-															<SelectItem value="cancelled">Dibatalkan</SelectItem>
-														</SelectContent>
-													</Select>
-												</div>
-												<div>
-													Total: {formatStoreMoney(o.total, defaultStoreCurrency)}
-												</div>
-												<div className="text-xs whitespace-pre-wrap bg-muted/50 rounded p-2 max-h-32 overflow-auto">
-													{o.whatsappMessageSnapshot}
-												</div>
-											</div>
+											<StoreOrderAdminCard
+												key={o._id}
+												order={o}
+												currency={defaultStoreCurrency}
+												saving={updateOrderStatusMutation.isPending}
+												onPatch={(orderNo, patch) => updateOrderStatusMutation.mutate({ orderNo, ...patch })}
+												onDelete={(orderNo) => setOrderNoToDelete(orderNo)}
+											/>
 										))}
 									</div>
 								)}
@@ -3092,6 +3076,17 @@ export default function DashboardToko() {
 								value={form.videoUrl}
 								onChange={(e) => setForm((f) => ({ ...f, videoUrl: e.target.value }))}
 								placeholder="https://youtu.be/xxxxx atau https://drive.google.com/file/d/xxxxx/view atau https://cdn.contoh.com/demo.mp4"
+							/>
+						</div>
+						<div className="space-y-2 rounded-lg border p-3">
+							<Label>Varian produk (opsional) — desain, ukuran, warna</Label>
+							<StoreVariantsEditor
+								groupName={form.variantGroupName}
+								onGroupNameChange={(v) => setForm((f) => ({ ...f, variantGroupName: v }))}
+								value={form.variants}
+								onChange={(next) => setForm((f) => ({ ...f, variants: next }))}
+								uploadImage={uploadStoreImage}
+								basePrice={Number(form.price) || 0}
 							/>
 						</div>
 						<div className="grid sm:grid-cols-3 gap-4">

@@ -905,13 +905,15 @@ const userNotificationSchema = new mongoose.Schema(
 				'event_ongoing',
 				'comment_reply',
 				'feedback_reply',
+				'store_order',
+				'store_chat',
 			],
 		},
 		title: { type: String, required: true },
 		description: { type: String, default: '' },
 		entityType: {
 			type: String,
-			enum: ['berita', 'events', 'event', 'library', 'feedback', 'bug', ''],
+			enum: ['berita', 'events', 'event', 'library', 'feedback', 'bug', 'store', ''],
 			default: null,
 		},
 		entityId: {
@@ -1601,6 +1603,24 @@ const storeProductSchema = new mongoose.Schema(
 		videoType: { type: String, enum: ['youtube', 'gdrive', 'public', ''], default: '' },
 		whatsappPhoneOverride: { type: String, default: '' },
 		whatsappContactNameOverride: { type: String, default: '' },
+		/** Varian produk (desain/ukuran) — lihat shared/store-variants.ts */
+		variantGroupName: { type: String, default: '' },
+		variants: {
+			type: [
+				{
+					_id: false,
+					id: { type: String, required: true },
+					label: { type: String, required: true },
+					thumbnail: { type: String, default: '' },
+					price: { type: Number, default: null },
+					stock: { type: Number, default: -1 },
+					title: { type: String, default: '' },
+					description: { type: String, default: '' },
+					active: { type: Boolean, default: true },
+				},
+			],
+			default: [],
+		},
 		/** Override admin WA produk (format sama dgn global); kosong = pakai global */
 		whatsappAdmins: {
 			type: [
@@ -1741,6 +1761,8 @@ const guestStoreSessionSchema = new mongoose.Schema(
 					ref: 'StoreBundle',
 					default: null,
 				},
+				/** Varian produk (shared/store-variants.ts); kosong = tanpa varian */
+				variantId: { type: String, default: '' },
 				qty: { type: Number, required: true, min: 1 },
 			},
 		],
@@ -1774,6 +1796,8 @@ const storeOrderItemSchema = new mongoose.Schema(
 		},
 		name: { type: String, required: true },
 		slug: { type: String, required: true },
+		variantId: { type: String, default: '' },
+		variantLabel: { type: String, default: '' },
 		qty: { type: Number, required: true },
 		unitPrice: { type: Number, required: true },
 		lineSubtotal: { type: Number, required: true },
@@ -1873,15 +1897,20 @@ const storeOrderSchema = new mongoose.Schema(
 		whatsappAdminName: { type: String, default: '' },
 		/** Stok yang dikurangi saat checkout — dikembalikan bila pesanan dibatalkan/dihapus */
 		stockDecrements: {
-			type: [{ _id: false, productId: mongoose.Schema.Types.ObjectId, qty: Number }],
+			type: [{ _id: false, productId: mongoose.Schema.Types.ObjectId, variantId: String, qty: Number }],
 			default: [],
 		},
 		stockRestoredAt: { type: Date, default: null },
+		/** Diisi admin: transfer | qris | cash | ewallet */
+		paymentMethod: { type: String, default: '' },
+		paidAt: { type: Date, default: null },
+		adminNote: { type: String, default: '' },
 		/** Konsumsi campaign one-time (order-level idempotency) */
 		appliedCampaignIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'StoreDiscountCampaign' }],
 		status: {
 			type: String,
-			enum: ['pending', 'confirmed', 'paid', 'completed', 'cancelled'],
+			// pending → confirmed → paid → shipped (dikirim/diambil) → completed; cancelled = batal/tolak
+			enum: ['pending', 'confirmed', 'paid', 'shipped', 'completed', 'cancelled'],
 			default: 'pending',
 		},
 	},

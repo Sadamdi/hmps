@@ -10,7 +10,9 @@ export type NotifEventType =
 	| 'event_ongoing'
 	| 'comment_reply'
 	| 'feedback_reply'
-	| 'bug_reply';
+	| 'bug_reply'
+	| 'store_order'
+	| 'store_chat';
 
 const EVENT_TO_PREF_KEY: Record<NotifEventType, string> = {
 	news_published: 'news',
@@ -18,6 +20,9 @@ const EVENT_TO_PREF_KEY: Record<NotifEventType, string> = {
 	comment_reply: 'commentReply',
 	feedback_reply: 'feedbackReply',
 	bug_reply: 'bugReply',
+	// Tidak ada kunci preferensi → default in-app + web push aktif
+	store_order: 'storeOrder',
+	store_chat: 'storeChat',
 };
 
 export interface NotifPayload {

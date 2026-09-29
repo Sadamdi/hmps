@@ -1,3 +1,4 @@
+import { activeVariants, productAsVariant, type StoreVariant } from '@shared/store-variants';
 import { StoreChatPanel } from '@/components/toko/store-chat-panel';
 import { StoreFavoriteButton } from '@/components/toko/store-favorite-button';
 import { MessageCircle } from 'lucide-react';
@@ -178,19 +179,45 @@ export default function TokoProductDetailPage() {
 		setActiveGalleryIndex(0);
 	}, [product?._id]);
 
+	// Varian (seperti marketplace): memilih varian mengganti foto, judul, deskripsi, harga, stok
+	const variants: StoreVariant[] = useMemo(() => (product ? activeVariants(product) : []), [product]);
+	const [variantId, setVariantId] = useState('');
+	useEffect(() => {
+		setVariantId('');
+	}, [product?._id]);
+	const selVariant = variants.find((v) => v.id === variantId) || null;
+	const needVariant = variants.length > 0 && !selVariant;
+	const view: any = useMemo(() => (product ? productAsVariant(product, selVariant) : product), [product, selVariant]);
+
 	const galleryImages = useMemo(() => {
 		if (!product) return [] as string[];
 		const all = [
 			String(product.thumbnail || ''),
 			...(Array.isArray(product.gallery) ? product.gallery.map((g: any) => String(g?.url || '')) : []),
+			...variants.map((v) => v.thumbnail),
 		]
 			.map((u) => u.trim())
 			.filter(Boolean);
 		return Array.from(new Set(all));
-	}, [product]);
+	}, [product, variants]);
 	const maxGalleryIndex = Math.max(0, galleryImages.length - 1);
 	const safeGalleryIndex = Math.min(activeGalleryIndex, maxGalleryIndex);
 	const activeImageSrc = galleryImages[safeGalleryIndex] || '';
+	/** Varian yang fotonya sedang tampil (untuk label "Varian: …" di foto) */
+	const variantOfImage = (src: string) => variants.find((v) => v.thumbnail && v.thumbnail.trim() === src) || null;
+	const selectVariant = (v: StoreVariant | null) => {
+		setVariantId(v?.id || '');
+		if (v?.thumbnail) {
+			const i = galleryImages.indexOf(v.thumbnail.trim());
+			if (i >= 0) setActiveGalleryIndex(i);
+		}
+	};
+	const showGalleryImage = (i: number) => {
+		setActiveGalleryIndex(i);
+		// Klik foto varian → otomatis memilih varian itu
+		const v = variantOfImage(galleryImages[i] || '');
+		if (v) setVariantId(v.id);
+	};
 
 	const effectiveContactName =
 		((product?.waAdmins as StoreWaAdminPublic[] | undefined) || []).map((a) => a.name).join(', ');
@@ -200,19 +227,19 @@ export default function TokoProductDetailPage() {
 
 	useEffect(() => {
 		if (!product?._id) return;
-		const avail = getStoreStockAvailable(product.stock);
+		const avail = getStoreStockAvailable(view?.stock);
 		if (avail === null) return;
 		if (avail < 1) {
 			setQty(1);
 			return;
 		}
 		setQty((q) => Math.min(Math.max(1, q), avail));
-	}, [product?._id, product?.stock]);
+	}, [product?._id, view?.stock]);
 
 	const addToCartMutation = useMutation({
 		mutationFn: async ({ fromEl }: { fromEl?: HTMLElement | null }) => {
 			if (!product?._id) throw new Error('no product');
-			const r = await apiRequest('POST', cartItemsUrl, { productId: product._id, qty });
+			const r = await apiRequest('POST', cartItemsUrl, { productId: product._id, variantId: selVariant?.id || '', qty });
 			if (!r.ok) throw new Error('cart');
 			return { fromEl };
 		},
@@ -280,6 +307,7 @@ export default function TokoProductDetailPage() {
 			if (!product?._id) throw new Error('no product');
 			const payload = {
 				productId: product._id,
+				variantId: selVariant?.id || '',
 				qty,
 				customerName: buyerName.trim(),
 				customerPhone: buyerPhone.trim(),
@@ -380,7 +408,7 @@ export default function TokoProductDetailPage() {
 		);
 	}
 
-	const stockAvail = getStoreStockAvailable(product.stock);
+	const stockAvail = getStoreStockAvailable(view.stock);
 	const productOutOfStock = stockAvail !== null && stockAvail < 1;
 	const maxBuyQty = stockAvail ?? 9999;
 
@@ -412,6 +440,11 @@ export default function TokoProductDetailPage() {
 											alt={`${product.name} - foto ${safeGalleryIndex + 1}`}
 											className="w-full h-full object-cover"
 										/>
+										{variantOfImage(activeImageSrc) && (
+											<span className="absolute left-2 top-2 rounded-full bg-background/85 px-2.5 py-1 text-xs font-medium backdrop-blur">
+												{product.variantGroupName || 'Varian'}: {variantOfImage(activeImageSrc)!.label}
+											</span>
+										)}
 										{galleryImages.length > 1 && (
 											<>
 												<Button
@@ -420,9 +453,7 @@ export default function TokoProductDetailPage() {
 													variant="secondary"
 													className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8"
 													onClick={() =>
-														setActiveGalleryIndex((i) =>
-															i <= 0 ? maxGalleryIndex : i - 1,
-														)
+														showGalleryImage(safeGalleryIndex <= 0 ? maxGalleryIndex : safeGalleryIndex - 1)
 													}
 												>
 													<ChevronLeft className="h-4 w-4" />
@@ -433,9 +464,7 @@ export default function TokoProductDetailPage() {
 													variant="secondary"
 													className="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8"
 													onClick={() =>
-														setActiveGalleryIndex((i) =>
-															i >= maxGalleryIndex ? 0 : i + 1,
-														)
+														showGalleryImage(safeGalleryIndex >= maxGalleryIndex ? 0 : safeGalleryIndex + 1)
 													}
 												>
 													<ChevronRight className="h-4 w-4" />
@@ -454,7 +483,7 @@ export default function TokoProductDetailPage() {
 											<button
 												key={`${img}-${i}`}
 												type="button"
-												onClick={() => setActiveGalleryIndex(i)}
+												onClick={() => showGalleryImage(i)}
 												className={`aspect-square w-20 rounded-lg overflow-hidden border transition ${
 													safeGalleryIndex === i
 														? 'border-primary ring-2 ring-primary/30'
@@ -493,11 +522,16 @@ export default function TokoProductDetailPage() {
 							)}
 						</div>
 						<div>
-							<h1 className="text-3xl font-bold">{product.name}</h1>
+							<h1 className="text-3xl font-bold">{selVariant?.title || product.name}</h1>
+							{selVariant && (
+								<p className="mt-1 text-sm text-muted-foreground">
+									{product.variantGroupName || 'Varian'}: <span className="font-medium text-foreground">{selVariant.label}</span>
+								</p>
+							)}
 							{(() => {
-								const cur = effectiveProductCurrency(product, defaultCur);
-								const lineTotal = lineSubtotalForProduct(product, qty);
-								const unitEff = computeUnitPriceForQty(product, qty);
+								const cur = effectiveProductCurrency(view, defaultCur);
+								const lineTotal = lineSubtotalForProduct(view, qty);
+								const unitEff = computeUnitPriceForQty(view, qty);
 								return (
 									<>
 										<p className="text-2xl font-bold text-primary mt-4">
@@ -509,11 +543,11 @@ export default function TokoProductDetailPage() {
 											)}
 										</p>
 										<p className="text-sm text-muted-foreground mt-1">
-											Harga dasar: {formatStoreMoney(product.price, cur)}
+											Harga dasar: {formatStoreMoney(view.price, cur)}
 										</p>
-										{Array.isArray(product.priceTiers) && product.priceTiers.length > 0 && (
+										{Array.isArray(view.priceTiers) && view.priceTiers.length > 0 && (
 											<ul className="text-sm text-muted-foreground mt-2 space-y-0.5 list-disc list-inside">
-												{[...product.priceTiers]
+												{[...view.priceTiers]
 													.slice()
 													.sort((a: any, b: any) => (a.minQty ?? 0) - (b.minQty ?? 0))
 													.map((t: any) => {
@@ -533,9 +567,44 @@ export default function TokoProductDetailPage() {
 													})}
 											</ul>
 										)}
+										{variants.length > 0 && (
+											<div className="mt-5 space-y-2">
+												<p className="text-sm font-medium">
+													Pilih {(product.variantGroupName || 'varian').toLowerCase()}
+													{needVariant && <span className="ml-2 text-xs font-normal text-destructive">wajib dipilih</span>}
+												</p>
+												<div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Varian">
+													{variants.map((v) => {
+														const vStock = getStoreStockAvailable(v.stock);
+														const soldOut = vStock !== null && vStock < 1;
+														const on = v.id === variantId;
+														return (
+															<button
+																key={v.id}
+																type="button"
+																role="radio"
+																aria-checked={on}
+																disabled={soldOut}
+																onClick={() => selectVariant(on ? null : v)}
+																className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+																	on ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/60'
+																}`}>
+																{v.thumbnail && (
+																	<span className="h-7 w-7 overflow-hidden rounded">
+																		<StoreImage src={v.thumbnail} alt={v.label} className="h-full w-full object-cover" />
+																	</span>
+																)}
+																{v.label}
+																{soldOut && <span className="text-[10px]">(habis)</span>}
+															</button>
+														);
+													})}
+												</div>
+											</div>
+										)}
 										{stockAvail !== null && (
 											<p className="text-sm text-muted-foreground mt-2">
-												Stok: {stockAvail}
+												Stok{selVariant ? ` ${selVariant.label}` : ''}: {stockAvail}
 												{productOutOfStock ? ' (habis)' : ''}
 											</p>
 										)}
@@ -564,8 +633,8 @@ export default function TokoProductDetailPage() {
 									</>
 								);
 							})()}
-							{product.shortDescription && (
-								<p className="text-muted-foreground mt-4">{product.shortDescription}</p>
+							{(selVariant?.description || product.shortDescription) && (
+								<p className="text-muted-foreground mt-4">{selVariant?.description || product.shortDescription}</p>
 							)}
 							{storeClosed && (
 								<p className="mt-6 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -576,13 +645,13 @@ export default function TokoProductDetailPage() {
 								<Button
 									size="lg"
 									onClick={openBuyDialog}
-									disabled={productOutOfStock || storeClosed}>
+									disabled={productOutOfStock || storeClosed || needVariant}>
 									Beli via WhatsApp
 								</Button>
 								<Button
 									size="lg"
 									variant="secondary"
-									disabled={productOutOfStock || addToCartMutation.isPending}
+									disabled={productOutOfStock || addToCartMutation.isPending || needVariant}
 									onClick={(e) =>
 										addToCartMutation.mutate({ fromEl: e.currentTarget })
 									}>

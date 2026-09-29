@@ -19,6 +19,14 @@ import {
 	normalizePriceTiersInput,
 } from '../../shared/store-pricing';
 import {
+	activeVariants,
+	findVariant,
+	hasVariants,
+	normalizeVariantsInput,
+	productAsVariant,
+	variantLineKey,
+} from '../../shared/store-variants';
+import {
 	STORE_CLOSED_MESSAGE,
 	activeStoreWaAdmins,
 	normalizeStoreWaAdmins,
@@ -97,6 +105,56 @@ async function getEffectivePermissions(req: Request): Promise<string[]> {
 		return createTenantStorage(req.tenantModels).getUserPermissions(String(req.user._id));
 	}
 	return mongoStorage.getUserPermissions(String(req.user._id));
+}
+
+// ── Notifikasi admin toko (in-app + web push) ──
+// Penerima: user dengan permission toko.manage. Daftar di-cache 5 menit per situs/komunitas.
+const storeAdminCache = new Map<string, { ids: string[]; at: number }>();
+
+async function storeAdminUserIds(req: Request): Promise<string[]> {
+	const key = String((req as any).tenantDbName || 'main');
+	const hit = storeAdminCache.get(key);
+	if (hit && Date.now() - hit.at < 5 * 60 * 1000) return hit.ids;
+	const isTenant = !!(req.isTenantRequest && req.tenantModels);
+	const UserModel: any = isTenant ? req.tenantModels!.User : resolveModels(req).User;
+	const users: any[] = await UserModel.find({}).select('_id').limit(500).lean();
+	const tenantStorage = isTenant ? (await import('../tenant-storage')).createTenantStorage(req.tenantModels!) : null;
+	const ids: string[] = [];
+	for (const u of users) {
+		const uid = String(u._id);
+		const perms: string[] = tenantStorage ? await tenantStorage.getUserPermissions(uid) : await mongoStorage.getUserPermissions(uid);
+		if (perms.includes('toko.manage')) ids.push(uid);
+	}
+	storeAdminCache.set(key, { ids, at: Date.now() });
+	return ids;
+}
+
+/** Kirim notifikasi ke semua admin toko. Tidak pernah melempar error (tidak menghambat pembeli). */
+function notifyStoreAdmins(
+	req: Request,
+	eventType: 'store_order' | 'store_chat',
+	payload: { title: string; description: string; actionUrl: string; tag: string },
+) {
+	void (async () => {
+		try {
+			const ids = await storeAdminUserIds(req);
+			if (!ids.length) return;
+			const { dispatchNotification } = await import('../services/notification-orchestrator');
+			const tenantSlug = String((req as any).tenantSlug || '');
+			const NotifModel = req.isTenantRequest && req.tenantModels ? (req.tenantModels as any).UserNotification : undefined;
+			for (const userId of ids) {
+				await dispatchNotification(
+					eventType,
+					{ userId: ids[0], name: 'Toko' },
+					{ userId, tenantSlug },
+					{ ...payload, actionUrl: tenantSlug ? `/${tenantSlug}${payload.actionUrl}` : payload.actionUrl, entityType: 'store' },
+					{ NotifModel, skipEmail: true },
+				);
+			}
+		} catch (e) {
+			console.error('notifyStoreAdmins:', e);
+		}
+	})();
 }
 
 function hasPerm(perms: string[], p: string) {
@@ -352,16 +410,49 @@ async function maxBundleQty(req: Request, b: any, now: Date): Promise<number> {
 	return m;
 }
 
-function mergeStockOpsByProduct(ops: { id: any; qty: number; skip: boolean }[]) {
-	const m = new Map<string, { id: any; qty: number; skip: boolean }>();
+/**
+ * Ambil / kembalikan stok produk atau varian. Stok -1 = tak terbatas (tidak diubah).
+ * Varian disimpan di `variants[]` produk, jadi update memakai operator posisi `$`.
+ */
+async function takeStock(StoreProduct: any, productId: any, variantId: string, qty: number): Promise<'ok' | 'unlimited' | 'short'> {
+	const pdoc: any = await StoreProduct.findById(productId).lean();
+	if (!pdoc) return 'short';
+	if (variantId) {
+		const v = (pdoc.variants || []).find((x: any) => x.id === variantId);
+		if (!v) return 'short';
+		if (isStoreStockUnlimited(v.stock)) return 'unlimited';
+		const r = await StoreProduct.updateOne(
+			{ _id: productId, variants: { $elemMatch: { id: variantId, stock: { $gte: qty } } } },
+			{ $inc: { 'variants.$.stock': -qty } },
+		);
+		return r.modifiedCount === 1 ? 'ok' : 'short';
+	}
+	if (isStoreStockUnlimited(pdoc.stock)) return 'unlimited';
+	const r = await StoreProduct.updateOne({ _id: productId, stock: { $gte: qty } }, { $inc: { stock: -qty } });
+	return r.modifiedCount === 1 ? 'ok' : 'short';
+}
+
+async function giveStock(StoreProduct: any, productId: any, variantId: string, qty: number) {
+	if (variantId) {
+		await StoreProduct.updateOne(
+			{ _id: productId, variants: { $elemMatch: { id: variantId, stock: { $gte: 0 } } } },
+			{ $inc: { 'variants.$.stock': qty } },
+		);
+		return;
+	}
+	await StoreProduct.updateOne({ _id: productId, stock: { $gte: 0 } }, { $inc: { stock: qty } });
+}
+
+function mergeStockOpsByProduct(ops: { id: any; variantId?: string; qty: number; skip: boolean }[]) {
+	const m = new Map<string, { id: any; variantId?: string; qty: number; skip: boolean }>();
 	for (const o of ops) {
-		const k = String(o.id);
+		const k = `${o.id}:${o.variantId || ''}`;
 		const ex = m.get(k);
 		if (ex) {
 			ex.qty += o.qty;
 			ex.skip = ex.skip && o.skip;
 		} else {
-			m.set(k, { id: o.id, qty: o.qty, skip: o.skip });
+			m.set(k, { id: o.id, variantId: o.variantId || '', qty: o.qty, skip: o.skip });
 		}
 	}
 	return Array.from(m.values());
@@ -485,6 +576,13 @@ function getProductMediaUrls(product: any): string[] {
 	if (Array.isArray(product?.gallery)) {
 		for (const g of product.gallery) {
 			const u = normalizeUrlString(g?.url);
+			if (u) urls.push(u);
+		}
+	}
+	// Foto varian ikut dihitung agar tidak terhapus sebagai media yatim saat produk diedit
+	if (Array.isArray(product?.variants)) {
+		for (const v of product.variants) {
+			const u = normalizeUrlString(v?.thumbnail);
 			if (u) urls.push(u);
 		}
 	}
@@ -1525,6 +1623,8 @@ router.post('/admin/products', authenticate, requireTokoManage, async (req, res)
 			whatsappPhoneOverride: String(body.whatsappPhoneOverride || ''),
 			whatsappContactNameOverride: String(body.whatsappContactNameOverride || ''),
 			whatsappAdmins: normalizeStoreWaAdmins(body.whatsappAdmins),
+			variantGroupName: String(body.variantGroupName || '').trim().slice(0, 40),
+			variants: normalizeVariantsInput(body.variants),
 			buyMessageTemplateOverride: String(body.buyMessageTemplateOverride || ''),
 			storeAddressOverride: String(body.storeAddressOverride || ''),
 			published: !!body.published,
@@ -1569,6 +1669,8 @@ router.patch('/admin/products/:id', authenticate, requireStoreDashboard, async (
 				'whatsappPhoneOverride',
 				'whatsappContactNameOverride',
 				'whatsappAdmins',
+				'variantGroupName',
+				'variants',
 				'buyMessageTemplateOverride',
 				'storeAddressOverride',
 				'published',
@@ -1642,6 +1744,8 @@ router.patch('/admin/products/:id', authenticate, requireStoreDashboard, async (
 			p.whatsappPhoneOverride = '';
 			p.whatsappContactNameOverride = '';
 		}
+		if (body.variantGroupName !== undefined) p.variantGroupName = String(body.variantGroupName || '').trim().slice(0, 40);
+		if (body.variants !== undefined) p.variants = normalizeVariantsInput(body.variants);
 		if (body.buyMessageTemplateOverride !== undefined) {
 			p.buyMessageTemplateOverride = String(body.buyMessageTemplateOverride || '');
 		}
@@ -1779,40 +1883,59 @@ router.get('/admin/orders', authenticate, requireTokoManage, async (req, res) =>
 async function restoreOrderStock(StoreProduct: any, order: any) {
 	for (const d of order?.stockDecrements || []) {
 		if (!d?.productId || !(Number(d.qty) > 0)) continue;
-		await StoreProduct.updateOne({ _id: d.productId }, { $inc: { stock: Number(d.qty) } });
+		await giveStock(StoreProduct, d.productId, String(d.variantId || ''), Number(d.qty));
 	}
 }
 
 async function retakeOrderStock(StoreProduct: any, order: any): Promise<boolean> {
-	const done: { productId: any; qty: number }[] = [];
+	const done: { productId: any; variantId: string; qty: number }[] = [];
 	for (const d of order?.stockDecrements || []) {
 		const qty = Number(d?.qty) || 0;
 		if (!d?.productId || qty <= 0) continue;
-		const r = await StoreProduct.updateOne({ _id: d.productId, stock: { $gte: qty } }, { $inc: { stock: -qty } });
-		if (r.modifiedCount !== 1) {
-			for (const x of done) await StoreProduct.updateOne({ _id: x.productId }, { $inc: { stock: x.qty } });
+		const vid = String(d.variantId || '');
+		const r = await takeStock(StoreProduct, d.productId, vid, qty);
+		if (r === 'short') {
+			for (const x of done) await giveStock(StoreProduct, x.productId, x.variantId, x.qty);
 			return false;
 		}
-		done.push({ productId: d.productId, qty });
+		if (r === 'ok') done.push({ productId: d.productId, variantId: vid, qty });
 	}
 	return true;
 }
 
-const STORE_ORDER_STATUSES = ['pending', 'confirmed', 'paid', 'completed', 'cancelled'] as const;
+const STORE_ORDER_STATUSES = ['pending', 'confirmed', 'paid', 'shipped', 'completed', 'cancelled'] as const;
+const STORE_PAYMENT_METHODS = ['', 'transfer', 'qris', 'cash', 'ewallet'];
 
 router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (req, res) => {
 	try {
 		const { StoreOrder } = resolveModels(req);
 		const orderNo = String(req.params.orderNo || '').trim();
-		const status = String((req.body as any)?.status || '').trim();
+		const body = (req.body || {}) as Record<string, unknown>;
 		if (!orderNo) return res.status(400).json({ message: 'Nomor pesanan wajib' });
-		if (!STORE_ORDER_STATUSES.includes(status as any)) {
-			return res.status(400).json({ message: 'Status tidak valid' });
-		}
 		const { StoreProduct } = resolveModels(req);
 		const current: any = await StoreOrder.findOne({ orderNo }).lean();
 		if (!current) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+		// Status opsional: admin juga bisa hanya mengubah metode bayar / tanggal bayar / catatan
+		const status = body.status === undefined ? current.status : String(body.status || '').trim();
+		if (!STORE_ORDER_STATUSES.includes(status as any)) {
+			return res.status(400).json({ message: 'Status tidak valid' });
+		}
 		const set: Record<string, unknown> = { status, updatedAt: new Date() };
+		if (body.paymentMethod !== undefined) {
+			const pm = String(body.paymentMethod || '');
+			if (!STORE_PAYMENT_METHODS.includes(pm)) return res.status(400).json({ message: 'Metode bayar tidak valid' });
+			set.paymentMethod = pm;
+		}
+		if (body.paidAt !== undefined) {
+			const d = body.paidAt ? new Date(String(body.paidAt)) : null;
+			if (d && Number.isNaN(d.getTime())) return res.status(400).json({ message: 'Tanggal bayar tidak valid' });
+			set.paidAt = d;
+		}
+		if (body.adminNote !== undefined) set.adminNote = String(body.adminNote || '').slice(0, 1000);
+		// Tanggal bayar otomatis saat pertama kali ditandai Dibayar
+		if (['paid', 'shipped', 'completed'].includes(status) && !current.paidAt && set.paidAt === undefined) {
+			set.paidAt = new Date();
+		}
 		if (status === 'cancelled' && current.status !== 'cancelled') {
 			// Dibatalkan/ditolak → stok dikembalikan (sekali saja)
 			if (!current.stockRestoredAt) {
@@ -1830,6 +1953,79 @@ router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (r
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal memperbarui pesanan' });
+	}
+});
+
+/**
+ * Export rekap pesanan ke Excel (format template Rekap Toko).
+ * Query: from, to (YYYY-MM-DD, WIB, inklusif), status (kode status, opsional).
+ */
+router.get('/admin/orders/export.xlsx', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreOrder, StoreProduct } = resolveModels(req);
+		const settings: any = await ensureSettings(req);
+		const filter: any = {};
+		const from = String(req.query.from || '').trim();
+		const to = String(req.query.to || '').trim();
+		const isDate = (s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+		if (from || to) {
+			filter.createdAt = {};
+			if (isDate(from)) filter.createdAt.$gte = new Date(`${from}T00:00:00+07:00`);
+			if (isDate(to)) filter.createdAt.$lte = new Date(`${to}T23:59:59.999+07:00`);
+		}
+		const status = String(req.query.status || '').trim();
+		if (status && STORE_ORDER_STATUSES.includes(status as any)) filter.status = status;
+		const orders: any[] = await StoreOrder.find(filter).sort({ createdAt: 1 }).limit(5000).lean();
+		const base = publicBaseUrl(req);
+		const storePath = normalizeStorePath(settings?.navbarPath);
+		const products: any[] = await StoreProduct.find({}).select('name stock variants').sort({ name: 1 }).lean();
+		const stock = products.flatMap((p) => {
+			const vs = activeVariants(p);
+			if (vs.length) {
+				return vs.map((v) => ({ product: `${p.name} (${v.label})`, stock: isStoreStockUnlimited(v.stock) ? null : Number(v.stock) }));
+			}
+			return [{ product: p.name, stock: isStoreStockUnlimited(p.stock) ? null : Number(p.stock) }];
+		});
+		const { buildStoreRecapWorkbook } = await import('../services/store-order-export');
+		const periodLabel =
+			from || to ? `${from || 'awal'} s/d ${to || 'sekarang'}${status ? ` · status ${status}` : ''}` : `Semua pesanan${status ? ` · status ${status}` : ''}`;
+		const buf = await buildStoreRecapWorkbook({
+			storeName: String(settings?.navbarLabel || 'Toko'),
+			periodLabel,
+			orders: orders.map((o) => ({
+				orderNo: o.orderNo,
+				createdAt: o.createdAt,
+				customerName: o.customerName,
+				customerPhone: o.customerPhone,
+				fulfillment: o.fulfillment,
+				shippingAddress: o.shippingAddress,
+				whatsappAdminName: o.whatsappAdminName,
+				shippingCost: o.shippingCost,
+				taxAmount: o.taxAmount,
+				total: o.total,
+				status: o.status,
+				paymentMethod: o.paymentMethod,
+				paidAt: o.paidAt,
+				adminNote: o.adminNote,
+				invoiceUrl: `${base}${storePath}/order/${encodeURIComponent(o.orderNo)}?inv=${encodeURIComponent(o.invoiceAccessToken || '')}`,
+				items: (o.items || []).map((it: any) => ({
+					name: it.name,
+					variantLabel: it.variantLabel || '',
+					qty: it.qty,
+					unitPrice: it.unitPrice,
+					lineSubtotal: it.lineSubtotal,
+				})),
+			})),
+			stock,
+		});
+		const stamp = new Date().toISOString().slice(0, 10);
+		res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+		res.setHeader('Content-Disposition', `attachment; filename="rekap-toko-${stamp}.xlsx"`);
+		res.setHeader('Cache-Control', 'no-store');
+		res.send(buf);
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal membuat file Excel' });
 	}
 });
 
@@ -1906,16 +2102,22 @@ router.get('/cart', async (req, res) => {
 					stockAvailable: await maxBundleQty(req, b, now),
 				});
 			} else {
-				const p = await StoreProduct.findById(row.productId).lean();
-				if (!p || !p.published) continue;
+				const p0 = await StoreProduct.findById(row.productId).lean();
+				if (!p0 || !p0.published) continue;
+				const variant = findVariant(p0, row.variantId);
+				// Varian dihapus/nonaktif → baris disembunyikan (pembeli memilih ulang)
+				if (hasVariants(p0) && !variant) continue;
+				const p = productAsVariant(p0 as any, variant);
 				if (!isPreOrderOrderable(p, now)) continue;
 				const cur = effectiveProductCurrency(p, defCur);
 				const pr = computeDiscountedSubtotal(p as any, qty, campaigns, now);
 				const unitPrice = pr.lineSubtotal / qty;
 				items.push({
 					lineKind: 'product',
-					lineKey: ensureCartLineKey({ ...row, lineKind: 'product', productId: p._id }),
+					lineKey: variantLineKey(p._id, variant?.id),
 					productId: String(p._id),
+					variantId: variant?.id || '',
+					variantLabel: variant?.label || '',
 					slug: p.slug,
 					name: p.name,
 					price: unitPrice,
@@ -1924,7 +2126,7 @@ router.get('/cart', async (req, res) => {
 					compareSubtotal: pr.compareSubtotal,
 					promoApplied: pr.applied,
 					currency: cur,
-					thumbnail: p.thumbnail,
+					thumbnail: variant?.thumbnail || p.thumbnail,
 					qty,
 					stockAvailable: maxProductOrderQty(p, now),
 					isPreOrder: !!p.isPreOrder,
@@ -1961,8 +2163,14 @@ router.post('/cart/items', storeCartRateLimiter, async (req, res) => {
 		const { doc } = await getOrCreateGuestSession(req, res);
 		const productId = req.body?.productId;
 		const qty = Math.max(1, parseInt(String(req.body?.qty || '1'), 10) || 1);
-		const p = await StoreProduct.findById(productId).lean();
-		if (!p || !p.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
+		const p0 = await StoreProduct.findById(productId).lean();
+		if (!p0 || !p0.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
+		const variant = findVariant(p0, req.body?.variantId);
+		if (hasVariants(p0) && !variant) {
+			return res.status(400).json({ message: 'Pilih varian dulu', error: { code: 'VARIANT_REQUIRED' } });
+		}
+		const vid = variant?.id || '';
+		const p = productAsVariant(p0 as any, variant);
 		const now = new Date();
 		if (!isPreOrderOrderable(p, now)) {
 			return res.status(400).json({ message: 'Produk tidak tersedia untuk dipesan' });
@@ -1993,7 +2201,11 @@ router.post('/cart/items', storeCartRateLimiter, async (req, res) => {
 		}
 
 		const idx = cart.findIndex(
-			(c: any) => !c.bundleId && c.lineKind !== 'bundle' && String(c.productId) === String(productId),
+			(c: any) =>
+				!c.bundleId &&
+				c.lineKind !== 'bundle' &&
+				String(c.productId) === String(productId) &&
+				String(c.variantId || '') === vid,
 		);
 		const mergedQty = idx >= 0 ? cart[idx].qty + qty : qty;
 		const cap = maxProductOrderQty(p, now);
@@ -2006,14 +2218,16 @@ router.post('/cart/items', storeCartRateLimiter, async (req, res) => {
 			cart[idx].productId = p._id;
 			(cart[idx] as any).bundleId = null;
 			cart[idx].qty = nextQty;
-			(cart[idx] as any).lineKey = `p:${p._id}`;
+			(cart[idx] as any).variantId = vid;
+			(cart[idx] as any).lineKey = variantLineKey(p._id, vid);
 		} else {
 			cart.push({
 				lineKind: 'product',
 				productId: p._id,
 				bundleId: null,
+				variantId: vid,
 				qty: nextQty,
-				lineKey: `p:${p._id}`,
+				lineKey: variantLineKey(p._id, vid),
 			} as any);
 		}
 
@@ -2091,20 +2305,23 @@ router.patch('/cart/items/:productId', storeCartRateLimiter, async (req, res) =>
 		const { GuestStoreSession, StoreProduct } = resolveModels(req);
 		const { doc } = await getOrCreateGuestSession(req, res);
 		const qtyRaw = parseInt(String(req.body?.qty ?? '1'), 10);
+		const vid = String(req.body?.variantId ?? req.query.variantId ?? '');
 		const cart = doc.cartItems || [];
-		const idx = cart.findIndex(
-			(c: any) => !c.bundleId && c.lineKind !== 'bundle' && String(c.productId) === req.params.productId,
-		);
+		const sameLine = (c: any) =>
+			!c.bundleId &&
+			c.lineKind !== 'bundle' &&
+			String(c.productId) === req.params.productId &&
+			String(c.variantId || '') === vid;
+		const idx = cart.findIndex(sameLine);
 		if (idx < 0) return res.status(404).json({ message: 'Item tidak ada di keranjang' });
 		if (!Number.isFinite(qtyRaw) || qtyRaw < 1) {
-			doc.cartItems = cart.filter(
-				(c: any) => !(c.lineKind !== 'bundle' && String(c.productId) === req.params.productId),
-			);
+			doc.cartItems = cart.filter((c: any) => !sameLine(c));
 			await doc.save();
 			return res.json({ ok: true });
 		}
-		const p = await StoreProduct.findById(req.params.productId).lean();
-		if (!p || !p.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
+		const p0 = await StoreProduct.findById(req.params.productId).lean();
+		if (!p0 || !p0.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
+		const p = productAsVariant(p0 as any, findVariant(p0, vid));
 		const now = new Date();
 		if (!isPreOrderOrderable(p, now)) {
 			return res.status(400).json({ message: 'Produk tidak tersedia' });
@@ -2128,8 +2345,13 @@ router.delete('/cart/items/:productId', storeCartRateLimiter, async (req, res) =
 	try {
 		const { GuestStoreSession } = resolveModels(req);
 		const { doc } = await getOrCreateGuestSession(req, res);
+		const vid = String(req.query.variantId ?? req.body?.variantId ?? '');
 		doc.cartItems = (doc.cartItems || []).filter(
-			(c: any) => c.lineKind === 'bundle' || c.bundleId || String(c.productId) !== req.params.productId,
+			(c: any) =>
+				c.lineKind === 'bundle' ||
+				c.bundleId ||
+				String(c.productId) !== req.params.productId ||
+				String(c.variantId || '') !== vid,
 		);
 		await doc.save();
 		res.json({ ok: true });
@@ -2300,7 +2522,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 		const campaigns = await listActiveCampaigns(req);
 		const campaignIds = new Set<string>();
 		const orderLines: any[] = [];
-		const stockOps: { id: any; qty: number; skip: boolean }[] = [];
+		const stockOps: { id: any; variantId?: string; qty: number; skip: boolean }[] = [];
 		let subtotal = 0;
 
 		const pMap = new Map<string, any>();
@@ -2317,8 +2539,14 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 
 		for (const l of parsed.lines) {
 			if (l.lineKind === 'product') {
-				const p = await StoreProduct.findById(l.productId).lean();
-				if (!p || !p.published) continue;
+				const p0 = await StoreProduct.findById(l.productId).lean();
+				if (!p0 || !p0.published) continue;
+				// Produk bervarian wajib memilih varian aktif
+				const variant = findVariant(p0, (l as any).variantId);
+				if (hasVariants(p0) && !variant) {
+					return res.status(400).json({ message: `Pilih varian untuk ${p0.name}` });
+				}
+				const p = productAsVariant(p0 as any, variant);
 				if (!isPreOrderOrderable(p, now)) continue;
 				const qty = l.qty;
 				const pr = computeDiscountedSubtotal(p as any, qty, campaigns, now);
@@ -2347,6 +2575,8 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 					bundleId: null,
 					name: p.name,
 					slug: p.slug,
+					variantId: variant?.id || '',
+					variantLabel: variant?.label || '',
 					qty,
 					unitPrice,
 					lineSubtotal: pr.lineSubtotal,
@@ -2356,6 +2586,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 				});
 				stockOps.push({
 					id: p._id,
+					variantId: variant?.id || '',
 					qty,
 					skip: shouldSkipStockDecrementForPreOrder(p, now),
 				});
@@ -2444,7 +2675,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 		const itemsText = orderLines
 			.map(
 				(l) =>
-					`• ${l.name} x${l.qty} — ${formatStoreMoney(l.lineSubtotal, l.currency)} (${base}${storePath}/${l.slug})`,
+					`• ${l.name}${l.variantLabel ? ` (${l.variantLabel})` : ''} x${l.qty} — ${formatStoreMoney(l.lineSubtotal, l.currency)} (${base}${storePath}/${l.slug})`,
 			)
 			.join('\n');
 
@@ -2474,23 +2705,18 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 		const msgWithGreeting = `${waGreeting(waAdmin)}${msg}`;
 
 		const { doc: sessDoc, sessionKeyHash } = await getOrCreateGuestSession(req, res);
-		const decremented: { id: any; qty: number }[] = [];
+		const decremented: { id: any; variantId: string; qty: number }[] = [];
 		const stockMerged = mergeStockOpsByProduct(stockOps);
 		try {
 			for (const o of stockMerged) {
 				if (o.skip) continue;
-				const pdoc = await StoreProduct.findById(o.id).lean();
-				if (!pdoc || isStoreStockUnlimited(pdoc.stock)) continue;
-				const r = await StoreProduct.updateOne(
-					{ _id: o.id, stock: { $gte: o.qty } },
-					{ $inc: { stock: -o.qty } },
-				);
-				if (r.modifiedCount !== 1) throw new Error('STOCK');
-				decremented.push({ id: o.id, qty: o.qty });
+				const r = await takeStock(StoreProduct, o.id, o.variantId || '', o.qty);
+				if (r === 'short') throw new Error('STOCK');
+				if (r === 'ok') decremented.push({ id: o.id, variantId: o.variantId || '', qty: o.qty });
 			}
 		} catch (e) {
 			for (const d of decremented.reverse()) {
-				await StoreProduct.updateOne({ _id: d.id }, { $inc: { stock: d.qty } });
+				await giveStock(StoreProduct, d.id, d.variantId, d.qty);
 			}
 			if ((e as Error).message === 'STOCK') {
 				return res.status(400).json({ message: 'Stok tidak mencukupi' });
@@ -2520,7 +2746,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 			whatsappPhoneUsed: waUsed,
 			whatsappMessageSnapshot: msgWithGreeting,
 			whatsappAdminName: waAdmin.name,
-			stockDecrements: decremented.map((d) => ({ productId: d.id, qty: d.qty })),
+			stockDecrements: decremented.map((d) => ({ productId: d.id, variantId: d.variantId, qty: d.qty })),
 			status: 'pending',
 			appliedCampaignIds: Array.from(campaignIds)
 				.filter((x) => mongoose.Types.ObjectId.isValid(x))
@@ -2567,6 +2793,12 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 		sessDoc.cartItems = cart;
 		await sessDoc.save();
 
+		notifyStoreAdmins(req, 'store_order', {
+			title: `Pesanan baru ${orderNo}`,
+			description: `${customerName} · ${orderLines.map((l) => `${l.name}${l.variantLabel ? ` (${l.variantLabel})` : ''} x${l.qty}`).join(', ')} · ${formatStoreMoney(total, orderCur)}`,
+			actionUrl: '/dashboard/toko?tab=orders',
+			tag: 'toko',
+		});
 		const waUrl = `https://wa.me/${waUsed}?text=${encodeURIComponent(msgWithGreeting)}`;
 		res.json({
 			order: stripInvoiceTokenFromOrder(order.toObject()),
@@ -2591,7 +2823,10 @@ router.post('/direct-checkout', storeCheckoutRateLimiter, (req, res) => {
 		return runStoreCheckoutFromBody(req, res, { ...body, items: [{ bundleId: String(body.bundleId), qty }] });
 	}
 	if (body.productId) {
-		return runStoreCheckoutFromBody(req, res, { ...body, items: [{ productId: String(body.productId), qty }] });
+		return runStoreCheckoutFromBody(req, res, {
+			...body,
+			items: [{ productId: String(body.productId), variantId: String((body as any).variantId || ''), qty }],
+		});
 	}
 	return res.status(400).json({ message: 'Pilih productId atau bundleId' });
 });
@@ -2814,11 +3049,21 @@ router.post('/chats', storeChatRateLimiter, async (req, res) => {
 			chat.messages.push({ from: 'buyer', kind: 'product', text: '', product: card, senderName: chat.customerName || '', at: now });
 		}
 		if (text) chat.messages.push({ from: 'buyer', kind: 'text', text, senderName: chat.customerName || '', at: now });
+		const wasRead = !chat.unreadForAdmin;
 		chat.unreadForAdmin = (chat.unreadForAdmin || 0) + incoming;
 		chat.status = 'open';
 		chat.lastMessageAt = now;
 		chat.expireAt = new Date(now.getTime() + STORE_CHAT_TTL_MS);
 		await chat.save();
+		// Notifikasi hanya saat admin belum punya pesan belum-dibaca (hindari spam per pesan)
+		if (wasRead) {
+			notifyStoreAdmins(req, 'store_chat', {
+				title: `Chat baru dari ${chat.customerName || 'pembeli'}`,
+				description: text ? text.slice(0, 120) : `Menanyakan ${card?.name || 'produk'}`,
+				actionUrl: '/dashboard/toko?tab=chat',
+				tag: 'toko',
+			});
+		}
 		res.status(201).json({ chat: chatForBuyer(chat.toObject(), normalizeStorePath(settings?.navbarPath)) });
 	} catch (e) {
 		console.error(e);
@@ -2951,5 +3196,34 @@ router.patch('/admin/chats/:id', authenticate, requireStoreDashboard, async (req
 		res.status(500).json({ message: 'Gagal memperbarui chat' });
 	}
 });
+
+/**
+ * Pengingat harian (cron): pesanan berstatus Menunggu > 24 jam → notifikasi admin toko.
+ * `ctx` meniru bagian `req` yang dipakai resolveModels/notifyStoreAdmins (main atau tenant).
+ */
+export async function remindPendingStoreOrders(ctx: {
+	tenantModels?: any;
+	tenantDbName?: string;
+	tenantSlug?: string;
+}): Promise<number> {
+	const req: any = {
+		tenantModels: ctx.tenantModels,
+		isTenantRequest: !!ctx.tenantModels,
+		tenantDbName: ctx.tenantDbName,
+		tenantSlug: ctx.tenantSlug || '',
+	};
+	const { StoreOrder } = resolveModels(req);
+	const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+	const n = await StoreOrder.countDocuments({ status: 'pending', createdAt: { $lte: cutoff } });
+	if (n > 0) {
+		notifyStoreAdmins(req, 'store_order', {
+			title: `${n} pesanan menunggu lebih dari 24 jam`,
+			description: 'Cek pesanan, konfirmasi stok, lalu ubah statusnya di Dashboard → Toko → Pesanan.',
+			actionUrl: '/dashboard/toko?tab=orders',
+			tag: 'toko',
+		});
+	}
+	return n;
+}
 
 export default router;

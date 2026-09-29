@@ -25,6 +25,7 @@ interface OrderData {
 	orderNo: string;
 	items: {
 		name: string;
+		variantLabel?: string;
 		qty: number;
 		unitPrice: number;
 		lineSubtotal: number;
@@ -189,7 +190,7 @@ export default function TokoOrderInvoicePage() {
 										{(order.items || []).map((li, i) => (
 											<li key={i} className="flex justify-between gap-2">
 												<span>
-													{li.name} × {li.qty}
+													{li.name}{li.variantLabel ? ` (${li.variantLabel})` : ''} × {li.qty}
 												</span>
 												<span className="tabular-nums shrink-0">
 													{formatStoreMoney(
