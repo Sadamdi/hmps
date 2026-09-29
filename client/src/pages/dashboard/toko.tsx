@@ -430,6 +430,7 @@ export default function DashboardToko() {
 		published: true,
 		isActive: true,
 		thumbnail: '',
+		addVariantPriceDiff: false,
 		items: [] as { productId: string; qty: number; variantId: string }[],
 	});
 	const [productOpen, setProductOpen] = useState(false);
@@ -741,6 +742,7 @@ export default function DashboardToko() {
 				published: bundleForm.published,
 				isActive: bundleForm.isActive,
 				thumbnail: bundleForm.thumbnail,
+				addVariantPriceDiff: bundleForm.addVariantPriceDiff,
 				items: bundleForm.items
 					.filter((r) => r.productId)
 					.map((r) => ({ productId: r.productId, qty: Math.max(1, r.qty), variantId: r.variantId || '' })),
@@ -2060,6 +2062,7 @@ export default function DashboardToko() {
 												published: true,
 												isActive: true,
 												thumbnail: '',
+												addVariantPriceDiff: false,
 												items: [{ productId: '', qty: 1, variantId: '' }],
 											});
 											setBundleDialogOpen(true);
@@ -2114,7 +2117,7 @@ export default function DashboardToko() {
 																							)
 																						: '',
 																					qty: Math.max(1, Number(row?.qty) || 1),
-																					variantId: String(row?.variantId || ''),
+																					variantId: row?.variantChoice ? '__choose' : String(row?.variantId || ''),
 																				}))
 																			: [];
 																		setBundleForm({
@@ -2124,6 +2127,7 @@ export default function DashboardToko() {
 																			published: !!b.published,
 																			isActive: b.isActive !== false,
 																			thumbnail: b.thumbnail || '',
+																			addVariantPriceDiff: !!b.addVariantPriceDiff,
 																			items: its.length ? its : [{ productId: '', qty: 1, variantId: '' }],
 																		});
 																		setBundleDialogOpen(true);
@@ -2479,6 +2483,7 @@ export default function DashboardToko() {
 														setBundleForm((f) => ({ ...f, items: next }));
 													}}>
 													<option value="">— pilih —</option>
+													<option value="__choose">Pembeli memilih (semua {String(prod.variantGroupName || 'varian').toLowerCase()})</option>
 													{vs.map((v: any) => (
 														<option key={v.id} value={v.id}>
 															{v.label}
@@ -2534,6 +2539,21 @@ export default function DashboardToko() {
 								Baris
 							</Button>
 						</div>
+						{bundleForm.items.some((r) => r.variantId === '__choose') && (
+							<label className="flex items-start gap-2 rounded-md border p-3 text-sm">
+								<Switch
+									checked={bundleForm.addVariantPriceDiff}
+									onCheckedChange={(v) => setBundleForm((f) => ({ ...f, addVariantPriceDiff: v }))}
+									aria-label="Tambah selisih harga varian"
+								/>
+								<span>
+									<span className="font-medium">Tambah selisih harga varian otomatis</span>
+									<span className="block text-xs text-muted-foreground">
+										Mati: harga paket sama untuk semua ukuran. Nyala: ukuran yang harganya lebih mahal dari harga dasar produk menambah selisihnya ke harga paket (mis. XXL +Rp5.000).
+									</span>
+								</span>
+							</label>
+						)}
 						<div className="flex flex-wrap gap-4">
 							<div className="flex items-center gap-2">
 								<Switch

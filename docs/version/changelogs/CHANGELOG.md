@@ -9,6 +9,24 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.38.0] - 2026-09-30
+
+### Added
+
+- Email pembeli (opsional) di checkout, beli-langsung, dan invoice; layout email serasi untuk semua jenis kabar (pesanan diterima, bukti diterima/ditolak, DP/lunas, status, pembatalan, pengingat). Bisa dimatikan di Pengaturan → Pembayaran.
+- Auto-batal pesanan belum dibayar setelah 3 hari (bisa diatur, 0 = mati) dengan stok kembali dan pengingat email 24 jam sebelumnya; pengingat pelunasan DP. Job tiap jam.
+- Bundling mode "pembeli memilih ukuran" + opsi tambah selisih harga varian otomatis; baris keranjang terpisah per ukuran.
+- `POST /api/store/orders/:orderNo/email`.
+
+### Changed
+
+- Admin menandai Dibayar/Dikirim/Selesai tanpa verifikasi bukti tetap sah dan kini menyinkronkan data pembayaran (lunas, sisa 0).
+- Status Lunas tidak bisa mundur ke Menunggu/Dikonfirmasi; verifikasi/tolak pada pesanan lunas atau bukti yang sudah diputuskan ditolak (409).
+
+### Fixed
+
+- PATCH keranjang bundel bisa mengubah baris bundel pertama, bukan yang dimaksud.
+
 ## [4.37.0] - 2026-09-30
 
 ### Added

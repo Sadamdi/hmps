@@ -1524,6 +1524,10 @@ const storeSettingsSchema = new mongoose.Schema(
 			],
 			default: [],
 		},
+		/** Pesanan belum dibayar dibatalkan otomatis setelah N hari (0 = nonaktif); hanya alur bayar di web */
+		unpaidAutoCancelDays: { type: Number, default: 3, min: 0, max: 30 },
+		/** Kirim email status pesanan ke pembeli yang mengisi email */
+		notifyBuyerEmail: { type: Boolean, default: true },
 		/** Default DP pre-order (produk bisa override) */
 		dp: {
 			enabled: { type: Boolean, default: false },
@@ -1725,8 +1729,10 @@ const storeBundleItemSchema = new mongoose.Schema(
 			required: true,
 		},
 		qty: { type: Number, required: true, min: 1 },
-		/** Varian yang dibundel (wajib bila produk punya varian) */
+		/** Varian yang dibundel (tetap, dipilih admin) */
 		variantId: { type: String, default: '' },
+		/** true = pembeli memilih varian saat menambah paket ("semua ukuran") */
+		variantChoice: { type: Boolean, default: false },
 	},
 	{ _id: false },
 );
@@ -1740,6 +1746,8 @@ const storeBundleSchema = new mongoose.Schema(
 		bundlePrice: { type: Number, required: true, min: 0 },
 		/** Ongkir dihitung 0 (bundle hanya tampil jika isi tidak gratis semua) */
 		isFreeShipping: { type: Boolean, default: false },
+		/** Varian pilihan pembeli yang lebih mahal dari harga dasar produk menambah selisihnya ke harga paket */
+		addVariantPriceDiff: { type: Boolean, default: false },
 		items: { type: [storeBundleItemSchema], required: true },
 		/** Kosong = jumlahkan berat anak; else override total gram per bundle */
 		weightGramsOverride: { type: Number, default: null, min: 1 },
@@ -1804,12 +1812,15 @@ const guestStoreSessionSchema = new mongoose.Schema(
 				},
 				/** Varian produk (shared/store-variants.ts); kosong = tanpa varian */
 				variantId: { type: String, default: '' },
+				/** Pilihan varian isi paket: [{ itemIndex, variantId }] */
+				selections: { type: [{ _id: false, itemIndex: Number, variantId: String }], default: [] },
 				qty: { type: Number, required: true, min: 1 },
 			},
 		],
 		checkoutDraft: {
 			customerName: { type: String, default: '' },
 			customerPhone: { type: String, default: '' },
+			customerEmail: { type: String, default: '' },
 			fulfillment: { type: String, enum: ['pickup', 'delivery', ''], default: '' },
 			shippingAddress: { type: String, default: '' },
 			destinationVillageCode: { type: String, default: '' },
@@ -1930,6 +1941,10 @@ const storeOrderSchema = new mongoose.Schema(
 		fulfillment: { type: String, enum: ['pickup', 'delivery'], required: true },
 		customerName: { type: String, required: true },
 		customerPhone: { type: String, required: true },
+		/** Opsional: untuk invoice & kabar status lewat email */
+		customerEmail: { type: String, default: '' },
+		/** Email yang sudah terkirim (dedup untuk pengingat otomatis) */
+		emailLog: { type: [{ _id: false, key: String, at: { type: Date, default: Date.now } }], default: [] },
 		shippingAddress: { type: String, default: '' },
 		storeAddressSnapshot: { type: String, default: '' },
 		whatsappPhoneUsed: { type: String, default: '' },

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.37.0",
+    "version": "4.38.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -21797,6 +21797,15 @@
               "type": "string"
             },
             "example": "67f0f5fbb0f4f12bc1234567"
+          },
+          {
+            "name": "lineKey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "sample"
           }
         ],
         "security": [
@@ -21867,6 +21876,15 @@
               "type": "string"
             },
             "example": "67f0f5fbb0f4f12bc1234567"
+          },
+          {
+            "name": "lineKey",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "sample"
           }
         ],
         "security": [
@@ -22781,6 +22799,93 @@
         ],
         "summary": "POST /api/store/orders/{orderNo}/cancel",
         "operationId": "post_api_store_orders_orderNo_cancel",
+        "parameters": [
+          {
+            "name": "orderNo",
+            "in": "path",
+            "required": true,
+            "description": "Path parameter orderNo",
+            "schema": {
+              "type": "string"
+            },
+            "example": "example"
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "message": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericRequestBody"
+              },
+              "examples": {
+                "default": {
+                  "value": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/store/orders/{orderNo}/email": {
+      "post": {
+        "tags": [
+          "store"
+        ],
+        "summary": "POST /api/store/orders/{orderNo}/email",
+        "operationId": "post_api_store_orders_orderNo_email",
         "parameters": [
           {
             "name": "orderNo",

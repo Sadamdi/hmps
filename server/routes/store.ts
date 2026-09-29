@@ -18,6 +18,7 @@ import {
 	type DpRule,
 	type StorePaymentChannel,
 } from '../../shared/store-payment';
+import { EMAIL_RE, isStoreEmailConfigured, normalizeEmail, sendStoreEmail, type StoreEmailCtx, type StoreEmailKind } from '../services/store-email';
 import { authenticate } from '../auth';
 import * as mainDbModels from '../../db/mongodb';
 import { mongoStorage } from '../mongo-storage';
@@ -67,6 +68,7 @@ import {
 	isPreOrderInWindow,
 	shouldSkipStockDecrementForPreOrder,
 	parseCartLinesFromBody,
+	normalizeBundleSelections,
 	type CartLineInput,
 	ensureCartLineKey,
 	totalShippingWeightGrams,
@@ -151,6 +153,65 @@ async function storeAdminUserIds(req: Request): Promise<string[]> {
 }
 
 /** Kirim notifikasi ke semua admin toko. Tidak pernah melempar error (tidak menghambat pembeli). */
+/** Hari batas bayar sebelum pesanan belum-dibayar dibatalkan otomatis (0 = nonaktif). */
+function autoCancelDays(settings: any): number {
+	const d = Number(settings?.unpaidAutoCancelDays);
+	return Number.isFinite(d) ? Math.max(0, Math.min(30, Math.floor(d))) : 3;
+}
+
+/** Pesanan memakai alur bayar di web (kanal bayar tercatat saat checkout). */
+const usesWebPayment = (o: any) => Array.isArray(o?.paymentChannelsSnapshot) && o.paymentChannelsSnapshot.length > 0;
+
+/** Batas bayar (ISO) bila pesanan masih belum dibayar dan auto-batal aktif. */
+function payBeforeFor(o: any, settings: any): string | null {
+	const days = autoCancelDays(settings);
+	if (!days || !usesWebPayment(o)) return null;
+	if (!['unpaid', 'rejected'].includes(String(o.paymentStatus || 'unpaid'))) return null;
+	if (['cancelled', 'completed', 'shipped'].includes(String(o.status))) return null;
+	return new Date(new Date(o.createdAt).getTime() + days * 86_400_000).toISOString();
+}
+
+/** URL dasar situs (aman dipakai juga dari cron yang tidak punya request nyata). */
+function safeBaseUrl(req: any): string {
+	if (typeof req?.get === 'function') return publicBaseUrl(req as Request);
+	const slug = String(req?.tenantSlug || '');
+	return `https://himatif-encoder.com${slug ? `/${slug}` : ''}`;
+}
+
+/**
+ * Kirim email ke pembeli (bila mengisi email & pengaturan aktif). Tidak pernah menghambat respons.
+ * `dedupeKey` mencegah pengiriman ganda untuk pengingat otomatis.
+ */
+function sendBuyerEmail(req: any, orderNo: string, kind: StoreEmailKind, extra: Partial<StoreEmailCtx> = {}, dedupeKey?: string) {
+	void (async () => {
+		try {
+			const { StoreOrder } = resolveModels(req);
+			const o: any = await StoreOrder.findOne({ orderNo }).lean();
+			if (!o || !EMAIL_RE.test(normalizeEmail(o.customerEmail))) return;
+			const settings: any = await ensureSettings(req);
+			if (settings?.notifyBuyerEmail === false) return;
+			if (dedupeKey && (o.emailLog || []).some((e: any) => e.key === dedupeKey)) return;
+			const base = safeBaseUrl(req);
+			const storePath = normalizeStorePath(settings?.navbarPath);
+			const pre = (o.items || []).map((i: any) => i?.preOrderSnapshot?.estimatedReadyAt).filter(Boolean).sort();
+			const ctx: StoreEmailCtx = {
+				storeName: String(settings?.navbarLabel || 'Toko'),
+				invoiceUrl: `${base}${storePath}/order/${encodeURIComponent(o.orderNo)}?inv=${encodeURIComponent(o.invoiceAccessToken || '')}`,
+				storeUrl: `${base}${storePath}`,
+				currency: normalizeStoreCurrency(settings?.defaultCurrency),
+				payOnWeb: usesWebPayment(o),
+				payBefore: payBeforeFor(o, settings),
+				estimatedReadyAt: pre[0] ? new Date(pre[0]).toISOString() : null,
+				...extra,
+			};
+			const ok = await sendStoreEmail(kind, o, ctx);
+			if (ok && dedupeKey) await StoreOrder.updateOne({ orderNo }, { $push: { emailLog: { key: dedupeKey, at: new Date() } } });
+		} catch (e) {
+			console.error('sendBuyerEmail:', e);
+		}
+	})();
+}
+
 function notifyStoreAdmins(
 	req: Request,
 	eventType: 'store_order' | 'store_chat',
@@ -419,12 +480,33 @@ function maxProductOrderQty(p: any, now: Date): number {
 }
 
 /**
- * Validasi isi bundling terhadap produk saat ini. Mengembalikan pesan error (untuk admin/pembeli)
- * bila ada isi yang tidak valid: produk hilang/belum terbit, produk bervarian tanpa varian dipilih,
- * atau varian sudah dihapus/nonaktif.
+ * Mesin bundling.
+ *
+ * Isi paket punya 2 mode untuk produk bervarian:
+ *  - tetap  : `variantId` dipilih admin (mis. Hoodie ukuran M);
+ *  - pilih  : `variantChoice=true`, pembeli memilih varian saat menambah paket ("semua ukuran").
+ * Harga paket tetap `bundlePrice`; bila `addVariantPriceDiff` aktif, varian pilihan yang lebih mahal dari
+ * harga dasar produk menambah selisihnya (× qty isi) ke harga paket.
+ * Pilihan pembeli disimpan di baris keranjang sebagai `selections: [{ itemIndex, variantId }]`.
  */
-function bundleItemProblem(p: any, variantId: string): string | null {
+type BundleSelection = { itemIndex: number; variantId: string };
+
+/** Kunci baris keranjang: paket tanpa pilihan `b:<id>`, dengan pilihan `b:<id>:0=vm|2=vs`. */
+function bundleLineKey(bundleId: unknown, sels: BundleSelection[]): string {
+	if (!sels.length) return `b:${bundleId}`;
+	const k = [...sels]
+		.sort((a, b) => a.itemIndex - b.itemIndex)
+		.map((s) => `${s.itemIndex}=${s.variantId}`)
+		.join('|');
+	return `b:${bundleId}:${k}`;
+}
+
+function bundleItemProblem(p: any, variantId: string, choose = false): string | null {
 	if (!p || !p.published) return 'Isi bundling tidak valid (produk hilang atau belum terbit)';
+	if (choose) {
+		if (!activeVariants(p).length) return `Isi bundling "${p.name}" belum punya varian untuk dipilih`;
+		return null;
+	}
 	if (hasVariants(p)) {
 		if (!variantId) return `Bundling belum lengkap: pilih varian untuk ${p.name}`;
 		if (!findVariant(p, variantId)) return `Varian ${p.name} pada bundling sudah tidak tersedia`;
@@ -432,65 +514,151 @@ function bundleItemProblem(p: any, variantId: string): string | null {
 	return null;
 }
 
-async function maxBundleQty(req: Request, b: any, now: Date): Promise<number> {
+type ResolvedBundleComponent = { index: number; item: any; product: any; variant: any | null; qty: number; choose: boolean };
+
+/**
+ * Terapkan pilihan pembeli ke isi paket. Gagal dengan pesan jelas bila ada isi tidak valid atau
+ * pilihan varian kurang/salah. `extra` = tambahan harga dari selisih varian (bila diaktifkan).
+ */
+async function resolveBundleComponents(
+	StoreProduct: any,
+	b: any,
+	selections: BundleSelection[],
+): Promise<{ ok: true; comps: ResolvedBundleComponent[]; extra: number } | { ok: false; message: string; code: string }> {
+	const comps: ResolvedBundleComponent[] = [];
+	let extra = 0;
+	const items: any[] = b.items || [];
+	for (let i = 0; i < items.length; i++) {
+		const it = items[i];
+		const p: any = await StoreProduct.findById(it.productId).lean();
+		const choose = !!it.variantChoice;
+		const problem = bundleItemProblem(p, String(it.variantId || ''), choose);
+		if (problem) return { ok: false, message: problem, code: 'BUNDLE_INVALID' };
+		const qty = Math.max(1, Math.floor(Number(it.qty) || 1));
+		let variant: any = null;
+		if (choose) {
+			const sel = selections.find((s) => s.itemIndex === i);
+			if (!sel) return { ok: false, message: `Pilih ${p.variantGroupName || 'varian'} untuk ${p.name}`, code: 'BUNDLE_SELECTION_REQUIRED' };
+			variant = findVariant(p, sel.variantId);
+			if (!variant) return { ok: false, message: `${p.variantGroupName || 'Varian'} ${p.name} yang dipilih tidak tersedia`, code: 'BUNDLE_SELECTION_INVALID' };
+			if (b.addVariantPriceDiff) {
+				const eff = Number(productAsVariant(p, variant).price) || 0;
+				extra += Math.max(0, eff - (Number(p.price) || 0)) * qty;
+			}
+		} else {
+			variant = findVariant(p, it.variantId);
+		}
+		comps.push({ index: i, item: it, product: p, variant, qty, choose });
+	}
+	return { ok: true, comps, extra };
+}
+
+/** Kapasitas paket dari stok; untuk isi "pilih" tanpa pilihan dipakai varian dengan kapasitas terbesar. */
+async function maxBundleQty(req: Request, b: any, now: Date, selections: BundleSelection[] = []): Promise<number> {
 	const { StoreProduct } = resolveModels(req);
 	let m = 9999;
-	for (const it of b.items || []) {
-		const p0 = await StoreProduct.findById(it.productId).lean();
+	const items: any[] = b.items || [];
+	for (let i = 0; i < items.length; i++) {
+		const it = items[i];
+		const p0: any = await StoreProduct.findById(it.productId).lean();
 		if (!p0 || !p0.published) return 0;
-		// Produk bervarian: stok & status dihitung dari varian yang dibundel
-		const p = productAsVariant(p0 as any, findVariant(p0, it.variantId));
 		const need = Math.max(1, Math.floor(Number(it.qty) || 1));
-		const maxEach = Math.floor(maxProductOrderQty(p, now) / need);
-		m = Math.min(m, maxEach);
+		const capOf = (v: any) => Math.floor(maxProductOrderQty(productAsVariant(p0 as any, v), now) / need);
+		if (it.variantChoice) {
+			const sel = selections.find((s) => s.itemIndex === i);
+			const vs = sel ? [findVariant(p0, sel.variantId)].filter(Boolean) : activeVariants(p0);
+			if (!vs.length) return 0;
+			m = Math.min(m, Math.max(...vs.map((v: any) => capOf(v))));
+		} else {
+			m = Math.min(m, capOf(findVariant(p0, it.variantId)));
+		}
 	}
 	return m;
 }
 
-/**
- * Rincian isi bundling untuk tampilan publik: komponen (nama, varian, qty, foto), harga normal bila
- * dibeli satuan, dan hemat. Produk hilang/varian rusak ditandai `valid:false` (bundel tidak bisa dibeli).
- */
 /** Thumbnail bundling: kosong, hasil upload toko (/uploads/...), atau URL https. */
 function safeBundleThumb(v: unknown): string {
 	const s = String(v || '').trim().slice(0, 500);
 	return s.startsWith('/uploads/') || s.startsWith('/attached_assets/') || /^https:\/\//i.test(s) ? s : '';
 }
 
+/**
+ * Rincian isi bundling untuk tampilan publik: komponen (nama, varian/pilihan, qty, foto), harga normal bila
+ * dibeli satuan, hemat, ketersediaan. Isi mode "pilih" membawa `choices` (varian + stok + selisih harga).
+ */
 async function describeBundle(req: Request, b: any, now: Date) {
 	const { StoreProduct } = resolveModels(req);
 	const components: any[] = [];
 	let normalTotal = 0;
-	let valid = true;
-	for (const it of b.items || []) {
+	let available = true;
+	let needsChoice = false;
+	const items: any[] = b.items || [];
+	for (let i = 0; i < items.length; i++) {
+		const it = items[i];
 		const p0: any = await StoreProduct.findById(it.productId).lean();
-		if (bundleItemProblem(p0, String(it.variantId || ''))) {
-			valid = false;
+		const choose = !!it.variantChoice;
+		if (bundleItemProblem(p0, String(it.variantId || ''), choose)) {
+			available = false;
 			continue;
 		}
-		const v = findVariant(p0, it.variantId);
-		const p = productAsVariant(p0, v);
 		const qty = Math.max(1, Math.floor(Number(it.qty) || 1));
-		const unit = Number(p.price) || 0;
-		normalTotal += unit * qty;
-		components.push({
-			productId: String(p0._id),
-			slug: p0.slug,
-			name: p0.name,
-			variantLabel: v?.label || '',
-			qty,
-			unitPrice: unit,
-			thumbnail: v?.thumbnail || p0.thumbnail || '',
-		});
+		const need = qty;
+		const base = Number(p0.price) || 0;
+		normalTotal += base * qty;
+		if (choose) {
+			needsChoice = true;
+			const choices = activeVariants(p0).map((v: any) => {
+				const eff = Number(productAsVariant(p0, v).price) || 0;
+				const cap = Math.floor(maxProductOrderQty(productAsVariant(p0, v), now) / need);
+				return {
+					id: v.id,
+					label: v.label,
+					available: cap > 0,
+					priceDiff: b.addVariantPriceDiff ? Math.max(0, eff - base) * qty : 0,
+					thumbnail: v.thumbnail || '',
+				};
+			});
+			if (!choices.some((c) => c.available)) available = false;
+			components.push({
+				itemIndex: i,
+				productId: String(p0._id),
+				slug: p0.slug,
+				name: p0.name,
+				variantLabel: '',
+				qty,
+				unitPrice: base,
+				thumbnail: p0.thumbnail || '',
+				choose: true,
+				groupName: p0.variantGroupName || 'Varian',
+				choices,
+			});
+		} else {
+			const v = findVariant(p0, it.variantId);
+			const p = productAsVariant(p0, v);
+			normalTotal += (Number(p.price) || 0) * qty - base * qty;
+			components.push({
+				itemIndex: i,
+				productId: String(p0._id),
+				slug: p0.slug,
+				name: p0.name,
+				variantLabel: v?.label || '',
+				qty,
+				unitPrice: Number(p.price) || 0,
+				thumbnail: v?.thumbnail || p0.thumbnail || '',
+				choose: false,
+			});
+		}
 	}
-	const cap = valid ? await maxBundleQty(req, b, now) : 0;
+	const cap = available ? await maxBundleQty(req, b, now) : 0;
 	const price = Number(b.bundlePrice) || 0;
 	return {
 		components,
 		normalTotal,
 		saving: Math.max(0, normalTotal - price),
-		available: valid && cap > 0,
+		available: available && cap > 0,
 		maxQty: cap,
+		needsChoice,
+		addVariantPriceDiff: !!b.addVariantPriceDiff,
 	};
 }
 
@@ -796,6 +964,9 @@ router.get('/public/settings', async (req, res) => {
 			dp: (({ enabled, mode, percent, amount, cancelPolicyText }) => ({ enabled, mode, percent, amount, cancelPolicyText }))(
 				readDpSettings(s),
 			),
+			unpaidAutoCancelDays: autoCancelDays(s),
+			// Kolom email di checkout tampil hanya bila pengiriman email siap & aktif
+			emailNotify: s.notifyBuyerEmail !== false && isStoreEmailConfigured(),
 		});
 	} catch (e) {
 		console.error(e);
@@ -895,7 +1066,9 @@ router.post('/payment-preview', storeCartRateLimiter, async (req, res) => {
 			} else {
 				const b: any = await StoreBundle.findById(l.bundleId).lean();
 				if (!b || !b.published || !b.isActive) continue;
-				lineSubtotal = computeDiscountedBundleSubtotal(String(b._id), b.bundlePrice, l.qty, campaigns, now).lineSubtotal;
+				const rc = await resolveBundleComponents(StoreProduct, b, (l as any).selections || []);
+				if (!rc.ok) continue;
+				lineSubtotal = computeDiscountedBundleSubtotal(String(b._id), (Number(b.bundlePrice) || 0) + rc.extra, l.qty, campaigns, now).lineSubtotal;
 			}
 			const key = channelGroupKey(channels);
 			const g = groups.get(key) || { channels, lines: [] };
@@ -1018,7 +1191,7 @@ router.get('/public/bundles', async (req, res) => {
 		const list = await StoreBundle.find({ published: true, isActive: true })
 			.sort({ sortOrder: 1, createdAt: -1 })
 			.limit(50)
-			.select('slug name shortDescription bundlePrice thumbnail items sortOrder')
+			.select('slug name shortDescription bundlePrice thumbnail items sortOrder addVariantPriceDiff')
 			.lean();
 		const now = new Date();
 		const items = await Promise.all(list.map(async (b: any) => ({ ...b, ...(await describeBundle(req, b, now)) })));
@@ -1128,7 +1301,7 @@ router.get('/public/products/:slug', async (req, res) => {
 		const inBundles: any[] = await StoreBundle.find({ published: true, isActive: true, 'items.productId': (p as any)._id })
 			.sort({ sortOrder: 1, createdAt: -1 })
 			.limit(6)
-			.select('slug name shortDescription bundlePrice thumbnail items')
+			.select('slug name shortDescription bundlePrice thumbnail items addVariantPriceDiff')
 			.lean();
 		const bundles = (await Promise.all(inBundles.map(async (b) => ({ ...b, ...(await describeBundle(req, b, now)) })))).filter(
 			(b) => b.available,
@@ -1358,6 +1531,10 @@ router.put('/admin/settings', authenticate, requireTokoManage, async (req, res) 
 			update.paymentChannels = r.channels;
 		}
 		if (body.dp !== undefined) update.dp = normalizeDpSettingsInput(body.dp);
+		if (body.unpaidAutoCancelDays !== undefined) {
+			update.unpaidAutoCancelDays = Math.max(0, Math.min(30, Math.floor(Number(body.unpaidAutoCancelDays) || 0)));
+		}
+		if (body.notifyBuyerEmail !== undefined) update.notifyBuyerEmail = !!body.notifyBuyerEmail;
 		const legacyOnly =
 			Array.isArray(body.whatsappAdmins) &&
 			body.whatsappAdmins.length === 0 &&
@@ -1582,7 +1759,7 @@ router.post('/admin/bundles', authenticate, requireTokoManage, async (req, res) 
 		}
 		const itemsIn = Array.isArray(b.items) ? b.items : [];
 		if (!itemsIn.length) return res.status(400).json({ message: 'Pilih isi bundling' });
-		const items: { productId: mongoose.Types.ObjectId; qty: number; variantId: string }[] = [];
+		const items: { productId: mongoose.Types.ObjectId; qty: number; variantId: string; variantChoice: boolean }[] = [];
 		for (const row of itemsIn) {
 			if (!row || typeof row !== 'object') continue;
 			const pid = (row as any).productId;
@@ -1592,10 +1769,14 @@ router.post('/admin/bundles', authenticate, requireTokoManage, async (req, res) 
 			if (!p) continue;
 			if (!p.published) return res.status(400).json({ message: `Produk belum terbit: ${p.name}` });
 			const variantId = String((row as any).variantId || '').slice(0, 40);
-			if (hasVariants(p) && !findVariant(p, variantId)) {
+			const choose = variantId === '__choose' || (row as any).variantChoice === true;
+			if (choose && !activeVariants(p).length) {
+				return res.status(400).json({ message: `${p.name} tidak punya varian untuk dipilih pembeli` });
+			}
+			if (!choose && hasVariants(p) && !findVariant(p, variantId)) {
 				return res.status(400).json({ message: `Pilih varian untuk ${p.name} di isi paket` });
 			}
-			items.push({ productId: p._id as any, qty: q, variantId: hasVariants(p) ? variantId : '' });
+			items.push({ productId: p._id as any, qty: q, variantId: choose || !hasVariants(p) ? '' : variantId, variantChoice: choose });
 		}
 		if (!items.length) return res.status(400).json({ message: 'Tidak ada item valid' });
 		const maxSort = (await StoreBundle.findOne().sort({ sortOrder: -1 }).select('sortOrder').lean()) as {
@@ -1610,6 +1791,7 @@ router.post('/admin/bundles', authenticate, requireTokoManage, async (req, res) 
 			items,
 			weightGramsOverride: b.weightGramsOverride != null ? Math.max(1, Math.floor(Number(b.weightGramsOverride))) : null,
 			isFreeShipping: !!b.isFreeShipping,
+			addVariantPriceDiff: !!b.addVariantPriceDiff,
 			published: !!b.published,
 			isActive: b.isActive !== false,
 			thumbnail: safeBundleThumb(b.thumbnail),
@@ -1642,7 +1824,7 @@ router.patch('/admin/bundles/:id', authenticate, requireTokoManage, async (req, 
 		}
 		if (b.items !== undefined) {
 			const itemsIn = Array.isArray(b.items) ? b.items : [];
-			const items: { productId: mongoose.Types.ObjectId; qty: number; variantId: string }[] = [];
+			const items: { productId: mongoose.Types.ObjectId; qty: number; variantId: string; variantChoice: boolean }[] = [];
 			for (const row of itemsIn) {
 				if (!row || typeof row !== 'object') continue;
 				const pid = (row as any).productId;
@@ -1652,14 +1834,19 @@ router.patch('/admin/bundles/:id', authenticate, requireTokoManage, async (req, 
 				if (!p) continue;
 				if (!p.published) return res.status(400).json({ message: `Produk belum terbit: ${p.name}` });
 				const variantId = String((row as any).variantId || '').slice(0, 40);
-				if (hasVariants(p) && !findVariant(p, variantId)) {
+				const choose = variantId === '__choose' || (row as any).variantChoice === true;
+				if (choose && !activeVariants(p).length) {
+					return res.status(400).json({ message: `${p.name} tidak punya varian untuk dipilih pembeli` });
+				}
+				if (!choose && hasVariants(p) && !findVariant(p, variantId)) {
 					return res.status(400).json({ message: `Pilih varian untuk ${p.name} di isi paket` });
 				}
-				items.push({ productId: p._id as any, qty: q, variantId: hasVariants(p) ? variantId : '' });
+				items.push({ productId: p._id as any, qty: q, variantId: choose || !hasVariants(p) ? '' : variantId, variantChoice: choose });
 			}
 			if (items.length) doc.items = items as any;
 		}
 		if (b.thumbnail !== undefined) doc.thumbnail = safeBundleThumb(b.thumbnail);
+		if (b.addVariantPriceDiff !== undefined) doc.addVariantPriceDiff = !!b.addVariantPriceDiff;
 		if (b.published !== undefined) doc.published = !!b.published;
 		if (b.isActive !== undefined) doc.isActive = !!b.isActive;
 		if (b.isFreeShipping !== undefined) doc.isFreeShipping = !!b.isFreeShipping;
@@ -2117,6 +2304,42 @@ router.get('/admin/orders', authenticate, requireTokoManage, async (req, res) =>
 	}
 });
 
+/**
+ * Admin menandai pesanan Dibayar (dst.) tanpa memverifikasi bukti satu per satu: bukti yang masih
+ * menunggu dianggap terverifikasi, sisa tagihan dicatat sebagai pembayaran manual, sehingga
+ * paymentStatus=paid, sisa=0, dan Excel/Sheet konsisten.
+ */
+function settleAsPaidByAdmin(order: any, who: string) {
+	const now = new Date();
+	const payments: any[] = (order.payments || []).map((p: any) => ({ ...p }));
+	for (const p of payments) {
+		if (p.status === 'submitted') {
+			p.status = 'verified';
+			p.verifiedBy = who;
+			p.verifiedAt = now;
+			p.rejectReason = 'otomatis: status pesanan ditandai Dibayar oleh admin';
+		}
+	}
+	const st = derivePaymentState({ ...order, payments });
+	if (st.balanceDue > 0) {
+		payments.push({
+			id: `pay_${crypto.randomBytes(6).toString('hex')}`,
+			kind: st.amountPaid > 0 ? 'balance' : 'full',
+			amount: st.balanceDue,
+			proofUrl: '',
+			method: 'manual',
+			channelId: '',
+			uploadedAt: now,
+			status: 'verified',
+			rejectReason: 'ditandai Dibayar oleh admin (tanpa bukti di web)',
+			verifiedBy: who,
+			verifiedAt: now,
+		});
+	}
+	const fin = derivePaymentState({ ...order, payments });
+	return { payments, amountPaid: fin.amountPaid, balanceDue: fin.balanceDue, paymentStatus: fin.paymentStatus };
+}
+
 async function restoreOrderStock(StoreProduct: any, order: any) {
 	for (const d of order?.stockDecrements || []) {
 		if (!d?.productId || !(Number(d.qty) > 0)) continue;
@@ -2158,6 +2381,19 @@ router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (r
 			return res.status(400).json({ message: 'Status tidak valid' });
 		}
 		const set: Record<string, unknown> = { status, updatedAt: new Date() };
+		const who = String((req.user as any)?.name || (req.user as any)?.username || 'admin');
+		// Lunas tidak boleh "mundur" ke Menunggu/Dikonfirmasi (untuk membatalkan pakai status Dibatalkan)
+		if (current.paymentStatus === 'paid' && ['pending', 'confirmed'].includes(status) && current.status !== status) {
+			return res.status(400).json({ message: 'Pesanan sudah lunas — tidak bisa dikembalikan ke Menunggu/Dikonfirmasi. Pakai "Dibatalkan" bila perlu.' });
+		}
+		// Admin menandai Dibayar/Dikirim/Selesai tanpa verifikasi bukti = sah; data pembayaran disinkronkan agar konsisten
+		if (
+			['paid', 'shipped', 'completed'].includes(status) &&
+			(usesWebPayment(current) || (current.payments || []).length > 0) &&
+			!['paid', 'refunded'].includes(String(current.paymentStatus || 'unpaid'))
+		) {
+			Object.assign(set, settleAsPaidByAdmin(current, who));
+		}
 		if (body.paymentMethod !== undefined) {
 			const pm = String(body.paymentMethod || '');
 			if (!STORE_PAYMENT_METHODS.includes(pm)) return res.status(400).json({ message: 'Metode bayar tidak valid' });
@@ -2193,6 +2429,18 @@ router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (r
 		}
 		const order = await StoreOrder.findOneAndUpdate({ orderNo }, { $set: set }, { new: true }).lean();
 		queueSheetSync(req, orderNo, { stock: status === 'cancelled' || current.status === 'cancelled' });
+		if (status !== current.status) {
+			const kindByStatus: Record<string, StoreEmailKind> = {
+				confirmed: 'status_confirmed',
+				preorder: 'status_preorder',
+				paid: 'status_paid',
+				shipped: 'status_shipped',
+				completed: 'status_completed',
+				cancelled: 'cancelled',
+			};
+			const k = kindByStatus[status];
+			if (k) sendBuyerEmail(req, orderNo, k, k === 'cancelled' ? { cancelledBy: 'admin' } : {});
+		}
 		res.json(order);
 	} catch (e) {
 		console.error(e);
@@ -2286,6 +2534,7 @@ router.post('/orders/:orderNo/payment-proof', storeProofUploadRateLimiter, (req,
 			order.updatedAt = new Date();
 			await order.save();
 			queueSheetSync(req, orderNo);
+			sendBuyerEmail(req, orderNo, 'proof_received');
 			notifyStoreAdmins(req, 'store_order', {
 				title: `Bukti bayar ${orderNo}`,
 				description: `${order.customerName} mengirim bukti ${st.nextKind === 'dp' ? 'DP' : st.nextKind === 'balance' ? 'pelunasan' : 'pembayaran'} — cek & verifikasi`,
@@ -2360,6 +2609,7 @@ router.post('/orders/:orderNo/cancel', storeOrderActionRateLimiter, async (req, 
 			order.adminNote = `${order.adminNote ? `${order.adminNote}\n` : ''}Dibatalkan pembeli${reason ? `: ${reason}` : ''}`.slice(0, 1000);
 			await order.save();
 			queueSheetSync(req, orderNo, { stock: true });
+			sendBuyerEmail(req, orderNo, 'cancelled', { cancelledBy: 'buyer', reason });
 			notifyStoreAdmins(req, 'store_order', {
 				title: `Pesanan ${orderNo} dibatalkan pembeli`,
 				description: reason || `${order.customerName} membatalkan sebelum membayar`,
@@ -2372,6 +2622,7 @@ router.post('/orders/:orderNo/cancel', storeOrderActionRateLimiter, async (req, 
 		order.cancelRequestedAt = new Date();
 		order.cancelRequestReason = reason;
 		await order.save();
+		sendBuyerEmail(req, orderNo, 'cancel_requested');
 		notifyStoreAdmins(req, 'store_order', {
 			title: `Permintaan batal ${orderNo}`,
 			description: `${order.customerName} (${order.customerPhone}) minta pembatalan${reason ? `: ${reason}` : ''} — pesanan sudah ada pembayaran`,
@@ -2382,6 +2633,24 @@ router.post('/orders/:orderNo/cancel', storeOrderActionRateLimiter, async (req, 
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal memproses pembatalan' });
+	}
+});
+
+/** Pembeli menambahkan / mengganti email pesanannya agar kabar status dikirim ke sana. */
+router.post('/orders/:orderNo/email', storeOrderActionRateLimiter, async (req, res) => {
+	try {
+		const orderNo = String(req.params.orderNo || '').trim();
+		const order = await findOwnedOrder(req, res, orderNo);
+		if (!order) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+		const email = normalizeEmail((req.body as any)?.email);
+		if (!EMAIL_RE.test(email)) return res.status(400).json({ message: 'Format email tidak valid' });
+		order.customerEmail = email;
+		await order.save();
+		sendBuyerEmail(req, orderNo, 'email_added');
+		res.json(stripInvoiceTokenFromOrder(order.toObject()));
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal menyimpan email' });
 	}
 });
 
@@ -2396,6 +2665,11 @@ router.patch('/admin/orders/:orderNo/payments/:paymentId', authenticate, require
 		if (!pay) return res.status(404).json({ message: 'Pembayaran tidak ditemukan' });
 		const action = String(req.body?.action || '');
 		const who = String((req.user as any)?.name || (req.user as any)?.username || 'admin');
+		// Pesanan yang sudah lunas tidak bisa "mundur" ke tahap verifikasi; bukti yang sudah diputuskan tidak diproses dua kali
+		if (order.paymentStatus === 'paid' || order.paymentStatus === 'refunded') {
+			return res.status(409).json({ message: 'Pesanan sudah lunas / selesai dibayar — verifikasi tidak bisa diubah lagi' });
+		}
+		if (pay.status !== 'submitted') return res.status(409).json({ message: 'Bukti ini sudah diproses' });
 		if (action === 'verify') {
 			// Admin boleh mengoreksi nominal sesuai uang yang benar-benar masuk
 			if (req.body?.amount !== undefined) {
@@ -2421,6 +2695,8 @@ router.patch('/admin/orders/:orderNo/payments/:paymentId', authenticate, require
 		applyDerivedPayment(order);
 		await order.save();
 		queueSheetSync(req, orderNo);
+		if (action === 'verify') sendBuyerEmail(req, orderNo, 'payment_verified', { verifiedKind: pay.kind, verifiedAmount: pay.amount });
+		else sendBuyerEmail(req, orderNo, 'payment_rejected', { reason: pay.rejectReason });
 		res.json(order.toObject());
 	} catch (e) {
 		console.error(e);
@@ -2435,6 +2711,7 @@ router.post('/admin/orders/:orderNo/payments', authenticate, requireTokoManage, 
 		const orderNo = String(req.params.orderNo || '').trim();
 		const order: any = await StoreOrder.findOne({ orderNo });
 		if (!order) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+		if (order.paymentStatus === 'paid') return res.status(409).json({ message: 'Pesanan sudah lunas' });
 		const amount = Math.round(Number(req.body?.amount));
 		if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: 'Nominal tidak valid' });
 		const st = derivePaymentState(order);
@@ -2456,6 +2733,7 @@ router.post('/admin/orders/:orderNo/payments', authenticate, requireTokoManage, 
 		applyDerivedPayment(order);
 		await order.save();
 		queueSheetSync(req, orderNo);
+		sendBuyerEmail(req, orderNo, 'payment_verified', { verifiedKind: kind, verifiedAmount: amount });
 		res.json(order.toObject());
 	} catch (e) {
 		console.error(e);
@@ -2754,11 +3032,15 @@ router.get('/cart', async (req, res) => {
 				const b = await StoreBundle.findById(row.bundleId || null).lean();
 				if (!b || !b.published || !b.isActive) continue;
 				const cur = defCur;
-				const pr = computeDiscountedBundleSubtotal(String(b._id), b.bundlePrice, qty, campaigns, now);
+				const sels = ((row as any).selections || []) as BundleSelection[];
+				const rc = await resolveBundleComponents(StoreProduct, b, sels);
+				if (!rc.ok) continue;
+				const pr = computeDiscountedBundleSubtotal(String(b._id), (Number(b.bundlePrice) || 0) + rc.extra, qty, campaigns, now);
 				const unitPrice = pr.lineSubtotal / qty;
 				items.push({
 					lineKind: 'bundle',
-					lineKey: ensureCartLineKey({ ...row, lineKind: 'bundle', bundleId: b._id }),
+					selections: sels,
+					lineKey: bundleLineKey(b._id, sels),
 					bundleId: String(b._id),
 					slug: b.slug,
 					name: b.name,
@@ -2770,8 +3052,15 @@ router.get('/cart', async (req, res) => {
 					currency: cur,
 					thumbnail: b.thumbnail || '',
 					qty,
-					stockAvailable: await maxBundleQty(req, b, now),
-					components: (await describeBundle(req, b, now)).components,
+					stockAvailable: await maxBundleQty(req, b, now, sels),
+					components: rc.comps.map((c) => ({
+						productId: String(c.product._id),
+						slug: c.product.slug,
+						name: c.product.name,
+						variantLabel: c.variant?.label || '',
+						qty: c.qty,
+						thumbnail: c.variant?.thumbnail || c.product.thumbnail || '',
+					})),
 				});
 			} else {
 				const p0 = await StoreProduct.findById(row.productId).lean();
@@ -2921,16 +3210,15 @@ router.post('/cart/bundles', storeCartRateLimiter, async (req, res) => {
 		const settings: any = await ensureSettings(req);
 		const defCur = normalizeStoreCurrency(settings?.defaultCurrency);
 		const cart = doc.cartItems || [];
-		for (const it of b.items || []) {
-			const p = await StoreProduct.findById(it.productId).lean();
-			const problem = bundleItemProblem(p, String(it.variantId || ''));
-			if (problem) return res.status(400).json({ message: problem, error: { code: 'BUNDLE_INVALID' } });
-		}
-		const cap = await maxBundleQty(req, b, now);
+		const selections = normalizeBundleSelections(req.body?.selections);
+		const resolved = await resolveBundleComponents(StoreProduct, b, selections);
+		if (!resolved.ok) return res.status(400).json({ message: resolved.message, error: { code: resolved.code } });
+		const cap = await maxBundleQty(req, b, now, selections);
 		if (cap < 1) {
 			return res.status(400).json({ message: 'Stok isi bundling habis', error: { code: 'BUNDLE_OUT_OF_STOCK' } });
 		}
-		const idx = cart.findIndex((c: any) => String(c.bundleId) === String(b._id));
+		const lineKey = bundleLineKey(b._id, selections);
+		const idx = cart.findIndex((c: any) => c.lineKind === 'bundle' && String(c.bundleId) === String(b._id) && String(c.lineKey || `b:${c.bundleId}`) === lineKey);
 		const mergedQty = idx >= 0 ? cart[idx].qty + qty : qty;
 		const nextQty = Math.max(1, Math.min(mergedQty, cap));
 		if (nextQty < mergedQty) {
@@ -2941,14 +3229,16 @@ router.post('/cart/bundles', storeCartRateLimiter, async (req, res) => {
 			(cart[idx] as any).bundleId = b._id;
 			(cart[idx] as any).productId = null;
 			cart[idx].qty = nextQty;
-			(cart[idx] as any).lineKey = `b:${b._id}`;
+			(cart[idx] as any).lineKey = lineKey;
+			(cart[idx] as any).selections = selections;
 		} else {
 			cart.push({
 				lineKind: 'bundle',
 				bundleId: b._id,
 				productId: null,
 				qty: nextQty,
-				lineKey: `b:${b._id}`,
+				lineKey,
+				selections,
 			} as any);
 		}
 		doc.cartItems = cart;
@@ -3027,21 +3317,20 @@ router.patch('/cart/bundles/:bundleId', storeCartRateLimiter, async (req, res) =
 		const { doc } = await getOrCreateGuestSession(req, res);
 		const qtyRaw = parseInt(String(req.body?.qty ?? '1'), 10);
 		const cart = doc.cartItems || [];
-		const idx = cart.findIndex(
-			(c: any) => c.lineKind === 'bundle' || (c.bundleId && String(c.bundleId) === req.params.bundleId),
-		);
+		const wantKey = String(req.query.lineKey || '');
+		const isRow = (c: any) =>
+			c.lineKind === 'bundle' && String(c.bundleId) === String(req.params.bundleId) && (!wantKey || String(c.lineKey || `b:${c.bundleId}`) === wantKey);
+		const idx = cart.findIndex(isRow);
 		if (idx < 0) return res.status(404).json({ message: 'Item tidak ada di keranjang' });
 		if (!Number.isFinite(qtyRaw) || qtyRaw < 1) {
-			doc.cartItems = cart.filter(
-				(c: any) => String(c.bundleId) !== String(req.params.bundleId),
-			);
+			doc.cartItems = cart.filter((c: any) => !isRow(c));
 			await doc.save();
 			return res.json({ ok: true });
 		}
 		const b = await StoreBundle.findById(req.params.bundleId).lean();
 		if (!b || !b.published) return res.status(400).json({ message: 'Bundling tidak tersedia' });
 		const now = new Date();
-		const cap = await maxBundleQty(req, b, now);
+		const cap = await maxBundleQty(req, b, now, ((cart[idx] as any).selections || []) as BundleSelection[]);
 		const nextQty = Math.max(1, Math.min(qtyRaw, cap));
 		if (nextQty < qtyRaw) {
 			return res.status(400).json({ message: `Jumlah maksimum: ${cap}` });
@@ -3060,8 +3349,10 @@ router.delete('/cart/bundles/:bundleId', storeCartRateLimiter, async (req, res) 
 	try {
 		const { GuestStoreSession } = resolveModels(req);
 		const { doc } = await getOrCreateGuestSession(req, res);
+		const wantKey = String(req.query.lineKey || '');
 		doc.cartItems = (doc.cartItems || []).filter(
-			(c: any) => String(c.bundleId) !== String(req.params.bundleId),
+			(c: any) =>
+				!(c.lineKind === 'bundle' && String(c.bundleId) === String(req.params.bundleId) && (!wantKey || String(c.lineKey || `b:${c.bundleId}`) === wantKey)),
 		);
 		await doc.save();
 		res.json({ ok: true });
@@ -3079,6 +3370,7 @@ router.post('/cart/draft', storeCartRateLimiter, async (req, res) => {
 		doc.checkoutDraft = {
 			customerName: String(b.customerName || ''),
 			customerPhone: String(b.customerPhone || ''),
+			customerEmail: normalizeEmail(b.customerEmail),
 			fulfillment: b.fulfillment === 'delivery' ? 'delivery' : b.fulfillment === 'pickup' ? 'pickup' : '',
 			shippingAddress: String(b.shippingAddress || ''),
 			destinationVillageCode: String(b.destinationVillageCode || '').trim(),
@@ -3177,6 +3469,7 @@ async function createCheckoutOrder(
 	const sh = normalizeStoreShippingInDoc(settings);
 	const customerName = String(body.customerName || '').trim();
 	const customerPhone = String(body.customerPhone || '').trim();
+	const customerEmail = normalizeEmail(body.customerEmail);
 	const fulfillment = body.fulfillment === 'delivery' ? 'delivery' : 'pickup';
 	const shippingAddress = String(body.shippingAddress || '').trim();
 	const destinationVillageCode = String(body.destinationVillageCode || '').trim();
@@ -3255,7 +3548,9 @@ async function createCheckoutOrder(
 			const b = await StoreBundle.findById(l.bundleId).lean();
 			if (!b || !b.published || !b.isActive) continue;
 			const qty = l.qty;
-			const pr = computeDiscountedBundleSubtotal(String(b._id), b.bundlePrice, qty, campaigns, now);
+			const rc = await resolveBundleComponents(StoreProduct, b, (l as any).selections || []);
+			if (!rc.ok) return checkoutFail(400, { message: `${b.name}: ${rc.message}`, error: { code: rc.code } });
+			const pr = computeDiscountedBundleSubtotal(String(b._id), (Number(b.bundlePrice) || 0) + rc.extra, qty, campaigns, now);
 			for (const a of pr.applied) {
 				if (a.id) campaignIds.add(a.id);
 			}
@@ -3263,18 +3558,14 @@ async function createCheckoutOrder(
 			subtotal += pr.lineSubtotal;
 			planLines.push({ lineSubtotal: pr.lineSubtotal, qty, dpRule: null });
 			const comps: { name: string; slug: string; qty: number }[] = [];
-			for (const it of b.items || []) {
-				const p = await StoreProduct.findById(it.productId).lean();
-				const problem = bundleItemProblem(p, String(it.variantId || ''));
-				if (problem) return checkoutFail(400, { message: `${b.name}: ${problem}` });
-				const v = findVariant(p, it.variantId);
-				const need = Math.max(1, Math.floor(Number(it.qty) || 1)) * qty;
-				comps.push({ name: `${p.name}${v ? ` (${v.label})` : ''}`, slug: p.slug, qty: need });
+			for (const c of rc.comps) {
+				const need = c.qty * qty;
+				comps.push({ name: `${c.product.name}${c.variant ? ` (${c.variant.label})` : ''}`, slug: c.product.slug, qty: need });
 				stockOps.push({
-					id: p._id,
-					variantId: v?.id || '',
+					id: c.product._id,
+					variantId: c.variant?.id || '',
 					qty: need,
-					skip: shouldSkipStockDecrementForPreOrder(p, now),
+					skip: shouldSkipStockDecrementForPreOrder(c.product, now),
 				});
 			}
 			orderLines.push({
@@ -3413,6 +3704,7 @@ async function createCheckoutOrder(
 		fulfillment,
 		customerName,
 		customerPhone,
+		customerEmail,
 		shippingAddress: fulfillment === 'delivery' ? shippingAddress : '',
 		storeAddressSnapshot: storeAddr,
 		whatsappPhoneUsed: waUsed,
@@ -3460,7 +3752,7 @@ function removeCheckedOutFromCart(sessDoc: any, lines: CartLineInput[]) {
 							String(c.productId) === String(l.productId) &&
 							String(c.variantId || '') === String((l as any).variantId || ''),
 					)
-				: cart.findIndex((c: any) => c.lineKind === 'bundle' && c.bundleId && String(c.bundleId) === String(l.bundleId));
+				: cart.findIndex((c: any) => c.lineKind === 'bundle' && c.bundleId && String(c.bundleId) === String(l.bundleId) && String(c.lineKey || `b:${c.bundleId}`) === bundleLineKey(l.bundleId, (l as any).selections || []));
 		if (idx < 0) continue;
 		cart[idx].qty = Math.max(0, Math.floor(Number(cart[idx].qty) || 0) - l.qty);
 		if (cart[idx].qty <= 0) cart.splice(idx, 1);
@@ -3480,6 +3772,11 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 		const fulfillment = body.fulfillment === 'delivery' ? 'delivery' : 'pickup';
 		if (!customerName || !customerPhone) {
 			return res.status(400).json({ message: 'Nama dan nomor WA wajib' });
+		}
+		// Email opsional, tapi bila diisi harus valid
+		const emailIn = normalizeEmail(body.customerEmail);
+		if (emailIn && !EMAIL_RE.test(emailIn)) {
+			return res.status(400).json({ message: 'Format email tidak valid', error: { code: 'EMAIL_INVALID' } });
 		}
 		if (fulfillment === 'delivery' && !String(body.shippingAddress || '').trim()) {
 			return res.status(400).json({ message: 'Alamat pengiriman wajib untuk pengiriman' });
@@ -3570,6 +3867,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 
 		for (const c of created) {
 			const o = c.order;
+			sendBuyerEmail(req, o.orderNo, 'order_created');
 			queueSheetSync(req, o.orderNo, { stock: true });
 			notifyStoreAdmins(req, 'store_order', {
 				title: `Pesanan baru ${o.orderNo}${o.paymentPlan === 'dp' ? ' (DP)' : ''}`,
@@ -3987,6 +4285,87 @@ router.patch('/admin/chats/:id', authenticate, requireStoreDashboard, async (req
  * Pengingat harian (cron): pesanan berstatus Menunggu > 24 jam → notifikasi admin toko.
  * `ctx` meniru bagian `req` yang dipakai resolveModels/notifyStoreAdmins (main atau tenant).
  */
+/**
+ * Pemeliharaan pesanan belum dibayar (dijalankan tiap jam, main + komunitas):
+ * 1) pengingat email 24 jam sebelum batas bayar; 2) batalkan otomatis setelah N hari & kembalikan stok;
+ * 3) pengingat pelunasan DP (≤3 hari sebelum tenggat).
+ * Hanya pesanan alur bayar-di-web yang belum ada bukti diproses; DP yang sudah masuk tidak dibatalkan otomatis
+ * (kebijakan DP hangus ditentukan tim).
+ */
+export async function runStoreUnpaidMaintenance(ctx: { tenantModels?: any; tenantDbName?: string; tenantSlug?: string }): Promise<{ cancelled: number; reminded: number }> {
+	const req: any = { tenantModels: ctx.tenantModels, isTenantRequest: !!ctx.tenantModels, tenantDbName: ctx.tenantDbName, tenantSlug: ctx.tenantSlug || '' };
+	const { StoreOrder, StoreProduct } = resolveModels(req);
+	const settings: any = await ensureSettings(req);
+	const now = Date.now();
+	let cancelled = 0;
+	let reminded = 0;
+	const days = autoCancelDays(settings);
+
+	if (days > 0) {
+		const base = {
+			status: { $in: ['pending', 'confirmed'] },
+			paymentStatus: { $in: ['unpaid', 'rejected'] },
+			cancelRequestedAt: null,
+			'paymentChannelsSnapshot.0': { $exists: true },
+		};
+		const inFlight = (o: any) =>
+			(o.payments || []).some((p: any) => p.status === 'submitted' || p.status === 'verified') ||
+			(o.payments || []).some((p: any) => p.status === 'rejected' && p.verifiedAt && now - new Date(p.verifiedAt).getTime() < 86_400_000);
+
+		// 1) pengingat 24 jam sebelum dibatalkan
+		const remindFrom = new Date(now - days * 86_400_000);
+		const remindTo = new Date(now - Math.max(0, days * 24 - 24) * 3_600_000);
+		const toRemind: any[] = await StoreOrder.find({ ...base, createdAt: { $gt: remindFrom, $lte: remindTo } }).limit(500).lean();
+		for (const o of toRemind) {
+			if (inFlight(o)) continue;
+			sendBuyerEmail(req, o.orderNo, 'remind_cancel', {}, 'remind_cancel');
+			reminded++;
+		}
+
+		// 2) batalkan otomatis
+		const stale: any[] = await StoreOrder.find({ ...base, createdAt: { $lte: remindFrom } }).limit(500).lean();
+		for (const o of stale) {
+			if (inFlight(o)) continue;
+			const note = `${o.adminNote ? `${o.adminNote}
+` : ''}[${new Date().toLocaleString('id-ID', { timeZone: 'Asia/Jakarta' })}] Dibatalkan otomatis: belum dibayar > ${days} hari`.slice(-1000);
+			// atomik: hanya bila masih menunggu pembayaran (hindari balapan dengan upload bukti / admin)
+			const before: any = await StoreOrder.findOneAndUpdate(
+				{ _id: o._id, status: { $in: ['pending', 'confirmed'] }, paymentStatus: { $in: ['unpaid', 'rejected'] } },
+				{ $set: { status: 'cancelled', adminNote: note, stockRestoredAt: o.stockRestoredAt || new Date(), updatedAt: new Date() } },
+				{ new: false },
+			).lean();
+			if (!before) continue;
+			if (!before.stockRestoredAt) await restoreOrderStock(StoreProduct, before);
+			cancelled++;
+			sendBuyerEmail(req, o.orderNo, 'cancelled', { cancelledBy: 'auto' });
+			queueSheetSync(req, o.orderNo, { stock: true });
+		}
+	}
+
+	// 3) pengingat pelunasan DP
+	const soon = new Date(now + 3 * 86_400_000);
+	const dpDue: any[] = await StoreOrder.find({
+		status: { $nin: ['cancelled', 'completed'] },
+		paymentPlan: 'dp',
+		paymentStatus: 'dp_verified',
+		settleBy: { $ne: null, $lte: soon },
+	}).limit(500).lean();
+	for (const o of dpDue) {
+		sendBuyerEmail(req, o.orderNo, 'remind_settle', {}, 'remind_settle');
+		reminded++;
+	}
+
+	if (cancelled > 0) {
+		notifyStoreAdmins(req, 'store_order', {
+			title: `${cancelled} pesanan dibatalkan otomatis`,
+			description: `Belum dibayar lebih dari ${days} hari; stok sudah dikembalikan.`,
+			actionUrl: '/dashboard/toko?tab=orders',
+			tag: 'toko',
+		});
+	}
+	return { cancelled, reminded };
+}
+
 export async function remindPendingStoreOrders(ctx: {
 	tenantModels?: any;
 	tenantDbName?: string;

@@ -90,6 +90,7 @@ export function StoreOrderAdminCard({ order: o, currency, saving, onPatch, onDel
 					<p className="mt-0.5 text-muted-foreground">
 						{new Date(o.createdAt).toLocaleString('id-ID')} · {o.customerName} · {o.customerPhone}
 						{o.whatsappAdminName ? ` · admin ${o.whatsappAdminName}` : ''}
+						{o.customerEmail ? ` · ${o.customerEmail}` : ''}
 					</p>
 					<p className="text-muted-foreground">
 						{o.fulfillment === 'delivery' ? `Diantar: ${o.shippingAddress || '-'}` : 'Ambil di tempat'}

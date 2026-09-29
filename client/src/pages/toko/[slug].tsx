@@ -6,6 +6,7 @@ import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa
 import { StoreProductPaymentInfo } from '@/components/toko/store-product-payment-info';
 import { StoreBundleCard } from '@/components/toko/store-bundle-card';
 import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/toko/store-checkout-payment';
+import { EMAIL_PATTERN, StoreEmailField, readSavedBuyerEmail, saveBuyerEmail } from '@/components/toko/store-email-field';
 import { STORE_CLOSED_MESSAGE, type StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -279,6 +280,7 @@ export default function TokoProductDetailPage() {
 
 	const [buyDialogOpen, setBuyDialogOpen] = useState(false);
 	const [buyerName, setBuyerName] = useState('');
+	const [buyerEmail, setBuyerEmail] = useState(() => readSavedBuyerEmail());
 	const [buyerPhone, setBuyerPhone] = useState('');
 	const [buyerFulfillment, setBuyerFulfillment] =
 		useState<'pickup' | 'delivery'>('pickup');
@@ -308,8 +310,8 @@ export default function TokoProductDetailPage() {
 
 	const cartBundlesUrl = useApiUrl('/store/cart/bundles');
 	const addBundleMutation = useMutation({
-		mutationFn: async (vars: { bundleId: string; fromEl?: HTMLElement | null }) => {
-			await apiRequest('POST', cartBundlesUrl, { bundleId: vars.bundleId, qty: 1 });
+		mutationFn: async (vars: { bundleId: string; fromEl?: HTMLElement | null; selections?: { itemIndex: number; variantId: string }[] }) => {
+			await apiRequest('POST', cartBundlesUrl, { bundleId: vars.bundleId, qty: 1, selections: vars.selections || [] });
 		},
 		onSuccess: (_d, vars) => {
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
@@ -351,6 +353,7 @@ export default function TokoProductDetailPage() {
 				qty,
 				customerName: buyerName.trim(),
 				customerPhone: buyerPhone.trim(),
+				customerEmail: buyerEmail.trim(),
 				fulfillment: buyerFulfillment,
 				adminId: waAdminId,
 				shippingAddress:
@@ -366,6 +369,7 @@ export default function TokoProductDetailPage() {
 			return res.json() as Promise<{ whatsappUrl: string; invoiceUrl: string; payOnWeb?: boolean }>;
 		},
 		onSuccess: (data) => {
+			saveBuyerEmail(buyerEmail.trim());
 			queryClient.invalidateQueries({ queryKey: [cartUrl] });
 			queryClient.invalidateQueries({ queryKey: [myOrdersUrl] });
 			toast({
@@ -410,6 +414,10 @@ export default function TokoProductDetailPage() {
 		}
 		if (needsAdminChoice(waAdmins, waAdminId)) {
 			toast({ title: 'Pilih admin tujuan dulu', variant: 'destructive' });
+			return;
+		}
+		if (buyerEmail.trim() && !EMAIL_PATTERN.test(buyerEmail.trim())) {
+			toast({ title: 'Format email belum benar', variant: 'destructive' });
 			return;
 		}
 		if (buyPayOnWeb && !buyAcceptPolicy) {
@@ -757,7 +765,7 @@ export default function TokoProductDetailPage() {
 										price={Number(b.bundlePrice) || 0}
 										currency={defaultCur}
 										adding={addBundleMutation.isPending}
-										onAdd={(el) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el })}
+										onAdd={(el, selections) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el, selections })}
 									/>
 								))}
 							</div>
@@ -836,6 +844,7 @@ export default function TokoProductDetailPage() {
 								)}
 							</div>
 						)}
+						<StoreEmailField value={buyerEmail} onChange={setBuyerEmail} enabled={!!(storeSettings as any)?.emailNotify} />
 						<StoreWaAdminPicker admins={waAdmins} value={waAdminId} onChange={setWaAdminId} />
 						<StoreCheckoutPayment
 							preview={buyPreview}
