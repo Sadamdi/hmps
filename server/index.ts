@@ -919,6 +919,12 @@ process.on('unhandledRejection', (reason: any) => {
 		process.env.NODE_ENV === 'production',
 	);
 
+	// Thumbnail og:image untuk galeri Google Drive (embed WhatsApp dll.)
+	app.get('/api/og/drive/:fileId', async (req, res) => {
+		const { driveOgImageHandler } = await import('./services/og-meta');
+		return driveOgImageHandler(req, res);
+	});
+
 	// importantly only setup vite in development and after
 	// setting up all the other routes so the catch-all route
 	// doesn't interfere with the other routes
@@ -1019,6 +1025,8 @@ process.on('unhandledRejection', (reason: any) => {
 					/<meta\s[^>]*property="twitter:image"[^>]*>/,
 					`<meta property="twitter:image" content="${opts.ogImage}" />`,
 				);
+			// Ukuran di index.html milik logo default; untuk gambar lain hapus agar tidak salah crop
+			if (opts.ogImage !== defaultOgImage) out = out.replace(/<meta\s[^>]*property="og:image:(width|height)"[^>]*>\s*/g, '');
 			if (opts.jsonLd) {
 				const blocks = Array.isArray(opts.jsonLd)
 					? opts.jsonLd
@@ -1140,103 +1148,6 @@ process.on('unhandledRejection', (reason: any) => {
 		});
 
 		// ==================== TOKO / KATALOG SEO PRERENDER ====================
-		app.get('/toko/:slug', async (req, res, next) => {
-			try {
-				const { slug } = req.params;
-				const { StoreProduct } = await import('../db/mongodb');
-				const distPath = path.resolve(process.cwd(), 'dist', 'public');
-				const htmlPath = path.join(distPath, 'index.html');
-				if (!fs.existsSync(htmlPath)) return next();
-
-				const product: any = await StoreProduct.findOne({
-					slug,
-					published: true,
-				})
-					.select('name shortDescription thumbnail slug')
-					.lean();
-				let html = fs.readFileSync(htmlPath, 'utf-8');
-
-				if (product) {
-					const host = req.get('host') || 'localhost';
-					const proto =
-						(req.headers['x-forwarded-proto'] as string) ||
-						(req.secure ? 'https' : 'http');
-					const { seoDocumentTitle } = await import('./services/seo-sitemap');
-					const title = seoDocumentTitle(
-						String(product.name || ''),
-						'Toko Himatif',
-					);
-					const description = String(
-						product.shortDescription || product.name || 'Produk',
-					).slice(0, 160);
-					const canonicalUrl = `${proto}://${host}/toko/${product.slug}`;
-					const ogImage =
-						product.thumbnail && String(product.thumbnail).startsWith('http')
-							? product.thumbnail
-							: product.thumbnail
-								? `${proto}://${host}${product.thumbnail}`
-								: defaultOgImage;
-
-					html = html
-						.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
-						.replace(
-							/<meta\s[^>]*name="title"[^>]*>/,
-							`<meta name="title" content="${esc(title)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*name="description"[^>]*>/,
-							`<meta name="description" content="${esc(description)}" />`,
-						)
-						.replace(
-							/<link\s[^>]*rel="canonical"[^>]*>/,
-							`<link rel="canonical" href="${canonicalUrl}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:type"[^>]*>/,
-							`<meta property="og:type" content="product" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:url"[^>]*>/,
-							`<meta property="og:url" content="${canonicalUrl}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:title"[^>]*>/,
-							`<meta property="og:title" content="${esc(title)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:description"[^>]*>/,
-							`<meta property="og:description" content="${esc(description)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="og:image"[^>]*>/,
-							`<meta property="og:image" content="${ogImage}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="twitter:url"[^>]*>/,
-							`<meta property="twitter:url" content="${canonicalUrl}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="twitter:title"[^>]*>/,
-							`<meta property="twitter:title" content="${esc(title)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="twitter:description"[^>]*>/,
-							`<meta property="twitter:description" content="${esc(description)}" />`,
-						)
-						.replace(
-							/<meta\s[^>]*property="twitter:image"[^>]*>/,
-							`<meta property="twitter:image" content="${ogImage}" />`,
-						);
-				}
-
-				res.set('Content-Type', 'text/html');
-				return res.send(html);
-			} catch (err) {
-				console.log('Toko prerender error, falling back to SPA:', err);
-				return next();
-			}
-		});
-
 		// ==================== PAGE META INJECTION (per halaman untuk embed & mesin pencari) ====================
 		// Setiap halaman punya meta sendiri (og:*, twitter:*, canonical) — terbaca semua mesin pencari
 		const injectPageMeta = (
@@ -1247,6 +1158,10 @@ process.on('unhandledRejection', (reason: any) => {
 				canonicalUrl: string;
 				ogImage?: string;
 				robots?: string;
+				ogType?: string;
+				ogImageAlt?: string;
+				/** Tag tambahan di <head> (sudah di-escape pemanggil) */
+				extraHead?: string;
 			},
 		) => {
 			const esc = (s: string) =>
@@ -1255,7 +1170,7 @@ process.on('unhandledRejection', (reason: any) => {
 					.replace(/"/g, '&quot;')
 					.replace(/</g, '&lt;')
 					.replace(/>/g, '&gt;');
-			const { title, description, canonicalUrl, ogImage, robots } = opts;
+			const { title, description, canonicalUrl, ogImage, robots, ogType, ogImageAlt, extraHead } = opts;
 			const img = ogImage || defaultOgImage;
 			let out = html
 				.replace(/<title>[\s\S]*?<\/title>/, `<title>${esc(title)}</title>`)
@@ -1273,7 +1188,7 @@ process.on('unhandledRejection', (reason: any) => {
 				)
 				.replace(
 					/<meta\s[^>]*property="og:type"[^>]*>/,
-					`<meta property="og:type" content="website" />`,
+					`<meta property="og:type" content="${esc(ogType || 'website')}" />`,
 				)
 				.replace(
 					/<meta\s[^>]*property="og:url"[^>]*>/,
@@ -1289,7 +1204,7 @@ process.on('unhandledRejection', (reason: any) => {
 				)
 				.replace(
 					/<meta\s[^>]*property="og:image"[^>]*>/,
-					`<meta property="og:image" content="${img}" />`,
+					`<meta property="og:image" content="${esc(img)}" />\n    <meta property="og:image:alt" content="${esc(ogImageAlt || title)}" />`,
 				)
 				.replace(
 					/<meta\s[^>]*property="twitter:url"[^>]*>/,
@@ -1305,8 +1220,11 @@ process.on('unhandledRejection', (reason: any) => {
 				)
 				.replace(
 					/<meta\s[^>]*property="twitter:image"[^>]*>/,
-					`<meta property="twitter:image" content="${img}" />`,
+					`<meta property="twitter:image" content="${esc(img)}" />`,
 				);
+			// Ukuran di index.html milik logo default; untuk gambar lain hapus agar tidak salah crop
+			if (img !== defaultOgImage) out = out.replace(/<meta\s[^>]*property="og:image:(width|height)"[^>]*>\s*/g, '');
+			if (extraHead) out = out.replace('</head>', `${extraHead}\n</head>`);
 			if (robots != null && robots !== '') {
 				out = out.replace(
 					/<meta\s[^>]*name="robots"[^>]*>/,
@@ -1321,6 +1239,10 @@ process.on('unhandledRejection', (reason: any) => {
 			description: string;
 			canonicalUrl: string;
 			robots?: string;
+			ogImage?: string;
+			ogType?: string;
+			ogImageAlt?: string;
+			extraHead?: string;
 			jsonLd?: Record<string, unknown>;
 		}) => {
 			return async (_req: Request, res: Response, next: NextFunction) => {
@@ -1462,13 +1384,13 @@ process.on('unhandledRejection', (reason: any) => {
 				if (isObjectId(id)) {
 					libDoc = await Library.findById(id)
 						.select(
-							'title description fullDescription images mediaKinds type published updatedAt createdAt activityDate',
+							'title description fullDescription images gdriveFileIds mediaKinds type published updatedAt createdAt activityDate',
 						)
 						.lean();
 				} else {
 					const libs = await Library.find({ published: true })
 						.select(
-							'title description fullDescription images mediaKinds type published updatedAt createdAt activityDate',
+							'title description fullDescription images gdriveFileIds mediaKinds type published updatedAt createdAt activityDate',
 						)
 						.lean();
 					libDoc = (libs || []).find(
@@ -1505,7 +1427,11 @@ process.on('unhandledRejection', (reason: any) => {
 						? libDoc.images.map(String)
 						: [];
 					const absImages = collectImageUrls(imageList, undefined, 12);
-					const ogImage = absImages[0] || defaultOgImage;
+					const { resolveLibraryOgImage } = await import('./services/og-meta');
+					const ogImage =
+						(await resolveLibraryOgImage(libDoc).catch(() => null)) ||
+						absImages.find((u) => !/drive\.google\.com|docs\.google\.com/.test(u)) ||
+						defaultOgImage;
 					const pubIso = (
 						libDoc.activityDate ||
 						libDoc.updatedAt ||
@@ -1608,19 +1534,160 @@ process.on('unhandledRejection', (reason: any) => {
 			}),
 		);
 
+		// ==================== TOKO: meta per halaman (path /toko dan path kustom, mis. /EncoderStore) ====================
+		let storeMetaCache: { at: number; base: string; label: string } | null = null;
+		const getStoreBase = async () => {
+			if (storeMetaCache && Date.now() - storeMetaCache.at < 60_000) return storeMetaCache;
+			const { StoreSettings } = await import('../db/mongodb');
+			const st: any = await StoreSettings.findOne({ key: 'default' }).select('navbarPath navbarLabel').lean();
+			const raw = String(st?.navbarPath || '/toko').trim().replace(/\/+$/, '');
+			const base = raw.startsWith('/') && raw.length > 1 ? raw : '/toko';
+			storeMetaCache = { at: Date.now(), base, label: String(st?.navbarLabel || 'Toko') };
+			return storeMetaCache;
+		};
+
+		const serveStoreMeta = async (req: Request, res: Response, next: NextFunction) => {
+			try {
+				const segs = req.path.split('/').filter(Boolean).map((x) => decodeURIComponent(x));
+				// file statis (/assets/x.js dll.) tidak perlu cek toko
+				if (!segs.length || segs.length > 3 || req.path.includes('.')) return next();
+				const { base, label } = await getStoreBase();
+				if (segs[0] !== 'toko' && segs[0].toLowerCase() !== base.slice(1).toLowerCase()) return next();
+				const canonBase = `https://himatif-encoder.com${base}`;
+				const { StoreProduct } = await import('../db/mongodb');
+				const { plainText, formatRupiah } = await import('./services/og-meta');
+				const brand = label || 'Toko Himatif';
+				const sub = segs[1] || '';
+
+				// Katalog: gambar = thumbnail produk pertama di urutan katalog
+				if (!sub) {
+					const first: any = await StoreProduct.findOne({ published: true })
+						.sort({ sortOrder: 1, createdAt: -1 })
+						.select('thumbnail')
+						.lean();
+					const count = await StoreProduct.countDocuments({ published: true });
+					return serveHtmlWithMeta({
+						title: `${brand} | Merchandise Himatif Encoder TI UIN Malang`,
+						description: `Katalog ${count} produk resmi Himatif Encoder — kaos, hoodie, topi, gantungan kunci, dan merchandise Teknik Informatika UIN Malang. Pesan langsung via WhatsApp.`,
+						canonicalUrl: canonBase,
+						ogImage: resolveOgImage(first?.thumbnail),
+						ogImageAlt: `Katalog ${brand}`,
+						jsonLd: { '@context': 'https://schema.org', '@type': 'CollectionPage', name: brand, url: canonBase },
+					})(req, res, next);
+				}
+				if (segs.length === 2 && (sub === 'cart' || sub === 'orders')) {
+					return serveHtmlWithMeta({
+						title: `${sub === 'cart' ? 'Keranjang' : 'Riwayat Pesanan'} | ${brand}`,
+						description: `${sub === 'cart' ? 'Keranjang belanja' : 'Riwayat pesanan'} ${brand} — merchandise resmi Himatif Encoder.`,
+						canonicalUrl: `${canonBase}/${sub}`,
+						robots: 'noindex, nofollow',
+					})(req, res, next);
+				}
+				// Invoice pesanan: isi pesanan tidak ditampilkan di embed
+				if (sub === 'order') {
+					return serveHtmlWithMeta({
+						title: `Invoice Pesanan | ${brand}`,
+						description: `Detail pesanan di ${brand}.`,
+						canonicalUrl: canonBase,
+						robots: 'noindex, nofollow',
+					})(req, res, next);
+				}
+				if (segs.length !== 2) return next();
+
+				const product: any = await StoreProduct.findOne({ slug: sub, published: true })
+					.select('name slug shortDescription descriptionHtml price currency thumbnail stock variants variantGroupName isPreOrder')
+					.lean();
+				if (!product) return next();
+				const currency = String(product.currency || '') || 'IDR';
+				const activeVariants = (product.variants || []).filter((v: any) => v?.active !== false);
+				const prices = [
+					Number(product.price) || 0,
+					...activeVariants
+						.map((v: any) => (v.price == null ? NaN : Number(v.price)))
+						.filter((x: number) => Number.isFinite(x)),
+				];
+				const minP = Math.min(...prices);
+				const maxP = Math.max(...prices);
+				const priceText =
+					minP === maxP ? formatRupiah(minP, currency) : `${formatRupiah(minP, currency)} – ${formatRupiah(maxP, currency)}`;
+				const variantText = activeVariants.length
+					? `${product.variantGroupName || 'Varian'}: ${activeVariants
+							.slice(0, 6)
+							.map((v: any) => v.label)
+							.join(', ')}${activeVariants.length > 6 ? ', …' : ''}`
+					: '';
+				const soldOut = activeVariants.length
+					? activeVariants.every((v: any) => Number(v.stock) === 0)
+					: Number(product.stock) === 0;
+				const desc = plainText(product.shortDescription || product.descriptionHtml, 110);
+				const description = [priceText, product.isPreOrder ? 'Pre-order' : soldOut ? 'Stok habis' : '', variantText, desc]
+					.filter(Boolean)
+					.join(' · ')
+					.slice(0, 200);
+				const canonicalUrl = `${canonBase}/${product.slug}`;
+				const ogImage = resolveOgImage(product.thumbnail);
+				const availability = soldOut ? 'OutOfStock' : product.isPreOrder ? 'PreOrder' : 'InStock';
+				return serveHtmlWithMeta({
+					title: `${product.name} — ${priceText} | ${brand}`,
+					description,
+					canonicalUrl,
+					ogImage,
+					ogType: 'product',
+					ogImageAlt: String(product.name),
+					extraHead: [
+						`<meta property="product:price:amount" content="${minP}" />`,
+						`<meta property="product:price:currency" content="${esc(currency)}" />`,
+						`<meta property="product:availability" content="${soldOut ? 'out of stock' : product.isPreOrder ? 'preorder' : 'in stock'}" />`,
+					].join('\n'),
+					jsonLd: {
+						'@context': 'https://schema.org',
+						'@type': 'Product',
+						name: String(product.name),
+						image: [ogImage],
+						description: desc || String(product.name),
+						url: canonicalUrl,
+						brand: { '@type': 'Brand', name: 'Himatif Encoder' },
+						offers: {
+							'@type': minP === maxP ? 'Offer' : 'AggregateOffer',
+							priceCurrency: currency,
+							...(minP === maxP ? { price: minP } : { lowPrice: minP, highPrice: maxP }),
+							availability: `https://schema.org/${availability}`,
+							url: canonicalUrl,
+						},
+					},
+				})(req, res, next);
+			} catch (err) {
+				console.log('Store meta error, falling back to SPA:', err);
+				return next();
+			}
+		};
+		app.get(['/:store', '/:store/:sub', '/:store/:sub/:extra'], serveStoreMeta);
+
 		app.get(
-			'/toko',
+			'/communities',
 			serveHtmlWithMeta({
-				title: 'Toko Himatif Encoder | Merchandise TI UIN Malang',
+				title: 'Komunitas Teknik Informatika UIN Malang | Himatif Encoder',
 				description:
-					'Katalog merchandise dan produk resmi Himatif Encoder — Himpunan Mahasiswa Teknik Informatika UIN Malang.',
-				canonicalUrl: 'https://himatif-encoder.com/toko',
-				jsonLd: {
-					'@context': 'https://schema.org',
-					'@type': 'CollectionPage',
-					name: 'Toko Himatif Encoder',
-					url: 'https://himatif-encoder.com/toko',
-				},
+					'Daftar komunitas dan kelompok studi mahasiswa Teknik Informatika UIN Malang yang bernaung di platform Himatif Encoder.',
+				canonicalUrl: 'https://himatif-encoder.com/communities',
+			}),
+		);
+		app.get(
+			'/instagram',
+			serveHtmlWithMeta({
+				title: 'Instagram Himatif Encoder | Feed & Reels',
+				description:
+					'Kumpulan postingan dan reels Instagram resmi Himatif Encoder — Himpunan Mahasiswa Teknik Informatika UIN Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/instagram',
+			}),
+		);
+		app.get(
+			'/youtube',
+			serveHtmlWithMeta({
+				title: 'YouTube Himatif Encoder | Video Kegiatan',
+				description:
+					'Video kegiatan, dokumentasi, dan konten YouTube resmi Himatif Encoder — Himpunan Mahasiswa Teknik Informatika UIN Malang.',
+				canonicalUrl: 'https://himatif-encoder.com/youtube',
 			}),
 		);
 
@@ -1802,6 +1869,8 @@ process.on('unhandledRejection', (reason: any) => {
 						title: pageTitle ? `${pageTitle} | ${siteName}` : siteName,
 						description,
 						canonicalUrl: `https://himatif-encoder.com/${comm.slug}${suffix}`,
+						ogImage: settings?.logoUrl ? resolveOgImage(settings.logoUrl) : undefined,
+						ogImageAlt: `Logo ${siteName}`,
 						jsonLd: {
 							'@context': 'https://schema.org',
 							'@type': 'Organization',

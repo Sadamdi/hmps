@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.35.1] - 2026-09-29
+
+### Fixed
+
+- Embed link (WhatsApp dll.) dinamis: produk toko (termasuk path kustom seperti `/EncoderStore`) tampil dengan thumbnail, nama, harga, varian, dan deskripsi singkat; katalog memakai gambar produk; galeri memakai gambar asli (thumbnail Google Drive lewat `/api/og/drive/:fileId`); komunitas memakai logonya sendiri; meta untuk `/communities`, `/instagram`, `/youtube`.
+
 ## [4.35.0] - 2026-09-29
 
 ### Added

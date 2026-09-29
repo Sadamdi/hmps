@@ -77,3 +77,6 @@ scripts/_*
 # Kunci akun layanan Google (Drive + Sheets) — JANGAN di-commit
 server/google-service-account.json
 *service-account*.json
+
+# Cache thumbnail embed (og:image) — dibuat ulang otomatis
+uploads/og-cache/
