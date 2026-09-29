@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.33.1] - 2026-09-29
+
+### Added
+
+- Export Excel toko: sheet Bulanan (pilih tahun) & Tahunan (pertumbuhan omzet); kolom Tanggal Pesanan di Item.
+
+### Fixed
+
+- Tanggal di Excel memakai jam WIB (sebelumnya UTC).
+
 ## [4.33.0] - 2026-09-29
 
 ### Added
