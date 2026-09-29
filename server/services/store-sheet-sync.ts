@@ -86,41 +86,45 @@ export type SheetOrder = {
 	items: { name: string; variantLabel?: string; qty: number; unitPrice: number }[];
 };
 
-function pesananRow(o: SheetOrder, r: number): (string | number)[] {
+/**
+ * Hanya kolom DATA yang ditulis. Kolom rumus (Jumlah/Subtotal/Total, Subtotal item, dll.) sudah ada
+ * di template dan tidak boleh ditimpa: rumus yang ditulis lewat API memakai pemisah "," sedangkan
+ * sheet ber-locale Indonesia memakai ";" → #ERROR!.
+ */
+function pesananRanges(o: SheetOrder, r: number): sheets_v4.Schema$ValueRange[] {
 	return [
-		o.orderNo,
-		wibText(o.createdAt),
-		o.customerName || '',
-		// teks agar nomor 62… tidak jadi angka ilmiah
-		o.customerPhone ? `'${o.customerPhone}` : '',
-		o.fulfillment === 'delivery' ? 'Diantar' : 'Ambil di tempat',
-		o.shippingAddress || '',
-		o.whatsappAdminName || '',
-		`=IF($A${r}="","",SUMIFS(Item!$D:$D,Item!$A:$A,$A${r}))`,
-		`=IF($A${r}="","",SUMIFS(Item!$F:$F,Item!$A:$A,$A${r}))`,
-		Number(o.shippingCost) || 0,
-		Number(o.taxAmount) || 0,
-		`=IF($A${r}="","",N(I${r})+N(J${r})+N(K${r}))`,
-		STORE_ORDER_STATUS_LABEL[o.status] || o.status,
-		STORE_PAYMENT_METHOD_LABEL[o.paymentMethod || ''] || '',
-		wibText(o.paidAt).slice(0, 10),
-		o.adminNote || '',
-		`=HYPERLINK("${o.invoiceUrl.replace(/"/g, '')}","Buka invoice")`,
+		{
+			range: `Pesanan!A${r}:G${r}`,
+			values: [[
+				o.orderNo,
+				wibText(o.createdAt),
+				o.customerName || '',
+				// teks agar nomor 62… tidak jadi angka ilmiah
+				o.customerPhone ? `'${o.customerPhone}` : '',
+				o.fulfillment === 'delivery' ? 'Diantar' : 'Ambil di tempat',
+				o.shippingAddress || '',
+				o.whatsappAdminName || '',
+			]],
+		},
+		{ range: `Pesanan!J${r}:K${r}`, values: [[Number(o.shippingCost) || 0, Number(o.taxAmount) || 0]] },
+		{
+			range: `Pesanan!M${r}:Q${r}`,
+			values: [[
+				STORE_ORDER_STATUS_LABEL[o.status] || o.status,
+				STORE_PAYMENT_METHOD_LABEL[o.paymentMethod || ''] || '',
+				wibText(o.paidAt).slice(0, 10),
+				o.adminNote || '',
+				o.invoiceUrl, // URL biasa → otomatis jadi link di Google Sheets
+			]],
+		},
 	];
 }
 
-function itemRow(orderNo: string, it: SheetOrder['items'][number], r: number): (string | number)[] {
-	return [
-		orderNo,
-		it.name,
-		it.variantLabel || '',
-		Number(it.qty) || 0,
-		Number(it.unitPrice) || 0,
-		`=IF($A${r}="","",N(D${r})*N(E${r}))`,
-		`=IF($B${r}="","",IF($C${r}="",$B${r},$B${r}&" ("&$C${r}&")"))`,
-		`=IF($A${r}="","",IFERROR(INDEX(Pesanan!$M:$M,MATCH($A${r},Pesanan!$A:$A,0)),"(No Pesanan tidak ada)"))`,
-		`=IF($A${r}="","",IFERROR(INDEX(Pesanan!$B:$B,MATCH($A${r},Pesanan!$A:$A,0)),""))`,
-	];
+function itemRange(orderNo: string, it: SheetOrder['items'][number], r: number): sheets_v4.Schema$ValueRange {
+	return {
+		range: `Item!A${r}:E${r}`,
+		values: [[orderNo, it.name, it.variantLabel || '', Number(it.qty) || 0, Number(it.unitPrice) || 0]],
+	};
 }
 
 async function readColumnA(id: string, sheet: string): Promise<string[]> {
@@ -142,9 +146,7 @@ async function upsertOrderNow(id: string, o: SheetOrder) {
 		if (idx < 0) idx = pA.length;
 	}
 	const pRow = FIRST + idx;
-	const data: sheets_v4.Schema$ValueRange[] = [
-		{ range: `Pesanan!A${pRow}:Q${pRow}`, values: [pesananRow(o, pRow)] },
-	];
+	const data: sheets_v4.Schema$ValueRange[] = pesananRanges(o, pRow);
 
 	const iA = await readColumnA(id, 'Item');
 	const already = iA.filter((v) => v === o.orderNo).length;
@@ -156,7 +158,7 @@ async function upsertOrderNow(id: string, o: SheetOrder) {
 		while (iA.slice(r0, r0 + o.items.length).some((v) => v)) r0++;
 		o.items.forEach((it, i) => {
 			const r = FIRST + r0 + i;
-			data.push({ range: `Item!A${r}:I${r}`, values: [itemRow(o.orderNo, it, r)] });
+			data.push(itemRange(o.orderNo, it, r));
 		});
 	}
 	await api.spreadsheets.values.batchUpdate({

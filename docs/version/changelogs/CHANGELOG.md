@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.34.3] - 2026-09-29
+
+### Fixed
+
+- Sinkron Google Sheet hanya menulis kolom data; rumus template tidak ditimpa (sebelumnya #ERROR! di locale Indonesia).
+
 ## [4.34.2] - 2026-09-29
 
 ### Changed
