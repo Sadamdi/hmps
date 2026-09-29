@@ -1,3 +1,5 @@
+import { StoreWaAdminsEditor } from '@/components/dashboard/store-wa-admins-editor';
+import { globalStoreWaAdmins, productStoreWaAdmins, type StoreWaAdmin } from '@shared/store-wa';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import MediaDisplay from '@/components/MediaDisplay';
@@ -425,6 +427,7 @@ export default function DashboardToko() {
 		videoUrl: '',
 		whatsappPhoneOverride: '',
 		whatsappContactNameOverride: '',
+		whatsappAdmins: [] as StoreWaAdmin[],
 		buyMessageTemplateOverride: '',
 		storeAddressOverride: '',
 		published: false,
@@ -521,6 +524,7 @@ export default function DashboardToko() {
 			videoUrl: '',
 			whatsappPhoneOverride: '',
 			whatsappContactNameOverride: '',
+			whatsappAdmins: [] as StoreWaAdmin[],
 			buyMessageTemplateOverride: '',
 			storeAddressOverride: '',
 			published: false,
@@ -560,6 +564,7 @@ export default function DashboardToko() {
 			videoUrl: p.videoUrl || '',
 			whatsappPhoneOverride: p.whatsappPhoneOverride || '',
 			whatsappContactNameOverride: p.whatsappContactNameOverride || '',
+			whatsappAdmins: productStoreWaAdmins(p),
 			buyMessageTemplateOverride: p.buyMessageTemplateOverride || '',
 			storeAddressOverride: p.storeAddressOverride || '',
 			published: !!p.published,
@@ -1419,29 +1424,22 @@ export default function DashboardToko() {
 												}
 											/>
 										</div>
-										<div className="space-y-2">
-											<Label>Nomor WhatsApp (tanpa +, contoh 62812...)</Label>
-											<Input
-												value={s.whatsappPhone}
-												onChange={(e) =>
+										<div className="space-y-2 md:col-span-2">
+											<Label>Admin WhatsApp (global)</Label>
+											<p className="text-xs text-muted-foreground">
+												Nomor tanpa +, contoh 62812…. Produk tanpa override memakai daftar ini.
+											</p>
+											<StoreWaAdminsEditor
+												value={globalStoreWaAdmins(s)}
+												onChange={(next) =>
 													setSettingsDraft((prev: any) => ({
 														...prev,
-														whatsappPhone: e.target.value,
+														whatsappAdmins: next,
+														whatsappPhone: next[0]?.phone || '',
+														whatsappContactName: next[0]?.name || '',
 													}))
 												}
-												placeholder="6281234567890"
-											/>
-										</div>
-										<div className="space-y-2">
-											<Label>Nama kontak (opsional)</Label>
-											<Input
-												value={s.whatsappContactName || ''}
-												onChange={(e) =>
-													setSettingsDraft((prev: any) => ({
-														...prev,
-														whatsappContactName: e.target.value,
-													}))
-												}
+												emptyText='Belum ada admin — semua pembeli melihat "Mohon maaf, toko sedang tutup".'
 											/>
 										</div>
 										<div className="space-y-2">
@@ -3087,27 +3085,19 @@ export default function DashboardToko() {
 							/>
 						</div>
 						<div className="grid sm:grid-cols-3 gap-4">
-							<div className="space-y-2">
-								<Label>Override WA (opsional)</Label>
-								<Input
-									value={form.whatsappPhoneOverride}
-									onChange={(e) =>
-										setForm((f) => ({ ...f, whatsappPhoneOverride: e.target.value }))
-									}
-									placeholder="6281234567890 — kosongkan untuk pakai nomor di pengaturan toko"
-								/>
-							</div>
-							<div className="space-y-2">
-								<Label>Override nama kontak (opsional)</Label>
-								<Input
-									value={form.whatsappContactNameOverride}
-									onChange={(e) =>
+							<div className="space-y-2 sm:col-span-3">
+								<Label>Override admin WhatsApp (opsional)</Label>
+								<StoreWaAdminsEditor
+									value={form.whatsappAdmins}
+									onChange={(next) =>
 										setForm((f) => ({
 											...f,
-											whatsappContactNameOverride: e.target.value,
+											whatsappAdmins: next,
+											whatsappPhoneOverride: '',
+											whatsappContactNameOverride: '',
 										}))
 									}
-									placeholder="Contoh: Admin Encoder Store"
+									emptyText="Kosong = memakai admin WhatsApp global dari pengaturan toko."
 								/>
 							</div>
 							<div className="space-y-2">

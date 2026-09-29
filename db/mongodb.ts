@@ -1462,6 +1462,19 @@ const storeSettingsSchema = new mongoose.Schema(
 		navbarPath: { type: String, default: '/toko' },
 		whatsappPhone: { type: String, default: '' },
 		whatsappContactName: { type: String, default: '' },
+		/** Multi admin WA (shared/store-wa.ts); kosong = pakai whatsappPhone lama */
+		whatsappAdmins: {
+			type: [
+				{
+					_id: false,
+					id: { type: String, required: true },
+					name: { type: String, default: '' },
+					phone: { type: String, default: '' },
+					active: { type: Boolean, default: true },
+				},
+			],
+			default: [],
+		},
 		defaultBuyMessageTemplate: {
 			type: String,
 			default:
@@ -1588,6 +1601,19 @@ const storeProductSchema = new mongoose.Schema(
 		videoType: { type: String, enum: ['youtube', 'gdrive', 'public', ''], default: '' },
 		whatsappPhoneOverride: { type: String, default: '' },
 		whatsappContactNameOverride: { type: String, default: '' },
+		/** Override admin WA produk (format sama dgn global); kosong = pakai global */
+		whatsappAdmins: {
+			type: [
+				{
+					_id: false,
+					id: { type: String, required: true },
+					name: { type: String, default: '' },
+					phone: { type: String, default: '' },
+					active: { type: Boolean, default: true },
+				},
+			],
+			default: [],
+		},
 		buyMessageTemplateOverride: { type: String, default: '' },
 		storeAddressOverride: { type: String, default: '' },
 		published: { type: Boolean, default: false },
