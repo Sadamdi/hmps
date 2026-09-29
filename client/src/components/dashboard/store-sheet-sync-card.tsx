@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckCircle2, ExternalLink, Loader2, RefreshCw, XCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
@@ -74,15 +74,13 @@ export function StoreSheetSyncCard() {
 	const failing = !!st?.lastError && (!st.lastOkAt || (st.lastErrorAt || '') > st.lastOkAt);
 
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>Rekap otomatis ke Google Sheet</CardTitle>
-				<CardDescription>
-					Setiap pesanan baru & perubahan status/pembayaran otomatis tertulis ke Google Sheet (format template rekap). Database
-					tetap sumber utama — Export Excel di tab Pesanan tetap bisa dipakai.
-				</CardDescription>
-			</CardHeader>
-			<CardContent className="space-y-3 text-sm">
+		<CollapsibleCard
+			title="Rekap otomatis ke Google Sheet"
+			description="Setiap pesanan baru & perubahan status/pembayaran otomatis tertulis ke Google Sheet (format template rekap). Database tetap sumber utama — Export Excel di tab Pesanan tetap bisa dipakai."
+			summary={failing ? 'Ada error sinkron — buka untuk detail' : link ? 'Tersambung' : 'Belum tersambung'}
+			badge={failing ? <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-xs text-rose-600">Error</span> : undefined}
+			storageKey="toko-set-sheet"
+			contentClassName="space-y-3 text-sm">
 				<ol className="list-decimal space-y-1 pl-5 text-muted-foreground">
 					<li>Buat Google Sheet dari template rekap (File → Simpan sebagai Google Spreadsheet).</li>
 					<li>
@@ -129,7 +127,6 @@ export function StoreSheetSyncCard() {
 						</a>
 					</div>
 				)}
-			</CardContent>
-		</Card>
+		</CollapsibleCard>
 	);
 }

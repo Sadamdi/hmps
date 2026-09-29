@@ -1725,6 +1725,8 @@ const storeBundleItemSchema = new mongoose.Schema(
 			required: true,
 		},
 		qty: { type: Number, required: true, min: 1 },
+		/** Varian yang dibundel (wajib bila produk punya varian) */
+		variantId: { type: String, default: '' },
 	},
 	{ _id: false },
 );

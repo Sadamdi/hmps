@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PublicSectionHeader } from '@/components/public/section-header';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { apiErrorText, apiRequest } from '@/lib/queryClient';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -99,10 +99,10 @@ export default function TokoSection() {
 			toast({ title: 'Ditambahkan ke keranjang' });
 			if (vars.fromEl) flyStoreCartIcon(vars.fromEl);
 		},
-		onError: () =>
+		onError: (e: Error) =>
 			toast({
 				title: 'Gagal menambah ke keranjang',
-				description: 'Cek stok atau coba lagi.',
+				description: apiErrorText(e, 'Cek stok atau coba lagi.'),
 				variant: 'destructive',
 			}),
 	});

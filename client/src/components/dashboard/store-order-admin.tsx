@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Download, Loader2, Trash2 } from 'lucide-react';
+import { ChevronDown, Download, Loader2, Trash2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -49,8 +51,36 @@ export function StoreOrderAdminCard({ order: o, currency, saving, onPatch, onDel
 	const [note, setNote] = useState(o.adminNote || '');
 	useEffect(() => setNote(o.adminNote || ''), [o.adminNote]);
 
+	const [open, setOpen] = useState(false);
+	const needsCheck = ['awaiting_verification', 'balance_awaiting_verification'].includes(o.paymentStatus);
+	const cancelAsked = !!o.cancelRequestedAt && o.status !== 'cancelled';
+	const itemCount = (o.items || []).reduce((n: number, it: any) => n + (Number(it.qty) || 0), 0);
+
 	return (
-		<div className="space-y-3 rounded-lg border p-3">
+		<Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border">
+			<CollapsibleTrigger asChild>
+				<button type="button" className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/30 rounded-lg transition-colors" aria-label={`Buka detail ${o.orderNo}`}>
+					<div className="min-w-0 flex-1 space-y-0.5">
+						<div className="flex flex-wrap items-center gap-2">
+							<span className="font-semibold">{o.orderNo}</span>
+							<Badge className={`border-0 ${STATUS_BADGE[o.status] || ''}`}>{STORE_ORDER_STATUS_LABEL[o.status] || o.status}</Badge>
+							{o.paymentStatus && o.paymentStatus !== 'unpaid' && (
+								<Badge variant="outline" className={needsCheck ? 'border-amber-500 text-amber-600' : ''}>
+									{STORE_PAYMENT_STATUS_LABEL[o.paymentStatus] || o.paymentStatus}
+								</Badge>
+							)}
+							{cancelAsked && <Badge className="border-0 bg-rose-500/15 text-rose-600">Minta batal</Badge>}
+						</div>
+						<p className="truncate text-xs text-muted-foreground">
+							{new Date(o.createdAt).toLocaleString('id-ID')} · {o.customerName} · {itemCount} barang
+						</p>
+					</div>
+					<span className="shrink-0 text-sm font-semibold tabular-nums">{formatStoreMoney(o.total, currency)}</span>
+					<ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+				</button>
+			</CollapsibleTrigger>
+			<CollapsibleContent>
+		<div className="space-y-3 border-t p-3">
 			<div className="flex flex-wrap items-start justify-between gap-2">
 				<div>
 					<div className="flex flex-wrap items-center gap-2">
@@ -152,6 +182,8 @@ export function StoreOrderAdminCard({ order: o, currency, saving, onPatch, onDel
 				<div className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/50 p-2">{o.whatsappMessageSnapshot}</div>
 			</details>
 		</div>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }
 

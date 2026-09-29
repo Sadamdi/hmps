@@ -380,6 +380,16 @@ export default function TokoCartPage() {
 													<span className="ml-1 text-sm font-normal text-muted-foreground">({it.variantLabel})</span>
 												)}
 											</div>
+											{Array.isArray(it.components) && it.components.length > 0 && (
+												<ul className="mt-1 text-xs text-muted-foreground list-disc list-inside">
+													{it.components.map((c: any, ci: number) => (
+														<li key={ci}>
+															{c.qty * it.qty}× {c.name}
+															{c.variantLabel ? ` (${c.variantLabel})` : ''}
+														</li>
+													))}
+												</ul>
+											)}
 											<div className="text-sm text-muted-foreground mt-1">
 												{formatStoreMoney(unit, cur)} × {it.qty}
 											</div>

@@ -1,6 +1,7 @@
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import MediaDisplay from '@/components/MediaDisplay';
+import { StoreBundleCard } from '@/components/toko/store-bundle-card';
 import Navbar from '@/components/public/navbar';
 import StoreProductCard from '@/components/public/store-product-card';
 import { StorePublicHeaderRow } from '@/components/public/store-public-header';
@@ -10,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { apiRequest } from '@/lib/queryClient';
+import { apiErrorText, apiRequest } from '@/lib/queryClient';
 import { useApiUrl } from '@/lib/tenant-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
@@ -107,7 +108,7 @@ export default function TokoIndexPage() {
 		params.set('page', String(page));
 		if (q.trim()) params.set('q', q.trim());
 		if (categoryFilter === '__none') params.set('category', '__none');
-		else if (categoryFilter) params.set('category', categoryFilter);
+		else if (categoryFilter && categoryFilter !== '__bundle') params.set('category', categoryFilter);
 		if (favOnly) params.set('ids', favoriteIds.join(',') || 'none');
 		return `${productsUrl}?${params.toString()}`;
 	}, [productsUrl, q, categoryFilter, page, favOnly, favoriteIds]);
@@ -138,10 +139,10 @@ export default function TokoIndexPage() {
 			toast({ title: 'Ditambahkan ke keranjang' });
 			if (vars.fromEl) flyStoreCartIcon(vars.fromEl);
 		},
-		onError: () =>
+		onError: (e: Error) =>
 			toast({
 				title: 'Gagal menambah ke keranjang',
-				description: 'Cek stok atau coba lagi.',
+				description: apiErrorText(e, 'Cek stok atau coba lagi.'),
 				variant: 'destructive',
 			}),
 	});
@@ -156,10 +157,10 @@ export default function TokoIndexPage() {
 			toast({ title: 'Paket bundel ditambahkan' });
 			if (vars.fromEl) flyStoreCartIcon(vars.fromEl);
 		},
-		onError: () =>
+		onError: (e: Error) =>
 			toast({
 				title: 'Gagal menambah bundel',
-				description: 'Coba lagi atau cek stok isi paket.',
+				description: apiErrorText(e, 'Coba lagi atau cek stok isi paket.'),
 				variant: 'destructive',
 			}),
 	});
@@ -239,6 +240,14 @@ export default function TokoIndexPage() {
 													onClick={() => setCategoryFilter('__none')}>
 													Tanpa kategori
 												</Badge>
+												{bundleList.length > 0 && (
+													<Badge
+														variant={categoryFilter === '__bundle' ? 'default' : 'outline'}
+														className="cursor-pointer text-xs"
+														onClick={() => setCategoryFilter(categoryFilter === '__bundle' ? '' : '__bundle')}>
+														Bundling ({bundleList.length})
+													</Badge>
+												)}
 												{categories.map((c) => (
 													<Badge
 														key={c._id}
@@ -282,56 +291,15 @@ export default function TokoIndexPage() {
 										publicCampaigns,
 									);
 									return (
-										<Card key={b._id} className="overflow-hidden">
-											<div className="aspect-[16/9] bg-muted">
-												{b.thumbnail ? (
-													<MediaDisplay
-														src={b.thumbnail}
-														alt={b.name}
-														className="w-full h-full object-cover"
-													/>
-												) : (
-													<div className="w-full h-full flex items-center justify-center text-muted-foreground">
-														<Package className="h-10 w-10 opacity-50" />
-													</div>
-												)}
-											</div>
-											<CardContent className="p-4 space-y-2">
-												<p className="font-semibold line-clamp-2">{b.name}</p>
-												{b.shortDescription && (
-													<p className="text-sm text-muted-foreground line-clamp-2">
-														{b.shortDescription}
-													</p>
-												)}
-												<div className="flex items-center justify-between gap-2 pt-1">
-													<div>
-														{bPr.compareSubtotal > bPr.lineSubtotal && (
-															<p className="text-xs text-muted-foreground line-through">
-																{formatStoreMoney(bPr.compareSubtotal, defaultCur)}
-															</p>
-														)}
-														<p className="text-primary font-bold">
-															{formatStoreMoney(bPr.lineSubtotal, defaultCur)}
-														</p>
-													</div>
-													<Button
-														type="button"
-														size="icon"
-														variant="secondary"
-														className="shrink-0"
-														disabled={addBundleMutation.isPending}
-														aria-label="Tambah bundel"
-														onClick={(e) =>
-															addBundleMutation.mutate({
-																bundleId: String(b._id),
-																fromEl: e.currentTarget,
-															})
-														}>
-														<ShoppingCart className="h-4 w-4" />
-													</Button>
-												</div>
-											</CardContent>
-										</Card>
+										<StoreBundleCard
+											key={b._id}
+											bundle={b}
+											price={bPr.lineSubtotal}
+											compareAt={bPr.compareSubtotal}
+											currency={defaultCur}
+											adding={addBundleMutation.isPending}
+											onAdd={(el) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el })}
+										/>
 									);
 								})}
 							</div>
@@ -340,7 +308,7 @@ export default function TokoIndexPage() {
 
 					{loadingSettings ? (
 						<Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
-					) : (
+					) : categoryFilter === '__bundle' ? null : (
 						sortedBlocks.map((block: any) => {
 							if (block.visible === false) return null;
 							if (block.type === 'hero') {

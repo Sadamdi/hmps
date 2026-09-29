@@ -9,6 +9,33 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.37.0] - 2026-09-30
+
+### Added
+
+- Bundling:
+  - isi paket bervarian wajib memilih varian (stok & snapshot per varian);
+  - thumbnail paket;
+  - rincian isi, harga normal & hemat di katalog (dialog "Lihat isi");
+  - bagian "Tersedia dalam paket" di detail produk;
+  - chip filter Bundling di katalog.
+- Komponen `CollapsibleCard` (ringkasan saat tertutup, pilihan buka/tutup tersimpan per perangkat).
+- Dashboard Toko:
+  - kartu pesanan ringkas yang bisa dibuka;
+  - baris pre-order bisa dibuka;
+  - kartu Pengaturan (Sheet, Navbar, Pembayaran, Pajak, Layout) dan tiap kanal bayar bisa dilipat.
+
+### Changed
+
+- Produk satuan dan paket boleh dicampur dalam satu keranjang.
+- Pesan error keranjang menampilkan alasan sebenarnya dari server.
+
+### Fixed
+
+- Bundel gagal ditambahkan tanpa alasan jelas (isi bervarian tanpa varian; stok habis dianggap valid).
+- Beli-langsung di halaman produk ditolak saat toko memakai kanal bayar (kini mengikuti alur DP/bukti bayar).
+- Thumbnail bundling tidak bisa diubah lewat edit dan tidak divalidasi.
+
 ## [4.36.0] - 2026-09-29
 
 ### Added

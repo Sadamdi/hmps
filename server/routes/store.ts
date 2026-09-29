@@ -418,17 +418,80 @@ function maxProductOrderQty(p: any, now: Date): number {
 	return getStoreStockAvailable(p.stock) ?? 0;
 }
 
+/**
+ * Validasi isi bundling terhadap produk saat ini. Mengembalikan pesan error (untuk admin/pembeli)
+ * bila ada isi yang tidak valid: produk hilang/belum terbit, produk bervarian tanpa varian dipilih,
+ * atau varian sudah dihapus/nonaktif.
+ */
+function bundleItemProblem(p: any, variantId: string): string | null {
+	if (!p || !p.published) return 'Isi bundling tidak valid (produk hilang atau belum terbit)';
+	if (hasVariants(p)) {
+		if (!variantId) return `Bundling belum lengkap: pilih varian untuk ${p.name}`;
+		if (!findVariant(p, variantId)) return `Varian ${p.name} pada bundling sudah tidak tersedia`;
+	}
+	return null;
+}
+
 async function maxBundleQty(req: Request, b: any, now: Date): Promise<number> {
 	const { StoreProduct } = resolveModels(req);
 	let m = 9999;
 	for (const it of b.items || []) {
-		const p = await StoreProduct.findById(it.productId).lean();
-		if (!p || !p.published) return 0;
+		const p0 = await StoreProduct.findById(it.productId).lean();
+		if (!p0 || !p0.published) return 0;
+		// Produk bervarian: stok & status dihitung dari varian yang dibundel
+		const p = productAsVariant(p0 as any, findVariant(p0, it.variantId));
 		const need = Math.max(1, Math.floor(Number(it.qty) || 1));
 		const maxEach = Math.floor(maxProductOrderQty(p, now) / need);
 		m = Math.min(m, maxEach);
 	}
 	return m;
+}
+
+/**
+ * Rincian isi bundling untuk tampilan publik: komponen (nama, varian, qty, foto), harga normal bila
+ * dibeli satuan, dan hemat. Produk hilang/varian rusak ditandai `valid:false` (bundel tidak bisa dibeli).
+ */
+/** Thumbnail bundling: kosong, hasil upload toko (/uploads/...), atau URL https. */
+function safeBundleThumb(v: unknown): string {
+	const s = String(v || '').trim().slice(0, 500);
+	return s.startsWith('/uploads/') || s.startsWith('/attached_assets/') || /^https:\/\//i.test(s) ? s : '';
+}
+
+async function describeBundle(req: Request, b: any, now: Date) {
+	const { StoreProduct } = resolveModels(req);
+	const components: any[] = [];
+	let normalTotal = 0;
+	let valid = true;
+	for (const it of b.items || []) {
+		const p0: any = await StoreProduct.findById(it.productId).lean();
+		if (bundleItemProblem(p0, String(it.variantId || ''))) {
+			valid = false;
+			continue;
+		}
+		const v = findVariant(p0, it.variantId);
+		const p = productAsVariant(p0, v);
+		const qty = Math.max(1, Math.floor(Number(it.qty) || 1));
+		const unit = Number(p.price) || 0;
+		normalTotal += unit * qty;
+		components.push({
+			productId: String(p0._id),
+			slug: p0.slug,
+			name: p0.name,
+			variantLabel: v?.label || '',
+			qty,
+			unitPrice: unit,
+			thumbnail: v?.thumbnail || p0.thumbnail || '',
+		});
+	}
+	const cap = valid ? await maxBundleQty(req, b, now) : 0;
+	const price = Number(b.bundlePrice) || 0;
+	return {
+		components,
+		normalTotal,
+		saving: Math.max(0, normalTotal - price),
+		available: valid && cap > 0,
+		maxQty: cap,
+	};
 }
 
 /**
@@ -957,7 +1020,9 @@ router.get('/public/bundles', async (req, res) => {
 			.limit(50)
 			.select('slug name shortDescription bundlePrice thumbnail items sortOrder')
 			.lean();
-		return res.json({ items: list });
+		const now = new Date();
+		const items = await Promise.all(list.map(async (b: any) => ({ ...b, ...(await describeBundle(req, b, now)) })));
+		return res.json({ items });
 	} catch (e) {
 		console.error(e);
 		return res.status(500).json({ message: 'Gagal memuat bundling' });
@@ -967,10 +1032,9 @@ router.get('/public/bundles/:slug', async (req, res) => {
 	try {
 		const { StoreBundle, StoreProduct } = resolveModels(req);
 		const b = await StoreBundle.findOne({ slug: req.params.slug, published: true, isActive: true })
-			.populate('items.productId', 'name slug price thumbnail')
 			.lean();
 		if (!b) return res.status(404).json({ message: 'Bundling tidak ditemukan' });
-		return res.json(b);
+		return res.json({ ...b, ...(await describeBundle(req, b, new Date())) });
 	} catch (e) {
 		console.error(e);
 		return res.status(500).json({ message: 'Gagal memuat bundling' });
@@ -1060,9 +1124,19 @@ router.get('/public/products/:slug', async (req, res) => {
 		// Nomor admin tidak dikirim ke publik; hanya id + nama admin yang aktif
 		const { whatsappAdmins: _wa, whatsappPhoneOverride: _wp, ...rest } = p as any;
 		const now = new Date();
+		const { StoreBundle } = resolveModels(req);
+		const inBundles: any[] = await StoreBundle.find({ published: true, isActive: true, 'items.productId': (p as any)._id })
+			.sort({ sortOrder: 1, createdAt: -1 })
+			.limit(6)
+			.select('slug name shortDescription bundlePrice thumbnail items')
+			.lean();
+		const bundles = (await Promise.all(inBundles.map(async (b) => ({ ...b, ...(await describeBundle(req, b, now)) })))).filter(
+			(b) => b.available,
+		);
 		const channels = channelsForProduct(p, (settings.paymentChannels || []) as StorePaymentChannel[]);
 		res.json({
 			...rest,
+			bundles,
 			waAdmins: toPublicWaAdmins(active),
 			storeOpen: active.length > 0,
 			// Ringkasan pembayaran untuk halaman produk (DP pre-order + kanal bayar tanpa nomor)
@@ -1508,7 +1582,7 @@ router.post('/admin/bundles', authenticate, requireTokoManage, async (req, res) 
 		}
 		const itemsIn = Array.isArray(b.items) ? b.items : [];
 		if (!itemsIn.length) return res.status(400).json({ message: 'Pilih isi bundling' });
-		const items: { productId: mongoose.Types.ObjectId; qty: number }[] = [];
+		const items: { productId: mongoose.Types.ObjectId; qty: number; variantId: string }[] = [];
 		for (const row of itemsIn) {
 			if (!row || typeof row !== 'object') continue;
 			const pid = (row as any).productId;
@@ -1517,7 +1591,11 @@ router.post('/admin/bundles', authenticate, requireTokoManage, async (req, res) 
 			const p = await StoreProduct.findById(pid).lean();
 			if (!p) continue;
 			if (!p.published) return res.status(400).json({ message: `Produk belum terbit: ${p.name}` });
-			items.push({ productId: p._id as any, qty: q });
+			const variantId = String((row as any).variantId || '').slice(0, 40);
+			if (hasVariants(p) && !findVariant(p, variantId)) {
+				return res.status(400).json({ message: `Pilih varian untuk ${p.name} di isi paket` });
+			}
+			items.push({ productId: p._id as any, qty: q, variantId: hasVariants(p) ? variantId : '' });
 		}
 		if (!items.length) return res.status(400).json({ message: 'Tidak ada item valid' });
 		const maxSort = (await StoreBundle.findOne().sort({ sortOrder: -1 }).select('sortOrder').lean()) as {
@@ -1534,7 +1612,7 @@ router.post('/admin/bundles', authenticate, requireTokoManage, async (req, res) 
 			isFreeShipping: !!b.isFreeShipping,
 			published: !!b.published,
 			isActive: b.isActive !== false,
-			thumbnail: String(b.thumbnail || '').trim(),
+			thumbnail: safeBundleThumb(b.thumbnail),
 			sortOrder: nextSort,
 			authorId: req.user!._id,
 		});
@@ -1564,7 +1642,7 @@ router.patch('/admin/bundles/:id', authenticate, requireTokoManage, async (req, 
 		}
 		if (b.items !== undefined) {
 			const itemsIn = Array.isArray(b.items) ? b.items : [];
-			const items: { productId: mongoose.Types.ObjectId; qty: number }[] = [];
+			const items: { productId: mongoose.Types.ObjectId; qty: number; variantId: string }[] = [];
 			for (const row of itemsIn) {
 				if (!row || typeof row !== 'object') continue;
 				const pid = (row as any).productId;
@@ -1573,14 +1651,18 @@ router.patch('/admin/bundles/:id', authenticate, requireTokoManage, async (req, 
 				const p = await StoreProduct.findById(pid).lean();
 				if (!p) continue;
 				if (!p.published) return res.status(400).json({ message: `Produk belum terbit: ${p.name}` });
-				items.push({ productId: p._id as any, qty: q });
+				const variantId = String((row as any).variantId || '').slice(0, 40);
+				if (hasVariants(p) && !findVariant(p, variantId)) {
+					return res.status(400).json({ message: `Pilih varian untuk ${p.name} di isi paket` });
+				}
+				items.push({ productId: p._id as any, qty: q, variantId: hasVariants(p) ? variantId : '' });
 			}
 			if (items.length) doc.items = items as any;
 		}
+		if (b.thumbnail !== undefined) doc.thumbnail = safeBundleThumb(b.thumbnail);
 		if (b.published !== undefined) doc.published = !!b.published;
 		if (b.isActive !== undefined) doc.isActive = !!b.isActive;
 		if (b.isFreeShipping !== undefined) doc.isFreeShipping = !!b.isFreeShipping;
-		if (b.thumbnail !== undefined) doc.thumbnail = String(b.thumbnail || '');
 		if (b.weightGramsOverride !== undefined) {
 			doc.weightGramsOverride =
 				b.weightGramsOverride != null && b.weightGramsOverride !== ''
@@ -2689,6 +2771,7 @@ router.get('/cart', async (req, res) => {
 					thumbnail: b.thumbnail || '',
 					qty,
 					stockAvailable: await maxBundleQty(req, b, now),
+					components: (await describeBundle(req, b, now)).components,
 				});
 			} else {
 				const p0 = await StoreProduct.findById(row.productId).lean();
@@ -2769,15 +2852,10 @@ router.post('/cart/items', storeCartRateLimiter, async (req, res) => {
 		const defCur = normalizeStoreCurrency(settings?.defaultCurrency);
 		const newCur = effectiveProductCurrency(p, defCur);
 		const cart = doc.cartItems || [];
-		if (cart.length) {
-			const r0 = cart[0];
-			const isB = r0.lineKind === 'bundle' || r0.bundleId;
-			if (isB) {
-				return res.status(400).json({
-					message: 'Kosongkan bundling dulu sebelum menambah produk satuan, atau selesaikan checkout.',
-				});
-			}
-			const first = await StoreProduct.findById(r0.productId).lean();
+		{
+			// Produk satuan & bundling boleh dicampur; mata uang dicocokkan dengan produk satuan pertama
+			const r0 = cart.find((c: any) => !(c.lineKind === 'bundle' || c.bundleId) && c.productId);
+			const first = r0 ? await StoreProduct.findById(r0.productId).lean() : null;
 			if (first) {
 				const firstCur = effectiveProductCurrency(first, defCur);
 				if (firstCur !== newCur) {
@@ -2843,22 +2921,15 @@ router.post('/cart/bundles', storeCartRateLimiter, async (req, res) => {
 		const settings: any = await ensureSettings(req);
 		const defCur = normalizeStoreCurrency(settings?.defaultCurrency);
 		const cart = doc.cartItems || [];
-		if (cart.length) {
-			const r0 = cart[0];
-			const isB = r0.lineKind === 'bundle' || r0.bundleId;
-			if (!isB) {
-				return res.status(400).json({
-					message: 'Kosongkan produk di keranjang dulu bila ingin membeli bundling.',
-				});
-			}
-		}
 		for (const it of b.items || []) {
 			const p = await StoreProduct.findById(it.productId).lean();
-			if (!p || !p.published) {
-				return res.status(400).json({ message: 'Isi bundling tidak valid' });
-			}
+			const problem = bundleItemProblem(p, String(it.variantId || ''));
+			if (problem) return res.status(400).json({ message: problem, error: { code: 'BUNDLE_INVALID' } });
 		}
 		const cap = await maxBundleQty(req, b, now);
+		if (cap < 1) {
+			return res.status(400).json({ message: 'Stok isi bundling habis', error: { code: 'BUNDLE_OUT_OF_STOCK' } });
+		}
 		const idx = cart.findIndex((c: any) => String(c.bundleId) === String(b._id));
 		const mergedQty = idx >= 0 ? cart[idx].qty + qty : qty;
 		const nextQty = Math.max(1, Math.min(mergedQty, cap));
@@ -3194,11 +3265,14 @@ async function createCheckoutOrder(
 			const comps: { name: string; slug: string; qty: number }[] = [];
 			for (const it of b.items || []) {
 				const p = await StoreProduct.findById(it.productId).lean();
-				if (!p || !p.published) continue;
+				const problem = bundleItemProblem(p, String(it.variantId || ''));
+				if (problem) return checkoutFail(400, { message: `${b.name}: ${problem}` });
+				const v = findVariant(p, it.variantId);
 				const need = Math.max(1, Math.floor(Number(it.qty) || 1)) * qty;
-				comps.push({ name: p.name, slug: p.slug, qty: need });
+				comps.push({ name: `${p.name}${v ? ` (${v.label})` : ''}`, slug: p.slug, qty: need });
 				stockOps.push({
 					id: p._id,
+					variantId: v?.id || '',
 					qty: need,
 					skip: shouldSkipStockDecrementForPreOrder(p, now),
 				});

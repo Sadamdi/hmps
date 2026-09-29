@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+import { ChevronDown, Loader2 } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { FaWhatsapp } from 'react-icons/fa';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -78,50 +79,64 @@ export function StorePreorderPanel({ preordersUrl, currency, onOpenOrders }: { p
 						{rows.map((o) => {
 							const overdue = o.settleBy && new Date(o.settleBy) < new Date() && o.paymentStatus !== 'paid';
 							return (
-								<div key={o.orderNo} className="rounded-lg border p-3 text-sm space-y-1.5">
-									<div className="flex flex-wrap items-center justify-between gap-2">
-										<span className="font-semibold">{o.orderNo}</span>
-										<span className="text-xs">
-											<span className="rounded-full bg-muted px-2 py-0.5 font-medium">{STORE_PAYMENT_STATUS_LABEL[o.paymentStatus || 'unpaid']}</span>{' '}
-											<span className="text-muted-foreground">{STORE_ORDER_STATUS_LABEL[o.status] || o.status}</span>
-										</span>
-									</div>
-									<p className="text-muted-foreground">
-										{o.customerName} · {o.customerPhone} · {new Date(o.createdAt).toLocaleDateString('id-ID')}
-									</p>
-									<p className="text-xs">{(o.items || []).map((it: any) => `${it.name}${it.variantLabel ? ` (${it.variantLabel})` : ''} ×${it.qty}`).join(', ')}</p>
-									<p className="text-xs tabular-nums">
-										Total {formatStoreMoney(o.total, currency)} · {o.paymentPlan === 'dp' ? `DP ${formatStoreMoney(o.dpAmount || 0, currency)}` : 'penuh'} · masuk{' '}
-										{formatStoreMoney(o.amountPaid || 0, currency)} · <strong>sisa {formatStoreMoney(o.balanceDue ?? o.total, currency)}</strong>
-										{o.settleBy && (
-											<span className={overdue ? 'text-rose-600 font-semibold' : 'text-muted-foreground'}>
-												{' '}· tenggat {new Date(o.settleBy).toLocaleDateString('id-ID')}
-												{overdue ? ' (lewat)' : ''}
-											</span>
-										)}
-									</p>
-									<div className="flex flex-wrap gap-2 pt-1">
-										<Button asChild size="sm" variant="outline" className="h-8 text-xs">
-											<a
-												href={waHref(
-													o.customerPhone,
-													`Halo Kak ${o.customerName}, info pesanan pre-order ${o.orderNo}: sisa pembayaran ${formatStoreMoney(o.balanceDue ?? o.total, currency)}${o.settleBy ? `, paling lambat ${new Date(o.settleBy).toLocaleDateString('id-ID')}` : ''}.`,
-												)}
-												target="_blank"
-												rel="noopener noreferrer">
-												<FaWhatsapp className="h-3.5 w-3.5 mr-1" /> Hubungi
-											</a>
-										</Button>
-										<Button size="sm" variant="ghost" className="h-8 text-xs" onClick={onOpenOrders}>
-											Kelola di tab Pesanan →
-										</Button>
-									</div>
-								</div>
+								<PreorderRow key={o.orderNo} o={o} overdue={!!overdue} currency={currency} onOpenOrders={onOpenOrders} />
 							);
 						})}
 					</div>
 				)}
 			</CardContent>
 		</Card>
+	);
+}
+
+function PreorderRow({ o, overdue, currency, onOpenOrders }: { o: any; overdue: boolean; currency: string; onOpenOrders: () => void }) {
+	const [open, setOpen] = useState(false);
+	return (
+		<Collapsible open={open} onOpenChange={setOpen} className="rounded-lg border text-sm">
+			<CollapsibleTrigger asChild>
+				<button type="button" className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/30 rounded-lg transition-colors">
+					<div className="min-w-0 flex-1">
+						<div className="flex flex-wrap items-center gap-2">
+							<span className="font-semibold">{o.orderNo}</span>
+							<span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">{STORE_PAYMENT_STATUS_LABEL[o.paymentStatus || 'unpaid']}</span>
+							{overdue && <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-xs font-semibold text-rose-600">Lewat tenggat</span>}
+						</div>
+						<p className="truncate text-xs text-muted-foreground">
+							{o.customerName} · sisa {formatStoreMoney(o.balanceDue ?? o.total, currency)}
+							{o.settleBy ? ` · tenggat ${new Date(o.settleBy).toLocaleDateString('id-ID')}` : ''}
+						</p>
+					</div>
+					<ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden />
+				</button>
+			</CollapsibleTrigger>
+			<CollapsibleContent>
+				<div className="space-y-1.5 border-t p-3">
+					<p className="text-muted-foreground">
+						{o.customerName} · {o.customerPhone} · {new Date(o.createdAt).toLocaleDateString('id-ID')} · {STORE_ORDER_STATUS_LABEL[o.status] || o.status}
+					</p>
+					<p className="text-xs">{(o.items || []).map((it: any) => `${it.name}${it.variantLabel ? ` (${it.variantLabel})` : ''} ×${it.qty}`).join(', ')}</p>
+					<p className="text-xs tabular-nums">
+						Total {formatStoreMoney(o.total, currency)} · {o.paymentPlan === 'dp' ? `DP ${formatStoreMoney(o.dpAmount || 0, currency)}` : 'penuh'} · masuk{' '}
+						{formatStoreMoney(o.amountPaid || 0, currency)} · <strong>sisa {formatStoreMoney(o.balanceDue ?? o.total, currency)}</strong>
+					</p>
+					<div className="flex flex-wrap gap-2 pt-1">
+						<Button asChild size="sm" variant="outline" className="h-8 text-xs">
+							<a
+								href={waHref(
+									o.customerPhone,
+									`Halo Kak ${o.customerName}, info pesanan pre-order ${o.orderNo}: sisa pembayaran ${formatStoreMoney(o.balanceDue ?? o.total, currency)}${o.settleBy ? `, paling lambat ${new Date(o.settleBy).toLocaleDateString('id-ID')}` : ''}.`,
+								)}
+								target="_blank"
+								rel="noopener noreferrer">
+								<FaWhatsapp className="h-3.5 w-3.5 mr-1" /> Hubungi
+							</a>
+						</Button>
+						<Button size="sm" variant="ghost" className="h-8 text-xs" onClick={onOpenOrders}>
+							Kelola di tab Pesanan →
+						</Button>
+					</div>
+				</div>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }
