@@ -1,3 +1,4 @@
+import { StoreSheetSyncCard } from '@/components/dashboard/store-sheet-sync-card';
 import { StoreVariantsEditor } from '@/components/dashboard/store-variants-editor';
 import { normalizeVariantsInput, type StoreVariant } from '@shared/store-variants';
 import { StoreOrderAdminCard, StoreOrderExportBar, type OrderPatch } from '@/components/dashboard/store-order-admin';
@@ -1422,6 +1423,7 @@ export default function DashboardToko() {
 					</TabsContent>
 
 					<TabsContent value="settings" className="mt-6 space-y-6">
+						{canManage && <StoreSheetSyncCard />}
 						{settingsLoading || !s ? (
 							<Loader2 className="h-8 w-8 animate-spin mx-auto" />
 						) : (
