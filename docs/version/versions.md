@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.35.1`  
+**Current version:** `4.35.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.35.1`](./release/4.35.1.md) | 2026-09-29 | Embed link (og:image/judul/deskripsi) dinamis untuk toko, galeri, komunitas | PATCH | 1 | **Current** |
+| [`4.35.2`](./release/4.35.2.md) | 2026-09-29 | Embed galeri: cari gambar di subfolder Drive, thumbnail lebih ringan, logo komunitas fallback | PATCH | 1 | **Current** |
+| [`4.35.1`](./release/4.35.1.md) | 2026-09-29 | Embed link (og:image/judul/deskripsi) dinamis untuk toko, galeri, komunitas | PATCH | 1 | Released |
 | [`4.35.0`](./release/4.35.0.md) | 2026-09-29 | Process Monitor server (Task Manager) di dashboard, khusus Owner | MINOR | 1 | Released |
 | [`4.34.4`](./release/4.34.4.md) | 2026-09-29 | Kolom cari produk toko pas di layar HP | PATCH | 1 | Released |
 | [`4.34.3`](./release/4.34.3.md) | 2026-09-29 | Sinkron Google Sheet tidak lagi menimpa kolom rumus | PATCH | 1 | Released |

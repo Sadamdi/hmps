@@ -3,7 +3,7 @@
  *
  * - Galeri Google Drive: link "view", folder, atau video tidak bisa dipakai sebagai og:image.
  *   `resolveLibraryOgImage` memilih gambar pertama yang benar-benar gambar dan mengarahkannya ke
- *   `/api/og/drive/:fileId` (thumbnail 1200px lewat akun layanan, di-cache di disk).
+ *   `/api/og/drive/:fileId` (thumbnail 800px lewat akun layanan, di-cache di disk).
  * - Proxy hanya melayani file yang dirujuk galeri published (bukan proxy Drive terbuka).
  */
 import fs from 'fs';
@@ -34,17 +34,29 @@ async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | null> {
 	return Promise.race([p, new Promise<null>((r) => setTimeout(() => r(null), ms))]);
 }
 
-/** Gambar pertama dari file/folder Drive (bukan video), atau null. */
+/** Gambar pertama dari file/folder Drive (bukan video), menelusuri subfolder hingga 2 tingkat. */
 async function firstDriveImage(ids: string[]): Promise<string | null> {
 	const { getFileMetadata, getFolderContents } = await import('../googleDrive');
+	let listings = 0;
+	const searchFolder = async (folderId: string, depth: number): Promise<string | null> => {
+		if (listings++ >= 8) return null;
+		const files = (await withTimeout(getFolderContents(folderId), 5000).catch(() => null)) || [];
+		const img = files.find((f) => f.mimeType?.startsWith('image/'));
+		if (img) return img.id;
+		if (depth <= 0) return null;
+		for (const sub of files.filter((f) => f.mimeType === 'application/vnd.google-apps.folder').slice(0, 4)) {
+			const hit = await searchFolder(sub.id, depth - 1);
+			if (hit) return hit;
+		}
+		return null;
+	};
 	for (const id of ids.slice(0, 6)) {
 		const meta = await withTimeout(getFileMetadata(id), 4000).catch(() => null);
 		if (!meta) continue;
 		if (meta.mimeType?.startsWith('image/')) return id;
 		if (meta.mimeType === 'application/vnd.google-apps.folder') {
-			const files = await withTimeout(getFolderContents(id), 5000).catch(() => null);
-			const img = (files || []).find((f) => f.mimeType?.startsWith('image/'));
-			if (img) return img.id;
+			const hit = await searchFolder(id, 2);
+			if (hit) return hit;
 		}
 	}
 	return null;
@@ -101,7 +113,7 @@ async function isReferenced(fileId: string): Promise<boolean> {
 	return allowed.has(fileId);
 }
 
-/** GET /api/og/drive/:fileId(.jpg) — thumbnail 1200px untuk crawler embed. */
+/** GET /api/og/drive/:fileId(.jpg) — thumbnail 800px untuk crawler embed. */
 export async function driveOgImageHandler(req: Request, res: Response) {
 	const fileId = String(req.params.fileId || '').replace(/\.jpg$/, '');
 	if (!DRIVE_ID.test(fileId)) return res.status(400).end();
@@ -117,7 +129,7 @@ export async function driveOgImageHandler(req: Request, res: Response) {
 		const { getFileMetadata, getDriveAccessToken } = await import('../googleDrive');
 		const meta = await getFileMetadata(fileId);
 		if (!meta?.thumbnailLink || !meta.mimeType?.startsWith('image/')) return res.status(404).end();
-		const thumbUrl = meta.thumbnailLink.replace(/=s\d+$/, '=w1200');
+		const thumbUrl = meta.thumbnailLink.replace(/=s\d+$/, '=w800');
 		let r = await fetch(thumbUrl);
 		if (!r.ok) r = await fetch(thumbUrl, { headers: { Authorization: `Bearer ${await getDriveAccessToken()}` } });
 		if (!r.ok || !String(r.headers.get('content-type')).startsWith('image/')) return res.status(502).end();

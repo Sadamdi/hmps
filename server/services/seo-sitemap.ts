@@ -35,7 +35,8 @@ export function absoluteMediaUrl(
 ): string | null {
 	if (!raw || typeof raw !== 'string') return null;
 	const v = raw.trim();
-	if (!v) return null;
+	// placeholder inline (data:) bukan URL gambar yang bisa diambil crawler
+	if (!v || v.startsWith('data:')) return null;
 	if (v.startsWith('http://') || v.startsWith('https://')) return v;
 	if (v.startsWith('//')) return `https:${v}`;
 	return `${host}${v.startsWith('/') ? v : `/${v}`}`;
