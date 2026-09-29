@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.34.4] - 2026-09-29
+
+### Fixed
+
+- Kolom "Cari produk" di katalog toko tidak lagi melebar keluar layar di HP.
+
 ## [4.34.3] - 2026-09-29
 
 ### Fixed
