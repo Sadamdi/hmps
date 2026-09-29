@@ -219,6 +219,17 @@ export const storeChatRateLimiter = createPublicRateLimiter('store-chat', [
 	{ windowMs: 60 * 60 * 1000, maxPerIp: 120, maxPerDevice: 80, label: '1 jam' },
 ]);
 
+/** Upload bukti bayar toko (per pesanan juga dibatasi di route: maks 5 bukti per jenis) */
+export const storeProofUploadRateLimiter = createPublicRateLimiter('store-proof-upload', [
+	{ windowMs: 10 * 60_000, maxPerIp: 15, maxPerDevice: 8, label: '10 menit' },
+	{ windowMs: 60 * 60 * 1000, maxPerIp: 20, maxPerDevice: 10, label: '1 jam' },
+]);
+
+/** Pembatalan / permintaan batal pesanan oleh pembeli */
+export const storeOrderActionRateLimiter = createPublicRateLimiter('store-order-action', [
+	{ windowMs: 60 * 60 * 1000, maxPerIp: 20, maxPerDevice: 10, label: '1 jam' },
+]);
+
 /** Soft cap: GDrive proxy POSTs */
 export const gdriveProxyRateLimiter = createPublicRateLimiter('gdrive-proxy', [
 	{ windowMs: 60_000, maxPerIp: 60, maxPerDevice: 40, label: '1 menit' },

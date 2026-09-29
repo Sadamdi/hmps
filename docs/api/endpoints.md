@@ -322,6 +322,14 @@ POST   /buy-link
 POST   /shipping/quote
 GET    /my-orders
 GET    /orders/:orderNo
+POST   /payment-preview                          # hitung DP/sisa & pemisahan pesanan per kanal bayar (sebelum checkout)
+POST   /orders/:orderNo/payment-proof            # pembeli upload bukti bayar (gambar ≤5MB → WebP di DB); ?inv= / sesi
+GET    /orders/:orderNo/payment-proof/:paymentId # pembeli lihat bukti sendiri (private, no-store)
+POST   /orders/:orderNo/cancel                   # batal sendiri bila belum bayar; selain itu permintaan batal ke admin
+GET    /admin/orders/:orderNo/payment-proof/:paymentId   # admin lihat bukti
+PATCH  /admin/orders/:orderNo/payments/:paymentId        # admin verify|reject{reason}[, amount]
+POST   /admin/orders/:orderNo/payments                   # admin catat pembayaran manual (terverifikasi)
+GET    /admin/preorders                                  # daftar pesanan pre-order (?paymentStatus=&overdue=1)
 GET    /admin/access-summary
 GET    /admin/settings
 PUT    /admin/settings

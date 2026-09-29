@@ -1450,3 +1450,26 @@ export async function runTempUploadCleanup(): Promise<number> {
 }
 
 export { TEMP_UPLOAD_TTL_MS };
+
+// ── Bukti pembayaran toko ──
+// Disimpan di database (koleksi StorePaymentProof), BUKAN di disk/uploads: repo GitHub publik &
+// folder uploads ikut auto-push media, sedangkan bukti bayar berisi data pribadi pembeli.
+
+/** Multer khusus bukti bayar: gambar saja, maks 5 MB. */
+export const paymentProofUploadMiddleware = multer({
+	storage,
+	limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+});
+
+/**
+ * Proses bukti bayar → WebP (EXIF/GPS dibuang oleh pipeline sharp, maks 1600×2400).
+ * File yang tidak bisa di-decode sebagai gambar (mis. file lain berekstensi .jpg) ditolak.
+ */
+export async function processStorePaymentProof(file: Express.Multer.File): Promise<Buffer> {
+	if (!isProcessableImage(file.mimetype, file.originalname)) throw new Error('INVALID_IMAGE');
+	try {
+		return await processImage(file.buffer, { quality: 78, maxWidth: 1600, maxHeight: 2400, format: 'webp' });
+	} catch {
+		throw new Error('INVALID_IMAGE');
+	}
+}

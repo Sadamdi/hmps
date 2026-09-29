@@ -9,6 +9,53 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.36.0] - 2026-09-29
+
+### Added
+
+- Pembayaran toko:
+  - kanal bayar QRIS (nama merchant wajib), rekening bank, dan e-wallet;
+  - on/off dan urutan per kanal;
+  - produk bisa memilih kanal sendiri;
+  - dropdown berisi daftar bank & e-wallet Indonesia plus opsi "Lainnya".
+- DP pre-order:
+  - default toko (persen/minimal atau nominal per pcs);
+  - override per produk (persen / nominal / wajib penuh) dan tenggat pelunasan;
+  - ongkir & pajak ikut dibayar di DP.
+- Checkout:
+  - pilih DP / bayar penuh;
+  - wajib setujui ketentuan batal;
+  - keranjang dengan kanal berbeda dipecah otomatis menjadi beberapa pesanan;
+  - pembeli diarahkan ke invoice.
+- Invoice:
+  - QRIS (unduh) / rekening (salin);
+  - "Saya sudah bayar" → upload bukti;
+  - riwayat & status verifikasi, konfirmasi via WA;
+  - batal sendiri bila belum bayar, selain itu permintaan batal ke admin.
+- Dashboard:
+  - kartu Pengaturan → Pembayaran;
+  - editor Pre-order/DP/kanal di produk (UI pre-order sebelumnya belum ada);
+  - verifikasi/tolak bukti, catat bayar manual, dana dikembalikan, template WA;
+  - tab baru **Pre-order**.
+- Status pesanan `preorder` (Pre-order diproses) dan status bayar (Belum bayar → Menunggu verifikasi → DP terverifikasi → Lunas / Ditolak / Dana dikembalikan).
+- Endpoint:
+  - `POST /api/store/payment-preview`;
+  - `POST|GET /api/store/orders/:orderNo/payment-proof[/:paymentId]`;
+  - `POST /api/store/orders/:orderNo/cancel`;
+  - `PATCH /api/store/admin/orders/:orderNo/payments/:paymentId`;
+  - `POST /api/store/admin/orders/:orderNo/payments`;
+  - `GET /api/store/admin/orders/:orderNo/payment-proof/:paymentId`;
+  - `GET /api/store/admin/preorders`.
+- Excel & Google Sheet:
+  - kolom R–X pembayaran;
+  - sheet Pre-order;
+  - KPI Uang masuk & Sisa tagihan.
+
+### Security
+
+- Bukti bayar disimpan di database (bukan folder uploads / git publik), hanya bisa dibuka pemilik pesanan & admin.
+- Upload bukti: WebP tanpa EXIF, gambar saja ≤5 MB, rate limit, maks 5 bukti per jenis.
+
 ## [4.35.3] - 2026-09-29
 
 ### Fixed

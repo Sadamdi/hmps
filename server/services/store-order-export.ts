@@ -4,13 +4,15 @@
  * tetap berupa rumus sehingga admin bisa mengedit file dan angka ikut menyesuaikan.
  */
 import ExcelJS from 'exceljs';
+import { STORE_PAYMENT_STATUS_LABEL } from '../../shared/store-payment';
 
 import { STORE_ORDER_STATUS_LABEL as ORDER_STATUS_LABEL, STORE_PAYMENT_METHOD_LABEL } from '../../shared/store-order-status';
-const STATUS_ORDER = ['pending', 'confirmed', 'paid', 'shipped', 'completed', 'cancelled'];
+const STATUS_ORDER = ['pending', 'confirmed', 'preorder', 'paid', 'shipped', 'completed', 'cancelled'];
 const PAID_LABELS = ['Dibayar', 'Dikirim/Diambil', 'Selesai'];
 const STATUS_COLOR: Record<string, string> = {
 	Menunggu: 'FFFDE68A',
 	Dikonfirmasi: 'FFBFDBFE',
+	'Pre-order diproses': 'FFE9D5FF',
 	Dibayar: 'FFBBF7D0',
 	'Dikirim/Diambil': 'FFA5F3FC',
 	Selesai: 'FF86EFAC',
@@ -44,6 +46,15 @@ export type ExportOrder = {
 	paidAt?: Date | string | null;
 	adminNote?: string;
 	invoiceUrl: string;
+	/** Pembayaran (shared/store-payment.ts) */
+	paymentPlan?: string;
+	channelTitle?: string;
+	dpAmount?: number;
+	amountPaid?: number;
+	balanceDue?: number;
+	paymentStatus?: string;
+	settleBy?: Date | string | null;
+	hasPreOrderItems?: boolean;
 	items: { name: string; variantLabel?: string; qty: number; unitPrice: number; lineSubtotal: number }[];
 };
 export type ExportStockRow = { product: string; stock: number | null };
@@ -129,9 +140,10 @@ export async function buildStoreRecapWorkbook(opts: {
 	// ───────── Pesanan ─────────
 	title(wsP, 'Pesanan', `Diekspor dari web · ${opts.periodLabel}. Total & Jumlah Barang dihitung dari sheet Item.`);
 	const pCols = ['No Pesanan', 'Tanggal Pesan', 'Nama Pembeli', 'No WhatsApp', 'Pengambilan', 'Alamat Kirim', 'Admin WA',
-		'Jumlah Barang', 'Subtotal Barang', 'Ongkir', 'Pajak', 'Total', 'Status', 'Metode Bayar', 'Tanggal Bayar', 'Catatan Admin', 'Link Invoice'];
+		'Jumlah Barang', 'Subtotal Barang', 'Ongkir', 'Pajak', 'Total', 'Status', 'Metode Bayar', 'Tanggal Bayar', 'Catatan Admin', 'Link Invoice',
+		'Skema Bayar', 'Kanal Bayar', 'Nominal DP', 'Sudah Dibayar', 'Sisa Tagihan', 'Status Bayar', 'Tenggat Pelunasan'];
 	wsP.getRow(HR).values = pCols;
-	styleHeader(wsP, HR, [20, 17, 22, 16, 16, 30, 14, 10, 16, 13, 12, 16, 17, 14, 14, 28, 34]);
+	styleHeader(wsP, HR, [20, 17, 22, 16, 16, 30, 14, 10, 16, 13, 12, 16, 17, 14, 14, 28, 34, 12, 22, 14, 15, 15, 22, 15]);
 	orders.forEach((o, i) => {
 		const r = FIRST + i;
 		const row = wsP.getRow(r);
@@ -149,6 +161,13 @@ export async function buildStoreRecapWorkbook(opts: {
 		row.getCell(15).value = toWib(o.paidAt);
 		row.getCell(16).value = o.adminNote || '';
 		row.getCell(17).value = { text: 'Buka invoice', hyperlink: o.invoiceUrl };
+		row.getCell(18).value = o.paymentPlan === 'dp' ? 'DP' : 'Penuh';
+		row.getCell(19).value = o.channelTitle || '';
+		row.getCell(20).value = o.paymentPlan === 'dp' ? Number(o.dpAmount) || 0 : 0;
+		row.getCell(21).value = Number(o.amountPaid) || 0;
+		row.getCell(22).value = o.balanceDue != null ? Number(o.balanceDue) || 0 : Number(o.total) || 0;
+		row.getCell(23).value = STORE_PAYMENT_STATUS_LABEL[o.paymentStatus || 'unpaid'] || '';
+		row.getCell(24).value = toWib(o.settleBy);
 	});
 	for (let r = FIRST; r <= P_LAST; r++) {
 		const row = wsP.getRow(r);
@@ -156,7 +175,7 @@ export async function buildStoreRecapWorkbook(opts: {
 		row.getCell(9).value = { formula: `IF($A${r}="","",SUMIFS(Item!$F:$F,Item!$A:$A,$A${r}))` };
 		row.getCell(12).value = { formula: `IF($A${r}="","",N(I${r})+N(J${r})+N(K${r}))` };
 	}
-	styleBody(wsP, FIRST, P_LAST, pCols.length, { 2: 'dd/mm/yyyy hh:mm', 9: RP, 10: RP, 11: RP, 12: RP, 15: 'dd/mm/yyyy', 8: '0' });
+	styleBody(wsP, FIRST, P_LAST, pCols.length, { 2: 'dd/mm/yyyy hh:mm', 9: RP, 10: RP, 11: RP, 12: RP, 15: 'dd/mm/yyyy', 8: '0', 20: RP, 21: RP, 22: RP, 24: 'dd/mm/yyyy' });
 	for (let r = FIRST; r <= P_LAST; r++) {
 		wsP.getCell(`M${r}`).dataValidation = {
 			type: 'list', allowBlank: true, formulae: [`"${Object.values(ORDER_STATUS_LABEL).join(',')}"`],
@@ -253,9 +272,11 @@ export async function buildStoreRecapWorkbook(opts: {
 		['Omzet (Dibayar s/d Selesai)', paidSum, RP, 'FF16A34A'],
 		['Total pesanan', `COUNTIF(${PA},"?*")`, '0', NAVY],
 		['Perlu dicek (Menunggu)', `COUNTIF(${PM},"Menunggu")`, '0', 'FFD97706'],
-		['Belum selesai (aktif)', ['Menunggu', 'Dikonfirmasi', 'Dibayar', 'Dikirim/Diambil'].map((l) => `COUNTIF(${PM},"${l}")`).join('+'), '0', 'FF2563EB'],
+		['Belum selesai (aktif)', ['Menunggu', 'Dikonfirmasi', 'Pre-order diproses', 'Dibayar', 'Dikirim/Diambil'].map((l) => `COUNTIF(${PM},"${l}")`).join('+'), '0', 'FF2563EB'],
 		['Rata-rata nilai pesanan', `IFERROR((${paidSum})/(${paidCount}),0)`, RP, NAVY],
 		['Barang terjual', `SUM(Stok!$C$${FIRST}:$C$${S_LAST})`, '0', NAVY],
+		['Uang masuk (terverifikasi)', `SUM(Pesanan!$U$${FIRST}:$U$${P_LAST})`, RP, 'FF16A34A'],
+		['Sisa tagihan (belum lunas)', `SUMIFS(Pesanan!$V$${FIRST}:$V$${P_LAST},${PM},"<>Dibatalkan")`, RP, 'FFDC2626'],
 	];
 	// kartu KPI 2 kolom × 3 baris
 	kpis.forEach(([label, formula, fmt, color], i) => {
@@ -277,7 +298,7 @@ export async function buildStoreRecapWorkbook(opts: {
 		}
 	});
 	// tabel status
-	const tStart = 15;
+	const tStart = 18;
 	W.getCell(`B${tStart - 1}`).value = 'Pesanan per status';
 	W.getCell(`B${tStart - 1}`).font = { name: FONT, bold: true, color: { argb: NAVY } };
 	['Status', 'Jumlah', 'Nilai'].forEach((h, i) => (W.getCell(tStart, 2 + i).value = h));
@@ -528,6 +549,40 @@ export async function buildStoreRecapWorkbook(opts: {
 		T.views = [{ state: 'frozen', ySplit: 5 }];
 	}
 
+	// ───────── Pre-order ─────────
+	const wsPo = wb.addWorksheet('Pre-order', { properties: { tabColor: { argb: 'FF9333EA' } } });
+	title(wsPo, 'Pre-order', 'Pesanan berisi barang pre-order · merah = lewat tenggat & belum lunas.');
+	const poCols = ['No Pesanan', 'Tanggal', 'Nama Pembeli', 'No WhatsApp', 'Barang', 'Total', 'Skema', 'Nominal DP', 'Sudah Dibayar', 'Sisa', 'Tenggat Pelunasan', 'Status Bayar', 'Status Pesanan'];
+	wsPo.getRow(HR).values = poCols;
+	styleHeader(wsPo, HR, [20, 17, 22, 16, 40, 14, 9, 14, 14, 14, 15, 24, 18]);
+	const poOrders = orders.filter((o) => o.hasPreOrderItems && o.status !== 'cancelled');
+	poOrders.forEach((o, i) => {
+		const r = FIRST + i;
+		const row = wsPo.getRow(r);
+		row.values = [
+			o.orderNo,
+			toWib(o.createdAt),
+			o.customerName,
+			o.customerPhone,
+			o.items.map((it) => `${itemKey(it.name, it.variantLabel)} x${it.qty}`).join(', '),
+			Number(o.total) || 0,
+			o.paymentPlan === 'dp' ? 'DP' : 'Penuh',
+			o.paymentPlan === 'dp' ? Number(o.dpAmount) || 0 : 0,
+			Number(o.amountPaid) || 0,
+			o.balanceDue != null ? Number(o.balanceDue) || 0 : Number(o.total) || 0,
+			toWib(o.settleBy),
+			STORE_PAYMENT_STATUS_LABEL[o.paymentStatus || 'unpaid'] || '',
+			ORDER_STATUS_LABEL[o.status] || o.status,
+		];
+	});
+	const PO_LAST = FIRST + Math.max(poOrders.length, 1) + 20 - 1;
+	styleBody(wsPo, FIRST, PO_LAST, poCols.length, { 2: 'dd/mm/yyyy hh:mm', 6: RP, 8: RP, 9: RP, 10: RP, 11: 'dd/mm/yyyy' });
+	poOrders.forEach((o, i) => {
+		const overdue = o.settleBy && new Date(o.settleBy).getTime() < Date.now() && o.paymentStatus !== 'paid';
+		if (overdue) wsPo.getCell(FIRST + i, 11).font = { name: FONT, size: 10, bold: true, color: { argb: 'FFDC2626' } };
+	});
+	wsPo.autoFilter = { from: { row: HR, column: 1 }, to: { row: HR, column: poCols.length } };
+
 	// ───────── Panduan ─────────
 	wsG.getColumn(1).width = 4;
 	wsG.getColumn(2).width = 24;
@@ -541,6 +596,8 @@ export async function buildStoreRecapWorkbook(opts: {
 		['Pesanan', 'Satu baris per pesanan dari web. Kolom Status/Metode Bayar bisa diubah via dropdown; Total dihitung ulang otomatis.'],
 		['Item', 'Satu baris per barang (termasuk varian).'],
 		['Stok', 'Stok saat ekspor + terjual & omzet per produk/varian. Menipis = sisa ≤ 5.'],
+		['Pre-order', 'Pesanan berisi barang pre-order: DP, sudah dibayar, sisa tagihan, tenggat pelunasan, dan kontak pembeli.'],
+		['Pembayaran', 'Kolom R–X di Pesanan: skema (Penuh/DP), kanal bayar, nominal DP, uang masuk terverifikasi, sisa, status bayar, tenggat.'],
 		['', ''],
 		['Sumber data', 'Data utama tetap di Dashboard → Toko → Pesanan. File ini salinan saat diekspor — ubah status di web agar pembeli ikut melihat.'],
 		['Omzet', 'Dihitung dari status Dibayar, Dikirim/Diambil, dan Selesai.'],

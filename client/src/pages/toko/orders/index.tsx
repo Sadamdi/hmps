@@ -12,6 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useApiUrl } from '@/lib/tenant-context';
 import { useTenant } from '@/lib/tenant-context';
 import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency';
+import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Loader2, PackageSearch } from 'lucide-react';
@@ -182,6 +183,20 @@ export default function TokoOrdersHistoryPage() {
 													</div>
 
 													<OrderProgressBar status={String(o.status || '')} />
+
+													{o.paymentStatus && (
+														<p className="text-xs">
+															<span className="rounded-full bg-muted px-2 py-0.5 font-medium">
+																{STORE_PAYMENT_STATUS_LABEL[o.paymentStatus] || o.paymentStatus}
+															</span>
+															{o.paymentPlan === 'dp' && Number(o.balanceDue) > 0 && (
+																<span className="ml-2 text-muted-foreground">
+																	Sisa {formatStoreMoney(o.balanceDue, orderCur)}
+																	{o.settleBy ? ` · lunasi sebelum ${new Date(o.settleBy).toLocaleDateString('id-ID')}` : ''}
+																</span>
+															)}
+														</p>
+													)}
 
 													<div className="flex flex-wrap items-center justify-between gap-2 text-sm">
 														<div className="text-muted-foreground">

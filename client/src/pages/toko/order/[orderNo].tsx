@@ -15,13 +15,15 @@ import { useQuery } from '@tanstack/react-query';
 import { Copy, Loader2 } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { useEffect, useMemo, useState } from 'react';
-import { useParams } from 'wouter';
+import { Link, useParams } from 'wouter';
+import { StoreOrderPaymentPanel, type OrderPaymentData } from '@/components/toko/store-order-payment-panel';
 
 function normalizeWaDigits(phone: string): string {
 	return String(phone || '').replace(/\D/g, '');
 }
 
-interface OrderData {
+interface OrderData extends Omit<OrderPaymentData, 'orderNo' | 'status' | 'total' | 'whatsappPhoneUsed' | 'customerName'> {
+	checkoutGroupId?: string;
 	orderNo: string;
 	items: {
 		name: string;
@@ -97,6 +99,7 @@ export default function TokoOrderInvoicePage() {
 		data: order,
 		isLoading,
 		error,
+		refetch,
 	} = useQuery({
 		queryKey: [orderUrl, invQuery],
 		queryFn: async () => {
@@ -106,6 +109,20 @@ export default function TokoOrderInvoicePage() {
 		},
 		enabled: !!orderNo && !!orderUrl,
 	});
+
+	// Pesanan lain dari checkout yang sama (keranjang dipecah per metode bayar)
+	const myOrdersUrl = useApiUrl('/store/my-orders');
+	const { data: myOrders = [] } = useQuery<any[]>({
+		queryKey: [myOrdersUrl],
+		enabled: !!order?.checkoutGroupId,
+		queryFn: async () => {
+			const r = await fetch(myOrdersUrl, { credentials: 'include' });
+			return r.ok ? r.json() : [];
+		},
+	});
+	const siblings = order?.checkoutGroupId
+		? myOrders.filter((o) => o.checkoutGroupId === order.checkoutGroupId && o.orderNo !== order.orderNo)
+		: [];
 
 	useEffect(() => {
 		if (order?.orderNo) document.title = `Pesanan ${order.orderNo} | Toko`;
@@ -224,6 +241,29 @@ export default function TokoOrderInvoicePage() {
 										<span>{formatStoreMoney(order.total ?? 0, orderCur)}</span>
 									</div>
 								</div>
+
+								<StoreOrderPaymentPanel
+									order={order as OrderPaymentData}
+									apiBase={storeApiBase}
+									inv={invQuery}
+									currency={orderCur}
+									onChanged={() => void refetch()}
+								/>
+
+								{siblings.length > 0 && (
+									<div className="border-t pt-3 space-y-2 text-sm">
+										<p className="font-medium">Pesanan lain dari checkout ini</p>
+										<p className="text-xs text-muted-foreground">Dipisah karena metode bayarnya berbeda — bayar masing-masing.</p>
+										{siblings.map((o) => (
+											<Link
+												key={o.orderNo}
+												href={prefix(`${storeBasePath}/order/${encodeURIComponent(o.orderNo)}${o.invoiceAccessToken ? `?inv=${encodeURIComponent(o.invoiceAccessToken)}` : ''}`)}
+												className="block rounded-md border p-2 hover:bg-muted/40">
+												<span className="font-mono text-xs">{o.orderNo}</span> · {formatStoreMoney(o.total || 0, orderCur)}
+											</Link>
+										))}
+									</div>
+								)}
 
 								{waUrl && (
 									<div className="border-t pt-4 space-y-2">

@@ -1,5 +1,7 @@
 import { storeOrderStatusLabel } from '@shared/store-order-status';
+import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
+import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/toko/store-checkout-payment';
 import type { StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -40,7 +42,7 @@ function buildCheckoutItemsFromCart(items: any[]) {
 export default function TokoCartPage() {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
-	const [location] = useLocation();
+	const [location, navigate] = useLocation();
 	const { basePath } = useTenant();
 	const bp = basePath || '';
 	const prefix = (path: string) => (bp ? `${bp}${path}` : path);
@@ -49,6 +51,7 @@ export default function TokoCartPage() {
 	const checkoutUrl = useApiUrl('/store/checkout');
 	const shippingQuoteUrl = useApiUrl('/store/shipping/quote');
 	const myOrdersUrl = useApiUrl('/store/my-orders');
+	const paymentPreviewUrl = useApiUrl('/store/payment-preview');
 	const settingsUrl = useApiUrl('/store/public/settings');
 	const { data: storeSettings } = useQuery<{
 		navbarPath?: string;
@@ -162,6 +165,28 @@ export default function TokoCartPage() {
 		return { subtotal: sub, tax, total: sub + tax + ship, taxPercent, taxEnabled, shipping: ship };
 	}, [selectedItems, cart, fulfillment, storeSettings, quotedShipping]);
 
+	const [paymentPlan, setPaymentPlan] = useState<'full' | 'dp'>('dp');
+	const [acceptPolicy, setAcceptPolicy] = useState(false);
+	const previewItems = useMemo(() => buildCheckoutItemsFromCart(selectedItems), [selectedItems]);
+	// Hitungan DP/sisa dari server (sama persis dengan checkout)
+	const { data: payPreview } = useQuery<StorePaymentPreview>({
+		queryKey: [paymentPreviewUrl, previewItems, selectedSummary.shipping],
+		enabled: previewItems.length > 0,
+		queryFn: async () => {
+			const r = await fetch(paymentPreviewUrl, {
+				method: 'POST',
+				credentials: 'include',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ items: previewItems, shippingCost: selectedSummary.shipping }),
+			});
+			if (!r.ok) throw new Error('preview');
+			return r.json();
+		},
+		staleTime: 15_000,
+	});
+	const effectivePlan: 'full' | 'dp' = payPreview?.dpAllowed ? paymentPlan : 'full';
+	const payOnWeb = !!payPreview?.payOnWeb;
+
 	const allSelected =
 		(cart?.items?.length ?? 0) > 0 &&
 		(cart?.items || []).every((it: any) => selectedByKey[lineKeyOfCartItem(it)] !== false);
@@ -197,6 +222,8 @@ export default function TokoCartPage() {
 				shippingAddress: fulfillment === 'delivery' ? address.trim() : '',
 				destinationVillageCode: fulfillment === 'delivery' ? destVillage.trim() : '',
 				shippingCourierCode: fulfillment === 'delivery' ? (selectedCourier || quotedShipping?.code || '') : '',
+				paymentPlan: effectivePlan,
+				acceptCancelPolicy: acceptPolicy,
 				}),
 			});
 			const data = await res.json().catch(() => ({}));
@@ -209,12 +236,23 @@ export default function TokoCartPage() {
 			}
 			return data;
 		},
-		onSuccess: (data: { whatsappUrl?: string }) => {
+		onSuccess: (data: { whatsappUrl?: string; invoiceUrl?: string; payOnWeb?: boolean; orders?: unknown[] }) => {
+			queryClient.invalidateQueries({ queryKey: [cartUrl] });
+			queryClient.invalidateQueries({ queryKey: [myOrdersUrl] });
+			if (data.payOnWeb && data.invoiceUrl) {
+				// Alur bayar di web: ke invoice (QRIS / rekening + upload bukti)
+				const u = new URL(data.invoiceUrl, window.location.origin);
+				const n = Array.isArray(data.orders) ? data.orders.length : 1;
+				toast({
+					title: n > 1 ? `${n} pesanan dibuat` : 'Pesanan dibuat',
+					description: 'Silakan bayar lalu upload bukti di halaman invoice.',
+				});
+				navigate(`${u.pathname}${u.search}`);
+				return;
+			}
 			if (data.whatsappUrl) {
 				window.open(data.whatsappUrl, '_blank', 'noopener,noreferrer');
 			}
-			queryClient.invalidateQueries({ queryKey: [cartUrl] });
-			queryClient.invalidateQueries({ queryKey: [myOrdersUrl] });
 			toast({ title: 'Pesanan dibuat', description: 'WhatsApp dibuka untuk mengirim ke admin toko.' });
 		},
 		onError: (e: Error) => toast({ title: 'Checkout gagal', description: e.message, variant: 'destructive' }),
@@ -466,6 +504,14 @@ export default function TokoCartPage() {
 									</div>
 								)}
 								<StoreWaAdminPicker admins={adminOptions} value={waAdminId} onChange={setWaAdminId} />
+								<StoreCheckoutPayment
+									preview={payPreview}
+									currency={cartCurrency}
+									plan={effectivePlan}
+									onPlanChange={setPaymentPlan}
+									accepted={acceptPolicy}
+									onAcceptedChange={setAcceptPolicy}
+								/>
 								<Button
 									className="w-full"
 									size="lg"
@@ -474,7 +520,8 @@ export default function TokoCartPage() {
 										storeClosed ||
 										!name.trim() ||
 										!phone.trim() ||
-										selectedItems.length === 0
+										selectedItems.length === 0 ||
+										(payOnWeb && !acceptPolicy)
 									}
 									onClick={() => {
 										if (selectedItems.length === 0) {
@@ -508,7 +555,7 @@ export default function TokoCartPage() {
 									{checkoutMutation.isPending ? (
 										<Loader2 className="h-4 w-4 animate-spin" />
 									) : (
-										'Checkout & WhatsApp'
+										payOnWeb ? (effectivePlan === 'dp' ? 'Buat pesanan & bayar DP' : 'Buat pesanan & bayar') : 'Checkout & WhatsApp'
 									)}
 								</Button>
 							</CardContent>
@@ -555,6 +602,8 @@ export default function TokoCartPage() {
 												<div className="text-muted-foreground">
 													{formatStoreMoney(o.total ?? o.subtotal ?? 0, orderCur)} ·{' '}
 													{storeOrderStatusLabel(String(o.status || ''))}
+													{o.paymentStatus && o.paymentStatus !== 'unpaid' ? ` · ${STORE_PAYMENT_STATUS_LABEL[o.paymentStatus] || ''}` : ''}
+													{o.paymentPlan === 'dp' && Number(o.balanceDue) > 0 ? ` · sisa ${formatStoreMoney(o.balanceDue, orderCur)}` : ''}
 												</div>
 												{Array.isArray(o.items) && o.items.length > 0 && (
 													<ul className="list-disc list-inside text-xs text-muted-foreground">

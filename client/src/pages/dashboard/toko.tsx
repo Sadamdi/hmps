@@ -1,9 +1,18 @@
 import { StoreSheetSyncCard } from '@/components/dashboard/store-sheet-sync-card';
+import { StorePaymentSettingsCard } from '@/components/dashboard/store-payment-settings-card';
+import { StorePreorderPanel } from '@/components/dashboard/store-preorder-panel';
 import { StoreVariantsEditor } from '@/components/dashboard/store-variants-editor';
+import {
+	EMPTY_PRODUCT_PAYMENT,
+	StoreProductPaymentEditor,
+	productPaymentFromProduct,
+	productPaymentPayload,
+	type ProductPaymentForm,
+} from '@/components/dashboard/store-product-payment-editor';
 import { normalizeVariantsInput, type StoreVariant } from '@shared/store-variants';
 import { StoreOrderAdminCard, StoreOrderExportBar, type OrderPatch } from '@/components/dashboard/store-order-admin';
 import { StoreChatInbox } from '@/components/dashboard/store-chat-inbox';
-import { MessageCircle } from 'lucide-react';
+import { CalendarClock, MessageCircle } from 'lucide-react';
 import { StoreWaAdminsEditor } from '@/components/dashboard/store-wa-admins-editor';
 import { globalStoreWaAdmins, productStoreWaAdmins, type StoreWaAdmin } from '@shared/store-wa';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
@@ -189,6 +198,7 @@ export default function DashboardToko() {
 	const productsUrl = useApiUrl('/store/admin/products');
 	const categoriesUrl = useApiUrl('/store/admin/categories');
 	const ordersUrl = useApiUrl('/store/admin/orders');
+	const preordersUrl = useApiUrl('/store/admin/preorders');
 	const adminSharesBase = useApiUrl('/store/admin/shares');
 	const publicStoreSettingsKey = useApiUrl('/store/public/settings');
 	const publicProductsKey = useApiUrl('/store/public/products');
@@ -388,7 +398,7 @@ export default function DashboardToko() {
 	const [tokoTab, setTokoTab] = useState(() => {
 		try {
 			const t = new URLSearchParams(window.location.search).get('tab') || '';
-			return ['products', 'chat', 'settings', 'orders', 'categories', 'diskon', 'bundling'].includes(t) ? t : 'products';
+			return ['products', 'chat', 'settings', 'orders', 'preorders', 'categories', 'diskon', 'bundling'].includes(t) ? t : 'products';
 		} catch {
 			return 'products';
 		}
@@ -450,6 +460,7 @@ export default function DashboardToko() {
 		/** kosong = tanpa kategori */
 		categoryId: '',
 	});
+	const [productPayment, setProductPayment] = useState<ProductPaymentForm>(EMPTY_PRODUCT_PAYMENT);
 	const [newCategoryOpen, setNewCategoryOpen] = useState(false);
 	const [newCategoryName, setNewCategoryName] = useState('');
 	const [uploadingThumb, setUploadingThumb] = useState(false);
@@ -553,6 +564,7 @@ export default function DashboardToko() {
 			published: false,
 			categoryId: '',
 		});
+		setProductPayment(EMPTY_PRODUCT_PAYMENT);
 		setProductOpen(true);
 	};
 
@@ -597,6 +609,7 @@ export default function DashboardToko() {
 				? String(typeof p.categoryId === 'object' ? p.categoryId._id : p.categoryId)
 				: '',
 		});
+		setProductPayment(productPaymentFromProduct(p));
 		setProductOpen(true);
 	};
 
@@ -626,6 +639,7 @@ export default function DashboardToko() {
 				stock: form.trackStock ? Math.max(0, Math.floor(Number(form.stockCount))) : -1,
 				priceTiers: normalizePriceTiersInput(form.priceTiers),
 				categoryId: form.categoryId?.trim() ? form.categoryId.trim() : null,
+				...productPaymentPayload(productPayment),
 			};
 			delete (payload as any).trackStock;
 			delete (payload as any).stockCount;
@@ -975,6 +989,8 @@ export default function DashboardToko() {
 								? 'Panduan tab Pengaturan toko'
 								: tokoTab === 'orders'
 									? 'Panduan tab Pesanan'
+									: tokoTab === 'preorders'
+										? 'Panduan tab Pre-order'
 									: tokoTab === 'diskon'
 										? 'Panduan tab Diskon'
 										: tokoTab === 'bundling'
@@ -1099,7 +1115,31 @@ export default function DashboardToko() {
 										<li>Pembeli dapat memantau lewat tautan invoice / halaman status jika tersedia.</li>
 									</ul>
 								</section>
+								<section>
+									<p className="font-semibold text-foreground mb-1">Verifikasi bukti bayar</p>
+									<ul className="list-disc pl-5 space-y-1">
+										<li>
+											Bukti dengan label <strong>Perlu dicek</strong>: cocokkan dengan mutasi rekening / riwayat QRIS. Nominal
+											boleh dikoreksi sebelum <strong>Verifikasi</strong>.
+										</li>
+										<li>
+											Bukti palsu / tidak cocok: <strong>Tolak</strong> dengan alasan — pembeli melihat alasannya dan bisa upload
+											ulang. Gunakan tombol <strong>Minta upload ulang</strong> (WA) bila perlu bertanya.
+										</li>
+										<li>Pembayaran tunai / di luar web: <strong>Catat bayar manual</strong>.</li>
+										<li>Status pesanan naik otomatis: DP terverifikasi → Pre-order diproses; lunas → Dibayar.</li>
+									</ul>
+								</section>
 							</>
+						)}
+						{tokoTab === 'preorders' && canManage && (
+							<section>
+								<p className="font-semibold text-foreground mb-1">Pantau pre-order</p>
+								<p>
+									Filter siapa yang belum bayar, sudah DP, lunas, atau lewat tenggat pelunasan. Tombol <strong>Hubungi</strong>{' '}
+									membuka WA dengan pesan pengingat sisa tagihan. Setiap pagi 09:00 admin juga mendapat notifikasi ringkasan.
+								</p>
+							</section>
 						)}
 						{tokoTab === 'diskon' && canManage && (
 							<section>
@@ -1163,6 +1203,12 @@ export default function DashboardToko() {
 							</TabsTrigger>
 						)}
 						{canManage && (
+							<TabsTrigger value="preorders" className="gap-2">
+								<CalendarClock className="h-4 w-4" />
+								Pre-order
+							</TabsTrigger>
+						)}
+						{canManage && (
 							<TabsTrigger value="categories" className="gap-2">
 								<Tag className="h-4 w-4" />
 								Kategori
@@ -1181,6 +1227,16 @@ export default function DashboardToko() {
 							</TabsTrigger>
 						)}
 					</TabsList>
+
+					{canManage && (
+						<TabsContent value="preorders" className="mt-6">
+							<StorePreorderPanel
+								preordersUrl={preordersUrl}
+								currency={defaultStoreCurrency}
+								onOpenOrders={() => setTokoTab('orders')}
+							/>
+						</TabsContent>
+					)}
 
 					<TabsContent value="chat" className="mt-6">
 						<StoreChatInbox />
@@ -1569,6 +1625,15 @@ export default function DashboardToko() {
 									</CardContent>
 								</Card>
 
+								{canManage && (
+									<StorePaymentSettingsCard
+										settings={settings}
+										settingsUrl={settingsUrl}
+										uploadUrl={storeUploadImageUrl}
+										invalidateKeys={[[settingsUrl], [publicStoreSettingsKey]]}
+									/>
+								)}
+
 								<Card>
 									<CardHeader>
 										<CardTitle>Pajak & pesan WhatsApp</CardTitle>
@@ -1779,6 +1844,11 @@ export default function DashboardToko() {
 												saving={updateOrderStatusMutation.isPending}
 												onPatch={(orderNo, patch) => updateOrderStatusMutation.mutate({ orderNo, ...patch })}
 												onDelete={(orderNo) => setOrderNoToDelete(orderNo)}
+												ordersUrl={ordersUrl}
+												onChanged={() => {
+													queryClient.invalidateQueries({ queryKey: [ordersUrl] });
+													queryClient.invalidateQueries({ queryKey: [preordersUrl] });
+												}}
 											/>
 										))}
 									</div>
@@ -3091,6 +3161,12 @@ export default function DashboardToko() {
 								basePrice={Number(form.price) || 0}
 							/>
 						</div>
+						<StoreProductPaymentEditor
+							value={productPayment}
+							onChange={setProductPayment}
+							channels={(settings as any)?.paymentChannels || []}
+							dpDefault={(settings as any)?.dp}
+						/>
 						<div className="grid sm:grid-cols-3 gap-4">
 							<div className="space-y-2 sm:col-span-3">
 								<Label>Override admin WhatsApp (opsional)</Label>

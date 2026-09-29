@@ -3,6 +3,7 @@ import { StoreChatPanel } from '@/components/toko/store-chat-panel';
 import { StoreFavoriteButton } from '@/components/toko/store-favorite-button';
 import { MessageCircle } from 'lucide-react';
 import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
+import { StoreProductPaymentInfo } from '@/components/toko/store-product-payment-info';
 import { STORE_CLOSED_MESSAGE, type StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -608,6 +609,7 @@ export default function TokoProductDetailPage() {
 												{productOutOfStock ? ' (habis)' : ''}
 											</p>
 										)}
+										<StoreProductPaymentInfo product={product} currency={effectiveProductCurrency(view, defaultCur)} />
 										<div className="flex flex-wrap items-center gap-3 mt-6">
 											<span className="text-sm font-medium">Jumlah</span>
 											<div className="flex items-center gap-2">
