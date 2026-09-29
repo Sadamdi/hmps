@@ -395,6 +395,11 @@ cleanup_start_apps() {
 		restore_dist
 		pm2_start_apps || true
 		wait_healthy || log "Masih gagal. Cek: pm2 logs hmps-app --lines 40"
+		# Build baru TIDAK jalan: jangan tandai HEAD sebagai built (agar dicoba ulang & terlihat)
+		log "❌ Build baru gagal start — app berjalan dari dist LAMA. Cek: tail /var/log/hmps-error-0.log"
+		# Cegah loop rebuild tiap 30 dtk untuk commit yang sama; commit berikutnya dicoba lagi
+		echo "$NEW_HEAD" > "$APP_DIR/.deploy-failed-head"
+		exit 1
 	fi
 	if [[ "$ec" -ne 0 ]]; then
 		log "Deploy gagal setelah sync — app dihidupkan dari dist cadangan. Cek log npm/build."
@@ -402,6 +407,7 @@ cleanup_start_apps() {
 	fi
 	if [[ "$APPS_STOPPED" -eq 1 ]]; then
 		echo "$NEW_HEAD" > "$BUILT_HEAD_FILE"
+		rm -f "$APP_DIR/.deploy-failed-head"
 		log "Tandai dist built untuk HEAD $(git rev-parse --short "$NEW_HEAD")"
 	fi
 	log "Selesai. HEAD = $(git rev-parse --short HEAD) ($(git log -1 --format='%s'))"

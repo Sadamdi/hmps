@@ -21,6 +21,8 @@ interface UserWithRole {
 }
 
 // Environment variables with fallbacks
+import 'dotenv/config';
+
 // Kunci bawaan hanya untuk development. Di produksi WAJIB JWT_SECRET kuat: kunci bawaan tercantum di
 // repo publik sehingga siapa pun bisa memalsukan token.
 if (process.env.NODE_ENV === 'production' && String(process.env.JWT_SECRET || '').length < 32) {

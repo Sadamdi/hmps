@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.29.9] - 2026-09-29
+
+### Fixed
+
+- App produksi crash saat start sejak 4.29.5 karena `.env` dimuat setelah modul auth; deploy diam-diam kembali ke dist lama. Env kini dimuat paling awal dan deploy gagal tidak ditandai built.
+
+### Security
+
+- `JWT_SECRET` dari `.env` benar-benar dipakai (sebelumnya jatuh ke kunci bawaan).
+
 ## [4.29.8] - 2026-09-29
 
 ### Fixed

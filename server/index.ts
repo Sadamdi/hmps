@@ -1,5 +1,6 @@
-import dotenv from 'dotenv';
-dotenv.config();
+// Harus import PERTAMA: import ESM dievaluasi sebelum body modul, jadi `dotenv.config()` di body
+// terlambat untuk modul yang membaca env saat load (mis. JWT_SECRET di server/auth.ts).
+import 'dotenv/config';
 
 import express, { NextFunction, type Request, Response } from 'express';
 import fs from 'fs';

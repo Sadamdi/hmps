@@ -72,3 +72,4 @@ scripts/_*
 /_*
 .env.bak*
 *.bak-*
+.deploy-failed-head
