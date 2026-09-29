@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.34.2] - 2026-09-29
+
+### Changed
+
+- Akun layanan Google baru (Drive + Sheets); kunci di `server/google-service-account.json` (gitignore).
+
 ## [4.34.1] - 2026-09-29
 
 ### Fixed
