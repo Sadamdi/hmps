@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.39.0] - 2026-09-30
+
+### Added
+
+- Edit nama/URL lampiran di editor Berita dan Event.
+
+### Fixed
+
+- File lampiran yang dibagikan lewat salin berita/event tidak lagi terhapus saat dihapus dari salah satu sisi.
+
 ## [4.38.3] - 2026-09-30
 
 ### Fixed

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { z } from 'zod';
 import cookieParser from 'cookie-parser';
 import type { Express, Request } from 'express';
@@ -166,6 +167,29 @@ function resolveModels(req: Request): any {
 	if (req.tenantModels) return req.tenantModels;
 	// Import statis (modul sudah di-import di atas); `require` tidak ada di mode dev ESM
 	return mainDbModels;
+}
+
+/**
+ * File lampiran lokal bisa dipakai bersama (mis. berita disalin ke event memakai URL yang sama).
+ * Sebelum menghapus file dari disk, pastikan tidak ada berita/event lain yang masih merujuknya.
+ */
+async function isAttachmentUrlUsedElsewhere(
+	req: Request,
+	url: string,
+	self: { kind: 'berita' | 'event'; id: string },
+): Promise<boolean> {
+	try {
+		const { Berita, Event } = resolveModels(req);
+		const notSelf = (kind: 'berita' | 'event') =>
+			self.kind === kind && mongoose.Types.ObjectId.isValid(self.id) ? { _id: { $ne: self.id } } : {};
+		const [b, e] = await Promise.all([
+			Berita.exists({ ...notSelf('berita'), $or: [{ 'attachments.url': url }, { image: url }] }),
+			Event.exists({ ...notSelf('event'), $or: [{ 'attachments.url': url }, { thumbnail: url }] }),
+		]);
+		return !!(b || e);
+	} catch {
+		return true; // ragu → jangan hapus file
+	}
 }
 
 function tenantCacheKey(req: Request): string {
@@ -4050,7 +4074,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							!keptUrls.has(String(att.url))
 						) {
 							try {
-								await deleteFile(String(att.url));
+								if (!(await isAttachmentUrlUsedElsewhere(req, String(att.url), { kind: "berita", id: beritaId }))) await deleteFile(String(att.url));
 							} catch {
 								/* ignore */
 							}
@@ -10371,7 +10395,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 									!newUrls.has(String(att.url))
 								) {
 									try {
-										await deleteFile(String(att.url));
+										if (!(await isAttachmentUrlUsedElsewhere(req, String(att.url), { kind: "event", id }))) await deleteFile(String(att.url));
 									} catch {
 										/* ignore */
 									}
