@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge';
 import { usePermissionGuardWithSharing } from '@/hooks/use-permission-guard';
 import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
+import { AttachmentList } from '@/components/dashboard/attachment-list';
 import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
@@ -1259,27 +1260,9 @@ export default function DashboardEvents() {
 								{existingAttachments.length + formAttachments.length}/10 slot terpakai
 							</span>
 						</div>
-							{existingAttachments.length > 0 && (
-								<div className="mt-2 space-y-1 max-h-36 overflow-y-auto">
-									{existingAttachments.map((att, idx) => (
-										<div key={idx} className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1 min-w-0">
-											<span className="flex-1 truncate min-w-0">{att.name}</span>
-											<span className="text-[10px] uppercase rounded px-1.5 py-0.5 bg-background border text-muted-foreground">
-												{att.source === 'gdrive' ? 'gdrive' : att.source === 'url' ? 'link' : 'file'}
-											</span>
-											<Button
-												variant="ghost"
-												size="sm"
-												type="button"
-												className="h-6 w-6 p-0 flex-shrink-0"
-												onClick={() => setExistingAttachments((prev) => prev.filter((_, i) => i !== idx))}
-											>
-												<Trash2 className="h-3 w-3" />
-											</Button>
-										</div>
-									))}
-								</div>
-							)}
+							<div className="mt-2">
+								<AttachmentList items={existingAttachments} onChange={setExistingAttachments} />
+							</div>
 							<Input
 								type="file"
 								multiple

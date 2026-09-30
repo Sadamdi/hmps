@@ -19,6 +19,7 @@ import {
 	DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { AttachmentList } from '@/components/dashboard/attachment-list';
 import { ActivityTemplates, logActivity } from '@/lib/activity-logger';
 import { useAuth } from '@/lib/auth';
 import { apiRequest, queryClient } from '@/lib/queryClient';
@@ -1458,52 +1459,20 @@ export default function BeritaEditor({
 				</span>
 			</div>
 
-			{existingAttachments.length > 0 && (
-				<div className="space-y-1 max-h-36 overflow-y-auto">
-					{existingAttachments.map((att, idx) => (
-						<div
-							key={`existing-${idx}-${att.url}`}
-							className="flex items-center gap-2 text-sm bg-muted/50 rounded px-3 py-1 min-w-0">
-							<span className="flex-1 truncate min-w-0">{att.name}</span>
-							<span className="text-[10px] uppercase rounded px-1.5 py-0.5 bg-background border text-muted-foreground">
-								{att.source === 'gdrive'
-									? 'gdrive'
-									: att.source === 'url'
-										? 'link'
-										: 'file'}
-							</span>
-							<Button
-								variant="ghost"
-								size="sm"
-								type="button"
-								className="h-6 px-2 text-[11px]"
-								onClick={() => handleCopyAttachmentLink(att)}>
-								Copy Link
-							</Button>
-							<Button
-								variant="ghost"
-								size="sm"
-								type="button"
-								className="h-6 px-2 text-[11px]"
-								onClick={() => handleInsertAttachmentToContent(att)}>
-								Sisipkan
-							</Button>
-							<Button
-								variant="ghost"
-								size="sm"
-								type="button"
-								className="h-6 w-6 p-0 flex-shrink-0"
-								onClick={() =>
-									setExistingAttachments((prev) =>
-										prev.filter((_, i) => i !== idx),
-									)
-								}>
-								<Trash2 className="h-3 w-3" />
-							</Button>
-						</div>
-					))}
-				</div>
-			)}
+			<AttachmentList
+				items={existingAttachments}
+				onChange={setExistingAttachments}
+				extraActions={(att) => (
+					<>
+						<Button variant="ghost" size="sm" type="button" className="h-6 px-2 text-[11px]" onClick={() => handleCopyAttachmentLink(att)}>
+							Copy Link
+						</Button>
+						<Button variant="ghost" size="sm" type="button" className="h-6 px-2 text-[11px]" onClick={() => handleInsertAttachmentToContent(att)}>
+							Sisipkan
+						</Button>
+					</>
+				)}
+			/>
 
 			<div>
 				<input
