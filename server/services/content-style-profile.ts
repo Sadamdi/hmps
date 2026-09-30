@@ -31,7 +31,7 @@ export type ContentStyleProfile = {
 
 const CACHE_MS = 30 * 60 * 1000;
 /** Bump when berita skeleton rules change so cached profiles refresh. */
-const PROFILE_CACHE_VERSION = 'berita-skeleton-v2';
+const PROFILE_CACHE_VERSION = 'berita-skeleton-v3';
 const cache = new Map<string, { profile: ContentStyleProfile; expiresAt: number }>();
 
 function looksLikeMedinfoMeta(html: string): boolean {
@@ -109,7 +109,9 @@ async function buildBeritaProfile(
 
 	const samples = ordered.slice(0, 3).map((r: any) => {
 		const html = String(r.content || '');
-		return `Judul: ${r.title}\nExcerpt: ${r.excerpt}\nHTML: ${clipHtmlSkeleton(html, 560)}`;
+		// Hanya kerangka: teks asli berita lain dibuang agar model tidak menyalin fakta (nama/tanggal/juara).
+		const skeleton = clipHtmlSkeleton(html, 900).replace(/>([^<]{30,})</g, '>[isi paragraf]<');
+		return `Judul (${String(r.title || '').length} karakter, gaya saja)\nExcerpt (${String(r.excerpt || '').length} karakter)\nKerangka HTML: ${skeleton}`;
 	});
 
 	return {
@@ -335,7 +337,9 @@ export function buildWriteToolStyleHint(
 		...profile.rules.map((r) => `- ${r}`),
 	];
 	if (profile.samples.length) {
-		lines.push('Contoh dari publikasi existing:');
+		lines.push(
+			'Contoh dari publikasi existing (HANYA acuan struktur/gaya; DILARANG menyalin judul, nama, tanggal, tempat, atau fakta apa pun dari contoh. Fakta wajib dari pesan user):',
+		);
 		profile.samples.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
 	}
 	return lines.join('\n');
