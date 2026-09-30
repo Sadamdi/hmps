@@ -105,7 +105,9 @@ export function serveStatic(app: Express) {
 	// fall through to index.html if the file doesn't exist — never for /uploads or /api
 	app.use('*', (req, res) => {
 		const p = req.originalUrl || req.url || '';
-		if (p.startsWith('/uploads/') || p.startsWith('/api/') || p.startsWith('/attached_assets/')) {
+		// Aset build yang hilang (mis. chunk lama setelah deploy) harus 404, bukan index.html:
+		// dengan begitu browser melaporkan error yang jelas alih-alih salah-MIME.
+		if (p.startsWith('/uploads/') || p.startsWith('/api/') || p.startsWith('/attached_assets/') || p.startsWith('/assets/')) {
 			return res.status(404).type('text/plain').send('Not Found');
 		}
 		res.sendFile(path.resolve(distPath, 'index.html'));

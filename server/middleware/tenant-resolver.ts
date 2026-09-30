@@ -69,6 +69,8 @@ export function tenantApiResolver(req: Request, res: Response, next: NextFunctio
 	resolveCommunity(slug)
 		.then((community) => {
 			if (!community) {
+				// 404 jinak: slug komunitas memang tidak ada (bukan bug) — jangan dicatat monitor.
+				(req as any)._benign404 = true;
 				return res.status(404).json({ message: 'Komunitas tidak ditemukan' });
 			}
 

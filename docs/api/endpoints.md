@@ -415,11 +415,12 @@ DELETE /bug-report/:id
 
 # /api/system-errors  (Bug Otomatis)
 POST   /report            # publik + optional auth, rate-limited (lapor dari client)
-GET    /list              # owner: filter status/severity/source/isTenant/communitySlug/dateFrom/dateTo/q/sort/page/limit
-GET    /count             # owner: ringkasan status & severity
+GET    /list              # owner: filter status/severity/source/statusCode/excludeStatusCode/isTenant/communitySlug/dateFrom/dateTo/q/sort/page/limit
+GET    /count             # owner: ringkasan status, severity, dan byStatusCode (0 = error client)
 GET    /:id               # owner: detail
 PATCH  /:id/status        # owner: new|investigating|resolved|ignored
 POST   /:id/analyze       # owner: jalankan ulang analisis AI
+POST   /cleanup-noise    # owner: hapus catatan lama yang bukan bug (404 probe bot, noise browser); {dryRun:true} hanya menghitung
 DELETE /:id               # owner: hapus
 
 # /api/sharing

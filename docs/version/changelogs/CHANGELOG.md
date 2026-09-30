@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.40.0] - 2026-09-30
+
+### Added
+
+- Dashboard Bug Otomatis: filter kode error, tombol Bersihkan noise, API statusCode/excludeStatusCode/byStatusCode/cleanup-noise.
+
+### Changed
+
+- 404 hanya dicatat bila endpoint API hilang dan dipanggil dari situs sendiri; probe bot, data tidak ada, dan noise browser tidak lagi dicatat.
+
 ## [4.39.0] - 2026-09-30
 
 ### Added

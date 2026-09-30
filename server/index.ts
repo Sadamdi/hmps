@@ -86,6 +86,18 @@ app.use(securityLogger);
 // (main + tenant, termasuk handler yang membalas res.status(...) tanpa throw).
 // Berjalan setelah tenant resolver agar konteks tenant ikut terekam.
 app.use('/api', (req: Request, res: Response, next: NextFunction) => {
+	// Simpan pesan dari body JSON response agar 5xx tanpa stack tetap informatif di dashboard.
+	const origJson = res.json.bind(res);
+	res.json = ((body?: any) => {
+		try {
+			if (res.statusCode >= 400 && body && typeof body.message === 'string') {
+				(req as any)._respMsg = body.message.slice(0, 300);
+			}
+		} catch {
+			/* abaikan */
+		}
+		return origJson(body);
+	}) as typeof res.json;
 	res.on('finish', () => {
 		try {
 			// Lewati bila error sudah ditangkap versi "thrown" (punya stack/file/baris).
@@ -952,6 +964,14 @@ process.on('unhandledRejection', (reason: any) => {
 	app.get('/api/og/drive/:fileId', async (req, res) => {
 		const { driveOgImageHandler } = await import('./services/og-meta');
 		return driveOgImageHandler(req, res);
+	});
+
+	// Semua route /api sudah terdaftar di titik ini: yang sampai ke sini = endpoint memang tidak ada.
+	// Ditandai agar bug monitor bisa membedakannya dari 404 "data tidak ada" yang dibalas handler
+	// (req.route tidak bisa diandalkan: Express menyetelnya juga untuk path yang cocok tapi beda method).
+	app.use('/api', (req: Request, res: Response) => {
+		(req as any)._routeNotFound = true;
+		res.status(404).json({ message: 'Endpoint tidak ditemukan' });
 	});
 
 	// importantly only setup vite in development and after
