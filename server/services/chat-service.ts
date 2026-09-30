@@ -75,7 +75,9 @@ function dedupeTrailingUserMessage(
 		typeof last.content === 'string' &&
 		last.content === currentContent &&
 		(last.imageUrl || undefined) === (currentImageUrl || undefined);
-	const sliceEnd = isDup ? chatMessages.length - 1 : chatMessages.length;
+	// Pesan user terbaru sudah ada di chat.messages: biarkan di daftar (jangan dibuang) dan
+	// pemanggil tidak menambahkannya lagi. Membuangnya membuat model tidak pernah melihat pesan user.
+	const sliceEnd = chatMessages.length;
 	const recentMessages = chatMessages.slice(Math.max(0, sliceEnd - MAX_HISTORY), sliceEnd);
 	return { recentMessages, duplicated: isDup };
 }
