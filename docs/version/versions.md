@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.40.0`  
+**Current version:** `4.41.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.40.0`](./release/4.40.0.md) | 2026-09-30 | Bug otomatis: filter kode error, tidak lagi banjir 404 bot | MINOR | 1 | **Current** |
+| [`4.41.0`](./release/4.41.0.md) | 2026-09-30 | Sinkron Google Sheet pulih otomatis, email status terjamin | MINOR | 1 | **Current** |
+| [`4.40.0`](./release/4.40.0.md) | 2026-09-30 | Bug otomatis: filter kode error, tidak lagi banjir 404 bot | MINOR | 1 | Released |
 | [`4.39.0`](./release/4.39.0.md) | 2026-09-30 | Lampiran berita & event bisa diedit, file bersama tidak terhapus | MINOR | 1 | Released |
 | [`4.38.3`](./release/4.38.3.md) | 2026-09-30 | Perbaikan tampilan bundling (dialog, overlay header, dashboard HP) | PATCH | 1 | Released |
 | [`4.38.2`](./release/4.38.2.md) | 2026-09-30 | Pesan user terbaru akhirnya sampai ke model AI | PATCH | 1 | Released |

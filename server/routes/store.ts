@@ -182,6 +182,10 @@ function safeBaseUrl(req: any): string {
  * Kirim email ke pembeli (bila mengisi email & pengaturan aktif). Tidak pernah menghambat respons.
  * `dedupeKey` mencegah pengiriman ganda untuk pengingat otomatis.
  */
+/** Kabar yang cukup dikirim SEKALI per pesanan (mis. status Dikonfirmasi) — tidak diulang bila status bolak-balik. */
+const ONCE_EMAIL_KINDS = new Set<StoreEmailKind>(['order_created', 'status_confirmed', 'status_preorder', 'status_paid', 'status_shipped', 'status_completed', 'cancelled']);
+const EMAIL_SEND_ATTEMPTS = 3;
+
 function sendBuyerEmail(req: any, orderNo: string, kind: StoreEmailKind, extra: Partial<StoreEmailCtx> = {}, dedupeKey?: string) {
 	void (async () => {
 		try {
@@ -190,7 +194,9 @@ function sendBuyerEmail(req: any, orderNo: string, kind: StoreEmailKind, extra: 
 			if (!o || !EMAIL_RE.test(normalizeEmail(o.customerEmail))) return;
 			const settings: any = await ensureSettings(req);
 			if (settings?.notifyBuyerEmail === false) return;
-			if (dedupeKey && (o.emailLog || []).some((e: any) => e.key === dedupeKey)) return;
+			// Kunci log: sekali-kirim untuk kabar status; pengingat memakai kunci yang diberikan pemanggil.
+			const onceKey = dedupeKey || (ONCE_EMAIL_KINDS.has(kind) ? `once:${kind}` : '');
+			if (onceKey && (o.emailLog || []).some((e: any) => e.key === onceKey)) return;
 			const base = safeBaseUrl(req);
 			const storePath = normalizeStorePath(settings?.navbarPath);
 			const pre = (o.items || []).map((i: any) => i?.preOrderSnapshot?.estimatedReadyAt).filter(Boolean).sort();
@@ -204,8 +210,15 @@ function sendBuyerEmail(req: any, orderNo: string, kind: StoreEmailKind, extra: 
 				estimatedReadyAt: pre[0] ? new Date(pre[0]).toISOString() : null,
 				...extra,
 			};
-			const ok = await sendStoreEmail(kind, o, ctx);
-			if (ok && dedupeKey) await StoreOrder.updateOne({ orderNo }, { $push: { emailLog: { key: dedupeKey, at: new Date() } } });
+			// Coba beberapa kali (SMTP kadang menolak sesaat); jangan tandai terkirim bila semuanya gagal.
+			let ok = false;
+			for (let attempt = 1; attempt <= EMAIL_SEND_ATTEMPTS && !ok; attempt++) {
+				ok = await sendStoreEmail(kind, o, ctx);
+				if (!ok && attempt < EMAIL_SEND_ATTEMPTS) await new Promise((r) => setTimeout(r, attempt * 4000));
+			}
+			// Catat hasilnya (terkirim / gagal) supaya bisa dilacak; kunci sukses = kunci dedupe.
+			const logKey = ok ? onceKey || `sent:${kind}` : `failed:${kind}`;
+			await StoreOrder.updateOne({ orderNo }, { $push: { emailLog: { key: logKey, at: new Date() } } });
 		} catch (e) {
 			console.error('sendBuyerEmail:', e);
 		}
@@ -2439,7 +2452,11 @@ router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (r
 				cancelled: 'cancelled',
 			};
 			const k = kindByStatus[status];
-			if (k) sendBuyerEmail(req, orderNo, k, k === 'cancelled' ? { cancelledBy: 'admin' } : {});
+			if (k) {
+				// Tandai "kabar ini harus sampai": job per jam menyusul bila pengiriman gagal/terlewat.
+				if (k !== 'cancelled') await StoreOrder.updateOne({ orderNo }, { $push: { emailLog: { key: `want:${k}`, at: new Date() } } });
+				sendBuyerEmail(req, orderNo, k, k === 'cancelled' ? { cancelledBy: 'admin' } : {});
+			}
 		}
 		res.json(order);
 	} catch (e) {
@@ -2834,9 +2851,11 @@ function queueSheetSync(req: Request, orderNo: string, opts: { stock?: boolean }
 			if (!sheetId || settings?.googleSheetSyncEnabled === false) return;
 			const { StoreOrder } = resolveModels(req);
 			const o: any = await StoreOrder.findOne({ orderNo }).lean();
-			const { syncOrderToSheet, syncStockToSheet } = await import('../services/store-sheet-sync');
+			const { syncOrderToSheet, syncStockToSheet, consumeGridExpanded } = await import('../services/store-sheet-sync');
 			if (o) await syncOrderToSheet(sheetId, sheetOrderFrom(req, o, settings));
 			if (opts.stock) await syncStockToSheet(sheetId, await stockRowsFor(req));
+			// Kolom sheet baru saja diperluas → tulis ulang pesanan yang tertinggal selama sinkron gagal.
+			if (consumeGridExpanded(sheetId)) await resyncStoreSheet(req);
 		} catch (e) {
 			console.error('queueSheetSync:', e);
 		}
@@ -4300,6 +4319,34 @@ export async function runStoreUnpaidMaintenance(ctx: { tenantModels?: any; tenan
 	let cancelled = 0;
 	let reminded = 0;
 	const days = autoCancelDays(settings);
+
+	// Susulan: kabar status (Dikonfirmasi/Pre-order/Dibayar/Dikirim/Selesai) yang belum tercatat terkirim
+	// untuk pesanan yang berubah dalam 3 hari terakhir. Sekali per pesanan+status (dijaga log emailLog).
+	if (settings?.notifyBuyerEmail !== false) {
+		const statusKind: Record<string, StoreEmailKind> = {
+			confirmed: 'status_confirmed',
+			preorder: 'status_preorder',
+			paid: 'status_paid',
+			shipped: 'status_shipped',
+			completed: 'status_completed',
+		};
+		const pendingMail: any[] = await StoreOrder.find({
+			customerEmail: { $nin: ['', null] },
+			status: { $in: Object.keys(statusKind) },
+			'emailLog.key': { $regex: '^want:' },
+			updatedAt: { $gte: new Date(now - 3 * 86_400_000) },
+		}).limit(200).lean();
+		for (const o of pendingMail) {
+			const kind = statusKind[o.status];
+			const key = `once:${kind}`;
+			if (!(o.emailLog || []).some((e: any) => e.key === `want:${kind}`)) continue; // status ini tidak diubah admin
+			if ((o.emailLog || []).some((e: any) => e.key === key)) continue;
+			// Jangan menyusul bila sudah pernah gagal 3x hari ini (hindari beban SMTP berulang tiap jam)
+			const failedRecently = (o.emailLog || []).filter((e: any) => e.key === `failed:${kind}` && now - new Date(e.at).getTime() < 6 * 3_600_000).length;
+			if (failedRecently >= 1) continue;
+			sendBuyerEmail(req, o.orderNo, kind);
+		}
+	}
 
 	if (days > 0) {
 		const base = {
