@@ -99,8 +99,8 @@ export type SheetOrder = {
  * di template dan tidak boleh ditimpa: rumus yang ditulis lewat API memakai pemisah "," sedangkan
  * sheet ber-locale Indonesia memakai ";" → #ERROR!.
  */
-function pesananRanges(o: SheetOrder, r: number): sheets_v4.Schema$ValueRange[] {
-	return [
+function pesananRanges(o: SheetOrder, r: number, withPaymentCols = true): sheets_v4.Schema$ValueRange[] {
+	const ranges: sheets_v4.Schema$ValueRange[] = [
 		{
 			range: `Pesanan!A${r}:G${r}`,
 			values: [[
@@ -125,7 +125,9 @@ function pesananRanges(o: SheetOrder, r: number): sheets_v4.Schema$ValueRange[] 
 				o.invoiceUrl, // URL biasa → otomatis jadi link di Google Sheets
 			]],
 		},
-		{
+	];
+	if (withPaymentCols) {
+		ranges.push({
 			// Kolom pembayaran (data saja, tanpa rumus); header R4:X4 dipastikan ensurePaymentHeaders
 			range: `Pesanan!R${r}:X${r}`,
 			values: [[
@@ -137,8 +139,9 @@ function pesananRanges(o: SheetOrder, r: number): sheets_v4.Schema$ValueRange[] 
 				STORE_PAYMENT_STATUS_LABEL[o.paymentStatus || 'unpaid'] || '',
 				wibText(o.settleBy).slice(0, 10),
 			]],
-		},
-	];
+		});
+	}
+	return ranges;
 }
 
 function itemRange(orderNo: string, it: SheetOrder['items'][number], r: number): sheets_v4.Schema$ValueRange {
@@ -159,10 +162,33 @@ async function readColumnA(id: string, sheet: string): Promise<string[]> {
 
 const PAYMENT_HEADERS = ['Skema Bayar', 'Kanal Bayar', 'Nominal DP', 'Sudah Dibayar', 'Sisa Tagihan', 'Status Bayar', 'Tenggat Pelunasan'];
 const headerChecked = new Set<string>();
-/** Sheet dari template lama belum punya header R4:X4 → tambahkan sekali per proses. */
-async function ensurePaymentHeaders(id: string) {
-	if (headerChecked.has(id)) return;
+/** Spreadsheet yang kolomnya baru diperluas: pesanan lama perlu ditulis ulang (lihat consumeGridExpanded). */
+const gridExpanded = new Set<string>();
+export function consumeGridExpanded(id: string): boolean {
+	return gridExpanded.delete(id);
+}
+const PAYMENT_LAST_COL = 24; // X
+
+/**
+ * Sheet dari template lama hanya punya kolom A–Q (17 kolom): menulis R:X ke luar grid ditolak Google
+ * ("exceeds grid limits") sehingga SELURUH sinkron gagal. Perluas grid dulu, lalu pastikan header R4:X4.
+ * Mengembalikan true bila kolom pembayaran siap dipakai.
+ */
+async function ensurePaymentHeaders(id: string): Promise<boolean> {
+	if (headerChecked.has(id)) return true;
 	const api = sheetsClient();
+	const meta = await api.spreadsheets.get({ spreadsheetId: id, fields: 'sheets.properties(sheetId,title,gridProperties)' });
+	const pesanan = (meta.data.sheets || []).find((sh) => sh.properties?.title === 'Pesanan');
+	const cols = Number(pesanan?.properties?.gridProperties?.columnCount) || 0;
+	if (pesanan?.properties?.sheetId != null && cols > 0 && cols < PAYMENT_LAST_COL) {
+		await api.spreadsheets.batchUpdate({
+			spreadsheetId: id,
+			requestBody: {
+				requests: [{ appendDimension: { sheetId: pesanan.properties.sheetId, dimension: 'COLUMNS', length: PAYMENT_LAST_COL - cols } }],
+			},
+		});
+		gridExpanded.add(id);
+	}
 	const cur = await api.spreadsheets.values.get({ spreadsheetId: id, range: `Pesanan!R${HEADER_ROW}:X${HEADER_ROW}` });
 	const row = (cur.data.values || [])[0] || [];
 	if (row.join('|') !== PAYMENT_HEADERS.join('|')) {
@@ -174,12 +200,19 @@ async function ensurePaymentHeaders(id: string) {
 		});
 	}
 	headerChecked.add(id);
+	return true;
 }
 
 /** Tulis / perbarui satu pesanan (+ item bila belum ada di sheet). */
 async function upsertOrderNow(id: string, o: SheetOrder) {
 	const api = sheetsClient();
-	await ensurePaymentHeaders(id);
+	let paymentCols = false;
+	try {
+		paymentCols = await ensurePaymentHeaders(id);
+	} catch (e) {
+		// Data inti (A–Q) tetap disinkronkan; kolom pembayaran dicoba lagi pada sinkron berikutnya.
+		console.error('[store-sheet-sync] kolom pembayaran (R:X) belum siap:', (e as any)?.response?.data?.error?.message || (e as Error)?.message);
+	}
 	const pA = await readColumnA(id, 'Pesanan');
 	let idx = pA.indexOf(o.orderNo);
 	if (idx < 0) {
@@ -187,7 +220,7 @@ async function upsertOrderNow(id: string, o: SheetOrder) {
 		if (idx < 0) idx = pA.length;
 	}
 	const pRow = FIRST + idx;
-	const data: sheets_v4.Schema$ValueRange[] = pesananRanges(o, pRow);
+	const data: sheets_v4.Schema$ValueRange[] = pesananRanges(o, pRow, paymentCols);
 
 	const iA = await readColumnA(id, 'Item');
 	const already = iA.filter((v) => v === o.orderNo).length;

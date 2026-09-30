@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.41.0] - 2026-09-30
+
+### Fixed
+
+- Pesanan tidak masuk Google Sheet sejak 4.36.0 (sheet hanya 17 kolom): kolom diperluas otomatis + backfill; data inti tidak lagi ikut gagal.
+
+### Added
+
+- Email status: log pengiriman, retry, sekali-kirim, dan job susulan.
+
 ## [4.40.0] - 2026-09-30
 
 ### Added
