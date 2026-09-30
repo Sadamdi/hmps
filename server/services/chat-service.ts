@@ -634,6 +634,35 @@ export class ChatService {
 		return path.join(process.cwd(), 'uploads', path.basename(normalized));
 	}
 
+	/**
+	 * Cegah draft berita yang isinya bukan dari naskah user (mis. model menyalin contoh gaya/berita lain).
+	 * Judul harus punya irisan kata bermakna dengan pesan user; kalau tidak, tool ditolak dan model diminta ulang.
+	 */
+	private static guardDraftGrounding(
+		history: Content[],
+		name: string,
+		args: Record<string, unknown>,
+	): Record<string, unknown> | null {
+		if (name !== 'create_berita_draft') return null;
+		const userTexts = history
+			.filter((h) => (h.role as string) === 'user')
+			.slice(-3)
+			.map((h) => (h.parts || []).map((p: any) => ('text' in p ? String(p.text) : '')).join(' '))
+			.join(' ')
+			.toLowerCase();
+		if (userTexts.length < 300) return null; // tanpa naskah panjang, tidak ada yang bisa dibandingkan
+		const words = (s: string) =>
+			Array.from(new Set(s.toLowerCase().match(/[a-z0-9]{4,}/g) || []));
+		const titleWords = words(String(args.title || ''));
+		if (titleWords.length < 3) return null;
+		const hit = titleWords.filter((w) => userTexts.includes(w)).length;
+		if (hit / titleWords.length >= 0.5) return null;
+		return {
+			error:
+				'Draft DITOLAK: judul/isi tidak cocok dengan naskah yang dikirim user (kemungkinan menyalin contoh gaya atau berita lain). Panggil ulang create_berita_draft dengan judul, tanggal, nama, dan isi yang HANYA berasal dari pesan user. Contoh gaya hanya untuk struktur, bukan fakta.',
+		};
+	}
+
 	private static async runGeminiAgenticLoop(
 		gemini: ReturnType<typeof initGeminiClient>,
 		history: Content[],
@@ -686,15 +715,17 @@ export class ChatService {
 						functionCalls.map(async (fc) => {
 							onStep?.(fc.name, 'running');
 							try {
-								const out = await executeToolCall(
-									fc.name,
-									(fc.args ?? {}) as Record<string, unknown>,
-									permissions || [],
-									authUserId,
-									pagePath,
-									tenantDbName,
-									isTenantContext
-								);
+								const out =
+									this.guardDraftGrounding(history, fc.name, (fc.args ?? {}) as Record<string, unknown>) ??
+									(await executeToolCall(
+										fc.name,
+										(fc.args ?? {}) as Record<string, unknown>,
+										permissions || [],
+										authUserId,
+										pagePath,
+										tenantDbName,
+										isTenantContext
+									));
 								onStep?.(fc.name, 'done');
 								return {
 									functionResponse: { name: fc.name, response: out },
@@ -950,15 +981,17 @@ export class ChatService {
 		const openAiResult = await runOpenAiChat({
 			history,
 			tools: allowedTools,
-			executeTool: (name, args) => executeToolCall(
-				name,
-				args,
-				permissions || [],
-				authUserId,
-				pagePath,
-				tenantDbName,
-				isTenantContext
-			),
+			executeTool: async (name, args) =>
+				this.guardDraftGrounding(history, name, args) ??
+				executeToolCall(
+					name,
+					args,
+					permissions || [],
+					authUserId,
+					pagePath,
+					tenantDbName,
+					isTenantContext
+				),
 			onStep,
 			maxToolIterations: 50,
 		});
@@ -976,15 +1009,17 @@ export class ChatService {
 				const retryResult = await runOpenAiChat({
 					history: [...history, { role: 'system', parts: [{ text: retryInstruction }] }],
 					tools: allowedTools,
-					executeTool: (name, args) => executeToolCall(
-						name,
-						args,
-						permissions || [],
-						authUserId,
-						pagePath,
-						tenantDbName,
-						isTenantContext
-					),
+					executeTool: async (name, args) =>
+						this.guardDraftGrounding(history, name, args) ??
+						executeToolCall(
+							name,
+							args,
+							permissions || [],
+							authUserId,
+							pagePath,
+							tenantDbName,
+							isTenantContext
+						),
 					onStep,
 					maxToolIterations: 50,
 				});

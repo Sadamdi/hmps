@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.38.1] - 2026-09-30
+
+### Fixed
+
+- Draft berita dari chat AI tidak lagi berisi berita lain: contoh gaya hanya kerangka, plus penjaga server yang menolak judul di luar naskah user.
+
 ## [4.38.0] - 2026-09-30
 
 ### Added

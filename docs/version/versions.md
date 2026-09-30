@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.38.0`  
+**Current version:** `4.38.1`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.38.0`](./release/4.38.0.md) | 2026-09-30 | Email pembeli, auto-batal 3 hari, bundel pilih ukuran, sinkron status Dibayar | MINOR | 1 | **Current** |
+| [`4.38.1`](./release/4.38.1.md) | 2026-09-30 | Asisten AI tidak lagi menyalin berita lain saat membuat draft | PATCH | 1 | **Current** |
+| [`4.38.0`](./release/4.38.0.md) | 2026-09-30 | Email pembeli, auto-batal 3 hari, bundel pilih ukuran, sinkron status Dibayar | MINOR | 1 | Released |
 | [`4.37.0`](./release/4.37.0.md) | 2026-09-30 | Bundling bervarian + thumbnail + tampil di detail produk, kartu dashboard bisa dilipat, perbaikan beli-langsung | MINOR | 1 | Released |
 | [`4.36.0`](./release/4.36.0.md) | 2026-09-29 | Pembayaran toko: kanal bayar (QRIS/rekening/e-wallet), DP pre-order, bukti bayar | MINOR | 1 | Released |
 | [`4.35.3`](./release/4.35.3.md) | 2026-09-29 | Thumbnail embed Drive dikompres (maks 1000px, JPEG) | PATCH | 1 | Released |
