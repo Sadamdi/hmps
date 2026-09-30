@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.38.3] - 2026-09-30
+
+### Fixed
+
+- Dialog bundling meluber di HP, header menimpa dialog/popup, dropdown melebihi layar, tabel bundling dashboard terpotong, editor isi paket sempit, dialog tidak menutup setelah tambah paket.
+
 ## [4.38.2] - 2026-09-30
 
 ### Fixed

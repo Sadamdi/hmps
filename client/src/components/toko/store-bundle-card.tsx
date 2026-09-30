@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Loader2, Package, ShoppingCart, Tag } from 'lucide-react';
-import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -56,9 +55,16 @@ export function bundleContentsText(components: BundleComponent[] = []): string {
 		.join(', ');
 }
 
+/** Thumbnail ringan: <img> biasa (MediaDisplay punya tinggi minimum & lightbox sehingga merusak ukuran kartu/dialog). */
+function thumbSrc(src: string): string {
+	const m = src.match(/drive\.google\.com\/(?:file\/d\/|open\?id=|uc\?(?:[^#]*&)?id=)([\w-]+)/i);
+	return m ? `https://drive.google.com/thumbnail?id=${m[1]}&sz=w600` : src;
+}
+
 function Thumb({ src, alt, className }: { src?: string; alt: string; className: string }) {
-	return src ? (
-		<MediaDisplay src={src} alt={alt} className={className} />
+	const [failed, setFailed] = useState(false);
+	return src && !failed ? (
+		<img src={thumbSrc(src)} alt={alt} loading="lazy" onError={() => setFailed(true)} className={`${className} block bg-muted object-cover`} />
 	) : (
 		<div className={`${className} grid place-items-center bg-muted text-muted-foreground`}>
 			<Package className="h-6 w-6 opacity-50" />
@@ -86,7 +92,7 @@ export function StoreBundleCard({
 	compareAt?: number;
 	currency: string;
 	adding: boolean;
-	onAdd: (el: HTMLElement, selections: BundleSelectionInput[]) => void;
+	onAdd: (el: HTMLElement, selections: BundleSelectionInput[], done?: () => void) => void;
 	compact?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
@@ -105,11 +111,12 @@ export function StoreBundleCard({
 	const startsFrom = bundle.addVariantPriceDiff && chooseItems.length > 0 && extra === 0;
 	// tombol cepat di kartu: bila perlu memilih, buka rincian dulu
 	const quickAdd = (el: HTMLElement) => (bundle.needsChoice ? setOpen(true) : onAdd(el, []));
+		const addFromDialog = (el: HTMLElement) => onAdd(el, selections, () => { setOpen(false); setPicked({}); });
 	return (
 		<>
 			<Card className="overflow-hidden">
 				<button type="button" className="block w-full text-left" onClick={() => setOpen(true)} aria-label={`Lihat isi ${bundle.name}`}>
-					<Thumb src={bundle.thumbnail} alt={bundle.name} className={`w-full object-cover ${compact ? 'aspect-[3/2]' : 'aspect-[16/9]'}`} />
+					<Thumb src={bundle.thumbnail} alt={bundle.name} className={`w-full ${compact ? 'aspect-[3/2]' : 'aspect-[16/9]'}`} />
 				</button>
 				<CardContent className="p-4 space-y-2">
 					<p className="font-semibold line-clamp-2">{bundle.name}</p>
@@ -144,9 +151,9 @@ export function StoreBundleCard({
 			</Card>
 
 			<Dialog open={open} onOpenChange={setOpen}>
-				<DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+				<DialogContent className="w-[calc(100vw-1.5rem)] max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
 					<DialogHeader>
-						<DialogTitle>{bundle.name}</DialogTitle>
+						<DialogTitle className="pr-6 text-left break-words">{bundle.name}</DialogTitle>
 						{bundle.shortDescription && <DialogDescription>{bundle.shortDescription}</DialogDescription>}
 					</DialogHeader>
 					<Thumb src={bundle.thumbnail} alt={bundle.name} className="w-full aspect-[16/9] rounded-md object-cover" />
@@ -154,10 +161,10 @@ export function StoreBundleCard({
 						<p className="text-sm font-medium">Kamu mendapat:</p>
 						<ul className="space-y-2">
 							{comps.map((c, i) => (
-								<li key={`${c.productId}-${i}`} className="flex items-center gap-3 rounded-md border p-2">
-									<Thumb src={c.thumbnail} alt={c.name} className="h-12 w-12 shrink-0 rounded object-cover" />
+								<li key={`${c.productId}-${i}`} className="flex items-start gap-3 rounded-md border p-2">
+									<Thumb src={c.thumbnail} alt={c.name} className="h-12 w-12 shrink-0 rounded" />
 									<div className="min-w-0 flex-1 text-sm">
-										<p className="font-medium truncate">
+										<p className="font-medium break-words">
 											{c.qty}× {c.name}
 										</p>
 										{c.variantLabel && <p className="text-xs text-muted-foreground">{c.variantLabel}</p>}
@@ -208,7 +215,7 @@ export function StoreBundleCard({
 					{chooseItems.length > 0 && !allPicked && !soldOut && (
 						<p className="text-xs text-amber-600 dark:text-amber-400">Pilih {chooseItems.map((c) => (c.groupName || 'varian').toLowerCase()).join(' & ')} dulu untuk menambah paket.</p>
 					)}
-					<Button className="w-full" disabled={adding || soldOut || !allPicked} onClick={(e) => onAdd(e.currentTarget, selections)}>
+					<Button className="w-full" disabled={adding || soldOut || !allPicked} onClick={(e) => addFromDialog(e.currentTarget)}>
 						<ShoppingCart className="h-4 w-4 mr-2" /> {soldOut ? 'Stok habis' : 'Tambah paket ke keranjang'}
 					</Button>
 				</DialogContent>

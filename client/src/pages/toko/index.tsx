@@ -297,8 +297,8 @@ export default function TokoIndexPage() {
 											price={bPr.lineSubtotal}
 											compareAt={bPr.compareSubtotal}
 											currency={defaultCur}
-											adding={addBundleMutation.isPending}
-											onAdd={(el, selections) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el, selections })}
+											adding={addBundleMutation.isPending && addBundleMutation.variables?.bundleId === String(b._id)}
+											onAdd={(el, selections, done) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el, selections }, { onSuccess: done })}
 										/>
 									);
 								})}
