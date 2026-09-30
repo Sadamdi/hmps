@@ -2077,9 +2077,9 @@ export default function DashboardToko() {
 									) : storeBundles.length === 0 ? (
 										<p className="text-sm text-muted-foreground">Belum ada bundling.</p>
 									) : (
-										<div className="overflow-x-auto border rounded-lg text-sm">
-											<table className="w-full text-left">
-												<thead>
+										<div className="border rounded-lg text-sm overflow-hidden">
+											<table className="block w-full text-left sm:table">
+												<thead className="hidden sm:table-header-group">
 													<tr className="border-b bg-muted/40">
 														<th className="p-2 font-medium">Nama</th>
 														<th className="p-2 font-medium">Harga paket</th>
@@ -2088,19 +2088,19 @@ export default function DashboardToko() {
 														<th className="p-2 w-32" />
 													</tr>
 												</thead>
-												<tbody>
+												<tbody className="block sm:table-row-group">
 													{storeBundles.map((b: any) => (
-														<tr key={String(b._id)} className="border-b last:border-0">
-															<td className="p-2 font-medium">{b.name}</td>
-															<td className="p-2 tabular-nums">
+														<tr key={String(b._id)} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b p-3 last:border-0 sm:table-row sm:p-0">
+															<td className="w-full p-0 font-medium break-words sm:table-cell sm:w-auto sm:p-2">{b.name}</td>
+															<td className="p-0 tabular-nums sm:table-cell sm:p-2">
 																{formatStoreMoney(
 																	Number(b.bundlePrice) || 0,
 																	defaultStoreCurrency,
 																)}
 															</td>
-															<td className="p-2">{b.published ? 'Ya' : 'Tidak'}</td>
-															<td className="p-2">{b.isActive ? 'Ya' : 'Tidak'}</td>
-															<td className="p-2 flex flex-wrap gap-1 justify-end">
+															<td className="p-0 text-muted-foreground sm:table-cell sm:p-2 sm:text-foreground"><span className="sm:hidden">Publik: </span>{b.published ? "Ya" : "Tidak"}</td>
+															<td className="p-0 text-muted-foreground sm:table-cell sm:p-2 sm:text-foreground"><span className="sm:hidden">Aktif: </span>{b.isActive ? "Ya" : "Tidak"}</td>
+															<td className="ml-auto flex gap-1 p-0 sm:table-cell sm:p-2 sm:text-right">
 																<Button
 																	variant="outline"
 																	size="sm"
@@ -2443,8 +2443,8 @@ export default function DashboardToko() {
 						<div className="space-y-2">
 							<Label>Isi paket</Label>
 							{bundleForm.items.map((row, idx) => (
-								<div key={idx} className="flex flex-wrap items-end gap-2">
-									<div className="flex-1 min-w-[12rem] space-y-1">
+								<div key={idx} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-md border p-2.5 sm:grid-cols-[minmax(0,1fr)_11rem_5rem_auto] sm:items-end">
+									<div className="col-span-2 min-w-0 space-y-1 sm:col-span-1"><Label className="text-xs">Produk {idx + 1}</Label>
 										<Select
 											value={row.productId || undefined}
 											onValueChange={(v) => {
@@ -2472,7 +2472,7 @@ export default function DashboardToko() {
 										const vs = (prod?.variants || []).filter((v: any) => v?.active !== false);
 										if (!vs.length) return null;
 										return (
-											<div className="w-44 space-y-1">
+											<div className="col-span-2 min-w-0 space-y-1 sm:col-span-1">
 												<Label className="text-xs">{prod.variantGroupName || 'Varian'} (wajib)</Label>
 												<select
 													className={`w-full rounded-md border bg-background px-2 py-2 text-sm ${row.variantId ? '' : 'border-destructive'}`}
@@ -2493,7 +2493,7 @@ export default function DashboardToko() {
 											</div>
 										);
 									})()}
-									<div className="w-20 space-y-1">
+									<div className="min-w-0 space-y-1">
 										<Label className="text-xs">Qty</Label>
 										<Input
 											type="number"
@@ -2513,7 +2513,7 @@ export default function DashboardToko() {
 										type="button"
 										variant="ghost"
 										size="icon"
-										className="shrink-0"
+										className="shrink-0 self-end"
 										aria-label="Hapus baris"
 										onClick={() => {
 											setBundleForm((f) => ({
@@ -2536,7 +2536,7 @@ export default function DashboardToko() {
 									}))
 								}>
 								<Plus className="h-4 w-4 mr-1" />
-								Baris
+								Tambah produk
 							</Button>
 						</div>
 						{bundleForm.items.some((r) => r.variantId === '__choose') && (

@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.38.2`  
+**Current version:** `4.38.3`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.38.2`](./release/4.38.2.md) | 2026-09-30 | Pesan user terbaru akhirnya sampai ke model AI | PATCH | 1 | **Current** |
+| [`4.38.3`](./release/4.38.3.md) | 2026-09-30 | Perbaikan tampilan bundling (dialog, overlay header, dashboard HP) | PATCH | 1 | **Current** |
+| [`4.38.2`](./release/4.38.2.md) | 2026-09-30 | Pesan user terbaru akhirnya sampai ke model AI | PATCH | 1 | Released |
 | [`4.38.1`](./release/4.38.1.md) | 2026-09-30 | Asisten AI tidak lagi menyalin berita lain saat membuat draft | PATCH | 1 | Released |
 | [`4.38.0`](./release/4.38.0.md) | 2026-09-30 | Email pembeli, auto-batal 3 hari, bundel pilih ukuran, sinkron status Dibayar | MINOR | 1 | Released |
 | [`4.37.0`](./release/4.37.0.md) | 2026-09-30 | Bundling bervarian + thumbnail + tampil di detail produk, kartu dashboard bisa dilipat, perbaikan beli-langsung | MINOR | 1 | Released |

@@ -373,8 +373,11 @@ export default function TokoCartPage() {
 													aria-label={`Pilih ${it.name}`}
 												/>
 											</div>
+											{it.thumbnail ? (
+												<img src={it.thumbnail} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-md object-cover bg-muted" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+											) : null}
 											<div className="flex-1 min-w-0">
-											<div className="font-medium">
+											<div className="font-medium break-words">
 												{it.lineKind === 'bundle' || it.bundleId ? (
 													<span className="text-xs rounded bg-primary/10 text-primary px-1.5 py-0.5 mr-1">
 														Bundel

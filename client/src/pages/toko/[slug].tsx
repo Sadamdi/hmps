@@ -764,8 +764,8 @@ export default function TokoProductDetailPage() {
 										compact
 										price={Number(b.bundlePrice) || 0}
 										currency={defaultCur}
-										adding={addBundleMutation.isPending}
-										onAdd={(el, selections) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el, selections })}
+										adding={addBundleMutation.isPending && addBundleMutation.variables?.bundleId === String(b._id)}
+										onAdd={(el, selections, done) => addBundleMutation.mutate({ bundleId: String(b._id), fromEl: el, selections }, { onSuccess: done })}
 									/>
 								))}
 							</div>
