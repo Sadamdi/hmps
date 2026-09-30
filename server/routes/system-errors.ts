@@ -3,7 +3,8 @@
  *
  *  - POST /report           : laporan error dari browser (publik + optional auth, rate-limited)
  *  - GET  /list              : daftar bug otomatis (owner-only)
- *  - GET  /count             : ringkasan jumlah per status/severity (owner-only)
+ *  - GET  /count             : ringkasan jumlah per status/severity/kode error (owner-only)
+ *  - POST /cleanup-noise     : hapus catatan lama yang bukan bug (probe bot 404, noise browser) (owner-only)
  *  - GET  /:id               : detail satu bug (owner-only)
  *  - PATCH /:id/status       : ubah status (owner-only)
  *  - POST /:id/analyze       : jalankan ulang analisis AI (owner-only)
@@ -70,6 +71,8 @@ router.get('/list', authenticate, async (req, res) => {
 			status,
 			severity,
 			source,
+			statusCode: statusCodeRaw,
+			excludeStatusCode: excludeStatusRaw,
 			page: pageStr,
 			limit: limitStr,
 			dateFrom,
@@ -93,6 +96,16 @@ router.get('/list', authenticate, async (req, res) => {
 		}
 		if (source && ['server', 'client'].includes(source as string)) {
 			filter.source = source;
+		}
+		// Filter kode error HTTP (mis. 500, 404). 0 = error client (tanpa kode HTTP).
+		const codeNum = parseInt(String(statusCodeRaw ?? ''), 10);
+		if (Number.isFinite(codeNum) && codeNum >= 0 && codeNum <= 599) {
+			filter.statusCode = codeNum;
+		} else {
+			const exNum = parseInt(String(excludeStatusRaw ?? ''), 10);
+			if (Number.isFinite(exNum) && exNum >= 0 && exNum <= 599) {
+				filter.statusCode = { $ne: exNum };
+			}
 		}
 
 		// Filter rentang tanggal (lastSeenAt) — ISO date string YYYY-MM-DD.
@@ -161,9 +174,52 @@ router.get('/count', authenticate, async (req, res) => {
 				SystemError.countDocuments({ severity: 'high' }),
 			]);
 
-		res.json({ total, new: newCount, investigating, resolved, ignored, critical, high });
+		// Ringkasan per kode error (0 = error client) supaya UI bisa menampilkan filter kode + jumlahnya.
+		const byStatusCode = (await SystemError.aggregate([
+			{ $group: { _id: '$statusCode', groups: { $sum: 1 }, hits: { $sum: '$count' } } },
+			{ $sort: { groups: -1 } },
+		])) as { _id: number; groups: number; hits: number }[];
+
+		res.json({
+			total,
+			new: newCount,
+			investigating,
+			resolved,
+			ignored,
+			critical,
+			high,
+			byStatusCode: byStatusCode.map((r) => ({ statusCode: r._id ?? 0, groups: r.groups, hits: r.hits })),
+		});
 	} catch (error) {
 		console.error('Error counting system errors:', error);
+		res.status(500).json({ message: 'Internal server error' });
+	}
+});
+
+// ── Bersihkan catatan lama yang bukan bug (owner) ──
+// Aturan sama dengan filter monitor baru: 404 server tanpa halaman situs sendiri (probe bot) dan
+// error client noise (ResizeObserver, WebView in-app, dsb.). `dryRun=true` hanya menghitung.
+const NOISE_CLIENT_RE =
+	/ResizeObserver loop|^Script error\.?$|Java object is gone|Java exception was raised|Error invoking postMessage|Failed to execute 'removeChild' on 'Node'|\.at is not a function/i;
+
+router.post('/cleanup-noise', authenticate, async (req, res) => {
+	try {
+		if (!requireOwner(req, res)) return;
+		const dryRun = req.body?.dryRun === true || req.query.dryRun === 'true';
+		const filter = {
+			$or: [
+				{ source: 'server', statusCode: 404, $or: [{ page: '' }, { page: { $exists: false } }] },
+				{ source: 'client', message: NOISE_CLIENT_RE },
+			],
+		};
+		if (dryRun) {
+			const count = await SystemError.countDocuments(filter);
+			return res.json({ dryRun: true, count });
+		}
+		const r = await SystemError.deleteMany(filter);
+		res.json({ dryRun: false, deleted: r.deletedCount || 0 });
+	} catch (error) {
+		console.error('Error cleaning system error noise:', error);
 		res.status(500).json({ message: 'Internal server error' });
 	}
 });

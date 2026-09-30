@@ -6,8 +6,11 @@
  * lokasi akses, waktu, file/baris, route, dan analisis AI (OpenAI → Gemini).
  *
  * Cakupan (sesuai keputusan):
- *   - Server: hanya error 5xx (kegagalan nyata). 4xx / 429 / 503 / abort diabaikan.
- *   - Client: runtime error, unhandled rejection, dan crash render React.
+ *   - Server: error 5xx (kegagalan nyata) + 404 "endpoint API tidak ada" yang DIPANGGIL frontend
+ *     kita sendiri. Tidak dicatat: 4xx lain, 503, abort, probe bot (tanpa Referer situs), dan
+ *     404 "data tidak ada" (slug/produk/pesanan/komunitas tidak ditemukan = halamannya memang tidak ada).
+ *   - Client: runtime error, unhandled rejection, dan crash render React (noise browser/in-app
+ *     browser seperti ResizeObserver dan WebView diabaikan).
  *
  * Prinsip: monitoring TIDAK BOLEH melempar error ke jalur request. Semua dibungkus
  * try/catch dan gagal secara diam-diam (best-effort).
@@ -119,6 +122,29 @@ function normalizeForFingerprint(msg: string): string {
 		.trim();
 }
 
+/** Buang hash build di nama aset (prodi-C1vEjKio.js -> prodi.js) agar chunk yang sama satu grup. */
+function stripAssetHash(msg: string): string {
+	return (msg || '').replace(/([A-Za-z0-9_$]+)-[A-Za-z0-9_-]{6,12}\.(js|css|mjs)\b/g, '$1.$2');
+}
+
+/** Error client yang bukan bug aplikasi (browser/ekstensi/in-app WebView/browser jadul). */
+const CLIENT_NOISE_RE = new RegExp(
+	[
+		'ResizeObserver loop',
+		'^Script error\\.?$',
+		'Java object is gone',
+		'Java exception was raised',
+		'Error invoking postMessage',
+		"Failed to execute 'removeChild' on 'Node'",
+		"Failed to execute 'insertBefore' on 'Node'",
+		'\\.at is not a function',
+		'Non-Error promise rejection captured',
+		'chrome-extension://',
+		'moz-extension://',
+	].join('|'),
+	'i',
+);
+
 function computeFingerprint(parts: {
 	source: string;
 	name: string;
@@ -128,7 +154,7 @@ function computeFingerprint(parts: {
 	const basis = [
 		parts.source,
 		parts.name,
-		normalizeForFingerprint(parts.message),
+		normalizeForFingerprint(stripAssetHash(parts.message)),
 		// Buang nomor baris dari file agar perubahan kecil tetap satu grup; sertakan fungsi.
 		(parts.frame.file || '').replace(/\\/g, '/').split('/').slice(-2).join('/'),
 		parts.frame.functionName,
@@ -268,8 +294,6 @@ async function upsertAndMaybeAnalyze(doc: Record<string, unknown>): Promise<void
 
 // ==================== FILTER STATUS ====================
 
-// 4xx yang umumnya "wajar"/keamanan/validasi user → jangan dianggap bug.
-const EXPECTED_SKIP_STATUS = new Set([400, 401, 403, 405, 429, 451]);
 // Pola path probe bot/scanner — bukan bug aplikasi nyata.
 const SCANNER_PATH_RE = /\.(php|aspx?|jsp|env|git|sql|bak|ini)|wp-admin|wp-login|phpmyadmin|xmlrpc/i;
 
@@ -283,28 +307,56 @@ function normalizeRouteForFingerprint(route: string): string {
 		.slice(0, 200);
 }
 
+/** Host situs sendiri: Host request, ditambah domain publik dari env bila ada. */
+function firstPartyHosts(req?: Request): Set<string> {
+	const hosts = new Set<string>();
+	const h = String(req?.headers?.host || '').toLowerCase();
+	if (h) hosts.add(h);
+	if (h.includes(':')) hosts.add(h.split(':')[0]);
+	for (const extra of String(process.env.PUBLIC_SITE_HOSTS || 'himatif-encoder.com,www.himatif-encoder.com').split(',')) {
+		const e = extra.trim().toLowerCase();
+		if (e) hosts.add(e);
+	}
+	return hosts;
+}
+
+/** True bila request datang dari halaman situs kita sendiri (Referer/Origin sama), bukan scanner/bot. */
+export function isFirstPartyRequest(req?: Request): boolean {
+	try {
+		if (!req) return false;
+		const ref = String(req.headers?.['referer'] || req.headers?.['referrer'] || req.headers?.['origin'] || '');
+		if (!ref) return false;
+		const host = new URL(ref).host.toLowerCase();
+		const hosts = firstPartyHosts(req);
+		return hosts.has(host) || hosts.has(host.split(':')[0]);
+	} catch {
+		return false;
+	}
+}
+
 /**
  * Status response yang dianggap bug & layak masuk dashboard.
  *  - 5xx: kegagalan nyata (kecuali 503 = load shedding sementara).
- *  - 404: hanya untuk endpoint `/api/*` (frontend memanggil endpoint yang harusnya ada).
- *  - 4xx lain: ditangkap KECUALI yang wajar/keamanan (400/401/403/405/429/451).
- *  - Probe scanner diabaikan.
+ *  - 404: HANYA bila endpoint /api tidak ada sama sekali (catch-all API menandai _routeNotFound) DAN
+ *    dipanggil dari halaman situs kita sendiri (bug frontend/deploy). Tidak dicatat: 404 "data tidak ada"
+ *    dari handler (artikel/produk/pesanan/komunitas tidak ditemukan), probe bot, halaman/aset acak.
+ *  - 4xx lain (400/401/403/405/409/413/422/429/...): perilaku wajar/validasi user, tidak dicatat.
  */
 function shouldCaptureHttpStatus(status: number, req?: Request): boolean {
 	if (status >= 500) return status !== 503;
-	if (status < 400) return false;
-	if (EXPECTED_SKIP_STATUS.has(status)) return false;
+	if (status !== 404) return false;
 
 	const url = String((req as any)?.originalUrl || req?.url || '');
 	const path = url.split('?')[0];
+	if (!path.startsWith('/api/')) return false;
 	if (SCANNER_PATH_RE.test(path)) return false;
-
-	if (status === 404) {
-		// 404 "yang harusnya ada tapi tidak ada": endpoint API yang dipanggil tapi hilang.
-		// 404 halaman/aset acak (benar-benar tidak ada) tidak ditangkap.
-		return path.startsWith('/api/');
-	}
-	return true; // 408/409/410/413/422/423/... yang tidak di-skip
+	// Hanya bila TIDAK ada route yang menangani (ditandai catch-all API). Handler yang membalas 404
+	// sendiri = resource-nya memang tidak ada (artikel/produk/pesanan), bukan endpoint hilang.
+	if (!(req as any)?._routeNotFound) return false;
+	// Middleware menandai 404 jinak (mis. komunitas/tenant tidak ditemukan).
+	if ((req as any)?._benign404) return false;
+	// Tanpa jejak halaman situs sendiri → probe bot/scanner.
+	return isFirstPartyRequest(req);
 }
 
 function isAbortError(err: any): boolean {
@@ -384,12 +436,15 @@ export async function captureHttpError(req: Request, status: number): Promise<vo
 
 		const ctx = extractRequestContext(req);
 		const routeNorm = normalizeRouteForFingerprint(ctx.route);
-		const name = `HTTP${status}`;
-		const message = `HTTP ${status} ${ctx.httpMethod} ${routeNorm}`;
+		const name = status === 404 ? 'EndpointNotFound' : `HTTP${status}`;
+		const baseMessage = `HTTP ${status} ${ctx.httpMethod} ${routeNorm}`;
+		// Pesan dari body response ikut disimpan agar 5xx tanpa stack tidak "buta".
+		const respMsg = clamp((req as any)._respMsg || '', 300);
+		const message = respMsg ? `${baseMessage} — ${respMsg}` : baseMessage;
 		const fingerprint = computeFingerprint({
 			source: 'server',
 			name,
-			message,
+			message: baseMessage,
 			frame: { file: '', line: 0, column: 0, functionName: '' },
 		});
 
@@ -449,6 +504,7 @@ export async function captureClientError(
 		if (!isMonitorEnabled()) return;
 		const message = clamp(payload?.message || 'Unknown client error', MAX_MESSAGE_LEN);
 		const name = String(payload?.name || 'Error').slice(0, 120);
+		if (CLIENT_NOISE_RE.test(message)) return;
 		const stack = clamp(payload?.stack || '', MAX_STACK_LEN);
 		const frame = parseTopFrame(stack);
 		const ctx = extractRequestContext(req);

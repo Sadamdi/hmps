@@ -15,8 +15,10 @@ Cakupan (luas tapi tetap menyaring noise agar dashboard tidak banjir):
 - **Server (error yang dilempar)**: ditangkap via global error handler — punya stack/file/baris.
 - **Server (berbasis status response)**: middleware `res.on('finish')` di semua `/api` (termasuk tenant) menangkap bug walau handler membalas `res.status(...)` tanpa melempar. Status yang ditangkap:
   - `5xx` (kecuali `503` load shedding) → kegagalan nyata.
-  - `404` **hanya untuk endpoint `/api/*`** (endpoint yang harusnya ada tapi hilang); 404 halaman/aset acak yang memang tidak ada **tidak** ditangkap.
-  - `4xx` lain (408/409/410/413/422/…) ditangkap, **kecuali** yang wajar/keamanan: `400/401/403/405/429/451`. Probe scanner (`.php`, `wp-admin`, dst) diabaikan.
+  - `404` **hanya bila endpoint `/api/*` benar-benar tidak ada** (tidak ada route yang menangani) **dan** dipanggil dari halaman situs sendiri (Referer/Origin sama). **Tidak** ditangkap: probe bot (tanpa Referer situs), 404 "data tidak ada" yang dibalas handler (artikel/produk/pesanan tidak ditemukan), komunitas/tenant tidak ada, halaman/aset acak.
+  - `4xx` lain (400/401/403/405/409/413/422/429/…) **tidak** ditangkap (perilaku wajar/validasi user). Probe scanner (`.php`, `wp-admin`, dst) diabaikan.
+  - Error client yang diabaikan (noise): `ResizeObserver loop`, `Script error.`, WebView in-app (`Java object is gone`, `postMessage`), `removeChild/insertBefore` (ekstensi/terjemahan), `.at is not a function` (browser jadul), ekstensi browser. Error chunk `Failed to fetch dynamically imported module` dikelompokkan per nama chunk tanpa hash build.
+  - Body response 5xx (`message`) ikut disimpan pada `message` agar error tanpa stack tidak "buta".
 - **Client**: runtime error, unhandled rejection, dan crash render React.
 - Error identik **dikelompokkan** (dedup) berdasarkan fingerprint (route dinormalisasi: `/api/berita/123` → `/api/berita/:id`); kemunculan berulang hanya menambah `count` + `lastSeenAt`.
 
@@ -124,7 +126,7 @@ Menggunakan kembali key `GEMINI_API_KEY_*` dan `OPENAI_API_KEY`/`OPENAI_BASE_URL
 
 ## Business Rules From Code
 
-1. Server ditangkap dari dua jalur (thrown + status response) untuk **semua** endpoint `/api` (main & tenant). Status: 5xx (kecuali 503), 404 khusus `/api/*`, 4xx lain kecuali 400/401/403/405/429/451; abort & probe scanner diabaikan.
+1. Server ditangkap dari dua jalur (thrown + status response) untuk **semua** endpoint `/api` (main & tenant). Status: 5xx (kecuali 503), 404 khusus `/api/*`, 404 hanya endpoint hilang yang dipanggil dari situs sendiri; 4xx lain tidak; abort & probe scanner diabaikan.
 2. Jalur thrown menandai `req._sysErrCaptured` agar jalur status tidak menyimpan dobel untuk error yang sama.
 3. Monitoring **tidak pernah** melempar error ke jalur request — semua dibungkus try/catch best-effort.
 4. Endpoint `/report` selalu balas `202` (soft-success) agar browser tidak retry agresif / membuat loop error.
@@ -152,7 +154,7 @@ Menggunakan kembali key `GEMINI_API_KEY_*` dan `OPENAI_API_KEY`/`OPENAI_BASE_URL
 | 2 | Dedup | error sama dipicu 2× | tetap 1 dokumen, `count=2` |
 | 3 | Analisis AI | dokumen baru | `aiAnalysis` terisi (OpenAI, fallback Gemini) |
 | 4 | Status response 500 tenant | `res.status(500)` di route tenant | dokumen `isTenant=true`, `communityName`, `page`, endpoint terekam |
-| 5 | 404 endpoint API | GET `/api/x` yang tidak ada | dokumen severity `medium` terekam |
+| 5 | 404 endpoint API | GET `/api/x` tidak ada, dipanggil dengan Referer situs sendiri | dokumen `EndpointNotFound` severity `medium` terekam; tanpa Referer / produk tidak ada / komunitas tidak ada → tidak terekam |
 | 6 | Filter noise | 403 / 200 / probe `.php` | tidak ada dokumen dibuat |
 | 7 | Client error | `window.onerror` / crash React | `POST /report` → dokumen source=client |
 | 8 | Owner-guard | non-owner GET `/list` | `403` |

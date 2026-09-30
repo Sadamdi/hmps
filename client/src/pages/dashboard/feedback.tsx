@@ -1068,6 +1068,8 @@ export default function FeedbackPage() {
 	const [sysSourceFilter, setSysSourceFilter] = useState<string>('all');
 	const [sysSeverityFilter, setSysSeverityFilter] = useState<string>('all');
 	const [sysTenantFilter, setSysTenantFilter] = useState<string>('all');
+	// Filter kode error: 'all' | 'no404' (sembunyikan 404) | kode HTTP (mis. '500') | '0' (error client)
+	const [sysCodeFilter, setSysCodeFilter] = useState<string>('all');
 	const [expandedSysId, setExpandedSysId] = useState<string | null>(null);
 	const [sysPage, setSysPage] = useState(1);
 	const [sysFilter, setSysFilter] = useState<BugFilterBarState>({
@@ -1085,6 +1087,8 @@ export default function FeedbackPage() {
 		if (sysStatusFilter !== 'all') params.set('status', sysStatusFilter);
 		if (sysSeverityFilter !== 'all') params.set('severity', sysSeverityFilter);
 		if (sysSourceFilter !== 'all') params.set('source', sysSourceFilter);
+		if (sysCodeFilter === 'no404') params.set('excludeStatusCode', '404');
+		else if (sysCodeFilter !== 'all') params.set('statusCode', sysCodeFilter);
 		if (sysTenantFilter === 'tenant') params.set('isTenant', 'true');
 		else if (sysTenantFilter === 'main') params.set('isTenant', 'false');
 		if (sysFilter.dateFrom) params.set('dateFrom', sysFilter.dateFrom);
@@ -1092,7 +1096,7 @@ export default function FeedbackPage() {
 		if (sysFilter.query.trim()) params.set('q', sysFilter.query.trim());
 		if (sysFilter.sort !== 'newest') params.set('sort', sysFilter.sort);
 		return params.toString();
-	}, [sysPage, sysStatusFilter, sysSeverityFilter, sysSourceFilter, sysTenantFilter, sysFilter]);
+	}, [sysPage, sysStatusFilter, sysSeverityFilter, sysSourceFilter, sysCodeFilter, sysTenantFilter, sysFilter]);
 
 	const { data: sysData, isLoading: sysLoading } = useQuery<{ items: SystemErrorItem[]; total: number }>({
 		queryKey: ['/api/system-errors/list', sysListParams],
@@ -1105,7 +1109,7 @@ export default function FeedbackPage() {
 		staleTime: 5000,
 	});
 
-	const { data: sysCount } = useQuery<{ total: number; new: number; investigating: number; resolved: number; ignored: number; critical: number; high: number }>({
+	const { data: sysCount } = useQuery<{ total: number; new: number; investigating: number; resolved: number; ignored: number; critical: number; high: number; byStatusCode?: { statusCode: number; groups: number; hits: number }[] }>({
 		queryKey: ['/api/system-errors/count'],
 		queryFn: async () => {
 			const res = await fetch('/api/system-errors/count', { credentials: 'include' });
@@ -1137,6 +1141,22 @@ export default function FeedbackPage() {
 			toast({ title: 'Analisis AI diperbarui' });
 		},
 		onError: () => toast({ title: 'Gagal menjalankan analisis AI', variant: 'destructive' }),
+	});
+
+	const sysCleanupMut = useMutation({
+		mutationFn: async () => {
+			const dry = await (await apiRequest('POST', '/api/system-errors/cleanup-noise', { dryRun: true })).json();
+			if (!dry.count) return { deleted: 0, skipped: true };
+			const ok = window.confirm(`Hapus ${dry.count} catatan yang bukan bug (probe bot 404 tanpa halaman situs + noise browser/WebView)? Tidak bisa dibatalkan.`);
+			if (!ok) return { deleted: 0, skipped: true };
+			return (await apiRequest('POST', '/api/system-errors/cleanup-noise', {})).json();
+		},
+		onSuccess: (r: { deleted: number; skipped?: boolean }) => {
+			queryClient.invalidateQueries({ queryKey: ['/api/system-errors/list'] });
+			queryClient.invalidateQueries({ queryKey: ['/api/system-errors/count'] });
+			toast({ title: r.skipped ? (r.deleted === 0 ? 'Tidak ada catatan noise yang perlu dibersihkan' : 'Dibatalkan') : `${r.deleted} catatan noise dibersihkan` });
+		},
+		onError: () => toast({ title: 'Gagal membersihkan catatan', variant: 'destructive' }),
 	});
 
 	const sysDeleteMut = useMutation({
@@ -1920,6 +1940,40 @@ export default function FeedbackPage() {
 										{label}
 									</Button>
 								))}
+							</div>
+
+							<div className="flex flex-wrap items-center gap-2">
+								<span className="text-xs text-muted-foreground mr-1">Kode error:</span>
+								{[
+									{ val: 'all', label: 'Semua kode' },
+									{ val: 'no404', label: 'Tanpa 404' },
+									...(sysCount?.byStatusCode || []).map((r) => ({
+										val: String(r.statusCode),
+										label: r.statusCode === 0 ? `Client (${r.groups})` : `${r.statusCode} (${r.groups})`,
+									})),
+								].map(({ val, label }) => (
+									<Button
+										key={val}
+										variant={sysCodeFilter === val ? 'secondary' : 'ghost'}
+										size="sm"
+										onClick={() => {
+											setSysCodeFilter(val);
+											setSysPage(1);
+										}}
+									>
+										{label}
+									</Button>
+								))}
+								<Button
+									variant="outline"
+									size="sm"
+									className="ml-auto"
+									disabled={sysCleanupMut.isPending}
+									onClick={() => sysCleanupMut.mutate()}
+								>
+									{sysCleanupMut.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+									Bersihkan noise
+								</Button>
 							</div>
 
 							<div className="flex flex-wrap gap-2">
