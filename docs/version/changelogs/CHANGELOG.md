@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.38.2] - 2026-09-30
+
+### Fixed
+
+- Chat AI tidak pernah membaca pesan user terbaru (dibuang oleh dedupe riwayat); akar dari draft berita ngawur.
+
 ## [4.38.1] - 2026-09-30
 
 ### Fixed
