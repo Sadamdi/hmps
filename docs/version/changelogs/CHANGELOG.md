@@ -9,6 +9,18 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.41.1] - 2026-10-03
+
+### Added
+
+- `GET /api/og/berita/:hash` — JPEG share-safe untuk cover berita (WhatsApp/Facebook).
+- `notifyPublicContent`: IndexNow + Facebook Graph scrape (env-gated) saat publish berita/galeri/event, termasuk hub pages dengan debounce.
+
+### Changed
+
+- SSR berita memakai JPEG OG untuk cover lokal; halaman tetap WebP.
+- Hook publish library/event lebih konsisten memanggil notify saat published.
+
 ## [4.41.0] - 2026-09-30
 
 ### Fixed

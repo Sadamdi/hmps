@@ -237,6 +237,7 @@ GET    /api/dashboard/engagement-heatmap
 GET    /api/dashboard/berita-leaderboard   # ?range=1d|3d|7d|30d|all&metric=views|comments
 GET    /api/dashboard/system-health
 GET    /api/og/drive/:fileId           # thumbnail og:image galeri Drive (publik, hanya file galeri published, cache 7 hari)
+GET    /api/og/berita/:hash            # JPEG share-safe cover berita lokal untuk WhatsApp/Facebook (cache 7 hari)
 GET    /api/dashboard/processes        # ?sort=cpu|memBytes|diskReadRate|diskPercent|sockets|threads|uptimeSec|pid|name&dir=asc|desc&limit=5..100 · perm overview.process_monitor (default Owner) · situs utama saja
 GET    /api/dashboard/security-monitor
 GET    /api/dashboard/login-attempts

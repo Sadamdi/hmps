@@ -58,7 +58,7 @@ import {
 	deriveBannerColorsFromTheme,
 } from './services/banner-theme-derive';
 import { registerUpload } from './services/file-scanner';
-import { pingIndexNowForContent } from './services/indexnow';
+import { notifyPublicContent } from './services/public-content-notify';
 import {
 	applyOrganizationStructureAutoFill,
 	previewOrganizationStructureAutoFill,
@@ -3825,13 +3825,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 							console.error('News publish broadcast failed:', notifErr);
 						}
 						try {
-							await pingIndexNowForContent({
+							await notifyPublicContent({
 								source: 'berita',
 								slugOrPath: slug,
 							});
 						} catch (indexNowErr) {
 							console.error(
-								'IndexNow ping (berita create) failed:',
+								'Public notify (berita create) failed:',
 								indexNowErr,
 							);
 						}
@@ -4163,13 +4163,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 								'',
 						).trim();
 						if (slugNow) {
-							await pingIndexNowForContent({
+							await notifyPublicContent({
 								source: 'berita',
 								slugOrPath: slugNow,
 							});
 						}
 					} catch (indexNowErr) {
-						console.error('IndexNow ping (berita update) failed:', indexNowErr);
+						console.error('Public notify (berita update) failed:', indexNowErr);
 					}
 				}
 			} catch (error) {
@@ -4811,14 +4811,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					try {
 						const libSlug = toUrlSlug(String(title || ''));
 						if (libSlug) {
-							await pingIndexNowForContent({
+							await notifyPublicContent({
 								source: 'library',
 								slugOrPath: libSlug,
 							});
 						}
 					} catch (indexNowErr) {
 						console.error(
-							'IndexNow ping (library create) failed:',
+							'Public notify (library create) failed:',
 							indexNowErr,
 						);
 					}
@@ -5150,21 +5150,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				res.json(updatedItem);
 
 				try {
-					const wasDraft = (existingItem as any).published === false;
 					const isNowPublished = (updatedItem as any)?.published !== false;
-					if (wasDraft && isNowPublished) {
+					if (isNowPublished) {
 						const libSlug = toUrlSlug(
 							String((updatedItem as any)?.title || title || ''),
 						);
 						if (libSlug) {
-							await pingIndexNowForContent({
+							await notifyPublicContent({
 								source: 'library',
 								slugOrPath: libSlug,
 							});
 						}
 					}
 				} catch (indexNowErr) {
-					console.error('IndexNow ping (library update) failed:', indexNowErr);
+					console.error('Public notify (library update) failed:', indexNowErr);
 				}
 			} catch (error) {
 				console.error('Update library item error:', error);
@@ -10245,14 +10244,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						const evtSlug = toUrlSlug(String(eventData.title || ''));
 						const y = new Date(eventData.startDate).getFullYear();
 						if (evtSlug && Number.isFinite(y)) {
-							await pingIndexNowForContent({
+							await notifyPublicContent({
 								source: 'event',
 								year: y,
 								eventSlug: evtSlug,
 							});
 						}
 					} catch (indexNowErr) {
-						console.error('IndexNow ping (event create) failed:', indexNowErr);
+						console.error('Public notify (event create) failed:', indexNowErr);
 					}
 				}
 			} catch (error) {
@@ -10526,6 +10525,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					} catch (notifErr) {
 						console.error('Event ongoing broadcast (update) failed:', notifErr);
 					}
+				}
+				if ((event as any)?.published === true) {
 					try {
 						const eTitle = String(
 							(event as any).title || (existingEvent as any).title || '',
@@ -10536,14 +10537,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						const evtSlug = toUrlSlug(eTitle);
 						const y = eStart.getFullYear();
 						if (evtSlug && Number.isFinite(y)) {
-							await pingIndexNowForContent({
+							await notifyPublicContent({
 								source: 'event',
 								year: y,
 								eventSlug: evtSlug,
 							});
 						}
 					} catch (indexNowErr) {
-						console.error('IndexNow ping (event update) failed:', indexNowErr);
+						console.error('Public notify (event update) failed:', indexNowErr);
 					}
 				}
 			} catch (error) {
