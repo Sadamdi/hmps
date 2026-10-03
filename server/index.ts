@@ -965,6 +965,11 @@ process.on('unhandledRejection', (reason: any) => {
 		const { driveOgImageHandler } = await import('./services/og-meta');
 		return driveOgImageHandler(req, res);
 	});
+	// JPEG share-safe untuk cover berita lokal (WhatsApp/Facebook)
+	app.get('/api/og/berita/:hash', async (req, res) => {
+		const { beritaOgImageHandler } = await import('./services/og-meta');
+		return beritaOgImageHandler(req, res);
+	});
 
 	// Semua route /api sudah terdaftar di titik ini: yang sampai ke sini = endpoint memang tidak ada.
 	// Ditandai agar bug monitor bisa membedakannya dari 404 "data tidak ada" yang dibalas handler
@@ -1142,12 +1147,14 @@ process.on('unhandledRejection', (reason: any) => {
 							'Berita dari Himatif Encoder - Himpunan Mahasiswa Teknik Informatika UIN Malang',
 					).slice(0, 160);
 					const canonicalUrl = `https://himatif-encoder.com/berita/${beritaItem.slug}`;
-					const ogImage =
-						beritaItem.image && String(beritaItem.image).startsWith('http')
-							? beritaItem.image
-							: beritaItem.image
-								? `https://himatif-encoder.com${beritaItem.image}`
-								: defaultOgImage;
+					const { resolveBeritaShareOgImage } = await import(
+						'./services/og-meta'
+					);
+					const shareOg =
+						(await resolveBeritaShareOgImage(beritaItem.image).catch(
+							() => null,
+						)) || null;
+					const ogImage = shareOg || defaultOgImage;
 
 					html = injectArticleMeta(html, {
 						title,
@@ -1886,11 +1893,18 @@ process.on('unhandledRejection', (reason: any) => {
 					item?.excerpt || settings?.siteDescription || siteName,
 				).slice(0, 160);
 				const canonicalUrl = `https://himatif-encoder.com/${comm.slug}/berita/${req.params.articleSlug}`;
+				const { resolveBeritaShareOgImage } = await import(
+					'./services/og-meta'
+				);
+				const shareOg = item?.image
+					? await resolveBeritaShareOgImage(item.image).catch(() => null)
+					: null;
 				html = injectArticleMeta(html, {
 					title,
 					description,
 					canonicalUrl,
-					ogImage: resolveOgImage(item?.image || settings?.logoUrl),
+					ogImage:
+						shareOg || resolveOgImage(item?.image || settings?.logoUrl),
 					ogImageAlt: String(item?.title || title),
 				});
 				res.set('Content-Type', 'text/html');

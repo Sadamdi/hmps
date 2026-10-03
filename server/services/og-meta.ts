@@ -5,7 +5,9 @@
  *   `resolveLibraryOgImage` memilih gambar pertama yang benar-benar gambar dan mengarahkannya ke
  *   `/api/og/drive/:fileId` (thumbnail 800px lewat akun layanan, di-cache di disk).
  * - Proxy hanya melayani file yang dirujuk galeri published (bukan proxy Drive terbuka).
+ * - Berita cover lokal: `resolveBeritaShareOgImage` → `/api/og/berita/{hash}.jpg` (JPEG ≤1200px).
  */
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type { Request, Response } from 'express';
@@ -14,6 +16,7 @@ const SITE = 'https://himatif-encoder.com';
 const DRIVE_ID = /^[a-zA-Z0-9_-]{20,}$/;
 const CACHE_DIR = path.resolve(process.cwd(), 'uploads', 'og-cache');
 const CACHE_TTL_MS = 7 * 24 * 3600 * 1000;
+const BERITA_HASH = /^[a-f0-9]{32,64}$/i;
 
 /** fileId yang sudah dipilih resolver di proses ini (termasuk isi folder). */
 const allowed = new Set<string>();
@@ -111,6 +114,91 @@ async function isReferenced(fileId: string): Promise<boolean> {
 	// file di dalam folder galeri: jalankan resolver (mengisi allowlist)
 	for (const d of docs) await resolveLibraryOgImage(d).catch(() => null);
 	return allowed.has(fileId);
+}
+
+function beritaLocalRelPath(image: unknown): string | null {
+	const raw = String(image || '').trim();
+	if (!raw) return null;
+	let p = raw;
+	if (p.startsWith(SITE)) p = p.slice(SITE.length);
+	if (!p.startsWith('/uploads/berita/')) return null;
+	// Tolak path traversal
+	if (p.includes('..') || p.includes('\\')) return null;
+	return p;
+}
+
+function beritaCacheKey(relPath: string): string {
+	return crypto.createHash('sha256').update(relPath).digest('hex').slice(0, 40);
+}
+
+async function ensureBeritaOgJpeg(relPath: string, cacheKey: string): Promise<Buffer | null> {
+	const cached = path.join(CACHE_DIR, `berita-${cacheKey}.jpg`);
+	const mapFile = path.join(CACHE_DIR, `berita-${cacheKey}.path`);
+	const st = fs.existsSync(cached) ? fs.statSync(cached) : null;
+	if (st && Date.now() - st.mtimeMs < CACHE_TTL_MS && st.size > 0) {
+		return fs.readFileSync(cached);
+	}
+
+	const abs = path.resolve(process.cwd(), relPath.replace(/^\//, ''));
+	const uploadsRoot = path.resolve(process.cwd(), 'uploads', 'berita');
+	if (!abs.startsWith(uploadsRoot) || !fs.existsSync(abs)) return null;
+
+	const sharp = (await import('sharp')).default;
+	const buf = await sharp(abs)
+		.rotate()
+		.resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+		.jpeg({ quality: 80, mozjpeg: true })
+		.toBuffer();
+	fs.mkdirSync(CACHE_DIR, { recursive: true });
+	fs.writeFileSync(cached, buf);
+	fs.writeFileSync(mapFile, relPath, 'utf8');
+	return buf;
+}
+
+/**
+ * og:image berita untuk share: cover lokal → JPEG cache; URL http(s) eksternal tetap;
+ * selain itu null (pemanggil pakai default).
+ */
+export async function resolveBeritaShareOgImage(image: unknown): Promise<string | null> {
+	const rel = beritaLocalRelPath(image);
+	if (rel) {
+		const key = beritaCacheKey(rel);
+		const buf = await ensureBeritaOgJpeg(rel, key);
+		if (buf) return `${SITE}/api/og/berita/${key}.jpg`;
+		// Fallback absolut ke file asli bila encode gagal
+		return `${SITE}${rel}`;
+	}
+	const raw = String(image || '').trim();
+	if (/^https?:\/\//i.test(raw) && !isDriveLink(raw)) return raw;
+	if (raw.startsWith('/') && !raw.startsWith('/uploads/berita/')) {
+		return `${SITE}${raw}`;
+	}
+	return null;
+}
+
+/** GET /api/og/berita/:hash(.jpg) — JPEG share-safe dari cover berita lokal. */
+export async function beritaOgImageHandler(req: Request, res: Response) {
+	const hash = String(req.params.hash || '').replace(/\.jpg$/i, '');
+	if (!BERITA_HASH.test(hash)) return res.status(400).end();
+	try {
+		const cached = path.join(CACHE_DIR, `berita-${hash}.jpg`);
+		const mapFile = path.join(CACHE_DIR, `berita-${hash}.path`);
+		const st = fs.existsSync(cached) ? fs.statSync(cached) : null;
+		if (st && Date.now() - st.mtimeMs < CACHE_TTL_MS && st.size > 0) {
+			res.set('Cache-Control', 'public, max-age=86400');
+			return res.type('image/jpeg').sendFile(cached);
+		}
+		if (!fs.existsSync(mapFile)) return res.status(404).end();
+		const rel = beritaLocalRelPath(fs.readFileSync(mapFile, 'utf8'));
+		if (!rel || beritaCacheKey(rel) !== hash) return res.status(404).end();
+		const buf = await ensureBeritaOgJpeg(rel, hash);
+		if (!buf) return res.status(404).end();
+		res.set('Cache-Control', 'public, max-age=86400');
+		return res.type('image/jpeg').send(buf);
+	} catch (e) {
+		console.warn('[og-berita]', hash, (e as Error)?.message);
+		return res.status(502).end();
+	}
 }
 
 /** GET /api/og/drive/:fileId(.jpg) — thumbnail 800px untuk crawler embed. */

@@ -42,20 +42,29 @@ function shouldSkipPath(pathname: string): boolean {
 	return false;
 }
 
+/** Halaman hub inti yang ikut di-ping saat konten publish (bukan scrape seluruh situs). */
+export const INDEXNOW_HUB_PATHS = [
+	'/',
+	'/berita',
+	'/events',
+	'/library',
+	'/profil',
+	'/kelembagaan',
+	'/prodi',
+	'/toko',
+] as const;
+
 function isLikelyPublicContentPath(pathname: string): boolean {
 	const p = normalizePath(pathname);
-	return (
+	if (
 		p.startsWith('/berita/') ||
 		p.startsWith('/events/') ||
 		p.startsWith('/library/') ||
-		p === '/berita' ||
-		p === '/events' ||
-		p === '/library' ||
-		p === '/prodi' ||
-		p === '/profil' ||
-		p === '/kelembagaan' ||
-		p === '/'
-	);
+		p.startsWith('/toko/')
+	) {
+		return true;
+	}
+	return (INDEXNOW_HUB_PATHS as readonly string[]).includes(p);
 }
 
 async function postIndexNow(urls: string[]): Promise<void> {
@@ -154,6 +163,11 @@ export async function pingIndexNowForContent(opts: {
 
 	if (urls.length === 0) return;
 	await postIndexNow(urls);
+}
+
+/** Ping halaman hub publik (/, /berita, /events, …). */
+export async function pingIndexNowHubPages(): Promise<void> {
+	await pingIndexNowPaths([...INDEXNOW_HUB_PATHS]);
 }
 
 /**
