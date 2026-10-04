@@ -46,6 +46,8 @@ export async function staffExistsForEmailCached(email: string): Promise<boolean>
  */
 export async function syncLinkedBuyerPassword(email: unknown, plainPassword: string): Promise<void> {
 	const e = String(email || '').trim().toLowerCase();
+	// Dinonaktifkan bersama /from-staff (4.46.2): sinkron berdasarkan email tak terverifikasi bisa menimpa password akun orang lain
+	if (process.env.BUYER_FROM_STAFF_ENABLED !== '1') return;
 	if (!e || !plainPassword) return;
 	try {
 		await Customer.updateOne(

@@ -257,6 +257,12 @@ router.get('/me', async (req, res) => {
  * email pada pembuatan ini (email pengurus tidak diverifikasi pembeli), hanya lewat perangkat ini.
  */
 router.post('/from-staff', authLimiter, authenticate, async (req, res) => {
+	// DINONAKTIFKAN SEMENTARA (4.46.2): email pengurus tidak terverifikasi (admin bisa mengisinya dengan email siapa pun),
+	// jadi jalur ini bisa dipakai mengambil alih akun pembeli orang lain lalu "Masuk sebagai pengurus".
+	// Dihidupkan lagi setelah ada verifikasi OTP saat penautan pertama.
+	if (process.env.BUYER_FROM_STAFF_ENABLED !== '1') {
+		return fail(res, 503, 'Akun pembeli dari akun pengurus sedang dinonaktifkan sementara untuk perbaikan keamanan. Daftar atau masuk lewat halaman masuk toko.', 'TEMP_DISABLED');
+	}
 	const u: any = (req as any).user;
 	const email = normalizeBuyerEmail(u?.email);
 	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Akun pengurus ini belum punya email yang valid. Lengkapi email di profil dulu.', 'STAFF_EMAIL_MISSING');
