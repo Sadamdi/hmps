@@ -45,6 +45,7 @@ import {
 } from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage';
 import chatRouter from './routes/chat';
+import { createPublicRateLimiter as createIdentifyRateLimiter } from './middleware/public-rate-limit';
 import buyerRouter from './routes/buyer';
 import aiEnhanceRouter from './routes/ai-enhance';
 import commentRouter from './routes/comments';
@@ -1643,6 +1644,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		idToken: z.string().min(100).max(8192),
 		loginTarget: z.string().max(100).optional(),
 	});
+	// Limiter sendiri (tidak berbagi kuota dengan login pengurus): identify hanya membaca, tanpa sesi
+	const googleIdentifyLimiter = createIdentifyRateLimiter('google-identify', [
+		{ windowMs: 60_000, maxPerIp: 30, maxPerDevice: 15, label: '1 menit' },
+		{ windowMs: 24 * 60 * 60 * 1000, maxPerIp: 500, maxPerDevice: 200, label: '1 hari' },
+	]);
+	/**
+	 * Pintu login tunggal: setelah Google terverifikasi, beri tahu klien email ini milik pengurus dan/atau
+	 * pembeli (tanpa membuat sesi). Klien lalu memilih alur: pengurus, pembeli, pilih salah satu, atau onboarding.
+	 */
+	app.post('/api/auth/google/identify', googleIdentifyLimiter, async (req, res) => {
+		const parsed = googleLoginSchema.safeParse(req.body || {});
+		if (!parsed.success) {
+			return res.status(400).json({ success: false, message: 'Permintaan login Google tidak valid', error: { code: 'VALIDATION_ERROR' } });
+		}
+		const { verifyGoogleIdToken, GoogleLoginError } = await import('./services/google-login');
+		try {
+			const g = await verifyGoogleIdToken(parsed.data.idToken);
+			const { staffExistsForEmail, buyerExistsForEmail } = await import('./services/unified-login');
+			const [isStaff, isBuyer] = await Promise.all([staffExistsForEmail(g.email), buyerExistsForEmail(g.email)]);
+			return res.json({ success: true, data: { email: g.email, name: g.name, isStaff, isBuyer } });
+		} catch (err) {
+			if (err instanceof GoogleLoginError) {
+				return res.status(err.code === 'GOOGLE_LOGIN_DISABLED' ? 503 : 401).json({ success: false, message: err.message, error: { code: err.code } });
+			}
+			console.error('Google identify error:', err);
+			return res.status(500).json({ success: false, message: 'Gagal memverifikasi login Google' });
+		}
+	});
+
 	app.post('/api/auth/login/google', loginLimiter, async (req, res) => {
 		const clientIp = getRealClientIp(req);
 		const parsed = googleLoginSchema.safeParse(req.body || {});

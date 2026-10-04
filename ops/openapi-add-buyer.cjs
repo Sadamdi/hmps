@@ -40,6 +40,8 @@ const ops = [
 	['put', '/api/buyer/addresses', 'Simpan daftar alamat (maks 5, satu utama)', 'buyer', { addresses: [{ label: 'Rumah', recipient: 'Budi', phone: '0812…', address: 'Jl. …', isDefault: true }] }],
 	['get', '/api/buyer/favorites', 'Favorit per toko (?store=main|slug)', 'buyer'],
 	['put', '/api/buyer/favorites', 'Simpan favorit per toko', 'buyer', { store: 'main', productIds: ['…'] }],
+	['post', '/api/auth/google/identify', 'Pintu login tunggal: email Google milik pengurus dan/atau pembeli (tanpa sesi)', 'public', { idToken: '…' }],
+	['post', '/api/buyer/google/complete', 'Onboarding akun pembeli baru lewat Google (nama, password + konfirmasi)', 'public', { idToken: '…', name: 'Budi', password: 'rahasia123', confirmPassword: 'rahasia123' }],
 	['post', '/api/buyer/delete/otp', 'Kirim kode konfirmasi hapus akun', 'buyer'],
 	['post', '/api/buyer/delete', 'Hapus akun (anonimkan data pribadi; pesanan tetap di toko)', 'buyer', { challengeId: '…', code: '123456' }],
 	['get', '/api/store/admin/customers', 'Pelanggan toko ini (toko.customers.view / toko.manage; disamarkan tanpa .manage)', 'staff'],

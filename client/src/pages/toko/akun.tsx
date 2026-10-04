@@ -83,7 +83,7 @@ function OrderRow({ o }: { o: BuyerOrder }) {
 	);
 }
 
-function ProfileTab({ onDeleted }: { onDeleted: () => void }) {
+function ProfileTab({ onDeleted, onLogout }: { onDeleted: () => void; onLogout: () => void }) {
 	const { buyer, refetch } = useBuyer();
 	const { toast } = useToast();
 	const [name, setName] = useState(buyer?.name || '');
@@ -252,7 +252,7 @@ function ProfileTab({ onDeleted }: { onDeleted: () => void }) {
 				</CardContent>
 			</Card>
 
-			<BuyerSessionsSection />
+			<BuyerSessionsSection onLogout={onLogout} />
 			<BuyerNotifySection />
 			<BuyerDeleteSection onDeleted={onDeleted} />
 		</div>
@@ -273,6 +273,20 @@ export default function TokoBuyerAccountPage() {
 		if (!loading && !buyer) navigate(loginHref(accountHref));
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [loading, buyer]);
+
+	// Info pesanan lama yang baru ditautkan saat masuk lewat pintu login tunggal
+	useEffect(() => {
+		if (!buyer) return;
+		try {
+			const n = sessionStorage.getItem('buyerClaimedToast');
+			if (n) {
+				sessionStorage.removeItem('buyerClaimedToast');
+				toast({ title: 'Berhasil masuk', description: `${n} pesanan lama ditambahkan ke akunmu.` });
+			}
+		} catch {
+			/* abaikan */
+		}
+	}, [buyer, toast]);
 
 	const { data: orders = [], isLoading: ordersLoading, refetch } = useQuery<BuyerOrder[]>({
 		queryKey: ['buyer-orders', buyer?.id],
@@ -327,6 +341,12 @@ export default function TokoBuyerAccountPage() {
 							<div className="min-w-0">
 								<h1 className="text-2xl font-bold break-words">Halo, {buyer.name || buyer.email.split('@')[0]}</h1>
 								<p className="text-sm text-muted-foreground break-all">{buyer.email}</p>
+								<p className="text-xs text-muted-foreground">
+									Pengurus Himatif?{' '}
+									<a href="/login" className="underline">
+										Masuk dashboard
+									</a>
+								</p>
 							</div>
 							<Button variant="outline" size="sm" className="gap-2" onClick={logout}>
 								<LogOut className="h-4 w-4" />
@@ -439,7 +459,7 @@ export default function TokoBuyerAccountPage() {
 							</TabsContent>
 
 							<TabsContent value="profil" className="mt-4">
-								<ProfileTab onDeleted={logout} />
+								<ProfileTab onDeleted={logout} onLogout={logout} />
 							</TabsContent>
 						</Tabs>
 					</>

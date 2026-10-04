@@ -1,4 +1,6 @@
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
+import { UnifiedGoogleDialog, buyerGoogleLogin, identifyGoogle, type GoogleStep } from '@/components/auth/unified-google';
+import { buyerApi, refreshBuyerQueries, useStorePaths } from '@/hooks/use-buyer';
 import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -40,6 +42,23 @@ export default function LoginForm() {
 	// Token Google disimpan sementara hanya untuk memilih tujuan login (409), lalu dibuang
 	const [pendingGoogleToken, setPendingGoogleToken] = useState<string | null>(null);
 	const [googleLoading, setGoogleLoading] = useState(false);
+	// Pintu login tunggal: pilih peran (email ganda) / onboarding akun pembeli baru
+	const [googleStep, setGoogleStep] = useState<GoogleStep>(null);
+	const { accountHref } = useStorePaths();
+	const nextParam = (() => {
+		const n = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('next') || '';
+		return n.startsWith('/') && !n.startsWith('//') ? n : '';
+	})();
+	/** Pembeli sudah masuk → ke tujuan (next / halaman akun toko). Pakai reload penuh agar semua state segar. */
+	const goBuyer = (claimed?: number) => {
+		refreshBuyerQueries();
+		try {
+			if (claimed) sessionStorage.setItem('buyerClaimedToast', String(claimed));
+		} catch {
+			/* abaikan */
+		}
+		window.location.assign(nextParam || accountHref);
+	};
 	const { data: googleEnabled } = useQuery({
 		queryKey: ['firebase-config'],
 		queryFn: async () => !!(await fetchFirebaseConfig()),
@@ -131,6 +150,21 @@ export default function LoginForm() {
 		setPendingGoogleToken(null);
 
 		try {
+			// Email → coba akun pembeli dulu (gagal = lanjut ke login pengurus); username → pengurus
+			if (username.includes('@')) {
+				try {
+					const r = await buyerApi<{ claimedOrders?: number; alsoStaff?: boolean }>('POST', '/login', { email: username.trim(), password });
+					if (r?.alsoStaff) {
+						setGoogleStep({ kind: 'choose', idToken: '', email: username.trim(), name: '' });
+						return;
+					}
+					goBuyer(r?.claimedOrders);
+					return;
+				} catch (buyerErr: any) {
+					if (/429/.test(String(buyerErr?.message))) throw buyerErr;
+					// 401/403 pembeli → lanjut login pengurus di bawah
+				}
+			}
 			const target = loginTarget === 'auto' ? undefined : loginTarget;
 			await login(username, password, target);
 		} catch (err: any) {
@@ -156,6 +190,16 @@ export default function LoginForm() {
 		setGoogleLoading(true);
 		try {
 			const idToken = await getGoogleIdToken();
+			// Pintu tunggal: tentukan alur dari identitas Google
+			const who = await identifyGoogle(idToken);
+			if (who.isStaff && who.isBuyer) {
+				setGoogleStep({ kind: 'choose', idToken, email: who.email, name: who.name });
+				return;
+			}
+			if (!who.isStaff) {
+				await continueAsBuyer(idToken, who.email, who.name);
+				return;
+			}
 			const target = !isTenant && loginTarget !== 'auto' ? loginTarget : undefined;
 			try {
 				await loginWithGoogle(idToken, target);
@@ -178,6 +222,36 @@ export default function LoginForm() {
 				return;
 			}
 			setError(err?.message || 'Login Google gagal');
+		} finally {
+			setGoogleLoading(false);
+		}
+	};
+
+	/** Masuk sebagai pembeli dengan Google; belum punya akun → dialog onboarding. */
+	const continueAsBuyer = async (idToken: string, email: string, name: string) => {
+		const r = await buyerGoogleLogin(idToken);
+		if (r.needsOnboarding) {
+			setGoogleStep({ kind: 'onboard', idToken, email: r.email || email, name: r.name || name });
+			return;
+		}
+		goBuyer(r.claimedOrders);
+	};
+
+	/** Masuk sebagai pengurus dengan token Google yang sama (menangani pilihan konteks seperti biasa). */
+	const continueAsStaff = async (idToken: string) => {
+		setGoogleStep(null);
+		setGoogleLoading(true);
+		try {
+			const target = !isTenant && loginTarget !== 'auto' ? loginTarget : undefined;
+			await loginWithGoogle(idToken, target);
+		} catch (err: any) {
+			if (err?.status === 409 && err?.targets) {
+				setPendingGoogleToken(idToken);
+				setAmbiguousTargets(err.targets);
+				setError('Akun Google ini terdaftar di beberapa konteks. Pilih tujuan login di bawah.');
+			} else {
+				setError(err?.message || 'Login Google gagal');
+			}
 		} finally {
 			setGoogleLoading(false);
 		}
@@ -217,6 +291,24 @@ export default function LoginForm() {
 	if (sessionUser) return null;
 
 	return (
+		<>
+		<UnifiedGoogleDialog
+			step={googleStep}
+			onClose={() => setGoogleStep(null)}
+			onChooseStaff={(token) => {
+				if (token) return void continueAsStaff(token);
+				setGoogleStep(null);
+				void login(username, password, loginTarget === 'auto' ? undefined : loginTarget).catch(() =>
+					setError('Password pengurus berbeda dengan password pembeli. Masuk lewat Google atau gunakan password pengurus.'),
+				);
+			}}
+			onChooseBuyer={(token) => {
+				if (!token) return goBuyer();
+				setGoogleStep(null);
+				void continueAsBuyer(token, '', '');
+			}}
+			onBuyerDone={goBuyer}
+		/>
 		<div
 			className="relative min-h-screen flex items-center justify-center overflow-hidden p-4"
 			style={{ background: 'var(--gradient-login)' }}>
@@ -481,5 +573,6 @@ export default function LoginForm() {
 				</CardContent>
 			</Card>
 		</div>
+		</>
 	);
 }

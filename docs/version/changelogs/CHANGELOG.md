@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.45.0] - 2026-10-04
+
+### Added
+
+- Pintu login tunggal pengurus & pembeli (Google + email), pilihan peran untuk email ganda, onboarding akun Google (nama, password + konfirmasi), nama akun di navbar, info IP/lokasi/waktu pada perangkat yang masuk.
+
 ## [4.44.0] - 2026-10-04
 
 ### Added

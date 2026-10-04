@@ -414,11 +414,15 @@ PATCH /bug-report/:id/status
 POST /bug-report/:id/reply
 DELETE /bug-report/:id
 
+# /api/auth/google/identify  (pintu login tunggal, tanpa sesi)
+POST   /api/auth/google/identify  # publik: {idToken} → {email, name, isStaff, isBuyer}; klien memilih alur pengurus/pembeli/pilih/onboarding
+
 # /api/buyer  (Akun pembeli toko — terpisah dari akun staf; juga /api/c/:slug/buyer/*)
 POST   /register              # publik: daftar (nama, email, password, phone?) → OTP email
 POST   /register/verify       # publik: {challengeId, code} → login + klaim pesanan lama
 POST   /login                 # publik: email + password
-POST   /google                # publik: {idToken} Firebase → buat/tautkan akun
+POST   /google                # publik: {idToken} Firebase → masuk; bila belum punya akun → {needsOnboarding, email, name} (akun BELUM dibuat)
+POST   /google/complete       # publik: {idToken, name, phone?, password, confirmPassword} → buat akun (email dari Google), masuk, klaim pesanan lama
 POST   /logout                # cabut sesi saat ini
 GET    /me                    # akun yang login (null bila tamu)
 PATCH  /me                    # pembeli: nama, phone, notifyPrefs {orderStatus, paymentReminders}
@@ -428,7 +432,7 @@ POST   /email/change          # pembeli: {newEmail} → OTP ke email baru
 POST   /email/verify          # pembeli: {challengeId, code}
 GET    /orders                # pembeli: pesanan di semua toko (utama + komunitas)
 POST   /orders/claim          # pembeli: {link} link invoice berisi ?inv=
-GET    /sessions              # pembeli: sesi aktif
+GET    /sessions              # pembeli: sesi aktif (device, ip, location, createdAt, lastActive, current)
 DELETE /sessions/:id          # pembeli: cabut sesi
 POST   /sessions/revoke-others # pembeli: keluar dari perangkat lain
 GET    /addresses             # pembeli: alamat tersimpan

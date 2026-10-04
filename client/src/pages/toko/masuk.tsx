@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { UnifiedGoogleDialog, buyerGoogleLogin, identifyGoogle, type GoogleStep } from '@/components/auth/unified-google';
 import { buyerApi, refreshBuyerQueries, useBuyer, useStorePaths } from '@/hooks/use-buyer';
+import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { GoogleSignInCancelled, getGoogleIdToken } from '@/lib/google-signin';
 import { apiErrorText } from '@/lib/queryClient';
@@ -41,6 +43,8 @@ export default function TokoBuyerLoginPage() {
 	const { toast } = useToast();
 	const { buyer, loading } = useBuyer();
 	const { storeHref, storeLabel, accountHref } = useStorePaths();
+	const { login: staffLogin, loginWithGoogle: staffGoogle } = useAuth();
+	const [googleStep, setGoogleStep] = useState<GoogleStep>(null);
 
 	const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
 	// Hanya path internal (cegah open-redirect ke domain lain)
@@ -85,6 +89,34 @@ export default function TokoBuyerLoginPage() {
 		}
 	};
 
+	/** Pengurus sudah masuk → dashboard (reload penuh agar konteks pengurus dimuat). */
+	const goStaff = () => window.location.assign(basePath ? `${basePath}/dashboard` : '/dashboard');
+
+	const continueAsBuyer = async (idToken: string, fallbackEmail: string, fallbackName: string) => {
+		const r = await buyerGoogleLogin(idToken);
+		if (r.needsOnboarding) {
+			setGoogleStep({ kind: 'onboard', idToken, email: r.email || fallbackEmail, name: r.name || fallbackName });
+			return;
+		}
+		done(r.claimedOrders);
+	};
+
+	const continueAsStaff = (idToken: string) =>
+		run(async () => {
+			setGoogleStep(null);
+			try {
+				await staffGoogle(idToken);
+				goStaff();
+			} catch (e: any) {
+				// Email pengurus di beberapa konteks → arahkan ke halaman login pengurus untuk memilih tujuan
+				if (e?.status === 409) {
+					window.location.assign('/login');
+					return;
+				}
+				throw e;
+			}
+		});
+
 	const onGoogle = () =>
 		run(async () => {
 			let idToken = '';
@@ -94,16 +126,35 @@ export default function TokoBuyerLoginPage() {
 				if (e instanceof GoogleSignInCancelled) return;
 				throw e;
 			}
-			const r = await buyerApi<{ claimedOrders?: number }>('POST', '/google', { idToken });
-			done(r?.claimedOrders);
+			// Pintu tunggal: pengurus → dashboard, pembeli → akun, keduanya → pilih, baru → onboarding
+			const who = await identifyGoogle(idToken);
+			if (who.isStaff && who.isBuyer) return setGoogleStep({ kind: 'choose', idToken, email: who.email, name: who.name });
+			if (who.isStaff) return continueAsStaff(idToken);
+			await continueAsBuyer(idToken, who.email, who.name);
 		});
 
 	const onSubmit = (e: FormEvent) => {
 		e.preventDefault();
 		if (mode === 'login')
 			return run(async () => {
-				const r = await buyerApi<{ claimedOrders?: number }>('POST', '/login', { email, password });
-				done(r?.claimedOrders);
+				// Tanpa '@' = username pengurus. Email → pembeli dulu, bila tidak cocok coba pengurus.
+				if (!email.includes('@')) {
+					await staffLogin(email.trim(), password);
+					return goStaff();
+				}
+				try {
+					const r = await buyerApi<{ claimedOrders?: number; alsoStaff?: boolean }>('POST', '/login', { email: email.trim(), password });
+					if (r?.alsoStaff) return setGoogleStep({ kind: 'choose', idToken: '', email: email.trim(), name: '' });
+					return done(r?.claimedOrders);
+				} catch (buyerErr: any) {
+					if (/429/.test(String(buyerErr?.message))) throw buyerErr;
+					try {
+						await staffLogin(email.trim(), password);
+						return goStaff();
+					} catch {
+						throw buyerErr; // pesan asli: email atau password salah
+					}
+				}
 			});
 		if (mode === 'register')
 			return run(async () => {
@@ -147,6 +198,29 @@ export default function TokoBuyerLoginPage() {
 
 	return (
 		<div className="min-h-screen flex flex-col bg-background">
+			<UnifiedGoogleDialog
+				step={googleStep}
+				onClose={() => setGoogleStep(null)}
+				onChooseStaff={(token) =>
+					token
+						? continueAsStaff(token)
+						: run(async () => {
+								setGoogleStep(null);
+								try {
+									await staffLogin(email.trim(), password);
+									goStaff();
+								} catch {
+									throw new Error('Password pengurus berbeda dengan password pembeli. Masuk lewat Google atau gunakan password pengurus.');
+								}
+							})
+				}
+				onChooseBuyer={(token) => {
+					if (!token) return done();
+					setGoogleStep(null);
+					void run(() => continueAsBuyer(token, '', ''));
+				}}
+				onBuyerDone={done}
+			/>
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
 			<main className="flex-1 w-full max-w-md mx-auto px-4 py-8">
 				<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: storeLabel, href: storeHref }, { label: 'Akun' }]} className="mb-6" />
@@ -179,8 +253,8 @@ export default function TokoBuyerLoginPage() {
 							)}
 							{(mode === 'login' || mode === 'register' || mode === 'forgot') && (
 								<div className="space-y-1">
-									<Label htmlFor="b-email">Email</Label>
-									<Input id="b-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+									<Label htmlFor="b-email">{mode === 'login' ? 'Email atau username' : 'Email'}</Label>
+									<Input id="b-email" type={mode === 'login' ? 'text' : 'email'} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete={mode === 'login' ? 'username' : 'email'} required />
 								</div>
 							)}
 							{mode === 'register' && (

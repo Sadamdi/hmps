@@ -51,6 +51,18 @@ type FirebaseClaims = JWTPayload & {
 };
 
 export async function verifyGoogleIdToken(idToken: string): Promise<{ email: string; uid: string; name: string }> {
+	// JALUR UJI (bukan produksi): token `test:<email>|<nama>|<uid>` diterima HANYA bila NODE_ENV bukan production,
+	// GOOGLE_LOGIN_TEST_MODE=1, dan STORE_EMAIL_OUTBOX di-set (variabel khusus pengujian). Tidak aktif di server nyata.
+	if (
+		idToken.startsWith('test:') &&
+		process.env.NODE_ENV !== 'production' &&
+		process.env.GOOGLE_LOGIN_TEST_MODE === '1' &&
+		process.env.STORE_EMAIL_OUTBOX
+	) {
+		const [email, name, uid] = idToken.slice(5).split('|');
+		if (!email || !uid) throw new GoogleLoginError('GOOGLE_TOKEN_INVALID', 'Token Google tidak valid');
+		return { email: email.trim().toLowerCase(), uid, name: name || '' };
+	}
 	const projectId = firebaseProjectId();
 	if (!projectId) throw new GoogleLoginError('GOOGLE_LOGIN_DISABLED', 'Login Google belum dikonfigurasi');
 
