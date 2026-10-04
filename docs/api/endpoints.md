@@ -414,6 +414,24 @@ PATCH /bug-report/:id/status
 POST /bug-report/:id/reply
 DELETE /bug-report/:id
 
+# /api/buyer  (Akun pembeli toko — terpisah dari akun staf; juga /api/c/:slug/buyer/*)
+POST   /register              # publik: daftar (nama, email, password, phone?) → OTP email
+POST   /register/verify       # publik: {challengeId, code} → login + klaim pesanan lama
+POST   /login                 # publik: email + password
+POST   /google                # publik: {idToken} Firebase → buat/tautkan akun
+POST   /logout                # cabut sesi saat ini
+GET    /me                    # akun yang login (null bila tamu)
+PATCH  /me                    # pembeli: nama, phone
+POST   /password/otp          # publik/pembeli: OTP atur ulang password (jawaban sama walau email tak terdaftar)
+POST   /password/reset        # publik: {challengeId, code, newPassword} → cabut semua sesi lama
+POST   /email/change          # pembeli: {newEmail} → OTP ke email baru
+POST   /email/verify          # pembeli: {challengeId, code}
+GET    /orders                # pembeli: pesanan di semua toko (utama + komunitas)
+POST   /orders/claim          # pembeli: {link} link invoice berisi ?inv=
+GET    /sessions              # pembeli: sesi aktif
+DELETE /sessions/:id          # pembeli: cabut sesi
+POST   /sessions/revoke-others # pembeli: keluar dari perangkat lain
+
 # /api/system-errors  (Bug Otomatis)
 POST   /report            # publik + optional auth, rate-limited (lapor dari client)
 GET    /list              # owner: filter status/severity/source/statusCode/excludeStatusCode/isTenant/communitySlug/dateFrom/dateTo/q/sort/page/limit

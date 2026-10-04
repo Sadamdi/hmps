@@ -1874,6 +1874,8 @@ const storeOrderItemSchema = new mongoose.Schema(
 const storeChatSchema = new mongoose.Schema(
 	{
 		guestSessionKeyHash: { type: String, required: true, index: true },
+		/** Akun pembeli pemilik percakapan (opsional) */
+		buyerId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
 		/** Lama (satu utas per produk); utas baru memakai pesan kartu produk */
 		productId: { type: mongoose.Schema.Types.ObjectId, ref: 'StoreProduct', default: null },
 		productName: { type: String, default: '' },
@@ -1927,6 +1929,8 @@ const storeOrderSchema = new mongoose.Schema(
 		/** Token acak untuk buka invoice tanpa cookie sesi (mis. dari WA) */
 		invoiceAccessToken: { type: String, default: '' },
 		guestSessionKeyHash: { type: String, default: '' },
+		/** Akun pembeli (koleksi Customer di DB utama) — null untuk pesanan tamu */
+		buyerId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
 		items: { type: [storeOrderItemSchema], required: true },
 		subtotal: { type: Number, required: true },
 		taxPercent: { type: Number, default: 0 },
@@ -2170,6 +2174,57 @@ const SystemError =
 	mongoose.models.SystemError ||
 	mongoose.model('SystemError', systemErrorSchema);
 
+// ── Akun pembeli toko (terpisah dari User staf; satu akun untuk semua toko main + komunitas) ──
+const customerAddressSchema = new mongoose.Schema(
+	{
+		id: { type: String, required: true },
+		label: { type: String, default: '' },
+		recipient: { type: String, default: '' },
+		phone: { type: String, default: '' },
+		address: { type: String, default: '' },
+		isDefault: { type: Boolean, default: false },
+	},
+	{ _id: false },
+);
+
+const customerSchema = new mongoose.Schema(
+	{
+		email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+		emailVerified: { type: Boolean, default: false },
+		passwordHash: { type: String, default: '' },
+		/** uid Firebase/Google; unik bila ada */
+		googleSub: { type: String, default: undefined },
+		name: { type: String, default: '' },
+		phone: { type: String, default: '' },
+		addresses: { type: [customerAddressSchema], default: [] },
+		notifyPrefs: {
+			orderStatus: { type: Boolean, default: true },
+			paymentReminders: { type: Boolean, default: true },
+		},
+		/** pending = belum verifikasi email; blocked = diblokir admin; deleted = dianonimkan */
+		status: { type: String, enum: ['pending', 'active', 'blocked', 'deleted'], default: 'pending' },
+		tokenVersion: { type: Number, default: 0 },
+		lastLoginAt: { type: Date, default: null },
+	},
+	{ timestamps: true },
+);
+customerSchema.index({ googleSub: 1 }, { unique: true, sparse: true });
+
+const customerSessionSchema = new mongoose.Schema({
+	customerId: { type: mongoose.Schema.Types.ObjectId, ref: 'Customer', required: true, index: true },
+	sessionId: { type: String, required: true, unique: true },
+	userAgent: { type: String, default: '' },
+	ip: { type: String, default: '' },
+	device: { type: String, default: '' },
+	createdAt: { type: Date, default: Date.now },
+	lastActive: { type: Date, default: Date.now },
+	revokedAt: { type: Date, default: null },
+});
+
+const Customer = mongoose.models.Customer || mongoose.model('Customer', customerSchema);
+const CustomerSession =
+	mongoose.models.CustomerSession || mongoose.model('CustomerSession', customerSessionSchema);
+
 // Create Position model
 export const Position =
 	mongoose.models.Position || mongoose.model('Position', positionSchema);
@@ -2400,6 +2455,8 @@ export const allSchemas = {
 };
 
 export {
+	Customer,
+	CustomerSession,
 	Berita,
 	BugReport,
 	Comment,

@@ -45,6 +45,7 @@ import {
 } from './models/middleware-settings';
 import { mongoStorage } from './mongo-storage';
 import chatRouter from './routes/chat';
+import buyerRouter from './routes/buyer';
 import aiEnhanceRouter from './routes/ai-enhance';
 import commentRouter from './routes/comments';
 import feedbackRouter from './routes/feedback';
@@ -8762,6 +8763,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	app.use('/api/chat', chatRouter);
+	// Akun pembeli toko (terpisah dari akun staf)
+	app.use('/api/buyer', buyerRouter);
 	app.use('/api/ai', aiEnhanceRouter);
 	app.use('/api/comments', commentRouter);
 	app.use('/api/feedback', feedbackRouter);

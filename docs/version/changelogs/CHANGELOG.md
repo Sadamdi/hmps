@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.42.0] - 2026-10-04
+
+### Added
+
+- Akun pembeli toko (terpisah dari akun staf): daftar/OTP, masuk email/Google, klaim pesanan lama, dashboard pembeli, ajakan masuk di checkout, 16 endpoint `/api/buyer/*`.
+
 ## [4.41.1] - 2026-10-03
 
 ### Added

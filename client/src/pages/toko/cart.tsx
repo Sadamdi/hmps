@@ -3,6 +3,8 @@ import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
 import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/toko/store-checkout-payment';
 import { EMAIL_PATTERN, StoreEmailField, readSavedBuyerEmail, saveBuyerEmail } from '@/components/toko/store-email-field';
+import { StoreBuyerPrompt } from '@/components/toko/store-buyer-prompt';
+import type { BuyerAccount } from '@/hooks/use-buyer';
 import type { StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -121,6 +123,12 @@ export default function TokoCartPage() {
 	const [name, setName] = useState('');
 	const [phone, setPhone] = useState('');
 	const [email, setEmail] = useState(() => readSavedBuyerEmail());
+	// Akun pembeli yang login: isi kolom yang masih kosong
+	const prefillFromBuyer = useCallback((b: BuyerAccount) => {
+		setName((v) => v || b.name || '');
+		setPhone((v) => v || b.phone || '');
+		setEmail((v) => v || b.email || '');
+	}, []);
 	const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>('pickup');
 	const [address, setAddress] = useState('');
 	const [destVillage, setDestVillage] = useState('');
@@ -474,6 +482,7 @@ export default function TokoCartPage() {
 								<CardTitle className="text-lg">Checkout</CardTitle>
 							</CardHeader>
 							<CardContent className="space-y-4">
+								<StoreBuyerPrompt onPrefill={prefillFromBuyer} />
 								<div className="space-y-2">
 									<Label>Nama</Label>
 									<Input value={name} onChange={(e) => setName(e.target.value)} />

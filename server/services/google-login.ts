@@ -44,12 +44,13 @@ export function googleLoginEnabled(): boolean {
 
 type FirebaseClaims = JWTPayload & {
 	email?: string;
+	name?: string;
 	email_verified?: boolean;
 	auth_time?: number;
 	firebase?: { sign_in_provider?: string };
 };
 
-export async function verifyGoogleIdToken(idToken: string): Promise<{ email: string; uid: string }> {
+export async function verifyGoogleIdToken(idToken: string): Promise<{ email: string; uid: string; name: string }> {
 	const projectId = firebaseProjectId();
 	if (!projectId) throw new GoogleLoginError('GOOGLE_LOGIN_DISABLED', 'Login Google belum dikonfigurasi');
 
@@ -78,5 +79,5 @@ export async function verifyGoogleIdToken(idToken: string): Promise<{ email: str
 	if (!email || payload.email_verified !== true) {
 		throw new GoogleLoginError('GOOGLE_EMAIL_UNVERIFIED', 'Email Google belum terverifikasi');
 	}
-	return { email, uid: payload.sub };
+	return { email, uid: payload.sub, name: String(payload.name || '').slice(0, 120) };
 }
