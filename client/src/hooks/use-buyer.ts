@@ -20,6 +20,8 @@ export interface BuyerAccount {
 	phone: string;
 	hasPassword: boolean;
 	googleLinked: boolean;
+	/** Email ini juga terdaftar sebagai pengurus (menu "Masuk sebagai pengurus") */
+	alsoStaff?: boolean;
 	addresses: BuyerAddress[];
 	notifyPrefs: { orderStatus: boolean; paymentReminders: boolean };
 	/** Login sebelum sesi ini (null = login pertama) */
@@ -48,6 +50,26 @@ export async function buyerApi<T = any>(method: string, path: string, body?: unk
 	const r = await apiRequest(method, `/api/buyer${path}`, body);
 	const j = await r.json().catch(() => ({}));
 	return (j?.data ?? j) as T;
+}
+
+/**
+ * Pembeli → pengurus tanpa login ulang (email pembeli terverifikasi & juga pengurus). Sukses = pindah ke dashboard
+ * (reload penuh). Email ada di beberapa konteks → ke halaman login untuk memilih tujuan.
+ */
+export async function switchToStaff(): Promise<void> {
+	const r = await fetch('/api/auth/switch-to-staff', {
+		method: 'POST',
+		credentials: 'include',
+		headers: { 'Content-Type': 'application/json' },
+		body: '{}',
+	});
+	const j: any = await r.json().catch(() => ({}));
+	if (r.status === 409 && j?.ambiguous) {
+		window.location.assign('/login');
+		return;
+	}
+	if (!r.ok) throw new Error(j?.message || 'Gagal masuk sebagai pengurus');
+	window.location.assign(j?.tenantSlug ? `/${j.tenantSlug}/dashboard` : '/dashboard');
 }
 
 /** Muat ulang semua data yang bergantung pada akun (setelah login/logout). */

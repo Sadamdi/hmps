@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.45.0",
+    "version": "4.46.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -2068,6 +2068,90 @@
               "examples": {
                 "default": {
                   "value": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/switch-to-staff": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "POST /api/auth/switch-to-staff",
+        "operationId": "post_api_auth_switch_to_staff",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "message": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "loginTarget": {
+                    "type": "string",
+                    "example": "sample"
+                  }
+                },
+                "additionalProperties": true
+              },
+              "examples": {
+                "default": {
+                  "value": {
+                    "loginTarget": "sample"
+                  }
                 }
               }
             }
@@ -4155,6 +4239,81 @@
         ],
         "summary": "PUT /api/buyer/favorites",
         "operationId": "put_api_buyer_favorites",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "message": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericRequestBody"
+              },
+              "examples": {
+                "default": {
+                  "value": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/buyer/from-staff": {
+      "post": {
+        "tags": [
+          "buyer"
+        ],
+        "summary": "POST /api/buyer/from-staff",
+        "operationId": "post_api_buyer_from_staff",
         "security": [
           {
             "bearerAuth": []

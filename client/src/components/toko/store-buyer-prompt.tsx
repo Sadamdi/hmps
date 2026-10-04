@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { buyerApi, refreshBuyerQueries, useBuyer, useStorePaths, type BuyerAccount } from '@/hooks/use-buyer';
 import { useToast } from '@/hooks/use-toast';
 import { GoogleSignInCancelled, getGoogleIdToken } from '@/lib/google-signin';
+import { useSwitchToBuyer } from '@/components/public/buyer-nav-menu';
+import { useAuth } from '@/lib/auth';
 import { apiErrorText } from '@/lib/queryClient';
 
 /**
@@ -15,6 +17,8 @@ export function StoreBuyerPrompt({ onPrefill, compact = false }: { onPrefill?: (
 	const { buyer, loading } = useBuyer();
 	const { loginHref, accountHref } = useStorePaths();
 	const { toast } = useToast();
+	const { user: staffUser } = useAuth();
+	const switchToBuyerAccount = useSwitchToBuyer();
 	const [busy, setBusy] = useState(false);
 	const [prefilledFor, setPrefilledFor] = useState('');
 
@@ -56,6 +60,20 @@ export function StoreBuyerPrompt({ onPrefill, compact = false }: { onPrefill?: (
 			setBusy(false);
 		}
 	};
+
+	if (staffUser) {
+		return (
+			<div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">
+				<p className="text-sm font-medium flex items-center gap-2">
+					<UserRound className="h-4 w-4 text-primary" /> Kamu masuk sebagai pengurus {staffUser.name || staffUser.username}
+				</p>
+				{!compact && <p className="text-xs text-muted-foreground">Belanja dengan akun yang sama agar pesanan tersimpan dan bisa dilacak dari mana saja.</p>}
+				<Button type="button" size="sm" className="gap-2" onClick={switchToBuyerAccount}>
+					Belanja sebagai pembeli
+				</Button>
+			</div>
+		);
+	}
 
 	return (
 		<div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2">

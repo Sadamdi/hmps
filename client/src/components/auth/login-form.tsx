@@ -44,7 +44,7 @@ export default function LoginForm() {
 	const [googleLoading, setGoogleLoading] = useState(false);
 	// Pintu login tunggal: pilih peran (email ganda) / onboarding akun pembeli baru
 	const [googleStep, setGoogleStep] = useState<GoogleStep>(null);
-	const { accountHref } = useStorePaths();
+	const { accountHref, storeHref, storeLabel } = useStorePaths();
 	const nextParam = (() => {
 		const n = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('next') || '';
 		return n.startsWith('/') && !n.startsWith('//') ? n : '';
@@ -560,13 +560,20 @@ export default function LoginForm() {
 								</a>
 							</div>
 						)}
+						<div className="mb-4">
+							<a
+								href={`${storeHref}/masuk?mode=daftar`}
+								className="text-sm text-blue-600 dark:text-cyan-400 hover:underline">
+								Belum punya akun? Daftar sebagai pembeli {storeLabel}
+							</a>
+						</div>
 						<div className="h-px bg-slate-200 dark:bg-white/8 mb-4" />
 						<p className="text-xs text-slate-500 dark:text-slate-500">
-							Hanya untuk pengurus {siteName} yang berwenang
+							Satu pintu untuk pengurus {siteName} dan pembeli {storeLabel}
 						</p>
 						{googleEnabled && (
 							<p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-								Masuk dengan Google hanya untuk email yang sudah terdaftar sebagai pengurus.
+								Masuk dengan Google dikenali otomatis: pengurus ke dashboard, pembeli ke akunnya.
 							</p>
 						)}
 					</div>

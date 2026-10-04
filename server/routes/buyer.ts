@@ -10,7 +10,7 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { Community, Customer, CustomerSession, OtpChallenge, StoreOrder, StoreSettings } from '../../db/mongodb';
 import { getTenantModels } from '../../db/tenant';
-import { hashPassword, verifyPassword } from '../auth';
+import { authenticate, hashPassword, verifyPassword } from '../auth';
 import { createPublicRateLimiter } from '../middleware/public-rate-limit';
 import { createOtpChallenge, verifyOtpChallenge, OtpError, RateLimitError } from '../services/otp';
 import {
@@ -211,7 +211,52 @@ router.post('/logout', async (req, res) => {
 // ── Profil ──
 router.get('/me', async (req, res) => {
 	const c = await getBuyer(req);
-	res.json({ success: true, data: { customer: publicCustomer(c) } });
+	if (!c) return res.json({ success: true, data: { customer: null } });
+	// alsoStaff: email ini juga pengurus → navbar menawarkan "Masuk sebagai pengurus" (sesi pengurus tetap harus lolos login)
+	const { staffExistsForEmailCached } = await import('../services/unified-login');
+	const alsoStaff = c.emailVerified ? await staffExistsForEmailCached(c.email) : false;
+	res.json({ success: true, data: { customer: { ...publicCustomer(c), alsoStaff } } });
+});
+
+/**
+ * Pengurus yang sedang login → buka akun pembeli dengan email pengurus itu (dibuat bila belum ada).
+ * Tidak perlu OTP: identitas sudah dibuktikan oleh sesi pengurus. Password pembeli disalin dari akun pengurus
+ * (hash, bukan teks asli) dan ikut berganti saat pengurus mengganti password. Pesanan lama TIDAK diklaim lewat
+ * email pada pembuatan ini (email pengurus tidak diverifikasi pembeli), hanya lewat perangkat ini.
+ */
+router.post('/from-staff', authLimiter, authenticate, async (req, res) => {
+	const u: any = (req as any).user;
+	const email = normalizeBuyerEmail(u?.email);
+	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Akun pengurus ini belum punya email yang valid. Lengkapi email di profil dulu.', 'STAFF_EMAIL_MISSING');
+	try {
+		let c: any = await Customer.findOne({ email });
+		if (c?.status === 'blocked') return fail(res, 403, 'Akun pembeli dengan email ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
+		let fresh = false;
+		if (!c) {
+			c = await Customer.create({
+				email,
+				name: cleanName(u.name || u.username),
+				phone: cleanPhone(u.phone),
+				passwordHash: typeof u.password === 'string' ? u.password : '',
+				emailVerified: true,
+				status: 'active',
+				staffLinked: true,
+			});
+			fresh = true;
+		} else if (c.status !== 'active') {
+			c.status = 'active';
+			c.emailVerified = true;
+			c.staffLinked = true;
+			if (!c.passwordHash && typeof u.password === 'string') c.passwordHash = u.password;
+			await c.save();
+			fresh = true;
+		}
+		const plain = typeof c.toObject === 'function' ? c.toObject() : c;
+		return completeLogin(req, res, fresh ? { ...plain, emailVerified: false } : plain, { created: fresh });
+	} catch (e) {
+		console.error('[buyer/from-staff]', e);
+		return fail(res, 500, 'Gagal membuka akun pembeli. Coba lagi.', 'INTERNAL');
+	}
 });
 
 const profileSchema = z.object({
