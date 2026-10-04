@@ -1794,6 +1794,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			return res.status(401).json({ success: false, message: 'Silakan masuk ke akun pembeli dulu', error: { code: 'BUYER_AUTH_REQUIRED' } });
 		}
 		const lt = typeof req.body?.loginTarget === 'string' ? req.body.loginTarget.slice(0, 80) : undefined;
+		// Satu identitas aktif: switch ke pengurus MENUTUP sesi pembeli (hanya bila login pengurus berhasil, status 200)
+		const { dropBuyerSession } = await import('./services/buyer-auth');
+		const origJson = res.json.bind(res);
+		res.json = ((body: any) => {
+			if (res.statusCode === 200) dropBuyerSession(req, res);
+			return origJson(body);
+		}) as typeof res.json;
 		return staffLoginByVerifiedEmail(req, res, buyer.email, lt);
 	});
 

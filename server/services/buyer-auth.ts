@@ -107,6 +107,17 @@ export async function endBuyerSession(req: Request, res: Response): Promise<void
 	res.clearCookie(BUYER_COOKIE, opts);
 }
 
+/**
+ * Versi sinkron untuk dipakai sebelum respons dikirim (header Set-Cookie harus terpasang lebih dulu):
+ * hapus cookie pembeli sekarang, cabut catatan sesinya di latar belakang.
+ */
+export function dropBuyerSession(req: Request, res: Response): void {
+	const payload = readBuyerToken(req);
+	if (payload?.sid) void CustomerSession.updateOne({ sessionId: payload.sid }, { $set: { revokedAt: new Date() } }).catch(() => {});
+	const { maxAge: _m, ...opts } = buyerCookieOptions();
+	res.clearCookie(BUYER_COOKIE, opts);
+}
+
 function readBuyerToken(req: Request): { id: string; sid: string; tv: number } | null {
 	const token = req.cookies?.[BUYER_COOKIE];
 	if (!token || typeof token !== 'string') return null;

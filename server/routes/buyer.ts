@@ -295,6 +295,8 @@ router.post('/from-staff', authLimiter, authenticate, async (req, res) => {
 			fresh = true;
 		}
 		const plain = typeof c.toObject === 'function' ? c.toObject() : c;
+		// Satu identitas aktif: switch ke pembeli MENUTUP sesi pengurus (kembali ke pengurus lewat "Masuk sebagai pengurus")
+		await endStaffSession(req, res);
 		return completeLogin(req, res, fresh ? { ...plain, emailVerified: false } : plain, { created: fresh });
 	} catch (e) {
 		console.error('[buyer/from-staff]', e);
