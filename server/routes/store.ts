@@ -275,6 +275,14 @@ async function requireStoreDashboard(req: Request, res: Response, next: NextFunc
 	return res.status(403).json({ message: 'Akses toko ditolak' });
 }
 
+/** Pelanggan: lihat = toko.customers.view atau toko.manage; kelola = toko.customers.manage. */
+async function requireCustomersView(req: Request, res: Response, next: NextFunction) {
+	if (!req.user) return res.status(401).json({ message: 'Authentication required' });
+	const perms = await getEffectivePermissions(req);
+	if (hasPerm(perms, 'toko.customers.view') || hasPerm(perms, 'toko.customers.manage') || hasPerm(perms, 'toko.manage')) return next();
+	return res.status(403).json({ message: 'Perlu permission toko.customers.view' });
+}
+
 async function requireTokoManage(req: Request, res: Response, next: NextFunction) {
 	if (!req.user) return res.status(401).json({ message: 'Authentication required' });
 	const perms = await getEffectivePermissions(req);
@@ -2896,6 +2904,121 @@ export async function resyncStoreSheetForSite(ctx: { tenantModels?: any; tenantD
 	return resyncStoreSheet(req);
 }
 
+// ── Pelanggan (akun pembeli yang pernah memesan di toko INI) ──
+// Akun pembeli global di DB utama; daftar per toko diambil dari StoreOrder.buyerId DB toko yang aktif,
+// sehingga admin toko komunitas hanya melihat pembeli tokonya sendiri.
+function maskEmail(e: string): string {
+	const [u, d] = String(e || '').split('@');
+	if (!d) return '***';
+	const dm = d.split('.');
+	return `${u.slice(0, 2)}***@${(dm[0] || '').slice(0, 2)}***.${dm.slice(1).join('.') || ''}`;
+}
+const maskPhone = (p: string) => (p ? `${String(p).slice(0, 4)}****${String(p).slice(-2)}` : '');
+
+async function canManageCustomers(req: Request) {
+	return hasPerm(await getEffectivePermissions(req), 'toko.customers.manage');
+}
+
+function customerRow(c: any, stats: any, full: boolean) {
+	return {
+		id: String(c._id),
+		name: c.name || '',
+		email: full ? c.email : maskEmail(c.email),
+		phone: full ? c.phone || '' : maskPhone(c.phone || ''),
+		status: c.status,
+		loginMethods: [c.passwordHash ? 'email' : '', c.googleSub ? 'google' : ''].filter(Boolean),
+		createdAt: c.createdAt,
+		lastLoginAt: c.lastLoginAt,
+		orders: stats?.orders || 0,
+		totalSpent: stats?.totalSpent || 0,
+		lastOrderAt: stats?.lastOrderAt || null,
+	};
+}
+
+router.get('/admin/customers', authenticate, requireCustomersView, async (req, res) => {
+	try {
+		const { StoreOrder } = resolveModels(req);
+		const full = await canManageCustomers(req);
+		const stats: any[] = await StoreOrder.aggregate([
+			{ $match: { buyerId: { $ne: null } } },
+			{
+				$group: {
+					_id: '$buyerId',
+					orders: { $sum: 1 },
+					totalSpent: { $sum: { $cond: [{ $eq: ['$status', 'cancelled'] }, 0, '$total'] } },
+					lastOrderAt: { $max: '$createdAt' },
+				},
+			},
+		]);
+		const byId = new Map(stats.map((x) => [String(x._id), x]));
+		const q = String(req.query.q || '').trim().slice(0, 80);
+		const filter: any = { _id: { $in: stats.map((x) => x._id) }, status: { $ne: 'deleted' } };
+		if (q) {
+			const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+			filter.$or = [{ name: re }, { email: re }, { phone: re }];
+		}
+		const customers: any[] = await (mainDbModels as any).Customer.find(filter).lean();
+		const rows = customers
+			.map((c) => customerRow(c, byId.get(String(c._id)), full))
+			.sort((a, b) => new Date(b.lastOrderAt || 0).getTime() - new Date(a.lastOrderAt || 0).getTime());
+		const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+		const limit = 20;
+		res.json({ items: rows.slice((page - 1) * limit, page * limit), total: rows.length, page, limit, canManage: full });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memuat pelanggan' });
+	}
+});
+
+router.get('/admin/customers/:id', authenticate, requireCustomersView, async (req, res) => {
+	try {
+		const { StoreOrder } = resolveModels(req);
+		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'Pelanggan tidak ditemukan' });
+		const orders: any[] = await StoreOrder.find({ buyerId: req.params.id })
+			.sort({ createdAt: -1 })
+			.limit(50)
+			.select('orderNo total status paymentStatus createdAt items.name items.qty')
+			.lean();
+		// Hanya pembeli yang pernah memesan di toko ini
+		if (!orders.length) return res.status(404).json({ message: 'Pelanggan tidak ditemukan' });
+		const c: any = await (mainDbModels as any).Customer.findById(req.params.id).lean();
+		if (!c || c.status === 'deleted') return res.status(404).json({ message: 'Pelanggan tidak ditemukan' });
+		const full = await canManageCustomers(req);
+		const totalSpent = orders.filter((o) => o.status !== 'cancelled').reduce((n, o) => n + (Number(o.total) || 0), 0);
+		res.json({ customer: customerRow(c, { orders: orders.length, totalSpent, lastOrderAt: orders[0]?.createdAt }, full), orders, canManage: full });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memuat pelanggan' });
+	}
+});
+
+router.patch('/admin/customers/:id/status', authenticate, requireCustomersView, async (req, res) => {
+	try {
+		if (!(await canManageCustomers(req))) return res.status(403).json({ message: 'Perlu permission toko.customers.manage' });
+		// Akun pembeli berlaku di semua toko → blokir hanya dari toko utama
+		if ((req as any).isTenantRequest) return res.status(403).json({ message: 'Blokir akun pembeli hanya bisa dari dashboard toko utama' });
+		const status = String(req.body?.status || '');
+		if (!['active', 'blocked'].includes(status)) return res.status(400).json({ message: 'Status tidak valid' });
+		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(404).json({ message: 'Pelanggan tidak ditemukan' });
+		const { StoreOrder } = resolveModels(req);
+		if (!(await StoreOrder.exists({ buyerId: req.params.id }))) return res.status(404).json({ message: 'Pelanggan tidak ditemukan' });
+		const M = mainDbModels as any;
+		const c: any = await M.Customer.findById(req.params.id);
+		if (!c || c.status === 'deleted' || c.status === 'pending') return res.status(404).json({ message: 'Pelanggan tidak ditemukan' });
+		c.status = status;
+		if (status === 'blocked') {
+			c.tokenVersion = (c.tokenVersion || 0) + 1; // keluarkan dari semua perangkat
+			await M.CustomerSession.updateMany({ customerId: c._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+		}
+		await c.save();
+		console.log(`[store-customers] ${String((req.user as any)?.username || '')} → ${status} ${c._id}`);
+		res.json({ ok: true, status });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal mengubah status pelanggan' });
+	}
+});
+
 router.get('/admin/sheet-sync', authenticate, requireTokoManage, async (req, res) => {
 	const settings: any = await ensureSettings(req);
 	const id = String(settings?.googleSheetId || '');
@@ -4091,8 +4214,14 @@ async function productCardFor(req: Request, productId: string): Promise<ChatProd
 	};
 }
 
+/** Percakapan pembeli: milik akun (bila login, lintas perangkat) atau cookie perangkat ini. */
 async function findBuyerChat(req: Request, sessionKeyHash: string) {
 	const { StoreChat } = resolveModels(req);
+	const buyerId = await getBuyerId(req);
+	if (buyerId) {
+		const own = await StoreChat.findOne({ buyerId }).sort({ lastMessageAt: -1 });
+		if (own) return own;
+	}
 	return StoreChat.findOne({ guestSessionKeyHash: sessionKeyHash }).sort({ lastMessageAt: -1 });
 }
 
@@ -4152,9 +4281,12 @@ router.post('/chats', storeChatRateLimiter, async (req, res) => {
 		let chat = await findBuyerChat(req, sessionKeyHash);
 		if (!chat) {
 			if (!customerName) return res.status(400).json({ message: 'Nama wajib diisi' });
-			chat = new StoreChat({ guestSessionKeyHash: sessionKeyHash, customerName, messages: [] });
+			chat = new StoreChat({ guestSessionKeyHash: sessionKeyHash, buyerId: (await getBuyerId(req)) || null, customerName, messages: [] });
 		}
 		if (customerName) chat.customerName = customerName;
+		// Percakapan tamu yang dilanjutkan setelah masuk akun → ikut tersimpan di akun
+		const chatBuyerId = await getBuyerId(req);
+		if (chatBuyerId && !chat.buyerId) chat.buyerId = chatBuyerId;
 
 		const needCard = !!card && askedProducts(chat)[0]?.productId !== card.productId;
 		const incoming = (needCard ? 1 : 0) + (text ? 1 : 0);

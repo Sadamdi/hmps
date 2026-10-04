@@ -36,7 +36,13 @@ const ops = [
 	['get', '/api/buyer/sessions', 'Sesi/perangkat aktif', 'buyer'],
 	['delete', '/api/buyer/sessions/{id}', 'Cabut satu sesi', 'buyer'],
 	['post', '/api/buyer/sessions/revoke-others', 'Keluar dari semua perangkat lain', 'buyer'],
-	...(process.env.BUYER_OPENAPI_EXTRA ? JSON.parse(process.env.BUYER_OPENAPI_EXTRA) : []),
+	['get', '/api/buyer/addresses', 'Alamat tersimpan', 'buyer'],
+	['put', '/api/buyer/addresses', 'Simpan daftar alamat (maks 5, satu utama)', 'buyer', { addresses: [{ label: 'Rumah', recipient: 'Budi', phone: '0812…', address: 'Jl. …', isDefault: true }] }],
+	['get', '/api/buyer/favorites', 'Favorit per toko (?store=main|slug)', 'buyer'],
+	['put', '/api/buyer/favorites', 'Simpan favorit per toko', 'buyer', { store: 'main', productIds: ['…'] }],
+	['get', '/api/store/admin/customers', 'Pelanggan toko ini (toko.customers.view / toko.manage; disamarkan tanpa .manage)', 'staff'],
+	['get', '/api/store/admin/customers/{id}', 'Detail pelanggan + pesanan di toko ini', 'staff'],
+	['patch', '/api/store/admin/customers/{id}/status', 'Blokir/buka blokir akun pembeli (toko.customers.manage, toko utama)', 'staff', { status: 'blocked' }],
 ];
 
 j.components = j.components || {};

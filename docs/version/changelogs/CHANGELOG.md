@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.43.0] - 2026-10-04
+
+### Added
+
+- Akun pembeli fase 2: alamat tersimpan, favorit & chat ikut akun, sesi aktif, tab admin Pelanggan, permission `toko.customers.view`/`toko.customers.manage`.
+
 ## [4.42.0] - 2026-10-04
 
 ### Added

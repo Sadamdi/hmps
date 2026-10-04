@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.42.0`  
+**Current version:** `4.43.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.42.0`](./release/4.42.0.md) | 2026-10-04 | Akun pembeli toko fase 1: masuk email/Google, klaim pesanan, dashboard pembeli | MINOR | 1 | **Current** |
+| [`4.43.0`](./release/4.43.0.md) | 2026-10-04 | Akun pembeli fase 2: alamat, favorit & chat ke akun, sesi aktif, tab Pelanggan | MINOR | 1 | **Current** |
+| [`4.42.0`](./release/4.42.0.md) | 2026-10-04 | Akun pembeli toko fase 1: masuk email/Google, klaim pesanan, dashboard pembeli | MINOR | 1 | Released |
 | [`4.41.1`](./release/4.41.1.md) | 2026-10-03 | Notify publish (IndexNow + Facebook) & OG JPEG berita | PATCH | 1 | Released |
 | [`4.41.0`](./release/4.41.0.md) | 2026-09-30 | Sinkron Google Sheet pulih otomatis, email status terjamin | MINOR | 1 | Released |
 | [`4.40.0`](./release/4.40.0.md) | 2026-09-30 | Bug otomatis: filter kode error, tidak lagi banjir 404 bot | MINOR | 1 | Released |

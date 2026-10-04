@@ -2197,6 +2197,11 @@ const customerSchema = new mongoose.Schema(
 		name: { type: String, default: '' },
 		phone: { type: String, default: '' },
 		addresses: { type: [customerAddressSchema], default: [] },
+		/** Favorit per toko: store = 'main' atau slug komunitas */
+		favorites: {
+			type: [{ _id: false, store: { type: String, required: true }, productIds: { type: [String], default: [] } }],
+			default: [],
+		},
 		notifyPrefs: {
 			orderStatus: { type: Boolean, default: true },
 			paymentReminders: { type: Boolean, default: true },

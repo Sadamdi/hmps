@@ -4,7 +4,7 @@ import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa
 import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/toko/store-checkout-payment';
 import { EMAIL_PATTERN, StoreEmailField, readSavedBuyerEmail, saveBuyerEmail } from '@/components/toko/store-email-field';
 import { StoreBuyerPrompt } from '@/components/toko/store-buyer-prompt';
-import type { BuyerAccount } from '@/hooks/use-buyer';
+import { useBuyer, type BuyerAccount } from '@/hooks/use-buyer';
 import type { StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -128,7 +128,10 @@ export default function TokoCartPage() {
 		setName((v) => v || b.name || '');
 		setPhone((v) => v || b.phone || '');
 		setEmail((v) => v || b.email || '');
+		const def = (b.addresses || []).find((a) => a.isDefault) || (b.addresses || [])[0];
+		if (def) setAddress((v) => v || def.address);
 	}, []);
+	const { buyer: signedBuyer } = useBuyer();
 	const [fulfillment, setFulfillment] = useState<'pickup' | 'delivery'>('pickup');
 	const [address, setAddress] = useState('');
 	const [destVillage, setDestVillage] = useState('');
@@ -512,6 +515,16 @@ export default function TokoCartPage() {
 									<div className="space-y-2">
 										<Label>Alamat lengkap</Label>
 										<Textarea value={address} onChange={(e) => setAddress(e.target.value)} rows={3} />
+										{(signedBuyer?.addresses?.length || 0) > 0 && (
+											<div className="flex flex-wrap gap-1.5">
+												{signedBuyer!.addresses.map((a) => (
+													<Button key={a.id} type="button" size="sm" variant={address === a.address ? 'secondary' : 'outline'} className="h-7 text-xs" onClick={() => setAddress(a.address)}>
+														{a.label || 'Alamat'}
+														{a.isDefault ? ' · utama' : ''}
+													</Button>
+												))}
+											</div>
+										)}
 									</div>
 								)}
 								{fulfillment === 'delivery' && storeSettings?.shipping?.enabled && (
