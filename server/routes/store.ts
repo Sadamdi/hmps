@@ -195,6 +195,12 @@ function sendBuyerEmail(req: any, orderNo: string, kind: StoreEmailKind, extra: 
 			if (!o || !EMAIL_RE.test(normalizeEmail(o.customerEmail))) return;
 			const settings: any = await ensureSettings(req);
 			if (settings?.notifyBuyerEmail === false) return;
+			// Preferensi akun pembeli: kabar status & pengingat bisa dimatikan (email transaksi inti tetap dikirim)
+			if (o.buyerId && (String(kind).startsWith('status_') || String(kind).startsWith('remind_'))) {
+				const acc: any = await (mainDbModels as any).Customer.findById(o.buyerId).select('notifyPrefs').lean();
+				if (String(kind).startsWith('status_') && acc?.notifyPrefs?.orderStatus === false) return;
+				if (String(kind).startsWith('remind_') && acc?.notifyPrefs?.paymentReminders === false) return;
+			}
 			// Kunci log: sekali-kirim untuk kabar status; pengingat memakai kunci yang diberikan pemanggil.
 			const onceKey = dedupeKey || (ONCE_EMAIL_KINDS.has(kind) ? `once:${kind}` : '');
 			if (onceKey && (o.emailLog || []).some((e: any) => e.key === onceKey)) return;

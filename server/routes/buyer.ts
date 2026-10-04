@@ -169,12 +169,18 @@ router.get('/me', async (req, res) => {
 	res.json({ success: true, data: { customer: publicCustomer(c) } });
 });
 
-const profileSchema = z.object({ name: z.string().max(80).optional(), phone: z.string().max(30).optional() });
+const profileSchema = z.object({
+	name: z.string().max(80).optional(),
+	phone: z.string().max(30).optional(),
+	notifyPrefs: z.object({ orderStatus: z.boolean().optional(), paymentReminders: z.boolean().optional() }).optional(),
+});
 
 router.patch('/me', authenticateBuyer, async (req, res) => {
 	const parsed = profileSchema.safeParse(req.body || {});
 	if (!parsed.success) return fail(res, 400, 'Data profil tidak valid', 'VALIDATION_ERROR');
-	const set: Record<string, string> = {};
+	const set: Record<string, unknown> = {};
+	if (parsed.data.notifyPrefs?.orderStatus !== undefined) set['notifyPrefs.orderStatus'] = parsed.data.notifyPrefs.orderStatus;
+	if (parsed.data.notifyPrefs?.paymentReminders !== undefined) set['notifyPrefs.paymentReminders'] = parsed.data.notifyPrefs.paymentReminders;
 	if (parsed.data.name !== undefined) {
 		const n = cleanName(parsed.data.name);
 		if (!n) return fail(res, 400, 'Nama wajib diisi', 'VALIDATION_ERROR');
@@ -384,6 +390,51 @@ router.put('/favorites', authenticateBuyer, async (req, res) => {
 	await Customer.updateOne({ _id: me._id }, { $pull: { favorites: { store: key } } });
 	await Customer.updateOne({ _id: me._id }, { $push: { favorites: { store: key, productIds: ids } } });
 	res.json({ success: true, data: ids });
+});
+
+// ── Hapus akun (konfirmasi OTP email) ──
+// Data pribadi dianonimkan; pesanan tetap ada untuk pembukuan toko (data pemesan di pesanan tidak diubah).
+router.post('/delete/otp', authenticateBuyer, authLimiter, async (req, res) => {
+	const me = await getBuyer(req);
+	try {
+		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_delete', email: me.email, userId: String(me._id), ttlMinutes: 10, requestIp: reqIp(req) });
+		res.json({ success: true, message: 'Kode konfirmasi dikirim ke email akun.', data: { challengeId } });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+router.post('/delete', authenticateBuyer, authLimiter, async (req, res) => {
+	const parsed = otpVerifySchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Kode OTP 6 digit wajib diisi', 'VALIDATION_ERROR');
+	const me = await getBuyer(req);
+	try {
+		const ch: any = await OtpChallenge.findById(parsed.data.challengeId).lean();
+		if (!ch || String(ch.userId) !== String(me._id)) return fail(res, 400, 'Kode OTP tidak valid', 'OTP_INVALID');
+		await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_delete' });
+		await Customer.updateOne(
+			{ _id: me._id },
+			{
+				$set: {
+					email: `deleted-${String(me._id)}@deleted.invalid`,
+					emailVerified: false,
+					passwordHash: '',
+					name: '',
+					phone: '',
+					addresses: [],
+					favorites: [],
+					status: 'deleted',
+				},
+				$unset: { googleSub: 1 },
+				$inc: { tokenVersion: 1 },
+			},
+		);
+		await CustomerSession.updateMany({ customerId: me._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+		await endBuyerSession(req, res);
+		res.json({ success: true, message: 'Akun dihapus' });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
 });
 
 // ── Sesi aktif ──

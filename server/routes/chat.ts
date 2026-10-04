@@ -77,6 +77,7 @@ import { chatSessionRateLimiter, chatUploadRateLimiter } from '../middleware/pub
 import { chatLimiter } from '../security';
 import { requireTrustedChatOrigin } from '../middleware/chat-origin-gate';
 import { ChatService } from '../services/chat-service';
+import { getBuyer } from '../services/buyer-auth';
 dotenv.config();
 
 const router = Router();
@@ -344,6 +345,13 @@ router.post(
 						(parsedContext as any).path
 					);
 				}
+			}
+
+			// Akun pembeli toko: buyerId HANYA dari cookie pembeli yang diverifikasi server (nilai dari client dibuang)
+			if (parsedContext && typeof parsedContext === 'object') {
+				delete (parsedContext as any).buyerId;
+				const buyer = await getBuyer(req as any);
+				if (buyer) (parsedContext as any).buyerId = String(buyer._id);
 			}
 
 			if (req.user && parsedContext && typeof parsedContext === 'object') {

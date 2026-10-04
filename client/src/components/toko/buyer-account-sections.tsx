@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { StoreChatPanel } from '@/components/toko/store-chat-panel';
 import { buyerApi, useBuyer, useStorePaths, type BuyerAddress } from '@/hooks/use-buyer';
@@ -256,6 +257,119 @@ export function BuyerSessionsSection() {
 							)}
 						</div>
 					))
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+/** Preferensi email: kabar status & pengingat bayar (email transaksi inti tetap terkirim). */
+export function BuyerNotifySection() {
+	const { buyer, refetch } = useBuyer();
+	const { toast } = useToast();
+	const [busy, setBusy] = useState(false);
+	if (!buyer) return null;
+	const prefs = buyer.notifyPrefs || { orderStatus: true, paymentReminders: true };
+	const update = async (patch: Partial<typeof prefs>) => {
+		setBusy(true);
+		try {
+			await buyerApi('PATCH', '/me', { notifyPrefs: patch });
+			await refetch();
+			toast({ title: 'Preferensi disimpan' });
+		} catch (e) {
+			toast({ title: apiErrorText(e, 'Gagal menyimpan'), variant: 'destructive' });
+		} finally {
+			setBusy(false);
+		}
+	};
+	const row = (key: keyof typeof prefs, title: string, desc: string) => (
+		<label className="flex items-start justify-between gap-3 rounded-md border p-3 text-sm">
+			<span>
+				<span className="font-medium">{title}</span>
+				<span className="block text-xs text-muted-foreground">{desc}</span>
+			</span>
+			<Switch checked={prefs[key] !== false} disabled={busy} onCheckedChange={(v) => update({ [key]: v })} aria-label={title} />
+		</label>
+	);
+	return (
+		<Card className="md:col-span-2">
+			<CardHeader>
+				<CardTitle className="text-base">Notifikasi email</CardTitle>
+				<CardDescription>Email pesanan diterima, bukti bayar diterima/ditolak, pembayaran terverifikasi, dan pembatalan selalu dikirim.</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-2">
+				{row('orderStatus', 'Kabar status pesanan', 'Dikonfirmasi, pre-order diproses, dikirim/siap diambil, selesai.')}
+				{row('paymentReminders', 'Pengingat pembayaran', 'Pengingat sebelum batas bayar & tenggat pelunasan DP.')}
+			</CardContent>
+		</Card>
+	);
+}
+
+/** Hapus akun: konfirmasi OTP; data pribadi dianonimkan, riwayat pesanan tetap di toko. */
+export function BuyerDeleteSection({ onDeleted }: { onDeleted: () => void }) {
+	const { buyer } = useBuyer();
+	const { toast } = useToast();
+	const [challengeId, setChallengeId] = useState('');
+	const [code, setCode] = useState('');
+	const [busy, setBusy] = useState(false);
+	if (!buyer) return null;
+	const run = async (fn: () => Promise<void>) => {
+		setBusy(true);
+		try {
+			await fn();
+		} catch (e) {
+			toast({ title: apiErrorText(e, 'Gagal'), variant: 'destructive' });
+		} finally {
+			setBusy(false);
+		}
+	};
+	return (
+		<Card className="md:col-span-2 border-destructive/40">
+			<CardHeader>
+				<CardTitle className="text-base text-destructive">Hapus akun</CardTitle>
+				<CardDescription>
+					Nama, email, no HP, alamat, dan favorit di akun dihapus permanen. Pesanan yang sudah dibuat tetap tersimpan di toko untuk pembukuan.
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-3 max-w-md">
+				{!challengeId ? (
+					<Button
+						variant="outline"
+						className="text-destructive"
+						disabled={busy}
+						onClick={() =>
+							run(async () => {
+								const r = await buyerApi<{ challengeId: string }>('POST', '/delete/otp', {});
+								setChallengeId(r.challengeId);
+								toast({ title: `Kode konfirmasi dikirim ke ${buyer.email}` });
+							})
+						}>
+						Kirim kode konfirmasi
+					</Button>
+				) : (
+					<>
+						<div className="space-y-1">
+							<Label htmlFor="del-code">Kode konfirmasi</Label>
+							<Input id="del-code" inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+						</div>
+						<div className="flex gap-2">
+							<Button
+								variant="destructive"
+								disabled={busy || code.length !== 6}
+								onClick={() =>
+									run(async () => {
+										await buyerApi('POST', '/delete', { challengeId, code });
+										toast({ title: 'Akun dihapus' });
+										onDeleted();
+									})
+								}>
+								Hapus akun permanen
+							</Button>
+							<Button variant="ghost" onClick={() => setChallengeId('')}>
+								Batal
+							</Button>
+						</div>
+					</>
 				)}
 			</CardContent>
 		</Card>

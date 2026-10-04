@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.44.0] - 2026-10-04
+
+### Added
+
+- Akun pembeli fase 3: AI Enco mode pembeli (read-only, pesanan sendiri), preferensi notifikasi email, hapus akun via OTP, role preset Admin Toko.
+
 ## [4.43.0] - 2026-10-04
 
 ### Added

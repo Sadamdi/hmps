@@ -71,6 +71,16 @@ Lihat `docs/api/endpoints.md` bagian `/api/buyer`. Rate limit `buyer-auth` (30/1
 
 Pembeli **tidak** punya role staf dan tidak muncul di Role/User Management. Owner otomatis mendapat permission baru.
 
-## Tahap berikutnya
+## Fase 3 (4.44.0)
 
-- Fase 3: AI mode pembeli, preferensi notifikasi, hapus/anonimkan akun, role preset "Admin Toko".
+| Fitur | Detail |
+|-------|--------|
+| AI Enco mode pembeli | Tool `buyer_list_orders` & `buyer_get_order` (`server/services/buyer-ai-tools.ts`): read-only, hanya pesanan akun yang login di toko konteks aktif. `buyerId` diisi route chat dari cookie `buyerToken` yang diverifikasi server (nilai dari client dibuang); argumen model tidak bisa mengganti pemilik. Tool hanya ditawarkan bila pembeli login. |
+| Preferensi notifikasi | `notifyPrefs.orderStatus` (kabar status) & `paymentReminders` (pengingat bayar/pelunasan). Email transaksi inti (pesanan diterima, bukti diterima/ditolak, verifikasi, pembatalan) selalu dikirim |
+| Hapus akun | OTP ke email akun → email/nama/HP/alamat/favorit/password/Google dihapus (email jadi `deleted-<id>@deleted.invalid`), status `deleted`, semua sesi dicabut. Pesanan tetap di toko (data pemesan di pesanan tidak diubah) |
+| Role preset **Admin Toko** | `admin_toko` (sekali dibuat, migrasi `store-admin-role-v1`): `dashboard.view`, `toko.view`, `toko.manage`, `toko.customers.view`, tanpa berita/user/settings. Owner bebas mengubah di Role Management |
+
+## Catatan
+
+- Login Google pembeli memakai Firebase yang sama dengan login pengurus; belum diuji dengan akun Google sungguhan.
+- Role preset hanya dibuat di situs utama (toko komunitas memakai role komunitas masing-masing).

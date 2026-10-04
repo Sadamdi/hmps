@@ -3026,6 +3026,7 @@ async function initializeDefaultPermissions() {
 		// Social feed dikelola owner (otomatis semua), admin, ketua, wakil, dan Medinfo
 		// (role `medinfo` + grant divisi di server/division-permissions.ts).
 		await migrateSocialFeedRolesV2();
+		await ensureStoreAdminRole();
 		await Role.updateMany(
 			{ name: { $in: ['admin', 'chair', 'vice_chair', 'medinfo'] } },
 			{
@@ -3161,6 +3162,37 @@ async function initializeDefaultPermissions() {
  * - buat role `medinfo` bila belum ada (salinan izin division_head + social_feed.*)
  * Penanda di Settings.appliedMigrations agar pemberian manual owner setelahnya tidak ditimpa.
  */
+/**
+ * Role preset "Admin Toko" (sekali dibuat; owner bebas mengubah/menghapus izinnya lewat Role Management).
+ * Kelola toko & pesanan + lihat pelanggan, tanpa akses Berita/User/Settings.
+ */
+const STORE_ADMIN_ROLE_MIGRATION = 'store-admin-role-v1';
+async function ensureStoreAdminRole() {
+	try {
+		const settings: any = await Settings.findOne().select('appliedMigrations').lean();
+		if (!settings || (settings.appliedMigrations || []).includes(STORE_ADMIN_ROLE_MIGRATION)) return;
+		const exists = await Role.findOne({ name: 'admin_toko' }).lean();
+		if (!exists) {
+			const owner: any = await Role.findOne({ name: 'owner' }).lean();
+			const creator: any = owner?.createdBy ? { _id: owner.createdBy } : await User.findOne({ role: 'owner' }).select('_id').lean();
+			if (!creator?._id) return; // belum ada owner → coba lagi saat start berikutnya
+			await Role.create({
+				name: 'admin_toko',
+				displayName: 'Admin Toko',
+				description: 'Kelola Encoder Store: produk, pesanan, pembayaran, dan lihat pelanggan (tanpa akses konten/user).',
+				level: 7,
+				permissions: ['dashboard.view', 'toko.view', 'toko.manage', 'toko.customers.view'],
+				isActive: true,
+				createdBy: creator._id,
+			});
+			console.log('✅ Created role admin_toko (preset)');
+		}
+		await Settings.updateOne({ _id: settings._id }, { $addToSet: { appliedMigrations: STORE_ADMIN_ROLE_MIGRATION } });
+	} catch (error) {
+		console.error('Migration store-admin-role-v1 failed:', error);
+	}
+}
+
 const SOCIAL_FEED_ROLES_MIGRATION = 'social-feed-roles-v2';
 async function migrateSocialFeedRolesV2() {
 	try {

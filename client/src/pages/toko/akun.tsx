@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buyerApi, refreshBuyerQueries, useBuyer, useStorePaths } from '@/hooks/use-buyer';
-import { BuyerAddressesSection, BuyerChatSection, BuyerFavoritesSection, BuyerSessionsSection } from '@/components/toko/buyer-account-sections';
+import { BuyerAddressesSection, BuyerChatSection, BuyerDeleteSection, BuyerFavoritesSection, BuyerNotifySection, BuyerSessionsSection } from '@/components/toko/buyer-account-sections';
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorText } from '@/lib/queryClient';
 import { useTenant } from '@/lib/tenant-context';
@@ -83,7 +83,7 @@ function OrderRow({ o }: { o: BuyerOrder }) {
 	);
 }
 
-function ProfileTab() {
+function ProfileTab({ onDeleted }: { onDeleted: () => void }) {
 	const { buyer, refetch } = useBuyer();
 	const { toast } = useToast();
 	const [name, setName] = useState(buyer?.name || '');
@@ -253,6 +253,8 @@ function ProfileTab() {
 			</Card>
 
 			<BuyerSessionsSection />
+			<BuyerNotifySection />
+			<BuyerDeleteSection onDeleted={onDeleted} />
 		</div>
 	);
 }
@@ -437,7 +439,7 @@ export default function TokoBuyerAccountPage() {
 							</TabsContent>
 
 							<TabsContent value="profil" className="mt-4">
-								<ProfileTab />
+								<ProfileTab onDeleted={logout} />
 							</TabsContent>
 						</Tabs>
 					</>

@@ -1,3 +1,4 @@
+import { BUYER_TOOL_DEFS, BUYER_TOOL_NAMES, runBuyerTool } from './buyer-ai-tools';
 import {
 	Berita as MainBerita,
 	Event as MainEvent,
@@ -1086,12 +1087,15 @@ function toolAllowedByPermissions(
 
 export function getToolsForPermissions(
 	permissions: string[],
-	pagePath?: string | null
+	pagePath?: string | null,
+	opts: { buyerId?: string | null } = {},
 ): Record<string, unknown>[] {
 	const perms = new Set(permissions);
 	const onDashboard = isDashboardAiWriteAllowed(pagePath);
+	// Tool pembeli (read-only, dibatasi akun) hanya untuk pembeli yang login
+	const buyerTools = opts.buyerId ? BUYER_TOOL_DEFS.map(({ name, description, parameters }) => ({ name, description, parameters })) : [];
 
-	return ALL_AI_TOOLS.filter((tool) => {
+	return [...buyerTools, ...ALL_AI_TOOLS.filter((tool) => {
 		if (!toolAllowedByPermissions(tool, perms)) return false;
 		if (tool.isWrite && !onDashboard) return false;
 		if (tool.requiresTokoDashboardPath && !isDashboardTokoPath(pagePath)) {
@@ -1102,7 +1106,7 @@ export function getToolsForPermissions(
 		name,
 		description,
 		parameters,
-	}));
+	}))];
 }
 
 // ---------------------------------------------------------------------------
@@ -1540,9 +1544,15 @@ export async function executeToolCall(
 	authUserId?: string,
 	pagePath?: string | null,
 	tenantDbName?: string | null,
-	isTenantContext = false
+	isTenantContext = false,
+	buyerId: string | null = null,
 ): Promise<Record<string, unknown>> {
 	try {
+		// Tool pembeli: tidak melewati katalog tool staf; buyerId dari sesi server
+		if (BUYER_TOOL_NAMES.has(name)) {
+			if (isTenantContext && !tenantDbName) return { error: 'Konteks toko komunitas tidak valid.' };
+			return await runBuyerTool(name, args, { buyerId, tenantDbName });
+		}
 		const permError = checkRuntimePermission(name, permissions, pagePath);
 		if (permError) return { error: permError };
 		if (isTenantContext && !tenantDbName) {

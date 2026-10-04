@@ -421,7 +421,7 @@ POST   /login                 # publik: email + password
 POST   /google                # publik: {idToken} Firebase → buat/tautkan akun
 POST   /logout                # cabut sesi saat ini
 GET    /me                    # akun yang login (null bila tamu)
-PATCH  /me                    # pembeli: nama, phone
+PATCH  /me                    # pembeli: nama, phone, notifyPrefs {orderStatus, paymentReminders}
 POST   /password/otp          # publik/pembeli: OTP atur ulang password (jawaban sama walau email tak terdaftar)
 POST   /password/reset        # publik: {challengeId, code, newPassword} → cabut semua sesi lama
 POST   /email/change          # pembeli: {newEmail} → OTP ke email baru
@@ -435,6 +435,8 @@ GET    /addresses             # pembeli: alamat tersimpan
 PUT    /addresses             # pembeli: {addresses[]} maks 5, satu utama
 GET    /favorites?store=      # pembeli: favorit per toko (main | slug komunitas)
 PUT    /favorites             # pembeli: {store, productIds[]}
+POST   /delete/otp            # pembeli: kirim kode konfirmasi hapus akun
+POST   /delete                # pembeli: {challengeId, code} → anonimkan akun, keluar semua perangkat
 
 # /api/store/admin/customers  (Pelanggan toko — akun pembeli yang pernah memesan di toko ini)
 GET    /                      # toko.customers.view | toko.manage (email/HP disamarkan tanpa toko.customers.manage)
