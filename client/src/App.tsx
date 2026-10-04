@@ -57,6 +57,8 @@ const TokoProductPage = lazy(() => import('@/pages/toko/[slug]'));
 const TokoCartPage = lazy(() => import('@/pages/toko/cart'));
 const TokoOrderInvoicePage = lazy(() => import('@/pages/toko/order/[orderNo]'));
 const TokoOrdersHistoryPage = lazy(() => import('@/pages/toko/orders/index'));
+const TokoBuyerLoginPage = lazy(() => import('@/pages/toko/masuk'));
+const TokoBuyerAccountPage = lazy(() => import('@/pages/toko/akun'));
 const DashboardToko = lazy(() => import('@/pages/dashboard/toko'));
 
 function RedirectTo({ to }: { to: string }) {
@@ -192,6 +194,9 @@ function Router() {
 				<Route path="/toko/cart" component={TokoCartPage} />
 				<Route path="/toko/orders" component={TokoOrdersHistoryPage} />
 				<Route path="/toko/order/:orderNo" component={TokoOrderInvoicePage} />
+				<Route path="/toko/masuk" component={TokoBuyerLoginPage} />
+				<Route path="/toko/daftar" component={TokoBuyerLoginPage} />
+				<Route path="/toko/akun" component={TokoBuyerAccountPage} />
 				<Route path="/toko/:slug" component={TokoProductPage} />
 				<Route path="/toko" component={TokoIndexPage} />
 				{storeBasePath !== '/toko' && (
@@ -199,6 +204,9 @@ function Router() {
 						<Route path={`${storeBasePath}/cart`} component={TokoCartPage} />
 						<Route path={`${storeBasePath}/orders`} component={TokoOrdersHistoryPage} />
 						<Route path={`${storeBasePath}/order/:orderNo`} component={TokoOrderInvoicePage} />
+						<Route path={`${storeBasePath}/masuk`} component={TokoBuyerLoginPage} />
+						<Route path={`${storeBasePath}/daftar`} component={TokoBuyerLoginPage} />
+						<Route path={`${storeBasePath}/akun`} component={TokoBuyerAccountPage} />
 						<Route path={`${storeBasePath}/:slug`} component={TokoProductPage} />
 						<Route path={storeBasePath} component={TokoIndexPage} />
 					</>

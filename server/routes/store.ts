@@ -1,3 +1,4 @@
+import { getBuyerId } from '../services/buyer-auth';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import type { Request, Response, NextFunction } from 'express';
@@ -2467,12 +2468,17 @@ router.patch('/admin/orders/:orderNo', authenticate, requireTokoManage, async (r
 
 // ── Pembayaran: bukti bayar, verifikasi admin, pembatalan (shared/store-payment.ts) ──
 
-/** Pesanan milik pembeli: token invoice (?inv= / body.inv) atau cookie sesi yang sama. */
+/** Pesanan milik pembeli: token invoice (?inv= / body.inv), akun pembeli yang login, atau cookie sesi yang sama. */
 async function findOwnedOrder(req: Request, res: Response, orderNo: string): Promise<any | null> {
 	const { StoreOrder } = resolveModels(req);
 	const inv = String(req.query.inv || (req.body as any)?.inv || '').trim();
 	if (inv.length >= 32) {
 		const o = await StoreOrder.findOne({ orderNo, invoiceAccessToken: inv });
+		if (o) return o;
+	}
+	const buyerId = await getBuyerId(req);
+	if (buyerId) {
+		const o = await StoreOrder.findOne({ orderNo, buyerId });
 		if (o) return o;
 	}
 	const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
@@ -3408,7 +3414,8 @@ router.get('/my-orders', async (req, res) => {
 	try {
 		const { StoreOrder } = resolveModels(req);
 		const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
-		const list = await StoreOrder.find({ guestSessionKeyHash: sessionKeyHash })
+		const buyerId = await getBuyerId(req);
+		const list = await StoreOrder.find(buyerId ? { $or: [{ guestSessionKeyHash: sessionKeyHash }, { buyerId }] } : { guestSessionKeyHash: sessionKeyHash })
 			.sort({ createdAt: -1 })
 			.limit(50)
 			.select(
@@ -3432,6 +3439,10 @@ router.get('/orders/:orderNo', async (req, res) => {
 		let order: any = null;
 		if (inv.length >= 32) {
 			order = await StoreOrder.findOne({ orderNo, invoiceAccessToken: inv }).lean();
+		}
+		if (!order) {
+			const buyerId = await getBuyerId(req);
+			if (buyerId) order = await StoreOrder.findOne({ orderNo, buyerId }).lean();
 		}
 		if (!order) {
 			const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
@@ -3710,6 +3721,8 @@ async function createCheckoutOrder(
 		orderNo,
 		invoiceAccessToken,
 		guestSessionKeyHash: ctx.sessionKeyHash,
+		// Pembeli yang login: pesanan langsung tersimpan di akunnya
+		buyerId: await getBuyerId(req),
 		items: orderLines,
 		subtotal,
 		taxPercent,

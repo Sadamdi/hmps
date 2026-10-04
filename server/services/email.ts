@@ -1,3 +1,4 @@
+import fs from 'fs';
 import nodemailer from 'nodemailer';
 
 let transporter: nodemailer.Transporter | null = null;
@@ -27,6 +28,9 @@ const PURPOSE_LABELS: Record<string, string> = {
 	change_password: 'Verifikasi Ganti Password',
 	change_email: 'Verifikasi Ganti Email',
 	restore_backup: 'Restore Database dari Backup',
+	buyer_register: 'Verifikasi Akun Toko',
+	buyer_password: 'Atur Ulang Password Akun Toko',
+	buyer_email_change: 'Verifikasi Email Baru Akun Toko',
 };
 
 export async function sendFeedbackReplyEmail(params: {
@@ -153,6 +157,11 @@ export async function sendOtpEmail(params: {
 }): Promise<void> {
 	const { to, code, purpose, ttlMinutes, username } = params;
 	const label = PURPOSE_LABELS[purpose] || 'Verifikasi OTP';
+	// Mode uji (STORE_EMAIL_OUTBOX): tulis ke file alih-alih mengirim — tidak dipakai di production
+	if (process.env.STORE_EMAIL_OUTBOX) {
+		fs.appendFileSync(process.env.STORE_EMAIL_OUTBOX, `${JSON.stringify({ to, kind: `otp:${purpose}`, code, subject: label })}\n`);
+		return;
+	}
 	const transport = getTransporter();
 
 	const subjectSuffix = username ? ` (${username})` : '';

@@ -3,7 +3,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useQuery } from '@tanstack/react-query';
-import { History, MessageCircle, ShoppingCart } from 'lucide-react';
+import { History, LogIn, MessageCircle, ShoppingCart, UserRound } from 'lucide-react';
+import { useBuyer } from '@/hooks/use-buyer';
 import { StoreChatPanel, useMyStoreChat } from '@/components/toko/store-chat-panel';
 import type { StoreWaAdminPublic } from '@shared/store-wa';
 import { Link } from 'wouter';
@@ -65,6 +66,9 @@ export function StorePublicHeaderRow({ items, className }: Props) {
 	const { data: myChat } = useMyStoreChat({ poll: 30000 });
 	const chatUnread = myChat?.chat?.unreadForBuyer || 0;
 
+	const { buyer } = useBuyer();
+	const accountHref = prefix(`${storeBasePath}/akun`);
+	const loginHref = prefix(`${storeBasePath}/masuk`);
 	const ordersHref = prefix(`${storeBasePath}/orders`);
 	const cartHref = prefix(`${storeBasePath}/cart`);
 
@@ -75,7 +79,13 @@ export function StorePublicHeaderRow({ items, className }: Props) {
 				className,
 			)}>
 			<PageBreadcrumb items={items} className="mb-0 flex-1 min-w-0" />
-			<div className="flex items-center gap-2 shrink-0 self-stretch sm:self-auto justify-end">
+			<div className="flex flex-wrap items-center gap-2 shrink-0 self-stretch sm:self-auto justify-end">
+				<Button variant={buyer ? 'secondary' : 'outline'} size="sm" className="gap-2 max-w-[11rem]" asChild>
+					<Link href={buyer ? accountHref : loginHref} aria-label={buyer ? 'Akun saya' : 'Masuk akun pembeli'}>
+						{buyer ? <UserRound className="h-4 w-4 shrink-0" /> : <LogIn className="h-4 w-4 shrink-0" />}
+						<span className="truncate">{buyer ? buyer.name?.split(' ')[0] || 'Akun' : 'Masuk'}</span>
+					</Link>
+				</Button>
 				<Button variant="outline" size="sm" className="relative gap-2" onClick={() => setChatOpen(true)}>
 					<MessageCircle className="h-4 w-4" />
 					Chat

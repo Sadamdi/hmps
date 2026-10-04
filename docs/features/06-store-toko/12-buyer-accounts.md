@@ -1,0 +1,58 @@
+# Akun & Dashboard Pembeli
+
+## Ringkasan
+
+Pembeli toko bisa (opsional) punya akun untuk menyimpan riwayat pesanan, membuka pesanan dari perangkat mana pun, dan mengisi checkout otomatis. Akun pembeli **terpisah total** dari akun pengurus (staf).
+
+## Desain
+
+| Aspek | Keputusan |
+|-------|-----------|
+| Model | `Customer` + `CustomerSession` di DB utama (`db/mongodb.ts`), bukan `User` |
+| Cakupan | Satu akun untuk semua toko (Encoder Store + toko komunitas). Pesanan di DB mana pun ditautkan lewat `StoreOrder.buyerId` |
+| Sesi | Cookie `buyerToken` (httpOnly, SameSite=Lax), JWT `aud: buyer` dengan kunci turunan `JWT_SECRET + "::buyer"`, `sid` + `tokenVersion` |
+| Isolasi | Token pembeli tidak lolos `authenticate` staf dan sebaliknya; pembeli tidak punya role/permission → tidak bisa membuka dashboard/admin, tidak muncul di User/Role Management |
+| Pengurus | Boleh punya akun pembeli sendiri (email boleh sama), login terpisah |
+| Login | Email + password (verifikasi OTP email) atau Google (Firebase, `server/services/google-login.ts`) |
+| Wajib? | Tidak. Checkout tamu tetap jalan; checkout & beli-langsung menampilkan ajakan masuk |
+
+## Klaim pesanan lama (otomatis saat daftar/masuk/ganti email)
+
+Hanya dengan bukti kepemilikan, di toko utama dan semua toko komunitas aktif (`claimOrdersForCustomer`):
+1. Pesanan dari perangkat yang sama (cookie `hmps_store_session`).
+2. Pesanan dengan `customerEmail` = email akun yang sudah terverifikasi.
+3. Manual: tempel link invoice (`orderNo` + token `inv`) di Dashboard → Pesanan saya.
+
+Tidak pernah berdasarkan nomor HP (belum terverifikasi). Pesanan yang sudah milik akun lain tidak dipindah (409).
+
+## Halaman
+
+| Path | Isi |
+|------|-----|
+| `{toko}/masuk`, `{toko}/daftar` | Masuk/daftar (Google, email+password), verifikasi OTP, lupa password |
+| `{toko}/akun` | Ringkasan (pesanan aktif, menunggu bayar, sisa pelunasan DP), Pesanan saya (filter + klaim link invoice), Profil & keamanan (nama/WA, ganti email via OTP, atur/ganti password via OTP) |
+
+Header toko menampilkan tombol **Masuk** / nama akun. Checkout dan dialog beli-langsung memakai `StoreBuyerPrompt` (ajakan masuk; bila sudah masuk: banner + isi otomatis nama/WA/email).
+
+## API
+
+Lihat `docs/api/endpoints.md` bagian `/api/buyer`. Rate limit `buyer-auth` (30/10 menit per IP) + batas OTP bawaan (`server/services/otp.ts`: cooldown 60 dtk, kuota per email/IP).
+
+## Keamanan
+
+- Password bcrypt; OTP 6 digit, 10 menit, maks 5 percobaan.
+- Reset password menaikkan `tokenVersion` dan mencabut semua sesi.
+- Lupa password tidak membocorkan apakah email terdaftar.
+- Semua query pesanan pembeli memakai `buyerId` dari sesi server.
+- `/me` tidak pernah mengirim hash password/token.
+
+## Sumber
+
+- `server/services/buyer-auth.ts`, `server/routes/buyer.ts`
+- `server/routes/store.ts` (`findOwnedOrder`, `/my-orders`, `/orders/:orderNo`, checkout `buyerId`)
+- `client/src/hooks/use-buyer.ts`, `client/src/pages/toko/masuk.tsx`, `client/src/pages/toko/akun.tsx`, `client/src/components/toko/store-buyer-prompt.tsx`
+
+## Tahap berikutnya
+
+- Fase 2: alamat tersimpan, favorit & chat ke akun, sesi aktif di UI, tab admin **Pelanggan** + permission `toko.customers.*`.
+- Fase 3: AI mode pembeli, preferensi notifikasi, hapus/anonimkan akun, role preset "Admin Toko".

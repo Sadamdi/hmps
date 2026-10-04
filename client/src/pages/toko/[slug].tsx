@@ -7,6 +7,8 @@ import { StoreProductPaymentInfo } from '@/components/toko/store-product-payment
 import { StoreBundleCard } from '@/components/toko/store-bundle-card';
 import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/toko/store-checkout-payment';
 import { EMAIL_PATTERN, StoreEmailField, readSavedBuyerEmail, saveBuyerEmail } from '@/components/toko/store-email-field';
+import { StoreBuyerPrompt } from '@/components/toko/store-buyer-prompt';
+import type { BuyerAccount } from '@/hooks/use-buyer';
 import { STORE_CLOSED_MESSAGE, type StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -44,7 +46,7 @@ import {
 } from 'lucide-react';
 import { useLocation, useParams } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
 	effectiveProductCurrency,
 	formatStoreMoney,
@@ -282,6 +284,11 @@ export default function TokoProductDetailPage() {
 	const [buyerName, setBuyerName] = useState('');
 	const [buyerEmail, setBuyerEmail] = useState(() => readSavedBuyerEmail());
 	const [buyerPhone, setBuyerPhone] = useState('');
+	const prefillFromBuyer = useCallback((b: BuyerAccount) => {
+		setBuyerName((v) => v || b.name || '');
+		setBuyerPhone((v) => v || b.phone || '');
+		setBuyerEmail((v) => v || b.email || '');
+	}, []);
 	const [buyerFulfillment, setBuyerFulfillment] =
 		useState<'pickup' | 'delivery'>('pickup');
 	const [buyerAddress, setBuyerAddress] = useState('');
@@ -784,6 +791,7 @@ export default function TokoProductDetailPage() {
 						</DialogDescription>
 					</DialogHeader>
 					<div className="space-y-4 py-2">
+						<StoreBuyerPrompt onPrefill={prefillFromBuyer} compact />
 						<div className="space-y-1.5">
 							<Label htmlFor="buyer-name">Nama</Label>
 							<Input

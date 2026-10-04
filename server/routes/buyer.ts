@@ -1,0 +1,351 @@
+/**
+ * API akun pembeli toko — /api/buyer/* (juga lewat /api/c/:slug/buyer/* di toko komunitas).
+ *
+ * Akun pembeli terpisah dari akun staf: lihat server/services/buyer-auth.ts. Semua data pesanan difilter
+ * `buyerId` dari sesi server, tidak pernah dari input client.
+ */
+import { Router } from 'express';
+import type { Request, Response } from 'express';
+import { z } from 'zod';
+import { Community, Customer, CustomerSession, OtpChallenge, StoreOrder, StoreSettings } from '../../db/mongodb';
+import { getTenantModels } from '../../db/tenant';
+import { hashPassword, verifyPassword } from '../auth';
+import { createPublicRateLimiter } from '../middleware/public-rate-limit';
+import { createOtpChallenge, verifyOtpChallenge, OtpError, RateLimitError } from '../services/otp';
+import {
+	authenticateBuyer,
+	BUYER_EMAIL_RE,
+	claimOrdersForCustomer,
+	currentBuyerSid,
+	endBuyerSession,
+	getBuyer,
+	normalizeBuyerEmail,
+	publicCustomer,
+	startBuyerSession,
+} from '../services/buyer-auth';
+
+const router = Router();
+
+const authLimiter = createPublicRateLimiter('buyer-auth', [
+	{ windowMs: 10 * 60_000, maxPerIp: 30, maxPerDevice: 15, label: '10 menit' },
+	{ windowMs: 24 * 60 * 60_000, maxPerIp: 300, maxPerDevice: 100, label: '1 hari' },
+]);
+
+const fail = (res: Response, status: number, message: string, code: string) =>
+	res.status(status).json({ success: false, message, error: { code } });
+
+function otpErrorResponse(res: Response, e: unknown) {
+	if (e instanceof RateLimitError) return res.status(429).json({ success: false, message: e.message, retryAfterSeconds: e.retryAfterSeconds, error: { code: 'RATE_LIMITED' } });
+	if (e instanceof OtpError) return fail(res, 400, e.message, 'OTP_INVALID');
+	console.error('[buyer]', e);
+	return fail(res, 500, 'Terjadi kesalahan. Coba lagi.', 'INTERNAL');
+}
+
+const reqIp = (req: Request) => String((req as any).ip || '').slice(0, 64);
+const PASSWORD_MIN = 8;
+const cleanName = (v: unknown) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+const cleanPhone = (v: unknown) => String(v || '').replace(/[^\d+]/g, '').slice(0, 20);
+
+/** Setelah login berhasil: sesi + tautkan pesanan lama → kirim data akun. */
+async function completeLogin(req: Request, res: Response, customer: any, extra: Record<string, unknown> = {}) {
+	await startBuyerSession(req, res, customer);
+	const claimed = await claimOrdersForCustomer(req, customer);
+	const fresh = await Customer.findById(customer._id).lean();
+	return res.json({ success: true, data: { customer: publicCustomer(fresh), claimedOrders: claimed, ...extra } });
+}
+
+// ── Daftar (email + password, verifikasi OTP email) ──
+const registerSchema = z.object({
+	name: z.string().min(1).max(80),
+	email: z.string().min(5).max(200),
+	password: z.string().min(PASSWORD_MIN).max(200),
+	phone: z.string().max(30).optional(),
+});
+
+router.post('/register', authLimiter, async (req, res) => {
+	const parsed = registerSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, `Lengkapi nama, email, dan password (minimal ${PASSWORD_MIN} karakter)`, 'VALIDATION_ERROR');
+	const email = normalizeBuyerEmail(parsed.data.email);
+	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Format email tidak valid', 'EMAIL_INVALID');
+	try {
+		let c: any = await Customer.findOne({ email });
+		if (c && c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
+		if (c && c.status === 'active') {
+			return fail(res, 409, c.googleSub && !c.passwordHash ? 'Email ini sudah terdaftar lewat Google. Masuk dengan Google atau atur password lewat "Lupa password".' : 'Email ini sudah terdaftar. Silakan masuk.', 'EMAIL_REGISTERED');
+		}
+		const passwordHash = await hashPassword(parsed.data.password);
+		const fields = { name: cleanName(parsed.data.name), phone: cleanPhone(parsed.data.phone), passwordHash };
+		if (c) await Customer.updateOne({ _id: c._id }, { $set: fields });
+		else c = await Customer.create({ email, status: 'pending', emailVerified: false, ...fields });
+		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_register', email, userId: String(c._id), ttlMinutes: 10, requestIp: reqIp(req) });
+		res.json({ success: true, message: 'Kode verifikasi dikirim ke email.', data: { challengeId, email } });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+const otpVerifySchema = z.object({ challengeId: z.string().min(10).max(64), code: z.string().regex(/^\d{6}$/) });
+
+router.post('/register/verify', authLimiter, async (req, res) => {
+	const parsed = otpVerifySchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Kode OTP 6 digit wajib diisi', 'VALIDATION_ERROR');
+	try {
+		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_register' });
+		const c: any = r.userId ? await Customer.findById(r.userId) : null;
+		if (!c || c.email !== r.email) return fail(res, 400, 'Pendaftaran tidak ditemukan. Daftar ulang.', 'REGISTRATION_NOT_FOUND');
+		if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
+		c.emailVerified = true;
+		if (c.status === 'pending') c.status = 'active';
+		await c.save();
+		return completeLogin(req, res, c.toObject());
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+// ── Masuk ──
+const loginSchema = z.object({ email: z.string().min(3).max(200), password: z.string().min(1).max(200) });
+
+router.post('/login', authLimiter, async (req, res) => {
+	const parsed = loginSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Email dan password wajib diisi', 'VALIDATION_ERROR');
+	const email = normalizeBuyerEmail(parsed.data.email);
+	const c: any = await Customer.findOne({ email }).lean();
+	const ok = !!c?.passwordHash && (await verifyPassword(parsed.data.password, c.passwordHash));
+	if (!c || !ok) return fail(res, 401, 'Email atau password salah', 'INVALID_CREDENTIALS');
+	if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
+	if (c.status !== 'active' || !c.emailVerified) return fail(res, 403, 'Email belum diverifikasi. Daftar ulang untuk menerima kode verifikasi.', 'EMAIL_UNVERIFIED');
+	return completeLogin(req, res, c);
+});
+
+// ── Masuk dengan Google (Firebase; verifikasi yang sama dengan login staf) ──
+const googleSchema = z.object({ idToken: z.string().min(100).max(8192) });
+
+router.post('/google', authLimiter, async (req, res) => {
+	const parsed = googleSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Permintaan login Google tidak valid', 'VALIDATION_ERROR');
+	const { verifyGoogleIdToken, GoogleLoginError } = await import('../services/google-login');
+	let g: { email: string; uid: string; name: string };
+	try {
+		g = await verifyGoogleIdToken(parsed.data.idToken);
+	} catch (err) {
+		if (err instanceof GoogleLoginError) return fail(res, err.code === 'GOOGLE_LOGIN_DISABLED' ? 503 : 401, err.message, err.code);
+		console.error('[buyer] google verify', err);
+		return fail(res, 500, 'Gagal memverifikasi login Google', 'INTERNAL');
+	}
+	try {
+		const email = normalizeBuyerEmail(g.email);
+		let c: any = (await Customer.findOne({ googleSub: g.uid })) || (await Customer.findOne({ email }));
+		if (c && c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
+		let created = false;
+		if (!c) {
+			c = await Customer.create({ email, emailVerified: true, status: 'active', googleSub: g.uid, name: cleanName(g.name) });
+			created = true;
+		} else {
+			// Email Google terverifikasi = bukti kepemilikan → aktifkan & tautkan
+			if (!c.googleSub) c.googleSub = g.uid;
+			c.emailVerified = true;
+			if (c.status === 'pending') c.status = 'active';
+			if (!c.name && g.name) c.name = cleanName(g.name);
+			await c.save();
+		}
+		return completeLogin(req, res, c.toObject(), { created });
+	} catch (e) {
+		console.error('[buyer] google login', e);
+		return fail(res, 500, 'Login Google gagal. Coba lagi.', 'INTERNAL');
+	}
+});
+
+router.post('/logout', async (req, res) => {
+	await getBuyer(req);
+	await endBuyerSession(req, res);
+	res.json({ success: true });
+});
+
+// ── Profil ──
+router.get('/me', async (req, res) => {
+	const c = await getBuyer(req);
+	res.json({ success: true, data: { customer: publicCustomer(c) } });
+});
+
+const profileSchema = z.object({ name: z.string().max(80).optional(), phone: z.string().max(30).optional() });
+
+router.patch('/me', authenticateBuyer, async (req, res) => {
+	const parsed = profileSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Data profil tidak valid', 'VALIDATION_ERROR');
+	const set: Record<string, string> = {};
+	if (parsed.data.name !== undefined) {
+		const n = cleanName(parsed.data.name);
+		if (!n) return fail(res, 400, 'Nama wajib diisi', 'VALIDATION_ERROR');
+		set.name = n;
+	}
+	if (parsed.data.phone !== undefined) set.phone = cleanPhone(parsed.data.phone);
+	const me = await getBuyer(req);
+	const c = await Customer.findByIdAndUpdate(me._id, { $set: set }, { new: true }).lean();
+	res.json({ success: true, data: { customer: publicCustomer(c) } });
+});
+
+// ── Password: minta OTP (lupa password / atur password saat login) lalu reset ──
+router.post('/password/otp', authLimiter, async (req, res) => {
+	const me = await getBuyer(req);
+	const email = me ? me.email : normalizeBuyerEmail(req.body?.email);
+	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Format email tidak valid', 'EMAIL_INVALID');
+	try {
+		const c: any = me || (await Customer.findOne({ email, status: 'active' }).lean());
+		// Jawaban sama walau email tidak terdaftar (cegah tebak-tebakan email)
+		if (!c || c.status !== 'active') return res.json({ success: true, message: 'Jika email terdaftar, kode OTP sudah dikirim.', data: { challengeId: null } });
+		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_password', email: c.email, userId: String(c._id), ttlMinutes: 10, requestIp: reqIp(req) });
+		res.json({ success: true, message: 'Jika email terdaftar, kode OTP sudah dikirim.', data: { challengeId } });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+const resetSchema = otpVerifySchema.extend({ newPassword: z.string().min(PASSWORD_MIN).max(200) });
+
+router.post('/password/reset', authLimiter, async (req, res) => {
+	const parsed = resetSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, `Kode OTP dan password baru (minimal ${PASSWORD_MIN} karakter) wajib diisi`, 'VALIDATION_ERROR');
+	try {
+		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_password' });
+		const c: any = r.userId ? await Customer.findById(r.userId) : null;
+		if (!c || c.email !== r.email || c.status !== 'active') return fail(res, 400, 'Akun tidak ditemukan', 'BUYER_NOT_FOUND');
+		c.passwordHash = await hashPassword(parsed.data.newPassword);
+		c.emailVerified = true;
+		c.tokenVersion = (c.tokenVersion || 0) + 1; // keluarkan semua sesi lama
+		await c.save();
+		await CustomerSession.updateMany({ customerId: c._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+		return completeLogin(req, res, c.toObject());
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+// ── Ganti email (OTP ke email baru) ──
+router.post('/email/change', authenticateBuyer, authLimiter, async (req, res) => {
+	const email = normalizeBuyerEmail(req.body?.newEmail);
+	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Format email tidak valid', 'EMAIL_INVALID');
+	const me = await getBuyer(req);
+	if (email === me.email) return fail(res, 400, 'Email baru sama dengan email sekarang', 'EMAIL_SAME');
+	if (await Customer.exists({ email })) return fail(res, 409, 'Email ini sudah dipakai akun lain', 'EMAIL_REGISTERED');
+	try {
+		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_email_change', email, userId: String(me._id), ttlMinutes: 10, requestIp: reqIp(req) });
+		res.json({ success: true, message: 'Kode verifikasi dikirim ke email baru.', data: { challengeId } });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+router.post('/email/verify', authenticateBuyer, authLimiter, async (req, res) => {
+	const parsed = otpVerifySchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Kode OTP 6 digit wajib diisi', 'VALIDATION_ERROR');
+	const me = await getBuyer(req);
+	try {
+		const ch: any = await OtpChallenge.findById(parsed.data.challengeId).lean();
+		if (!ch || String(ch.userId) !== String(me._id)) return fail(res, 400, 'Kode OTP tidak valid', 'OTP_INVALID');
+		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_email_change' });
+		if (await Customer.exists({ email: r.email, _id: { $ne: me._id } })) return fail(res, 409, 'Email ini sudah dipakai akun lain', 'EMAIL_REGISTERED');
+		const c: any = await Customer.findByIdAndUpdate(me._id, { $set: { email: r.email, emailVerified: true } }, { new: true }).lean();
+		const claimed = await claimOrdersForCustomer(req, c);
+		res.json({ success: true, data: { customer: publicCustomer(c), claimedOrders: claimed } });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+// ── Pesanan saya (semua toko: utama + komunitas aktif) ──
+const ORDER_FIELDS =
+	'orderNo invoiceAccessToken items subtotal total taxAmount shippingCost fulfillment customerName status createdAt paymentPlan dpAmount amountPaid balanceDue settleBy paymentStatus paymentChannelsSnapshot cancelRequestedAt';
+
+type StoreCtx = { label: string; basePath: string; storePath: string; StoreOrder: any };
+
+async function allStores(): Promise<StoreCtx[]> {
+	const out: StoreCtx[] = [];
+	const mainSettings: any = await StoreSettings.findOne({}).select('navbarLabel navbarPath').lean();
+	out.push({ label: mainSettings?.navbarLabel || 'Encoder Store', basePath: '', storePath: mainSettings?.navbarPath || '/toko', StoreOrder });
+	const communities: any[] = await Community.find({ status: 'active' }).select('slug name dbName').lean();
+	for (const cm of communities) {
+		try {
+			const m = getTenantModels(cm.dbName);
+			const st: any = await m.StoreSettings.findOne({}).select('navbarLabel navbarPath').lean();
+			out.push({ label: st?.navbarLabel ? `${st.navbarLabel} · ${cm.name}` : `Toko ${cm.name}`, basePath: `/${cm.slug}`, storePath: st?.navbarPath || '/toko', StoreOrder: m.StoreOrder });
+		} catch {
+			/* toko komunitas tanpa DB valid dilewati */
+		}
+	}
+	return out;
+}
+
+router.get('/orders', authenticateBuyer, async (req, res) => {
+	try {
+		const me = await getBuyer(req);
+		const stores = await allStores();
+		const lists = await Promise.all(
+			stores.map(async (st) => {
+				const rows: any[] = await st.StoreOrder.find({ buyerId: me._id }).sort({ createdAt: -1 }).limit(100).select(ORDER_FIELDS).lean();
+				return rows.map(({ paymentChannelsSnapshot, ...o }) => ({
+					...o,
+					payOnWeb: Array.isArray(paymentChannelsSnapshot) && paymentChannelsSnapshot.length > 0,
+					store: { label: st.label, basePath: st.basePath },
+					invoicePath: `${st.basePath}${st.storePath}/order/${encodeURIComponent(o.orderNo)}?inv=${encodeURIComponent(o.invoiceAccessToken || '')}`,
+				}));
+			}),
+		);
+		const items = lists.flat().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+		res.json({ success: true, data: items });
+	} catch (e) {
+		console.error('[buyer] orders', e);
+		fail(res, 500, 'Gagal memuat pesanan', 'INTERNAL');
+	}
+});
+
+/** Tambah pesanan lama ke akun memakai link invoice (bukti kepemilikan: nomor pesanan + token inv). */
+router.post('/orders/claim', authenticateBuyer, authLimiter, async (req, res) => {
+	const raw = String(req.body?.link || '').trim().slice(0, 600);
+	let orderNo = String(req.body?.orderNo || '').trim();
+	let inv = String(req.body?.inv || '').trim();
+	if (raw) {
+		try {
+			const u = new URL(raw, 'https://x.invalid');
+			const m = u.pathname.match(/\/order\/([^/?#]+)/);
+			if (m) orderNo = decodeURIComponent(m[1]);
+			inv = u.searchParams.get('inv') || inv;
+		} catch {
+			/* format link salah → validasi di bawah */
+		}
+	}
+	if (!orderNo || inv.length < 32) return fail(res, 400, 'Tempel link invoice lengkap (berisi ?inv=...)', 'VALIDATION_ERROR');
+	const me = await getBuyer(req);
+	for (const st of await allStores()) {
+		const o: any = await st.StoreOrder.findOne({ orderNo, invoiceAccessToken: inv }).select('buyerId').lean();
+		if (!o) continue;
+		if (o.buyerId && String(o.buyerId) !== String(me._id)) return fail(res, 409, 'Pesanan ini sudah tersimpan di akun lain', 'ORDER_OWNED');
+		await st.StoreOrder.updateOne({ _id: o._id, buyerId: null }, { $set: { buyerId: me._id } });
+		return res.json({ success: true, message: 'Pesanan ditambahkan ke akun' });
+	}
+	return fail(res, 404, 'Pesanan tidak ditemukan. Pastikan link invoice benar.', 'ORDER_NOT_FOUND');
+});
+
+// ── Sesi aktif ──
+router.get('/sessions', authenticateBuyer, async (req, res) => {
+	const me = await getBuyer(req);
+	const sid = currentBuyerSid(req);
+	const rows: any[] = await CustomerSession.find({ customerId: me._id, revokedAt: null }).sort({ lastActive: -1 }).limit(20).lean();
+	res.json({ success: true, data: rows.map((s) => ({ id: String(s._id), device: s.device, userAgent: s.userAgent, lastActive: s.lastActive, createdAt: s.createdAt, current: s.sessionId === sid })) });
+});
+
+router.delete('/sessions/:id', authenticateBuyer, async (req, res) => {
+	const me = await getBuyer(req);
+	await CustomerSession.updateOne({ _id: req.params.id, customerId: me._id }, { $set: { revokedAt: new Date() } }).catch(() => null);
+	res.json({ success: true });
+});
+
+/** Keluar dari semua perangkat lain. */
+router.post('/sessions/revoke-others', authenticateBuyer, async (req, res) => {
+	const me = await getBuyer(req);
+	const sid = currentBuyerSid(req);
+	await CustomerSession.updateMany({ customerId: me._id, revokedAt: null, sessionId: { $ne: sid } }, { $set: { revokedAt: new Date() } });
+	res.json({ success: true });
+});
+
+export default router;
