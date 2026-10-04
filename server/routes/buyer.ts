@@ -11,6 +11,8 @@ import { z } from 'zod';
 import { Community, Customer, CustomerSession, OtpChallenge, StoreOrder, StoreSettings } from '../../db/mongodb';
 import { getTenantModels } from '../../db/tenant';
 import { authenticate, endStaffSession, hashPassword, verifyPassword } from '../auth';
+import { getRealClientIp } from '../lib/geoip';
+import { logLoginAttempt } from '../models/login-attempt';
 import { accountLockRemaining, recordAccountLoginFailure, resetAccountLoginFailures } from '../middleware/account-login-throttle';
 import { createPublicRateLimiter } from '../middleware/public-rate-limit';
 import { createOtpChallenge, verifyOtpChallenge, OtpError, RateLimitError } from '../services/otp';
@@ -47,7 +49,8 @@ function otpErrorResponse(res: Response, e: unknown) {
  * Email pengurus tidak boleh didaftarkan/dikelola dari sisi pembeli: akun pembeli untuk pengurus hanya
  * lahir dari sesi pengurus (/from-staff) dengan password yang sama, dan password-nya diatur di Dashboard > Profil.
  */
-const STAFF_EMAIL_MSG = 'Email ini terdaftar sebagai pengurus. Masuk lewat halaman login pengurus, lalu buka "Akun pembeli" dari menu akun.';
+// Satu pesan untuk semua kasus "email sudah dipakai" (pembeli, pengurus, diblokir) agar email tidak bisa ditebak
+const STAFF_EMAIL_MSG = 'Email ini sudah terdaftar. Silakan masuk, atau gunakan "Lupa password" bila perlu.';
 const STAFF_PASSWORD_MSG = 'Password akun pengurus diatur lewat Dashboard pengurus > Profil (dengan OTP), bukan dari akun pembeli.';
 const GENERIC_OTP_MSG = 'Jika email terdaftar sebagai pembeli, kode OTP sudah dikirim. Akun pengurus: atur password lewat Dashboard > Profil.';
 async function isStaffEmail(email: string): Promise<boolean> {
@@ -83,12 +86,9 @@ router.post('/register', authLimiter, async (req, res) => {
 	const email = normalizeBuyerEmail(parsed.data.email);
 	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Format email tidak valid', 'EMAIL_INVALID');
 	try {
-		if (await isStaffEmail(email)) return fail(res, 403, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
+		if (await isStaffEmail(email)) return fail(res, 409, STAFF_EMAIL_MSG, 'EMAIL_REGISTERED');
 		let c: any = await Customer.findOne({ email });
-		if (c && c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
-		if (c && c.status === 'active') {
-			return fail(res, 409, c.googleSub && !c.passwordHash ? 'Email ini sudah terdaftar lewat Google. Masuk dengan Google atau atur password lewat "Lupa password".' : 'Email ini sudah terdaftar. Silakan masuk.', 'EMAIL_REGISTERED');
-		}
+		if (c && (c.status === 'blocked' || c.status === 'active')) return fail(res, 409, STAFF_EMAIL_MSG, 'EMAIL_REGISTERED');
 		const passwordHash = await hashPassword(parsed.data.password);
 		const fields = { name: cleanName(parsed.data.name), phone: cleanPhone(parsed.data.phone), passwordHash };
 		if (c) await Customer.updateOne({ _id: c._id }, { $set: fields });
@@ -109,7 +109,7 @@ router.post('/register/verify', authLimiter, async (req, res) => {
 		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_register' });
 		const c: any = r.userId ? await Customer.findById(r.userId) : null;
 		if (!c || c.email !== r.email) return fail(res, 400, 'Pendaftaran tidak ditemukan. Daftar ulang.', 'REGISTRATION_NOT_FOUND');
-		if (!c.staffLinked && (await isStaffEmail(c.email))) return fail(res, 403, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
+		if (!c.staffLinked && (await isStaffEmail(c.email))) return fail(res, 409, STAFF_EMAIL_MSG, 'EMAIL_REGISTERED');
 		if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 		c.emailVerified = true;
 		if (c.status === 'pending') c.status = 'active';
@@ -131,15 +131,18 @@ router.post('/login', authLimiter, async (req, res) => {
 	const throttleKey = `buyer:${email}`;
 	const lockedFor = accountLockRemaining(throttleKey);
 	if (lockedFor > 0) {
+		void logLoginAttempt({ ip: getRealClientIp(req), email, success: false, reason: 'locked', scope: 'buyer' });
 		return res.status(429).json({ success: false, message: 'Terlalu banyak percobaan login untuk akun ini. Coba lagi nanti.', retryAfter: lockedFor, error: { code: 'ACCOUNT_LOGIN_THROTTLED' } });
 	}
 	const c: any = await Customer.findOne({ email }).lean();
 	const ok = !!c?.passwordHash && (await verifyPassword(parsed.data.password, c.passwordHash));
 	if (!c || !ok) {
 		recordAccountLoginFailure(throttleKey);
+		void logLoginAttempt({ ip: getRealClientIp(req), email, success: false, reason: c ? 'invalid_password' : 'not_found', scope: 'buyer' });
 		return fail(res, 401, 'Email atau password salah', 'INVALID_CREDENTIALS');
 	}
 	resetAccountLoginFailures(throttleKey);
+	void logLoginAttempt({ ip: getRealClientIp(req), email, success: true, reason: 'success', userId: c._id, scope: 'buyer' });
 	if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 	if (c.status !== 'active' || !c.emailVerified) return fail(res, 403, 'Email belum diverifikasi. Daftar ulang untuk menerima kode verifikasi.', 'EMAIL_UNVERIFIED');
 	// Email yang sama juga terdaftar sebagai pengurus? (hanya diberitahukan setelah password pembeli benar)
@@ -172,7 +175,7 @@ router.post('/google', authLimiter, async (req, res) => {
 		// pemilik email lewat Google harus onboarding ulang dengan password sendiri.
 		if (!c || c.status === 'deleted' || c.status === 'pending') {
 			// Belum punya akun pembeli → onboarding dulu (nama, password); akun dibuat di /google/complete
-			if (await isStaffEmail(email)) return fail(res, 403, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
+			if (await isStaffEmail(email)) return fail(res, 409, STAFF_EMAIL_MSG, 'EMAIL_REGISTERED');
 			return res.json({ success: true, data: { needsOnboarding: true, email, name: cleanName(g.name) } });
 		} else {
 			// Email Google terverifikasi = bukti kepemilikan → aktifkan & tautkan
@@ -214,7 +217,7 @@ router.post('/google/complete', authLimiter, async (req, res) => {
 		const email = normalizeBuyerEmail(g.email); // email selalu dari Google, bukan dari client
 		const existing: any = (await Customer.findOne({ googleSub: g.uid })) || (await Customer.findOne({ email }));
 		if (existing && (existing.status === 'active' || existing.status === 'blocked')) return fail(res, 409, 'Akun sudah ada. Silakan masuk.', 'EMAIL_REGISTERED');
-		if (await isStaffEmail(email)) return fail(res, 403, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
+		if (await isStaffEmail(email)) return fail(res, 409, STAFF_EMAIL_MSG, 'EMAIL_REGISTERED');
 		const fields = {
 			email,
 			emailVerified: true,
@@ -376,7 +379,7 @@ router.post('/email/change', authenticateBuyer, authLimiter, async (req, res) =>
 	const me = await getBuyer(req);
 	if (email === me.email) return fail(res, 400, 'Email baru sama dengan email sekarang', 'EMAIL_SAME');
 	if (await isStaffBound(me)) return fail(res, 403, 'Email akun pembeli yang terhubung dengan pengurus mengikuti akun pengurus dan tidak bisa diganti dari sini.', 'STAFF_EMAIL_LOCKED');
-	if (await isStaffEmail(email)) return fail(res, 409, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
+	if (await isStaffEmail(email)) return fail(res, 409, STAFF_EMAIL_MSG, 'EMAIL_REGISTERED');
 	if (await Customer.exists({ email })) return fail(res, 409, 'Email ini sudah dipakai akun lain', 'EMAIL_REGISTERED');
 	try {
 		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_email_change', email, userId: String(me._id), ttlMinutes: 10, requestIp: reqIp(req) });

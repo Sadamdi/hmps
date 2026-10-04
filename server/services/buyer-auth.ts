@@ -18,7 +18,9 @@ import { getTenantModels } from '../../db/tenant';
 import { getRealClientIp, lookupGeo } from '../lib/geoip';
 
 export const BUYER_COOKIE = 'buyerToken';
-const BUYER_TOKEN_DAYS = 30;
+const BUYER_TOKEN_DAYS = 7;
+/** Maksimal sesi aktif per pembeli; yang terlama dicabut saat login baru (sama seperti pengurus) */
+const MAX_ACTIVE_BUYER_SESSIONS = 10;
 const BUYER_AUD = 'buyer';
 
 function buyerSecret(): string {
@@ -90,6 +92,7 @@ export async function startBuyerSession(req: Request, res: Response, customer: a
 		device: parseDevice(ua),
 		location,
 	});
+	await pruneBuyerSessions(customer._id);
 	// Simpan login sebelumnya agar "login terakhir" yang tampil bukan login yang sedang berjalan
 	await Customer.updateOne({ _id: customer._id }, { $set: { prevLoginAt: customer.lastLoginAt || null, lastLoginAt: new Date() } });
 	const token = jwt.sign({ id: String(customer._id), sid, tv: customer.tokenVersion || 0 }, buyerSecret(), {
@@ -97,6 +100,24 @@ export async function startBuyerSession(req: Request, res: Response, customer: a
 		audience: BUYER_AUD,
 	});
 	res.cookie(BUYER_COOKIE, token, buyerCookieOptions());
+}
+
+/** Batasi sesi aktif (cabut yang terlama) dan hapus catatan sesi yang sudah lama dicabut. */
+async function pruneBuyerSessions(customerId: unknown): Promise<void> {
+	try {
+		const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+		await CustomerSession.deleteMany({ customerId, revokedAt: { $lte: weekAgo } });
+		const stale: any[] = await CustomerSession.find({ customerId, revokedAt: null })
+			.sort({ createdAt: -1 })
+			.skip(MAX_ACTIVE_BUYER_SESSIONS)
+			.select('_id')
+			.lean();
+		if (stale.length) {
+			await CustomerSession.updateMany({ _id: { $in: stale.map((s) => s._id) } }, { $set: { revokedAt: new Date() } });
+		}
+	} catch (e) {
+		console.warn('[buyer-auth] prune sesi gagal:', (e as Error)?.message);
+	}
 }
 
 /** Akhiri sesi saat ini (logout). */
