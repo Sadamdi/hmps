@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.46.2] - 2026-10-05
+
+### Security
+
+- Hotfix: `POST /api/buyer/from-staff` dan sinkron password pengurus→pembeli dinonaktifkan sementara (env `BUYER_FROM_STAFF_ENABLED=1` untuk menyalakan). Email pengurus buatan admin tidak terverifikasi sehingga jalur ini bisa dipakai mengambil alih akun pembeli orang lain lalu pindah ke akun pengurus.
+
 ## [4.46.1] - 2026-10-05
 
 ### Security
