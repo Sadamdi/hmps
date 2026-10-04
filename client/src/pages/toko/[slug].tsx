@@ -8,6 +8,7 @@ import { StoreBundleCard } from '@/components/toko/store-bundle-card';
 import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/toko/store-checkout-payment';
 import { EMAIL_PATTERN, StoreEmailField, readSavedBuyerEmail, saveBuyerEmail } from '@/components/toko/store-email-field';
 import { StoreBuyerPrompt } from '@/components/toko/store-buyer-prompt';
+import { ProductRatingBadge, ProductReviews } from '@/components/toko/store-reviews';
 import type { BuyerAccount } from '@/hooks/use-buyer';
 import { STORE_CLOSED_MESSAGE, type StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
@@ -590,6 +591,7 @@ export default function TokoProductDetailPage() {
 						</div>
 						<div>
 							<h1 className="text-3xl font-bold">{selVariant?.title || product.name}</h1>
+							<ProductRatingBadge productId={String(product._id)} />
 							{selVariant && (
 								<p className="mt-1 text-sm text-muted-foreground">
 									{product.variantGroupName || 'Varian'}: <span className="font-medium text-foreground">{selVariant.label}</span>
@@ -778,6 +780,7 @@ export default function TokoProductDetailPage() {
 							</div>
 						</section>
 					)}
+					<ProductReviews productId={String(product._id)} productName={product.name} />
 				</div>
 			</main>
 			<Dialog open={buyDialogOpen} onOpenChange={setBuyDialogOpen}>

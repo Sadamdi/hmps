@@ -2945,6 +2945,12 @@ async function initializeDefaultPermissions() {
 				category: 'toko',
 			},
 			{
+				name: 'toko.reviews.manage',
+				displayName: 'Moderasi Ulasan Toko',
+				description: 'Melihat, menyembunyikan, dan menghapus ulasan produk serta meninjau laporan ulasan',
+				category: 'toko',
+			},
+			{
 				name: 'toko.customers.manage',
 				displayName: 'Manage Pelanggan Toko',
 				description: 'Melihat data lengkap pembeli, blokir/buka blokir akun pembeli',

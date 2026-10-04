@@ -1,4 +1,4 @@
-import { getBuyerId } from '../services/buyer-auth';
+import { getBuyer, getBuyerId } from '../services/buyer-auth';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
 import type { Request, Response, NextFunction } from 'express';
@@ -54,6 +54,7 @@ import {
 	type StoreWaAdmin,
 } from '../../shared/store-wa';
 import {
+	createPublicRateLimiter,
 	storeCartRateLimiter,
 	storeChatRateLimiter,
 	storeCheckoutRateLimiter,
@@ -84,6 +85,10 @@ import {
 	paymentProofUploadMiddleware,
 	tenantCtxFromReq,
 	deleteFile,
+	reviewMediaMiddleware,
+	uploadStoreReviewMedia,
+	classifyReviewMedia,
+	REVIEW_MEDIA_LIMITS,
 } from '../upload';
 import { fetchShippingCost, type ShippingCourierOption } from '../services/shipping-api-co-id';
 import { regionalFetch } from '../services/regional-api-co-id';
@@ -4615,5 +4620,496 @@ export async function remindPendingStoreOrders(ctx: {
 	}
 	return n;
 }
+
+// ───────────────────────────── Ulasan produk ─────────────────────────────
+// Satu pesanan selesai × satu produk = satu ulasan, hanya untuk pembeli berakun. Foto/video memakai jalur upload
+// yang sama dengan media lain (foto diproses ulang ke WebP, video divalidasi tipe + magic bytes, keduanya masuk
+// antrean pemindai ClamAV). Model per toko (DB utama atau DB komunitas) lewat resolveModels.
+
+const REVIEW_COMMENT_MAX = 1000;
+const REVIEW_PAGE_MAX = 20;
+const REVIEW_MEDIA_URL_RE = /^\/uploads\/(community\/[a-z0-9_-]+\/)?store\/reviews\/[\w.-]+$/i;
+const REVIEW_REPORT_REASONS = ['spam', 'kasar', 'tidak_relevan', 'privasi', 'lainnya'] as const;
+
+const reviewWriteRateLimiter = createPublicRateLimiter('store-review-write', [
+	{ windowMs: 60 * 60_000, maxPerIp: 40, maxPerDevice: 20, label: '1 jam' },
+]);
+const reviewReportRateLimiter = createPublicRateLimiter('store-review-report', [
+	{ windowMs: 60 * 60_000, maxPerIp: 20, maxPerDevice: 10, label: '1 jam' },
+]);
+
+/** Nama tampil: "Sulthan A." atau disamarkan "S*****n". Tidak pernah memakai email. */
+function reviewAuthorLabel(name: string, anonymous: boolean): string {
+	const clean = String(name || '').replace(/\s+/g, ' ').trim();
+	if (!clean) return 'Pembeli';
+	const chars = Array.from(clean.replace(/\s/g, ''));
+	if (!anonymous) {
+		const [first, second] = clean.split(' ');
+		return second ? `${first} ${Array.from(second)[0].toUpperCase()}.` : first;
+	}
+	if (chars.length <= 2) return `${chars[0]}*`;
+	return `${chars[0]}${'*'.repeat(Math.min(chars.length - 2, 5))}${chars[chars.length - 1]}`;
+}
+
+function cleanReviewComment(v: unknown): string {
+	return String(v ?? '')
+		.replace(/<[^>]*>/g, '')
+		.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '')
+		.replace(/\r\n/g, '\n')
+		.replace(/\n{3,}/g, '\n\n')
+		.trim()
+		.slice(0, REVIEW_COMMENT_MAX);
+}
+
+const truthy = (v: unknown) => v === true || v === 'true' || v === '1' || v === 'on';
+
+/** Buang media yang ditandai terinfeksi oleh pemindai antivirus. */
+async function safeReviewMedia(list: { url: string; type: string }[]): Promise<{ url: string; type: string }[]> {
+	if (!list?.length) return [];
+	try {
+		const bad: any[] = await (mainDbModels as any).FileUpload.find({ url: { $in: list.map((m) => m.url) }, scanStatus: 'infected' }).select('url').lean();
+		if (!bad.length) return list;
+		const blocked = new Set(bad.map((b) => b.url));
+		return list.filter((m) => !blocked.has(m.url));
+	} catch {
+		return list;
+	}
+}
+
+async function shapeReview(r: any, viewerId: string | null) {
+	const mine = !!viewerId && String(r.buyerId) === viewerId;
+	return {
+		id: String(r._id),
+		productId: String(r.productId),
+		orderNo: mine ? r.orderNo : undefined,
+		rating: r.rating,
+		comment: r.comment || '',
+		media: await safeReviewMedia(r.media || []),
+		author: r.authorLabel || 'Pembeli',
+		anonymous: mine ? !!r.anonymous : undefined,
+		variantLabel: r.variantLabel || '',
+		createdAt: r.createdAt,
+		editedAt: r.editedAt || null,
+		mine,
+		hidden: mine ? r.status === 'hidden' : undefined,
+	};
+}
+
+async function deleteReviewFiles(urls: string[]) {
+	for (const u of urls) {
+		if (REVIEW_MEDIA_URL_RE.test(u)) await deleteFile(u).catch(() => {});
+	}
+}
+
+/** Pisahkan & validasi file ulasan sebelum ada yang disimpan. Mengembalikan pesan error atau null. */
+function validateReviewFiles(files: Express.Multer.File[], existingImages = 0, existingVideos = 0): string | null {
+	let images = existingImages;
+	let videos = existingVideos;
+	for (const f of files) {
+		const kind = classifyReviewMedia(f);
+		if (!kind) return 'Hanya foto (JPG/PNG/WebP/HEIC) atau video (MP4/WebM/MOV) yang diizinkan';
+		if (kind === 'image') {
+			images++;
+			if (f.size > REVIEW_MEDIA_LIMITS.maxImageBytes) return 'Ukuran foto maksimal 8 MB';
+		} else {
+			videos++;
+			if (f.size > REVIEW_MEDIA_LIMITS.maxVideoBytes) return 'Ukuran video maksimal 30 MB';
+		}
+	}
+	if (images > REVIEW_MEDIA_LIMITS.maxImages) return `Maksimal ${REVIEW_MEDIA_LIMITS.maxImages} foto`;
+	if (videos > REVIEW_MEDIA_LIMITS.maxVideos) return `Maksimal ${REVIEW_MEDIA_LIMITS.maxVideos} video`;
+	return null;
+}
+
+function reviewUploadError(err: any): string {
+	if (err?.code === 'LIMIT_FILE_SIZE') return 'Ukuran file terlalu besar (foto maks 8 MB, video maks 30 MB)';
+	if (err?.code === 'LIMIT_FILE_COUNT' || err?.code === 'LIMIT_UNEXPECTED_FILE') return `Maksimal ${REVIEW_MEDIA_LIMITS.maxImages} foto dan ${REVIEW_MEDIA_LIMITS.maxVideos} video`;
+	return 'Upload gagal';
+}
+
+/** Daftar ulasan publik + ringkasan bintang (halaman produk). */
+router.get('/public/products/:id/reviews', async (req, res) => {
+	try {
+		const id = String(req.params.id || '');
+		if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Produk tidak valid' });
+		const { StoreReview, StoreOrder } = resolveModels(req);
+		const pid = new mongoose.Types.ObjectId(id);
+		const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+		const limit = Math.min(REVIEW_PAGE_MAX, Math.max(1, parseInt(String(req.query.limit || '5'), 10) || 5));
+		const sort = String(req.query.sort || 'new');
+		const star = parseInt(String(req.query.star || ''), 10);
+		const filter: any = { productId: pid, status: 'visible' };
+		if (star >= 1 && star <= 5) filter.rating = star;
+		if (sort === 'media') filter['media.0'] = { $exists: true };
+		const sortSpec: any = sort === 'high' ? { rating: -1, createdAt: -1 } : sort === 'low' ? { rating: 1, createdAt: -1 } : { createdAt: -1 };
+
+		const buyer = await getBuyer(req);
+		const viewerId = buyer ? String(buyer._id) : null;
+		const [rows, total, distRows] = await Promise.all([
+			StoreReview.find(filter).sort(sortSpec).skip((page - 1) * limit).limit(limit).lean(),
+			StoreReview.countDocuments(filter),
+			StoreReview.aggregate([{ $match: { productId: pid, status: 'visible' } }, { $group: { _id: '$rating', n: { $sum: 1 } } }]),
+		]);
+		const dist: Record<string, number> = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+		let count = 0;
+		let sum = 0;
+		for (const d of distRows) {
+			dist[String(d._id)] = d.n;
+			count += d.n;
+			sum += d._id * d.n;
+		}
+
+		let viewer: any = { loggedIn: !!buyer, canReview: false, eligibleOrderNo: null, mine: null };
+		if (buyer) {
+			const mineDoc: any = await StoreReview.findOne({ productId: pid, buyerId: buyer._id }).sort({ createdAt: -1 }).lean();
+			const orders: any[] = await StoreOrder.find({ buyerId: buyer._id, status: 'completed', 'items.productId': pid }).select('orderNo').limit(50).lean();
+			let eligibleOrderNo: string | null = null;
+			if (orders.length) {
+				const done: any[] = await StoreReview.find({ productId: pid, buyerId: buyer._id, orderNo: { $in: orders.map((o) => o.orderNo) } }).select('orderNo').lean();
+				const doneSet = new Set(done.map((d) => d.orderNo));
+				eligibleOrderNo = orders.find((o) => !doneSet.has(o.orderNo))?.orderNo || null;
+			}
+			viewer = {
+				loggedIn: true,
+				canReview: !!eligibleOrderNo,
+				eligibleOrderNo,
+				mine: mineDoc ? await shapeReview(mineDoc, viewerId) : null,
+			};
+		}
+		res.set('Cache-Control', 'private, no-cache');
+		res.json({
+			success: true,
+			data: {
+				summary: { average: count ? Math.round((sum / count) * 10) / 10 : 0, count, distribution: dist },
+				items: await Promise.all(rows.map((r: any) => shapeReview(r, viewerId))),
+				page,
+				total,
+				hasMore: page * limit < total,
+				viewer,
+			},
+		});
+	} catch (e) {
+		console.error('[store] reviews list', e);
+		res.status(500).json({ message: 'Gagal memuat ulasan' });
+	}
+});
+
+/** Ulasan milik pembeli untuk satu pesanan (untuk dialog "Beri ulasan" di dashboard pembeli). */
+router.get('/orders/:orderNo/reviews', async (req, res) => {
+	try {
+		const buyer = await getBuyer(req);
+		if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli' });
+		const { StoreOrder, StoreReview } = resolveModels(req);
+		const orderNo = String(req.params.orderNo || '').trim();
+		const order: any = await StoreOrder.findOne({ orderNo, buyerId: buyer._id }).select('orderNo status items').lean();
+		if (!order) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+		const reviews: any[] = await StoreReview.find({ orderNo, buyerId: buyer._id }).lean();
+		const byProduct = new Map(reviews.map((r) => [String(r.productId), r]));
+		const lines = [];
+		for (const it of order.items || []) {
+			if (!it.productId || it.lineKind === 'bundle') continue;
+			const r = byProduct.get(String(it.productId));
+			lines.push({
+				productId: String(it.productId),
+				name: it.name,
+				slug: it.slug,
+				variantLabel: it.variantLabel || '',
+				review: r ? await shapeReview(r, String(buyer._id)) : null,
+			});
+		}
+		res.json({ success: true, data: { orderNo, completed: order.status === 'completed', lines } });
+	} catch (e) {
+		console.error('[store] order reviews', e);
+		res.status(500).json({ message: 'Gagal memuat ulasan pesanan' });
+	}
+});
+
+/** Tulis ulasan (multipart: productId, rating, comment, anonymous, media[]). */
+router.post('/orders/:orderNo/reviews', reviewWriteRateLimiter, (req, res) => {
+	reviewMediaMiddleware.array('media', REVIEW_MEDIA_LIMITS.maxImages + REVIEW_MEDIA_LIMITS.maxVideos)(req, res, async (err: any) => {
+		const savedUrls: string[] = [];
+		try {
+			if (err) return res.status(400).json({ message: reviewUploadError(err) });
+			const buyer = await getBuyer(req);
+			if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli untuk menulis ulasan' });
+			const { StoreOrder, StoreReview } = resolveModels(req);
+			const orderNo = String(req.params.orderNo || '').trim();
+			const order: any = await StoreOrder.findOne({ orderNo, buyerId: buyer._id }).select('orderNo status items').lean();
+			if (!order) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+			if (order.status !== 'completed') return res.status(409).json({ message: 'Ulasan bisa ditulis setelah pesanan selesai' });
+
+			const body: any = req.body || {};
+			const productId = String(body.productId || '');
+			const line = (order.items || []).find((i: any) => i.lineKind !== 'bundle' && i.productId && String(i.productId) === productId);
+			if (!line) return res.status(400).json({ message: 'Produk tidak ada di pesanan ini' });
+			const rating = parseInt(String(body.rating || ''), 10);
+			if (!(rating >= 1 && rating <= 5)) return res.status(400).json({ message: 'Pilih rating 1 sampai 5 bintang' });
+			if (await StoreReview.exists({ orderNo, productId: line.productId })) {
+				return res.status(409).json({ message: 'Kamu sudah mengulas produk ini dari pesanan ini. Edit ulasan yang ada.' });
+			}
+			const files = ((req.files as Express.Multer.File[]) || []).filter(Boolean);
+			const bad = validateReviewFiles(files);
+			if (bad) return res.status(400).json({ message: bad });
+
+			const tenantCtx = tenantCtxFromReq(req as any);
+			const media: { url: string; type: 'image' | 'video' }[] = [];
+			for (const f of files) {
+				try {
+					const m = await uploadStoreReviewMedia(f, tenantCtx);
+					savedUrls.push(m.url);
+					media.push({ url: m.url, type: m.type });
+				} catch (e) {
+					await deleteReviewFiles(savedUrls);
+					return res.status(400).json({ message: 'Salah satu file tidak valid atau gagal diproses' });
+				}
+			}
+			const anonymous = truthy(body.anonymous);
+			try {
+				const doc: any = await StoreReview.create({
+					productId: line.productId,
+					orderNo,
+					buyerId: buyer._id,
+					rating,
+					comment: cleanReviewComment(body.comment),
+					media,
+					anonymous,
+					authorLabel: reviewAuthorLabel(buyer.name, anonymous),
+					productName: line.name,
+					variantLabel: line.variantLabel || '',
+				});
+				return res.status(201).json({ success: true, data: await shapeReview(doc.toObject(), String(buyer._id)) });
+			} catch (e: any) {
+				await deleteReviewFiles(savedUrls);
+				if (e?.code === 11000) return res.status(409).json({ message: 'Kamu sudah mengulas produk ini dari pesanan ini.' });
+				throw e;
+			}
+		} catch (e) {
+			await deleteReviewFiles(savedUrls);
+			console.error('[store] review create', e);
+			res.status(500).json({ message: 'Gagal menyimpan ulasan' });
+		}
+	});
+});
+
+/** Edit ulasan sendiri (multipart; keepMedia = JSON array URL yang dipertahankan, media[] = tambahan). */
+router.patch('/reviews/:id', reviewWriteRateLimiter, (req, res) => {
+	reviewMediaMiddleware.array('media', REVIEW_MEDIA_LIMITS.maxImages + REVIEW_MEDIA_LIMITS.maxVideos)(req, res, async (err: any) => {
+		const savedUrls: string[] = [];
+		try {
+			if (err) return res.status(400).json({ message: reviewUploadError(err) });
+			const buyer = await getBuyer(req);
+			if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli' });
+			const id = String(req.params.id || '');
+			if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+			const { StoreReview } = resolveModels(req);
+			const review: any = await StoreReview.findOne({ _id: id, buyerId: buyer._id });
+			if (!review) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+
+			const body: any = req.body || {};
+			const set: any = { editedAt: new Date() };
+			if (body.rating !== undefined) {
+				const rating = parseInt(String(body.rating), 10);
+				if (!(rating >= 1 && rating <= 5)) return res.status(400).json({ message: 'Rating 1 sampai 5 bintang' });
+				set.rating = rating;
+			}
+			if (body.comment !== undefined) set.comment = cleanReviewComment(body.comment);
+			if (body.anonymous !== undefined) {
+				set.anonymous = truthy(body.anonymous);
+				set.authorLabel = reviewAuthorLabel(buyer.name, set.anonymous);
+			}
+
+			let keep: { url: string; type: 'image' | 'video' }[] = review.media.map((m: any) => ({ url: m.url, type: m.type }));
+			if (body.keepMedia !== undefined) {
+				let wanted: string[] = [];
+				try {
+					const parsed = JSON.parse(String(body.keepMedia));
+					if (Array.isArray(parsed)) wanted = parsed.map(String);
+				} catch {
+					return res.status(400).json({ message: 'Daftar media tidak valid' });
+				}
+				keep = keep.filter((m) => wanted.includes(m.url));
+			}
+			const removed = review.media.map((m: any) => m.url).filter((u: string) => !keep.some((k) => k.url === u));
+			const files = ((req.files as Express.Multer.File[]) || []).filter(Boolean);
+			const bad = validateReviewFiles(files, keep.filter((m) => m.type === 'image').length, keep.filter((m) => m.type === 'video').length);
+			if (bad) return res.status(400).json({ message: bad });
+
+			const tenantCtx = tenantCtxFromReq(req as any);
+			for (const f of files) {
+				try {
+					const m = await uploadStoreReviewMedia(f, tenantCtx);
+					savedUrls.push(m.url);
+					keep.push({ url: m.url, type: m.type });
+				} catch {
+					await deleteReviewFiles(savedUrls);
+					return res.status(400).json({ message: 'Salah satu file tidak valid atau gagal diproses' });
+				}
+			}
+			set.media = keep;
+			const updated: any = await StoreReview.findOneAndUpdate({ _id: id, buyerId: buyer._id }, { $set: set }, { new: true }).lean();
+			await deleteReviewFiles(removed);
+			res.json({ success: true, data: await shapeReview(updated, String(buyer._id)) });
+		} catch (e) {
+			await deleteReviewFiles(savedUrls);
+			console.error('[store] review edit', e);
+			res.status(500).json({ message: 'Gagal mengubah ulasan' });
+		}
+	});
+});
+
+router.delete('/reviews/:id', reviewWriteRateLimiter, async (req, res) => {
+	try {
+		const buyer = await getBuyer(req);
+		if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli' });
+		const id = String(req.params.id || '');
+		if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		const { StoreReview, StoreReviewReport } = resolveModels(req);
+		const review: any = await StoreReview.findOneAndDelete({ _id: id, buyerId: buyer._id }).lean();
+		if (!review) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		await StoreReviewReport.deleteMany({ reviewId: review._id }).catch(() => {});
+		await deleteReviewFiles((review.media || []).map((m: any) => m.url));
+		res.json({ success: true, message: 'Ulasan dihapus' });
+	} catch (e) {
+		console.error('[store] review delete', e);
+		res.status(500).json({ message: 'Gagal menghapus ulasan' });
+	}
+});
+
+/** Laporkan ulasan (siapa pun; satu laporan per pelapor per ulasan). */
+router.post('/reviews/:id/report', reviewReportRateLimiter, async (req, res) => {
+	try {
+		const id = String(req.params.id || '');
+		if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		const { StoreReview, StoreReviewReport } = resolveModels(req);
+		const review: any = await StoreReview.findOne({ _id: id, status: 'visible' }).select('buyerId productName').lean();
+		if (!review) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		const buyer = await getBuyer(req);
+		if (buyer && String(buyer._id) === String(review.buyerId)) return res.status(400).json({ message: 'Tidak bisa melaporkan ulasan sendiri' });
+		const reason = REVIEW_REPORT_REASONS.includes(String(req.body?.reason) as any) ? String(req.body.reason) : 'lainnya';
+		const note = String(req.body?.note || '').replace(/<[^>]*>/g, '').trim().slice(0, 200);
+		const rawKey = buyer ? `b:${buyer._id}` : `ip:${String((req as any).ip || '')}:${String(req.headers['user-agent'] || '').slice(0, 80)}`;
+		const reporterKey = crypto.createHash('sha256').update(rawKey).digest('hex').slice(0, 32);
+		try {
+			await StoreReviewReport.create({ reviewId: review._id, reporterKey, reason, note });
+		} catch (e: any) {
+			if (e?.code === 11000) return res.json({ success: true, message: 'Laporanmu sudah kami terima' });
+			throw e;
+		}
+		const updated: any = await StoreReview.findOneAndUpdate({ _id: review._id }, { $inc: { reportCount: 1 } }, { new: true }).select('reportCount').lean();
+		if (updated?.reportCount === 1) {
+			notifyStoreAdmins(req, 'store_order', {
+				title: 'Ulasan dilaporkan',
+				description: `Ulasan untuk ${review.productName || 'produk'} dilaporkan (${reason}) — cek dan moderasi`,
+				actionUrl: '/dashboard/toko?tab=reviews',
+				tag: 'toko',
+			});
+		}
+		res.json({ success: true, message: 'Terima kasih, laporanmu kami terima' });
+	} catch (e) {
+		console.error('[store] review report', e);
+		res.status(500).json({ message: 'Gagal mengirim laporan' });
+	}
+});
+
+/** Moderasi ulasan: toko.reviews.manage atau toko.manage. */
+async function requireReviewsManage(req: Request, res: Response, next: NextFunction) {
+	if (!req.user) return res.status(401).json({ message: 'Authentication required' });
+	const perms = await getEffectivePermissions(req);
+	if (hasPerm(perms, 'toko.reviews.manage') || hasPerm(perms, 'toko.manage')) return next();
+	return res.status(403).json({ message: 'Perlu permission toko.reviews.manage' });
+}
+
+router.get('/admin/reviews', authenticate, requireReviewsManage, async (req, res) => {
+	try {
+		const { StoreReview, StoreOrder } = resolveModels(req);
+		const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
+		const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit || '20'), 10) || 20));
+		const f = String(req.query.filter || 'all');
+		const filter: any = {};
+		if (f === 'reported') filter.reportCount = { $gt: 0 };
+		if (f === 'hidden') filter.status = 'hidden';
+		const q = String(req.query.q || '').trim().slice(0, 80);
+		if (q) filter.$or = [{ orderNo: { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } }, { productName: { $regex: q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), $options: 'i' } }];
+		const sort: any = f === 'reported' ? { reportCount: -1, createdAt: -1 } : { createdAt: -1 };
+		const [rows, total] = await Promise.all([
+			StoreReview.find(filter).sort(sort).skip((page - 1) * limit).limit(limit).lean(),
+			StoreReview.countDocuments(filter),
+		]);
+		const orders: any[] = await StoreOrder.find({ orderNo: { $in: rows.map((r: any) => r.orderNo) } }).select('orderNo customerName').lean();
+		const nameBy = new Map(orders.map((o) => [o.orderNo, o.customerName]));
+		res.json({
+			success: true,
+			data: rows.map((r: any) => ({
+				id: String(r._id),
+				productId: String(r.productId),
+				productName: r.productName,
+				variantLabel: r.variantLabel || '',
+				orderNo: r.orderNo,
+				customerName: nameBy.get(r.orderNo) || '',
+				author: r.authorLabel,
+				rating: r.rating,
+				comment: r.comment,
+				media: r.media || [],
+				status: r.status,
+				hiddenReason: r.hiddenReason || '',
+				reportCount: r.reportCount || 0,
+				createdAt: r.createdAt,
+				editedAt: r.editedAt || null,
+			})),
+			meta: { page, limit, total },
+		});
+	} catch (e) {
+		console.error('[store] admin reviews', e);
+		res.status(500).json({ message: 'Gagal memuat ulasan' });
+	}
+});
+
+router.get('/admin/reviews/:id/reports', authenticate, requireReviewsManage, async (req, res) => {
+	try {
+		const id = String(req.params.id || '');
+		if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		const { StoreReviewReport } = resolveModels(req);
+		const rows: any[] = await StoreReviewReport.find({ reviewId: id }).sort({ createdAt: -1 }).limit(50).select('reason note createdAt').lean();
+		res.json({ success: true, data: rows });
+	} catch (e) {
+		res.status(500).json({ message: 'Gagal memuat laporan' });
+	}
+});
+
+router.patch('/admin/reviews/:id', authenticate, requireReviewsManage, async (req, res) => {
+	try {
+		const id = String(req.params.id || '');
+		if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		const status = String(req.body?.status || '');
+		if (!['visible', 'hidden'].includes(status)) return res.status(400).json({ message: 'Status tidak valid' });
+		const { StoreReview } = resolveModels(req);
+		const set: any =
+			status === 'hidden'
+				? { status, hiddenReason: String(req.body?.reason || '').replace(/<[^>]*>/g, '').trim().slice(0, 200), hiddenBy: String((req.user as any)?.username || ''), hiddenAt: new Date() }
+				: { status, hiddenReason: '', hiddenBy: '', hiddenAt: null };
+		const r = await StoreReview.findOneAndUpdate({ _id: id }, { $set: set }, { new: true }).lean();
+		if (!r) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		res.json({ success: true, message: status === 'hidden' ? 'Ulasan disembunyikan' : 'Ulasan ditampilkan' });
+	} catch (e) {
+		console.error('[store] admin review status', e);
+		res.status(500).json({ message: 'Gagal mengubah status ulasan' });
+	}
+});
+
+router.delete('/admin/reviews/:id', authenticate, requireReviewsManage, async (req, res) => {
+	try {
+		const id = String(req.params.id || '');
+		if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		const { StoreReview, StoreReviewReport } = resolveModels(req);
+		const r: any = await StoreReview.findOneAndDelete({ _id: id }).lean();
+		if (!r) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		await StoreReviewReport.deleteMany({ reviewId: r._id }).catch(() => {});
+		await deleteReviewFiles((r.media || []).map((m: any) => m.url));
+		res.json({ success: true, message: 'Ulasan dihapus' });
+	} catch (e) {
+		console.error('[store] admin review delete', e);
+		res.status(500).json({ message: 'Gagal menghapus ulasan' });
+	}
+});
 
 export default router;

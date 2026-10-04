@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.47.0] - 2026-10-05
+
+### Added
+
+- Ulasan & rating produk: pembeli menulis ulasan (bintang, komentar, foto maks 4 + video maks 1) setelah pesanan selesai; 1 pesanan × 1 produk = 1 ulasan; edit dan hapus oleh pemilik; nama bisa disamarkan.
+- Halaman produk: rata-rata bintang, distribusi, filter/urutan, daftar 5 per muatan yang bisa di-scroll. Dashboard pembeli: tombol "Ulasan produk" di pesanan selesai.
+- Dashboard Toko tab "Ulasan": sembunyikan/tampilkan/hapus, lihat laporan. Permission `toko.reviews.manage`. Laporan ulasan oleh siapa pun.
+
 ## [4.46.4] - 2026-10-05
 
 ### Security
