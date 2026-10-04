@@ -431,6 +431,15 @@ POST   /orders/claim          # pembeli: {link} link invoice berisi ?inv=
 GET    /sessions              # pembeli: sesi aktif
 DELETE /sessions/:id          # pembeli: cabut sesi
 POST   /sessions/revoke-others # pembeli: keluar dari perangkat lain
+GET    /addresses             # pembeli: alamat tersimpan
+PUT    /addresses             # pembeli: {addresses[]} maks 5, satu utama
+GET    /favorites?store=      # pembeli: favorit per toko (main | slug komunitas)
+PUT    /favorites             # pembeli: {store, productIds[]}
+
+# /api/store/admin/customers  (Pelanggan toko — akun pembeli yang pernah memesan di toko ini)
+GET    /                      # toko.customers.view | toko.manage (email/HP disamarkan tanpa toko.customers.manage)
+GET    /:id                   # detail + pesanan di toko ini
+PATCH  /:id/status            # toko.customers.manage, hanya toko utama: {status: active|blocked} (blokir = keluar semua perangkat)
 
 # /api/system-errors  (Bug Otomatis)
 POST   /report            # publik + optional auth, rate-limited (lapor dari client)

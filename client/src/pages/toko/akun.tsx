@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { buyerApi, refreshBuyerQueries, useBuyer, useStorePaths } from '@/hooks/use-buyer';
+import { BuyerAddressesSection, BuyerChatSection, BuyerFavoritesSection, BuyerSessionsSection } from '@/components/toko/buyer-account-sections';
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorText } from '@/lib/queryClient';
 import { useTenant } from '@/lib/tenant-context';
@@ -250,6 +251,8 @@ function ProfileTab() {
 					)}
 				</CardContent>
 			</Card>
+
+			<BuyerSessionsSection />
 		</div>
 	);
 }
@@ -333,6 +336,8 @@ export default function TokoBuyerAccountPage() {
 							<TabsList className="flex-wrap h-auto">
 								<TabsTrigger value="ringkasan">Ringkasan</TabsTrigger>
 								<TabsTrigger value="pesanan">Pesanan saya</TabsTrigger>
+								<TabsTrigger value="alamat">Alamat</TabsTrigger>
+								<TabsTrigger value="favorit">Favorit & chat</TabsTrigger>
 								<TabsTrigger value="profil">Profil & keamanan</TabsTrigger>
 							</TabsList>
 
@@ -420,6 +425,15 @@ export default function TokoBuyerAccountPage() {
 										</Button>
 									</CardContent>
 								</Card>
+							</TabsContent>
+
+							<TabsContent value="alamat" className="mt-4">
+								<BuyerAddressesSection />
+							</TabsContent>
+
+							<TabsContent value="favorit" className="mt-4 space-y-4">
+								<BuyerFavoritesSection />
+								<BuyerChatSection />
 							</TabsContent>
 
 							<TabsContent value="profil" className="mt-4">

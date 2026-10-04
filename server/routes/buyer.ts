@@ -4,6 +4,7 @@
  * Akun pembeli terpisah dari akun staf: lihat server/services/buyer-auth.ts. Semua data pesanan difilter
  * `buyerId` dari sesi server, tidak pernah dari input client.
  */
+import crypto from 'crypto';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
@@ -324,6 +325,65 @@ router.post('/orders/claim', authenticateBuyer, authLimiter, async (req, res) =>
 		return res.json({ success: true, message: 'Pesanan ditambahkan ke akun' });
 	}
 	return fail(res, 404, 'Pesanan tidak ditemukan. Pastikan link invoice benar.', 'ORDER_NOT_FOUND');
+});
+
+// ── Alamat tersimpan (maks 5, satu default) ──
+const MAX_ADDRESSES = 5;
+const addressSchema = z.object({
+	id: z.string().max(40).optional(),
+	label: z.string().max(40).optional(),
+	recipient: z.string().max(80).optional(),
+	phone: z.string().max(30).optional(),
+	address: z.string().min(5).max(500),
+	isDefault: z.boolean().optional(),
+});
+
+router.get('/addresses', authenticateBuyer, async (req, res) => {
+	const me = await getBuyer(req);
+	res.json({ success: true, data: me.addresses || [] });
+});
+
+router.put('/addresses', authenticateBuyer, async (req, res) => {
+	const parsed = z.object({ addresses: z.array(addressSchema).max(MAX_ADDRESSES) }).safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, `Alamat tidak valid (maks ${MAX_ADDRESSES}, alamat minimal 5 karakter)`, 'VALIDATION_ERROR');
+	const list = parsed.data.addresses.map((a) => ({
+		id: a.id && /^[\w-]{4,40}$/.test(a.id) ? a.id : crypto.randomBytes(6).toString('hex'),
+		label: String(a.label || '').trim().slice(0, 40),
+		recipient: cleanName(a.recipient),
+		phone: cleanPhone(a.phone),
+		address: String(a.address).trim().slice(0, 500),
+		isDefault: !!a.isDefault,
+	}));
+	// Tepat satu default bila ada alamat
+	const firstDefault = list.findIndex((a) => a.isDefault);
+	list.forEach((a, i) => (a.isDefault = i === (firstDefault >= 0 ? firstDefault : 0)));
+	const me = await getBuyer(req);
+	const c = await Customer.findByIdAndUpdate(me._id, { $set: { addresses: list } }, { new: true }).lean();
+	res.json({ success: true, data: (c as any)?.addresses || [] });
+});
+
+// ── Favorit per toko (main / slug komunitas) ──
+const storeKey = (v: unknown) => {
+	const k = String(v || 'main').trim().toLowerCase();
+	return /^[a-z0-9_-]{1,60}$/.test(k) ? k : 'main';
+};
+
+router.get('/favorites', authenticateBuyer, async (req, res) => {
+	const me = await getBuyer(req);
+	const key = storeKey(req.query.store);
+	const row = (me.favorites || []).find((f: any) => f.store === key);
+	res.json({ success: true, data: row?.productIds || [] });
+});
+
+router.put('/favorites', authenticateBuyer, async (req, res) => {
+	const parsed = z.object({ store: z.string().max(60).optional(), productIds: z.array(z.string().regex(/^[a-f0-9]{24}$/i)).max(200) }).safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Daftar favorit tidak valid', 'VALIDATION_ERROR');
+	const key = storeKey(parsed.data.store);
+	const ids = Array.from(new Set(parsed.data.productIds.map((x) => x.toLowerCase())));
+	const me = await getBuyer(req);
+	await Customer.updateOne({ _id: me._id }, { $pull: { favorites: { store: key } } });
+	await Customer.updateOne({ _id: me._id }, { $push: { favorites: { store: key, productIds: ids } } });
+	res.json({ success: true, data: ids });
 });
 
 // ── Sesi aktif ──

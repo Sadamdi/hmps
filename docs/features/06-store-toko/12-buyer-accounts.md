@@ -52,7 +52,25 @@ Lihat `docs/api/endpoints.md` bagian `/api/buyer`. Rate limit `buyer-auth` (30/1
 - `server/routes/store.ts` (`findOwnedOrder`, `/my-orders`, `/orders/:orderNo`, checkout `buyerId`)
 - `client/src/hooks/use-buyer.ts`, `client/src/pages/toko/masuk.tsx`, `client/src/pages/toko/akun.tsx`, `client/src/components/toko/store-buyer-prompt.tsx`
 
+## Fase 2 (4.43.0)
+
+| Fitur | Detail |
+|-------|--------|
+| Alamat tersimpan | Maks 5, tepat satu utama; alamat utama terisi otomatis di checkout "Diantar" + tombol pilih alamat |
+| Favorit | Favorit perangkat digabung ke akun per toko (`main` / slug komunitas), tersimpan lintas perangkat |
+| Chat penjual | `StoreChat.buyerId`: percakapan ikut akun (dibuka dari perangkat lain); chat tamu yang dilanjutkan setelah masuk ikut ditautkan |
+| Sesi aktif | Daftar perangkat, keluarkan satu/semua perangkat lain |
+| Admin **Pelanggan** | Tab di Dashboard Toko (bukan User Management): daftar pembeli yang pernah memesan di toko INI, total belanja, metode login, detail pesanan, blokir/buka blokir |
+
+### Permission & role
+
+| Permission | Akses |
+|------------|-------|
+| `toko.customers.view` | Lihat pelanggan (email/HP disamarkan). `toko.manage` juga boleh melihat |
+| `toko.customers.manage` | Data lengkap + blokir/buka blokir (hanya dari toko utama karena akun berlaku di semua toko) |
+
+Pembeli **tidak** punya role staf dan tidak muncul di Role/User Management. Owner otomatis mendapat permission baru.
+
 ## Tahap berikutnya
 
-- Fase 2: alamat tersimpan, favorit & chat ke akun, sesi aktif di UI, tab admin **Pelanggan** + permission `toko.customers.*`.
 - Fase 3: AI mode pembeli, preferensi notifikasi, hapus/anonimkan akun, role preset "Admin Toko".

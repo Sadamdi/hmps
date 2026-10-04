@@ -2938,6 +2938,18 @@ async function initializeDefaultPermissions() {
 				description: 'Mengelola pengaturan toko, produk, layout, dan sharing',
 				category: 'toko',
 			},
+			{
+				name: 'toko.customers.view',
+				displayName: 'View Pelanggan Toko',
+				description: 'Melihat daftar akun pembeli yang pernah memesan (email/HP disamarkan tanpa toko.customers.manage)',
+				category: 'toko',
+			},
+			{
+				name: 'toko.customers.manage',
+				displayName: 'Manage Pelanggan Toko',
+				description: 'Melihat data lengkap pembeli, blokir/buka blokir akun pembeli',
+				category: 'toko',
+			},
 
 			// Registration permissions
 			{

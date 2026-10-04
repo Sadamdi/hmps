@@ -2,6 +2,7 @@ import { StoreSheetSyncCard } from '@/components/dashboard/store-sheet-sync-card
 import { StorePaymentSettingsCard } from '@/components/dashboard/store-payment-settings-card';
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { StorePreorderPanel } from '@/components/dashboard/store-preorder-panel';
+import { StoreCustomersPanel } from '@/components/dashboard/store-customers-panel';
 import { StoreVariantsEditor } from '@/components/dashboard/store-variants-editor';
 import {
 	EMPTY_PRODUCT_PAYMENT,
@@ -94,6 +95,7 @@ import {
 	Tag,
 	Trash2,
 	Upload,
+	Users,
 } from 'lucide-react';
 import { buildTokoEncoPageData } from '@shared/dashboard-enco-context';
 import {
@@ -193,6 +195,8 @@ export default function DashboardToko() {
 	const { hasSpecificPermission } = useAuth();
 	const [, setLocation] = useLocation();
 	const canManage = hasSpecificPermission('toko.manage');
+	// Tab Pelanggan: toko.manage atau permission khusus pelanggan
+	const canViewCustomers = canManage || hasSpecificPermission('toko.customers.view') || hasSpecificPermission('toko.customers.manage');
 
 	const accessUrl = useApiUrl('/store/admin/access-summary');
 	const settingsUrl = useApiUrl('/store/admin/settings');
@@ -1213,6 +1217,12 @@ export default function DashboardToko() {
 								Pre-order
 							</TabsTrigger>
 						)}
+						{canViewCustomers && (
+							<TabsTrigger value="customers" className="gap-2">
+								<Users className="h-4 w-4" />
+								Pelanggan
+							</TabsTrigger>
+						)}
 						{canManage && (
 							<TabsTrigger value="categories" className="gap-2">
 								<Tag className="h-4 w-4" />
@@ -1232,6 +1242,12 @@ export default function DashboardToko() {
 							</TabsTrigger>
 						)}
 					</TabsList>
+
+					{canViewCustomers && (
+						<TabsContent value="customers" className="mt-6">
+							<StoreCustomersPanel currency={defaultStoreCurrency} />
+						</TabsContent>
+					)}
 
 					{canManage && (
 						<TabsContent value="preorders" className="mt-6">
