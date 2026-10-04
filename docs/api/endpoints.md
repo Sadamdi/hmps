@@ -414,6 +414,10 @@ PATCH /bug-report/:id/status
 POST /bug-report/:id/reply
 DELETE /bug-report/:id
 
+# Pindah peran (4.46.0)
+POST   /api/auth/switch-to-staff  # pembeli (email terverifikasi, juga pengurus) → sesi pengurus; 403 bila bukan pengurus, 409 bila perlu pilih konteks
+POST   /api/buyer/from-staff      # pengurus login → buka/buat akun pembeli (email pengurus, password disalin), sesi pembeli terbit
+
 # /api/auth/google/identify  (pintu login tunggal, tanpa sesi)
 POST   /api/auth/google/identify  # publik: {idToken} → {email, name, isStaff, isBuyer}; klien memilih alur pengurus/pembeli/pilih/onboarding
 

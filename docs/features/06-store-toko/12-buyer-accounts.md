@@ -96,6 +96,20 @@ Satu tempat masuk untuk pengurus dan pembeli (`/login`, `{toko}/masuk`, tombol L
 - `identify` memakai limiter sendiri (30/menit per IP), tidak menghabiskan kuota login pengurus.
 - Pengujian Google tanpa akun nyata: token `test:<email>|<nama>|<uid>|<padding>` hanya diterima bila `NODE_ENV!=production`, `GOOGLE_LOGIN_TEST_MODE=1`, dan `STORE_EMAIL_OUTBOX` di-set (tidak aktif di server nyata).
 
+## Satu identitas: pindah peran (4.46.0)
+
+Cookie pengurus (`authToken`) dan pembeli (`buyerToken`) tetap terpisah dan boleh aktif bersamaan; UI membaca keduanya.
+
+| Dari → ke | Cara | Syarat |
+|-----------|------|--------|
+| Pengurus → pembeli | Menu pengurus "Akun pembeli", atau kartu di checkout / halaman masuk toko → `POST /api/buyer/from-staff` | Sesi pengurus valid dan punya email. Akun pembeli dibuat otomatis (nama, no HP, **hash password disalin**), `staffLinked: true`. Tidak ada OTP. Pesanan lama **tidak** diklaim lewat email pada pembuatan ini (hanya lewat perangkat). |
+| Pembeli → pengurus | Menu pembeli "Masuk sebagai pengurus" → `POST /api/auth/switch-to-staff` | Email pembeli terverifikasi dan sama dengan akun pengurus. Memakai logika yang sama dengan login Google pengurus (409 bila ada di beberapa konteks → pilih di /login). Pengurus **tidak bisa** dibuat dari sisi pembeli (hanya lewat dashboard). |
+
+- `GET /api/buyer/me` mengembalikan `alsoStaff` (cache 60 dtk) untuk menampilkan menu pindah.
+- Password sama: saat pengurus mengganti/mereset password, akun pembeli `staffLinked` ikut berganti (satu arah) dan sesi pembeli lama dicabut. Akun pembeli berdiri sendiri tidak disentuh.
+- Navbar: pembeli mendapat menu (akun saya, masuk sebagai pengurus, keluar), bukan lagi tautan tunggal; pengurus mendapat item "Akun pembeli".
+- Halaman login pengurus menaut ke "Daftar sebagai pembeli".
+
 ## Catatan
 
 - Login Google pembeli memakai Firebase yang sama dengan login pengurus; belum diuji dengan akun Google sungguhan.

@@ -10,7 +10,8 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
-import { useBuyer, useStorePaths } from '@/hooks/use-buyer';
+import { useBuyer } from '@/hooks/use-buyer';
+import { BuyerNavMenu, useSwitchToBuyer } from '@/components/public/buyer-nav-menu';
 import { getGuestIdentity } from '@/lib/guest-identity';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
@@ -260,8 +261,7 @@ export default function Navbar({
 	const loginHref = '/login';
 	// Pembeli toko yang sedang masuk (akun terpisah dari pengurus): tombol Login berubah jadi nama akun
 	const { buyer } = useBuyer();
-	const { accountHref: buyerAccountHref } = useStorePaths();
-	const buyerFirstName = (buyer?.name || buyer?.email || '').split(/[s@]/)[0] || 'Akun';
+	const switchToBuyerAccount = useSwitchToBuyer();
 
 	const { data: communities = [] } = useQuery<any[]>({
 		queryKey: ['/api/communities'],
@@ -1598,6 +1598,12 @@ export default function Navbar({
 											</DropdownMenuItem>
 										)}
 										<DropdownMenuItem
+											onClick={switchToBuyerAccount}
+											className="cursor-pointer">
+											<ShoppingBag className="mr-2 h-4 w-4" />
+											Akun pembeli
+										</DropdownMenuItem>
+										<DropdownMenuItem
 											onClick={handleOpenNotifModal}
 											className="cursor-pointer">
 											{pushStatus === 'active' ? (
@@ -1639,11 +1645,15 @@ export default function Navbar({
 										)}
 										Notifikasi
 									</button>
-									<Link
-										href={buyer ? buyerAccountHref : loginHref}
-										className="inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-[0_2px_10px_rgba(37,99,235,0.3)] hover:shadow-[0_2px_16px_rgba(37,99,235,0.45)] hover:scale-[1.03] transition-all duration-200">
-											{buyer ? buyerFirstName : 'Login'}
+									{buyer ? (
+										<BuyerNavMenu variant="desktop" />
+									) : (
+										<Link
+											href={loginHref}
+											className="inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-[0_2px_10px_rgba(37,99,235,0.3)] hover:shadow-[0_2px_16px_rgba(37,99,235,0.45)] hover:scale-[1.03] transition-all duration-200">
+											Login
 										</Link>
+									)}
 								</>
 							)}
 
@@ -1953,6 +1963,12 @@ export default function Navbar({
 														</DropdownMenuItem>
 													)}
 													<DropdownMenuItem
+														onClick={switchToBuyerAccount}
+														className="cursor-pointer">
+														<ShoppingBag className="mr-2 h-4 w-4" />
+														Akun pembeli
+													</DropdownMenuItem>
+													<DropdownMenuItem
 														onClick={handleOpenNotifModal}
 														className="cursor-pointer">
 														{pushStatus === 'active' ? (
@@ -2003,28 +2019,32 @@ export default function Navbar({
 														<BellOff className="h-4 w-4" />
 													)}
 												</button>
-												<Link
-													href={buyer ? buyerAccountHref : loginHref}
-													aria-label={buyer ? 'Akun saya' : 'Login'}
-													style={{
-														animationDelay: `${userDelay}ms`,
-														transitionDelay: `${userDelay}ms`,
-														opacity: isAnimatingExpand ? 0 : undefined,
-													}}
-													className={`relative w-10 h-10 flex items-center justify-center rounded-xl
-											           bg-gradient-to-br from-blue-500 to-cyan-500 text-white
-											           shadow-[0_2px_8px_rgba(37,99,235,0.4)] hover:scale-105
-											           transition-all duration-200 group ${userIconClass}`}>
-													<LogIn className="h-4 w-4" />
-													<span
-														className="hidden sm:block absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
-												           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
-												           bg-foreground/90 text-background
-												           opacity-0 pointer-events-none group-hover:opacity-100
-												           transition-opacity duration-150">
-														Login
-													</span>
-												</Link>
+												{buyer ? (
+													<BuyerNavMenu variant="icon" />
+												) : (
+													<Link
+														href={loginHref}
+														aria-label="Login"
+														style={{
+															animationDelay: `${userDelay}ms`,
+															transitionDelay: `${userDelay}ms`,
+															opacity: isAnimatingExpand ? 0 : undefined,
+														}}
+														className={`relative w-10 h-10 flex items-center justify-center rounded-xl
+												           bg-gradient-to-br from-blue-500 to-cyan-500 text-white
+												           shadow-[0_2px_8px_rgba(37,99,235,0.4)] hover:scale-105
+												           transition-all duration-200 group ${userIconClass}`}>
+														<LogIn className="h-4 w-4" />
+														<span
+															className="hidden sm:block absolute right-[calc(100%+8px)] top-1/2 -translate-y-1/2
+													           px-2 py-1 rounded-md text-xs font-medium whitespace-nowrap
+													           bg-foreground/90 text-background
+													           opacity-0 pointer-events-none group-hover:opacity-100
+													           transition-opacity duration-150">
+															Login
+														</span>
+													</Link>
+												)}
 											</div>
 										);
 									})()}

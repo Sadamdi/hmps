@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.46.0] - 2026-10-04
+
+### Added
+
+- Pindah peran tanpa login ulang: pengurus → pembeli (akun pembeli dibuat otomatis, password sama), pembeli → pengurus (bila email-nya pengurus). Menu akun di navbar menampilkan kedua identitas; halaman login pengurus menautkan pendaftaran pembeli.
+
+### Fixed
+
+- Pengurus yang sudah login tidak lagi diminta login ulang di toko; navbar tidak lagi memotong nama pada huruf "s".
+
 ## [4.45.0] - 2026-10-04
 
 ### Added

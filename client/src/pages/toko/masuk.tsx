@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { UnifiedGoogleDialog, buyerGoogleLogin, identifyGoogle, type GoogleStep } from '@/components/auth/unified-google';
 import { buyerApi, refreshBuyerQueries, useBuyer, useStorePaths } from '@/hooks/use-buyer';
+import { useSwitchToBuyer } from '@/components/public/buyer-nav-menu';
 import { useAuth } from '@/lib/auth';
 import { useToast } from '@/hooks/use-toast';
 import { GoogleSignInCancelled, getGoogleIdToken } from '@/lib/google-signin';
@@ -43,7 +44,8 @@ export default function TokoBuyerLoginPage() {
 	const { toast } = useToast();
 	const { buyer, loading } = useBuyer();
 	const { storeHref, storeLabel, accountHref } = useStorePaths();
-	const { login: staffLogin, loginWithGoogle: staffGoogle } = useAuth();
+	const { login: staffLogin, loginWithGoogle: staffGoogle, user: staffUser } = useAuth();
+	const switchToBuyerAccount = useSwitchToBuyer();
 	const [googleStep, setGoogleStep] = useState<GoogleStep>(null);
 
 	const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
@@ -224,6 +226,16 @@ export default function TokoBuyerLoginPage() {
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
 			<main className="flex-1 w-full max-w-md mx-auto px-4 py-8">
 				<PageBreadcrumb items={[{ label: 'Beranda', href: '/' }, { label: storeLabel, href: storeHref }, { label: 'Akun' }]} className="mb-6" />
+				{staffUser && !buyer && (
+					<div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm space-y-2">
+						<p>
+							Kamu sudah masuk sebagai pengurus <strong>{staffUser.name || staffUser.username}</strong>. Mau belanja memakai akun yang sama?
+						</p>
+						<Button type="button" size="sm" className="gap-2" onClick={switchToBuyerAccount}>
+							Lanjut sebagai pembeli
+						</Button>
+					</div>
+				)}
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-xl">{titles[mode][0]}</CardTitle>

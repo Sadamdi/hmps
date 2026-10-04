@@ -2212,6 +2212,8 @@ const customerSchema = new mongoose.Schema(
 		lastLoginAt: { type: Date, default: null },
 		/** Login sebelum yang terakhir (untuk tampilan "login terakhir" yang berarti bagi pemilik) */
 		prevLoginAt: { type: Date, default: null },
+		/** Dibuat dari akun pengurus ("pakai sebagai pembeli"): password ikut disinkronkan saat pengurus mengganti password */
+		staffLinked: { type: Boolean, default: false },
 	},
 	{ timestamps: true },
 );

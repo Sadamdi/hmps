@@ -1696,6 +1696,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			return res.status(500).json({ success: false, message: 'Gagal memverifikasi login Google' });
 		}
 
+		return staffLoginByVerifiedEmail(req, res, email, parsed.data.loginTarget);
+	});
+
+	/**
+	 * Masuk sebagai pengurus untuk email yang SUDAH terbukti milik pemanggil (token Google terverifikasi atau
+	 * sesi pembeli dengan email terverifikasi). Auto-detect web utama + komunitas; 409 bila perlu memilih.
+	 */
+	async function staffLoginByVerifiedEmail(req: any, res: any, email: string, loginTarget: string | undefined) {
+		const clientIp = getRealClientIp(req);
 		const notRegistered = () => {
 			void logLoginAttempt({ ip: clientIp, email, success: false, reason: 'not_found' });
 			return res.status(403).json({
@@ -1706,8 +1715,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		};
 
 		try {
-			const { loginTarget } = parsed.data;
-
 			// Halaman login komunitas → hanya akun di komunitas itu
 			if (req.isTenantRequest && req.tenantModels) {
 				const { createTenantStorage } = await import('./tenant-storage');
@@ -1772,6 +1779,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			console.error('Google login error:', error);
 			return res.status(500).json({ success: false, message: 'Internal server error' });
 		}
+	}
+
+	/** Pembeli (email terverifikasi) yang emailnya juga pengurus → masuk dashboard langsung, tanpa login ulang. */
+	// Hanya pembeli bersesi yang bisa memakainya; limiter sendiri agar tidak menghabiskan kuota login pengurus
+	const switchToStaffLimiter = createIdentifyRateLimiter('switch-to-staff', [
+		{ windowMs: 60_000, maxPerIp: 20, maxPerDevice: 10, label: '1 menit' },
+		{ windowMs: 24 * 60 * 60 * 1000, maxPerIp: 300, maxPerDevice: 100, label: '1 hari' },
+	]);
+	app.post('/api/auth/switch-to-staff', switchToStaffLimiter, async (req, res) => {
+		const { getBuyer } = await import('./services/buyer-auth');
+		const buyer = await getBuyer(req);
+		if (!buyer || !buyer.emailVerified) {
+			return res.status(401).json({ success: false, message: 'Silakan masuk ke akun pembeli dulu', error: { code: 'BUYER_AUTH_REQUIRED' } });
+		}
+		const lt = typeof req.body?.loginTarget === 'string' ? req.body.loginTarget.slice(0, 80) : undefined;
+		return staffLoginByVerifiedEmail(req, res, buyer.email, lt);
 	});
 
 	app.get('/api/auth/firebase-config', (_req, res) => {
@@ -2013,6 +2036,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			await storage.updateUser(userId, { password: newPassword });
+			void import('./services/unified-login').then((m) => m.syncLinkedBuyerPassword((user as any).email, newPassword));
 
 			res.json({ message: 'Password updated successfully' });
 		} catch (error) {
@@ -2138,6 +2162,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			await storage.updateUser(user._id.toString(), { password: newPassword });
+			void import('./services/unified-login').then((m) => m.syncLinkedBuyerPassword((user as any).email, newPassword));
 
 			res.json({ message: 'Password berhasil direset' });
 		} catch (error: any) {
@@ -2233,6 +2258,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 
 				await pwdStorage.updateUser(userId, { password: newPassword });
+				void import('./services/unified-login').then((m) => m.syncLinkedBuyerPassword((user as any).email, newPassword));
 
 				res.json({ message: 'Password berhasil diubah' });
 			} catch (error: any) {
@@ -2297,6 +2323,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				await storage.updateUser(id, { password: newPassword });
+				void import('./services/unified-login').then((m) => m.syncLinkedBuyerPassword((targetUser as any).email, newPassword));
 
 				res.json({ message: 'Password user berhasil diubah' });
 			} catch (error) {

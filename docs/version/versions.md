@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.45.0`  
+**Current version:** `4.46.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.45.0`](./release/4.45.0.md) | 2026-10-04 | Pintu login tunggal pengurus & pembeli, onboarding Google, info perangkat | MINOR | 1 | **Current** |
+| [`4.46.0`](./release/4.46.0.md) | 2026-10-04 | Satu identitas: pindah peran pengurus ↔ pembeli tanpa login ulang | MINOR | 1 | **Current** |
+| [`4.45.0`](./release/4.45.0.md) | 2026-10-04 | Pintu login tunggal pengurus & pembeli, onboarding Google, info perangkat | MINOR | 1 | Released |
 | [`4.44.0`](./release/4.44.0.md) | 2026-10-04 | Akun pembeli fase 3: AI mode pembeli, preferensi notifikasi, hapus akun, role Admin Toko | MINOR | 1 | Released |
 | [`4.43.0`](./release/4.43.0.md) | 2026-10-04 | Akun pembeli fase 2: alamat, favorit & chat ke akun, sesi aktif, tab Pelanggan | MINOR | 1 | Released |
 | [`4.42.0`](./release/4.42.0.md) | 2026-10-04 | Akun pembeli toko fase 1: masuk email/Google, klaim pesanan, dashboard pembeli | MINOR | 1 | Released |
