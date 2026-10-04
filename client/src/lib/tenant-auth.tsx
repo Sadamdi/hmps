@@ -8,6 +8,8 @@ import {
 	useState,
 } from 'react';
 import { useLocation } from 'wouter';
+import { setActiveRole } from './active-role';
+import { queryClient } from './queryClient';
 
 interface TenantAuthContextType {
 	user: UserWithRole | null;
@@ -182,6 +184,9 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 				body: JSON.stringify({}),
 			});
 		} catch {}
+		queryClient.setQueryData(['buyer-me'], null);
+		void queryClient.invalidateQueries({ queryKey: ['buyer-me'] });
+		setActiveRole('staff');
 		setUser(null);
 		setPermissions([]);
 		toast({ title: 'Logged Out', description: 'Berhasil keluar.' });

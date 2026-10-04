@@ -1835,8 +1835,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	app.post('/api/auth/logout', async (req, res) => {
-		const { buildClearCookieOptions } = await import('./auth');
-		res.clearCookie('authToken', buildClearCookieOptions());
+		// Satu identitas: keluar sebagai pengurus juga mengeluarkan sesi pembeli
+		const { endStaffSession } = await import('./auth');
+		const { endBuyerSession, getBuyer } = await import('./services/buyer-auth');
+		await endStaffSession(req, res);
+		await getBuyer(req);
+		await endBuyerSession(req, res);
 		res.json({ message: 'Logged out successfully' });
 	});
 

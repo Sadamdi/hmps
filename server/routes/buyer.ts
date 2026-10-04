@@ -10,7 +10,8 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { Community, Customer, CustomerSession, OtpChallenge, StoreOrder, StoreSettings } from '../../db/mongodb';
 import { getTenantModels } from '../../db/tenant';
-import { authenticate, hashPassword, verifyPassword } from '../auth';
+import { authenticate, endStaffSession, hashPassword, verifyPassword } from '../auth';
+import { accountLockRemaining, recordAccountLoginFailure, resetAccountLoginFailures } from '../middleware/account-login-throttle';
 import { createPublicRateLimiter } from '../middleware/public-rate-limit';
 import { createOtpChallenge, verifyOtpChallenge, OtpError, RateLimitError } from '../services/otp';
 import {
@@ -42,6 +43,19 @@ function otpErrorResponse(res: Response, e: unknown) {
 	return fail(res, 500, 'Terjadi kesalahan. Coba lagi.', 'INTERNAL');
 }
 
+/**
+ * Email pengurus tidak boleh didaftarkan/dikelola dari sisi pembeli: akun pembeli untuk pengurus hanya
+ * lahir dari sesi pengurus (/from-staff) dengan password yang sama, dan password-nya diatur di Dashboard > Profil.
+ */
+const STAFF_EMAIL_MSG = 'Email ini terdaftar sebagai pengurus. Masuk lewat halaman login pengurus, lalu buka "Akun pembeli" dari menu akun.';
+const STAFF_PASSWORD_MSG = 'Password akun pengurus diatur lewat Dashboard pengurus > Profil (dengan OTP), bukan dari akun pembeli.';
+const GENERIC_OTP_MSG = 'Jika email terdaftar sebagai pembeli, kode OTP sudah dikirim. Akun pengurus: atur password lewat Dashboard > Profil.';
+async function isStaffEmail(email: string): Promise<boolean> {
+	const { staffExistsForEmail } = await import('../services/unified-login');
+	return staffExistsForEmail(email);
+}
+const isStaffBound = async (c: any) => !!c && (!!c.staffLinked || (await isStaffEmail(c.email)));
+
 const reqIp = (req: Request) => String((req as any).ip || '').slice(0, 64);
 const PASSWORD_MIN = 8;
 const cleanName = (v: unknown) => String(v || '').trim().replace(/\s+/g, ' ').slice(0, 80);
@@ -69,6 +83,7 @@ router.post('/register', authLimiter, async (req, res) => {
 	const email = normalizeBuyerEmail(parsed.data.email);
 	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Format email tidak valid', 'EMAIL_INVALID');
 	try {
+		if (await isStaffEmail(email)) return fail(res, 403, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
 		let c: any = await Customer.findOne({ email });
 		if (c && c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 		if (c && c.status === 'active') {
@@ -94,6 +109,7 @@ router.post('/register/verify', authLimiter, async (req, res) => {
 		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_register' });
 		const c: any = r.userId ? await Customer.findById(r.userId) : null;
 		if (!c || c.email !== r.email) return fail(res, 400, 'Pendaftaran tidak ditemukan. Daftar ulang.', 'REGISTRATION_NOT_FOUND');
+		if (!c.staffLinked && (await isStaffEmail(c.email))) return fail(res, 403, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
 		if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 		c.emailVerified = true;
 		if (c.status === 'pending') c.status = 'active';
@@ -111,9 +127,19 @@ router.post('/login', authLimiter, async (req, res) => {
 	const parsed = loginSchema.safeParse(req.body || {});
 	if (!parsed.success) return fail(res, 400, 'Email dan password wajib diisi', 'VALIDATION_ERROR');
 	const email = normalizeBuyerEmail(parsed.data.email);
+	// Throttle per AKUN (sama seperti login pengurus): tahan tebak password terdistribusi lintas IP
+	const throttleKey = `buyer:${email}`;
+	const lockedFor = accountLockRemaining(throttleKey);
+	if (lockedFor > 0) {
+		return res.status(429).json({ success: false, message: 'Terlalu banyak percobaan login untuk akun ini. Coba lagi nanti.', retryAfter: lockedFor, error: { code: 'ACCOUNT_LOGIN_THROTTLED' } });
+	}
 	const c: any = await Customer.findOne({ email }).lean();
 	const ok = !!c?.passwordHash && (await verifyPassword(parsed.data.password, c.passwordHash));
-	if (!c || !ok) return fail(res, 401, 'Email atau password salah', 'INVALID_CREDENTIALS');
+	if (!c || !ok) {
+		recordAccountLoginFailure(throttleKey);
+		return fail(res, 401, 'Email atau password salah', 'INVALID_CREDENTIALS');
+	}
+	resetAccountLoginFailures(throttleKey);
 	if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 	if (c.status !== 'active' || !c.emailVerified) return fail(res, 403, 'Email belum diverifikasi. Daftar ulang untuk menerima kode verifikasi.', 'EMAIL_UNVERIFIED');
 	// Email yang sama juga terdaftar sebagai pengurus? (hanya diberitahukan setelah password pembeli benar)
@@ -142,8 +168,11 @@ router.post('/google', authLimiter, async (req, res) => {
 		let c: any = (await Customer.findOne({ googleSub: g.uid })) || (await Customer.findOne({ email }));
 		if (c && c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 		let created = false;
-		if (!c || c.status === 'deleted') {
+		// Akun 'pending' (daftar belum diverifikasi, password bisa dipasang pihak lain) dianggap belum ada:
+		// pemilik email lewat Google harus onboarding ulang dengan password sendiri.
+		if (!c || c.status === 'deleted' || c.status === 'pending') {
 			// Belum punya akun pembeli → onboarding dulu (nama, password); akun dibuat di /google/complete
+			if (await isStaffEmail(email)) return fail(res, 403, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
 			return res.json({ success: true, data: { needsOnboarding: true, email, name: cleanName(g.name) } });
 		} else {
 			// Email Google terverifikasi = bukti kepemilikan → aktifkan & tautkan
@@ -184,7 +213,8 @@ router.post('/google/complete', authLimiter, async (req, res) => {
 	try {
 		const email = normalizeBuyerEmail(g.email); // email selalu dari Google, bukan dari client
 		const existing: any = (await Customer.findOne({ googleSub: g.uid })) || (await Customer.findOne({ email }));
-		if (existing && existing.status !== 'deleted') return fail(res, 409, 'Akun sudah ada. Silakan masuk.', 'EMAIL_REGISTERED');
+		if (existing && (existing.status === 'active' || existing.status === 'blocked')) return fail(res, 409, 'Akun sudah ada. Silakan masuk.', 'EMAIL_REGISTERED');
+		if (await isStaffEmail(email)) return fail(res, 403, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
 		const fields = {
 			email,
 			emailVerified: true,
@@ -203,8 +233,10 @@ router.post('/google/complete', authLimiter, async (req, res) => {
 });
 
 router.post('/logout', async (req, res) => {
+	// Satu identitas: keluar sebagai pembeli juga mengeluarkan sesi pengurus
 	await getBuyer(req);
 	await endBuyerSession(req, res);
+	await endStaffSession(req, res);
 	res.json({ success: true });
 });
 
@@ -244,11 +276,16 @@ router.post('/from-staff', authLimiter, authenticate, async (req, res) => {
 			});
 			fresh = true;
 		} else if (c.status !== 'active') {
+			// Catatan keamanan: password lama pada akun yang belum aktif dibuang (bisa dipasang pihak lain sebelum
+			// pengurus membukanya), diganti hash pengurus; semua sesi lama dicabut.
 			c.status = 'active';
 			c.emailVerified = true;
 			c.staffLinked = true;
-			if (!c.passwordHash && typeof u.password === 'string') c.passwordHash = u.password;
+			c.googleSub = undefined;
+			c.passwordHash = typeof u.password === 'string' ? u.password : '';
+			c.tokenVersion = (c.tokenVersion || 0) + 1;
 			await c.save();
+			await CustomerSession.updateMany({ customerId: c._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
 			fresh = true;
 		}
 		const plain = typeof c.toObject === 'function' ? c.toObject() : c;
@@ -290,9 +327,14 @@ router.post('/password/otp', authLimiter, async (req, res) => {
 	try {
 		const c: any = me || (await Customer.findOne({ email, status: 'active' }).lean());
 		// Jawaban sama walau email tidak terdaftar (cegah tebak-tebakan email)
-		if (!c || c.status !== 'active') return res.json({ success: true, message: 'Jika email terdaftar, kode OTP sudah dikirim.', data: { challengeId: null } });
+		if (!c || c.status !== 'active') return res.json({ success: true, message: GENERIC_OTP_MSG, data: { challengeId: null } });
+		// Akun pengurus: password hanya bisa diatur dari dashboard pengurus
+		if (await isStaffBound(c)) {
+			if (me) return fail(res, 403, STAFF_PASSWORD_MSG, 'STAFF_PASSWORD');
+			return res.json({ success: true, message: GENERIC_OTP_MSG, data: { challengeId: null } });
+		}
 		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_password', email: c.email, userId: String(c._id), ttlMinutes: 10, requestIp: reqIp(req) });
-		res.json({ success: true, message: 'Jika email terdaftar, kode OTP sudah dikirim.', data: { challengeId } });
+		res.json({ success: true, message: GENERIC_OTP_MSG, data: { challengeId } });
 	} catch (e) {
 		otpErrorResponse(res, e);
 	}
@@ -307,6 +349,7 @@ router.post('/password/reset', authLimiter, async (req, res) => {
 		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_password' });
 		const c: any = r.userId ? await Customer.findById(r.userId) : null;
 		if (!c || c.email !== r.email || c.status !== 'active') return fail(res, 400, 'Akun tidak ditemukan', 'BUYER_NOT_FOUND');
+		if (await isStaffBound(c)) return fail(res, 403, STAFF_PASSWORD_MSG, 'STAFF_PASSWORD');
 		c.passwordHash = await hashPassword(parsed.data.newPassword);
 		c.emailVerified = true;
 		c.tokenVersion = (c.tokenVersion || 0) + 1; // keluarkan semua sesi lama
@@ -324,6 +367,8 @@ router.post('/email/change', authenticateBuyer, authLimiter, async (req, res) =>
 	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Format email tidak valid', 'EMAIL_INVALID');
 	const me = await getBuyer(req);
 	if (email === me.email) return fail(res, 400, 'Email baru sama dengan email sekarang', 'EMAIL_SAME');
+	if (await isStaffBound(me)) return fail(res, 403, 'Email akun pembeli yang terhubung dengan pengurus mengikuti akun pengurus dan tidak bisa diganti dari sini.', 'STAFF_EMAIL_LOCKED');
+	if (await isStaffEmail(email)) return fail(res, 409, STAFF_EMAIL_MSG, 'STAFF_EMAIL');
 	if (await Customer.exists({ email })) return fail(res, 409, 'Email ini sudah dipakai akun lain', 'EMAIL_REGISTERED');
 	try {
 		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_email_change', email, userId: String(me._id), ttlMinutes: 10, requestIp: reqIp(req) });

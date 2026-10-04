@@ -4,6 +4,8 @@ import { LogOut, Loader2, ShieldCheck, UserRound } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { buyerApi, refreshBuyerQueries, switchToStaff, useBuyer, useStorePaths } from '@/hooks/use-buyer';
 import { useToast } from '@/hooks/use-toast';
+import { setActiveRole } from '@/lib/active-role';
+import { useAuth } from '@/lib/auth';
 import { apiErrorText } from '@/lib/queryClient';
 
 /**
@@ -12,6 +14,7 @@ import { apiErrorText } from '@/lib/queryClient';
  */
 export function BuyerNavMenu({ variant }: { variant: 'desktop' | 'icon' }) {
 	const { buyer } = useBuyer();
+	const { user: staffUser } = useAuth();
 	const { accountHref } = useStorePaths();
 	const { toast } = useToast();
 	const [busy, setBusy] = useState(false);
@@ -21,6 +24,13 @@ export function BuyerNavMenu({ variant }: { variant: 'desktop' | 'icon' }) {
 	const toStaff = async () => {
 		setBusy(true);
 		try {
+			// Sesi pengurus masih aktif → cukup pindah peran; kalau tidak, minta sesi pengurus dari sesi pembeli
+			if (staffUser) {
+				setActiveRole('staff');
+				const slug = (staffUser as any).tenantSlug as string | undefined;
+				window.location.assign(slug ? `/${slug}/dashboard` : '/dashboard');
+				return;
+			}
 			await switchToStaff();
 		} catch (e) {
 			toast({ title: apiErrorText(e, 'Gagal masuk sebagai pengurus'), variant: 'destructive' });
@@ -34,6 +44,7 @@ export function BuyerNavMenu({ variant }: { variant: 'desktop' | 'icon' }) {
 		} catch {
 			/* sesi sudah berakhir */
 		}
+		setActiveRole('staff');
 		refreshBuyerQueries();
 		window.location.reload();
 	};
@@ -70,7 +81,7 @@ export function BuyerNavMenu({ variant }: { variant: 'desktop' | 'icon' }) {
 						Akun & pesanan saya
 					</Link>
 				</DropdownMenuItem>
-				{buyer.alsoStaff && (
+				{(buyer.alsoStaff || !!staffUser) && (
 					<DropdownMenuItem onClick={toStaff} disabled={busy} className="cursor-pointer">
 						<ShieldCheck className="mr-2 h-4 w-4" />
 						Masuk sebagai pengurus
@@ -97,6 +108,7 @@ export function useSwitchToBuyer() {
 				await buyerApi('POST', '/from-staff');
 				refreshBuyerQueries();
 			}
+			setActiveRole('buyer');
 			window.location.assign(accountHref);
 		} catch (e) {
 			toast({ title: apiErrorText(e, 'Gagal membuka akun pembeli'), variant: 'destructive' });

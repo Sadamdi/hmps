@@ -9,6 +9,19 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.46.1] - 2026-10-05
+
+### Security
+
+- Email pengurus tidak bisa didaftarkan sebagai pembeli (daftar, onboarding Google, login Google tanpa akun, ganti email). Akun pending yang dipasang pihak lain tidak bisa membajak (password dibuang saat pengurus membuka akun pembeli; login Google pada akun pending wajib onboarding ulang).
+- Login pembeli memakai throttle per akun (10 gagal / 15 menit, sama dengan pengurus).
+- Password akun terhubung pengurus tidak bisa di-reset/diatur dari sisi pembeli (hanya Dashboard > Profil).
+- Logout satu sisi mengeluarkan kedua sesi dan mencabut catatan sesi pengurus.
+
+### Fixed
+
+- Navbar kanan atas mengikuti peran aktif (pengurus/pembeli) saat dua sesi aktif.
+
 ## [4.46.0] - 2026-10-04
 
 ### Added

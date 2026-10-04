@@ -8,6 +8,8 @@ import {
 	useState,
 } from 'react';
 import { useLocation } from 'wouter';
+import { setActiveRole } from './active-role';
+import { queryClient } from './queryClient';
 import { TenantAuthContext } from './tenant-auth';
 
 interface AuthContextType {
@@ -166,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 			setUser(responseData);
 			await fetchUserPermissions();
+			setActiveRole('staff');
 
 			toast({
 				title: 'Login Berhasil',
@@ -220,6 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 			}
 			setUser(data);
 			await fetchUserPermissions();
+			setActiveRole('staff');
 			toast({
 				title: 'Login Berhasil',
 				description: `Selamat datang kembali, ${data.name || data.username}!`,
@@ -238,6 +242,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				body: JSON.stringify({}),
 			});
 
+			queryClient.setQueryData(['buyer-me'], null);
+			void queryClient.invalidateQueries({ queryKey: ['buyer-me'] });
+			setActiveRole('staff');
 			setUser(null);
 			setPermissions([]);
 
