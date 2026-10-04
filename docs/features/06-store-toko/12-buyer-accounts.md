@@ -80,6 +80,22 @@ Pembeli **tidak** punya role staf dan tidak muncul di Role/User Management. Owne
 | Hapus akun | OTP ke email akun → email/nama/HP/alamat/favorit/password/Google dihapus (email jadi `deleted-<id>@deleted.invalid`), status `deleted`, semua sesi dicabut. Pesanan tetap di toko (data pemesan di pesanan tidak diubah) |
 | Role preset **Admin Toko** | `admin_toko` (sekali dibuat, migrasi `store-admin-role-v1`): `dashboard.view`, `toko.view`, `toko.manage`, `toko.customers.view`, tanpa berita/user/settings. Owner bebas mengubah di Role Management |
 
+## Pintu login tunggal (4.45.0)
+
+Satu tempat masuk untuk pengurus dan pembeli (`/login`, `{toko}/masuk`, tombol Login/nama akun di navbar). Backend tetap terpisah (cookie `authToken` vs `buyerToken`).
+
+| Cara masuk | Alur |
+|------------|------|
+| Google | `POST /api/auth/google/identify` → pengurus saja: dashboard; pembeli saja: akun; **keduanya**: dialog "Masuk sebagai Pengurus / Pembeli"; belum punya akun: **onboarding** (nama bisa diubah, email terkunci dari Google, password + konfirmasi) lewat `/api/buyer/google/complete` — akun baru dibuat hanya setelah onboarding selesai |
+| Email + password | Mengandung `@`: coba akun pembeli dulu, bila tidak cocok coba login pengurus. Jika password pembeli benar dan email itu juga pengurus (`alsoStaff`), tampil pilihan peran |
+| Username + password | Login pengurus |
+
+- Navbar: bila pembeli masuk, tombol **Login** berubah menjadi nama akun (menuju halaman Akun).
+- Kartu **Perangkat yang masuk**: IP, perkiraan lokasi (negara, dari IP), waktu masuk, aktif terakhir, akun dibuat, login sebelumnya, keluarkan perangkat lain / keluar dari perangkat ini.
+- `Customer.prevLoginAt` menyimpan login sebelum sesi berjalan.
+- `identify` memakai limiter sendiri (30/menit per IP), tidak menghabiskan kuota login pengurus.
+- Pengujian Google tanpa akun nyata: token `test:<email>|<nama>|<uid>|<padding>` hanya diterima bila `NODE_ENV!=production`, `GOOGLE_LOGIN_TEST_MODE=1`, dan `STORE_EMAIL_OUTBOX` di-set (tidak aktif di server nyata).
+
 ## Catatan
 
 - Login Google pembeli memakai Firebase yang sama dengan login pengurus; belum diuji dengan akun Google sungguhan.

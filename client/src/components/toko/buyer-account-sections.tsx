@@ -202,13 +202,19 @@ interface BuyerSession {
 	id: string;
 	device: string;
 	userAgent: string;
+	ip?: string;
+	location?: string;
 	lastActive: string;
+	createdAt: string;
 	current: boolean;
 }
 
+const fmtDate = (v?: string | null) => (v ? new Date(v).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '-');
+
 /** Perangkat yang sedang masuk; bisa dikeluarkan satu per satu atau sekaligus. */
-export function BuyerSessionsSection() {
+export function BuyerSessionsSection({ onLogout }: { onLogout?: () => void }) {
 	const { toast } = useToast();
+	const { buyer } = useBuyer();
 	const { data = [], refetch, isLoading } = useQuery<BuyerSession[]>({
 		queryKey: ['buyer-sessions'],
 		queryFn: async () => (await buyerApi<BuyerSession[]>('GET', '/sessions')) || [],
@@ -228,7 +234,9 @@ export function BuyerSessionsSection() {
 			<CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0">
 				<div>
 					<CardTitle className="text-base">Perangkat yang masuk</CardTitle>
-					<CardDescription>Keluarkan perangkat yang tidak kamu kenali.</CardDescription>
+					<CardDescription>
+						Keluarkan perangkat yang tidak kamu kenali. Akun dibuat {fmtDate(buyer?.createdAt)} · login sebelumnya {buyer?.previousLoginAt ? fmtDate(buyer.previousLoginAt) : 'ini login pertamamu'}.
+					</CardDescription>
 				</div>
 				{data.length > 1 && (
 					<Button size="sm" variant="outline" onClick={() => act(() => buyerApi('POST', '/sessions/revoke-others', {}), 'Perangkat lain dikeluarkan')}>
@@ -248,9 +256,21 @@ export function BuyerSessionsSection() {
 									{browser(s.userAgent)} · {s.device}
 									{s.current && <Badge variant="secondary" className="ml-2 text-[10px]">Perangkat ini</Badge>}
 								</p>
-								<p className="text-xs text-muted-foreground">Aktif {new Date(s.lastActive).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+								<p className="text-xs text-muted-foreground break-words">
+									IP {s.ip || '-'}
+									{s.location ? ` · ${s.location}` : ''}
+								</p>
+								<p className="text-xs text-muted-foreground">
+									Masuk {fmtDate(s.createdAt)} · aktif {fmtDate(s.lastActive)}
+								</p>
 							</div>
-							{!s.current && (
+							{s.current ? (
+								onLogout && (
+									<Button size="sm" variant="outline" onClick={onLogout}>
+										Keluar
+									</Button>
+								)
+							) : (
 								<Button size="sm" variant="ghost" onClick={() => act(() => buyerApi('DELETE', `/sessions/${s.id}`), 'Perangkat dikeluarkan')}>
 									Keluarkan
 								</Button>

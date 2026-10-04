@@ -116,7 +116,10 @@ router.post('/login', authLimiter, async (req, res) => {
 	if (!c || !ok) return fail(res, 401, 'Email atau password salah', 'INVALID_CREDENTIALS');
 	if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 	if (c.status !== 'active' || !c.emailVerified) return fail(res, 403, 'Email belum diverifikasi. Daftar ulang untuk menerima kode verifikasi.', 'EMAIL_UNVERIFIED');
-	return completeLogin(req, res, c);
+	// Email yang sama juga terdaftar sebagai pengurus? (hanya diberitahukan setelah password pembeli benar)
+	const { staffExistsForEmail } = await import('../services/unified-login');
+	const alsoStaff = await staffExistsForEmail(email);
+	return completeLogin(req, res, c, { alsoStaff });
 });
 
 // ── Masuk dengan Google (Firebase; verifikasi yang sama dengan login staf) ──
@@ -139,9 +142,9 @@ router.post('/google', authLimiter, async (req, res) => {
 		let c: any = (await Customer.findOne({ googleSub: g.uid })) || (await Customer.findOne({ email }));
 		if (c && c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 		let created = false;
-		if (!c) {
-			c = await Customer.create({ email, emailVerified: true, status: 'active', googleSub: g.uid, name: cleanName(g.name) });
-			created = true;
+		if (!c || c.status === 'deleted') {
+			// Belum punya akun pembeli → onboarding dulu (nama, password); akun dibuat di /google/complete
+			return res.json({ success: true, data: { needsOnboarding: true, email, name: cleanName(g.name) } });
 		} else {
 			// Email Google terverifikasi = bukti kepemilikan → aktifkan & tautkan
 			if (!c.googleSub) c.googleSub = g.uid;
@@ -154,6 +157,48 @@ router.post('/google', authLimiter, async (req, res) => {
 	} catch (e) {
 		console.error('[buyer] google login', e);
 		return fail(res, 500, 'Login Google gagal. Coba lagi.', 'INTERNAL');
+	}
+});
+
+// ── Onboarding akun baru lewat Google: nama (boleh diubah), email terkunci dari Google, password + konfirmasi ──
+const googleCompleteSchema = z.object({
+	idToken: z.string().min(100).max(8192),
+	name: z.string().min(1).max(80),
+	password: z.string().min(PASSWORD_MIN).max(200),
+	confirmPassword: z.string().min(1).max(200),
+	phone: z.string().max(30).optional(),
+});
+
+router.post('/google/complete', authLimiter, async (req, res) => {
+	const parsed = googleCompleteSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, `Lengkapi nama dan password (minimal ${PASSWORD_MIN} karakter)`, 'VALIDATION_ERROR');
+	if (parsed.data.password !== parsed.data.confirmPassword) return fail(res, 400, 'Konfirmasi password tidak sama', 'PASSWORD_MISMATCH');
+	const { verifyGoogleIdToken, GoogleLoginError } = await import('../services/google-login');
+	let g: { email: string; uid: string; name: string };
+	try {
+		g = await verifyGoogleIdToken(parsed.data.idToken);
+	} catch (err) {
+		if (err instanceof GoogleLoginError) return fail(res, err.code === 'GOOGLE_LOGIN_DISABLED' ? 503 : 401, err.message, err.code);
+		return fail(res, 500, 'Gagal memverifikasi login Google', 'INTERNAL');
+	}
+	try {
+		const email = normalizeBuyerEmail(g.email); // email selalu dari Google, bukan dari client
+		const existing: any = (await Customer.findOne({ googleSub: g.uid })) || (await Customer.findOne({ email }));
+		if (existing && existing.status !== 'deleted') return fail(res, 409, 'Akun sudah ada. Silakan masuk.', 'EMAIL_REGISTERED');
+		const fields = {
+			email,
+			emailVerified: true,
+			status: 'active' as const,
+			googleSub: g.uid,
+			name: cleanName(parsed.data.name),
+			phone: cleanPhone(parsed.data.phone),
+			passwordHash: await hashPassword(parsed.data.password),
+		};
+		const c: any = existing ? await Customer.findOneAndUpdate({ _id: existing._id }, { $set: fields }, { new: true }) : await Customer.create(fields);
+		return completeLogin(req, res, c.toObject ? c.toObject() : c, { created: true });
+	} catch (e) {
+		console.error('[buyer] google complete', e);
+		return fail(res, 500, 'Gagal membuat akun. Coba lagi.', 'INTERNAL');
 	}
 });
 
@@ -442,7 +487,19 @@ router.get('/sessions', authenticateBuyer, async (req, res) => {
 	const me = await getBuyer(req);
 	const sid = currentBuyerSid(req);
 	const rows: any[] = await CustomerSession.find({ customerId: me._id, revokedAt: null }).sort({ lastActive: -1 }).limit(20).lean();
-	res.json({ success: true, data: rows.map((s) => ({ id: String(s._id), device: s.device, userAgent: s.userAgent, lastActive: s.lastActive, createdAt: s.createdAt, current: s.sessionId === sid })) });
+	res.json({
+		success: true,
+		data: rows.map((s) => ({
+			id: String(s._id),
+			device: s.device,
+			userAgent: s.userAgent,
+			ip: s.ip || '',
+			location: s.location || '',
+			lastActive: s.lastActive,
+			createdAt: s.createdAt,
+			current: s.sessionId === sid,
+		})),
+	});
 });
 
 router.delete('/sessions/:id', authenticateBuyer, async (req, res) => {

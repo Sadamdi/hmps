@@ -15,6 +15,7 @@ import jwt from 'jsonwebtoken';
 import type { NextFunction, Request, Response } from 'express';
 import { Community, Customer, CustomerSession, StoreChat, StoreOrder } from '../../db/mongodb';
 import { getTenantModels } from '../../db/tenant';
+import { getRealClientIp, lookupGeo } from '../lib/geoip';
 
 export const BUYER_COOKIE = 'buyerToken';
 const BUYER_TOKEN_DAYS = 30;
@@ -52,6 +53,8 @@ export function publicCustomer(c: any) {
 		hasPassword: !!c.passwordHash,
 		googleLinked: !!c.googleSub,
 		addresses: c.addresses || [],
+		/** Login sebelum sesi ini (null = login pertama) */
+		previousLoginAt: c.prevLoginAt || null,
 		notifyPrefs: c.notifyPrefs || { orderStatus: true, paymentReminders: true },
 		createdAt: c.createdAt,
 	};
@@ -67,14 +70,28 @@ function parseDevice(ua: string): string {
 export async function startBuyerSession(req: Request, res: Response, customer: any): Promise<void> {
 	const sid = crypto.randomBytes(24).toString('hex');
 	const ua = String(req.headers['user-agent'] || '').slice(0, 300);
+	const ip = String(getRealClientIp(req) || (req as any).ip || '').slice(0, 64);
+	let location = '';
+	try {
+		const g: any = lookupGeo(ip);
+		if (g?.countryCode && !['XX', 'LO'].includes(g.countryCode)) {
+			location = new Intl.DisplayNames(['id'], { type: 'region' }).of(g.countryCode) || g.country || '';
+		} else if (g?.countryCode === 'LO') {
+			location = 'Jaringan lokal';
+		}
+	} catch {
+		/* lokasi opsional */
+	}
 	await CustomerSession.create({
 		customerId: customer._id,
 		sessionId: sid,
 		userAgent: ua,
-		ip: String((req as any).ip || '').slice(0, 64),
+		ip,
 		device: parseDevice(ua),
+		location,
 	});
-	await Customer.updateOne({ _id: customer._id }, { $set: { lastLoginAt: new Date() } });
+	// Simpan login sebelumnya agar "login terakhir" yang tampil bukan login yang sedang berjalan
+	await Customer.updateOne({ _id: customer._id }, { $set: { prevLoginAt: customer.lastLoginAt || null, lastLoginAt: new Date() } });
 	const token = jwt.sign({ id: String(customer._id), sid, tv: customer.tokenVersion || 0 }, buyerSecret(), {
 		expiresIn: `${BUYER_TOKEN_DAYS}d`,
 		audience: BUYER_AUD,

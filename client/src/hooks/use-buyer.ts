@@ -22,6 +22,8 @@ export interface BuyerAccount {
 	googleLinked: boolean;
 	addresses: BuyerAddress[];
 	notifyPrefs: { orderStatus: boolean; paymentReminders: boolean };
+	/** Login sebelum sesi ini (null = login pertama) */
+	previousLoginAt?: string | null;
 	createdAt: string;
 }
 

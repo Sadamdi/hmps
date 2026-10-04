@@ -2210,6 +2210,8 @@ const customerSchema = new mongoose.Schema(
 		status: { type: String, enum: ['pending', 'active', 'blocked', 'deleted'], default: 'pending' },
 		tokenVersion: { type: Number, default: 0 },
 		lastLoginAt: { type: Date, default: null },
+		/** Login sebelum yang terakhir (untuk tampilan "login terakhir" yang berarti bagi pemilik) */
+		prevLoginAt: { type: Date, default: null },
 	},
 	{ timestamps: true },
 );
@@ -2221,6 +2223,8 @@ const customerSessionSchema = new mongoose.Schema({
 	userAgent: { type: String, default: '' },
 	ip: { type: String, default: '' },
 	device: { type: String, default: '' },
+	/** Perkiraan lokasi (negara) dari IP */
+	location: { type: String, default: '' },
 	createdAt: { type: Date, default: Date.now },
 	lastActive: { type: Date, default: Date.now },
 	revokedAt: { type: Date, default: null },

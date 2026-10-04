@@ -10,6 +10,7 @@ import {
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
+import { useBuyer, useStorePaths } from '@/hooks/use-buyer';
 import { getGuestIdentity } from '@/lib/guest-identity';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
@@ -257,6 +258,10 @@ export default function Navbar({
 		? `/${userTenantSlug}/dashboard`
 		: '/dashboard';
 	const loginHref = '/login';
+	// Pembeli toko yang sedang masuk (akun terpisah dari pengurus): tombol Login berubah jadi nama akun
+	const { buyer } = useBuyer();
+	const { accountHref: buyerAccountHref } = useStorePaths();
+	const buyerFirstName = (buyer?.name || buyer?.email || '').split(/[s@]/)[0] || 'Akun';
 
 	const { data: communities = [] } = useQuery<any[]>({
 		queryKey: ['/api/communities'],
@@ -1635,10 +1640,10 @@ export default function Navbar({
 										Notifikasi
 									</button>
 									<Link
-										href={loginHref}
+										href={buyer ? buyerAccountHref : loginHref}
 										className="inline-flex items-center px-4 py-1.5 text-sm font-semibold rounded-lg bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-[0_2px_10px_rgba(37,99,235,0.3)] hover:shadow-[0_2px_16px_rgba(37,99,235,0.45)] hover:scale-[1.03] transition-all duration-200">
-										Login
-									</Link>
+											{buyer ? buyerFirstName : 'Login'}
+										</Link>
 								</>
 							)}
 
@@ -1999,8 +2004,8 @@ export default function Navbar({
 													)}
 												</button>
 												<Link
-													href={loginHref}
-													aria-label="Login"
+													href={buyer ? buyerAccountHref : loginHref}
+													aria-label={buyer ? 'Akun saya' : 'Login'}
 													style={{
 														animationDelay: `${userDelay}ms`,
 														transitionDelay: `${userDelay}ms`,
