@@ -17,7 +17,8 @@ import { useTenant } from '@/lib/tenant-context';
 import { formatStoreMoney } from '@shared/store-currency';
 import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, Loader2, LogOut, PackageSearch, Plus, ShoppingBag, Wallet } from 'lucide-react';
+import { Clock, Loader2, LogOut, PackageSearch, Plus, ShoppingBag, Star, Wallet } from 'lucide-react';
+import { OrderReviewDialog } from '@/components/toko/store-reviews';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
@@ -59,7 +60,9 @@ function matches(o: BuyerOrder, f: Filter) {
 
 function OrderRow({ o }: { o: BuyerOrder }) {
 	const itemsText = (o.items || []).map((i) => `${i.qty}× ${i.name}`).join(', ');
+	const [reviewOpen, setReviewOpen] = useState(false);
 	return (
+		<div>
 		<Link href={o.invoicePath} className="block rounded-lg border p-3 hover:border-primary/50 transition-colors">
 			<div className="flex flex-wrap items-start justify-between gap-2">
 				<div className="min-w-0">
@@ -80,6 +83,15 @@ function OrderRow({ o }: { o: BuyerOrder }) {
 				</p>
 			)}
 		</Link>
+		{o.status === 'completed' && (
+			<div className="mt-1 flex justify-end">
+				<Button variant="outline" size="sm" className="h-8 gap-1.5" onClick={() => setReviewOpen(true)}>
+					<Star className="h-3.5 w-3.5" /> Ulasan produk
+				</Button>
+			</div>
+		)}
+		{reviewOpen && <OrderReviewDialog orderNo={o.orderNo} storeBasePath={o.store.basePath} open onOpenChange={setReviewOpen} />}
+		</div>
 	);
 }
 

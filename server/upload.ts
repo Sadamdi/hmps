@@ -366,6 +366,73 @@ export async function uploadStoreProductImage(
 	}
 }
 
+/** Multer khusus media ulasan: maks 5 file, 30 MB per file (batas per jenis dicek lagi di route). */
+export const reviewMediaMiddleware = multer({
+	storage,
+	limits: { fileSize: 30 * 1024 * 1024, files: 5, fields: 12 },
+});
+
+/** Batas media ulasan (dipakai route dan UI): 4 foto + 1 video, video maks 30 MB. */
+export const REVIEW_MEDIA_LIMITS = { maxImages: 4, maxVideos: 1, maxImageBytes: 8 * 1024 * 1024, maxVideoBytes: 30 * 1024 * 1024 } as const;
+
+const REVIEW_VIDEO_TYPES: Record<string, string> = { 'video/mp4': '.mp4', 'video/webm': '.webm', 'video/quicktime': '.mov' };
+
+/** Cek tanda tangan file (magic bytes) video: mp4/mov punya 'ftyp' di byte 4-8, webm diawali EBML. */
+function looksLikeVideo(buf: Buffer, mime: string): boolean {
+	if (buf.length < 16) return false;
+	if (mime === 'video/webm') return buf[0] === 0x1a && buf[1] === 0x45 && buf[2] === 0xdf && buf[3] === 0xa3;
+	return buf.subarray(4, 8).toString('ascii') === 'ftyp';
+}
+
+export function classifyReviewMedia(file: Express.Multer.File): 'image' | 'video' | null {
+	if (REVIEW_VIDEO_TYPES[file.mimetype]) return 'video';
+	if (isProcessableImage(file.mimetype, file.originalname)) return 'image';
+	return null;
+}
+
+/**
+ * Simpan satu media ulasan. Foto diproses ulang ke WebP (membuang metadata/payload tersembunyi);
+ * video divalidasi tipe + tanda tangan file lalu disimpan apa adanya. Keduanya didaftarkan ke pemindai
+ * antivirus (ClamAV) seperti upload lain.
+ */
+export async function uploadStoreReviewMedia(
+	file: Express.Multer.File,
+	tenant?: TenantPathContext,
+): Promise<{ url: string; type: 'image' | 'video'; size: number }> {
+	const kind = classifyReviewMedia(file);
+	if (!kind) throw new Error('Tipe file tidak didukung');
+	const timestamp = Date.now();
+	const randomName = crypto.randomBytes(8).toString('hex');
+	const sub = 'store/reviews';
+	const { dir: categoryDir, urlPrefix } = tenant?.isTenant
+		? resolveTenantPaths(sub, false, tenant)
+		: (() => {
+				const d = path.join(uploadDir, sub);
+				if (!fs.existsSync(d)) fs.mkdirSync(d, { recursive: true });
+				return { dir: d, urlPrefix: `/uploads/${sub}` };
+			})();
+
+	let buffer: Buffer;
+	let ext: string;
+	let mime: string;
+	if (kind === 'image') {
+		buffer = await processImage(file.buffer, { quality: 78, maxWidth: 1600, maxHeight: 1600, format: 'webp' });
+		ext = '.webp';
+		mime = 'image/webp';
+	} else {
+		if (!looksLikeVideo(file.buffer, file.mimetype)) throw new Error('Isi file bukan video yang valid');
+		buffer = file.buffer;
+		ext = REVIEW_VIDEO_TYPES[file.mimetype];
+		mime = file.mimetype;
+	}
+	const fileName = `${timestamp}_${randomName}${ext}`;
+	const filePath = path.join(categoryDir, fileName);
+	await writeFile(filePath, buffer);
+	const url = `${urlPrefix}/${fileName}`;
+	registerUploadedFile({ url, diskPath: filePath, originalName: file.originalname, mimeType: mime, size: buffer.length, category: 'store-review', tenantSlug: tenant?.tenantSlug });
+	return { url, type: kind, size: buffer.length };
+}
+
 /**
  * Upload a content image for an event's rich-text description.
  * Files go under events/{eventId}/content/ (or events/{parentId}/sub-events/{eventId}/content/).

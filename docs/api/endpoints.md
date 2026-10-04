@@ -421,6 +421,18 @@ POST   /api/buyer/from-staff      # pengurus login → buka/buat akun pembeli (e
 # /api/auth/google/identify  (pintu login tunggal, tanpa sesi)
 POST   /api/auth/google/identify  # publik: {idToken} → {email, name, isStaff, isBuyer}; klien memilih alur pengurus/pembeli/pilih/onboarding
 
+# Ulasan produk (4.47.0) — tenant-aware: /api/store/* dan /api/c/:slug/store/*
+GET    /api/store/public/products/:id/reviews      # publik: ringkasan bintang + daftar (?page&limit<=20&sort=new|high|low&star=1-5; sort=media = hanya yang ada foto/video) + viewer {canReview, mine}
+GET    /api/store/orders/:orderNo/reviews          # pembeli: produk di pesanan + ulasannya
+POST   /api/store/orders/:orderNo/reviews          # pembeli (multipart: productId, rating 1-5, comment<=1000, anonymous, media[] maks 4 foto + 1 video); pesanan harus selesai, 1 pesanan x 1 produk = 1 ulasan
+PATCH  /api/store/reviews/:id                      # pemilik (multipart; keepMedia = JSON URL yang dipertahankan)
+DELETE /api/store/reviews/:id                      # pemilik
+POST   /api/store/reviews/:id/report               # publik, 1 laporan per pelapor: {reason: spam|kasar|tidak_relevan|privasi|lainnya, note<=200}
+GET    /api/store/admin/reviews                    # toko.reviews.manage / toko.manage (?filter=all|reported|hidden&q&page)
+GET    /api/store/admin/reviews/:id/reports
+PATCH  /api/store/admin/reviews/:id                # {status: visible|hidden, reason}
+DELETE /api/store/admin/reviews/:id
+
 # /api/buyer  (Akun pembeli toko — terpisah dari akun staf; juga /api/c/:slug/buyer/*)
 POST   /register              # publik: daftar (nama, email, password, phone?) → OTP email
 POST   /register/verify       # publik: {challengeId, code} → login + klaim pesanan lama

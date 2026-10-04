@@ -3,6 +3,8 @@ import { StorePaymentSettingsCard } from '@/components/dashboard/store-payment-s
 import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { StorePreorderPanel } from '@/components/dashboard/store-preorder-panel';
 import { StoreCustomersPanel } from '@/components/dashboard/store-customers-panel';
+import { StoreReviewsPanel } from '@/components/dashboard/store-reviews-panel';
+import { Star as ReviewStarIcon } from 'lucide-react';
 import { StoreVariantsEditor } from '@/components/dashboard/store-variants-editor';
 import {
 	EMPTY_PRODUCT_PAYMENT,
@@ -196,6 +198,7 @@ export default function DashboardToko() {
 	const [, setLocation] = useLocation();
 	const canManage = hasSpecificPermission('toko.manage');
 	// Tab Pelanggan: toko.manage atau permission khusus pelanggan
+	const canModerateReviews = canManage || hasSpecificPermission('toko.reviews.manage');
 	const canViewCustomers = canManage || hasSpecificPermission('toko.customers.view') || hasSpecificPermission('toko.customers.manage');
 
 	const accessUrl = useApiUrl('/store/admin/access-summary');
@@ -403,7 +406,7 @@ export default function DashboardToko() {
 	const [tokoTab, setTokoTab] = useState(() => {
 		try {
 			const t = new URLSearchParams(window.location.search).get('tab') || '';
-			return ['products', 'chat', 'settings', 'orders', 'preorders', 'categories', 'diskon', 'bundling'].includes(t) ? t : 'products';
+			return ['products', 'chat', 'settings', 'orders', 'preorders', 'categories', 'diskon', 'bundling', 'reviews'].includes(t) ? t : 'products';
 		} catch {
 			return 'products';
 		}
@@ -1217,6 +1220,12 @@ export default function DashboardToko() {
 								Pre-order
 							</TabsTrigger>
 						)}
+						{canModerateReviews && (
+							<TabsTrigger value="reviews" className="gap-2">
+								<ReviewStarIcon className="h-4 w-4" />
+								Ulasan
+							</TabsTrigger>
+						)}
 						{canViewCustomers && (
 							<TabsTrigger value="customers" className="gap-2">
 								<Users className="h-4 w-4" />
@@ -1242,6 +1251,12 @@ export default function DashboardToko() {
 							</TabsTrigger>
 						)}
 					</TabsList>
+
+					{canModerateReviews && (
+						<TabsContent value="reviews" className="mt-6">
+							<StoreReviewsPanel />
+						</TabsContent>
+					)}
 
 					{canViewCustomers && (
 						<TabsContent value="customers" className="mt-6">

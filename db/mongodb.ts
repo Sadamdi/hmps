@@ -2164,6 +2164,55 @@ storePaymentProofSchema.index({ orderNo: 1, paymentId: 1 }, { unique: true });
 const StorePaymentProof =
 	mongoose.models.StorePaymentProof || mongoose.model('StorePaymentProof', storePaymentProofSchema);
 
+/**
+ * Ulasan produk toko (per toko: DB utama atau DB komunitas). Satu pesanan × satu produk = satu ulasan.
+ * Hanya pembeli bertoken akun yang pesanannya selesai. Nama tampil dihitung saat tulis (authorLabel);
+ * email/nomor HP tidak pernah disimpan di sini.
+ */
+const storeReviewSchema = new mongoose.Schema(
+	{
+		productId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+		orderNo: { type: String, required: true },
+		buyerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+		rating: { type: Number, required: true, min: 1, max: 5 },
+		comment: { type: String, default: '', maxlength: 1000 },
+		media: {
+			type: [{ _id: false, url: { type: String, required: true }, type: { type: String, enum: ['image', 'video'], required: true } }],
+			default: [],
+		},
+		/** true = nama disamarkan ("S****n"); false = nama depan + inisial */
+		anonymous: { type: Boolean, default: false },
+		authorLabel: { type: String, default: 'Pembeli' },
+		productName: { type: String, default: '' },
+		variantLabel: { type: String, default: '' },
+		status: { type: String, enum: ['visible', 'hidden'], default: 'visible' },
+		hiddenReason: { type: String, default: '' },
+		hiddenBy: { type: String, default: '' },
+		hiddenAt: { type: Date, default: null },
+		reportCount: { type: Number, default: 0 },
+		editedAt: { type: Date, default: null },
+	},
+	{ timestamps: true },
+);
+storeReviewSchema.index({ orderNo: 1, productId: 1 }, { unique: true });
+storeReviewSchema.index({ productId: 1, status: 1, createdAt: -1 });
+storeReviewSchema.index({ status: 1, reportCount: -1, createdAt: -1 });
+
+const storeReviewReportSchema = new mongoose.Schema({
+	reviewId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+	/** Hash pelapor (akun pembeli atau IP) — satu laporan per pelapor per ulasan */
+	reporterKey: { type: String, required: true },
+	reason: { type: String, enum: ['spam', 'kasar', 'tidak_relevan', 'privasi', 'lainnya'], default: 'lainnya' },
+	note: { type: String, default: '', maxlength: 200 },
+	createdAt: { type: Date, default: Date.now },
+});
+storeReviewReportSchema.index({ reviewId: 1, reporterKey: 1 }, { unique: true });
+storeReviewReportSchema.index({ createdAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
+
+const StoreReview = mongoose.models.StoreReview || mongoose.model('StoreReview', storeReviewSchema);
+const StoreReviewReport =
+	mongoose.models.StoreReviewReport || mongoose.model('StoreReviewReport', storeReviewReportSchema);
+
 const StoreChat =
 	mongoose.models.StoreChat || mongoose.model('StoreChat', storeChatSchema);
 
@@ -2463,6 +2512,8 @@ export const allSchemas = {
 	storeOrder: storeOrderSchema,
 	storeChat: storeChatSchema,
 	storePaymentProof: storePaymentProofSchema,
+	storeReview: storeReviewSchema,
+	storeReviewReport: storeReviewReportSchema,
 };
 
 export {
@@ -2492,6 +2543,8 @@ export {
 	StoreOrder,
 	StoreChat,
 	StorePaymentProof,
+	StoreReview,
+	StoreReviewReport,
 	StoreProduct,
 	StoreProductCategory,
 	StoreProductShare,

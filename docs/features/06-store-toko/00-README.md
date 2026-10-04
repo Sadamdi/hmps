@@ -20,6 +20,7 @@ Store / Toko feature category for HMPS. This README is the local index for featu
 | [10-regional-shipping-services.md](./10-regional-shipping-services.md) | Regional & Shipping Services |
 | [11-payments-dp-preorder.md](./11-payments-dp-preorder.md) | Pembayaran: kanal bayar, DP pre-order, bukti bayar |
 | [12-buyer-accounts.md](./12-buyer-accounts.md) | Akun & dashboard pembeli (login email/Google, klaim pesanan) |
+| [13-reviews.md](./13-reviews.md) | Ulasan & rating produk (foto/video, moderasi, laporan) |
 | [99-openapi-endpoint-coverage.md](./99-openapi-endpoint-coverage.md) | OpenAPI Endpoint Coverage — Store / Toko |
 
 ## OpenAPI Tag Mapping
