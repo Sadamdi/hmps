@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.46.4] - 2026-10-05
+
+### Security
+
+- Token pembeli 30 → 7 hari; maksimal 10 sesi aktif per pembeli (terlama dicabut, catatan sesi lama dihapus).
+- Pesan "email sudah dipakai" disamakan untuk pembeli/pengurus/diblokir (tidak bisa menebak email pengurus).
+- Login pembeli tercatat di `login_attempts` (scope `buyer`); retensi log login 30 → 90 hari.
+
 ## [4.46.3] - 2026-10-05
 
 ### Changed
