@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { setActiveRole } from '@/lib/active-role';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 
@@ -49,6 +50,8 @@ export function useBuyer() {
 export async function buyerApi<T = any>(method: string, path: string, body?: unknown): Promise<T> {
 	const r = await apiRequest(method, `/api/buyer${path}`, body);
 	const j = await r.json().catch(() => ({}));
+	// Masuk/daftar/pindah sebagai pembeli → navbar mengikuti peran pembeli
+	if (method === 'POST' && ['/login', '/google', '/google/complete', '/register/verify', '/from-staff'].includes(path)) setActiveRole('buyer');
 	return (j?.data ?? j) as T;
 }
 
@@ -69,6 +72,7 @@ export async function switchToStaff(): Promise<void> {
 		return;
 	}
 	if (!r.ok) throw new Error(j?.message || 'Gagal masuk sebagai pengurus');
+	setActiveRole('staff');
 	window.location.assign(j?.tenantSlug ? `/${j.tenantSlug}/dashboard` : '/dashboard');
 }
 

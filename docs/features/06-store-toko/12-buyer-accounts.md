@@ -110,6 +110,15 @@ Cookie pengurus (`authToken`) dan pembeli (`buyerToken`) tetap terpisah dan bole
 - Navbar: pembeli mendapat menu (akun saya, masuk sebagai pengurus, keluar), bukan lagi tautan tunggal; pengurus mendapat item "Akun pembeli".
 - Halaman login pengurus menaut ke "Daftar sebagai pembeli".
 
+### Aturan keamanan satu identitas (4.46.1)
+
+- Email yang terdaftar sebagai pengurus (web utama atau komunitas aktif) **tidak bisa** didaftarkan dari sisi pembeli: `/register`, `/google/complete`, `/google` tanpa akun, dan ganti email ke email pengurus → 403 `STAFF_EMAIL`. Akun pembeli pengurus hanya lahir dari `/from-staff`.
+- `/from-staff` pada akun pending (mis. dipasang pihak lain) membuang password lama, memakai hash pengurus, dan mencabut semua sesi lamanya. Login Google pada akun pending dianggap belum punya akun (onboarding ulang).
+- Login pembeli: throttle per akun (10 gagal / 15 menit, kunci `buyer:<email>`) di atas limiter IP/perangkat.
+- Akun terhubung pengurus: `/password/otp` dan `/password/reset` ditolak (403 `STAFF_PASSWORD`, anonim mendapat jawaban generik tanpa OTP); ganti email ditolak. Password hanya lewat Dashboard pengurus > Profil (OTP).
+- Logout: `POST /api/auth/logout` dan `POST /api/buyer/logout` mengakhiri **kedua** sesi, mencabut catatan sesi pengurus (token lama tak berlaku), dan menghapus kedua cookie.
+- Navbar mengikuti peran aktif (`localStorage hmps_active_role`, hanya tampilan): pindah lewat menu, login, atau "Akun pembeli"/"Masuk sebagai pengurus".
+
 ## Catatan
 
 - Login Google pembeli memakai Firebase yang sama dengan login pengurus; belum diuji dengan akun Google sungguhan.

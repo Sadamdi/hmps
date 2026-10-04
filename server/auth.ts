@@ -48,6 +48,30 @@ export function buildClearCookieOptions() {
 	return opts;
 }
 
+/**
+ * Akhiri sesi pengurus: cabut catatan sesi (token curian jadi tidak berlaku) dan hapus cookie.
+ * Dipakai logout pengurus maupun logout pembeli (satu identitas: keluar di satu sisi = keluar di keduanya).
+ */
+export async function endStaffSession(req: Request, res: Response): Promise<void> {
+	const token = req.cookies?.authToken;
+	if (token && typeof token === 'string') {
+		try {
+			const d: any = jwt.verify(token, JWT_SECRET_KEY, { algorithms: ['HS256'] });
+			if (d?.sid) {
+				let SessionModel: any = Session;
+				if (d.tenant) {
+					const { getTenantModels } = await import('../db/tenant');
+					SessionModel = getTenantModels(d.tenant).Session;
+				}
+				await SessionModel.updateOne({ sessionId: d.sid }, { $set: { revokedAt: new Date() } });
+			}
+		} catch {
+			/* token tidak valid/kedaluwarsa: cukup hapus cookie */
+		}
+	}
+	res.clearCookie('authToken', buildClearCookieOptions());
+}
+
 // Generate JWT token (optionally tenant-scoped)
 export function generateToken(user: UserWithRole, tenantDbName?: string): string {
 	const payload: any = {

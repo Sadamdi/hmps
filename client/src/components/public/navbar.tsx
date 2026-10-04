@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/lib/auth';
 import { useBuyer } from '@/hooks/use-buyer';
+import { setActiveRole, useActiveRole } from '@/lib/active-role';
 import { BuyerNavMenu, useSwitchToBuyer } from '@/components/public/buyer-nav-menu';
 import { getGuestIdentity } from '@/lib/guest-identity';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
@@ -262,6 +263,9 @@ export default function Navbar({
 	// Pembeli toko yang sedang masuk (akun terpisah dari pengurus): tombol Login berubah jadi nama akun
 	const { buyer } = useBuyer();
 	const switchToBuyerAccount = useSwitchToBuyer();
+	// Dua sesi aktif (pengurus + pembeli): kanan atas mengikuti peran yang sedang dipakai
+	const activeRole = useActiveRole();
+	const staffChrome = !!user && !(buyer && activeRole === 'buyer');
 
 	const { data: communities = [] } = useQuery<any[]>({
 		queryKey: ['/api/communities'],
@@ -1537,7 +1541,7 @@ export default function Navbar({
 						{/* Right side actions — desktop */}
 						<div className="hidden sm:flex items-center gap-2">
 							{/* User dropdown */}
-							{user ? (
+							{staffChrome ? (
 								<DropdownMenu
 									modal={false}
 									open={openDropdownId === 'user-desktop'}
@@ -1579,7 +1583,7 @@ export default function Navbar({
 										</div>
 										<DropdownMenuSeparator />
 										{showDashLink !== false && (
-											<DropdownMenuItem asChild>
+											<DropdownMenuItem asChild onClick={() => setActiveRole('staff')}>
 												{needsAbsoluteDash ? (
 													<a
 														href={absDashHref}
@@ -1885,7 +1889,7 @@ export default function Navbar({
 												? 'nav-icon-spreading'
 												: '';
 
-										return user ? (
+										return staffChrome ? (
 											<DropdownMenu
 												modal={false}
 												open={openDropdownId === 'user-mobile'}
@@ -1944,7 +1948,7 @@ export default function Navbar({
 													</div>
 													<DropdownMenuSeparator />
 													{showDashLink !== false && (
-														<DropdownMenuItem asChild>
+														<DropdownMenuItem asChild onClick={() => setActiveRole('staff')}>
 															{needsAbsoluteDash ? (
 																<a
 																	href={absDashHref}
