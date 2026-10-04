@@ -4824,8 +4824,53 @@ router.get('/orders/:orderNo/reviews', async (req, res) => {
 	}
 });
 
+/**
+ * Penjaga upload ulasan — berjalan SEBELUM multer membaca body ke memori:
+ *  - tolak Content-Length melebihi total batas (4 foto + 1 video + overhead),
+ *  - wajib login pembeli dan pesanan/ulasan milik sendiri (404/401 lebih dulu, tanpa membaca file),
+ *  - batasi jumlah upload ulasan yang diproses bersamaan di proses ini (hindari kehabisan RAM).
+ */
+const REVIEW_UPLOAD_MAX_BYTES = REVIEW_MEDIA_LIMITS.maxImages * REVIEW_MEDIA_LIMITS.maxImageBytes + REVIEW_MEDIA_LIMITS.maxVideoBytes + 2 * 1024 * 1024;
+const REVIEW_UPLOAD_MAX_CONCURRENT = 4;
+let reviewUploadsInFlight = 0;
+
+async function reviewUploadGuard(req: Request, res: Response, next: NextFunction) {
+	try {
+		const len = parseInt(String(req.headers['content-length'] || '0'), 10);
+		if (len > REVIEW_UPLOAD_MAX_BYTES) return res.status(413).json({ message: 'Total ukuran file terlalu besar (maks 4 foto 8 MB + 1 video 30 MB)' });
+		const buyer = await getBuyer(req);
+		if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli' });
+		const { StoreOrder, StoreReview } = resolveModels(req);
+		if (req.params.orderNo) {
+			const o = await StoreOrder.exists({ orderNo: String(req.params.orderNo).trim(), buyerId: buyer._id });
+			if (!o) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
+		} else if (req.params.id) {
+			const ok = mongoose.isValidObjectId(String(req.params.id)) && (await StoreReview.exists({ _id: req.params.id, buyerId: buyer._id }));
+			if (!ok) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		}
+		if (reviewUploadsInFlight >= REVIEW_UPLOAD_MAX_CONCURRENT) {
+			res.set('Retry-After', '10');
+			return res.status(429).json({ message: 'Server sedang memproses banyak upload. Coba lagi beberapa detik lagi.' });
+		}
+		reviewUploadsInFlight++;
+		let released = false;
+		const release = () => {
+			if (!released) {
+				released = true;
+				reviewUploadsInFlight--;
+			}
+		};
+		res.on('finish', release);
+		res.on('close', release);
+		next();
+	} catch (e) {
+		console.error('[store] review upload guard', e);
+		res.status(500).json({ message: 'Gagal memproses upload' });
+	}
+}
+
 /** Tulis ulasan (multipart: productId, rating, comment, anonymous, media[]). */
-router.post('/orders/:orderNo/reviews', reviewWriteRateLimiter, (req, res) => {
+router.post('/orders/:orderNo/reviews', reviewWriteRateLimiter, reviewUploadGuard, (req, res) => {
 	reviewMediaMiddleware.array('media', REVIEW_MEDIA_LIMITS.maxImages + REVIEW_MEDIA_LIMITS.maxVideos)(req, res, async (err: any) => {
 		const savedUrls: string[] = [];
 		try {
@@ -4892,7 +4937,7 @@ router.post('/orders/:orderNo/reviews', reviewWriteRateLimiter, (req, res) => {
 });
 
 /** Edit ulasan sendiri (multipart; keepMedia = JSON array URL yang dipertahankan, media[] = tambahan). */
-router.patch('/reviews/:id', reviewWriteRateLimiter, (req, res) => {
+router.patch('/reviews/:id', reviewWriteRateLimiter, reviewUploadGuard, (req, res) => {
 	reviewMediaMiddleware.array('media', REVIEW_MEDIA_LIMITS.maxImages + REVIEW_MEDIA_LIMITS.maxVideos)(req, res, async (err: any) => {
 		const savedUrls: string[] = [];
 		try {

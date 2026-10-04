@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.47.1] - 2026-10-05
+
+### Security
+
+- Upload ulasan: login, kepemilikan pesanan/ulasan, dan batas Content-Length total (~66 MB) diperiksa SEBELUM multer membaca file ke memori; maksimal 4 upload ulasan diproses bersamaan per proses (429 + Retry-After bila penuh). Sebelumnya pembuat akun gratis bisa mengirim banyak request 150 MB paralel dan menghabiskan RAM server.
+
 ## [4.47.0] - 2026-10-05
 
 ### Added
