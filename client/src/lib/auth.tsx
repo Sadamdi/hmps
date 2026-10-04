@@ -216,7 +216,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 				throw error;
 			}
 			if (!response.ok) {
-				const error = new Error(data.message || 'Login Google gagal');
+				const error = new Error(data.message || (typeof data.error === 'string' ? data.error : '') || `Login Google gagal (HTTP ${response.status})`);
 				(error as any).status = response.status;
 				(error as any).retryAfter = data.retryAfter;
 				throw error;

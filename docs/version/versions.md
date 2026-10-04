@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.46.2`  
+**Current version:** `4.46.3`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.46.2`](./release/4.46.2.md) | 2026-10-05 | Hotfix keamanan: nonaktifkan sementara akun pembeli dari akun pengurus | PATCH | 1 | **Current** |
+| [`4.46.3`](./release/4.46.3.md) | 2026-10-05 | Satu identitas aktif: switch menutup sesi lawan, pesan error login jelas | PATCH | 1 | **Current** |
+| [`4.46.2`](./release/4.46.2.md) | 2026-10-05 | Hotfix keamanan: nonaktifkan sementara akun pembeli dari akun pengurus | PATCH | 1 | Released |
 | [`4.46.1`](./release/4.46.1.md) | 2026-10-05 | Hardening satu identitas: email pengurus, throttle akun, password pengurus, logout gabungan, navbar ikut peran | PATCH | 1 | Released |
 | [`4.46.0`](./release/4.46.0.md) | 2026-10-04 | Satu identitas: pindah peran pengurus ↔ pembeli tanpa login ulang | MINOR | 1 | Released |
 | [`4.45.0`](./release/4.45.0.md) | 2026-10-04 | Pintu login tunggal pengurus & pembeli, onboarding Google, info perangkat | MINOR | 1 | Released |

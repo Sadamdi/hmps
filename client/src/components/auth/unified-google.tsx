@@ -29,7 +29,7 @@ export async function identifyGoogle(idToken: string): Promise<GoogleIdentity> {
 		body: JSON.stringify({ idToken }),
 	});
 	const j = await r.json().catch(() => ({}));
-	if (!r.ok) throw Object.assign(new Error(j?.message || 'Login Google gagal'), { status: r.status, retryAfter: j?.retryAfter });
+	if (!r.ok) throw Object.assign(new Error(j?.message || (typeof j?.error === 'string' ? j.error : '') || `Login Google gagal (HTTP ${r.status})`), { status: r.status, retryAfter: j?.retryAfter });
 	return j.data as GoogleIdentity;
 }
 

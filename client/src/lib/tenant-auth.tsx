@@ -123,7 +123,7 @@ export function TenantAuthProvider({ slug, children }: { slug: string; children:
 			});
 			const data = await response.json().catch(() => ({ message: 'Login Google gagal' }));
 			if (!response.ok) {
-				const error = new Error(data.message || 'Login Google gagal');
+				const error = new Error(data.message || (typeof data.error === 'string' ? data.error : '') || `Login Google gagal (HTTP ${response.status})`);
 				(error as any).status = response.status;
 				(error as any).retryAfter = data.retryAfter;
 				throw error;

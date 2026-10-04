@@ -41,6 +41,8 @@ export const loginLimiter = rateLimit({
 	windowMs: 60 * 1000, // 1 menit
 	max: 5, // Maksimal 5 percobaan login per IP per menit
 	message: {
+		// field `message` agar klien menampilkan pesan yang jelas (bukan teks cadangan "Login Google gagal")
+		message: 'Terlalu banyak percobaan login. Silakan coba lagi dalam 1 menit.',
 		error: 'Terlalu banyak percobaan login. Silakan coba lagi dalam 1 menit.',
 		retryAfter: 60,
 	},

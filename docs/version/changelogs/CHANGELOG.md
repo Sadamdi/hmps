@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.46.3] - 2026-10-05
+
+### Changed
+
+- Satu identitas aktif: "Masuk sebagai pengurus" menutup sesi pembeli, "Akun pembeli" menutup sesi pengurus. Dashboard pengurus tidak bisa dibuka dari sesi pembeli sebelum switch.
+
+### Fixed
+
+- Login Google menampilkan "Login Google gagal" tanpa sebab saat limiter login pengurus (5/menit) tercapai: balasan limiter kini membawa `message`, dan klien menampilkan kode HTTP bila server tidak memberi pesan.
+
 ## [4.46.2] - 2026-10-05
 
 ### Security
