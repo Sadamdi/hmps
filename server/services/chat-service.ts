@@ -674,7 +674,8 @@ export class ChatService {
 		geminiTools: FunctionDeclarationsTool[],
 		tenantDbName?: string | null,
 		isTenantContext = false,
-		onStep?: (name: string, status: 'running' | 'done' | 'error') => void
+		onStep?: (name: string, status: 'running' | 'done' | 'error') => void,
+		buyerId: string | null = null,
 	): Promise<GeminiLoopSuccess | GeminiLoopFailure> {
 		let lastError: Error | null = null;
 		let sawQuotaLike = false;
@@ -726,7 +727,8 @@ export class ChatService {
 										authUserId,
 										pagePath,
 										tenantDbName,
-										isTenantContext
+										isTenantContext,
+										buyerId,
 									));
 								onStep?.(fc.name, 'done');
 								return {
@@ -845,10 +847,19 @@ export class ChatService {
 			});
 		}
 
-		const allowedTools = getToolsForPermissions(
-			permissions || [],
-			pagePath
-		);
+		// buyerId diisi route chat dari cookie pembeli yang sudah diverifikasi (bukan dari client)
+		const buyerId = typeof (pageContext as any)?.buyerId === 'string' ? (pageContext as any).buyerId : null;
+		const allowedTools = getToolsForPermissions(permissions || [], pagePath, { buyerId });
+		if (buyerId) {
+			history.push({
+				role: 'system',
+				parts: [
+					{
+						text: 'INSTRUKSI SISTEM: Pengguna adalah PEMBELI toko yang sudah masuk akun. Untuk pertanyaan pesanan/pembayaran miliknya, panggil buyer_list_orders atau buyer_get_order (hanya membaca pesanan akun ini). Jangan pernah menyebut atau menebak pesanan orang lain, jangan mengaku bisa mengubah pesanan; arahkan ke halaman invoice/Akun untuk upload bukti, batal, atau chat penjual.',
+					},
+				],
+			});
+		}
 		await this.appendContentStyleHints(history, allowedTools, tenantDbName);
 
 		// Dedupe: jika pesan user yang baru di-push identik dengan entri terakhir di history,
@@ -992,7 +1003,8 @@ export class ChatService {
 					authUserId,
 					pagePath,
 					tenantDbName,
-					isTenantContext
+					isTenantContext,
+					buyerId,
 				),
 			onStep,
 			maxToolIterations: 50,
@@ -1020,7 +1032,8 @@ export class ChatService {
 							authUserId,
 							pagePath,
 							tenantDbName,
-							isTenantContext
+							isTenantContext,
+							buyerId,
 						),
 					onStep,
 					maxToolIterations: 50,
@@ -1070,7 +1083,8 @@ export class ChatService {
 					geminiTools,
 					tenantDbName,
 					isTenantContext,
-					onStep
+					onStep,
+					buyerId,
 				);
 
 				if (loopResult.ok) {
@@ -1094,7 +1108,8 @@ export class ChatService {
 							geminiTools,
 							tenantDbName,
 							isTenantContext,
-							onStep
+							onStep,
+							buyerId,
 						);
 						if (retryResult.ok) {
 							responseText = retryResult.responseText;

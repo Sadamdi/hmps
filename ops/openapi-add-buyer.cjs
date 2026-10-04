@@ -40,6 +40,8 @@ const ops = [
 	['put', '/api/buyer/addresses', 'Simpan daftar alamat (maks 5, satu utama)', 'buyer', { addresses: [{ label: 'Rumah', recipient: 'Budi', phone: '0812…', address: 'Jl. …', isDefault: true }] }],
 	['get', '/api/buyer/favorites', 'Favorit per toko (?store=main|slug)', 'buyer'],
 	['put', '/api/buyer/favorites', 'Simpan favorit per toko', 'buyer', { store: 'main', productIds: ['…'] }],
+	['post', '/api/buyer/delete/otp', 'Kirim kode konfirmasi hapus akun', 'buyer'],
+	['post', '/api/buyer/delete', 'Hapus akun (anonimkan data pribadi; pesanan tetap di toko)', 'buyer', { challengeId: '…', code: '123456' }],
 	['get', '/api/store/admin/customers', 'Pelanggan toko ini (toko.customers.view / toko.manage; disamarkan tanpa .manage)', 'staff'],
 	['get', '/api/store/admin/customers/{id}', 'Detail pelanggan + pesanan di toko ini', 'staff'],
 	['patch', '/api/store/admin/customers/{id}/status', 'Blokir/buka blokir akun pembeli (toko.customers.manage, toko utama)', 'staff', { status: 'blocked' }],
