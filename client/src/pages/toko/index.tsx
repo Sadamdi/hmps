@@ -4,6 +4,7 @@ import MediaDisplay from '@/components/MediaDisplay';
 import { StoreBundleCard } from '@/components/toko/store-bundle-card';
 import Navbar from '@/components/public/navbar';
 import StoreProductCard from '@/components/public/store-product-card';
+import { useStoreQuickView } from '@/components/toko/store-quick-view';
 import { StorePublicHeaderRow } from '@/components/public/store-public-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -129,6 +130,7 @@ export default function TokoIndexPage() {
 
 	const hasActiveFilters = categoryFilter !== '';
 
+	const quickView = useStoreQuickView();
 	const quickAddMutation = useMutation({
 		mutationFn: async (vars: { productId: string; fromEl?: HTMLElement | null }) => {
 			const r = await apiRequest('POST', cartItemsUrl, { productId: vars.productId, qty: 1 });
@@ -354,6 +356,7 @@ export default function TokoIndexPage() {
 															compareAtAmount={pr.compareSubtotal}
 															promoLabels={pr.applied.map((a) => a.label)}
 															quickAddDisabled={quickAddMutation.isPending}
+															onOpenQuickView={quickView.open}
 															onQuickAdd={(productId, fromEl) =>
 																quickAddMutation.mutate({ productId, fromEl })
 															}
@@ -396,6 +399,7 @@ export default function TokoIndexPage() {
 					)}
 				</div>
 			</main>
+			{quickView.node}
 			<Footer />
 			<AIChat pageContext={{ path: storeBasePath, permissions: [] }} />
 		</div>

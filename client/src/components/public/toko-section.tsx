@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';
 import { normalizeStoreCurrency } from '@shared/store-currency';
 import StoreProductCard from './store-product-card';
+import { useStoreQuickView } from '@/components/toko/store-quick-view';
 
 type PublicProductsPage = { items: any[]; total: number; page: number; limit: number };
 
@@ -89,6 +90,7 @@ export default function TokoSection() {
 		? allProducts.slice(0, maxCount)
 		: allProducts.slice(0, initialCount);
 
+	const quickView = useStoreQuickView();
 	const quickAddMutation = useMutation({
 		mutationFn: async (vars: { productId: string; fromEl?: HTMLElement | null }) => {
 			const r = await apiRequest('POST', cartItemsUrl, { productId: vars.productId, qty: 1 });
@@ -160,6 +162,7 @@ export default function TokoSection() {
 									detailHref={prefix(`${storeBasePath}/${p.slug}`)}
 									defaultCurrency={defaultCur}
 									quickAddDisabled={quickAddMutation.isPending}
+									onOpenQuickView={quickView.open}
 									onQuickAdd={(productId, fromEl) =>
 										quickAddMutation.mutate({ productId, fromEl })
 									}
@@ -196,6 +199,7 @@ export default function TokoSection() {
 					</>
 				)}
 			</div>
+			{quickView.node}
 		</section>
 	);
 }

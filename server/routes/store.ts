@@ -1305,7 +1305,7 @@ router.get('/public/products', async (req, res) => {
 			.limit(limit)
 			.populate({ path: 'categoryId', select: 'name slug' })
 			.select(
-				'slug name shortDescription price priceTiers priceTierMultiples stock currency thumbnail published createdAt updatedAt categoryId isPreOrder preOrderOpenAt preOrderCloseAt estimatedReadyAt preOrderDiscountPercent preOrderAllowAfterClose isFreeShipping originVillageCodeOverride shippingWeightGrams disableGlobalDiscount discountOverride preOrderTimeline dpMode dpPercent dpAmount dpSettleBy paymentChannelMode paymentChannelIds',
+				'slug name shortDescription price priceTiers priceTierMultiples stock currency thumbnail variants variantGroupName published createdAt updatedAt categoryId isPreOrder preOrderOpenAt preOrderCloseAt estimatedReadyAt preOrderDiscountPercent preOrderAllowAfterClose isFreeShipping originVillageCodeOverride shippingWeightGrams disableGlobalDiscount discountOverride preOrderTimeline dpMode dpPercent dpAmount dpSettleBy paymentChannelMode paymentChannelIds',
 			)
 			.lean();
 		res.json({ items: list, total, page, limit });
