@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/auth';
 import { useBuyer } from '@/hooks/use-buyer';
 import { setActiveRole, useActiveRole } from '@/lib/active-role';
 import { BuyerNavMenu, useSwitchToBuyer } from '@/components/public/buyer-nav-menu';
+import { LinkStaffDialog } from '@/components/auth/link-staff-dialog';
 import { getGuestIdentity } from '@/lib/guest-identity';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
@@ -2088,6 +2089,7 @@ export default function Navbar({
 				) : null;
 			})()}
 
+			<LinkStaffDialog />
 			{notifModalOpen && (
 				<NotifSettingsModal
 					pushStatus={pushStatus}

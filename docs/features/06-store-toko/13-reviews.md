@@ -4,7 +4,7 @@ Pembeli menilai produk setelah pesanan **selesai**. Berlaku di toko utama dan to
 
 ## Aturan
 
-- Hanya pembeli **berakun** yang pesanannya berstatus `completed` (pemilik pesanan = `buyerId`). Tamu diminta masuk.
+- Pemilik **pesanan selesai** (`completed`) boleh mengulas; **login tidak wajib** (4.48.0). Bukti kepemilikan = akun pembeli, cookie perangkat pesanan, atau link invoice `?inv=` (`findOwnedOrder`). Edit/hapus memakai bukti yang sama.
 - **1 pesanan × 1 produk = 1 ulasan** (indeks unik `orderNo + productId`). Boleh **edit** dan **hapus**; setelah dihapus boleh menulis ulang untuk pesanan yang sama. Produk bundle tidak diulas (hanya baris produk).
 - Rating 1–5 wajib; komentar opsional (maks 1000 karakter, tag HTML dibuang, ditampilkan sebagai teks).
 - **Privasi:** hanya `authorLabel` yang tampil publik: "Nama D." atau, bila "Samarkan namaku", "S*****n". Email, no HP, dan nomor pesanan tidak pernah dikirim ke publik. Admin melihat nama pemesan + nomor pesanan.

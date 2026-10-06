@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'wouter';
 import { StoreOrderPaymentPanel, type OrderPaymentData } from '@/components/toko/store-order-payment-panel';
 import { StoreOrderEmailBox } from '@/components/toko/store-order-email-box';
+import { OrderReviewDialog } from '@/components/toko/store-reviews';
 
 function normalizeWaDigits(phone: string): string {
 	return String(phone || '').replace(/\D/g, '');
@@ -61,6 +62,7 @@ export default function TokoOrderInvoicePage() {
 	const settingsUrl = useApiUrl('/store/public/settings');
 	const storeApiBase = useApiUrl('/store');
 	const [invQuery, setInvQuery] = useState('');
+	const [reviewOpen, setReviewOpen] = useState(false);
 	useEffect(() => {
 		const inv = new URLSearchParams(window.location.search).get('inv') || '';
 		setInvQuery(inv);
@@ -172,6 +174,7 @@ export default function TokoOrderInvoicePage() {
 						<Loader2 className="h-8 w-8 animate-spin text-primary" />
 					</div>
 				)}
+				{reviewOpen && <OrderReviewDialog orderNo={String(order?.orderNo || orderNo)} storeBasePath={bp} inv={invQuery} open onOpenChange={setReviewOpen} />}
 				{error && (
 					<p className="text-center text-muted-foreground py-12">
 						Pesanan tidak ditemukan atau sesi perangkat tidak cocok.
@@ -190,6 +193,13 @@ export default function TokoOrderInvoicePage() {
 									{order.createdAt ? new Date(order.createdAt).toLocaleString('id-ID') : ''}
 								</p>
 								<OrderProgressBar status={order.status} />
+								{order.status === 'completed' && (
+									<div>
+										<Button variant="outline" size="sm" onClick={() => setReviewOpen(true)}>
+											Beri ulasan produk
+										</Button>
+									</div>
+								)}
 							</CardHeader>
 							<CardContent className="space-y-4 text-sm">
 								<div>

@@ -1793,7 +1793,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		if (!buyer || !buyer.emailVerified) {
 			return res.status(401).json({ success: false, message: 'Silakan masuk ke akun pembeli dulu', error: { code: 'BUYER_AUTH_REQUIRED' } });
 		}
-		const lt = typeof req.body?.loginTarget === 'string' ? req.body.loginTarget.slice(0, 80) : undefined;
+		const { resolveLinkedStaff } = await import('./services/unified-login');
+		const linked = await resolveLinkedStaff(buyer);
+		if (!linked) {
+			return res.status(403).json({ success: false, message: 'Akun pembeli ini tidak tertaut ke akun pengurus. Tautkan dulu dari akun pengurus (menu Akun pembeli).', error: { code: 'NOT_LINKED' } });
+		}
+		const lt = linked.scope;
 		// Satu identitas aktif: switch ke pengurus MENUTUP sesi pembeli (hanya bila login pengurus berhasil, status 200)
 		const { dropBuyerSession } = await import('./services/buyer-auth');
 		const origJson = res.json.bind(res);
@@ -2047,7 +2052,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			await storage.updateUser(userId, { password: newPassword });
-			void import('./services/unified-login').then((m) => m.syncLinkedBuyerPassword((user as any).email, newPassword));
+			void (async () => { const m = await import('./services/unified-login'); await m.syncLinkedBuyerPassword(user, await m.staffScopeFromReq(req), newPassword); })();
 
 			res.json({ message: 'Password updated successfully' });
 		} catch (error) {
@@ -2173,7 +2178,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			await storage.updateUser(user._id.toString(), { password: newPassword });
-			void import('./services/unified-login').then((m) => m.syncLinkedBuyerPassword((user as any).email, newPassword));
+			void (async () => { const m = await import('./services/unified-login'); await m.syncLinkedBuyerPassword(user, await m.staffScopeFromReq(req), newPassword); })();
 
 			res.json({ message: 'Password berhasil direset' });
 		} catch (error: any) {
@@ -2269,7 +2274,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				});
 
 				await pwdStorage.updateUser(userId, { password: newPassword });
-				void import('./services/unified-login').then((m) => m.syncLinkedBuyerPassword((user as any).email, newPassword));
+				void (async () => { const m = await import('./services/unified-login'); await m.syncLinkedBuyerPassword(user, await m.staffScopeFromReq(req), newPassword); })();
 
 				res.json({ message: 'Password berhasil diubah' });
 			} catch (error: any) {
@@ -2334,7 +2339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				await storage.updateUser(id, { password: newPassword });
-				void import('./services/unified-login').then((m) => m.syncLinkedBuyerPassword((targetUser as any).email, newPassword));
+				void (async () => { const m = await import('./services/unified-login'); await m.syncLinkedBuyerPassword(targetUser, await m.staffScopeFromReq(req), newPassword); })();
 
 				res.json({ message: 'Password user berhasil diubah' });
 			} catch (error) {
@@ -2478,6 +2483,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			await changeStorage.updateUser(userId, {
 				email: newEmail.trim().toLowerCase(),
 			});
+			void import('./services/unified-login').then((m) => m.unlinkStaffUser(userId));
 
 			res.json({ message: 'Email berhasil diubah' });
 		} catch (error: any) {
@@ -2551,6 +2557,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 
 				await storage.updateUser(id, { email: newEmail.trim().toLowerCase() });
+				void import('./services/unified-login').then((m) => m.unlinkStaffUser(id));
 
 				res.json({ message: 'Email user berhasil diubah' });
 			} catch (error) {

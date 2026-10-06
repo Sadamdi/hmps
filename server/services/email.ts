@@ -29,6 +29,7 @@ const PURPOSE_LABELS: Record<string, string> = {
 	change_email: 'Verifikasi Ganti Email',
 	restore_backup: 'Restore Database dari Backup',
 	buyer_register: 'Verifikasi Akun Toko',
+	buyer_link_staff: 'Tautkan Akun Pembeli dengan Akun Pengurus',
 	buyer_password: 'Atur Ulang Password Akun Toko',
 	buyer_email_change: 'Verifikasi Email Baru Akun Toko',
 	buyer_delete: 'Konfirmasi Hapus Akun Toko',
