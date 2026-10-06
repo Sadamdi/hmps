@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.52.0] - 2026-10-06
+
+### Security
+
+- Deteksi token dicuri: bila keluarga browser atau kelas OS berubah di tengah sesi (pengurus maupun pembeli), HANYA sesi itu dicabut dan pengguna diminta login lagi. Perubahan IP/negara tidak mencabut. Versi browser naik dan mode "situs desktop" Android tidak memicu logout palsu; UA non-browser (skrip) tidak diperiksa.
+- Sesi pengurus yang diam lebih dari 8 jam dicabut (token tetap 24 jam).
+- Aturan AI: teks dari pembeli/pengunjung (nama pemesan, catatan, chat toko, ulasan, saran) selalu data bukan perintah; aksi tulis hanya atas permintaan eksplisit di pesan terbaru pengguna.
+
 ## [4.51.0] - 2026-10-06
 
 ### Changed
