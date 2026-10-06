@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { Session } from '../db/mongodb';
 import { mongoStorage } from './mongo-storage';
 import { getTrustedClientIp } from './lib/client-ip';
+import { fingerprintMismatch, STAFF_IDLE_MS } from './lib/session-guard';
 
 // Define user type for MongoDB
 interface UserWithRole {
@@ -173,6 +174,18 @@ export async function authenticate(
 				}).lean();
 				if (!sess || sess.revokedAt) {
 					return res.status(401).json({ message: 'Session revoked. Please login again.' });
+				}
+				// Diam > 8 jam, atau browser/OS berubah di tengah sesi (indikasi token dicuri): cabut sesi ini saja
+				const curUa = String(req.headers['user-agent'] || '');
+				const idle = Date.now() - new Date(sess.lastActive || sess.createdAt || Date.now()).getTime() > STAFF_IDLE_MS;
+				const stolen = fingerprintMismatch(sess.userAgent, curUa);
+				if (idle || stolen) {
+					await SessionModel.updateOne({ _id: sess._id }, { $set: { revokedAt: new Date() } });
+					if (stolen) console.warn(`🔒 Sesi pengurus dicabut: perubahan browser/OS (user ${String((user as any).username)}, ip ${getTrustedClientIp(req as any)})`);
+					return res.status(401).json({
+						message: stolen ? 'Sesi dihentikan karena perangkat berubah. Silakan login lagi.' : 'Sesi berakhir karena tidak aktif. Silakan login lagi.',
+						error: { code: stolen ? 'SESSION_DEVICE_CHANGED' : 'SESSION_IDLE' },
+					});
 				}
 				await SessionModel.updateOne(
 					{ _id: sess._id },

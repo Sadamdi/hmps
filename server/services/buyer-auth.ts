@@ -16,6 +16,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { Community, Customer, CustomerSession, StoreChat, StoreOrder } from '../../db/mongodb';
 import { getTenantModels } from '../../db/tenant';
 import { getRealClientIp, lookupGeo } from '../lib/geoip';
+import { fingerprintMismatch } from '../lib/session-guard';
 
 export const BUYER_COOKIE = 'buyerToken';
 const BUYER_TOKEN_DAYS = 7;
@@ -168,6 +169,12 @@ export async function getBuyer(req: Request): Promise<any | null> {
 		]);
 		if (!c || c.status !== 'active' || (c.tokenVersion || 0) !== p.tv) return null;
 		if (!sess || sess.revokedAt) return null;
+		// Browser/OS berubah di tengah sesi → cabut sesi ini (token dicuri); IP berubah tidak mencabut
+		if (fingerprintMismatch(sess.userAgent, String(req.headers['user-agent'] || ''))) {
+			void CustomerSession.updateOne({ _id: sess._id }, { $set: { revokedAt: new Date() } }).catch(() => {});
+			console.warn('🔒 Sesi pembeli dicabut: perubahan browser/OS');
+			return null;
+		}
 		// Perbarui "aktif terakhir" paling sering tiap 10 menit
 		if (Date.now() - new Date(sess.lastActive).getTime() > 600_000) {
 			void CustomerSession.updateOne({ _id: sess._id }, { $set: { lastActive: new Date() } }).catch(() => {});
