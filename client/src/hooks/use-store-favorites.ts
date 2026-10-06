@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { buyerApi, useBuyer } from '@/hooks/use-buyer';
+import { postFavorite, type StatsKind } from '@/lib/store-stats';
 import { useTenant } from '@/lib/tenant-context';
 
 /**
@@ -79,16 +80,17 @@ export function useStoreFavorites() {
 	const isFavorite = useCallback((id: string) => ids.includes(String(id)), [ids]);
 
 	const toggleFavorite = useCallback(
-		(id: string): boolean => {
+		(id: string, kind: StatsKind = 'product'): boolean => {
 			const sid = String(id);
 			const current = read(key);
 			const on = !current.includes(sid);
 			const next = on ? [sid, ...current] : current.filter((x) => x !== sid);
 			write(key, next);
+			postFavorite(basePath ? `/api/c/${basePath.replace('/', '')}` : '/api', kind, sid, on);
 			if (buyer) void buyerApi('PUT', '/favorites', { store, productIds: next.filter((x) => /^[a-f0-9]{24}$/i.test(x)) }).catch(() => null);
 			return on;
 		},
-		[key, buyer, store],
+		[key, buyer, store, basePath],
 	);
 
 	return { favoriteIds: ids, isFavorite, toggleFavorite };

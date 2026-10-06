@@ -11,6 +11,7 @@ import {
 import { getStoreStockAvailable } from '@shared/store-pricing';
 import { Badge } from '@/components/ui/badge';
 import { StoreFavoriteButton } from '@/components/toko/store-favorite-button';
+import { StoreStatsLine } from '@/components/toko/store-stats-line';
 
 export interface StoreProductCardProps {
 	product: any;
@@ -94,6 +95,7 @@ export function StoreProductCard({
 						{product.shortDescription}
 					</p>
 				)}
+				<StoreStatsLine favorites={product.favoriteCount} views={product.viewCount} />
 				{promoLabels.length > 0 && (
 					<div className="flex flex-wrap gap-1 mt-1">
 						{promoLabels.slice(0, 2).map((l) => (

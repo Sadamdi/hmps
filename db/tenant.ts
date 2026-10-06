@@ -34,6 +34,7 @@ export interface TenantModels {
 	StorePaymentProof: Model<any>;
 	StoreReview: Model<any>;
 	StoreReviewReport: Model<any>;
+	StoreFavorite: Model<any>;
 }
 
 const modelCache = new Map<string, TenantModels>();
@@ -80,6 +81,7 @@ function createModelsForConnection(conn: Connection): TenantModels {
 		StorePaymentProof: getOrCreateModel(conn, 'StorePaymentProof', allSchemas.storePaymentProof),
 		StoreReview: getOrCreateModel(conn, 'StoreReview', allSchemas.storeReview),
 		StoreReviewReport: getOrCreateModel(conn, 'StoreReviewReport', allSchemas.storeReviewReport),
+		StoreFavorite: getOrCreateModel(conn, 'StoreFavorite', allSchemas.storeFavorite),
 	};
 }
 

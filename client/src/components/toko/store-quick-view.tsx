@@ -7,6 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ProductRatingBadge } from '@/components/toko/store-reviews';
+import { StoreStatsLine } from '@/components/toko/store-stats-line';
+import { postView } from '@/lib/store-stats';
 import { useStorePaths } from '@/hooks/use-buyer';
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorText, apiRequest } from '@/lib/queryClient';
@@ -106,6 +108,11 @@ export function StoreQuickViewDialog({ product, onClose, defaultCurrency = 'IDR'
 		onError: (e: Error) => toast({ title: 'Gagal menambah ke keranjang', description: apiErrorText(e, 'Cek stok atau coba lagi.'), variant: 'destructive' }),
 	});
 
+	// Dilihat: membuka popup dihitung (server dedupe 30 menit, jadi Beli sekarang setelahnya tidak dobel)
+	useEffect(() => {
+		if (data?._id) postView(cartItemsUrl.slice(0, -'/store/cart/items'.length), 'product', String(data._id));
+	}, [data?._id, cartItemsUrl]);
+
 	const buyNow = () => {
 		if (!data) return;
 		const q = new URLSearchParams({ beli: '1', qty: String(qty) });
@@ -154,6 +161,7 @@ export function StoreQuickViewDialog({ product, onClose, defaultCurrency = 'IDR'
 									<div>
 										<h2 className="text-lg font-bold leading-tight break-words sm:text-xl">{title}</h2>
 										<ProductRatingBadge productId={String(data._id)} />
+										<StoreStatsLine favorites={data.favoriteCount} views={data.viewCount} />
 									</div>
 									<div className="flex flex-wrap items-center gap-2">
 										<p className="text-2xl font-bold text-primary tabular-nums">{formatStoreMoney(price, cur)}</p>

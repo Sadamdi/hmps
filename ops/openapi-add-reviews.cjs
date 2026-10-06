@@ -17,6 +17,8 @@ const std = {
 };
 /** [method, path, summary, auth, body?, multipart?] */
 const ops = [
+	['post', '/api/store/public/favorite', 'Favorit produk/bundling (idempoten per pemilik)', 'public', { kind: 'product', id: '…', on: true }],
+	['post', '/api/store/public/view', 'Catat dilihat (dedupe 30 menit)', 'public', { kind: 'product', id: '…' }],
 	['get', '/api/store/public/products/{id}/reviews', 'Ulasan publik + ringkasan bintang (page, limit<=20, sort, star)', 'public'],
 	['get', '/api/store/orders/{orderNo}/reviews', 'Produk di pesanan + ulasan milik pembeli', 'buyer'],
 	['post', '/api/store/orders/{orderNo}/reviews', 'Tulis ulasan (multipart: productId, rating, comment, anonymous, media[] maks 4 foto + 1 video)', 'buyer', null, true],

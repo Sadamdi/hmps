@@ -9,6 +9,8 @@ import { StoreCheckoutPayment, type StorePaymentPreview } from '@/components/tok
 import { EMAIL_PATTERN, StoreEmailField, readSavedBuyerEmail, saveBuyerEmail } from '@/components/toko/store-email-field';
 import { StoreBuyerPrompt } from '@/components/toko/store-buyer-prompt';
 import { ProductRatingBadge, ProductReviews } from '@/components/toko/store-reviews';
+import { StoreStatsLine } from '@/components/toko/store-stats-line';
+import { postView } from '@/lib/store-stats';
 import type { BuyerAccount } from '@/hooks/use-buyer';
 import { STORE_CLOSED_MESSAGE, type StoreWaAdminPublic } from '@shared/store-wa';
 import AIChat from '@/components/public/ai-chat';
@@ -165,6 +167,10 @@ export default function TokoProductDetailPage() {
 		},
 		enabled: !!slug,
 	});
+
+	useEffect(() => {
+		if (product?._id) postView(cartItemsUrl.slice(0, -'/store/cart/items'.length), 'product', String(product._id));
+	}, [product?._id, cartItemsUrl]);
 
 	useEffect(() => {
 		if (!product?.name) return;
@@ -608,6 +614,7 @@ export default function TokoProductDetailPage() {
 						<div>
 							<h1 className="text-3xl font-bold">{selVariant?.title || product.name}</h1>
 							<ProductRatingBadge productId={String(product._id)} />
+							<StoreStatsLine favorites={product.favoriteCount} views={product.viewCount} />
 							{selVariant && (
 								<p className="mt-1 text-sm text-muted-foreground">
 									{product.variantGroupName || 'Varian'}: <span className="font-medium text-foreground">{selVariant.label}</span>

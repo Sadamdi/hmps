@@ -1224,7 +1224,7 @@ router.get('/public/bundles', async (req, res) => {
 		const list = await StoreBundle.find({ published: true, isActive: true })
 			.sort({ sortOrder: 1, createdAt: -1 })
 			.limit(50)
-			.select('slug name shortDescription bundlePrice thumbnail items sortOrder addVariantPriceDiff')
+			.select('slug name shortDescription bundlePrice thumbnail items sortOrder addVariantPriceDiff favoriteCount viewCount')
 			.lean();
 		const now = new Date();
 		const items = await Promise.all(list.map(async (b: any) => ({ ...b, ...(await describeBundle(req, b, now)) })));
@@ -1244,6 +1244,78 @@ router.get('/public/bundles/:slug', async (req, res) => {
 	} catch (e) {
 		console.error(e);
 		return res.status(500).json({ message: 'Gagal memuat bundling' });
+	}
+});
+
+// ── Statistik tampil: favorit & dilihat (4.50.0) ──
+const statsRateLimiter = createPublicRateLimiter('store-stats', [{ windowMs: 60_000, maxPerIp: 120, maxPerDevice: 60, label: '1 menit' }]);
+const VIEW_DEDUPE_MS = 30 * 60_000;
+const viewSeen = new Map<string, number>();
+
+function statsTarget(req: Request): { kind: 'product' | 'bundle'; id: string; Model: any } | null {
+	const kind = req.body?.kind === 'bundle' ? 'bundle' : 'product';
+	const id = String(req.body?.id || '');
+	if (!mongoose.isValidObjectId(id)) return null;
+	const m = resolveModels(req);
+	return { kind, id, Model: kind === 'bundle' ? m.StoreBundle : m.StoreProduct };
+}
+
+/** Pemilik favorit/tampilan: akun pembeli bila masuk, selain itu sesi tamu perangkat. */
+async function statsOwnerKey(req: Request, res: Response): Promise<string> {
+	const buyerId = await getBuyerId(req);
+	if (buyerId) return `b:${buyerId}`;
+	const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
+	return `g:${sessionKeyHash}`;
+}
+
+/** Favorit: on=true/false. Hitungan hanya berubah bila status benar-benar berubah (idempoten, 1 pemilik = 1). */
+router.post('/public/favorite', statsRateLimiter, async (req, res) => {
+	try {
+		const t = statsTarget(req);
+		if (!t) return res.status(400).json({ message: 'Target tidak valid' });
+		const exists = await t.Model.exists({ _id: t.id, published: true });
+		if (!exists) return res.status(404).json({ message: 'Produk tidak ditemukan' });
+		const { StoreFavorite } = resolveModels(req);
+		const ownerKey = await statsOwnerKey(req, res);
+		const key = { kind: t.kind, targetId: t.id, ownerKey };
+		let delta = 0;
+		if (req.body?.on === false) {
+			delta = -((await StoreFavorite.deleteOne(key)).deletedCount || 0);
+		} else {
+			const r = await StoreFavorite.updateOne(key, { $setOnInsert: { createdAt: new Date() } }, { upsert: true });
+			delta = r.upsertedCount ? 1 : 0;
+		}
+		if (delta) await t.Model.updateOne({ _id: t.id }, { $inc: { favoriteCount: delta } });
+		const row: any = await t.Model.findById(t.id).select('favoriteCount').lean();
+		res.json({ success: true, favoriteCount: Math.max(0, row?.favoriteCount || 0) });
+	} catch (e) {
+		console.error('[store] favorite', e);
+		res.status(500).json({ message: 'Gagal menyimpan favorit' });
+	}
+});
+
+/** Dilihat: detail / lihat cepat / beli sekarang. Dedupe 1 pengunjung × 1 produk per 30 menit; bot (tanpa user-agent) dilewati. */
+router.post('/public/view', statsRateLimiter, async (req, res) => {
+	try {
+		const t = statsTarget(req);
+		if (!t) return res.status(400).json({ message: 'Target tidak valid' });
+		const ua = String(req.headers['user-agent'] || '');
+		if (ua.length < 8 || /bot|crawl|spider|slurp|preview/i.test(ua)) return res.json({ success: true, counted: false });
+		const ownerKey = await statsOwnerKey(req, res);
+		const k = `${resolveModels(req) === mainDbModels ? 'main' : String((req as any).tenantSlug || 't')}:${t.kind}:${t.id}:${ownerKey}`;
+		const now = Date.now();
+		const last = viewSeen.get(k) || 0;
+		if (now - last < VIEW_DEDUPE_MS) return res.json({ success: true, counted: false });
+		viewSeen.set(k, now);
+		if (viewSeen.size > 20000) {
+			for (const [kk, tt] of Array.from(viewSeen.entries())) if (now - tt > VIEW_DEDUPE_MS) viewSeen.delete(kk);
+			if (viewSeen.size > 20000) viewSeen.clear();
+		}
+		const r = await t.Model.updateOne({ _id: t.id, published: true }, { $inc: { viewCount: 1 } });
+		res.json({ success: true, counted: !!r.modifiedCount });
+	} catch (e) {
+		console.error('[store] view', e);
+		res.status(500).json({ message: 'Gagal mencatat tampilan' });
 	}
 });
 
@@ -1305,7 +1377,7 @@ router.get('/public/products', async (req, res) => {
 			.limit(limit)
 			.populate({ path: 'categoryId', select: 'name slug' })
 			.select(
-				'slug name shortDescription price priceTiers priceTierMultiples stock currency thumbnail variants variantGroupName published createdAt updatedAt categoryId isPreOrder preOrderOpenAt preOrderCloseAt estimatedReadyAt preOrderDiscountPercent preOrderAllowAfterClose isFreeShipping originVillageCodeOverride shippingWeightGrams disableGlobalDiscount discountOverride preOrderTimeline dpMode dpPercent dpAmount dpSettleBy paymentChannelMode paymentChannelIds',
+				'slug name shortDescription price priceTiers priceTierMultiples stock currency thumbnail variants variantGroupName favoriteCount viewCount published createdAt updatedAt categoryId isPreOrder preOrderOpenAt preOrderCloseAt estimatedReadyAt preOrderDiscountPercent preOrderAllowAfterClose isFreeShipping originVillageCodeOverride shippingWeightGrams disableGlobalDiscount discountOverride preOrderTimeline dpMode dpPercent dpAmount dpSettleBy paymentChannelMode paymentChannelIds',
 			)
 			.lean();
 		res.json({ items: list, total, page, limit });

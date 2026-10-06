@@ -9,9 +9,10 @@ interface StoreFavoriteButtonProps {
 	className?: string;
 	/** Tampilkan teks di samping ikon (halaman detail) */
 	withLabel?: boolean;
+	kind?: 'product' | 'bundle';
 }
 
-export function StoreFavoriteButton({ productId, className, withLabel }: StoreFavoriteButtonProps) {
+export function StoreFavoriteButton({ productId, className, withLabel, kind = 'product' }: StoreFavoriteButtonProps) {
 	const { isFavorite, toggleFavorite } = useStoreFavorites();
 	const { toast } = useToast();
 	const on = isFavorite(productId);
@@ -26,7 +27,7 @@ export function StoreFavoriteButton({ productId, className, withLabel }: StoreFa
 			onClick={(e) => {
 				e.preventDefault();
 				e.stopPropagation();
-				const nowOn = toggleFavorite(productId);
+				const nowOn = toggleFavorite(productId, kind);
 				toast({ title: nowOn ? 'Ditambahkan ke favorit' : 'Dihapus dari favorit' });
 			}}>
 			<Heart className={cn('h-4 w-4', on && 'fill-rose-500 text-rose-500')} />
