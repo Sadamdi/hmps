@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.50.0`  
+**Current version:** `4.51.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.50.0`](./release/4.50.0.md) | 2026-10-06 | Statistik produk: jumlah favorit & dilihat, seed awal | MINOR | 1 | **Current** |
+| [`4.51.0`](./release/4.51.0.md) | 2026-10-06 | Produk draft/dihapus: soft delete, status tidak tersedia di keranjang, favorit, dan detail | MINOR | 1 | **Current** |
+| [`4.50.0`](./release/4.50.0.md) | 2026-10-06 | Statistik produk: jumlah favorit & dilihat, seed awal | MINOR | 1 | Released |
 | [`4.49.0`](./release/4.49.0.md) | 2026-10-06 | Kartu produk: Beli sekarang + popup Lihat cepat dengan pilihan varian | MINOR | 1 | Released |
 | [`4.48.0`](./release/4.48.0.md) | 2026-10-06 | Tautan pengurus↔pembeli dengan OTP + ikatan ID, ulasan tanpa login | MINOR | 1 | Released |
 | [`4.47.1`](./release/4.47.1.md) | 2026-10-05 | Hardening upload ulasan: cek login dan batas ukuran sebelum body dibaca | PATCH | 1 | Released |

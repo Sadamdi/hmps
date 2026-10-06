@@ -9,6 +9,15 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.51.0] - 2026-10-06
+
+### Changed
+
+- Hapus produk/bundling kini soft delete (`deletedAt`): hilang dari katalog dan keranjang baru, tetapi riwayat pesanan, keranjang lama, dan ulasan tetap utuh. Slug dibebaskan; bisa dipulihkan sebagai draft (`POST /admin/products/:id/restore`, `/admin/bundles/:id/restore`, panel "Produk & bundling yang dihapus" di Dashboard Toko).
+- Keranjang tidak lagi menyembunyikan baris diam-diam: baris ditandai "Sedang disembunyikan penjual" (draft), "Produk sudah tidak dijual" (dihapus), "Varian ini tidak tersedia lagi", atau "Pre-order sudah ditutup"; dicoret, tidak bisa dicentang, tidak dihitung, bisa dihapus.
+- Favorit yang tidak dijual tetap tampil sebagai kartu "tidak tersedia" dengan tombol Hapus.
+- Halaman detail produk draft/dihapus menampilkan "Produk ini tidak tersedia" dengan tautan ke katalog dan riwayat.
+
 ## [4.50.0] - 2026-10-06
 
 ### Added

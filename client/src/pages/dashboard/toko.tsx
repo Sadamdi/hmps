@@ -4,6 +4,7 @@ import { CollapsibleCard } from '@/components/ui/collapsible-card';
 import { StorePreorderPanel } from '@/components/dashboard/store-preorder-panel';
 import { StoreCustomersPanel } from '@/components/dashboard/store-customers-panel';
 import { StoreReviewsPanel } from '@/components/dashboard/store-reviews-panel';
+import { StoreDeletedPanel } from '@/components/dashboard/store-deleted-panel';
 import { Star as ReviewStarIcon } from 'lucide-react';
 import { StoreVariantsEditor } from '@/components/dashboard/store-variants-editor';
 import {
@@ -1391,7 +1392,7 @@ export default function DashboardToko() {
 																			size="sm"
 																			className="text-destructive"
 																			onClick={() => {
-																				if (confirm('Hapus produk ini?'))
+																				if (confirm('Hapus produk ini? Produk hilang dari toko tapi bisa dipulihkan, dan riwayat pesanan tetap utuh.'))
 																					deleteProductMutation.mutate(p._id);
 																			}}>
 																			<Trash2 className="h-4 w-4" />
@@ -1470,7 +1471,7 @@ export default function DashboardToko() {
 																	size="sm"
 																	className="text-destructive"
 																	onClick={() => {
-																		if (confirm('Hapus produk ini?'))
+																		if (confirm('Hapus produk ini? Produk hilang dari toko tapi bisa dipulihkan, dan riwayat pesanan tetap utuh.'))
 																			deleteProductMutation.mutate(p._id);
 																	}}>
 																	<Trash2 className="h-4 w-4" />
@@ -1512,6 +1513,7 @@ export default function DashboardToko() {
 								)}
 							</CardContent>
 						</Card>
+						{canManage && <StoreDeletedPanel />}
 					</TabsContent>
 
 					<TabsContent value="settings" className="mt-6 space-y-6">

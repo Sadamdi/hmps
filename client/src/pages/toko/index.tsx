@@ -25,7 +25,7 @@ import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency
 
 type StoreCategory = { _id: string; name: string; slug: string };
 
-type PublicProductsPage = { items: any[]; total: number; page: number; limit: number };
+type PublicProductsPage = { items: any[]; total: number; page: number; limit: number; unavailable?: { _id: string; name: string; thumbnail: string; reason: 'hidden' | 'removed' }[] };
 
 export default function TokoIndexPage() {
 	const { toast } = useToast();
@@ -97,7 +97,7 @@ export default function TokoIndexPage() {
 	const [filtersOpen, setFiltersOpen] = useState(false);
 	const [page, setPage] = useState(1);
 	const [favOnly, setFavOnly] = useState(false);
-	const { favoriteIds } = useStoreFavorites();
+	const { favoriteIds, toggleFavorite } = useStoreFavorites();
 
 	useEffect(() => {
 		setPage(1);
@@ -342,6 +342,22 @@ export default function TokoIndexPage() {
 														? 'Belum ada produk favorit. Tekan ikon ❤ pada produk untuk menyimpannya.'
 														: 'Produk tidak ditemukan.'}
 												</p>
+											)}
+											{favOnly && (productsPayload?.unavailable?.length ?? 0) > 0 && (
+												<div className="mb-4 space-y-2">
+													{productsPayload!.unavailable!.map((u) => (
+														<div key={u._id} className="flex items-center gap-3 rounded-lg border bg-muted/30 p-3 opacity-80">
+															{u.thumbnail ? <img src={u.thumbnail} alt="" className="h-12 w-12 rounded object-cover grayscale" /> : null}
+															<div className="min-w-0 flex-1">
+																<p className="truncate text-sm font-medium line-through">{u.name}</p>
+																<p className="text-xs text-destructive">{u.reason === 'removed' ? 'Produk sudah tidak dijual' : 'Sedang disembunyikan penjual'}</p>
+															</div>
+															<Button type="button" size="sm" variant="ghost" onClick={() => toggleFavorite(u._id)}>
+																Hapus
+															</Button>
+														</div>
+													))}
+												</div>
 											)}
 											<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
 												{products.map((p: any) => {

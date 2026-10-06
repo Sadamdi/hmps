@@ -1351,6 +1351,7 @@ router.get('/public/products', async (req, res) => {
 		}
 
 		// Favorit (disimpan di browser): ?ids=a,b,c
+		let favIds: string[] = [];
 		const idsParam = String(req.query.ids || '').trim();
 		if (idsParam) {
 			const ids = idsParam
@@ -1359,6 +1360,7 @@ router.get('/public/products', async (req, res) => {
 				.filter((x) => mongoose.Types.ObjectId.isValid(x))
 				.slice(0, 200);
 			filter._id = { $in: ids };
+			favIds = ids;
 		}
 		const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
 		const limit = Math.min(50, Math.max(1, parseInt(String(req.query.limit || '9'), 10) || 9));
@@ -1380,7 +1382,21 @@ router.get('/public/products', async (req, res) => {
 				'slug name shortDescription price priceTiers priceTierMultiples stock currency thumbnail variants variantGroupName favoriteCount viewCount published createdAt updatedAt categoryId isPreOrder preOrderOpenAt preOrderCloseAt estimatedReadyAt preOrderDiscountPercent preOrderAllowAfterClose isFreeShipping originVillageCodeOverride shippingWeightGrams disableGlobalDiscount discountOverride preOrderTimeline dpMode dpPercent dpAmount dpSettleBy paymentChannelMode paymentChannelIds',
 			)
 			.lean();
-		res.json({ items: list, total, page, limit });
+		// Favorit yang tidak lagi dijual: tetap ditampilkan sebagai "tidak tersedia" (hapus manual oleh pemilik)
+		let unavailable: { _id: string; name: string; thumbnail: string; reason: 'hidden' | 'removed' }[] = [];
+		if (favIds.length && page === 1) {
+			const live = new Set((list as any[]).map((x) => String(x._id)));
+			const missing = favIds.map(String).filter((id) => !live.has(id));
+			if (missing.length) {
+				const rows: any[] = await StoreProduct.find({ _id: { $in: missing } }).select('name thumbnail published deletedAt').lean();
+				const found = new Map(rows.map((r) => [String(r._id), r]));
+				unavailable = missing.map((id) => {
+					const r = found.get(id);
+					return { _id: id, name: r?.name || 'Produk', thumbnail: r?.thumbnail || '', reason: r && !r.deletedAt ? 'hidden' : 'removed' };
+				});
+			}
+		}
+		res.json({ items: list, total, page, limit, ...(unavailable.length ? { unavailable } : {}) });
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal memuat produk' });
@@ -1824,7 +1840,7 @@ router.delete('/admin/campaigns/:id', authenticate, requireTokoManage, async (re
 router.get('/admin/bundles', authenticate, requireStoreDashboard, async (req, res) => {
 	try {
 		const { StoreBundle } = resolveModels(req);
-		const list = await StoreBundle.find({})
+		const list = await StoreBundle.find(String(req.query.deleted || '') === '1' ? { deletedAt: { $ne: null } } : { deletedAt: null })
 			.sort({ sortOrder: 1, createdAt: -1 })
 			.populate('items.productId', 'name slug published stock')
 			.lean();
@@ -1969,12 +1985,46 @@ router.patch('/admin/bundles/:id', authenticate, requireTokoManage, async (req, 
 		return res.status(500).json({ message: 'Gagal memperbarui bundling' });
 	}
 });
+/** Pulihkan produk/bundling yang dihapus (tetap draft; slug lama dikembalikan bila masih bebas). */
+async function restoreSoftDeleted(Model: any, id: string): Promise<'ok' | 'notfound'> {
+	const doc: any = await Model.findById(id).lean();
+	if (!doc || !doc.deletedAt) return 'notfound';
+	const want = doc.deletedSlug || String(doc.slug).replace(/~del~.*$/, '');
+	const taken = await Model.exists({ slug: want, _id: { $ne: doc._id } });
+	await Model.updateOne({ _id: id }, { $set: { slug: taken ? `${want}-${Date.now().toString(36).slice(-4)}` : want, published: false }, $unset: { deletedAt: 1, deletedSlug: 1 } });
+	return 'ok';
+}
+router.post('/admin/products/:id/restore', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreProduct } = resolveModels(req);
+		if (!mongoose.isValidObjectId(req.params.id) || (await restoreSoftDeleted(StoreProduct, req.params.id)) === 'notfound') return res.status(404).json({ message: 'Produk tidak ditemukan' });
+		res.json({ ok: true, message: 'Produk dipulihkan sebagai draft' });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memulihkan produk' });
+	}
+});
+router.post('/admin/bundles/:id/restore', authenticate, requireTokoManage, async (req, res) => {
+	try {
+		const { StoreBundle } = resolveModels(req);
+		if (!mongoose.isValidObjectId(req.params.id) || (await restoreSoftDeleted(StoreBundle, req.params.id)) === 'notfound') return res.status(404).json({ message: 'Bundling tidak ditemukan' });
+		res.json({ ok: true, message: 'Bundling dipulihkan sebagai draft' });
+	} catch (e) {
+		console.error(e);
+		res.status(500).json({ message: 'Gagal memulihkan bundling' });
+	}
+});
+
 router.delete('/admin/bundles/:id', authenticate, requireTokoManage, async (req, res) => {
 	try {
 		const { StoreBundle } = resolveModels(req);
-		const r = await StoreBundle.findByIdAndDelete(req.params.id);
-		if (!r) return res.status(404).json({ message: 'Tidak ditemukan' });
-		return res.json({ ok: true });
+		const old: any = await StoreBundle.findById(req.params.id).lean();
+		if (!old || old.deletedAt) return res.status(404).json({ message: 'Tidak ditemukan' });
+		await StoreBundle.updateOne(
+			{ _id: req.params.id },
+			{ $set: { deletedAt: new Date(), deletedSlug: old.slug, published: false, slug: `${old.slug}~del~${Date.now().toString(36)}` } },
+		);
+		return res.json({ ok: true, softDeleted: true });
 	} catch (e) {
 		console.error(e);
 		return res.status(500).json({ message: 'Gagal hapus' });
@@ -1988,6 +2038,7 @@ router.get('/admin/products', authenticate, requireStoreDashboard, async (req, r
 		const perms = await getEffectivePermissions(req);
 		const uid = req.user!._id;
 
+		const showDeleted = String(req.query.deleted || '') === '1';
 		let filter: any = {};
 		if (hasPerm(perms, 'toko.manage') || hasPerm(perms, 'toko.view')) {
 			filter = {};
@@ -1999,6 +2050,7 @@ router.get('/admin/products', authenticate, requireStoreDashboard, async (req, r
 			}
 			filter = { _id: { $in: ids } };
 		}
+		filter = { ...filter, deletedAt: showDeleted ? { $ne: null } : null };
 
 		const forReorder =
 			String(req.query.forReorder || '') === '1' && hasPerm(perms, 'toko.manage');
@@ -2328,14 +2380,16 @@ router.patch('/admin/products/:id', authenticate, requireStoreDashboard, async (
 router.delete('/admin/products/:id', authenticate, requireTokoManage, async (req, res) => {
 	try {
 		const { StoreProduct, StoreProductShare } = resolveModels(req);
-		const old = await StoreProduct.findById(req.params.id).lean();
+		// Soft delete: produk hilang dari katalog/keranjang baru, tetapi riwayat pesanan, keranjang lama, dan ulasan
+		// tetap bisa menampilkan snapshot. Foto disimpan (dipakai thumbnail keranjang). Slug dibebaskan untuk produk baru.
+		const old: any = await StoreProduct.findById(req.params.id).lean();
+		if (!old || old.deletedAt) return res.status(404).json({ message: 'Produk tidak ditemukan' });
 		await StoreProductShare.deleteMany({ productId: req.params.id });
-		const r = await StoreProduct.findByIdAndDelete(req.params.id);
-		if (!r) return res.status(404).json({ message: 'Produk tidak ditemukan' });
-		if (old) {
-			await cleanupRemovedStoreMedia(req, getProductMediaUrls(old), []);
-		}
-		res.json({ ok: true });
+		await StoreProduct.updateOne(
+			{ _id: req.params.id },
+			{ $set: { deletedAt: new Date(), deletedSlug: old.slug, published: false, slug: `${old.slug}~del~${Date.now().toString(36)}` } },
+		);
+		res.json({ ok: true, softDeleted: true });
 	} catch (e) {
 		console.error(e);
 		res.status(500).json({ message: 'Gagal menghapus produk' });
@@ -3247,6 +3301,9 @@ router.delete('/admin/orders', authenticate, requireTokoManage, async (req, res)
 
 // ── Cart (guest) ──
 
+/** Alasan baris keranjang tidak bisa dibeli (null = bisa). Teks tampilan ada di klien. */
+type CartUnavailable = 'hidden' | 'removed' | 'variant_gone' | 'closed';
+
 router.get('/cart', async (req, res) => {
 	try {
 		const { GuestStoreSession, StoreProduct, StoreBundle } = resolveModels(req);
@@ -3261,11 +3318,29 @@ router.get('/cart', async (req, res) => {
 			const lineKind = row.lineKind === 'bundle' || row.bundleId ? 'bundle' : 'product';
 			if (lineKind === 'bundle') {
 				const b = await StoreBundle.findById(row.bundleId || null).lean();
-				if (!b || !b.published || !b.isActive) continue;
-				const cur = defCur;
 				const sels = ((row as any).selections || []) as BundleSelection[];
+				const gone = (reason: CartUnavailable) =>
+					items.push({
+						lineKind: 'bundle',
+						lineKey: bundleLineKey(row.bundleId, sels),
+						bundleId: String(row.bundleId || ''),
+						selections: sels,
+						slug: b?.slug || '',
+						name: b?.name || 'Paket bundling',
+						variantLabel: '',
+						thumbnail: b?.thumbnail || '',
+						qty,
+						price: 0,
+						unitPrice: 0,
+						lineSubtotal: 0,
+						currency: defCur,
+						unavailable: reason,
+					});
+				if (!b || (b as any).deletedAt) { gone('removed'); continue; }
+				if (!b.published || !b.isActive) { gone('hidden'); continue; }
+				const cur = defCur;
 				const rc = await resolveBundleComponents(StoreProduct, b, sels);
-				if (!rc.ok) continue;
+				if (!rc.ok) { gone('variant_gone'); continue; }
 				const pr = computeDiscountedBundleSubtotal(String(b._id), (Number(b.bundlePrice) || 0) + rc.extra, qty, campaigns, now);
 				const unitPrice = pr.lineSubtotal / qty;
 				items.push({
@@ -3295,12 +3370,30 @@ router.get('/cart', async (req, res) => {
 				});
 			} else {
 				const p0 = await StoreProduct.findById(row.productId).lean();
-				if (!p0 || !p0.published) continue;
+				const goneP = (reason: CartUnavailable) =>
+					items.push({
+						lineKind: 'product',
+						lineKey: variantLineKey(row.productId, row.variantId),
+						productId: String(row.productId || ''),
+						variantId: String(row.variantId || ''),
+						variantLabel: '',
+						slug: p0?.slug || '',
+						name: p0?.name || 'Produk',
+						thumbnail: p0?.thumbnail || '',
+						qty,
+						price: 0,
+						unitPrice: 0,
+						lineSubtotal: 0,
+						currency: defCur,
+						unavailable: reason,
+					});
+				if (!p0 || (p0 as any).deletedAt) { goneP('removed'); continue; }
+				if (!p0.published) { goneP('hidden'); continue; }
 				const variant = findVariant(p0, row.variantId);
-				// Varian dihapus/nonaktif → baris disembunyikan (pembeli memilih ulang)
-				if (hasVariants(p0) && !variant) continue;
+				// Varian dihapus/nonaktif → baris ditandai (pembeli memilih ulang atau menghapus baris)
+				if (hasVariants(p0) && !variant) { goneP('variant_gone'); continue; }
 				const p = productAsVariant(p0 as any, variant);
-				if (!isPreOrderOrderable(p, now)) continue;
+				if (!isPreOrderOrderable(p, now)) { goneP('closed'); continue; }
 				const cur = effectiveProductCurrency(p, defCur);
 				const pr = computeDiscountedSubtotal(p as any, qty, campaigns, now);
 				const unitPrice = pr.lineSubtotal / qty;
@@ -3331,7 +3424,8 @@ router.get('/cart', async (req, res) => {
 		const subtotal = items.reduce((s, it) => s + (it.lineSubtotal ?? 0), 0);
 		const taxPercent = settings?.taxEnabled ? Number(settings.taxPercent || 0) : 0;
 		const taxAmount = settings?.taxEnabled ? Math.round((subtotal * taxPercent) / 100) : 0;
-		const cartCurrency = items.length ? items[0].currency : defCur;
+		const firstLive = items.find((it) => !it.unavailable);
+		const cartCurrency = firstLive ? firstLive.currency : defCur;
 		res.json({
 			items,
 			subtotal,

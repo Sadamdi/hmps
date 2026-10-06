@@ -27,6 +27,14 @@ import { Link, useLocation } from 'wouter';
 import { useToast } from '@/hooks/use-toast';
 import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency';
 
+/** Teks status baris yang tidak bisa dibeli (draft / dihapus / varian hilang / pre-order tutup). */
+const UNAVAILABLE_TEXT: Record<string, string> = {
+	hidden: 'Sedang disembunyikan penjual',
+	removed: 'Produk sudah tidak dijual',
+	variant_gone: 'Varian ini tidak tersedia lagi — hapus lalu pilih ulang',
+	closed: 'Pre-order sudah ditutup',
+};
+
 function lineKeyOfCartItem(it: { lineKey?: string; lineKind?: string; bundleId?: string; productId?: string }): string {
 	if (it?.lineKey) return String(it.lineKey);
 	if (it?.lineKind === 'bundle' || it?.bundleId) return `b:${it.bundleId}`;
@@ -157,7 +165,7 @@ export default function TokoCartPage() {
 
 	const selectedItems = useMemo(() => {
 		const items = (cart as { items?: any[] } | undefined)?.items || [];
-		return items.filter((it: any) => selectedByKey[lineKeyOfCartItem(it)] !== false);
+		return items.filter((it: any) => !it.unavailable && selectedByKey[lineKeyOfCartItem(it)] !== false);
 	}, [cart, selectedByKey]);
 
 	const selectedSummary = useMemo(() => {
@@ -203,14 +211,15 @@ export default function TokoCartPage() {
 
 	const allSelected =
 		(cart?.items?.length ?? 0) > 0 &&
-		(cart?.items || []).every((it: any) => selectedByKey[lineKeyOfCartItem(it)] !== false);
+		(cart?.items || []).filter((it: any) => !it.unavailable).length > 0 &&
+		(cart?.items || []).filter((it: any) => !it.unavailable).every((it: any) => selectedByKey[lineKeyOfCartItem(it)] !== false);
 
 	const toggleAll = useCallback(
 		(checked: boolean) => {
 			const items = (cart as { items?: any[] } | undefined)?.items || [];
 			const out: Record<string, boolean> = {};
 			for (const it of items) {
-				out[lineKeyOfCartItem(it)] = checked;
+				out[lineKeyOfCartItem(it)] = it.unavailable ? false : checked;
 			}
 			setSelectedByKey(out);
 		},
@@ -369,12 +378,13 @@ export default function TokoCartPage() {
 							const lkey = lineKeyOfCartItem(it);
 							const checked = selectedByKey[lkey] !== false;
 							return (
-								<Card key={lkey}>
+								<Card key={lkey} className={it.unavailable ? 'opacity-70' : undefined}>
 									<CardContent className="p-4 flex flex-col sm:flex-row justify-between gap-4">
 										<div className="flex gap-3 flex-1 min-w-0">
 											<div className="pt-0.5">
 												<Checkbox
-													checked={checked}
+													checked={checked && !it.unavailable}
+													disabled={!!it.unavailable}
 													onCheckedChange={(v) =>
 														setSelectedByKey((prev) => ({
 															...prev,
@@ -394,7 +404,7 @@ export default function TokoCartPage() {
 														Bundel
 													</span>
 												) : null}
-												{it.name}
+												<span className={it.unavailable ? 'line-through text-muted-foreground' : undefined}>{it.name}</span>
 												{it.variantLabel && (
 													<span className="ml-1 text-sm font-normal text-muted-foreground">({it.variantLabel})</span>
 												)}
@@ -409,15 +419,24 @@ export default function TokoCartPage() {
 													))}
 												</ul>
 											)}
-											<div className="text-sm text-muted-foreground mt-1">
-												{formatStoreMoney(unit, cur)} × {it.qty}
-											</div>
-											<div className="font-semibold text-primary mt-1">
-												{formatStoreMoney(line, cur)}
-											</div>
+											{it.unavailable ? (
+												<p className="mt-1 inline-block rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
+													{UNAVAILABLE_TEXT[it.unavailable] || 'Tidak tersedia'}
+												</p>
+											) : (
+												<>
+													<div className="text-sm text-muted-foreground mt-1">
+														{formatStoreMoney(unit, cur)} × {it.qty}
+													</div>
+													<div className="font-semibold text-primary mt-1">
+														{formatStoreMoney(line, cur)}
+													</div>
+												</>
+											)}
 											</div>
 										</div>
 										<div className="flex items-center gap-2 shrink-0">
+											{!it.unavailable && (
 											<div className="flex items-center gap-1 border rounded-md p-1">
 												<Button
 													variant="ghost"
@@ -436,6 +455,7 @@ export default function TokoCartPage() {
 													<Plus className="h-4 w-4" />
 												</Button>
 											</div>
+											)}
 											<Button variant="ghost" size="icon" onClick={() => onRemove(it)}>
 												<Trash2 className="h-4 w-4 text-destructive" />
 											</Button>
