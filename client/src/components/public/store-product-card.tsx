@@ -1,7 +1,8 @@
 import MediaDisplay from '@/components/MediaDisplay';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Zap } from 'lucide-react';
+import { productNeedsChoice } from '@/components/toko/store-quick-view';
 import { Link } from 'wouter';
 import {
 	effectiveProductCurrency,
@@ -23,6 +24,8 @@ export interface StoreProductCardProps {
 	promoLabels?: string[];
 	quickAddDisabled?: boolean;
 	onQuickAdd?: (productId: string, fromEl: HTMLElement) => void;
+	/** Buka popup Lihat cepat (dipakai produk bervarian dan tombol Beli) */
+	onOpenQuickView?: (product: any) => void;
 	aosDelay?: number;
 }
 
@@ -35,8 +38,10 @@ export function StoreProductCard({
 	promoLabels = [],
 	quickAddDisabled = false,
 	onQuickAdd,
+	onOpenQuickView,
 	aosDelay,
 }: StoreProductCardProps) {
+	const needsChoice = productNeedsChoice(product);
 	const stockAvail = getStoreStockAvailable(product.stock);
 	const outOfStock = stockAvail !== null && stockAvail < 1;
 	const categoryName =
@@ -111,17 +116,26 @@ export function StoreProductCard({
 							</p>
 						</div>
 					</div>
-					{onQuickAdd && (
-						<Button
-							type="button"
-							size="icon"
-							variant="secondary"
-							className="shrink-0"
-							disabled={outOfStock || quickAddDisabled}
-							aria-label="Tambah ke keranjang"
-							onClick={(e) => onQuickAdd(String(product._id), e.currentTarget)}>
-							<ShoppingCart className="h-4 w-4" />
-						</Button>
+					{(onQuickAdd || onOpenQuickView) && (
+						<div className="flex shrink-0 items-center gap-1.5">
+							{onOpenQuickView && (
+								<Button type="button" size="icon" variant="default" disabled={outOfStock} aria-label="Beli sekarang" title="Beli sekarang" onClick={() => onOpenQuickView(product)}>
+									<Zap className="h-4 w-4" />
+								</Button>
+							)}
+							{(onQuickAdd || onOpenQuickView) && (
+								<Button
+									type="button"
+									size="icon"
+									variant="secondary"
+									disabled={outOfStock || quickAddDisabled}
+									aria-label="Tambah ke keranjang"
+									title={needsChoice ? 'Pilih varian lalu masukkan keranjang' : 'Tambah ke keranjang'}
+									onClick={(e) => (needsChoice && onOpenQuickView ? onOpenQuickView(product) : onQuickAdd?.(String(product._id), e.currentTarget))}>
+									<ShoppingCart className="h-4 w-4" />
+								</Button>
+							)}
+						</div>
 					)}
 				</div>
 			</CardContent>

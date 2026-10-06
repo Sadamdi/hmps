@@ -403,6 +403,22 @@ export default function TokoProductDetailPage() {
 			}),
 	});
 
+	// Dari popup Lihat cepat → ?beli=1&v=<varian>&qty=<n>: pilih varian & jumlah lalu buka dialog beli sekali
+	const [autoBuyDone, setAutoBuyDone] = useState(false);
+	useEffect(() => {
+		if (autoBuyDone || !product?._id) return;
+		const q = new URLSearchParams(window.location.search);
+		if (q.get('beli') !== '1') return;
+		setAutoBuyDone(true);
+		const v = q.get('v') || '';
+		if (v && variants.some((x) => x.id === v)) setVariantId(v);
+		const n = parseInt(q.get('qty') || '1', 10);
+		if (n >= 1) setQty(Math.min(n, 99));
+		setFormErrors({});
+		setBuyDialogOpen(true);
+		window.history.replaceState(null, '', window.location.pathname);
+	}, [product?._id, variants, autoBuyDone]);
+
 	const openBuyDialog = () => {
 		if (!product?._id) return;
 		setFormErrors({});
@@ -484,7 +500,7 @@ export default function TokoProductDetailPage() {
 		<div className="min-h-screen flex flex-col bg-background">
 			<Navbar activeSection="" scrollToSection={scrollToSection} />
 			<main className="flex-1">
-				<div className="max-w-5xl mx-auto px-4 pt-8 pb-16">
+				<div className="max-w-5xl mx-auto px-4 pt-8 pb-28 sm:pb-16 overflow-x-clip">
 					<StorePublicHeaderRow
 						items={[
 							{ label: 'Beranda', href: '/' },

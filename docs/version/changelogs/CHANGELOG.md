@@ -9,6 +9,18 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.49.0] - 2026-10-06
+
+### Added
+
+- Popup "Lihat cepat": galeri thumbnail, harga, stok, deskripsi singkat, rating, pilihan varian, jumlah, tombol Keranjang dan Beli sekarang. Dipakai di beranda dan katalog.
+- Kartu produk punya tombol Beli sekarang (bolt) di samping keranjang. Beli sekarang membuka halaman detail dengan dialog beli langsung terbuka (varian dan jumlah sudah terpilih).
+
+### Fixed
+
+- Tombol keranjang pada produk bervarian dulu gagal diam-diam (VARIANT_REQUIRED); kini membuka popup pilih varian.
+- Halaman detail di HP: ruang bawah agar tombol chat tidak menutupi konten, overflow horizontal dicegah.
+
 ## [4.48.0] - 2026-10-06
 
 ### Added
