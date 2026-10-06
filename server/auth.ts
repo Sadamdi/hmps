@@ -261,6 +261,7 @@ export async function authenticateOptional(
 			/* ignore */
 		}
 		req.user = user as UserWithRole;
+		(req as any)._staffTenantDb = (decoded as any).tenant || (req.isTenantRequest ? req.tenantDbName : undefined);
 		next();
 	} catch {
 		next();

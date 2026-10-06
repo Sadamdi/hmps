@@ -2173,7 +2173,8 @@ const storeReviewSchema = new mongoose.Schema(
 	{
 		productId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
 		orderNo: { type: String, required: true },
-		buyerId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+		/** Kosong bila pesanan tamu; kepemilikan ulasan mengikuti kepemilikan pesanan (orderNo) */
+		buyerId: { type: mongoose.Schema.Types.ObjectId, default: null, index: true },
 		rating: { type: Number, required: true, min: 1, max: 5 },
 		comment: { type: String, default: '', maxlength: 1000 },
 		media: {
@@ -2263,6 +2264,11 @@ const customerSchema = new mongoose.Schema(
 		prevLoginAt: { type: Date, default: null },
 		/** Dibuat dari akun pengurus ("pakai sebagai pembeli"): password ikut disinkronkan saat pengurus mengganti password */
 		staffLinked: { type: Boolean, default: false },
+		/** Ikatan ke SATU pengurus (diverifikasi OTP). Sah hanya bila User itu masih ada dan emailnya sama dengan email akun ini. */
+		linkedStaff: {
+			type: { _id: false, scope: { type: String, default: 'main' }, userId: { type: String, default: '' }, linkedAt: { type: Date, default: Date.now } },
+			default: undefined,
+		},
 	},
 	{ timestamps: true },
 );

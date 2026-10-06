@@ -110,6 +110,13 @@ Cookie pengurus (`authToken`) dan pembeli (`buyerToken`) tetap terpisah dan bole
 - Navbar: pembeli mendapat menu (akun saya, masuk sebagai pengurus, keluar), bukan lagi tautan tunggal; pengurus mendapat item "Akun pembeli".
 - Halaman login pengurus menaut ke "Daftar sebagai pembeli".
 
+### Tautan pengurus↔pembeli (4.48.0)
+
+- Penautan pertama: pengurus login → "Akun pembeli" → OTP 6 digit ke **email pengurus** (`/link-staff/otp` + `/verify`) → akun pembeli dibuat/diambil, `Customer.linkedStaff = {scope, userId}`, hash password pengurus disalin. Selanjutnya `/from-staff` tanpa OTP.
+- Tautan **sah hanya bila** User itu masih ada dan emailnya = email akun pembeli (`resolveLinkedStaff`). Email diganti lewat jalur apa pun → akses pengurus untuk email lama hilang otomatis, tautan dibersihkan, akun pembeli tetap hidup (riwayat utuh) dan menjadi akun biasa (lupa password pembeli aktif lagi).
+- `/switch-to-staff` wajib tautan sah. Sinkron password pengurus→pembeli hanya untuk pengurus tertaut (id + konteks).
+- Satu akun pembeli = satu pengurus; pengurus lain ber-email sama harus menunggu tautan lama putus.
+
 ### Aturan keamanan satu identitas (4.46.1)
 
 - Email yang terdaftar sebagai pengurus (web utama atau komunitas aktif) **tidak bisa** didaftarkan dari sisi pembeli: `/register`, `/google/complete`, `/google` tanpa akun, dan ganti email ke email pengurus → 403 `STAFF_EMAIL`. Akun pembeli pengurus hanya lahir dari `/from-staff`.

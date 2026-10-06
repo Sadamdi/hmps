@@ -6,6 +6,7 @@ import { buyerApi, refreshBuyerQueries, switchToStaff, useBuyer, useStorePaths }
 import { useToast } from '@/hooks/use-toast';
 import { setActiveRole } from '@/lib/active-role';
 import { useAuth } from '@/lib/auth';
+import { LINK_STAFF_EVENT } from '@/components/auth/link-staff-dialog';
 import { apiErrorText } from '@/lib/queryClient';
 
 /**
@@ -105,7 +106,14 @@ export function useSwitchToBuyer() {
 	return async () => {
 		try {
 			if (!buyer) {
-				await buyerApi('POST', '/from-staff');
+				// Sudah tertaut → langsung masuk; belum → verifikasi OTP email pengurus (dialog)
+				const r = await fetch('/api/buyer/from-staff', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+				const j: any = await r.json().catch(() => ({}));
+				if (r.status === 409 && j?.error?.code === 'LINK_REQUIRED') {
+					window.dispatchEvent(new Event(LINK_STAFF_EVENT));
+					return;
+				}
+				if (!r.ok) throw new Error(j?.message || 'Gagal membuka akun pembeli');
 				refreshBuyerQueries();
 			}
 			setActiveRole('buyer');

@@ -9,6 +9,20 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.48.0] - 2026-10-06
+
+### Added
+
+- Tautan akun pembeli ke pengurus: penautan pertama wajib OTP ke email pengurus (`POST /api/buyer/link-staff/otp` + `/verify`), tersimpan sebagai ikatan ke satu pengurus (`Customer.linkedStaff`). Setelahnya `from-staff` tanpa OTP. Dialog verifikasi di navbar.
+- Ulasan tanpa login: pemilik pesanan selesai (akun, cookie perangkat, atau link `?inv=`) bisa menulis/edit/hapus ulasan.
+
+### Security
+
+- Tautan sah hanya bila User tertaut masih ada dan emailnya sama dengan email akun pembeli, jadi ganti email lewat jalur apa pun (profil, owner, seed, DB) memutus akses pengurus email lama; akun pembeli tetap ada. `switch-to-staff` kini wajib tautan sah.
+- Sinkron password pengurus→pembeli hanya untuk pengurus tertaut (id + konteks), bukan berdasar email.
+- Kunci login pembeli per pasangan akun+IP (10/15 menit) plus kunci total akun di 60 kegagalan lintas IP (tidak bisa dipakai mengunci korban dari satu IP).
+- `BUYER_FROM_STAFF_ENABLED` dihapus; tombol "Akun pembeli" aktif kembali.
+
 ## [4.47.1] - 2026-10-05
 
 ### Security

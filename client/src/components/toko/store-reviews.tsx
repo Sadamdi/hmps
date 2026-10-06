@@ -196,8 +196,10 @@ export function ReviewFormDialog({
 	productId,
 	productName,
 	existing,
+	inv,
 	onSaved,
 }: {
+	inv?: string;
 	open: boolean;
 	onOpenChange: (v: boolean) => void;
 	apiBase: string;
@@ -258,7 +260,8 @@ export function ReviewFormDialog({
 			if (existing) fd.append('keepMedia', JSON.stringify(kept.map((m) => m.url)));
 			else fd.append('productId', productId);
 			files.forEach((f) => fd.append('media', f.file, f.file.name));
-			const r = await fetch(existing ? `${apiBase}/reviews/${existing.id}` : `${apiBase}/orders/${encodeURIComponent(orderNo)}/reviews`, {
+			const qs = inv ? `?inv=${encodeURIComponent(inv)}` : '';
+			const r = await fetch(existing ? `${apiBase}/reviews/${existing.id}${qs}` : `${apiBase}/orders/${encodeURIComponent(orderNo)}/reviews${qs}`, {
 				method: existing ? 'PATCH' : 'POST',
 				credentials: 'include',
 				body: fd,
@@ -607,8 +610,9 @@ interface OrderLine {
 }
 
 /** Dari dashboard pembeli: daftar produk di pesanan selesai + tulis/edit/hapus ulasan per produk. */
-export function OrderReviewDialog({ orderNo, storeBasePath, open, onOpenChange }: { orderNo: string; storeBasePath: string; open: boolean; onOpenChange: (v: boolean) => void }) {
+export function OrderReviewDialog({ orderNo, storeBasePath, open, onOpenChange, inv }: { orderNo: string; storeBasePath: string; open: boolean; onOpenChange: (v: boolean) => void; inv?: string }) {
 	const apiBase = storeBasePath ? `/api/c/${storeBasePath.replace(/^\//, '')}/store` : '/api/store';
+	const invQs = inv ? `?inv=${encodeURIComponent(inv)}` : '';
 	const { toast } = useToast();
 	const qc = useQueryClient();
 	const [form, setForm] = useState<{ line: OrderLine } | null>(null);
@@ -616,7 +620,7 @@ export function OrderReviewDialog({ orderNo, storeBasePath, open, onOpenChange }
 	const q = useQuery<{ lines: OrderLine[]; completed: boolean }>({
 		queryKey: key,
 		queryFn: async () => {
-			const r = await fetch(`${apiBase}/orders/${encodeURIComponent(orderNo)}/reviews`, { credentials: 'include' });
+			const r = await fetch(`${apiBase}/orders/${encodeURIComponent(orderNo)}/reviews${invQs}`, { credentials: 'include' });
 			if (!r.ok) throw new Error('order-reviews');
 			return (await r.json()).data;
 		},
@@ -630,7 +634,7 @@ export function OrderReviewDialog({ orderNo, storeBasePath, open, onOpenChange }
 	const remove = async (id: string) => {
 		if (!window.confirm('Hapus ulasan ini?')) return;
 		try {
-			const r = await fetch(`${apiBase}/reviews/${id}`, { method: 'DELETE', credentials: 'include' });
+			const r = await fetch(`${apiBase}/reviews/${id}${invQs}`, { method: 'DELETE', credentials: 'include' });
 			if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.message || 'Gagal menghapus');
 			toast({ title: 'Ulasan dihapus' });
 			refresh();
@@ -683,6 +687,7 @@ export function OrderReviewDialog({ orderNo, storeBasePath, open, onOpenChange }
 					productId={form.line.productId}
 					productName={form.line.name}
 					existing={form.line.review}
+					inv={inv}
 					onSaved={refresh}
 				/>
 			)}

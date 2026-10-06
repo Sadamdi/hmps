@@ -4676,8 +4676,9 @@ async function safeReviewMedia(list: { url: string; type: string }[]): Promise<{
 	}
 }
 
-async function shapeReview(r: any, viewerId: string | null) {
-	const mine = !!viewerId && String(r.buyerId) === viewerId;
+/** mine = pemilik pesanan (akun pembeli, cookie perangkat, atau token invoice) — bukan sekadar sedang login. */
+async function shapeReview(r: any, ownedOrderNos: Set<string>) {
+	const mine = ownedOrderNos.has(String(r.orderNo));
 	return {
 		id: String(r._id),
 		productId: String(r.productId),
@@ -4693,6 +4694,24 @@ async function shapeReview(r: any, viewerId: string | null) {
 		mine,
 		hidden: mine ? r.status === 'hidden' : undefined,
 	};
+}
+
+/** Nomor pesanan SELESAI milik pengunjung ini (akun pembeli ATAU cookie perangkat) untuk produk tertentu. */
+async function ownedCompletedOrders(req: Request, res: Response, productId?: any): Promise<any[]> {
+	const { StoreOrder } = resolveModels(req);
+	const buyerId = await getBuyerId(req);
+	const { sessionKeyHash } = await getOrCreateGuestSession(req, res);
+	const or: any[] = [{ guestSessionKeyHash: sessionKeyHash }];
+	if (buyerId) or.push({ buyerId });
+	const filter: any = { status: 'completed', $or: or };
+	if (productId) filter['items.productId'] = productId;
+	return StoreOrder.find(filter).select('orderNo items').limit(100).lean();
+}
+
+/** Nama untuk label ulasan: nama akun bila ada, selain itu nama pemesan di pesanan. */
+async function reviewerName(req: Request, order: any): Promise<string> {
+	const buyer = await getBuyer(req);
+	return String((buyer && order.buyerId && String(order.buyerId) === String(buyer._id) ? buyer.name : '') || order.customerName || '');
 }
 
 async function deleteReviewFiles(urls: string[]) {
@@ -4732,7 +4751,7 @@ router.get('/public/products/:id/reviews', async (req, res) => {
 	try {
 		const id = String(req.params.id || '');
 		if (!mongoose.isValidObjectId(id)) return res.status(400).json({ message: 'Produk tidak valid' });
-		const { StoreReview, StoreOrder } = resolveModels(req);
+		const { StoreReview } = resolveModels(req);
 		const pid = new mongoose.Types.ObjectId(id);
 		const page = Math.max(1, parseInt(String(req.query.page || '1'), 10) || 1);
 		const limit = Math.min(REVIEW_PAGE_MAX, Math.max(1, parseInt(String(req.query.limit || '5'), 10) || 5));
@@ -4744,7 +4763,8 @@ router.get('/public/products/:id/reviews', async (req, res) => {
 		const sortSpec: any = sort === 'high' ? { rating: -1, createdAt: -1 } : sort === 'low' ? { rating: 1, createdAt: -1 } : { createdAt: -1 };
 
 		const buyer = await getBuyer(req);
-		const viewerId = buyer ? String(buyer._id) : null;
+		const owned = await ownedCompletedOrders(req, res, pid);
+		const ownedNos = new Set<string>(owned.map((o) => o.orderNo));
 		const [rows, total, distRows] = await Promise.all([
 			StoreReview.find(filter).sort(sortSpec).skip((page - 1) * limit).limit(limit).lean(),
 			StoreReview.countDocuments(filter),
@@ -4759,29 +4779,22 @@ router.get('/public/products/:id/reviews', async (req, res) => {
 			sum += d._id * d.n;
 		}
 
-		let viewer: any = { loggedIn: !!buyer, canReview: false, eligibleOrderNo: null, mine: null };
-		if (buyer) {
-			const mineDoc: any = await StoreReview.findOne({ productId: pid, buyerId: buyer._id }).sort({ createdAt: -1 }).lean();
-			const orders: any[] = await StoreOrder.find({ buyerId: buyer._id, status: 'completed', 'items.productId': pid }).select('orderNo').limit(50).lean();
-			let eligibleOrderNo: string | null = null;
-			if (orders.length) {
-				const done: any[] = await StoreReview.find({ productId: pid, buyerId: buyer._id, orderNo: { $in: orders.map((o) => o.orderNo) } }).select('orderNo').lean();
-				const doneSet = new Set(done.map((d) => d.orderNo));
-				eligibleOrderNo = orders.find((o) => !doneSet.has(o.orderNo))?.orderNo || null;
-			}
-			viewer = {
-				loggedIn: true,
-				canReview: !!eligibleOrderNo,
-				eligibleOrderNo,
-				mine: mineDoc ? await shapeReview(mineDoc, viewerId) : null,
-			};
-		}
+		// Ulasan milik pengunjung ini (termasuk yang disembunyikan admin) + pesanan selesai yang belum diulas
+		const mineDocs: any[] = ownedNos.size ? await StoreReview.find({ productId: pid, orderNo: { $in: Array.from(ownedNos) } }).sort({ createdAt: -1 }).lean() : [];
+		const reviewed = new Set(mineDocs.map((d) => d.orderNo));
+		const eligibleOrderNo = Array.from(ownedNos).find((n) => !reviewed.has(n)) || null;
+		const viewer = {
+			loggedIn: !!buyer,
+			canReview: !!eligibleOrderNo,
+			eligibleOrderNo,
+			mine: mineDocs[0] ? await shapeReview(mineDocs[0], ownedNos) : null,
+		};
 		res.set('Cache-Control', 'private, no-cache');
 		res.json({
 			success: true,
 			data: {
 				summary: { average: count ? Math.round((sum / count) * 10) / 10 : 0, count, distribution: dist },
-				items: await Promise.all(rows.map((r: any) => shapeReview(r, viewerId))),
+				items: await Promise.all(rows.map((r: any) => shapeReview(r, ownedNos))),
 				page,
 				total,
 				hasMore: page * limit < total,
@@ -4794,17 +4807,16 @@ router.get('/public/products/:id/reviews', async (req, res) => {
 	}
 });
 
-/** Ulasan milik pembeli untuk satu pesanan (untuk dialog "Beri ulasan" di dashboard pembeli). */
+/** Ulasan untuk satu pesanan milik pengunjung (akun, cookie perangkat, atau ?inv=). */
 router.get('/orders/:orderNo/reviews', async (req, res) => {
 	try {
-		const buyer = await getBuyer(req);
-		if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli' });
-		const { StoreOrder, StoreReview } = resolveModels(req);
+		const { StoreReview } = resolveModels(req);
 		const orderNo = String(req.params.orderNo || '').trim();
-		const order: any = await StoreOrder.findOne({ orderNo, buyerId: buyer._id }).select('orderNo status items').lean();
+		const order: any = await findOwnedOrder(req, res, orderNo);
 		if (!order) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
-		const reviews: any[] = await StoreReview.find({ orderNo, buyerId: buyer._id }).lean();
+		const reviews: any[] = await StoreReview.find({ orderNo }).lean();
 		const byProduct = new Map(reviews.map((r) => [String(r.productId), r]));
+		const owned = new Set<string>([orderNo]);
 		const lines = [];
 		for (const it of order.items || []) {
 			if (!it.productId || it.lineKind === 'bundle') continue;
@@ -4814,7 +4826,7 @@ router.get('/orders/:orderNo/reviews', async (req, res) => {
 				name: it.name,
 				slug: it.slug,
 				variantLabel: it.variantLabel || '',
-				review: r ? await shapeReview(r, String(buyer._id)) : null,
+				review: r ? await shapeReview(r, owned) : null,
 			});
 		}
 		res.json({ success: true, data: { orderNo, completed: order.status === 'completed', lines } });
@@ -4827,7 +4839,7 @@ router.get('/orders/:orderNo/reviews', async (req, res) => {
 /**
  * Penjaga upload ulasan — berjalan SEBELUM multer membaca body ke memori:
  *  - tolak Content-Length melebihi total batas (4 foto + 1 video + overhead),
- *  - wajib login pembeli dan pesanan/ulasan milik sendiri (404/401 lebih dulu, tanpa membaca file),
+ *  - wajib pemilik pesanan (akun / cookie perangkat / ?inv=) — 404 lebih dulu tanpa membaca file,
  *  - batasi jumlah upload ulasan yang diproses bersamaan di proses ini (hindari kehabisan RAM).
  */
 const REVIEW_UPLOAD_MAX_BYTES = REVIEW_MEDIA_LIMITS.maxImages * REVIEW_MEDIA_LIMITS.maxImageBytes + REVIEW_MEDIA_LIMITS.maxVideoBytes + 2 * 1024 * 1024;
@@ -4838,16 +4850,15 @@ async function reviewUploadGuard(req: Request, res: Response, next: NextFunction
 	try {
 		const len = parseInt(String(req.headers['content-length'] || '0'), 10);
 		if (len > REVIEW_UPLOAD_MAX_BYTES) return res.status(413).json({ message: 'Total ukuran file terlalu besar (maks 4 foto 8 MB + 1 video 30 MB)' });
-		const buyer = await getBuyer(req);
-		if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli' });
-		const { StoreOrder, StoreReview } = resolveModels(req);
-		if (req.params.orderNo) {
-			const o = await StoreOrder.exists({ orderNo: String(req.params.orderNo).trim(), buyerId: buyer._id });
-			if (!o) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
-		} else if (req.params.id) {
-			const ok = mongoose.isValidObjectId(String(req.params.id)) && (await StoreReview.exists({ _id: req.params.id, buyerId: buyer._id }));
-			if (!ok) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		const { StoreReview } = resolveModels(req);
+		let orderNo = String(req.params.orderNo || '').trim();
+		if (!orderNo && req.params.id) {
+			const rv: any = mongoose.isValidObjectId(String(req.params.id)) ? await StoreReview.findById(req.params.id).select('orderNo').lean() : null;
+			if (!rv) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+			orderNo = rv.orderNo;
 		}
+		const owned = orderNo ? await findOwnedOrder(req, res, orderNo) : null;
+		if (!owned) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
 		if (reviewUploadsInFlight >= REVIEW_UPLOAD_MAX_CONCURRENT) {
 			res.set('Retry-After', '10');
 			return res.status(429).json({ message: 'Server sedang memproses banyak upload. Coba lagi beberapa detik lagi.' });
@@ -4869,17 +4880,15 @@ async function reviewUploadGuard(req: Request, res: Response, next: NextFunction
 	}
 }
 
-/** Tulis ulasan (multipart: productId, rating, comment, anonymous, media[]). */
+/** Tulis ulasan (multipart: productId, rating, comment, anonymous, media[]). Pemilik pesanan selesai, login tidak wajib. */
 router.post('/orders/:orderNo/reviews', reviewWriteRateLimiter, reviewUploadGuard, (req, res) => {
 	reviewMediaMiddleware.array('media', REVIEW_MEDIA_LIMITS.maxImages + REVIEW_MEDIA_LIMITS.maxVideos)(req, res, async (err: any) => {
 		const savedUrls: string[] = [];
 		try {
 			if (err) return res.status(400).json({ message: reviewUploadError(err) });
-			const buyer = await getBuyer(req);
-			if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli untuk menulis ulasan' });
-			const { StoreOrder, StoreReview } = resolveModels(req);
+			const { StoreReview } = resolveModels(req);
 			const orderNo = String(req.params.orderNo || '').trim();
-			const order: any = await StoreOrder.findOne({ orderNo, buyerId: buyer._id }).select('orderNo status items').lean();
+			const order: any = await findOwnedOrder(req, res, orderNo);
 			if (!order) return res.status(404).json({ message: 'Pesanan tidak ditemukan' });
 			if (order.status !== 'completed') return res.status(409).json({ message: 'Ulasan bisa ditulis setelah pesanan selesai' });
 
@@ -4913,16 +4922,16 @@ router.post('/orders/:orderNo/reviews', reviewWriteRateLimiter, reviewUploadGuar
 				const doc: any = await StoreReview.create({
 					productId: line.productId,
 					orderNo,
-					buyerId: buyer._id,
+					buyerId: order.buyerId || null,
 					rating,
 					comment: cleanReviewComment(body.comment),
 					media,
 					anonymous,
-					authorLabel: reviewAuthorLabel(buyer.name, anonymous),
+					authorLabel: reviewAuthorLabel(await reviewerName(req, order), anonymous),
 					productName: line.name,
 					variantLabel: line.variantLabel || '',
 				});
-				return res.status(201).json({ success: true, data: await shapeReview(doc.toObject(), String(buyer._id)) });
+				return res.status(201).json({ success: true, data: await shapeReview(doc.toObject(), new Set([orderNo])) });
 			} catch (e: any) {
 				await deleteReviewFiles(savedUrls);
 				if (e?.code === 11000) return res.status(409).json({ message: 'Kamu sudah mengulas produk ini dari pesanan ini.' });
@@ -4936,19 +4945,19 @@ router.post('/orders/:orderNo/reviews', reviewWriteRateLimiter, reviewUploadGuar
 	});
 });
 
-/** Edit ulasan sendiri (multipart; keepMedia = JSON array URL yang dipertahankan, media[] = tambahan). */
+/** Edit ulasan (multipart; keepMedia = JSON array URL yang dipertahankan, media[] = tambahan). Bukti: pemilik pesanan. */
 router.patch('/reviews/:id', reviewWriteRateLimiter, reviewUploadGuard, (req, res) => {
 	reviewMediaMiddleware.array('media', REVIEW_MEDIA_LIMITS.maxImages + REVIEW_MEDIA_LIMITS.maxVideos)(req, res, async (err: any) => {
 		const savedUrls: string[] = [];
 		try {
 			if (err) return res.status(400).json({ message: reviewUploadError(err) });
-			const buyer = await getBuyer(req);
-			if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli' });
 			const id = String(req.params.id || '');
 			if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
 			const { StoreReview } = resolveModels(req);
-			const review: any = await StoreReview.findOne({ _id: id, buyerId: buyer._id });
+			const review: any = await StoreReview.findById(id);
 			if (!review) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+			const order: any = await findOwnedOrder(req, res, review.orderNo);
+			if (!order) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
 
 			const body: any = req.body || {};
 			const set: any = { editedAt: new Date() };
@@ -4960,7 +4969,7 @@ router.patch('/reviews/:id', reviewWriteRateLimiter, reviewUploadGuard, (req, re
 			if (body.comment !== undefined) set.comment = cleanReviewComment(body.comment);
 			if (body.anonymous !== undefined) {
 				set.anonymous = truthy(body.anonymous);
-				set.authorLabel = reviewAuthorLabel(buyer.name, set.anonymous);
+				set.authorLabel = reviewAuthorLabel(await reviewerName(req, order), set.anonymous);
 			}
 
 			let keep: { url: string; type: 'image' | 'video' }[] = review.media.map((m: any) => ({ url: m.url, type: m.type }));
@@ -4991,9 +5000,9 @@ router.patch('/reviews/:id', reviewWriteRateLimiter, reviewUploadGuard, (req, re
 				}
 			}
 			set.media = keep;
-			const updated: any = await StoreReview.findOneAndUpdate({ _id: id, buyerId: buyer._id }, { $set: set }, { new: true }).lean();
+			const updated: any = await StoreReview.findOneAndUpdate({ _id: id }, { $set: set }, { new: true }).lean();
 			await deleteReviewFiles(removed);
-			res.json({ success: true, data: await shapeReview(updated, String(buyer._id)) });
+			res.json({ success: true, data: await shapeReview(updated, new Set([review.orderNo])) });
 		} catch (e) {
 			await deleteReviewFiles(savedUrls);
 			console.error('[store] review edit', e);
@@ -5004,12 +5013,12 @@ router.patch('/reviews/:id', reviewWriteRateLimiter, reviewUploadGuard, (req, re
 
 router.delete('/reviews/:id', reviewWriteRateLimiter, async (req, res) => {
 	try {
-		const buyer = await getBuyer(req);
-		if (!buyer) return res.status(401).json({ message: 'Silakan masuk ke akun pembeli' });
 		const id = String(req.params.id || '');
 		if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
 		const { StoreReview, StoreReviewReport } = resolveModels(req);
-		const review: any = await StoreReview.findOneAndDelete({ _id: id, buyerId: buyer._id }).lean();
+		const existing: any = await StoreReview.findById(id).select('orderNo').lean();
+		if (!existing || !(await findOwnedOrder(req, res, existing.orderNo))) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
+		const review: any = await StoreReview.findOneAndDelete({ _id: id }).lean();
 		if (!review) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
 		await StoreReviewReport.deleteMany({ reviewId: review._id }).catch(() => {});
 		await deleteReviewFiles((review.media || []).map((m: any) => m.url));
@@ -5026,10 +5035,12 @@ router.post('/reviews/:id/report', reviewReportRateLimiter, async (req, res) => 
 		const id = String(req.params.id || '');
 		if (!mongoose.isValidObjectId(id)) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
 		const { StoreReview, StoreReviewReport } = resolveModels(req);
-		const review: any = await StoreReview.findOne({ _id: id, status: 'visible' }).select('buyerId productName').lean();
+		const review: any = await StoreReview.findOne({ _id: id, status: 'visible' }).select('buyerId orderNo productName').lean();
 		if (!review) return res.status(404).json({ message: 'Ulasan tidak ditemukan' });
 		const buyer = await getBuyer(req);
-		if (buyer && String(buyer._id) === String(review.buyerId)) return res.status(400).json({ message: 'Tidak bisa melaporkan ulasan sendiri' });
+		if (buyer && review.buyerId && String(buyer._id) === String(review.buyerId)) return res.status(400).json({ message: 'Tidak bisa melaporkan ulasan sendiri' });
+		const mineOrders = await ownedCompletedOrders(req, res);
+		if (mineOrders.some((o: any) => o.orderNo === review.orderNo)) return res.status(400).json({ message: 'Tidak bisa melaporkan ulasan sendiri' });
 		const reason = REVIEW_REPORT_REASONS.includes(String(req.body?.reason) as any) ? String(req.body.reason) : 'lainnya';
 		const note = String(req.body?.note || '').replace(/<[^>]*>/g, '').trim().slice(0, 200);
 		const rawKey = buyer ? `b:${buyer._id}` : `ip:${String((req as any).ip || '')}:${String(req.headers['user-agent'] || '').slice(0, 80)}`;

@@ -57,7 +57,27 @@ async function isStaffEmail(email: string): Promise<boolean> {
 	const { staffExistsForEmail } = await import('../services/unified-login');
 	return staffExistsForEmail(email);
 }
-const isStaffBound = async (c: any) => !!c && (!!c.staffLinked || (await isStaffEmail(c.email)));
+/** Akun pembeli yang tertaut SAH ke pengurus (id + email sama). Bekas pengurus (email berganti) tidak lagi dianggap terikat. */
+const isStaffBound = async (c: any) => {
+	if (!c?.linkedStaff?.userId) return false;
+	const { resolveLinkedStaff } = await import('../services/unified-login');
+	return !!(await resolveLinkedStaff(c));
+};
+
+/** Hitung gagal login lintas IP untuk satu akun; kunci setelah 60 kegagalan dalam jendela yang sama. */
+const globalFails = new Map<string, { n: number; at: number }>();
+function recordGlobalBuyerFailure(key: string) {
+	const now = Date.now();
+	const r = globalFails.get(key);
+	const cur = !r || now - r.at > 15 * 60_000 ? { n: 0, at: now } : r;
+	cur.n++;
+	globalFails.set(key, cur);
+	if (cur.n >= 60) {
+		// pakai penghitung kunci akun yang sama agar accountLockRemaining berlaku
+		for (let i = 0; i < 10; i++) recordAccountLoginFailure(key);
+	}
+	if (globalFails.size > 2000) globalFails.clear();
+}
 
 const reqIp = (req: Request) => String((req as any).ip || '').slice(0, 64);
 const PASSWORD_MIN = 8;
@@ -109,7 +129,7 @@ router.post('/register/verify', authLimiter, async (req, res) => {
 		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_register' });
 		const c: any = r.userId ? await Customer.findById(r.userId) : null;
 		if (!c || c.email !== r.email) return fail(res, 400, 'Pendaftaran tidak ditemukan. Daftar ulang.', 'REGISTRATION_NOT_FOUND');
-		if (!c.staffLinked && (await isStaffEmail(c.email))) return fail(res, 409, STAFF_EMAIL_MSG, 'EMAIL_REGISTERED');
+		if (!(await isStaffBound(c)) && (await isStaffEmail(c.email))) return fail(res, 409, STAFF_EMAIL_MSG, 'EMAIL_REGISTERED');
 		if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 		c.emailVerified = true;
 		if (c.status === 'pending') c.status = 'active';
@@ -128,8 +148,10 @@ router.post('/login', authLimiter, async (req, res) => {
 	if (!parsed.success) return fail(res, 400, 'Email dan password wajib diisi', 'VALIDATION_ERROR');
 	const email = normalizeBuyerEmail(parsed.data.email);
 	// Throttle per AKUN (sama seperti login pengurus): tahan tebak password terdistribusi lintas IP
-	const throttleKey = `buyer:${email}`;
-	const lockedFor = accountLockRemaining(throttleKey);
+	const ipKey = getRealClientIp(req);
+	const throttleKey = `buyer:${email}:${ipKey}`; // percobaan dari satu IP ke satu akun: 10x
+	const globalKey = `buyer-all:${email}`; // semua IP ke satu akun: 60x (tebak terdistribusi)
+	const lockedFor = Math.max(accountLockRemaining(throttleKey), accountLockRemaining(globalKey));
 	if (lockedFor > 0) {
 		void logLoginAttempt({ ip: getRealClientIp(req), email, success: false, reason: 'locked', scope: 'buyer' });
 		return res.status(429).json({ success: false, message: 'Terlalu banyak percobaan login untuk akun ini. Coba lagi nanti.', retryAfter: lockedFor, error: { code: 'ACCOUNT_LOGIN_THROTTLED' } });
@@ -138,6 +160,7 @@ router.post('/login', authLimiter, async (req, res) => {
 	const ok = !!c?.passwordHash && (await verifyPassword(parsed.data.password, c.passwordHash));
 	if (!c || !ok) {
 		recordAccountLoginFailure(throttleKey);
+		for (let i = 0; i < 1; i++) recordGlobalBuyerFailure(globalKey);
 		void logLoginAttempt({ ip: getRealClientIp(req), email, success: false, reason: c ? 'invalid_password' : 'not_found', scope: 'buyer' });
 		return fail(res, 401, 'Email atau password salah', 'INVALID_CREDENTIALS');
 	}
@@ -146,8 +169,7 @@ router.post('/login', authLimiter, async (req, res) => {
 	if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 	if (c.status !== 'active' || !c.emailVerified) return fail(res, 403, 'Email belum diverifikasi. Daftar ulang untuk menerima kode verifikasi.', 'EMAIL_UNVERIFIED');
 	// Email yang sama juga terdaftar sebagai pengurus? (hanya diberitahukan setelah password pembeli benar)
-	const { staffExistsForEmail } = await import('../services/unified-login');
-	const alsoStaff = await staffExistsForEmail(email);
+	const alsoStaff = await isStaffBound(c);
 	return completeLogin(req, res, c, { alsoStaff });
 });
 
@@ -248,62 +270,94 @@ router.get('/me', async (req, res) => {
 	const c = await getBuyer(req);
 	if (!c) return res.json({ success: true, data: { customer: null } });
 	// alsoStaff: email ini juga pengurus → navbar menawarkan "Masuk sebagai pengurus" (sesi pengurus tetap harus lolos login)
-	const { staffExistsForEmailCached } = await import('../services/unified-login');
-	const alsoStaff = c.emailVerified ? await staffExistsForEmailCached(c.email) : false;
+	const alsoStaff = c.emailVerified ? await isStaffBound(c) : false;
 	res.json({ success: true, data: { customer: { ...publicCustomer(c), alsoStaff } } });
 });
 
 /**
- * Pengurus yang sedang login → buka akun pembeli dengan email pengurus itu (dibuat bila belum ada).
- * Tidak perlu OTP: identitas sudah dibuktikan oleh sesi pengurus. Password pembeli disalin dari akun pengurus
- * (hash, bukan teks asli) dan ikut berganti saat pengurus mengganti password. Pesanan lama TIDAK diklaim lewat
- * email pada pembuatan ini (email pengurus tidak diverifikasi pembeli), hanya lewat perangkat ini.
+ * Pengurus ↔ pembeli (4.48.0). Penautan PERTAMA wajib OTP ke email pengurus (email buatan admin tidak terverifikasi);
+ * hasilnya ikatan ke SATU pengurus (`Customer.linkedStaff = {scope, userId}`). Setelah tertaut, masuk sebagai pembeli
+ * dari sesi pengurus tanpa OTP lagi — selama User itu masih ada dan emailnya sama (lihat resolveLinkedStaff).
  */
+function staffEmailOf(req: Request): { user: any; email: string } | { error: string } {
+	const user: any = (req as any).user;
+	const email = normalizeBuyerEmail(user?.email);
+	if (!BUYER_EMAIL_RE.test(email)) return { error: 'Akun pengurus ini belum punya email yang valid. Lengkapi email di profil dulu.' };
+	return { user, email };
+}
+
+/** Masuk sebagai pembeli dari sesi pengurus yang sudah tertaut (tanpa OTP). Belum tertaut → 409 LINK_REQUIRED. */
 router.post('/from-staff', authLimiter, authenticate, async (req, res) => {
-	// DINONAKTIFKAN SEMENTARA (4.46.2): email pengurus tidak terverifikasi (admin bisa mengisinya dengan email siapa pun),
-	// jadi jalur ini bisa dipakai mengambil alih akun pembeli orang lain lalu "Masuk sebagai pengurus".
-	// Dihidupkan lagi setelah ada verifikasi OTP saat penautan pertama.
-	if (process.env.BUYER_FROM_STAFF_ENABLED !== '1') {
-		return fail(res, 503, 'Akun pembeli dari akun pengurus sedang dinonaktifkan sementara untuk perbaikan keamanan. Daftar atau masuk lewat halaman masuk toko.', 'TEMP_DISABLED');
-	}
-	const u: any = (req as any).user;
-	const email = normalizeBuyerEmail(u?.email);
-	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Akun pengurus ini belum punya email yang valid. Lengkapi email di profil dulu.', 'STAFF_EMAIL_MISSING');
+	const info = staffEmailOf(req);
+	if ('error' in info) return fail(res, 400, info.error, 'STAFF_EMAIL_MISSING');
 	try {
-		let c: any = await Customer.findOne({ email });
-		if (c?.status === 'blocked') return fail(res, 403, 'Akun pembeli dengan email ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
-		let fresh = false;
-		if (!c) {
-			c = await Customer.create({
-				email,
-				name: cleanName(u.name || u.username),
-				phone: cleanPhone(u.phone),
-				passwordHash: typeof u.password === 'string' ? u.password : '',
-				emailVerified: true,
-				status: 'active',
-				staffLinked: true,
-			});
-			fresh = true;
-		} else if (c.status !== 'active') {
-			// Catatan keamanan: password lama pada akun yang belum aktif dibuang (bisa dipasang pihak lain sebelum
-			// pengurus membukanya), diganti hash pengurus; semua sesi lama dicabut.
-			c.status = 'active';
-			c.emailVerified = true;
-			c.staffLinked = true;
-			c.googleSub = undefined;
-			c.passwordHash = typeof u.password === 'string' ? u.password : '';
-			c.tokenVersion = (c.tokenVersion || 0) + 1;
-			await c.save();
-			await CustomerSession.updateMany({ customerId: c._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
-			fresh = true;
+		const c: any = await Customer.findOne({ email: info.email, status: 'active' });
+		const scope = (await (await import('../services/unified-login')).staffScopeFromReq(req)) || 'main';
+		if (!c || c.linkedStaff?.userId !== String(info.user._id) || (c.linkedStaff?.scope || 'main') !== scope) {
+			return fail(res, 409, 'Verifikasi email dulu untuk menautkan akun pembeli.', 'LINK_REQUIRED');
 		}
-		const plain = typeof c.toObject === 'function' ? c.toObject() : c;
-		// Satu identitas aktif: switch ke pembeli MENUTUP sesi pengurus (kembali ke pengurus lewat "Masuk sebagai pengurus")
+		if (!(await isStaffBound(c))) return fail(res, 409, 'Verifikasi email dulu untuk menautkan akun pembeli.', 'LINK_REQUIRED');
 		await endStaffSession(req, res);
-		return completeLogin(req, res, fresh ? { ...plain, emailVerified: false } : plain, { created: fresh });
+		return completeLogin(req, res, c.toObject(), {});
 	} catch (e) {
 		console.error('[buyer/from-staff]', e);
 		return fail(res, 500, 'Gagal membuka akun pembeli. Coba lagi.', 'INTERNAL');
+	}
+});
+
+/** Langkah 1 tautan: kirim OTP ke email pengurus. */
+router.post('/link-staff/otp', authLimiter, authenticate, async (req, res) => {
+	const info = staffEmailOf(req);
+	if ('error' in info) return fail(res, 400, info.error, 'STAFF_EMAIL_MISSING');
+	try {
+		const existing: any = await Customer.findOne({ email: info.email });
+		if (existing?.status === 'blocked') return fail(res, 403, 'Akun pembeli dengan email ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
+		// Sudah tertaut sah ke pengurus LAIN → tolak (satu akun pembeli = satu pengurus)
+		if (existing?.linkedStaff?.userId && existing.linkedStaff.userId !== String(info.user._id) && (await isStaffBound(existing))) {
+			return fail(res, 409, 'Akun pembeli dengan email ini sudah tertaut ke pengurus lain.', 'LINKED_ELSEWHERE');
+		}
+		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_link_staff', email: info.email, userId: String(info.user._id), ttlMinutes: 10, requestIp: reqIp(req), username: info.user.username });
+		res.json({ success: true, message: 'Kode verifikasi dikirim ke email pengurus.', data: { challengeId, email: info.email } });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+/** Langkah 2 tautan: verifikasi OTP → buat/ambil akun pembeli, ikat ke pengurus ini, masuk sebagai pembeli. */
+router.post('/link-staff/verify', authLimiter, authenticate, async (req, res) => {
+	const parsed = otpVerifySchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Kode OTP 6 digit wajib diisi', 'VALIDATION_ERROR');
+	const info = staffEmailOf(req);
+	if ('error' in info) return fail(res, 400, info.error, 'STAFF_EMAIL_MISSING');
+	try {
+		const ch: any = await OtpChallenge.findById(parsed.data.challengeId).lean();
+		if (!ch || String(ch.userId) !== String(info.user._id)) return fail(res, 400, 'Kode OTP tidak valid', 'OTP_INVALID');
+		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'buyer_link_staff' });
+		if (r.email !== info.email) return fail(res, 400, 'Kode OTP tidak valid', 'OTP_INVALID');
+		const scope = (await (await import('../services/unified-login')).staffScopeFromReq(req)) || 'main';
+		const link = { scope, userId: String(info.user._id), linkedAt: new Date() };
+		const staffHash = typeof info.user.password === 'string' ? info.user.password : '';
+		let c: any = await Customer.findOne({ email: info.email });
+		if (c?.status === 'blocked') return fail(res, 403, 'Akun pembeli dengan email ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
+		if (c?.linkedStaff?.userId && c.linkedStaff.userId !== link.userId && (await isStaffBound(c))) {
+			return fail(res, 409, 'Akun pembeli dengan email ini sudah tertaut ke pengurus lain.', 'LINKED_ELSEWHERE');
+		}
+		if (!c) {
+			c = await Customer.create({ email: info.email, name: cleanName(info.user.name || info.user.username), phone: cleanPhone(info.user.phone), passwordHash: staffHash, emailVerified: true, status: 'active', linkedStaff: link });
+		} else {
+			// Pemilik email terbukti (OTP): satukan password dengan pengurus, cabut sesi lama
+			c.status = 'active';
+			c.emailVerified = true;
+			c.linkedStaff = link;
+			c.passwordHash = staffHash;
+			c.tokenVersion = (c.tokenVersion || 0) + 1;
+			await c.save();
+			await CustomerSession.updateMany({ customerId: c._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+		}
+		await endStaffSession(req, res);
+		return completeLogin(req, res, c.toObject ? c.toObject() : c, { linked: true });
+	} catch (e) {
+		otpErrorResponse(res, e);
 	}
 });
 
