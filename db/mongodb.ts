@@ -1598,6 +1598,9 @@ const storeProductSchema = new mongoose.Schema(
 		/** Penghitung tampil (4.50.0): favorit unik per pemilik, dilihat unik per pengunjung per 30 menit */
 		favoriteCount: { type: Number, default: 0 },
 		viewCount: { type: Number, default: 0 },
+		/** Soft delete (4.51.0): dihapus dari katalog tapi riwayat/keranjang tetap bisa menampilkan snapshot */
+		deletedAt: { type: Date, default: null },
+		deletedSlug: { type: String, default: '' },
 		shortDescription: { type: String, default: '' },
 		descriptionHtml: { type: String, default: '' },
 		price: { type: Number, required: true, min: 0 },
@@ -1746,6 +1749,8 @@ const storeBundleSchema = new mongoose.Schema(
 		name: { type: String, required: true },
 		favoriteCount: { type: Number, default: 0 },
 		viewCount: { type: Number, default: 0 },
+		deletedAt: { type: Date, default: null },
+		deletedSlug: { type: String, default: '' },
 		shortDescription: { type: String, default: '' },
 		/** Harga paket */
 		bundlePrice: { type: Number, required: true, min: 0 },

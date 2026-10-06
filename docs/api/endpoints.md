@@ -421,6 +421,11 @@ POST   /api/buyer/from-staff      # pengurus login → buka/buat akun pembeli (e
 # /api/auth/google/identify  (pintu login tunggal, tanpa sesi)
 POST   /api/auth/google/identify  # publik: {idToken} → {email, name, isStaff, isBuyer}; klien memilih alur pengurus/pembeli/pilih/onboarding
 
+# Produk dihapus (4.51.0)
+POST   /api/store/admin/products/:id/restore   # toko.manage: pulihkan produk yang dihapus (kembali sebagai draft)
+POST   /api/store/admin/bundles/:id/restore    # idem untuk bundling
+GET    /api/store/admin/products?deleted=1     # daftar yang dihapus (default disembunyikan)
+
 # Statistik produk (4.50.0)
 POST   /api/store/public/favorite   # publik: {kind: product|bundle, id, on} → {favoriteCount}; 1 pemilik (akun/sesi tamu) = 1 favorit
 POST   /api/store/public/view       # publik: {kind, id} → {counted}; dedupe 30 menit, bot dilewati

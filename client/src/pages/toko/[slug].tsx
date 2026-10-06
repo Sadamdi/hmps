@@ -47,7 +47,7 @@ import {
 	ShoppingCart,
 	UserRound,
 } from 'lucide-react';
-import { useLocation, useParams } from 'wouter';
+import { Link, useLocation, useParams } from 'wouter';
 import { useTenant } from '@/lib/tenant-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -488,10 +488,19 @@ export default function TokoProductDetailPage() {
 						items={[
 							{ label: 'Beranda', href: '/' },
 							{ label: storeLabel, href: prefix(storeBasePath) },
-							{ label: 'Tidak ditemukan' },
+							{ label: 'Tidak tersedia' },
 						]}
 					/>
-					<p className="text-muted-foreground">Produk tidak ditemukan.</p>
+					<h1 className="text-xl font-semibold">Produk ini tidak tersedia</h1>
+					<p className="max-w-md text-muted-foreground">Produk sedang disembunyikan penjual atau sudah tidak dijual. Pesanan yang sudah kamu buat tetap berjalan normal dan masih ada di riwayat.</p>
+					<div className="flex flex-wrap justify-center gap-2">
+						<Button asChild>
+							<Link href={prefix(storeBasePath)}>Lihat produk lain</Link>
+						</Button>
+						<Button asChild variant="outline">
+							<Link href={prefix(`${storeBasePath}/orders`)}>Riwayat pesanan</Link>
+						</Button>
+					</div>
 				</div>
 				<Footer />
 			</div>
