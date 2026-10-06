@@ -4,6 +4,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatStoreMoney } from '@shared/store-currency';
+import { StoreFavoriteButton } from '@/components/toko/store-favorite-button';
+import { StoreStatsLine } from '@/components/toko/store-stats-line';
+import { postView } from '@/lib/store-stats';
+import { useApiUrl } from '@/lib/tenant-context';
 
 export interface BundleChoice {
 	id: string;
@@ -96,6 +100,7 @@ export function StoreBundleCard({
 	compact?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
+	const viewBase = useApiUrl('/x').slice(0, -2);
 	// pilihan varian untuk isi paket bermode "pilih" (itemIndex → variantId)
 	const [picked, setPicked] = useState<Record<number, string>>({});
 	const comps = bundle.components || [];
@@ -114,12 +119,14 @@ export function StoreBundleCard({
 		const addFromDialog = (el: HTMLElement) => onAdd(el, selections, () => { setOpen(false); setPicked({}); });
 	return (
 		<>
-			<Card className="overflow-hidden">
+			<Card className="overflow-hidden relative">
+				<StoreFavoriteButton productId={String(bundle._id)} kind="bundle" className="absolute right-3 top-3 z-10" />
 				<button type="button" className="block w-full text-left" onClick={() => setOpen(true)} aria-label={`Lihat isi ${bundle.name}`}>
 					<Thumb src={bundle.thumbnail} alt={bundle.name} className={`w-full ${compact ? 'aspect-[3/2]' : 'aspect-[16/9]'}`} />
 				</button>
 				<CardContent className="p-4 space-y-2">
 					<p className="font-semibold line-clamp-2">{bundle.name}</p>
+					<StoreStatsLine favorites={(bundle as any).favoriteCount} views={(bundle as any).viewCount} />
 					{comps.length > 0 && <p className="text-xs text-muted-foreground line-clamp-2">Isi: {bundleContentsText(comps)}</p>}
 					{!compact && bundle.shortDescription && <p className="text-sm text-muted-foreground line-clamp-2">{bundle.shortDescription}</p>}
 					<div className="flex items-end justify-between gap-2 pt-1">
@@ -138,7 +145,7 @@ export function StoreBundleCard({
 							)}
 						</div>
 						<div className="flex gap-1.5 shrink-0">
-							<Button type="button" size="sm" variant="ghost" onClick={() => setOpen(true)}>
+							<Button type="button" size="sm" variant="ghost" onClick={() => { postView(viewBase, 'bundle', String(bundle._id)); setOpen(true); }}>
 								Lihat isi
 							</Button>
 							<Button type="button" size="icon" variant="secondary" disabled={adding || soldOut} aria-label="Tambah paket ke keranjang" onClick={(e) => quickAdd(e.currentTarget)}>

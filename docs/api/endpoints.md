@@ -421,6 +421,10 @@ POST   /api/buyer/from-staff      # pengurus login → buka/buat akun pembeli (e
 # /api/auth/google/identify  (pintu login tunggal, tanpa sesi)
 POST   /api/auth/google/identify  # publik: {idToken} → {email, name, isStaff, isBuyer}; klien memilih alur pengurus/pembeli/pilih/onboarding
 
+# Statistik produk (4.50.0)
+POST   /api/store/public/favorite   # publik: {kind: product|bundle, id, on} → {favoriteCount}; 1 pemilik (akun/sesi tamu) = 1 favorit
+POST   /api/store/public/view       # publik: {kind, id} → {counted}; dedupe 30 menit, bot dilewati
+
 # Ulasan produk (4.47.0) — tenant-aware: /api/store/* dan /api/c/:slug/store/*
 GET    /api/store/public/products/:id/reviews      # publik: ringkasan bintang + daftar (?page&limit<=20&sort=new|high|low&star=1-5; sort=media = hanya yang ada foto/video) + viewer {canReview, mine}
 GET    /api/store/orders/:orderNo/reviews          # pembeli: produk di pesanan + ulasannya

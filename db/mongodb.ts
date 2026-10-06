@@ -1595,6 +1595,9 @@ const storeProductSchema = new mongoose.Schema(
 	{
 		slug: { type: String, required: true, unique: true },
 		name: { type: String, required: true },
+		/** Penghitung tampil (4.50.0): favorit unik per pemilik, dilihat unik per pengunjung per 30 menit */
+		favoriteCount: { type: Number, default: 0 },
+		viewCount: { type: Number, default: 0 },
 		shortDescription: { type: String, default: '' },
 		descriptionHtml: { type: String, default: '' },
 		price: { type: Number, required: true, min: 0 },
@@ -1741,6 +1744,8 @@ const storeBundleSchema = new mongoose.Schema(
 	{
 		slug: { type: String, required: true, unique: true },
 		name: { type: String, required: true },
+		favoriteCount: { type: Number, default: 0 },
+		viewCount: { type: Number, default: 0 },
 		shortDescription: { type: String, default: '' },
 		/** Harga paket */
 		bundlePrice: { type: Number, required: true, min: 0 },
@@ -2164,6 +2169,16 @@ storePaymentProofSchema.index({ orderNo: 1, paymentId: 1 }, { unique: true });
 const StorePaymentProof =
 	mongoose.models.StorePaymentProof || mongoose.model('StorePaymentProof', storePaymentProofSchema);
 
+/** Favorit produk/bundling (unik per pemilik: akun pembeli atau sesi tamu) — dasar `favoriteCount`. */
+const storeFavoriteSchema = new mongoose.Schema({
+	kind: { type: String, enum: ['product', 'bundle'], required: true },
+	targetId: { type: mongoose.Schema.Types.ObjectId, required: true },
+	ownerKey: { type: String, required: true },
+	createdAt: { type: Date, default: Date.now },
+});
+storeFavoriteSchema.index({ kind: 1, targetId: 1, ownerKey: 1 }, { unique: true });
+const StoreFavorite = mongoose.models.StoreFavorite || mongoose.model('StoreFavorite', storeFavoriteSchema);
+
 /**
  * Ulasan produk toko (per toko: DB utama atau DB komunitas). Satu pesanan × satu produk = satu ulasan.
  * Hanya pembeli bertoken akun yang pesanannya selesai. Nama tampil dihitung saat tulis (authorLabel);
@@ -2519,6 +2534,7 @@ export const allSchemas = {
 	storeChat: storeChatSchema,
 	storePaymentProof: storePaymentProofSchema,
 	storeReview: storeReviewSchema,
+	storeFavorite: storeFavoriteSchema,
 	storeReviewReport: storeReviewReportSchema,
 };
 
@@ -2551,6 +2567,7 @@ export {
 	StorePaymentProof,
 	StoreReview,
 	StoreReviewReport,
+	StoreFavorite,
 	StoreProduct,
 	StoreProductCategory,
 	StoreProductShare,

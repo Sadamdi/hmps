@@ -9,6 +9,15 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.50.0] - 2026-10-06
+
+### Added
+
+- Jumlah favorit dan dilihat pada kartu produk, bundling, popup Lihat cepat, dan halaman detail ("♥ 120 favorit · 👁 1,2 rb dilihat").
+- `POST /api/store/public/favorite` (unik per pemilik: akun atau sesi tamu, idempoten) dan `POST /api/store/public/view` (dedupe 1 pengunjung × 1 target per 30 menit; bot dilewati; detail, lihat cepat, dan beli sekarang dihitung sekali).
+- Bundling bisa difavoritkan seperti produk.
+- `ops/seed-store-stats.cjs`: mengisi angka awal acak 1–200 hanya pada yang masih 0 (idempoten, `--dry`, `--communities`). Tidak dijalankan di produksi otomatis.
+
 ## [4.49.0] - 2026-10-06
 
 ### Added
