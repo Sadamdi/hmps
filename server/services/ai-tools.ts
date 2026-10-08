@@ -1,5 +1,6 @@
 import { BUYER_TOOL_DEFS, BUYER_TOOL_NAMES, runBuyerTool } from './buyer-ai-tools';
 import { PUBLIC_STORE_TOOL_DEFS, PUBLIC_STORE_TOOL_NAMES, runPublicStoreTool } from './public-store-ai-tools';
+import { PUBLIC_SITE_TOOL_DEFS, PUBLIC_SITE_TOOL_NAMES, runPublicSiteTool } from './public-site-ai-tools';
 import {
 	Berita as MainBerita,
 	Event as MainEvent,
@@ -1099,7 +1100,9 @@ export function getToolsForPermissions(
 	// Tool katalog toko publik: untuk SIAPA PUN (read-only, hanya data yang tampil di toko publik)
 	const publicStoreTools = PUBLIC_STORE_TOOL_DEFS.map(({ name, description, parameters }) => ({ name, description, parameters }));
 
-	return [...buyerTools, ...publicStoreTools, ...ALL_AI_TOOLS.filter((tool) => {
+	const publicSiteTools = PUBLIC_SITE_TOOL_DEFS.map(({ name, description, parameters }) => ({ name, description, parameters }));
+
+	return [...buyerTools, ...publicStoreTools, ...publicSiteTools, ...ALL_AI_TOOLS.filter((tool) => {
 		if (!toolAllowedByPermissions(tool, perms)) return false;
 		if (tool.isWrite && !onDashboard) return false;
 		if (tool.requiresTokoDashboardPath && !isDashboardTokoPath(pagePath)) {
@@ -1557,6 +1560,12 @@ export async function executeToolCall(
 			if (isTenantContext && !tenantDbName) return { error: 'Konteks toko komunitas tidak valid.' };
 			const tenantSlug = isTenantContext ? ((pagePath || '').split('/')[1] || null) : null;
 			return await runPublicStoreTool(name, args, { tenantDbName, tenantSlug });
+		}
+		// Tool info situs publik (media sosial, kontak, komunitas): tanpa permission
+		if (PUBLIC_SITE_TOOL_NAMES.has(name)) {
+			if (isTenantContext && !tenantDbName) return { error: 'Konteks komunitas tidak valid.' };
+			const tenantSlug = isTenantContext ? ((pagePath || '').split('/')[1] || null) : null;
+			return await runPublicSiteTool(name, args, { tenantDbName, tenantSlug });
 		}
 		// Tool pembeli: tidak melewati katalog tool staf; buyerId dari sesi server
 		if (BUYER_TOOL_NAMES.has(name)) {
