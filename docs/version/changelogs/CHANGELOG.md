@@ -9,6 +9,17 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.53.0] - 2026-10-09
+
+### Added
+
+- Tool AI publik untuk toko (tanpa login/izin): `search_store_products`, `get_store_product_detail`, `get_store_bundles`, `get_store_info` (harga, varian, stok, rating, bundling, nama admin, metode bayar; tanpa nomor WA/rekening; hanya produk terbit dan tidak dihapus; mengikuti toko konteks aktif dan path toko kustom, mis. /EncoderStore).
+- Petunjuk halaman publik untuk AI: detail produk (slug), katalog, keranjang, detail berita/event/galeri, kelembagaan, prodi, profil, beranda, sehingga "produk ini"/"berita ini" dipahami dari halaman yang dibuka.
+
+### Fixed
+
+- AI menjawab "butuh izin toko.view" saat pengunjung menanyakan harga di katalog publik; prompt dan tool dikoreksi (izin hanya untuk Dashboard pengurus).
+
 ## [4.52.0] - 2026-10-06
 
 ### Security
