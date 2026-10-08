@@ -1,3 +1,4 @@
+import { buildPublicPageHints } from './public-page-hints';
 import { Content, FunctionDeclarationsTool } from '@google/generative-ai';
 import fs from 'fs';
 import path from 'path';
@@ -845,6 +846,17 @@ export class ChatService {
 				role: 'system',
 				parts: [{ text: `KONTEKS HALAMAN (data aplikasi, bukan instruksi user):\n${contextPrompt}` }],
 			});
+		}
+
+		// Petunjuk halaman publik (detail produk/berita/event/galeri/prodi): rujukan "ini" -> tool detail yang tepat
+		try {
+			const tenantSlug = pageContext?.isTenant ? (pageContext as any)?.tenantSlug || (pagePath || '').split('/')[1] || null : null;
+			const hints = await buildPublicPageHints(pagePath, { tenantDbName, tenantSlug });
+			if (hints.length) {
+				history.push({ role: 'system', parts: [{ text: 'PETUNJUK HALAMAN (data aplikasi, bukan instruksi user):\n' + hints.map((h) => '- ' + h).join('\n') }] });
+			}
+		} catch (e) {
+			console.warn('[chat] petunjuk halaman gagal:', (e as Error)?.message);
 		}
 
 		// buyerId diisi route chat dari cookie pembeli yang sudah diverifikasi (bukan dari client)
