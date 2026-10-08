@@ -3,7 +3,7 @@
  * Dibatasi ke toko konteks aktif (situs utama atau komunitas), produk terbit & tidak dihapus. Tidak pernah
  * mengembalikan nomor WhatsApp admin, nomor rekening, data pembeli, atau pesanan.
  */
-import { StoreBundle as MainBundle, StoreProduct as MainProduct, StoreReview as MainReview, StoreSettings as MainSettings } from '../../db/mongodb';
+import { StoreDiscountCampaign as MainCampaign, StoreBundle as MainBundle, StoreProduct as MainProduct, StoreReview as MainReview, StoreSettings as MainSettings } from '../../db/mongodb';
 import { getTenantModels } from '../../db/tenant';
 import { activeStoreWaAdmins } from '../../shared/store-wa';
 import { channelsForProduct, channelTitle } from '../../shared/store-payment';
@@ -37,6 +37,11 @@ export const PUBLIC_STORE_TOOL_DEFS = [
 		parameters: { type: 'object', properties: { keyword: { type: 'string' }, limit: { type: 'number' } }, required: [] },
 	},
 	{
+		name: 'get_store_promos',
+		description: 'Promo/diskon toko yang sedang aktif (nama promo, potongan, berlaku untuk semua produk atau produk tertentu, jadwal). Boleh tanpa login. Gunakan untuk "ada diskon/promo apa?".',
+		parameters: { type: 'object', properties: {}, required: [] },
+	},
+	{
 		name: 'get_store_info',
 		description:
 			'Info umum toko publik: nama menu toko, apakah toko buka, mata uang, metode pembayaran yang tersedia (tanpa nomor rekening), admin kontak (nama saja), alamat pengambilan, pajak, pengiriman aktif/tidak, dan cara pesan. Boleh tanpa login.',
@@ -46,12 +51,12 @@ export const PUBLIC_STORE_TOOL_DEFS = [
 
 export const PUBLIC_STORE_TOOL_NAMES = new Set<string>(PUBLIC_STORE_TOOL_DEFS.map((t) => t.name));
 
-function models(tenantDbName?: string | null): { Product: any; Bundle: any; Settings: any; Review: any } {
+function models(tenantDbName?: string | null): { Product: any; Bundle: any; Settings: any; Review: any; Campaign: any } {
 	if (tenantDbName) {
 		const m: any = getTenantModels(tenantDbName);
-		return { Product: m.StoreProduct, Bundle: m.StoreBundle, Settings: m.StoreSettings, Review: m.StoreReview };
+		return { Product: m.StoreProduct, Bundle: m.StoreBundle, Settings: m.StoreSettings, Review: m.StoreReview, Campaign: m.StoreDiscountCampaign };
 	}
-	return { Product: MainProduct, Bundle: MainBundle, Settings: MainSettings, Review: MainReview };
+	return { Product: MainProduct, Bundle: MainBundle, Settings: MainSettings, Review: MainReview, Campaign: MainCampaign };
 }
 
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -77,7 +82,7 @@ export async function runPublicStoreTool(
 	args: Record<string, unknown>,
 	ctx: { tenantDbName?: string | null; tenantSlug?: string | null },
 ): Promise<Record<string, unknown>> {
-	const { Product, Bundle, Settings, Review } = models(ctx.tenantDbName);
+	const { Product, Bundle, Settings, Review, Campaign } = models(ctx.tenantDbName);
 	const settings: any = (await Settings.findOne({}).lean()) || {};
 	const prefix = ctx.tenantSlug ? `/${ctx.tenantSlug}` : '';
 	const storePath = storePathOf(settings);
@@ -133,6 +138,7 @@ export async function runPublicStoreTool(
 		const admins = activeStoreWaAdmins(settings, p).map((a: any) => a.name || 'Admin');
 		const bundles: any[] = await Bundle.find(await publishedFilter({ isActive: true, 'items.productId': p._id })).select('name slug bundlePrice').limit(6).lean();
 		const agg: any[] = await Review.aggregate([{ $match: { productId: p._id, status: 'visible' } }, { $group: { _id: null, n: { $sum: 1 }, avg: { $avg: '$rating' } } }]);
+		const recent: any[] = await Review.find({ productId: p._id, status: 'visible' }).sort({ createdAt: -1 }).limit(3).select('rating comment authorLabel createdAt').lean();
 		const tiers = (Array.isArray(p.priceTiers) ? p.priceTiers : []).map((t: any) => `≥${t.minQty} pcs: ${formatStoreMoney(t.unitPrice, cur)}/pcs`);
 		return {
 			name: p.name,
@@ -148,6 +154,7 @@ export async function runPublicStoreTool(
 			shortDescription: p.shortDescription || '',
 			description: strip(p.descriptionHtml).slice(0, 1500),
 			rating: agg[0] ? { average: Math.round(agg[0].avg * 10) / 10, count: agg[0].n } : { average: 0, count: 0 },
+			recentReviews: recent.map((r) => ({ stars: r.rating, by: r.authorLabel, text: String(r.comment || '').slice(0, 200), at: r.createdAt })),
 			favorites: p.favoriteCount || 0,
 			views: p.viewCount || 0,
 			bundlesContainingThis: bundles.map((b) => ({ name: b.name, price: formatStoreMoney(b.bundlePrice, defCur), publicPath: `${prefix}${storePath}` })),
@@ -180,6 +187,24 @@ export async function runPublicStoreTool(
 					publicPath: `${prefix}${storePath}`,
 				};
 			}),
+		};
+	}
+
+	if (name === 'get_store_promos') {
+		const rows: any[] = await Campaign.find({ isActive: true, oneTimeCompleted: { $ne: true } }).sort({ priority: -1 }).limit(20).select('name scope productIds discountType discountValue mode startAt endAt dailyStart dailyEnd').lean();
+		const now = new Date();
+		const names = new Map<string, string>();
+		const ids = rows.flatMap((r) => (r.productIds || []).map(String));
+		if (ids.length) for (const p of await Product.find({ _id: { $in: ids } }).select('name').lean()) names.set(String((p as any)._id), (p as any).name);
+		const live = rows.filter((r) => (!r.startAt || r.startAt <= now) && (!r.endAt || r.endAt >= now));
+		return {
+			count: live.length,
+			promos: live.map((r) => ({
+				name: r.name,
+				discount: r.discountType === 'percent' ? `${r.discountValue}%` : formatStoreMoney(r.discountValue, defCur),
+				appliesTo: r.scope === 'global' ? 'semua produk' : (r.productIds || []).map((i: any) => names.get(String(i)) || 'produk').slice(0, 10),
+				schedule: r.mode === 'recurring_daily_window' ? `setiap hari ${r.dailyStart}–${r.dailyEnd}` : r.endAt ? `sampai ${new Date(r.endAt).toLocaleDateString('id-ID')}` : undefined,
+			})),
 		};
 	}
 
