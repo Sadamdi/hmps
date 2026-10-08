@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.54.0`  
+**Current version:** `4.55.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.54.0`](./release/4.54.0.md) | 2026-10-09 | AI publik: media sosial, kontak, dan komunitas | MINOR | 1 | **Current** |
+| [`4.55.0`](./release/4.55.0.md) | 2026-10-09 | Audit data publik AI: saran/kritik, promo toko, ulasan, statistik, detail dosen | MINOR | 1 | **Current** |
+| [`4.54.0`](./release/4.54.0.md) | 2026-10-09 | AI publik: media sosial, kontak, dan komunitas | MINOR | 1 | Released |
 | [`4.53.0`](./release/4.53.0.md) | 2026-10-09 | AI publik paham toko & konteks halaman (harga, bundling, pembayaran tanpa izin) | MINOR | 1 | Released |
 | [`4.52.0`](./release/4.52.0.md) | 2026-10-06 | Hardening sesi: deteksi token dicuri, batas diam pengurus, aturan AI untuk teks pembeli | MINOR | 1 | Released |
 | [`4.51.0`](./release/4.51.0.md) | 2026-10-06 | Produk draft/dihapus: soft delete, status tidak tersedia di keranjang, favorit, dan detail | MINOR | 1 | Released |

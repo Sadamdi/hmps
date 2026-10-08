@@ -9,6 +9,15 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.55.0] - 2026-10-09
+
+### Added
+
+- Tool AI publik `get_public_feedback` (dinding saran/kritik publik + rating situs; pengirim anonim tidak disebut) dan `get_store_promos` (diskon/promo aktif).
+- `get_site_contact_info` kini memuat statistik publik (jumlah berita, galeri, anggota aktif) dan status pendaftaran komunitas.
+- `get_store_product_detail` memuat 3 ulasan terbaru.
+- `get_prodi_info` untuk dosen kini memuat NIDN, pendidikan, jam kerja, profil, dan tautan akademik (Google Scholar, Scopus, ORCID, SINTA, repositori); mata kuliah memuat prasyarat.
+
 ## [4.54.0] - 2026-10-09
 
 ### Added

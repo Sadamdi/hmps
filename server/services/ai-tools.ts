@@ -1884,6 +1884,17 @@ export async function executeToolCall(
 								name: p.name,
 								position: p.position,
 								email: p.email,
+								nip: p.nip,
+								nidn: p.nidn,
+								education: p.education,
+								knowledgeGroup: p.knowledgeGroup,
+								workingDaysHours: p.workingDaysHours,
+								profileUrl: p.profileUrl,
+								googleScholar: p.googleScholar,
+								scopusUrl: p.scopusUrl,
+								orcidUrl: p.orcidUrl,
+								sintaUrl: p.sintaUrl,
+								repositoryUrl: p.repositoryUrl,
 							})),
 							groups: (
 								c.lecturers?.groups ?? []
@@ -1891,12 +1902,21 @@ export async function executeToolCall(
 								name: g.name,
 								lecturers: (g.lecturers ?? []).map(
 									(l: any) => ({
-										name: l.name,
-										nip: l.nip,
-										email: l.email,
-										knowledgeGroup:
-											l.knowledgeGroup,
-									})
+								name: l.name,
+								position: l.position,
+								email: l.email,
+								nip: l.nip,
+								nidn: l.nidn,
+								education: l.education,
+								knowledgeGroup: l.knowledgeGroup,
+								workingDaysHours: l.workingDaysHours,
+								profileUrl: l.profileUrl,
+								googleScholar: l.googleScholar,
+								scopusUrl: l.scopusUrl,
+								orcidUrl: l.orcidUrl,
+								sintaUrl: l.sintaUrl,
+								repositoryUrl: l.repositoryUrl,
+							})
 								),
 							})),
 							staffCount:
@@ -1947,6 +1967,7 @@ export async function executeToolCall(
 									name: s.name,
 									sks: s.sks ?? '',
 									type: s.type ?? '',
+									prerequisite: s.prerequisite ?? '',
 									description: s.description ?? '',
 									rpsUrl: s.rpsUrl ?? '',
 									semester: s.semester ?? semData.semester,

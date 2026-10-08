@@ -4,6 +4,8 @@
  * situs aktif (utama atau komunitas). Tidak ada kredensial/konfigurasi scrape.
  */
 import { Community, Settings as MainSettings } from '../../db/mongodb';
+import { mongoStorage } from '../mongo-storage';
+import { createTenantStorage } from '../tenant-storage';
 import { getTenantModels } from '../../db/tenant';
 import { DEFAULT_SOCIAL_FEED_CACHE, resolveSocialFeedConfig } from '../../shared/social-feed';
 import { publicSocialFeedItems } from './social-feed';
@@ -21,6 +23,11 @@ export const PUBLIC_SITE_TOOL_DEFS = [
 			},
 			required: ['platform'],
 		},
+	},
+	{
+		name: 'get_public_feedback',
+		description: 'Saran/kritik/apresiasi publik yang tampil di dinding feedback situs (isi, tipe, balasan pengurus, status keputusan) dan rata-rata rating situs. Pengirim anonim tidak disebut. Boleh tanpa login. Gunakan untuk "apa kata orang/saran terbaru/rating himatif".',
+		parameters: { type: 'object', properties: { limit: { type: 'number', description: 'Jumlah kartu (default 8, maks 20).' } }, required: [] },
 	},
 	{
 		name: 'get_site_contact_info',
@@ -78,6 +85,33 @@ export async function runPublicSiteTool(
 		};
 	}
 
+	if (name === 'get_public_feedback') {
+		const storage: any = ctx.tenantDbName ? createTenantStorage(getTenantModels(ctx.tenantDbName)) : mongoStorage;
+		const limit = Math.min(20, Math.max(1, Number(args.limit) || 8));
+		const typeFilterIds: string[] = s.feedbackPublicTypeFilterIds || [];
+		const cards: any[] = await storage.getVisibleFeedbackCardsFiltered(s.feedbackPublicTypeFilter || 'all', typeFilterIds, limit);
+		let ratings: unknown = null;
+		try {
+			ratings = await storage.getFeedbackRatingAverages();
+		} catch {
+			/* opsional */
+		}
+		return {
+			count: cards.length,
+			ratings,
+			cards: cards.map((c) => ({
+				type: c.typeLabel || c.type,
+				to: c.destinationLabel || c.target || undefined,
+				from: c.isAnonymous ? 'Anonim' : c.senderName || undefined,
+				message: String(c.body || '').slice(0, 400),
+				reply: c.reply ? { by: c.reply.adminName, message: String(c.reply.message || '').slice(0, 300) } : undefined,
+				status: c.suggestionStatus || undefined,
+				at: c.createdAt,
+			})),
+			publicPath: prefix || '/',
+		};
+	}
+
 	if (name === 'get_site_contact_info') {
 		const out: Record<string, unknown> = {
 			siteName: s.siteName || s.navbarBrand || undefined,
@@ -85,7 +119,18 @@ export async function runPublicSiteTool(
 			address: s.address || undefined,
 			socialLinks: Object.fromEntries(Object.entries(s.socialLinks || {}).filter(([, v]) => typeof v === 'string' && v)),
 			footer: s.footerText || undefined,
+			communityRegistrationOpen: !ctx.tenantSlug ? !!s.enableRegistration : undefined,
 		};
+		try {
+			const storage: any = ctx.tenantDbName ? createTenantStorage(getTenantModels(ctx.tenantDbName)) : mongoStorage;
+			out.publicStats = {
+				berita: await storage.getBeritaCount(),
+				galeriItems: await storage.getLibraryItemsCount(),
+				anggotaAktif: await storage.getOrganizationActiveMembersCount(),
+			};
+		} catch {
+			/* statistik opsional */
+		}
 		if (!ctx.tenantSlug) {
 			const comms: any[] = await Community.find({ status: 'active' }).select('name slug description').limit(50).lean();
 			out.communities = comms.map((c) => ({ name: c.name, path: `/${c.slug}`, description: String(c.description || '').slice(0, 160) }));
