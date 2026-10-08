@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.54.0] - 2026-10-09
+
+### Added
+
+- Tool AI publik `get_social_media_feed` (YouTube/Instagram yang tampil di /youtube dan /instagram) dan `get_site_contact_info` (email, alamat, tautan sosial, daftar komunitas aktif di situs utama). Mengikuti konteks situs (utama/komunitas); tanpa kredensial.
+- Aturan umum AI: semua data yang tampil publik boleh dijawab tanpa login/izin; yang dilarang hanya data non-publik (draft, dashboard, data pengguna lain, nomor pribadi, kredensial).
+- Petunjuk halaman untuk /youtube, /instagram, /communities.
+
 ## [4.53.0] - 2026-10-09
 
 ### Added

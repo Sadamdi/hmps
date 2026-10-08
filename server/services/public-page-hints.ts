@@ -65,6 +65,10 @@ export async function buildPublicPageHints(path: string | undefined, opts: { ten
 		hints.push(`Halaman aktif: DETAIL GALERI/MEDIA (id "${last}"). Gunakan get_library_items (keyword judul) untuk detailnya.`);
 	} else if (p === '/library') {
 		hints.push('Halaman aktif: GALERI/LIBRARY media kegiatan. Untuk foto/video dokumentasi panggil get_library_items.');
+	} else if (p === '/youtube' || p === '/instagram') {
+		hints.push(`Halaman aktif: MEDIA ${p === '/youtube' ? 'YOUTUBE' : 'INSTAGRAM'}. Untuk konten/video/postingan terbaru dan tautan akun panggil get_social_media_feed (platform "${p.slice(1)}").`);
+	} else if (p === '/communities') {
+		hints.push('Halaman aktif: DAFTAR KOMUNITAS. Untuk daftar komunitas aktif panggil get_site_contact_info (berisi communities).');
 	} else if (p === '/kelembagaan') {
 		hints.push('Halaman aktif: KELEMBAGAAN/struktur organisasi. Untuk pertanyaan siapa ketua/divisi/pengurus panggil get_organization_structure.');
 	} else if (p === '/profil') {
