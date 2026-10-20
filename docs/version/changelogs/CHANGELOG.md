@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.56.1] - 2026-10-20
+
+### Security
+
+- `npm audit fix` (tanpa `--force`): 47 → 18 temuan (16 setelah sharp/nodemailer), termasuk `express`, `proxy-addr` (critical), `path-to-regexp`, `mongoose`, `ws`, `axios`, `undici`, `lodash`, `form-data`, `jws`, `adm-zip`, `react-router`, `rollup`, `nanoid`, dan lain-lain (hanya lockfile).
+- `sharp` 0.34 → 0.35.5 (perbaikan libvips, libheif, librsvg yang memproses gambar unggahan).
+- `nodemailer` 8 → 10.1.7 (bypass `disableFileAccess`/`disableUrlAccess`, validasi domain penerima, DoS parser alamat). `@types/nodemailer` dihapus karena paket kini membawa tipe sendiri.
+
 ## [4.56.0] - 2026-10-20
 
 ### Security
