@@ -16,6 +16,8 @@ const UA =
 const SIAKAD = 'https://siakad.uin-malang.ac.id/index.php';
 const TI_PENGUMUMAN_FEED = 'https://informatika.uin-malang.ac.id/category/pengumuman/feed/';
 const UIN_PENGUMUMAN_FEED = 'https://uin-malang.ac.id/blog/pengumuman-3/feed';
+const LP2M_FEED = 'https://lp2m.uin-malang.ac.id/feed/';
+const FST_FEED = 'https://saintek.uin-malang.ac.id/feed/';
 const TI_SKRIPSI = 'https://informatika.uin-malang.ac.id/thesis-skripsi-s1/';
 const TI_PKL = 'https://informatika.uin-malang.ac.id/internship-pkl/';
 
@@ -67,7 +69,14 @@ export type AcademicCalendarEntry = {
 	syncedAt: string;
 };
 
-export type AnnouncementCategory = 'thesis' | 'wisuda' | 'ukt' | 'kalender' | 'lainnya';
+export type AnnouncementCategory =
+	| 'thesis'
+	| 'wisuda'
+	| 'ukt'
+	| 'kalender'
+	| 'kkm'
+	| 'beasiswa'
+	| 'lainnya';
 
 export type StudentAnnouncement = {
 	title: string;
@@ -406,15 +415,19 @@ export async function syncAcademicCalendars(
 	return { map, found: Array.from(new Set(found)).sort((a, b) => a - b), skipped };
 }
 
-function categorizeAnnouncement(title: string): AnnouncementCategory {
+function categorizeAnnouncement(title: string, source?: string): AnnouncementCategory {
+	// LP2M: seminar/ujian di sini soal penelitian & pengabdian, bukan skripsi mahasiswa.
+	if (source === 'lp2m' && /kkm|kuliah kerja|pengabdian|penelitian|uin mengabdi|pkm|hibah|qaryah|riset/i.test(title)) return 'kkm';
 	if (/thesis|skripsi|seminar|sidang|kompre|periodization|ujian/i.test(title)) return 'thesis';
 	if (/wisuda/i.test(title)) return 'wisuda';
 	if (/ukt|uang kuliah|herregistrasi|bebas tanggungan/i.test(title)) return 'ukt';
 	if (/kalender akademik/i.test(title)) return 'kalender';
+	if (/kkm|kuliah kerja|pengabdian|penelitian|uin mengabdi|pkm|hibah/i.test(title)) return 'kkm';
+	if (/beasiswa|scholarship/i.test(title)) return 'beasiswa';
 	return 'lainnya';
 }
 
-function parseRssItems(xml: string, source: 'ti' | 'uin'): StudentAnnouncement[] {
+function parseRssItems(xml: string, source: 'ti' | 'uin' | 'lp2m' | 'fst'): StudentAnnouncement[] {
 	const $ = cheerio.load(xml, { xmlMode: true });
 	const items: StudentAnnouncement[] = [];
 	$('item, entry').each((_, el) => {
@@ -441,7 +454,7 @@ function parseRssItems(xml: string, source: 'ti' | 'uin'): StudentAnnouncement[]
 				url,
 				source,
 				publishedAt,
-				category: categorizeAnnouncement(title),
+				category: categorizeAnnouncement(title, source),
 				excerpt: excerpt || undefined,
 			});
 		}
@@ -454,6 +467,8 @@ const ANNOUNCEMENT_CATEGORIES: AnnouncementCategory[] = [
 	'wisuda',
 	'ukt',
 	'kalender',
+	'kkm',
+	'beasiswa',
 	'lainnya',
 ];
 /** Max items kept per category filter (UI also caps at this). */
@@ -462,10 +477,14 @@ export const ANNOUNCEMENT_MAX_PER_CATEGORY = 50;
 function filterAnnouncements(items: StudentAnnouncement[]): StudentAnnouncement[] {
 	const tiRe = /thesis|periodization|seminar|skripsi|sidang|kompre|ujian|pkl|internship/i;
 	const uinRe = /wisuda|kalender akademik|ukt|uang kuliah|herregistrasi|yudisium/i;
+	const fstRe = /yudisium|wisuda|beasiswa|pendaftaran|jadwal|ujian|seminar|skripsi|kalender|ukt|kkm|pkl|magang|lomba|hibah|pengumuman/i;
 	const relevant = items
-		.filter((i) =>
-			i.source === 'ti' ? tiRe.test(i.title) : uinRe.test(i.title) || i.category !== 'lainnya',
-		)
+		.filter((i) => {
+			if (i.source === 'ti') return tiRe.test(i.title);
+			if (i.source === 'lp2m') return i.category !== 'lainnya';
+			if (i.source === 'fst') return i.category !== 'lainnya' || fstRe.test(i.title);
+			return uinRe.test(i.title) || i.category !== 'lainnya';
+		})
 		.sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
 
 	const buckets = new Map<AnnouncementCategory, StudentAnnouncement[]>();
@@ -573,29 +592,24 @@ export async function syncAnnouncementsFeed(): Promise<StudentAnnouncement[]> {
 		}
 	};
 
-	for (let page = 1; page <= RSS_PAGE_LIMIT; page++) {
-		try {
-			const tiXml = await fetchText(feedPageUrl(TI_PENGUMUMAN_FEED, page));
-			const items = parseRssItems(tiXml, 'ti');
-			if (!items.length) break;
-			pushUnique(items);
-			if (items.length < 5) break;
-		} catch (err) {
-			if (page === 1) console.warn('TI RSS failed:', err);
-			break;
-		}
-	}
-
-	for (let page = 1; page <= RSS_PAGE_LIMIT; page++) {
-		try {
-			const uinXml = await fetchText(feedPageUrl(UIN_PENGUMUMAN_FEED, page));
-			const items = parseRssItems(uinXml, 'uin');
-			if (!items.length) break;
-			pushUnique(items);
-			if (items.length < 5) break;
-		} catch (err) {
-			if (page === 1) console.warn('UIN Atom failed:', err);
-			break;
+	const feeds: { url: string; source: 'ti' | 'uin' | 'lp2m' | 'fst'; label: string }[] = [
+		{ url: TI_PENGUMUMAN_FEED, source: 'ti', label: 'TI RSS' },
+		{ url: UIN_PENGUMUMAN_FEED, source: 'uin', label: 'UIN Atom' },
+		{ url: LP2M_FEED, source: 'lp2m', label: 'LP2M RSS' },
+		{ url: FST_FEED, source: 'fst', label: 'FST RSS' },
+	];
+	for (const feed of feeds) {
+		for (let page = 1; page <= RSS_PAGE_LIMIT; page++) {
+			try {
+				const xml = await fetchText(feedPageUrl(feed.url, page));
+				const items = parseRssItems(xml, feed.source);
+				if (!items.length) break;
+				pushUnique(items);
+				if (items.length < 5) break;
+			} catch (err) {
+				if (page === 1) console.warn(`${feed.label} failed:`, err);
+				break;
+			}
 		}
 	}
 

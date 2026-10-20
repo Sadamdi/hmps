@@ -665,6 +665,8 @@ const ANNOUNCEMENT_CATS: { id: string; label: string }[] = [
 	{ id: 'wisuda', label: 'Wisuda' },
 	{ id: 'ukt', label: 'UKT / Registrasi' },
 	{ id: 'kalender', label: 'Kalender' },
+	{ id: 'kkm', label: 'KKM / Penelitian' },
+	{ id: 'beasiswa', label: 'Beasiswa' },
 	{ id: 'lainnya', label: 'Lainnya' },
 ];
 
@@ -708,7 +710,7 @@ export function PengumumanSection({ items }: { items: any[] }) {
 			<h2 className="text-xl font-semibold">Pengumuman penting</h2>
 			<p className="text-sm text-muted-foreground">
 				Max {ANNOUNCEMENT_MAX_PER_FILTER} item per filter · {ANNOUNCEMENT_PAGE_SIZE}/halaman (termasuk
-				Semua). Feed TI + UIN. Auto-refresh harian bersama kalender/skripsi/PKL.
+				Semua). Feed TI, FST, LP2M, dan UIN. Auto-refresh harian bersama kalender/skripsi/PKL.
 			</p>
 			<div className="flex flex-wrap gap-2">
 				{ANNOUNCEMENT_CATS.map((c) => {
@@ -751,7 +753,7 @@ export function PengumumanSection({ items }: { items: any[] }) {
 							<ExternalLink className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
 						</a>
 						<p className="text-xs text-muted-foreground mt-1">
-							{item.source === 'ti' ? 'Teknik Informatika' : 'UIN Malang'}
+							{{ ti: 'Teknik Informatika', lp2m: 'LP2M', fst: 'Fakultas Saintek' }[item.source as string] || 'UIN Malang'}
 							{item.category ? ` · ${item.category}` : ''}
 							{item.publishedAt ? ` · ${new Date(item.publishedAt).toLocaleDateString('id-ID')}` : ''}
 						</p>

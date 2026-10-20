@@ -1370,7 +1370,8 @@ async function getProdiContentPublic(): Promise<any> {
 	} catch {
 		/* ignore */
 	}
-	return content;
+	const { fixProdiLinks } = await import('../shared/prodi-link-fix');
+	return fixProdiLinks(content);
 }
 
 async function updateProdiContent(data: any): Promise<any> {
