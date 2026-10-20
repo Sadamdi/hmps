@@ -136,11 +136,12 @@ const fileAccessGuard = async (req: any, res: any, next: any) => {
 };
 
 // Tambahkan middleware static agar file upload bisa diakses publik
-app.use('/uploads', fileAccessGuard, express.static(uploadDir));
+app.use('/uploads', activeContentServeGuard, fileAccessGuard, express.static(uploadDir));
 // Photopea di iframe (origin photopea.com) memuat PSD lewat fetch/XHR dari URL kita.
 // Dokumentasi resmi mewajibkan CORS: https://www.photopea.com/api/ ("Access-Control-Allow-Origin: *")
 app.use(
 	'/attached_assets',
+	activeContentServeGuard,
 	fileAccessGuard,
 	(req, res, next) => {
 		res.setHeader('Access-Control-Allow-Origin', '*');
@@ -573,6 +574,7 @@ setInterval(cleanupDnsLayerData, 5 * 60 * 1000);
 
 // ==================== TEMP ONBOARDING UPLOAD CLEANUP (every hour) ====================
 import { assetsDir, runTempUploadCleanup, uploadDir } from './upload';
+import { activeContentServeGuard } from './lib/upload-safety';
 setInterval(runTempUploadCleanup, 60 * 60 * 1000);
 
 // ==================== MONTHLY DB BACKUP SCHEDULER ====================

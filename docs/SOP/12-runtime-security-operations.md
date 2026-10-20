@@ -87,3 +87,13 @@ File: `server/middleware/ddos-protection.ts`.
 - Verify no sensitive runtime file was added to git.
 - Verify logs do not include credential or token values.
 - Bump `docs/version/` setelah unit kerja ops/security selesai.
+
+## Upload File Safety (SVG / HTML / Skrip)
+
+File "konten aktif" yang disajikan dari origin yang sama dengan situs dapat menjalankan JavaScript (stored XSS). Aturan:
+
+1. Semua rute upload staf memakai `uploadMiddleware` (`server/upload.ts`), yang dibungkus `guardMulter` (`server/lib/upload-safety.ts`). Ekstensi/MIME berbahaya (SVG, HTML, XML, JS, PHP/phar, ASP/JSP, executable, `.htaccess`) dan isi markup aktif (HTML/SVG/skrip bernama `.txt`/`.pdf`) ditolak 400 `UNSAFE_FILE_TYPE`. Ekstensi web/skrip dicek di semua segmen nama (`a.php.jpg` ditolak).
+2. Upload chat publik hanya menerima gambar (magic bytes dicek), maks 10 MB, dan file sementara selalu dihapus saat respons selesai.
+3. `/uploads` dan `/attached_assets` melewati `activeContentServeGuard`: file aktif yang terlanjur ada disajikan sebagai unduhan dengan CSP `sandbox`; `.php`/`.phar` dan sejenisnya dipaksa `application/octet-stream`.
+4. Jangan menambah `multer()` baru tanpa `guardMulter` dan validasi isi. Gambar wajib lewat pipeline `processImage` (output WebP).
+5. HTML rich-text disanitasi `stripUnsafeHtml` per atribut (buang `on*`, netralkan `javascript:`/`data:` berbahaya, termasuk yang disamarkan entity). Ini bukan pengganti sanitizer penuh; jangan melonggarkan CSP (`script-src-attr 'none'`).
