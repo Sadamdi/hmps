@@ -339,6 +339,27 @@ const allowlistedSearchBots = [
 	/facebookexternalhit/i,
 	/twitterbot/i,
 	/linkedinbot/i,
+	// Crawler AI/pencarian modern: robots.txt mengizinkan, jadi halaman publik harus bisa diakses
+	// (aturan: boleh untuk pengguna = boleh untuk bot; /api dan /dashboard tetap tertutup).
+	/gptbot/i,
+	/oai-searchbot/i,
+	/chatgpt-user/i,
+	/claudebot/i,
+	/claude-web/i,
+	/claude-user/i,
+	/claude-searchbot/i,
+	/perplexitybot/i,
+	/perplexity-user/i,
+	/applebot/i,
+	/ccbot/i,
+	/google-extended/i,
+	/googleother/i,
+	/bytespider/i,
+	/amazonbot/i,
+	/meta-externalagent/i,
+	/petalbot/i,
+	/semrushbot/i,
+	/ahrefsbot/i,
 ];
 
 // ==================== DEVICE ID GENERATION ====================

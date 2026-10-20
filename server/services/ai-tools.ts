@@ -1,3 +1,5 @@
+import dns from 'node:dns/promises';
+import net from 'node:net';
 import { BUYER_TOOL_DEFS, BUYER_TOOL_NAMES, runBuyerTool } from './buyer-ai-tools';
 import { PUBLIC_STORE_TOOL_DEFS, PUBLIC_STORE_TOOL_NAMES, runPublicStoreTool } from './public-store-ai-tools';
 import { PUBLIC_SITE_TOOL_DEFS, PUBLIC_SITE_TOOL_NAMES, runPublicSiteTool } from './public-site-ai-tools';
@@ -1286,13 +1288,37 @@ function isBeritaEventLinked(
 
 const FETCH_TIMEOUT_MS = 10_000;
 
-function isPrivateHost(hostname: string): boolean {
-	const h = hostname.toLowerCase();
-	if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0' || h === '[::1]') return true;
-	if (h.startsWith('10.') || h.startsWith('192.168.')) return true;
-	if (/^172\.(1[6-9]|2\d|3[01])\./.test(h)) return true;
-	if (h.endsWith('.local') || h.endsWith('.internal')) return true;
-	return false;
+function isPrivateIp(ip: string): boolean {
+	const v = ip.toLowerCase().replace(/^\[|\]$/g, '');
+	const mapped = v.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+	if (mapped) return isPrivateIp(mapped[1]);
+	if (net.isIPv4(v)) {
+		const [a, b] = v.split('.').map(Number);
+		return (
+			a === 0 || a === 10 || a === 127 ||
+			(a === 169 && b === 254) ||
+			(a === 172 && b >= 16 && b <= 31) ||
+			(a === 192 && b === 168) ||
+			(a === 100 && b >= 64 && b <= 127) ||
+			a >= 224
+		);
+	}
+	if (net.isIPv6(v)) {
+		return v === '::' || v === '::1' || /^f[cd]/.test(v) || /^fe[89ab]/.test(v);
+	}
+	return true;
+}
+
+/** Tolak host privat: nama dicek, lalu SEMUA IP hasil DNS dicek (cegah 169.254.169.254, IPv6, rebinding sederhana). */
+async function assertPublicHost(hostname: string): Promise<void> {
+	const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+	if (h === 'localhost' || h.endsWith('.local') || h.endsWith('.internal') || h.endsWith('.localhost')) {
+		throw new Error('URL localhost / jaringan privat tidak diizinkan.');
+	}
+	const ips = net.isIP(h) ? [h] : (await dns.lookup(h, { all: true })).map((r) => r.address);
+	if (!ips.length || ips.some(isPrivateIp)) {
+		throw new Error('URL localhost / jaringan privat tidak diizinkan.');
+	}
 }
 
 function stripHtmlToText(html: string): string {
@@ -1399,22 +1425,32 @@ async function fetchAndExtractWebpage(
 	if (!['http:', 'https:'].includes(parsed.protocol)) {
 		throw new Error('Hanya URL http/https yang diizinkan.');
 	}
-	if (isPrivateHost(parsed.hostname)) {
-		throw new Error('URL localhost / jaringan privat tidak diizinkan.');
-	}
+	await assertPublicHost(parsed.hostname);
 
 	const controller = new AbortController();
 	const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS + 2000);
 
 	try {
-		const res = await fetch(url, {
-			headers: {
-				'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-				Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-			},
-			signal: controller.signal,
-			redirect: 'follow',
-		});
+		let current = parsed;
+		let res: Response | undefined;
+		// Redirect diikuti manual agar tiap lompatan dicek (redirect ke IP internal ditolak).
+		for (let hop = 0; hop < 4; hop++) {
+			res = await fetch(current.toString(), {
+				headers: {
+					'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+					Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+				},
+				signal: controller.signal,
+				redirect: 'manual',
+			});
+			const loc = res.status >= 300 && res.status < 400 ? res.headers.get('location') : null;
+			if (!loc) break;
+			current = new URL(loc, current);
+			if (!['http:', 'https:'].includes(current.protocol)) throw new Error('Hanya URL http/https yang diizinkan.');
+			await assertPublicHost(current.hostname);
+			res = undefined;
+		}
+		if (!res) throw new Error('Terlalu banyak redirect.');
 		if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
 
 		const ct = res.headers.get('content-type') || '';

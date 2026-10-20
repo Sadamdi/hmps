@@ -9,6 +9,18 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.58.0] - 2026-10-21
+
+### Fixed
+
+- Crawler AI/pencarian (GPTBot, ClaudeBot, PerplexityBot, Applebot, dll.) tidak lagi ditolak di halaman publik.
+- SSRF pada tool AI pembaca halaman web (cek IP hasil DNS dan tiap redirect).
+- Tautan SINTA/PDDikti domain lama dan sisa `%20` pada konten prodi.
+
+### Added
+
+- Pengumuman hub mahasiswa dari LP2M (KKM, penelitian, pengabdian) dan Fakultas Saintek; kategori KKM dan Beasiswa.
+
 ## [4.57.0] - 2026-10-20
 
 ### Fixed
