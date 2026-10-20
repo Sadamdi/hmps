@@ -1987,6 +1987,13 @@ process.on('unhandledRejection', (reason: any) => {
 				console.warn('   ⚠️ Antivirus File Scanner not started:', err.message);
 			});
 
+		import('./services/upload-sweeper')
+			.then(({ startUploadSweeper }) => {
+				startUploadSweeper();
+				console.log('   ✅ Upload sweeper (karantina berkas di luar daftar putih) aktif');
+			})
+			.catch((err) => console.warn('   ⚠️ Upload sweeper tidak aktif:', err.message));
+
 		import('./models/page-visit')
 			.then(({ ensurePageVisitTtlIndex }) => ensurePageVisitTtlIndex())
 			.catch((err) => {

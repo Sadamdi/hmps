@@ -88,12 +88,40 @@ File: `server/middleware/ddos-protection.ts`.
 - Verify logs do not include credential or token values.
 - Bump `docs/version/` setelah unit kerja ops/security selesai.
 
-## Upload File Safety (SVG / HTML / Skrip)
+## Upload File Safety (daftar putih)
 
-File "konten aktif" yang disajikan dari origin yang sama dengan situs dapat menjalankan JavaScript (stored XSS). Aturan:
+File "konten aktif" yang disajikan dari origin yang sama dengan situs dapat menjalankan JavaScript (stored XSS) atau berbahaya bagi server. Kebijakan ini harus berjalan tanpa campur tangan manusia.
 
-1. Semua rute upload staf memakai `uploadMiddleware` (`server/upload.ts`), yang dibungkus `guardMulter` (`server/lib/upload-safety.ts`). Ekstensi/MIME berbahaya (SVG, HTML, XML, JS, PHP/phar, ASP/JSP, executable, `.htaccess`) dan isi markup aktif (HTML/SVG/skrip bernama `.txt`/`.pdf`) ditolak 400 `UNSAFE_FILE_TYPE`. Ekstensi web/skrip dicek di semua segmen nama (`a.php.jpg` ditolak).
-2. Upload chat publik hanya menerima gambar (magic bytes dicek), maks 10 MB, dan file sementara selalu dihapus saat respons selesai.
-3. `/uploads` dan `/attached_assets` melewati `activeContentServeGuard`: file aktif yang terlanjur ada disajikan sebagai unduhan dengan CSP `sandbox`; `.php`/`.phar` dan sejenisnya dipaksa `application/octet-stream`.
-4. Jangan menambah `multer()` baru tanpa `guardMulter` dan validasi isi. Gambar wajib lewat pipeline `processImage` (output WebP).
-5. HTML rich-text disanitasi `stripUnsafeHtml` per atribut (buang `on*`, netralkan `javascript:`/`data:` berbahaya, termasuk yang disamarkan entity). Ini bukan pengganti sanitizer penuh; jangan melonggarkan CSP (`script-src-attr 'none'`).
+**Prinsip: daftar putih, bukan daftar hitam.** Ekstensi harus ada di `EXTENSIONS` (`server/lib/upload-policy.ts`) DAN isi file (magic bytes) harus sesuai jenisnya. Yang tidak dikenal ditolak.
+
+| Jenis | Ekstensi yang diizinkan | Cek isi |
+|-------|-------------------------|---------|
+| Gambar | jpg, jpeg, png, webp, gif, avif, heic, heif, bmp, tif, tiff | magic gambar; halaman gambar diproses ulang ke WebP |
+| Video | mp4, m4v, mov, webm | `ftyp`/`moov`/EBML |
+| Audio | mp3, m4a, aac, wav, ogg, oga, opus, flac | header |
+| Dokumen | pdf, doc, docx, xls, xlsx, ppt, pptx, odt, ods, odp, rtf | `%PDF`, OLE, ZIP, `{\rtf` |
+| Teks | txt, md, csv | tanpa byte NUL, bukan markup aktif |
+| Arsip | zip, rar, 7z | magic arsip |
+| Proyek | psd, blend, glb, pkt (Packet Tracer) | magic (pkt tanpa) |
+
+**Tidak pernah diizinkan:** svg, html/xhtml, xml, js, php/phar, asp/jsp, executable, makro Office (docm/xlsm/pptm), `.htaccess`, ekstensi tak dikenal, file tanpa ekstensi. Ekstensi web/skrip dicek di SEMUA segmen nama (`a.php.jpg` ditolak).
+
+Lapisan:
+
+1. `uploadMiddleware` (`server/upload.ts`) membungkus multer dengan `guardMulter` (`server/lib/upload-safety.ts`) untuk semua rute upload staf. Penolakan: `400 UNSAFE_FILE_TYPE` dengan alasan dan daftar jenis yang diizinkan.
+2. Upload chat publik hanya gambar (magic bytes), maks 10 MB, file sementara selalu dihapus.
+3. Penyajian: `activeContentServeGuard` — file aktif lama disajikan sebagai unduhan + CSP sandbox; `.php`/`.phar` dan ekstensi di luar daftar (di `/uploads`) dipaksa `application/octet-stream`; `/uploads/_quarantine` tidak pernah disajikan.
+4. Penyapu `server/services/upload-sweeper.ts` (saat server mulai, lalu tiap 24 jam): memindahkan file di luar daftar putih ke `uploads/_quarantine/swept/<tanggal>/` (BUKAN menghapus) dan menandai rekaman `FileUpload` (`infected`, `policy:blocked-file-type`). Folder karantina di-`.gitignore`. Aman dijalankan berulang; `UPLOAD_SWEEP_DRY_RUN=1` hanya mencatat. Hapus isi karantina secara manual bila sudah tidak perlu.
+5. Menambah jenis file baru: tambah baris di `EXTENSIONS` + pemeriksa isi, uji, catat di tabel ini. Jangan membuat `multer()` baru tanpa `guardMulter`.
+
+### Antivirus (ClamAV) — dimatikan secara default
+
+ClamAV tidak mendeteksi ancaman yang relevan (SVG/XSS/XXE/penyamaran ekstensi bukan malware; produksi: 391 file clean, 0 infected) dan memakai ±1 GB RAM di VPS 2 GB (pernah memicu OOM saat build). `ops/deploy-server.sh` menonaktifkan `clamav-daemon` secara permanen (`HMPS_DISABLE_CLAMAV=0` untuk mempertahankannya). Aplikasi berjalan normal tanpa clamd (status file `skipped`); kode `file-scanner` tetap ada dan otomatis dipakai bila clamd dijalankan.
+
+### Password bawaan
+
+`server/lib/weak-passwords.ts` memuat password umum/bawaan (`admin123`, dll.). `hashPassword` menolaknya (error `WEAK_PASSWORD`, 400), dan login dengan password itu ditolak `403 PASSWORD_RESET_REQUIRED` — akun yang masih memakainya harus direset owner/admin (atau Lupa Password). Seed dev memakai `hashPassword(pw, { allowWeak: true })`.
+
+### HTML rich-text
+
+HTML rich-text disanitasi `stripUnsafeHtml` per atribut (buang `on*`, netralkan `javascript:`/`data:` berbahaya, termasuk yang disamarkan entity). Jangan melonggarkan CSP (`script-src-attr 'none'`).

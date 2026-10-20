@@ -149,6 +149,20 @@ pm2_stop_apps() {
 
 SERVICES_STOPPED=""
 
+# ClamAV (clamd ±1GB RSS di VPS 2GB) dimatikan permanen secara default. Alasan: tidak mendeteksi ancaman yang
+# relevan di sini (SVG/XSS/XXE bukan malware; produksi 391 file "clean", 0 infected), dan pernah memicu OOM saat
+# build. Pertahanan upload sekarang: daftar putih jenis file + magic bytes + re-encode gambar + penyapu karantina
+# (server/lib/upload-policy.ts, upload-safety.ts, services/upload-sweeper.ts). App otomatis jalan tanpa clamd
+# (status file "skipped"). Set HMPS_DISABLE_CLAMAV=0 untuk membiarkan clamd seperti semula.
+disable_clamav_if_requested() {
+	[[ "${HMPS_DISABLE_CLAMAV:-1}" == "1" ]] || return 0
+	command -v systemctl >/dev/null 2>&1 || return 0
+	if systemctl list-unit-files clamav-daemon.service >/dev/null 2>&1 && systemctl is-enabled --quiet clamav-daemon 2>/dev/null; then
+		systemctl disable --now clamav-daemon >/dev/null 2>&1 && log "ClamAV dinonaktifkan permanen (clamav-daemon)" || log "WARNING: gagal menonaktifkan clamav-daemon"
+		systemctl disable --now clamav-freshclam >/dev/null 2>&1 || true
+	fi
+}
+
 stop_heavy_services() {
 	command -v systemctl >/dev/null 2>&1 || return 0
 	for svc in $STOP_SERVICES; do
@@ -416,6 +430,7 @@ cleanup_start_apps() {
 trap cleanup_start_apps EXIT
 
 pm2_stop_apps
+disable_clamav_if_requested
 stop_heavy_services
 APPS_STOPPED=1
 

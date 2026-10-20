@@ -80,3 +80,6 @@ server/google-service-account.json
 
 # Cache thumbnail embed (og:image) — dibuat ulang otomatis
 uploads/og-cache/
+
+# Karantina penyapu upload: tidak pernah disajikan dan tidak ikut auto-push media
+uploads/_quarantine/

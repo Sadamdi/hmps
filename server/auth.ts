@@ -1,3 +1,4 @@
+import { isCommonWeakPassword, WeakPasswordError } from './lib/weak-passwords';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { NextFunction, Request, Response } from 'express';
@@ -99,7 +100,8 @@ export async function verifyPassword(
 }
 
 // Hash password
-export async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string, opts: { allowWeak?: boolean } = {}): Promise<string> {
+	if (!opts.allowWeak && isCommonWeakPassword(password)) throw new WeakPasswordError();
 	const saltRounds = 10;
 	return await bcrypt.hash(password, saltRounds);
 }

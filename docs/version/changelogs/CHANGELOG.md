@@ -9,6 +9,19 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.56.0] - 2026-10-20
+
+### Security
+
+- Upload kini DAFTAR PUTIH di semua rute: hanya gambar (JPG/PNG/WebP/GIF/AVIF/HEIC), video (MP4/WebM/MOV), audio, PDF, dokumen Office/ODF, teks, arsip, dan PSD/BLEND/GLB/PKT, dengan pengecekan isi (magic bytes) dan batas ukuran per jenis. SVG, HTML, XML, skrip, executable, makro Office, dan ekstensi tak dikenal ditolak.
+- Penyapu otomatis (`upload-sweeper`): file lama di luar daftar putih dipindah ke `uploads/_quarantine/` (tidak disajikan, tidak ikut auto-push), rekaman FileUpload ditandai. Berjalan saat server mulai dan tiap 24 jam.
+- Login dengan password bawaan/umum (mis. `admin123`) ditolak `403 PASSWORD_RESET_REQUIRED`; password umum juga ditolak saat dibuat/diubah. Menutup 9 akun komunitas (UINUX 4, ONTAKI 5) yang masih `admin123`.
+- ClamAV dinonaktifkan permanen oleh skrip deploy (tidak efektif untuk ancaman di sini, ±1 GB RAM).
+
+### Removed
+
+- 9 file SVG dan 1 `.phar` uji dari repo (hasil uji upload 3 Juli 2026).
+
 ## [4.55.2] - 2026-10-20
 
 ### Security

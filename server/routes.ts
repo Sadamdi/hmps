@@ -122,13 +122,7 @@ import {
 } from './middleware/account-login-throttle';
 
 import { randomBytes } from 'node:crypto';
-const COMMON_WEAK_PASSWORDS = new Set([
-	'admin123', 'admin', 'administrator', 'password', 'password123', '12345678', '123456789',
-	'qwerty123', '11111111', 'passw0rd', 'admin1234', 'himatif123', 'encoder123',
-]);
-function isCommonWeakPassword(pw: string): boolean {
-	return COMMON_WEAK_PASSWORDS.has(String(pw || '').trim().toLowerCase());
-}
+import { isCommonWeakPassword } from './lib/weak-passwords';
 /** Password acak 14 karakter (tanpa karakter mirip: 0/O, 1/l/I). */
 function generateStrongPassword(): string {
 	const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
@@ -1338,6 +1332,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		SessionModel: any,
 		tenantDbName: string | undefined,
 	) {
+		// Akun yang masih memakai password bawaan/umum (mis. "admin123") tidak boleh masuk: password harus
+		// diatur ulang oleh owner/admin (atau lewat Lupa Password) sebelum akun bisa dipakai.
+		const suppliedPassword = typeof req.body?.password === 'string' ? req.body.password : '';
+		if (suppliedPassword && isCommonWeakPassword(suppliedPassword)) {
+			void logLoginAttempt({
+				ip: getRealClientIp(req),
+				email: String(user.username || user.email || ''),
+				success: false,
+				reason: 'invalid_password',
+			});
+			return res.status(403).json({
+				message:
+					'Password akun ini masih bawaan/umum sehingga tidak diizinkan untuk masuk. Minta owner/admin mengatur ulang password akun ini, atau gunakan Lupa Password.',
+				error: { code: 'PASSWORD_RESET_REQUIRED' },
+			});
+		}
 		await storage.updateUser(user._id, { lastLogin: new Date() });
 		if (user.username) resetAccountLoginFailures(String(user.username));
 		if (user.email) resetAccountLoginFailures(String(user.email));
@@ -2756,6 +2766,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const existingUser = await storage.getUserById(userId);
 				if (!existingUser) {
 					return res.status(404).json({ message: 'User not found' });
+				}
+				if (typeof password === 'string' && password && isCommonWeakPassword(password)) {
+					return res.status(400).json({
+						message: 'Password terlalu umum/mudah ditebak. Gunakan kombinasi unik minimal 8 karakter.',
+						error: { code: 'WEAK_PASSWORD' },
+					});
 				}
 				const requesterRoleName = (req.user as any)?.role || '';
 				const allRoles = await storage.getAllRoles();

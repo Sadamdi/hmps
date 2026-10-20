@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.55.2",
+    "version": "4.56.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -12092,6 +12092,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "password": {
+                    "type": "string",
+                    "example": "sample"
+                  },
                   "url": {
                     "type": "string",
                     "example": "sample"
@@ -12106,6 +12110,7 @@
               "examples": {
                 "default": {
                   "value": {
+                    "password": "sample",
                     "url": "sample",
                     "mediaType": "sample"
                   }
