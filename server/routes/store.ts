@@ -43,6 +43,7 @@ import {
 	normalizeVariantsInput,
 	productAsVariant,
 	variantLineKey,
+	orderLineVariantText,
 } from '../../shared/store-variants';
 import {
 	STORE_CLOSED_MESSAGE,
@@ -2974,7 +2975,7 @@ function sheetOrderFrom(req: Request, o: any, settings: any) {
 		...paymentExportFields(o),
 		items: (o.items || []).map((it: any) => ({
 			name: it.name,
-			variantLabel: it.variantLabel || '',
+			variantLabel: orderLineVariantText(it),
 			qty: it.qty,
 			unitPrice: it.unitPrice,
 		})),
@@ -3243,7 +3244,7 @@ router.get('/admin/orders/export.xlsx', authenticate, requireTokoManage, async (
 				...paymentExportFields(o),
 				items: (o.items || []).map((it: any) => ({
 					name: it.name,
-					variantLabel: it.variantLabel || '',
+					variantLabel: orderLineVariantText(it),
 					qty: it.qty,
 					unitPrice: it.unitPrice,
 					lineSubtotal: it.lineSubtotal,
@@ -3968,7 +3969,8 @@ async function createCheckoutOrder(
 	const itemsText = orderLines
 		.map(
 			(l) =>
-				`• ${l.name}${l.variantLabel ? ` (${l.variantLabel})` : ''} x${l.qty} — ${formatStoreMoney(l.lineSubtotal, l.currency)} (${base}${storePath}/${l.slug})`,
+				`• ${l.name}${l.variantLabel ? ` (${l.variantLabel})` : ''} x${l.qty} — ${formatStoreMoney(l.lineSubtotal, l.currency)} (${base}${storePath}/${l.slug})${l.lineKind === 'bundle' && l.bundleComponentSnapshot?.length ? `
+   Isi: ${orderLineVariantText(l)}` : ''}`,
 		)
 		.join('\n');
 
@@ -4203,7 +4205,7 @@ async function runStoreCheckoutFromBody(req: Request, res: Response, _body: Reco
 			queueSheetSync(req, o.orderNo, { stock: true });
 			notifyStoreAdmins(req, 'store_order', {
 				title: `Pesanan baru ${o.orderNo}${o.paymentPlan === 'dp' ? ' (DP)' : ''}`,
-				description: `${customerName} · ${o.items.map((l: any) => `${l.name}${l.variantLabel ? ` (${l.variantLabel})` : ''} x${l.qty}`).join(', ')} · ${formatStoreMoney(o.total, c.orderCur)}`,
+				description: `${customerName} · ${o.items.map((l: any) => `${l.name}${orderLineVariantText(l) ? ` (${orderLineVariantText(l)})` : ''} x${l.qty}`).join(', ')} · ${formatStoreMoney(o.total, c.orderCur)}`,
 				actionUrl: '/dashboard/toko?tab=orders',
 				tag: 'toko',
 			});

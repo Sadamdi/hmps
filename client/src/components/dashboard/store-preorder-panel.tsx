@@ -1,3 +1,4 @@
+import { orderLineVariantText } from '@shared/store-variants';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronDown, Loader2 } from 'lucide-react';
@@ -114,7 +115,7 @@ function PreorderRow({ o, overdue, currency, onOpenOrders }: { o: any; overdue: 
 					<p className="text-muted-foreground">
 						{o.customerName} · {o.customerPhone} · {new Date(o.createdAt).toLocaleDateString('id-ID')} · {STORE_ORDER_STATUS_LABEL[o.status] || o.status}
 					</p>
-					<p className="text-xs">{(o.items || []).map((it: any) => `${it.name}${it.variantLabel ? ` (${it.variantLabel})` : ''} ×${it.qty}`).join(', ')}</p>
+					<p className="text-xs">{(o.items || []).map((it: any) => `${it.name}${orderLineVariantText(it) ? ` (${orderLineVariantText(it)})` : ''} ×${it.qty}`).join(', ')}</p>
 					<p className="text-xs tabular-nums">
 						Total {formatStoreMoney(o.total, currency)} · {o.paymentPlan === 'dp' ? `DP ${formatStoreMoney(o.dpAmount || 0, currency)}` : 'penuh'} · masuk{' '}
 						{formatStoreMoney(o.amountPaid || 0, currency)} · <strong>sisa {formatStoreMoney(o.balanceDue ?? o.total, currency)}</strong>

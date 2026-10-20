@@ -529,8 +529,8 @@ export default function TokoProductDetailPage() {
 						]}
 					/>
 
-					<div className="grid md:grid-cols-2 gap-8 mt-6">
-						<div className="space-y-4">
+					<div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+						<div className="space-y-4 min-w-0">
 							<div className="rounded-xl overflow-hidden border bg-muted aspect-square">
 								{activeImageSrc ? (
 									<div className="relative w-full h-full">
@@ -576,8 +576,8 @@ export default function TokoProductDetailPage() {
 								)}
 							</div>
 							{galleryImages.length > 1 && (
-								<div className="overflow-x-auto">
-									<div className="flex gap-2 min-w-max pr-1">
+								<div className="overflow-x-auto max-w-full">
+									<div className="flex gap-2 w-max pr-1">
 										{galleryImages.map((img, i) => (
 											<button
 												key={`${img}-${i}`}
@@ -620,7 +620,7 @@ export default function TokoProductDetailPage() {
 								</Card>
 							)}
 						</div>
-						<div>
+						<div className="min-w-0">
 							<h1 className="text-3xl font-bold">{selVariant?.title || product.name}</h1>
 							<ProductRatingBadge productId={String(product._id)} />
 							<StoreStatsLine favorites={product.favoriteCount} views={product.viewCount} />
