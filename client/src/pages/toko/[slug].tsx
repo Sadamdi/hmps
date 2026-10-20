@@ -1,4 +1,5 @@
 import { activeVariants, productAsVariant, type StoreVariant } from '@shared/store-variants';
+import { safeHtml } from '@/lib/safe-html';
 import { StoreChatPanel } from '@/components/toko/store-chat-panel';
 import { StoreFavoriteButton } from '@/components/toko/store-favorite-button';
 import { MessageCircle } from 'lucide-react';
@@ -788,7 +789,7 @@ export default function TokoProductDetailPage() {
 							{product.descriptionHtml && (
 								<div
 									className="prose prose-sm dark:prose-invert max-w-none mt-8 border-t pt-8"
-									dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}
+									dangerouslySetInnerHTML={{ __html: safeHtml(product.descriptionHtml) }}
 								/>
 							)}
 						</div>

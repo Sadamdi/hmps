@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { safeHtml } from '@/lib/safe-html';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import OrganizationStructureEditor from '@/components/dashboard/organization-structure-editor';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
@@ -269,7 +270,7 @@ export default function DashboardKelembagaan() {
 										</div>
 									) : settings?.visionMission ? (
 										<div className="prose max-w-none border rounded-md p-4 bg-muted/30">
-											<div dangerouslySetInnerHTML={{ __html: settings.visionMission }} />
+											<div dangerouslySetInnerHTML={{ __html: safeHtml(settings.visionMission) }} />
 										</div>
 									) : (
 										<p className="text-muted-foreground italic">Belum ada konten. Klik Edit untuk mengisi.</p>

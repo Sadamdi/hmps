@@ -1,4 +1,5 @@
 import ContentEditor from '@/components/dashboard/content-editor';
+import { safeHtml } from '@/lib/safe-html';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { TenantOwnerDeleteAccountSection } from '@/components/dashboard/tenant-owner-delete-account-section';
@@ -753,7 +754,7 @@ export default function DashboardProfil() {
 										</>
 									) : settings?.aboutUs ? (
 										<div className="prose max-w-none border rounded-md p-4 bg-muted/30">
-											<div dangerouslySetInnerHTML={{ __html: settings.aboutUs }} />
+											<div dangerouslySetInnerHTML={{ __html: safeHtml(settings.aboutUs) }} />
 										</div>
 									) : (
 										<p className="text-muted-foreground italic">Belum ada konten.</p>

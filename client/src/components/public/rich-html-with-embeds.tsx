@@ -1,4 +1,5 @@
 import { getYouTubeEmbedSrc, parseYouTubeVideoId } from '@/lib/youtube-embed';
+import { safeHtml } from '@/lib/safe-html';
 import { formatContentForDisplay } from '@/utils/formatContent';
 import { getDefaultEmbedHostSet } from '@shared/embed-default-hosts';
 import { detectMediaSource } from '@shared/mediaUtils';
@@ -230,7 +231,7 @@ export default function RichHtmlWithEmbeds({
 		return (
 			<div
 				className={proseClass}
-				dangerouslySetInnerHTML={{ __html: segments[0].html }}
+				dangerouslySetInnerHTML={{ __html: safeHtml(segments[0].html) }}
 			/>
 		);
 	}
@@ -254,7 +255,7 @@ export default function RichHtmlWithEmbeds({
 					return (
 						<div
 							key={i}
-							dangerouslySetInnerHTML={{ __html: seg.html }}
+							dangerouslySetInnerHTML={{ __html: safeHtml(seg.html) }}
 						/>
 					);
 				}

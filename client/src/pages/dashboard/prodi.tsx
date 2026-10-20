@@ -1,4 +1,5 @@
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
+import { safeHtml } from '@/lib/safe-html';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
@@ -1240,7 +1241,7 @@ function ProfileEditor({ data, onChange, readOnly }: { data: any; onChange: (f: 
 				</CardHeader>
 				<CardContent>
 					{readOnly ? (
-						<div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: data.history || '<em>Belum ada data</em>' }} />
+						<div className="prose prose-sm max-w-none dark:prose-invert" dangerouslySetInnerHTML={{ __html: safeHtml(data.history || '<em>Belum ada data</em>') }} />
 					) : (
 						<RichTextEditor
 							value={data.history || ''}

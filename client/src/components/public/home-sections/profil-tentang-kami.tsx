@@ -1,4 +1,5 @@
 import { AboutVideoEmbed } from '@/components/public/about-video-embed';
+import { safeHtml } from '@/lib/safe-html';
 import { apiRequest } from '@/lib/queryClient';
 import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
 import { useQuery } from '@tanstack/react-query';
@@ -47,7 +48,7 @@ export default function ProfilTentangKamiSection() {
 				<div className="max-w-4xl mx-auto">
 					<div
 						className="prose prose-base max-w-none leading-relaxed bg-card/90 border border-border/70 backdrop-blur-sm rounded-xl p-8 shadow-sm text-foreground prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground"
-						dangerouslySetInnerHTML={{ __html: intro }}
+						dangerouslySetInnerHTML={{ __html: safeHtml(intro) }}
 					/>
 				</div>
 				)}
