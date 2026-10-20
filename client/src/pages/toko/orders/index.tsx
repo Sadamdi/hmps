@@ -1,3 +1,4 @@
+import { orderLineVariantText } from '@shared/store-variants';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -217,7 +218,7 @@ export default function TokoOrdersHistoryPage() {
 														<ul className="text-xs text-muted-foreground space-y-0.5">
 															{o.items.slice(0, 3).map((li: any, i: number) => (
 																<li key={i}>
-																	{li.name}{li.variantLabel ? ` (${li.variantLabel})` : ''} × {li.qty}
+																	{li.name}{orderLineVariantText(li) ? ` (${orderLineVariantText(li)})` : ''} × {li.qty}
 																</li>
 															))}
 															{o.items.length > 3 && (

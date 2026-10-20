@@ -137,7 +137,7 @@ export function StoreQuickViewDialog({ product, onClose, defaultCurrency = 'IDR'
 				) : (
 					<>
 						<div className="flex-1 overflow-y-auto overscroll-contain">
-							<div className="grid gap-4 p-4 sm:grid-cols-2 sm:gap-6 sm:p-6">
+							<div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 sm:gap-6 sm:p-6">
 								<div className="min-w-0 space-y-2">
 									<div className="mx-auto aspect-square w-full max-h-[38dvh] overflow-hidden rounded-lg bg-muted sm:max-h-none">
 										{activeImg ? <MediaDisplay src={activeImg} alt={title} className="h-full w-full object-cover" /> : null}

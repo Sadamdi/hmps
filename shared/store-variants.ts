@@ -98,3 +98,13 @@ export function variantLineKey(productId: unknown, variantId: unknown): string {
 	const vid = String(variantId || '');
 	return vid ? `p:${productId}:v:${vid}` : `p:${productId}`;
 }
+
+/** Teks varian/isi satu baris pesanan: varian produk, atau isi paket bundling (mis. "1× Kaos (L), 1× Keychain (Naga)"). */
+export function orderLineVariantText(it: {
+	variantLabel?: string;
+	bundleComponentSnapshot?: { name: string; qty: number }[];
+}): string {
+	if (it.variantLabel) return it.variantLabel;
+	const comps = Array.isArray(it.bundleComponentSnapshot) ? it.bundleComponentSnapshot : [];
+	return comps.map((c) => `${c.qty}× ${c.name}`).join(', ');
+}

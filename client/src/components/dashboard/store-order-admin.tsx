@@ -1,3 +1,4 @@
+import { orderLineVariantText } from '@shared/store-variants';
 import { useEffect, useState } from 'react';
 import { ChevronDown, Download, Loader2, Trash2 } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -106,7 +107,7 @@ export function StoreOrderAdminCard({ order: o, currency, saving, onPatch, onDel
 					<li key={i} className="flex justify-between gap-2">
 						<span>
 							{it.name}
-							{it.variantLabel ? <span className="text-muted-foreground"> ({it.variantLabel})</span> : null} × {it.qty}
+							{orderLineVariantText(it) ? <span className="text-muted-foreground"> ({orderLineVariantText(it)})</span> : null} × {it.qty}
 						</span>
 						<span className="tabular-nums">{formatStoreMoney(it.lineSubtotal, it.currency || currency)}</span>
 					</li>

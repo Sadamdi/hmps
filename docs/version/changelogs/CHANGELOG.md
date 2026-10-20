@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.55.1] - 2026-10-20
+
+### Fixed
+
+- Detail produk di mobile: foto utama tidak lagi melebar ke 700px dan terpotong ketika galeri/varian punya banyak thumbnail (kolom grid dibatasi `grid-cols-1` + `min-w-0`, strip thumbnail scroll di dalam kolomnya). Dialog Lihat cepat ikut diamankan.
+- Pesanan bundling: pilihan varian isi paket (mis. Kaos L, Keychain desain Naga) kini muncul di teks WhatsApp checkout, deskripsi notifikasi, panel admin pesanan, panel pre-order, riwayat pembeli, ekspor Excel, dan sinkron Google Sheet (sebelumnya hanya di email dan halaman invoice).
+
 ## [4.55.0] - 2026-10-09
 
 ### Added
