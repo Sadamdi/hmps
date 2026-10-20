@@ -1,9 +1,11 @@
 import fs from 'fs';
 import nodemailer from 'nodemailer';
 
-let transporter: nodemailer.Transporter | null = null;
+type Mailer = ReturnType<typeof nodemailer.createTransport>;
 
-function getTransporter(): nodemailer.Transporter {
+let transporter: Mailer | null = null;
+
+function getTransporter(): Mailer {
 	if (transporter) return transporter;
 
 	const EMAIL = process.env.EMAIL;

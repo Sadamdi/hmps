@@ -8,6 +8,8 @@
  */
 import fs from 'fs';
 import nodemailer from 'nodemailer';
+
+type Mailer = ReturnType<typeof nodemailer.createTransport>;
 import { formatStoreMoney } from '../../shared/store-currency';
 import { STORE_PAYMENT_KIND_LABEL } from '../../shared/store-payment';
 
@@ -321,8 +323,8 @@ ${button}
 	return { subject: c.subject, html, text };
 }
 
-let transporter: nodemailer.Transporter | null = null;
-function getTransporter(): nodemailer.Transporter | null {
+let transporter: Mailer | null = null;
+function getTransporter(): Mailer | null {
 	if (transporter) return transporter;
 	const user = process.env.EMAIL;
 	const pass = process.env.EMAIL_PW;
