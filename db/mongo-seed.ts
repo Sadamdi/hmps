@@ -16,8 +16,8 @@ async function seedDatabase() {
 		}
 
 		// Seed users
-		const defaultPassword = await hashPassword('owner123');
-		const divisionHeadPassword = await hashPassword('division123');
+		const defaultPassword = await hashPassword('owner123', { allowWeak: true });
+		const divisionHeadPassword = await hashPassword('division123', { allowWeak: true });
 
 		// Create users
 		const owner = await User.create({
@@ -30,7 +30,7 @@ async function seedDatabase() {
 
 		const admin = await User.create({
 			username: 'admin',
-			password: await hashPassword('admin123'),
+			password: await hashPassword('admin123', { allowWeak: true }),
 			name: 'Administrator',
 			email: 'admin@example.com',
 			role: 'admin',

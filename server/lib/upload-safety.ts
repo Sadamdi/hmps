@@ -6,6 +6,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { NextFunction, Request, RequestHandler, Response } from 'express';
+import { checkUploadFile, isAllowedExtension } from './upload-policy';
 
 /** Ekstensi web/skrip server yang ditolak di SETIAP segmen nama file (`a.php.jpg` ikut ditolak). */
 export const BLOCKED_UPLOAD_EXTENSIONS = new Set([
@@ -87,8 +88,9 @@ function reject(res: Response, message: string): void {
 	res.status(400).json({ success: false, message, error: { code: 'UNSAFE_FILE_TYPE', details: [] } });
 }
 
-export const UNSAFE_FILE_MESSAGE =
-	'Jenis file tidak diizinkan (SVG, HTML, XML, skrip, dan file eksekusi ditolak). Gunakan PNG/JPG/WebP untuk gambar atau PDF/dokumen Office untuk lampiran.';
+export const ALLOWED_TYPES_HINT =
+	'Diizinkan: gambar (JPG, PNG, WebP, GIF, AVIF, HEIC), video (MP4, WebM, MOV), audio (MP3, M4A, WAV, OGG, FLAC), PDF, dokumen Office/ODF, RTF, teks (TXT, MD, CSV), arsip (ZIP, RAR, 7Z), serta PSD, BLEND, GLB, PKT. SVG, HTML, XML, skrip, dan file eksekusi tidak diizinkan.';
+export const UNSAFE_FILE_MESSAGE = 'Jenis file tidak diizinkan. ' + ALLOWED_TYPES_HINT;
 
 type MulterHandler = (req: Request, res: Response, cb: (err?: unknown) => void) => void;
 
@@ -106,9 +108,14 @@ export function guardMulter(mw: RequestHandler): RequestHandler {
 			if (Array.isArray(r.files)) all.push(...r.files);
 			else if (r.files && typeof r.files === 'object') for (const arr of Object.values(r.files)) all.push(...arr);
 			for (const f of all) {
-				if (isBlockedUploadName(f.originalname, f.mimetype) || bufferLooksActive(f.buffer)) {
-					console.warn(`[upload-safety] ditolak: "${String(f.originalname).slice(0, 80)}" (${f.mimetype}) dari ${req.ip}`);
-					return reject(res, UNSAFE_FILE_MESSAGE);
+				const reason =
+					checkUploadFile(f, {
+						isBlockedName: (n) => isBlockedUploadName(n, f.mimetype),
+						looksActive: bufferLooksActive,
+					});
+				if (reason) {
+					console.warn(`[upload-safety] ditolak: "${String(f.originalname).slice(0, 80)}" (${f.mimetype}) — ${reason} — dari ${req.ip}`);
+					return reject(res, `File "${String(f.originalname).slice(0, 60)}" ditolak: ${reason}. ${ALLOWED_TYPES_HINT}`);
 				}
 			}
 			next();
@@ -119,11 +126,21 @@ export function guardMulter(mw: RequestHandler): RequestHandler {
 /** Penjaga penyajian: file aktif yang terlanjur ada dipaksa unduhan + CSP sandbox; skrip server tidak pernah disajikan sebagai kode. */
 export function activeContentServeGuard(req: Request, res: Response, next: NextFunction): void {
 	const ext = path.extname(req.path || '').slice(1).toLowerCase();
+	// Folder karantina penyapu tidak pernah disajikan.
+	if (/^\/_quarantine(\/|$)/i.test(req.path || '')) {
+		res.status(404).json({ message: 'Not found' });
+		return;
+	}
 	if (ACTIVE_SERVE_EXTENSIONS.has(ext)) {
 		res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");
 		res.setHeader('Content-Disposition', 'attachment');
 		res.setHeader('X-Content-Type-Options', 'nosniff');
 	} else if (OPAQUE_SERVE_EXTENSIONS.has(ext) || /\.(php|phar|phtml|asp|aspx|jsp)\./i.test(req.path || '')) {
+		res.setHeader('Content-Type', 'application/octet-stream');
+		res.setHeader('Content-Disposition', 'attachment');
+		res.setHeader('X-Content-Type-Options', 'nosniff');
+	} else if (req.baseUrl === '/uploads' && ext && !isAllowedExtension(ext)) {
+		// Berkas lama dengan ekstensi di luar daftar putih: hanya boleh diunduh, tidak pernah dirender.
 		res.setHeader('Content-Type', 'application/octet-stream');
 		res.setHeader('Content-Disposition', 'attachment');
 		res.setHeader('X-Content-Type-Options', 'nosniff');
