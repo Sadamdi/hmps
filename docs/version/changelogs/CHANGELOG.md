@@ -9,6 +9,15 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.55.2] - 2026-10-20
+
+### Security
+
+- Upload file konten aktif (SVG, HTML, XML, JS, PHP/phar, ASP/JSP, executable, `.htaccess`) ditolak 400 di semua rute upload staf; isi markup aktif yang disamarkan sebagai `.txt`/`.pdf` juga ditolak.
+- Upload chat publik (tanpa login) kini hanya menerima gambar valid (magic bytes), maks 10 MB, dan file sementara selalu dihapus (sebelumnya bisa tertinggal di `uploads/` dan disajikan sebagai SVG/HTML aktif).
+- `/uploads` dan `/attached_assets`: file aktif yang sudah ada disajikan sebagai unduhan + CSP sandbox; `.php`/`.phar` dipaksa octet-stream.
+- Sanitizer HTML rich-text kini memeriksa per atribut: menutup bypass `<svg/onload=...>`, `<tag/onfocus=...>`, dan `javascript:`/`data:text/html` yang disamarkan entity/tab.
+
 ## [4.55.1] - 2026-10-20
 
 ### Fixed

@@ -17,11 +17,52 @@ export function looksLikeXss(value: string): boolean {
 	return XSS_LIKE.test(value);
 }
 
+const SAFE_DATA_IMAGE = /^data:image\/(png|jpe?g|gif|webp|avif);/;
+const NAMED_ENTITIES: Record<string, string> = { tab: '', newline: '', colon: ':', lpar: '(', rpar: ')', sol: '/' };
+
+/** Dekode entity HTML umum + buang karakter kontrol/spasi, seperti yang dilakukan browser pada skema URL. */
+function normalizeUrlForCheck(raw: string): string {
+	let v = raw.replace(/^["']|["']$/g, '');
+	for (let i = 0; i < 2; i++) {
+		v = v
+			.replace(/&#x([0-9a-f]+);?/gi, (_m, h) => String.fromCodePoint(Math.min(parseInt(h, 16), 0x10ffff)))
+			.replace(/&#(\d+);?/g, (_m, d) => String.fromCodePoint(Math.min(parseInt(d, 10), 0x10ffff)))
+			.replace(/&(tab|newline|colon|lpar|rpar|sol);?/gi, (_m, n) => NAMED_ENTITIES[String(n).toLowerCase()]);
+	}
+	return v.replace(/[\u0000-\u0020\u007f-\u009f\u200b-\u200f\u2028\u2029\ufeff]/g, '').toLowerCase();
+}
+
+function isDangerousUrl(raw: string): boolean {
+	const v = normalizeUrlForCheck(raw);
+	if (/^(javascript|vbscript|livescript|mocha):/.test(v)) return true;
+	return v.startsWith('data:') && !SAFE_DATA_IMAGE.test(v);
+}
+
+const TAG_PARTS = /^<([a-z][^\s/>]*)([\s\S]*?)(\/?>)$/i;
+/** Satu atribut: nama (tanpa spasi, "/", kutip, "=") + nilai opsional. "/" di antara atribut ikut menjadi pemisah. */
+const ATTRIBUTE = /([^\s"'<>/=]+)(?:\s*=\s*("[^"]*"|'[^']*'|[^\s"'=<>`]+))?/g;
+const URL_ATTR_NAMES = new Set(['href', 'src', 'xlink:href', 'action', 'formaction', 'poster', 'background', 'srcset', 'data']);
+
+/** Bersihkan satu tag: buang atribut on*, dan netralkan URL berskema berbahaya. */
+function cleanTag(tag: string): string {
+	const m = TAG_PARTS.exec(tag);
+	if (!m) return tag;
+	const [, name, rest, end] = m;
+	const cleaned = rest.replace(ATTRIBUTE, (full, attr: string, val?: string) => {
+		const lower = attr.toLowerCase();
+		if (lower.startsWith('on')) return '';
+		if (val && URL_ATTR_NAMES.has(lower) && isDangerousUrl(val)) return `${attr}="#"`;
+		return full;
+	});
+	return `<${name}${cleaned}${end}`;
+}
+
 /** Strip script tags and event-handler / javascript: attributes. */
 export function stripUnsafeHtml(html: string): string {
 	if (!html || typeof html !== 'string') return '';
 	return html
 		.replace(/<script\b[\s\S]*?<\/script>/gi, '')
+		.replace(/<[a-z][^>]*>/gi, cleanTag)
 		.replace(EVENT_HANDLER_ATTR, ' data-stripped=')
 		.replace(/javascript\s*:/gi, '');
 }

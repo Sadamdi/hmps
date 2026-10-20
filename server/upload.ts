@@ -7,6 +7,7 @@ import { promisify } from 'util';
 import { isProcessableImage, processImage } from './image-processor';
 import { DEFAULT_IMAGE_URL, DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
 import { registerUpload } from './services/file-scanner';
+import { guardMulter } from './lib/upload-safety';
 
 // Promisify fs functions
 const mkdir = promisify(fs.mkdir);
@@ -170,12 +171,24 @@ export function tenantCtxFromReq(req: { isTenantRequest?: boolean; tenantSlug?: 
 const storage = multer.memoryStorage();
 
 // Configure multer upload
-export const uploadMiddleware = multer({
+const rawUploadMiddleware = multer({
 	storage,
 	limits: {
 		fileSize: 100 * 1024 * 1024, // 100MB (sesuai dengan Nginx dan Express body parser limit)
 	},
 });
+
+/**
+ * Semua rute upload staf memakai ini. Sama seperti multer (single/array/fields/any/none), tetapi file
+ * konten aktif (SVG, HTML, XML, skrip, executable) ditolak 400 sebelum handler rute berjalan.
+ */
+export const uploadMiddleware = {
+	single: (name: string) => guardMulter(rawUploadMiddleware.single(name)),
+	array: (name: string, maxCount?: number) => guardMulter(rawUploadMiddleware.array(name, maxCount)),
+	fields: (fields: ReadonlyArray<multer.Field>) => guardMulter(rawUploadMiddleware.fields(fields)),
+	any: () => guardMulter(rawUploadMiddleware.any()),
+	none: () => rawUploadMiddleware.none(),
+};
 
 /**
  * Handles file upload by writing to disk and returning URL

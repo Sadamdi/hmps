@@ -1,3 +1,4 @@
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { Router } from 'express';
 import multer from 'multer';
@@ -78,6 +79,7 @@ import { chatLimiter } from '../security';
 import { requireTrustedChatOrigin } from '../middleware/chat-origin-gate';
 import { ChatService } from '../services/chat-service';
 import { getBuyer } from '../services/buyer-auth';
+import { hasImageMagic, isBlockedUploadName, removeQuietly, UNSAFE_FILE_MESSAGE } from '../lib/upload-safety';
 dotenv.config();
 
 const router = Router();
@@ -92,7 +94,49 @@ const upload = multer({
 			cb(null, uniqueName);
 		},
 	}),
+	limits: { fileSize: 10 * 1024 * 1024, files: 1, fields: 20 },
+	fileFilter: (_req, file, cb) => {
+		// Chat hanya menerima gambar. Tolak nama/MIME berbahaya sebelum ditulis ke disk.
+		if (isBlockedUploadName(file.originalname, file.mimetype)) return cb(new Error('UNSAFE_UPLOAD'));
+		cb(null, true);
+	},
 });
+
+/**
+ * Pengaman upload chat anonim: terjemahkan penolakan multer menjadi 400, verifikasi isi file benar-benar
+ * gambar (magic bytes), dan pastikan file sementara selalu dihapus saat respons selesai (termasuk jalur gagal).
+ */
+function chatImageGuard(req: any, res: any, next: any) {
+	upload.single('image')(req, res, (err: any) => {
+		const file = req.file as Express.Multer.File | undefined;
+		if (file?.path) res.on('close', () => removeQuietly(file.path));
+		if (err) {
+			const unsafe = err?.message === 'UNSAFE_UPLOAD';
+			const tooBig = err?.code === 'LIMIT_FILE_SIZE';
+			return res.status(unsafe || tooBig ? 400 : 500).json({
+				success: false,
+				message: unsafe ? UNSAFE_FILE_MESSAGE : tooBig ? 'Ukuran gambar maksimal 10 MB.' : 'Upload gagal.',
+				error: { code: unsafe ? 'UNSAFE_FILE_TYPE' : tooBig ? 'FILE_TOO_LARGE' : 'UPLOAD_FAILED', details: [] },
+			});
+		}
+		if (file) {
+			let ok = false;
+			try {
+				const fd = fs.openSync(file.path, 'r');
+				const head = Buffer.alloc(16);
+				fs.readSync(fd, head, 0, 16, 0);
+				fs.closeSync(fd);
+				ok = hasImageMagic(head);
+			} catch {
+				ok = false;
+			}
+			if (!ok) {
+				return res.status(400).json({ success: false, message: UNSAFE_FILE_MESSAGE, error: { code: 'UNSAFE_FILE_TYPE', details: [] } });
+			}
+		}
+		next();
+	});
+}
 
 // Get all chats for user (summary only, no full message content)
 router.get('/all', async (req, res) => {
@@ -221,7 +265,7 @@ router.post(
 	chatUploadRateLimiter,
 	requireTrustedChatOrigin,
 	authenticateOptional,
-	upload.single('image'),
+	chatImageGuard,
 	async (req, res) => {
 		// Setup SSE headers up-front (sebelum kerja berat).
 		// Express middleware sebelumnya sudah boleh tulis response kalau blocking;
