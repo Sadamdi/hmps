@@ -1,4 +1,5 @@
 import { AboutVideoEmbed } from '@/components/public/about-video-embed';
+import { safeHtml } from '@/lib/safe-html';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -179,7 +180,7 @@ export default function ProfilPage() {
 								prose-headings:text-foreground prose-p:text-foreground prose-strong:text-foreground prose-li:text-foreground ${
 									introExpanded ? '' : 'max-h-[8rem] sm:max-h-[18rem] overflow-hidden'
 								}`}
-									dangerouslySetInnerHTML={{ __html: intro }}
+									dangerouslySetInnerHTML={{ __html: safeHtml(intro) }}
 								/>
 								{!introExpanded && (
 									<div className="pointer-events-none absolute inset-x-0 bottom-0 h-14 sm:h-24 rounded-b-xl bg-gradient-to-t from-card via-card/95 to-transparent" />

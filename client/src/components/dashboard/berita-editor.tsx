@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { safeHtml } from '@/lib/safe-html';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -1307,7 +1308,7 @@ export default function BeritaEditor({
 						className="pt-4">
 						<div className="border rounded-md p-6 min-h-[400px] prose max-w-none">
 							<h1 className="text-2xl font-bold mb-4">{title}</h1>
-							<div dangerouslySetInnerHTML={{ __html: content }} />
+							<div dangerouslySetInnerHTML={{ __html: safeHtml(content) }} />
 						</div>
 					</TabsContent>
 				</Tabs>

@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.56.2] - 2026-10-20
+
+### Security
+
+- Sanitizer HTML CMS diganti dari regex ke daftar putih `sanitize-html` (`server/utils/cms-html.ts`), disusun dari inventaris 10.7 ribu dokumen produksi: tag/atribut/CSS yang dipakai konten nyata diizinkan; script, iframe/object/embed, form/input, svg/math, `on*`, `id`/`name`, `javascript:`/`data:` berbahaya, dan CSS `url()`/`expression` dibuang. Berlaku otomatis untuk kunci body `content`, `description`, `fullDescription`, `descriptionHtml`, `aboutUs`, `visionMission`, `history`, `rich_html`.
+- Lapis kedua di klien: `safeHtml` (DOMPurify) membungkus semua render HTML CMS, sehingga konten lama yang sudah tersimpan ikut terlindungi.
+- Penelusur atribut `stripUnsafeHtml` (4.55.2) tetap untuk semua string lain.
+
 ## [4.56.1] - 2026-10-20
 
 ### Security

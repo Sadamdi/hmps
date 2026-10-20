@@ -4,6 +4,7 @@
  */
 import { NextFunction, Request, Response } from 'express';
 import {
+	CMS_HTML_KEYS,
 	looksLikeXss,
 	sanitizeObjectStrings,
 } from '../utils/input-sanitize';
@@ -22,17 +23,6 @@ const PUBLIC_WRITE_PREFIXES = [
 	'/api/store/cart',
 	'/api/gdrive',
 ];
-
-const CMS_HTML_KEYS = new Set([
-	'content',
-	'description',
-	'fullDescription',
-	'descriptionHtml',
-	'aboutUs',
-	'visionMission',
-	'history',
-	'rich_html',
-]);
 
 function normalizeApiPath(path: string): string {
 	// Tenant rewrite leaves /api/...; also handle /api/c/:slug/...

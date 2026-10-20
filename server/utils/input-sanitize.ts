@@ -5,6 +5,19 @@
 
 import crypto from 'crypto';
 import { getTrustedClientIp } from '../lib/client-ip';
+import { sanitizeCmsHtml } from './cms-html';
+
+/** Kunci body yang berisi HTML CMS (dirender sebagai HTML di klien): disanitasi dengan daftar putih. */
+export const CMS_HTML_KEYS = new Set([
+	'content',
+	'description',
+	'fullDescription',
+	'descriptionHtml',
+	'aboutUs',
+	'visionMission',
+	'history',
+	'rich_html',
+]);
 
 const XSS_LIKE =
 	/<script\b|<\/script\s*>|javascript\s*:|vbscript\s*:|data\s*:\s*text\/html|on\w+\s*=|<\s*xss\b|<\s*iframe\b|<\s*object\b|<\s*embed\b|<\s*svg\b[^>]*\bon|expression\s*\(|eval\s*\(/i;
@@ -86,11 +99,7 @@ export function sanitizePlainText(value: string, maxLen = 5000): { ok: true; val
  */
 export function sanitizeRichHtml(html: string, maxLen = 500_000): string {
 	if (!html || typeof html !== 'string') return '';
-	let out = stripUnsafeHtml(html);
-	// Remove remaining dangerous tags entirely
-	out = out.replace(/<\/?(?:iframe|object|embed|link|meta|base|form|input|button)\b[^>]*>/gi, '');
-	if (out.length > maxLen) out = out.slice(0, maxLen);
-	return out;
+	return sanitizeCmsHtml(stripUnsafeHtml(html), maxLen);
 }
 
 /** Recursively sanitize string values in plain objects/arrays (top-level + nested). */
@@ -105,7 +114,10 @@ export function sanitizeObjectStrings(input: unknown, depth = 0): unknown {
 	if (input && typeof input === 'object') {
 		const out: Record<string, unknown> = {};
 		for (const [k, v] of Object.entries(input as Record<string, unknown>)) {
-			out[k] = sanitizeObjectStrings(v, depth + 1);
+			out[k] =
+				typeof v === 'string' && CMS_HTML_KEYS.has(k)
+					? sanitizeCmsHtml(stripUnsafeHtml(v))
+					: sanitizeObjectStrings(v, depth + 1);
 		}
 		return out;
 	}

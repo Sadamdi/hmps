@@ -122,6 +122,9 @@ ClamAV tidak mendeteksi ancaman yang relevan (SVG/XSS/XXE/penyamaran ekstensi bu
 
 `server/lib/weak-passwords.ts` memuat password umum/bawaan (`admin123`, dll.). `hashPassword` menolaknya (error `WEAK_PASSWORD`, 400), dan login dengan password itu ditolak `403 PASSWORD_RESET_REQUIRED` — akun yang masih memakainya harus direset owner/admin (atau Lupa Password). Seed dev memakai `hashPassword(pw, { allowWeak: true })`.
 
-### HTML rich-text
+### HTML rich-text (dua lapis, daftar putih)
 
-HTML rich-text disanitasi `stripUnsafeHtml` per atribut (buang `on*`, netralkan `javascript:`/`data:` berbahaya, termasuk yang disamarkan entity). Jangan melonggarkan CSP (`script-src-attr 'none'`).
+1. **Server, saat simpan:** `server/utils/cms-html.ts` (`sanitizeCmsHtml`, pustaka `sanitize-html`). Dipakai otomatis untuk kunci body `CMS_HTML_KEYS` (`content`, `description`, `fullDescription`, `descriptionHtml`, `aboutUs`, `visionMission`, `history`, `rich_html`) oleh `sanitizeObjectStrings` dan `sanitizeRichHtml`. Hanya tag/atribut/CSS dari inventaris konten produksi yang diizinkan; script, iframe/object/embed, form/input, svg/math, `on*`, `id`/`name`, URL `javascript:`/`data:` selain gambar, dan CSS dengan `url()`/`expression` dibuang. Teks tanpa tag tidak diubah.
+2. **Klien, saat render:** `client/src/lib/safe-html.ts` (`safeHtml`, DOMPurify). SEMUA `dangerouslySetInnerHTML` untuk konten CMS wajib memakainya; ini juga melindungi konten lama yang sudah tersimpan.
+3. Field baru berisi HTML: tambahkan kuncinya ke `CMS_HTML_KEYS` dan bungkus render dengan `safeHtml`. Menambah tag/atribut: ubah `ALLOWED_TAGS`/`allowedAttributes` di kedua tempat dan uji dengan korpus payload (komentar XSS 3 Juli 2026 pernah tersimpan di DB sebagai teks; tidak dieksekusi karena komentar dirender sebagai teks React).
+4. Tetap jangan melonggarkan CSP (`script-src-attr 'none'`). `stripUnsafeHtml` (penelusur atribut) tetap berlaku untuk semua string lain.

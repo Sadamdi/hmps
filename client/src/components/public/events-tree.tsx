@@ -4,6 +4,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from '@/components/ui/dialog';
+import { safeHtml } from '@/lib/safe-html';
 import EventAttachmentPreviewDialog, {
 	type EventAttachmentPreviewItem,
 } from '@/components/public/event-attachment-preview-dialog';
@@ -922,7 +923,7 @@ export default function EventsTree({
 								</span>
 							</div>
 							{selectedEvent.description && (
-								<div className="text-sm text-gray-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: selectedEvent.description }} />
+								<div className="text-sm text-gray-300 leading-relaxed" dangerouslySetInnerHTML={{ __html: safeHtml(selectedEvent.description) }} />
 							)}
 							{selectedEvent.attachments && selectedEvent.attachments.length > 0 && (
 								<div>

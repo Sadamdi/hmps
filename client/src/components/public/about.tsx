@@ -1,4 +1,5 @@
 import { AboutVideoEmbed } from '@/components/public/about-video-embed';
+import { safeHtml } from '@/lib/safe-html';
 import { PublicSectionHeader } from '@/components/public/section-header';
 import { useRevealAnimation } from '@/hooks/use-reveal-animation';
 import { parseGoogleDriveFileId, parseYouTubeVideoId } from '@/lib/youtube-embed';
@@ -301,7 +302,7 @@ export default function About() {
 											: 'sm:max-h-[14rem] sm:overflow-hidden'
 									}`}>
 									<div
-										dangerouslySetInnerHTML={{ __html: aboutHtml }}
+										dangerouslySetInnerHTML={{ __html: safeHtml(aboutHtml) }}
 										className="text-left sm:text-justify"
 									/>
 								</div>
