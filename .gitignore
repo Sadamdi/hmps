@@ -83,3 +83,6 @@ uploads/og-cache/
 
 # Karantina penyapu upload: tidak pernah disajikan dan tidak ikut auto-push media
 uploads/_quarantine/
+
+# Backup lokal skrip operasional (berisi hash/data) — jangan pernah di-commit
+.local-backups/

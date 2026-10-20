@@ -2691,12 +2691,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					division,
 					divisionLabel,
 				} = req.body;
-				if (!username || !password || !name || !email || !role) {
+				if (!username || !name || !email || !role) {
 					return res.status(400).json({
-						message: 'Username, password, name, email, and role are required',
+						message: 'Username, name, email, and role are required',
 					});
 				}
-				if (typeof password !== 'string' || password.length < 8) {
+				// Password opsional: kosong = dibuat acak (kuat) dan ditampilkan SEKALI di respons.
+				let plainPassword = typeof password === 'string' ? password : '';
+				let generatedPassword: string | undefined;
+				if (!plainPassword) {
+					plainPassword = generateStrongPassword();
+					generatedPassword = plainPassword;
+				} else if (plainPassword.length < 8) {
 					return res
 						.status(400)
 						.json({ message: 'Password minimal 8 karakter' });
@@ -2726,7 +2732,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 				const newUser = await storage.createUser({
 					username,
-					password,
+					password: plainPassword,
 					name,
 					email,
 					role,
@@ -2735,7 +2741,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						typeof divisionLabel === 'string' ? divisionLabel.trim() : '',
 				});
 				const { password: _, ...userWithoutPassword } = newUser;
-				res.status(201).json(userWithoutPassword);
+				res
+					.status(201)
+					.json(generatedPassword ? { ...userWithoutPassword, generatedPassword } : userWithoutPassword);
 			} catch (error) {
 				console.error('Create user error:', error);
 				res.status(500).json({ message: 'Internal server error' });
@@ -12064,7 +12072,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 				await tenantStorage.initializeDefaultPermissions();
 
-				const newPassword = req.body.newPassword || 'TempPass123!';
+				// Tidak ada password bawaan: bila tidak diisi (atau lemah), dibuat acak dan ditampilkan sekali.
+				const suppliedPw = typeof req.body.newPassword === 'string' ? req.body.newPassword.trim() : '';
+				const newPassword =
+					suppliedPw.length >= 8 && !isCommonWeakPassword(suppliedPw) ? suppliedPw : generateStrongPassword();
+				const ownerPasswordGenerated = newPassword !== suppliedPw;
 				const ownerUser = await tenantStorage.createUser({
 					username: community.ownerUsername,
 					password: newPassword,
@@ -12095,7 +12107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					message: `Komunitas ${community.slug} berhasil diperbaiki. Owner telah dibuat ulang.`,
 					repaired: true,
 					ownerUsername: community.ownerUsername,
-					tempPassword: newPassword,
+					...(ownerPasswordGenerated ? { tempPassword: newPassword } : {}),
 				});
 			} catch (error: any) {
 				console.error('Repair community error:', error);

@@ -14,7 +14,7 @@ import { useAuth } from '@/lib/auth';
 import { apiRequest } from '@/lib/queryClient';
 import { UserWithRole } from '@shared/schema';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Eye, EyeOff, Loader2 } from 'lucide-react';
+import { Copy, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 interface UserManagementProps {
@@ -44,6 +44,8 @@ export function UserManagement({
 	});
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+	// Password acak yang dibuat server saat kolom password dikosongkan (tampil SEKALI).
+	const [created, setCreated] = useState<{ username: string; password: string } | null>(null);
 
 	// Fetch assignable roles (tidak butuh roles.view)
 	const { data: assignableData } = useQuery({
@@ -163,6 +165,10 @@ export function UserManagement({
 						ActivityTemplates.userCreated(formData.username, String(userId))
 					);
 				}
+				if (!isEdit && responseData?.generatedPassword) {
+					setCreated({ username: formData.username, password: String(responseData.generatedPassword) });
+					return;
+				}
 			} catch (error) {
 				console.warn('Failed to log user activity:', error);
 			}
@@ -233,7 +239,8 @@ export function UserManagement({
 			});
 			return;
 		}
-		if (!user || (formData.password && formData.password.length > 0)) {
+		// Edit: kosong = tidak diubah. Buat baru: kosong = dibuat acak otomatis oleh server.
+		if (formData.password && formData.password.length > 0) {
 			if (formData.password.length < 8) {
 				toast({
 					title: 'Error',
@@ -253,6 +260,46 @@ export function UserManagement({
 		}
 		await userMutation.mutateAsync(formData);
 	};
+
+	if (created) {
+		return (
+			<div className="space-y-4 min-w-0 max-w-full" role="status">
+				<div className="rounded-md border p-4 space-y-3">
+					<p className="text-sm font-medium">Akun {created.username} berhasil dibuat.</p>
+					<p className="text-sm text-muted-foreground">
+						Password acak di bawah ini <strong>hanya tampil sekali</strong>. Salin dan berikan ke pemilik akun lewat saluran
+						yang aman; mereka sebaiknya menggantinya setelah login.
+					</p>
+					<div className="flex items-center gap-2">
+						<code className="flex-1 min-w-0 break-all rounded bg-muted px-3 py-2 text-sm select-all">{created.password}</code>
+						<Button
+							type="button"
+							variant="outline"
+							size="icon"
+							aria-label="Salin password"
+							onClick={() => {
+								void navigator.clipboard?.writeText(created.password).then(
+									() => toast({ title: 'Disalin', description: 'Password disalin ke clipboard.' }),
+									() => toast({ title: 'Gagal menyalin', description: 'Salin manual dari kotak di samping.', variant: 'destructive' }),
+								);
+							}}>
+							<Copy className="h-4 w-4" />
+						</Button>
+					</div>
+				</div>
+				<div className="flex justify-end">
+					<Button
+						type="button"
+						onClick={() => {
+							setCreated(null);
+							onSave();
+						}}>
+						Selesai
+					</Button>
+				</div>
+			</div>
+		);
+	}
 
 	// Render
 	return (
@@ -336,18 +383,17 @@ export function UserManagement({
 							<Label htmlFor="password">
 								{user
 									? 'New Password (leave blank to keep current)'
-									: 'Password'}
+									: 'Password (kosongkan = dibuat acak otomatis)'}
 							</Label>
 							<div className="relative">
 								<Input
 									id="password"
 									name="password"
 									type={showPassword ? 'text' : 'password'}
-									placeholder={user ? 'Enter new password' : 'Enter password'}
+									placeholder={user ? 'Enter new password' : 'Kosongkan untuk password acak'}
 									value={formData.password}
 									onChange={handleInputChange}
 									className="pr-10"
-									required={!user}
 								/>
 								<button
 									type="button"
@@ -373,7 +419,7 @@ export function UserManagement({
 									value={formData.confirmPassword}
 									onChange={handleInputChange}
 									className="pr-10"
-									required={!user || formData.password.length > 0}
+									required={formData.password.length > 0}
 								/>
 								<button
 									type="button"

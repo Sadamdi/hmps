@@ -3,6 +3,7 @@
  * Scrubs nested string fields; blocks clear XSS probes on public write paths.
  */
 import { NextFunction, Request, Response } from 'express';
+import { isCommonWeakPassword } from '../lib/weak-passwords';
 import {
 	CMS_HTML_KEYS,
 	looksLikeXss,
@@ -66,6 +67,25 @@ export function postBodySanitizeMiddleware(req: Request, res: Response, next: Ne
 		}
 		if (req.query && typeof req.query === 'object') {
 			req.query = sanitizeObjectStrings(req.query) as typeof req.query;
+		}
+
+		// Password yang DIATUR (daftar/ubah/reset) tidak boleh umum/bawaan seperti "admin123". Jalur login dikecualikan
+		// (di sana password hanya dibandingkan; akun berpassword bawaan ditolak oleh finalizeLogin).
+		if (
+			['POST', 'PUT', 'PATCH'].includes(req.method) &&
+			req.body &&
+			typeof req.body === 'object' &&
+			!/(login|signin|switch-to-staff|google)/i.test(path)
+		) {
+			for (const k of ['password', 'newPassword', 'ownerPassword']) {
+				const v = (req.body as Record<string, unknown>)[k];
+				if (typeof v === 'string' && v && isCommonWeakPassword(v)) {
+					return res.status(400).json({
+						message: 'Password terlalu umum/mudah ditebak. Gunakan kombinasi unik minimal 8 karakter.',
+						error: { code: 'WEAK_PASSWORD' },
+					});
+				}
+			}
 		}
 
 		// Block obvious XSS probes on public write endpoints (text fields)

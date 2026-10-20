@@ -1,5 +1,5 @@
 /**
- * Backup & restore MongoDB: main DB <-> backup cluster (12 bulan rolling)
+ * Backup & restore MongoDB: main DB <-> backup cluster (situs utama 3 bulan, komunitas 2 bulan rolling)
  * Main memakai klien Mongoose yang sama; backup memakai singleton dari db/mongodb-backup.ts jika sudah connect saat startup.
  */
 import { createHash } from 'crypto';
@@ -7,12 +7,21 @@ import { MongoClient } from 'mongodb';
 import mongoose from 'mongoose';
 import { getBackupMongoClient } from '../../db/mongodb-backup';
 import { mongoStorage } from '../mongo-storage';
+import {
+	parseSnapshotName,
+	planPrune,
+	SNAPSHOT_PREFIX,
+	TENANT_SNAPSHOT_PREFIX,
+	type SnapshotInfo,
+} from '../lib/backup-retention';
 
 const SKIP_COLLECTIONS = ['sessions', 'otpchallenges'];
-const SNAPSHOT_PREFIX = 'himatifwebmain_backup_';
-const TENANT_SNAPSHOT_PREFIX = 'bk_t_';
 const MAX_DB_NAME_BYTES = 38;
-const MAX_BACKUPS = 12;
+/** Retensi: situs utama 3 bulan, tiap komunitas 2 bulan (dapat diubah lewat env). */
+const KEEP_MAIN_BACKUPS = Math.max(1, parseInt(process.env.BACKUP_KEEP_MAIN || '3', 10) || 3);
+const KEEP_TENANT_BACKUPS = Math.max(1, parseInt(process.env.BACKUP_KEEP_TENANT || '2', 10) || 2);
+/** Batas koleksi cluster backup (Atlas gratis = 500 TOTAL); disisakan sedikit ruang aman. */
+const MAX_CLUSTER_COLLECTIONS = Math.max(50, parseInt(process.env.BACKUP_MAX_CLUSTER_COLLECTIONS || '480', 10) || 480);
 
 /**
  * Build a safe, deterministic snapshot DB name for a tenant backup.
@@ -110,6 +119,102 @@ async function copyCollection(
 	return { docs: migratedDocs, indexes: indexCount };
 }
 
+/** Jumlah koleksi pada tiap snapshot backup yang dikenali (untuk perencanaan retensi dan cek kapasitas). */
+async function listSnapshotInfos(backupClient: MongoClient): Promise<SnapshotInfo[]> {
+	const { databases } = await backupClient.db().admin().listDatabases();
+	const out: SnapshotInfo[] = [];
+	for (const d of databases) {
+		const parsed = parseSnapshotName(d.name);
+		if (!parsed) continue;
+		const cols = await backupClient.db(d.name).listCollections().toArray();
+		out.push({ db: d.name, collections: cols.length, ...parsed });
+	}
+	return out;
+}
+
+/** Total koleksi di seluruh cluster backup (batas Atlas gratis: 500 koleksi TOTAL). */
+async function countClusterCollections(backupClient: MongoClient): Promise<number> {
+	const { databases } = await backupClient.db().admin().listDatabases();
+	let total = 0;
+	for (const d of databases) {
+		total += (await backupClient.db(d.name).listCollections().toArray()).length;
+	}
+	return total;
+}
+
+/** Grup komunitas aktif seperti tertulis pada nama snapshot (slug, dipendekkan bila perlu). */
+async function getActiveTenantGroups(): Promise<Set<string> | null> {
+	try {
+		const { Community } = await import('../../db/mongodb');
+		const communities = (await Community.find({ status: 'active' }).lean()) as any[];
+		const groups = new Set<string>();
+		for (const c of communities) {
+			const parsed = parseSnapshotName(buildTenantSnapshotName(c.dbName, '2000_01'));
+			if (parsed) groups.add(parsed.group);
+		}
+		return groups;
+	} catch (err: any) {
+		console.warn('[Backup] Tidak dapat membaca daftar komunitas aktif (komunitas yatim tidak dipangkas):', err?.message);
+		return null;
+	}
+}
+
+/**
+ * Pangkas snapshot lama sesuai retensi (situs utama BACKUP_KEEP_MAIN=3 bulan, komunitas BACKUP_KEEP_TENANT=2 bulan).
+ * `beforeCreate` = dipanggil sebelum membuat backup bulan berjalan (menyisakan satu slot dan membebaskan ruang).
+ * BACKUP_PRUNE_DRY_RUN=1 hanya mencatat rencana tanpa menghapus.
+ */
+export async function pruneBackups(
+	backupClient: MongoClient,
+	opts: { beforeCreate: boolean },
+): Promise<{ removed: string[]; kept: string[]; dryRun: boolean }> {
+	const dryRun = process.env.BACKUP_PRUNE_DRY_RUN === '1';
+	const snapshots = await listSnapshotInfos(backupClient);
+	const plan = planPrune(snapshots, {
+		currentKey: getCurrentBackupKey(),
+		keepMain: KEEP_MAIN_BACKUPS,
+		keepTenant: KEEP_TENANT_BACKUPS,
+		activeTenantGroups: await getActiveTenantGroups(),
+		beforeCreate: opts.beforeCreate,
+	});
+	const removed: string[] = [];
+	for (const r of plan.remove) {
+		console.log(`[Backup] ${dryRun ? '(dry-run) ' : ''}pangkas ${r.db}: ${r.reason}`);
+		if (dryRun) continue;
+		try {
+			await backupClient.db(r.db).dropDatabase();
+			removed.push(r.db);
+		} catch (err: any) {
+			console.warn(`[Backup] gagal memangkas ${r.db}:`, err?.message);
+		}
+	}
+	return { removed, kept: plan.keep, dryRun };
+}
+
+/**
+ * Salin satu database ke snapshot SECARA UTUH. Bila gagal di tengah jalan (mis. batas 500 koleksi), snapshot
+ * parsial dihapus agar tidak dianggap sebagai backup yang sah.
+ */
+async function snapshotDatabase(sourceDb: any, backupClient: MongoClient, snapshotName: string): Promise<void> {
+	const targetDb = backupClient.db(snapshotName);
+	const collections = await sourceDb.listCollections().toArray();
+	const names = collections.map((c: any) => c.name).filter((n: string) => !SKIP_COLLECTIONS.includes(n));
+	try {
+		for (const name of names) {
+			await copyCollection(sourceDb, targetDb, name);
+		}
+	} catch (err) {
+		await backupClient.db(snapshotName).dropDatabase().catch(() => {});
+		throw err;
+	}
+}
+
+async function snapshotCollectionCount(backupClient: MongoClient, snapshotName: string): Promise<number> {
+	const { databases } = await backupClient.db().admin().listDatabases();
+	if (!databases.some((d) => d.name === snapshotName)) return -1;
+	return (await backupClient.db(snapshotName).listCollections().toArray()).length;
+}
+
 export async function runMonthlyBackup(): Promise<{
 	success: boolean;
 	snapshotKey?: string;
@@ -122,22 +227,13 @@ export async function runMonthlyBackup(): Promise<{
 		return { success: false, error: 'MONGODB_URI_BACKUP not configured' };
 	}
 
-	const mainDbName = getMainDbName();
-	const currentKey = getCurrentBackupKey();
-	const snapshotDbName = `${SNAPSHOT_PREFIX}${currentKey}`;
-
-	if (await hasSnapshotForMonthOnBackup(currentKey)) {
-		await mongoStorage.updateSettings({
-			lastMonthlyBackupAt: new Date(),
-			lastMonthlyBackupKey: currentKey,
-		});
-		return { success: true, snapshotKey: currentKey, skipped: true };
-	}
-
 	if (mongoose.connection.readyState !== 1) {
 		return { success: false, error: 'Main DB (Mongoose) belum terhubung' };
 	}
 
+	const mainDbName = getMainDbName();
+	const currentKey = getCurrentBackupKey();
+	const snapshotDbName = `${SNAPSHOT_PREFIX}${currentKey}`;
 	const mainClient = mongoose.connection.getClient();
 
 	let backupClient = getBackupMongoClient();
@@ -149,54 +245,72 @@ export async function runMonthlyBackup(): Promise<{
 	}
 
 	try {
-		// Backup main DB
 		const mainDb = mainClient.db(mainDbName);
-		const backupDb = backupClient.db(snapshotDbName);
+		const mainSourceCount = (await mainDb.listCollections().toArray()).filter((c: any) => !SKIP_COLLECTIONS.includes(c.name)).length;
 
-		const collections = await mainDb.listCollections().toArray();
-		const collNames = collections
-			.map((c: any) => c.name)
-			.filter((n: string) => !SKIP_COLLECTIONS.includes(n));
+		// Pangkas dulu: membebaskan ruang (batas koleksi cluster backup) dan satu slot untuk bulan ini.
+		await pruneBackups(backupClient, { beforeCreate: true });
 
-		for (const name of collNames) {
-			await copyCollection(mainDb, backupDb, name);
+		// Situs utama dianggap selesai bila snapshot bulan ini ada, cukup lengkap, dan tercatat sukses.
+		const existingMain = await snapshotCollectionCount(backupClient, snapshotDbName);
+		const settingsNow: any = await mongoStorage.getSettings().catch(() => null);
+		const mainDone =
+			existingMain >= Math.ceil(mainSourceCount * 0.5) && settingsNow?.lastMonthlyBackupKey === currentKey;
+
+		const communities = ((await (await import('../../db/mongodb')).Community.find({ status: 'active' }).lean().catch(() => [])) as any[]) || [];
+		const tenantPlan: { dbName: string; snapshotName: string; sourceCount: number; done: boolean }[] = [];
+		for (const community of communities) {
+			const snapshotName = buildTenantSnapshotName(community.dbName, currentKey);
+			const sourceCount = (await mainClient.db(community.dbName).listCollections().toArray()).filter((c: any) => !SKIP_COLLECTIONS.includes(c.name)).length;
+			const existing = await snapshotCollectionCount(backupClient, snapshotName);
+			tenantPlan.push({ dbName: community.dbName, snapshotName, sourceCount, done: existing >= Math.ceil(sourceCount * 0.5) });
 		}
 
-		// Backup all community databases
+		if (mainDone && tenantPlan.every((t) => t.done)) {
+			return { success: true, snapshotKey: currentKey, skipped: true };
+		}
+
+		// Cek kapasitas SEBELUM menyalin: jangan memulai backup yang pasti terpotong.
+		const needed = (mainDone ? 0 : mainSourceCount) + tenantPlan.filter((t) => !t.done).reduce((a, t) => a + t.sourceCount, 0);
+		const inUse = await countClusterCollections(backupClient);
+		if (inUse + needed > MAX_CLUSTER_COLLECTIONS) {
+			const msg = `Cluster backup hampir penuh: ${inUse} koleksi terpakai + ${needed} dibutuhkan > batas ${MAX_CLUSTER_COLLECTIONS}. Kurangi retensi (BACKUP_KEEP_MAIN/BACKUP_KEEP_TENANT) atau hapus database lain di cluster backup.`;
+			console.error('[Backup]', msg);
+			return { success: false, error: msg };
+		}
+
+		if (!mainDone) {
+			if (existingMain >= 0) await backupClient.db(snapshotDbName).dropDatabase().catch(() => {});
+			await snapshotDatabase(mainDb, backupClient, snapshotDbName);
+		}
+
 		const communityBackups: { dbName: string; success: boolean }[] = [];
-		try {
-			const { Community } = await import('../../db/mongodb');
-			const communities = await Community.find({ status: 'active' }).lean() as any[];
-			for (const community of communities) {
-				const communityDbName = community.dbName;
-				const communitySnapshotName = buildTenantSnapshotName(communityDbName, currentKey);
-				try {
-					const communityDb = mainClient.db(communityDbName);
-					const communityBackupDb = backupClient.db(communitySnapshotName);
-					const commColls = await communityDb.listCollections().toArray();
-					const commCollNames = commColls.map((c: any) => c.name).filter((n: string) => !SKIP_COLLECTIONS.includes(n));
-					for (const name of commCollNames) {
-						await copyCollection(communityDb, communityBackupDb, name);
-					}
-					communityBackups.push({ dbName: communityDbName, success: true });
-					console.log(`[Backup] Community ${communityDbName} backed up as ${communitySnapshotName}`);
-				} catch (err: any) {
-					console.error(`[Backup] Failed to backup community ${communityDbName}:`, err?.message);
-					communityBackups.push({ dbName: communityDbName, success: false });
-				}
+		for (const t of tenantPlan) {
+			if (t.done) {
+				communityBackups.push({ dbName: t.dbName, success: true });
+				continue;
 			}
-		} catch (err: any) {
-			console.warn('[Backup] Could not enumerate communities for backup:', err?.message);
+			try {
+				await backupClient.db(t.snapshotName).dropDatabase().catch(() => {});
+				await snapshotDatabase(mainClient.db(t.dbName), backupClient, t.snapshotName);
+				communityBackups.push({ dbName: t.dbName, success: true });
+				console.log(`[Backup] Community ${t.dbName} backed up as ${t.snapshotName}`);
+			} catch (err: any) {
+				console.error(`[Backup] Failed to backup community ${t.dbName}:`, err?.message);
+				communityBackups.push({ dbName: t.dbName, success: false });
+			}
 		}
 
-		await pruneOldBackupsKeep12(backupClient);
+		await pruneBackups(backupClient, { beforeCreate: false });
 
+		const allOk = communityBackups.every((c) => c.success);
 		await mongoStorage.updateSettings({
 			lastMonthlyBackupAt: new Date(),
-			lastMonthlyBackupKey: currentKey,
+			// Kunci bulan hanya dicatat bila SEMUA snapshot lengkap; jika tidak, dicoba lagi pada pemeriksaan harian berikutnya.
+			...(allOk ? { lastMonthlyBackupKey: currentKey } : {}),
 		});
 
-		return { success: true, snapshotKey: currentKey, skipped: false, communityBackups };
+		return { success: allOk, snapshotKey: currentKey, skipped: false, communityBackups, ...(allOk ? {} : { error: 'Sebagian backup komunitas gagal' }) };
 	} catch (err: any) {
 		console.error('[db-backup] runMonthlyBackup error:', err?.message);
 		return { success: false, error: err?.message || 'Backup failed' };
@@ -204,22 +318,6 @@ export async function runMonthlyBackup(): Promise<{
 		if (closeBackup && backupClient) {
 			await backupClient.close().catch(() => {});
 		}
-	}
-}
-
-async function pruneOldBackupsKeep12(backupClient: MongoClient): Promise<void> {
-	const admin = backupClient.db().admin();
-	const { databases } = await admin.listDatabases();
-	const backups = databases
-		.filter((d) => d.name.startsWith(SNAPSHOT_PREFIX))
-		.map((d) => d.name)
-		.sort()
-		.reverse();
-
-	if (backups.length <= MAX_BACKUPS) return;
-
-	for (const name of backups.slice(MAX_BACKUPS)) {
-		await backupClient.db(name).dropDatabase();
 	}
 }
 
@@ -261,7 +359,7 @@ export async function listAvailableTenantBackups(
 			const expected = buildTenantSnapshotName(tenantDbName, key);
 			if (expected === name) keys.push(key);
 		}
-		const unique = Array.from(new Set(keys)).sort().reverse().slice(0, MAX_BACKUPS);
+		const unique = Array.from(new Set(keys)).sort().reverse().slice(0, KEEP_TENANT_BACKUPS);
 		return unique.map((key) => ({ key, label: backupKeyToLabel(key) }));
 	} finally {
 		if (shouldClose) await client.close().catch(() => {});
@@ -286,7 +384,7 @@ export async function listAvailableBackups(): Promise<
 			.map((d) => d.name.replace(SNAPSHOT_PREFIX, ''))
 			.sort()
 			.reverse()
-			.slice(0, MAX_BACKUPS);
+			.slice(0, KEEP_MAIN_BACKUPS);
 
 		return backups.map((key) => ({ key, label: backupKeyToLabel(key) }));
 	} finally {
@@ -502,18 +600,14 @@ export async function runBackupNowMainOverride(): Promise<{
 	}
 
 	try {
+		await pruneBackups(backupClient, { beforeCreate: true });
 		const existed = await hasSnapshotForMonthOnBackup(currentKey);
 		if (existed) {
 			await backupClient.db(snapshotDbName).dropDatabase();
 		}
 
 		const mainDb = mainClient.db(mainDbName);
-		const backupDb = backupClient.db(snapshotDbName);
-		const collections = await mainDb.listCollections().toArray();
-		const collNames = collections.map((c: any) => c.name).filter((n: string) => !SKIP_COLLECTIONS.includes(n));
-		for (const name of collNames) {
-			await copyCollection(mainDb, backupDb, name);
-		}
+		await snapshotDatabase(mainDb, backupClient, snapshotDbName);
 
 		await mongoStorage.updateSettings({
 			lastMonthlyBackupAt: new Date(),
@@ -561,13 +655,9 @@ export async function runBackupNowTenantOverride(tenantDbName: string): Promise<
 			await backupClient.db(snapshotDbName).dropDatabase();
 		}
 
+		await pruneBackups(backupClient, { beforeCreate: true });
 		const tenantDb = mainClient.db(tenantDbName);
-		const backupDb = backupClient.db(snapshotDbName);
-		const collections = await tenantDb.listCollections().toArray();
-		const collNames = collections.map((c: any) => c.name).filter((n: string) => !SKIP_COLLECTIONS.includes(n));
-		for (const name of collNames) {
-			await copyCollection(tenantDb, backupDb, name);
-		}
+		await snapshotDatabase(tenantDb, backupClient, snapshotDbName);
 
 		console.log(`[Backup] Tenant ${tenantDbName} manual backup as ${snapshotDbName} (replaced: ${existed})`);
 		return { success: true, snapshotKey: currentKey, replaced: existed };

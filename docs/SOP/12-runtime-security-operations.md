@@ -114,13 +114,24 @@ Lapisan:
 4. Penyapu `server/services/upload-sweeper.ts` (saat server mulai, lalu tiap 24 jam): memindahkan file di luar daftar putih ke `uploads/_quarantine/swept/<tanggal>/` (BUKAN menghapus) dan menandai rekaman `FileUpload` (`infected`, `policy:blocked-file-type`). Folder karantina di-`.gitignore`. Aman dijalankan berulang; `UPLOAD_SWEEP_DRY_RUN=1` hanya mencatat. Hapus isi karantina secara manual bila sudah tidak perlu.
 5. Menambah jenis file baru: tambah baris di `EXTENSIONS` + pemeriksa isi, uji, catat di tabel ini. Jangan membuat `multer()` baru tanpa `guardMulter`.
 
-### Antivirus (ClamAV) — dimatikan secara default
+### Antivirus (ClamAV): nonaktif
 
-ClamAV tidak mendeteksi ancaman yang relevan (SVG/XSS/XXE/penyamaran ekstensi bukan malware; produksi: 391 file clean, 0 infected) dan memakai ±1 GB RAM di VPS 2 GB (pernah memicu OOM saat build). `ops/deploy-server.sh` menonaktifkan `clamav-daemon` secara permanen (`HMPS_DISABLE_CLAMAV=0` untuk mempertahankannya). Aplikasi berjalan normal tanpa clamd (status file `skipped`); kode `file-scanner` tetap ada dan otomatis dipakai bila clamd dijalankan.
+ClamAV tidak mendeteksi ancaman yang relevan (SVG/XSS/XXE/penyamaran ekstensi bukan malware; produksi: 391 file clean, 0 infected) dan memakai ±1 GB RAM di VPS 2 GB (pernah memicu OOM saat build). Dua lapis penonaktifan:
+
+1. **Aplikasi:** `file-scanner` hanya aktif bila `CLAMAV_ENABLED=1`. Tanpa itu status file menjadi `skipped` dan pustaka tidak pernah jatuh ke `clamscan` (yang memuat seluruh database virus untuk tiap file).
+2. **Server:** `ops/deploy-server.sh` menonaktifkan `clamav-daemon` dan `clamav-freshclam` secara permanen (`HMPS_DISABLE_CLAMAV=0` untuk mempertahankan).
 
 ### Password bawaan
 
-`server/lib/weak-passwords.ts` memuat password umum/bawaan (`admin123`, dll.). `hashPassword` menolaknya (error `WEAK_PASSWORD`, 400), dan login dengan password itu ditolak `403 PASSWORD_RESET_REQUIRED` — akun yang masih memakainya harus direset owner/admin (atau Lupa Password). Seed dev memakai `hashPassword(pw, { allowWeak: true })`.
+`server/lib/weak-passwords.ts` memuat password umum/bawaan (`admin123`, dll.). Aturan:
+
+- Tidak ada password bawaan di mana pun. Pembuatan akun selalu acak bila password kosong: registrasi komunitas, **Add User di dashboard** (kolom password boleh kosong; password acak 14 karakter tampil SEKALI), perbaikan owner komunitas, dan seed dev (`db/mongo-seed.ts` mencetak kredensial acak sekali).
+- `hashPassword` dan middleware `post-body-sanitize` menolak password umum saat DIATUR (`400 WEAK_PASSWORD`): kunci `password`, `newPassword`, `ownerPassword` pada rute selain login.
+- Login dengan password umum ditolak `403 PASSWORD_RESET_REQUIRED`; akun lama yang masih memakainya harus direset owner/admin. Skrip `ops/rotate-default-passwords.cjs` (dry-run bawaan, `--apply` untuk menerapkan) mengganti semuanya sekaligus dan mencetak password baru sekali.
+
+### Rate limit jalur tulis publik
+
+`createPublicRateLimiter(..., { alwaysOn: true })` membuat limiter tidak ikut mati saat toggle dashboard `apiRateLimitEnabled/allEnabled` dimatikan. Dipakai untuk komentar, saran, dan upload chat. Komentar: IP 60/menit, perangkat 10/menit, sesi login 6/menit (60/hari). Pada 3 Juli 2026 satu akun memposting 382 komentar dalam 5 menit saat limiter dimatikan.
 
 ### HTML rich-text (dua lapis, daftar putih)
 

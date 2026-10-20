@@ -1,7 +1,20 @@
+import { randomBytes } from 'node:crypto';
 import { hashPassword } from '../server/auth';
 import { connectDB, User } from './mongodb';
 
+/** Password acak kuat (tanpa karakter mirip). Seed TIDAK lagi memakai password bawaan yang bisa ditebak. */
+function randomPassword(): string {
+	const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+	return Array.from(randomBytes(14), (b) => alphabet[b % alphabet.length]).join('');
+}
+
 async function seedDatabase() {
+	const credentials: { username: string; password: string }[] = [];
+	const newPassword = (username: string) => {
+		const password = randomPassword();
+		credentials.push({ username, password });
+		return password;
+	};
 	console.log('Starting to seed the database...');
 
 	try {
@@ -16,8 +29,7 @@ async function seedDatabase() {
 		}
 
 		// Seed users
-		const defaultPassword = await hashPassword('owner123', { allowWeak: true });
-		const divisionHeadPassword = await hashPassword('division123', { allowWeak: true });
+		const defaultPassword = await hashPassword(newPassword('owner'));
 
 		// Create users
 		const owner = await User.create({
@@ -30,7 +42,7 @@ async function seedDatabase() {
 
 		const admin = await User.create({
 			username: 'admin',
-			password: await hashPassword('admin123', { allowWeak: true }),
+			password: await hashPassword(newPassword('admin')),
 			name: 'Administrator',
 			email: 'admin@example.com',
 			role: 'admin',
@@ -38,7 +50,7 @@ async function seedDatabase() {
 
 		const chair = await User.create({
 			username: 'chair',
-			password: await hashPassword('chair123'),
+			password: await hashPassword(newPassword('chair')),
 			name: 'Chairperson',
 			email: 'chair@example.com',
 			role: 'chair',
@@ -46,7 +58,7 @@ async function seedDatabase() {
 
 		const viceChair = await User.create({
 			username: 'vicechair',
-			password: await hashPassword('vicechair123'),
+			password: await hashPassword(newPassword('vicechair')),
 			name: 'Vice Chairperson',
 			email: 'vicechair@example.com',
 			role: 'vice_chair',
@@ -63,10 +75,10 @@ async function seedDatabase() {
 		];
 
 		const divisionHeads = await Promise.all(
-			divisions.map((division) =>
+			divisions.map(async (division) =>
 				User.create({
 					username: division,
-					password: divisionHeadPassword,
+					password: await hashPassword(newPassword(division)),
 					name: `${
 						division.charAt(0).toUpperCase() + division.slice(1)
 					} Division Head`,
@@ -78,6 +90,9 @@ async function seedDatabase() {
 		);
 
 		console.log('Users created');
+		console.log('Kredensial awal (acak, HANYA tampil sekali — simpan sekarang, lalu ganti di dashboard):');
+		for (const c of credentials) console.log(`  ${c.username.padEnd(20)} ${c.password}`);
+		console.log('');
 
 		console.log('Database seeded successfully!');
 	} catch (error) {

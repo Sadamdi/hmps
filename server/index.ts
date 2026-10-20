@@ -588,7 +588,7 @@ async function runBackupIfNeeded() {
 		if (result.success) {
 			if (result.skipped) {
 				console.log(
-					`[Backup] Snapshot ${result.snapshotKey} sudah ada di cluster backup — lewati (backup berikutnya: tanggal 1 bulan depan).`,
+					`[Backup] Snapshot ${result.snapshotKey} sudah ada di cluster backup — lewati (pemeriksaan berikutnya besok).`,
 				);
 			} else {
 				console.log(`[Backup] Backup bulanan selesai: ${result.snapshotKey}`);
@@ -601,8 +601,11 @@ async function runBackupIfNeeded() {
 	}
 }
 
-// Schedule: tanggal 1 setiap bulan jam 02:00 — jika snapshot bulan itu belum ada, jalan; kalau sudah ada, lewati
+// Schedule: tanggal 1 jam 02:00 (utama) + pemeriksaan harian jam 03:30 + saat server hidup (lihat bawah).
+// Idempoten: bila snapshot bulan ini sudah lengkap, dilewati. Pemeriksaan harian memulihkan diri jika backup
+// tanggal 1 gagal (mis. cluster backup penuh) tanpa menunggu bulan depan.
 cron.schedule('0 2 1 * *', runBackupIfNeeded);
+cron.schedule('30 3 * * *', runBackupIfNeeded);
 
 // ==================== DAILY ORPHAN ASSET CLEANUP — DISABLED ====================
 // Dinonaktifkan: auto-cleanup bisa false-delete file yang masih valid di database.
@@ -1981,7 +1984,11 @@ process.on('unhandledRejection', (reason: any) => {
 		import('./services/file-scanner')
 			.then(({ startScanWorker }) => {
 				startScanWorker();
-				console.log('   ✅ Antivirus File Scanner Worker Started');
+				console.log(
+					process.env.CLAMAV_ENABLED === '1'
+						? '   ✅ Antivirus File Scanner Worker Started'
+						: '   ℹ️ Antivirus (ClamAV) nonaktif (CLAMAV_ENABLED!=1); upload dijaga daftar putih + penyapu',
+				);
 			})
 			.catch((err) => {
 				console.warn('   ⚠️ Antivirus File Scanner not started:', err.message);

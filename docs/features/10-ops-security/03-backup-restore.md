@@ -150,3 +150,13 @@ Recommended response untuk endpoint baru tetap mengikuti SOP API:
 - Client-side payload may include transformed fields not visible from backend static scan.
 
 
+
+## Retensi & kapasitas (4.57.0)
+
+- Retensi: **situs utama 3 bulan**, **tiap komunitas 2 bulan** (`BACKUP_KEEP_MAIN`, `BACKUP_KEEP_TENANT`). Sebelumnya 12 bulan hanya untuk situs utama dan snapshot komunitas (`bk_t_*`) tidak pernah dipangkas.
+- Penyebab masalah: cluster backup (Atlas gratis) dibatasi **500 koleksi TOTAL**; tiap snapshot bulanan membawa 25–45 koleksi. Cluster penuh → backup baru gagal terpotong → pemangkasan lama (yang berjalan sesudah backup sukses) tidak pernah jalan.
+- Alur `runMonthlyBackup`: pangkas dulu (sisakan satu slot) → cek kapasitas (`BACKUP_MAX_CLUSTER_COLLECTIONS`, default 480) → salin SECARA UTUH (snapshot parsial dihapus bila gagal) → pangkas lagi. Kunci bulan (`lastMonthlyBackupKey`) hanya dicatat bila semua snapshot lengkap.
+- Aturan pangkas (`server/lib/backup-retention.ts`, fungsi murni): simpan N terbaru per grup; snapshot terpotong (< 70% koleksi snapshot lebih lama) dibuang bila ada yang lengkap; backup komunitas yang tidak aktif dan sudah lebih tua dari retensi dibuang; snapshot lengkap terakhir dari situs utama/komunitas aktif tidak pernah dihapus.
+- Penjadwal: tanggal 1 jam 02:00, pemeriksaan harian jam 03:30, dan saat server hidup. Idempoten; pulih sendiri bila backup tanggal 1 gagal.
+- `BACKUP_PRUNE_DRY_RUN=1` hanya mencatat rencana pemangkasan tanpa menghapus.
+- **Jangan menjalankan server lokal/uji dengan `MONGODB_URI_BACKUP` produksi**: server yang hidup menjalankan backup dan pemangkasan terhadap cluster backup.
