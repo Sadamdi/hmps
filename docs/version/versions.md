@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.56.2`  
+**Current version:** `4.57.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.56.2`](./release/4.56.2.md) | 2026-10-20 | Sanitizer HTML daftar putih dua lapis (sanitize-html di server, DOMPurify di klien) | PATCH | 1 | **Current** |
+| [`4.57.0`](./release/4.57.0.md) | 2026-10-20 | Retensi backup 3/2 bulan (perbaiki cluster penuh), rate limit alwaysOn, tanpa password bawaan, ClamAV nonaktif, skrip pembersihan | MINOR | 1 | **Current** |
+| [`4.56.2`](./release/4.56.2.md) | 2026-10-20 | Sanitizer HTML daftar putih dua lapis (sanitize-html di server, DOMPurify di klien) | PATCH | 1 | Released |
 | [`4.56.1`](./release/4.56.1.md) | 2026-10-20 | Dependensi: audit fix aman, sharp 0.35, nodemailer 10 (47 → 16 temuan, 0 critical, sisa tidak di jalur produksi) | PATCH | 1 | Released |
 | [`4.56.0`](./release/4.56.0.md) | 2026-10-20 | Upload daftar putih global, penyapu karantina, blokir password bawaan, ClamAV dimatikan | MINOR | 1 | Released |
 | [`4.55.2`](./release/4.55.2.md) | 2026-10-20 | Hardening upload: tolak SVG/HTML/skrip, upload chat aman, sanitizer HTML diperkuat | PATCH | 1 | Released |

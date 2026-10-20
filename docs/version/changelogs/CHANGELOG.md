@@ -9,6 +9,24 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.57.0] - 2026-10-20
+
+### Fixed
+
+- Backup macet: cluster backup penuh (501 dari 500 koleksi), snapshot ONTAKI September terpotong (7 koleksi), dan backup Oktober tidak pernah dibuat. Penyebab: snapshot komunitas (`bk_t_*`) tidak pernah dipangkas dan pemangkasan situs utama baru jalan setelah backup baru sukses.
+
+### Changed
+
+- Retensi backup: situs utama 3 bulan, tiap komunitas 2 bulan (sebelumnya 12 bulan hanya untuk situs utama). Pangkas dulu (sisakan satu slot), cek kapasitas, salin secara utuh (parsial dihapus), pangkas lagi. Penjadwal: tanggal 1 jam 02:00, harian 03:30, dan saat server hidup; pulih sendiri.
+- Rate limit komentar, saran, dan upload chat tidak lagi ikut mati saat toggle dashboard dimatikan (`alwaysOn`); komentar juga dibatasi per sesi login (6/menit).
+- Tidak ada password bawaan: Add User di dashboard boleh tanpa password (acak 14 karakter, tampil sekali); perbaikan owner komunitas tidak lagi memakai `TempPass123!`; seed dev memakai password acak; password umum ditolak saat diatur (`400 WEAK_PASSWORD`).
+- ClamAV nonaktif di tingkat aplikasi kecuali `CLAMAV_ENABLED=1`.
+
+### Added
+
+- `ops/cleanup-xss-comments.cjs` (hapus 384 komentar payload XSS 3 Juli 2026; dry-run bawaan, backup JSON lokal sebelum `--apply`).
+- `ops/rotate-default-passwords.cjs` (ganti semua akun ber-password bawaan dengan password acak; dry-run bawaan).
+
 ## [4.56.2] - 2026-10-20
 
 ### Security

@@ -112,7 +112,24 @@ export interface WindowRule {
 	maxPerDevice: number;
 	/** Optional per guest-key cap (anti flood with same guest secret + rotating IPs) */
 	maxPerGuestKey?: number;
+	/** Optional cap per sesi login (cookie authToken/buyerToken di-hash): membatasi satu akun yang membanjiri. */
+	maxPerSession?: number;
 	label: string;
+}
+
+export interface LimiterOptions {
+	/**
+	 * true = limiter TIDAK ikut mati saat toggle dashboard `apiRateLimitEnabled/allEnabled` dimatikan.
+	 * Dipakai untuk jalur tulis publik yang rawan banjir (komentar, saran, upload chat).
+	 */
+	alwaysOn?: boolean;
+}
+
+function getSessionKey(req: Request): string | null {
+	const c = (req as any).cookies || {};
+	const raw = (c.authToken || c.buyerToken) as string | undefined;
+	if (!raw || typeof raw !== 'string' || raw.length < 16) return null;
+	return crypto.createHash('sha256').update(raw).digest('hex').substring(0, 24);
 }
 
 /**
@@ -123,15 +140,19 @@ export interface WindowRule {
 export function createPublicRateLimiter(
 	namespace: string,
 	rules: WindowRule[],
+	options: LimiterOptions = {},
 ) {
 	return async (req: Request, res: Response, next: NextFunction) => {
 		try {
-			const enabled = await isRateLimitEnabled();
-			if (!enabled) return next();
+			if (!options.alwaysOn) {
+				const enabled = await isRateLimitEnabled();
+				if (!enabled) return next();
+			}
 
 			const ip = getClientIp(req);
 			const device = getLimiterDeviceKey(req);
 			const guest = getGuestKeyHash(req);
+			const session = getSessionKey(req);
 
 			for (const rule of rules) {
 				const ipKey = `prl:${namespace}:ip:${rule.windowMs}:${ip}`;
@@ -149,6 +170,15 @@ export function createPublicRateLimiter(
 					const retry = Math.ceil((devEntry.resetTime - Date.now()) / 1000);
 					console.log(`🚨 PublicRateLimit [${namespace}] Device exceeded ${rule.maxPerDevice}/${rule.label}`);
 					return send429(res, retry, rule.label);
+				}
+
+				if (session && rule.maxPerSession != null) {
+					const sessEntry = increment(`prl:${namespace}:sess:${rule.windowMs}:${session}`, rule.windowMs);
+					if (sessEntry.count > rule.maxPerSession) {
+						const retry = Math.ceil((sessEntry.resetTime - Date.now()) / 1000);
+						console.log(`🚨 PublicRateLimit [${namespace}] Session exceeded ${rule.maxPerSession}/${rule.label}`);
+						return send429(res, retry, rule.label);
+					}
 				}
 
 				if (guest && rule.maxPerGuestKey != null) {
@@ -172,31 +202,48 @@ export function createPublicRateLimiter(
 
 // ==================== PRE-BUILT LIMITERS (balanced — not too strict) ====================
 
-/** Comment: IP 100/min + 1000/day, Device 10/min + 100/day */
-export const commentRateLimiter = createPublicRateLimiter('comment', [
-	{ windowMs: 60_000, maxPerIp: 100, maxPerDevice: 10, label: '1 menit' },
-	{ windowMs: 24 * 60 * 60 * 1000, maxPerIp: 1000, maxPerDevice: 100, label: '1 hari' },
-]);
+/**
+ * Comment: IP 60/min + 600/day, Device 10/min + 100/day, sesi login 6/min + 60/day.
+ * alwaysOn: tidak ikut mati bila toggle rate limit dashboard dimatikan (pada 3 Juli 2026 satu akun memposting
+ * 382 komentar dalam 5 menit karena limiter sedang dimatikan).
+ */
+export const commentRateLimiter = createPublicRateLimiter(
+	'comment',
+	[
+		{ windowMs: 60_000, maxPerIp: 60, maxPerDevice: 10, maxPerSession: 6, label: '1 menit' },
+		{ windowMs: 24 * 60 * 60 * 1000, maxPerIp: 600, maxPerDevice: 100, maxPerSession: 60, label: '1 hari' },
+	],
+	{ alwaysOn: true },
+);
 
 /**
  * Feedback: balanced anti-flood.
  * ~20/IP/hour, ~15/device/hour, ~10/guestKey/hour — blocks same-key flood without blocking normal users.
  */
-export const feedbackRateLimiter = createPublicRateLimiter('feedback', [
-	{
-		windowMs: 60 * 60 * 1000,
-		maxPerIp: 20,
-		maxPerDevice: 15,
-		maxPerGuestKey: 10,
-		label: '1 jam',
-	},
-]);
+export const feedbackRateLimiter = createPublicRateLimiter(
+	'feedback',
+	[
+		{
+			windowMs: 60 * 60 * 1000,
+			maxPerIp: 20,
+			maxPerDevice: 15,
+			maxPerGuestKey: 10,
+			maxPerSession: 10,
+			label: '1 jam',
+		},
+	],
+	{ alwaysOn: true },
+);
 
 /** Chat message/upload */
-export const chatUploadRateLimiter = createPublicRateLimiter('chat-upload', [
-	{ windowMs: 60_000, maxPerIp: 100, maxPerDevice: 30, label: '1 menit' },
-	{ windowMs: 24 * 60 * 60 * 1000, maxPerIp: 1000, maxPerDevice: 300, label: '1 hari' },
-]);
+export const chatUploadRateLimiter = createPublicRateLimiter(
+	'chat-upload',
+	[
+		{ windowMs: 60_000, maxPerIp: 100, maxPerDevice: 30, label: '1 menit' },
+		{ windowMs: 24 * 60 * 60 * 1000, maxPerIp: 1000, maxPerDevice: 300, label: '1 hari' },
+	],
+	{ alwaysOn: true },
+);
 
 /** Soft cap: store checkout / buy-link */
 export const storeCheckoutRateLimiter = createPublicRateLimiter('store-checkout', [

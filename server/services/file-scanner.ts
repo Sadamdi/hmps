@@ -28,6 +28,14 @@ function scanLog(event: string, details: Record<string, unknown>): void {
 async function initClamAV(): Promise<boolean> {
 	if (clamavAvailable !== null) return clamavAvailable;
 
+	// ClamAV NONAKTIF secara default (CLAMAV_ENABLED=1 untuk menyalakan). Alasan: tidak mendeteksi ancaman yang
+	// relevan di sini, ±1 GB RAM di VPS 2 GB, dan tanpa clamd pustaka bisa jatuh ke clamscan yang memuat seluruh
+	// database virus untuk SETIAP file. Pertahanan upload: server/lib/upload-policy.ts + upload-sweeper.
+	if (process.env.CLAMAV_ENABLED !== '1') {
+		clamavAvailable = false;
+		return false;
+	}
+
 	try {
 		const mod = await import('clamscan');
 		NodeClam = mod.default || mod;
