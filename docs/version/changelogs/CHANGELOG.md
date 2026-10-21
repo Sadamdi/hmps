@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.3] - 2026-10-21
+
+### Changed
+
+- Backfill Instagram berhenti di 160 item; hanya crawl harian terbaru yang memakai sesi login.
+
 ## [4.60.2] - 2026-10-21
 
 ### Fixed
