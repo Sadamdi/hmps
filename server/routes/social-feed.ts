@@ -10,8 +10,8 @@ import {
 } from '../../shared/social-feed';
 import { authenticate, requirePermission } from '../auth';
 import { mongoStorage } from '../mongo-storage';
-import { lastInstagrapiError } from '../services/instagram-instagrapi';
-import { instagramSessionStatus } from '../services/instagram-session';
+import { availableMemoryMb, lastInstagrapiError } from '../services/instagram-instagrapi';
+import { installInstagramSession, instagramSessionStatus } from '../services/instagram-session';
 import {
 	persistSocialFeedSync,
 	publicSocialFeedItems,
@@ -132,7 +132,12 @@ router.get('/manage', authenticate, requirePermission('social_feed.view'), async
 				nextScheduledSyncAt: nextScheduledSync(),
 				/** Hanya boolean — nilai cookie tidak pernah dikirim ke klien */
 				instagramSessionConfigured: instagramSessionStatus().configured,
-				instagramSession: { ...instagramSessionStatus(), instagrapiError: lastInstagrapiError },
+				instagramSession: {
+					...instagramSessionStatus(),
+					instagrapiError: lastInstagrapiError,
+					memory: availableMemoryMb(),
+					...instagramHealth(readLogs(settings)),
+				},
 				logs: readLogs(settings).slice(0, 20),
 				preview: publicSocialFeedPayload(config, cache),
 			},
@@ -145,6 +150,31 @@ router.get('/manage', authenticate, requirePermission('social_feed.view'), async
 			error: { code: 'SOCIAL_FEED_MANAGE_READ_FAILED' },
 		});
 	}
+});
+
+/** Ringkasan kesehatan crawl Instagram dari log (tanpa nilai rahasia). */
+function instagramHealth(logs: any[]) {
+	const ig = logs.filter((l) => l?.platform === 'instagram');
+	const good = ig.find((l) => l.ok && !l.blocked && !l.error);
+	const last = ig[0];
+	return {
+		lastGoodAt: good?.startedAt || null,
+		lastRunAt: last?.startedAt || null,
+		lastRunOk: last ? !!(last.ok && !last.blocked && !last.error) : null,
+		lastRunIssue: last?.blocked ? 'Instagram meminta login / membatasi' : last?.error || null,
+	};
+}
+
+/** Pasang/ganti sesi Instagram dari dashboard (hanya situs utama; sesi berlaku global di server). */
+router.post('/instagram-session', authenticate, requirePermission('social_feed.edit'), async (req, res) => {
+	if ((req as any).isTenantRequest) {
+		return res.status(403).json({ success: false, message: 'Hanya tersedia di situs utama', error: { code: 'MAIN_SITE_ONLY' } });
+	}
+	const result = installInstagramSession(req.body?.session);
+	if (!result.ok) {
+		return res.status(400).json({ success: false, message: result.error, error: { code: 'INVALID_SESSION' } });
+	}
+	res.json({ success: true, message: 'Sesi Instagram disimpan. Klik "Fetch sekarang" untuk menguji.', data: instagramSessionStatus() });
 });
 
 router.get('/manage/logs', authenticate, requirePermission('social_feed.view'), async (req, res) => {

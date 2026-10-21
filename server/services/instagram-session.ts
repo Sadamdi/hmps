@@ -214,6 +214,30 @@ export function looksLikeInstagramLoginRequired(status: number, text: string): b
 	return /"require_login"\s*:\s*true|login_required/i.test(text);
 }
 
+/**
+ * Pasang sesi dari dashboard (JSON export cookie browser atau format simpanan).
+ * Ditulis ke file sesi server (mode 600) sehingga pengganti admin tidak perlu akses server.
+ */
+export function installInstagramSession(raw: unknown): { ok: boolean; error?: string } {
+	let parsed: unknown = raw;
+	if (typeof raw === 'string') {
+		try {
+			parsed = JSON.parse(raw);
+		} catch {
+			return { ok: false, error: 'Format bukan JSON yang valid' };
+		}
+	}
+	const cookies = parseCookieFile(parsed);
+	if (!cookies.sessionid) return { ok: false, error: 'Cookie sessionid tidak ditemukan' };
+	if (!cookies.csrftoken) return { ok: false, error: 'Cookie csrftoken tidak ditemukan' };
+	const session: InstagramSession = { cookies, source: 'file', savedAt: new Date().toISOString() };
+	writeSessionFile(session);
+	current = session;
+	invalidated = false;
+	lastLoginError = null;
+	return { ok: true };
+}
+
 /** Status aman untuk dashboard (tanpa nilai cookie). */
 export function instagramSessionStatus() {
 	const s = invalidated ? null : current || readSessionFile() || envSession();

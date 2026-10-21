@@ -253,6 +253,7 @@ GET  /api/social-feed/manage       # auth + social_feed.view (config, cache, sta
 GET  /api/social-feed/manage/logs  # auth + social_feed.view (4.25.0)
 PUT  /api/social-feed/manage       # auth + social_feed.edit (config v2, Zod)
 POST /api/social-feed/sync         # auth + social_feed.sync, body {platform?, full?}, cooldown 60 dtk → 429; backfill → 202 (4.27.0)
+POST /api/social-feed/instagram-session  # auth + social_feed.edit, situs utama saja, body {session: JSON cookie}; 400 INVALID_SESSION (4.60.0)
 ```
 
 ## Upload & Google Drive
