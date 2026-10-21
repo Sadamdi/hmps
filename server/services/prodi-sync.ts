@@ -2241,7 +2241,11 @@ export async function runProdiSyncScoped(
 		const forceFields: string[] = [];
 
 		if (doProfile && profile) crawledContent.profile = profile;
-		if (doLecturers && lecturerData) crawledContent.lecturers = lecturerData;
+		if (doLecturers && lecturerData) {
+			const merged = mergeMissingLecturers(existingContent?.lecturers, lecturerData, overridesDoc?.lecturers ?? {});
+			crawledContent.lecturers = merged.content;
+			forceFields.push(...merged.forceFields);
+		}
 		if (doLabs) {
 			crawledContent.laboratories = {
 				teaching: teachingLabs || [],
@@ -2671,6 +2675,61 @@ async function cacheLabImages(
 	if (researchLabs && cacheResearchLabs) {
 		for (let i = 0; i < researchLabs.length; i++) await cacheLabImage(researchLabs[i], 'research', i);
 	}
+}
+
+// ─── Dosen: bagian yang diedit manual (override) tidak ditimpa, tetapi dosen BARU di situs resmi ditambahkan ───
+
+function lecturerKey(name: string): string {
+	return String(name || '')
+		.toLowerCase()
+		.replace(/[^a-z ]/g, ' ')
+		.split(/\s+/)
+		.filter((w) => w.length > 2)
+		.slice(0, 3)
+		.join(' ');
+}
+
+export function mergeMissingLecturers(
+	existing: any,
+	live: { headAndSecretary: any[]; groups: LecturerGroup[]; staff: any[] },
+	overrides: Record<string, boolean>,
+): { content: any; forceFields: string[] } {
+	const content: any = { ...live };
+	const forceFields: string[] = [];
+	if (!existing) return { content, forceFields };
+	const known = new Set<string>();
+	for (const l of existing.headAndSecretary ?? []) known.add(lecturerKey(l?.name));
+	for (const l of existing.staff ?? []) known.add(lecturerKey(l?.name));
+	for (const g of existing.groups ?? []) for (const l of g?.lecturers ?? []) known.add(lecturerKey(l?.name));
+
+	if (overrides.headAndSecretary === true) {
+		content.headAndSecretary = [...(existing.headAndSecretary ?? [])];
+		for (const l of live.headAndSecretary) if (!known.has(lecturerKey(l.name))) content.headAndSecretary.push(l);
+		forceFields.push('lecturers.headAndSecretary');
+	}
+	if (overrides.staff === true) {
+		content.staff = [...(existing.staff ?? [])];
+		for (const l of live.staff) if (!known.has(lecturerKey(l.name))) content.staff.push(l);
+		forceFields.push('lecturers.staff');
+	}
+	if (overrides.groups === true) {
+		const groups = JSON.parse(JSON.stringify(existing.groups ?? []));
+		for (const lg of live.groups) {
+			for (const l of lg.lecturers) {
+				if (known.has(lecturerKey(l.name))) continue;
+				let target = groups.find((g: any) => String(g?.name || '').trim().toLowerCase() === String(lg.name || '').trim().toLowerCase());
+				if (!target) {
+					target = { name: lg.name, lecturers: [] };
+					groups.push(target);
+				}
+				target.lecturers = [...(target.lecturers ?? []), l];
+				known.add(lecturerKey(l.name));
+			}
+		}
+		content.groups = groups;
+		forceFields.push('lecturers.groups');
+	}
+	return { content, forceFields };
 }
 
 // ─── Main sync orchestrator (backwards compat — delegates to scoped) ───

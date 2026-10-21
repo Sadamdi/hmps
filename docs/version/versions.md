@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.59.1`  
+**Current version:** `4.59.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.59.1`](./release/4.59.1.md) | 2026-10-21 | Tutup path traversal pada upload onboarding dan penghapusan file | PATCH | 1 | **Current** |
+| [`4.59.2`](./release/4.59.2.md) | 2026-10-21 | Dosen baru ikut tersinkron walau diedit manual, sumber beasiswa lebih cepat terisi | PATCH | 1 | **Current** |
+| [`4.59.1`](./release/4.59.1.md) | 2026-10-21 | Tutup path traversal pada upload onboarding dan penghapusan file | PATCH | 1 | Released |
 | [`4.59.0`](./release/4.59.0.md) | 2026-10-21 | Tab Beasiswa S1/S2 (tautan bisa diubah admin) dan sumber pengumuman beasiswa otomatis | MINOR | 1 | **Current** |
 | [`4.58.0`](./release/4.58.0.md) | 2026-10-21 | Crawler AI boleh akses halaman publik, patch SSRF tool AI, sumber pengumuman LP2M dan FST, perbaikan tautan lama prodi | MINOR | 1 | Released |
 | [`4.57.0`](./release/4.57.0.md) | 2026-10-20 | Retensi backup 3/2 bulan (perbaiki cluster penuh), rate limit alwaysOn, tanpa password bawaan, ClamAV nonaktif, skrip pembersihan | MINOR | 1 | Released |
