@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.1] - 2026-10-21
+
+### Fixed
+
+- ClamAV (clamd ±960 MB) dinyalakan lagi oleh skrip deploy; kini di-mask permanen dan tidak ikut start_heavy_services.
+
 ## [4.60.0] - 2026-10-21
 
 ### Added
