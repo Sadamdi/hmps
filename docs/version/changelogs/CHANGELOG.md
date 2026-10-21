@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.59.1] - 2026-10-21
+
+### Fixed
+
+- Path traversal pada `category` upload onboarding dan pada `deleteFile` (`oldFileUrl`).
+
 ## [4.59.0] - 2026-10-21
 
 ### Added

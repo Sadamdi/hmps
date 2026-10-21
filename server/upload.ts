@@ -1122,6 +1122,12 @@ export async function deleteFile(fileUrl: string): Promise<void> {
 		if (!fileUrl || fileUrl === '') return;
 		if (isProtectedDefaultImageUrl(fileUrl)) return;
 
+		// Tolak path traversal: URL lama bisa datang dari body request (oldFileUrl)
+		if (/(^|[\\/])\.\.([\\/]|$)/.test(fileUrl) || fileUrl.includes('\u0000')) {
+			console.warn('deleteFile ditolak (path tidak valid):', fileUrl.slice(0, 120));
+			return;
+		}
+
 		// Extract filename and category from URL
 		const urlParts = fileUrl.split('/');
 		const fileName = urlParts[urlParts.length - 1];
@@ -1425,8 +1431,11 @@ export async function uploadTempOnboarding(
 	category: UploadCategory = 'organization',
 ): Promise<{ url: string; diskPath: string }> {
 	const safeCode = code.replace(/[^a-zA-Z0-9_-]/g, '_');
-	const sub = `community/tmp/${safeCode}/${category}`;
+	// category datang dari body publik: hanya huruf/angka/_/- agar tidak bisa keluar folder (path traversal)
+	const safeCategory = String(category).replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 40) || 'organization';
+	const sub = `community/tmp/${safeCode}/${safeCategory}`;
 	const dir = path.join(assetsDir, sub);
+	if (!path.resolve(dir).startsWith(path.resolve(assetsDir) + path.sep)) throw new Error('Path tidak valid');
 	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
 	const timestamp = Date.now();
