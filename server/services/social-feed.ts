@@ -1194,9 +1194,9 @@ async function syncInstagramViaInstagrapi(
 	}
 	const items = sortSocialItems(merged);
 	// "Baru" = post lebih baru dari yang sudah ada; arsip lama hasil backfill tidak dihitung sebagai baru
-	const prevNewest = previous.reduce((mx, it) => Math.max(mx, Date.parse(it.publishedAt) || 0), 0);
+	const prevNewest = previous.reduce((mx, it) => Math.max(mx, Date.parse(it.publishedAt || '') || 0), 0);
 	const newCount = items.filter(
-		(it) => !prevByCode.has(it.id.replace(/^ig-/, '')) && (!prevNewest || (Date.parse(it.publishedAt) || 0) > prevNewest),
+		(it) => !prevByCode.has(it.id.replace(/^ig-/, '')) && (!prevNewest || (Date.parse(it.publishedAt || '') || 0) > prevNewest),
 	).length;
 
 	let profile: SocialProfile | undefined;
