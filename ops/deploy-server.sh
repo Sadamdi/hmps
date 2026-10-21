@@ -157,9 +157,20 @@ SERVICES_STOPPED=""
 disable_clamav_if_requested() {
 	[[ "${HMPS_DISABLE_CLAMAV:-1}" == "1" ]] || return 0
 	command -v systemctl >/dev/null 2>&1 || return 0
-	if systemctl list-unit-files clamav-daemon.service >/dev/null 2>&1 && systemctl is-enabled --quiet clamav-daemon 2>/dev/null; then
-		systemctl disable --now clamav-daemon >/dev/null 2>&1 && log "ClamAV dinonaktifkan permanen (clamav-daemon)" || log "WARNING: gagal menonaktifkan clamav-daemon"
-		systemctl disable --now clamav-freshclam >/dev/null 2>&1 || true
+	# Jangan pernah dinyalakan lagi oleh start_heavy_services (sebelumnya: stop saat build lalu start di akhir)
+	STOP_SERVICES="${STOP_SERVICES//clamav-daemon/}"
+	local unit
+	for unit in clamav-daemon.socket clamav-daemon.service clamav-freshclam.service; do
+		systemctl list-unit-files "$unit" 2>/dev/null | grep -q "$unit" || continue
+		# disable + mask tanpa syarat "is-enabled": socket activation / alias tetap bisa menyalakan clamd
+		if systemctl mask --now "$unit" >/dev/null 2>&1; then
+			log "ClamAV: $unit dinonaktifkan dan di-mask"
+		else
+			log "WARNING: gagal mask $unit"
+		fi
+	done
+	if pgrep -x clamd >/dev/null 2>&1; then
+		pkill -x clamd >/dev/null 2>&1 && log "ClamAV: proses clamd dihentikan" || log "WARNING: clamd masih berjalan"
 	fi
 }
 
@@ -371,6 +382,7 @@ fi
 
 if [[ "$NEED_BUILD" -eq 0 && "$NEED_NPM" -eq 0 ]]; then
 	log "=== skip npm/build === hanya docs/ops/skills atau sudah sync. App tetap jalan."
+	disable_clamav_if_requested
 	if ! wait_healthy; then
 		log "App tidak sehat meski commit non-runtime — coba restart tanpa rebuild"
 		pm2_start_apps || true
