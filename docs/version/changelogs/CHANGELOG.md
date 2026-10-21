@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.59.2] - 2026-10-21
+
+### Fixed
+
+- Dosen baru dari situs resmi ditambahkan walau bagian dosen diedit manual.
+- Cron student hub mengisi sumber beasiswa lebih awal.
+
 ## [4.59.1] - 2026-10-21
 
 ### Fixed

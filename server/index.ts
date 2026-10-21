@@ -644,7 +644,12 @@ cron.schedule('15 * * * *', async () => {
 			? new Date(doc.lastAnnouncementSyncAt).getTime()
 			: 0;
 		const dueMs = intervalDays * 24 * 60 * 60 * 1000;
-		if (Date.now() - last < dueMs) return;
+		// Sumber beasiswa ditambahkan belakangan: bila daftar belum memuatnya, jangan tunggu interval penuh (maks sekali per jam)
+		const hasScholarshipFeeds = ((doc.content as any)?.studentHub?.announcements || []).some((a: any) =>
+			['kemahasiswaan', 'kemdiktisaintek', 'kemenag'].includes(a?.source),
+		);
+		const elapsed = Date.now() - last;
+		if (elapsed < dueMs && (hasScholarshipFeeds || elapsed < 60 * 60 * 1000)) return;
 
 		const { runStudentResourcesSync } = await import('./services/prodi-student-resources');
 		const existingHub = (doc.content as any)?.studentHub || {};
