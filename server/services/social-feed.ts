@@ -1117,6 +1117,8 @@ async function syncInstagramViaInstagrapi(
 	cursor?: string,
 ): Promise<PlatformSyncOutcome | null> {
 	const dailyLimit = Math.min(60, Math.max(12, config.fetchLimits.post + config.fetchLimits.reel));
+	// Arsip lama tidak perlu seluruhnya: batasi backfill agar permintaan login ke Instagram sedikit (hindari rate limit/blokir akun)
+	const BACKFILL_MAX_ITEMS = 160;
 	// Backfill bertahap: maks 3 halaman per run (hemat rate limit); lanjut dari cursor bila ada
 	const resume = full && !!cursor;
 	// Melanjutkan backfill dari cursor hanya mengambil halaman LAMA. Post terbaru harus tetap diambil tiap run
@@ -1195,6 +1197,7 @@ async function syncInstagramViaInstagrapi(
 	const items = sortSocialItems(merged);
 	// "Baru" = post lebih baru dari yang sudah ada; arsip lama hasil backfill tidak dihitung sebagai baru
 	const prevNewest = previous.reduce((mx, it) => Math.max(mx, Date.parse(it.publishedAt || '') || 0), 0);
+	const capped = full && !!res.partial && items.length >= BACKFILL_MAX_ITEMS;
 	const newCount = items.filter(
 		(it) => !prevByCode.has(it.id.replace(/^ig-/, '')) && (!prevNewest || (Date.parse(it.publishedAt || '') || 0) > prevNewest),
 	).length;
@@ -1220,13 +1223,13 @@ async function syncInstagramViaInstagrapi(
 
 	return {
 		items,
-		method: `instagrapi(${res.method})${complete ? '+backfill' : full ? `+backfill(${resume ? 'lanjutan' : 'parsial'})` : ''}`,
+		method: `instagrapi(${res.method})${complete || capped ? '+backfill' : full ? `+backfill(${resume ? 'lanjutan' : 'parsial'})` : ''}`,
 		newCount,
 		profile,
-		backfilled: complete,
-		backfillCursor: full ? nextCursor : undefined,
+		backfilled: complete || capped,
+		backfillCursor: full ? (capped ? null : nextCursor) : undefined,
 		warning:
-			full && res.partial
+			full && res.partial && !capped
 				? `Backfill Instagram bertahap: ${items.length} item tersimpan, dilanjutkan otomatis tiap jam.`
 				: undefined,
 	};
