@@ -1,4 +1,6 @@
 import { spawn } from 'child_process';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 /**
@@ -50,6 +52,31 @@ const TIMEOUT_MS = 20 * 60_000;
 
 export let lastInstagrapiError: string | null = null;
 
+/** RAM yang masih bisa dipakai (MemAvailable di Linux; fallback os.freemem). */
+export function availableMemoryMb(): { availableMb: number; totalMb: number } {
+	const totalMb = Math.round(os.totalmem() / 1048576);
+	try {
+		const m = /MemAvailable:s+(d+) kB/.exec(fs.readFileSync('/proc/meminfo', 'utf8'));
+		if (m) return { availableMb: Math.round(Number(m[1]) / 1024), totalMb };
+	} catch {
+		// bukan Linux
+	}
+	return { availableMb: Math.round(os.freemem() / 1048576), totalMb };
+}
+
+/** Python + instagrapi butuh ±200 MB; di VPS 2 GB, spawn gagal (ENOMEM) bila RAM habis. */
+const MIN_FREE_MB = 200;
+
+async function waitForMemory(): Promise<string | null> {
+	for (let i = 0; i < 3; i++) {
+		const { availableMb } = availableMemoryMb();
+		if (availableMb >= MIN_FREE_MB) return null;
+		if (i < 2) await new Promise((r) => setTimeout(r, 30_000));
+		else return `RAM server tinggal ${availableMb} MB (butuh ±${MIN_FREE_MB} MB) — Python tidak dijalankan`;
+	}
+	return null;
+}
+
 export function instagrapiEnabled(): boolean {
 	return (process.env.INSTAGRAM_INSTAGRAPI || 'on').toLowerCase() !== 'off';
 }
@@ -65,6 +92,22 @@ export function fetchInstagramViaInstagrapi(
 	opts: { startMaxId?: string; maxPages?: number } = {},
 ): Promise<InstagrapiResult> {
 	if (!instagrapiEnabled()) return Promise.resolve({ ok: false, error: 'instagrapi dimatikan (INSTAGRAM_INSTAGRAPI=off)' });
+	return waitForMemory().then((memError) => {
+		if (memError) {
+			lastInstagrapiError = memError;
+			console.warn('[instagram-instagrapi]', memError);
+			return { ok: false, error: memError } as InstagrapiResult;
+		}
+		return runInstagrapi(username, limit, userId, opts);
+	});
+}
+
+function runInstagrapi(
+	username: string,
+	limit: number,
+	userId: string | undefined,
+	opts: { startMaxId?: string; maxPages?: number },
+): Promise<InstagrapiResult> {
 	return new Promise((resolve) => {
 		let stdout = '';
 		let settled = false;

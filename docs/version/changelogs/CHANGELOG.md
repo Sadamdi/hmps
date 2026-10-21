@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.0] - 2026-10-21
+
+### Added
+
+- Kartu Kesehatan Instagram (sesi, crawl terakhir, RAM) dan pasang sesi dari dashboard (`POST /api/social-feed/instagram-session`).
+
+### Fixed
+
+- Crawl Instagram menunggu RAM cukup sebelum menjalankan Python (cegah `spawn ENOMEM`).
+
 ## [4.59.2] - 2026-10-21
 
 ### Fixed

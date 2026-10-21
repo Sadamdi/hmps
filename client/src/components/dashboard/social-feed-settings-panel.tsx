@@ -30,6 +30,18 @@ type ManagePayload = {
 	lastSocialFeedSyncAt?: string | null;
 	nextScheduledSyncAt?: string;
 	instagramSessionConfigured?: boolean;
+	instagramSession?: {
+		configured: boolean;
+		savedAt?: string | null;
+		autoLoginEnabled?: boolean;
+		lastLoginError?: string | null;
+		instagrapiError?: string | null;
+		memory?: { availableMb: number; totalMb: number };
+		lastGoodAt?: string | null;
+		lastRunAt?: string | null;
+		lastRunOk?: boolean | null;
+		lastRunIssue?: string | null;
+	};
 	logs?: SocialFeedLogEntry[];
 };
 
@@ -213,6 +225,82 @@ function StatusCard({
 	);
 }
 
+function InstagramSessionCard({
+	session,
+	canEdit,
+	onSaved,
+}: {
+	session?: ManagePayload['instagramSession'];
+	canEdit: boolean;
+	onSaved: () => void;
+}) {
+	const { toast } = useToast();
+	const [raw, setRaw] = useState('');
+	const saveMut = useMutation({
+		mutationFn: async () => {
+			const r = await apiRequest('POST', '/api/social-feed/instagram-session', { session: raw });
+			return r.json();
+		},
+		onSuccess: (res: any) => {
+			toast({ title: 'Sesi Instagram disimpan', description: res?.message });
+			setRaw('');
+			onSaved();
+		},
+		onError: (e: any) => toast({ title: 'Gagal menyimpan sesi', description: e?.message, variant: 'destructive' }),
+	});
+	const mem = session?.memory;
+	const lowMem = !!mem && mem.availableMb < 200;
+	const row = (ok: boolean | null | undefined, label: string, detail?: string) => (
+		<p className="flex items-start gap-1.5 text-sm">
+			{ok == null ? (
+				<Clock className="mt-0.5 h-4 w-4 text-muted-foreground" />
+			) : ok ? (
+				<CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-500" />
+			) : (
+				<XCircle className="mt-0.5 h-4 w-4 text-destructive" />
+			)}
+			<span>
+				{label}
+				{detail ? <span className="text-xs text-muted-foreground"> · {detail}</span> : null}
+			</span>
+		</p>
+	);
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2 text-base">
+					<Instagram className="h-4 w-4" /> Kesehatan Instagram
+				</CardTitle>
+				<CardDescription>Indikator sesi, crawl terakhir, dan RAM server. Cookie tidak pernah ditampilkan.</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-3">
+				{row(session?.configured, session?.configured ? 'Sesi akun terpasang' : 'Sesi akun belum terpasang', session?.savedAt ? `disimpan ${formatWib(session.savedAt)}` : undefined)}
+				{row(session?.lastRunOk, session?.lastRunOk == null ? 'Belum ada crawl' : session.lastRunOk ? 'Crawl terakhir berhasil' : 'Crawl terakhir bermasalah', session?.lastRunIssue || (session?.lastRunAt ? formatWib(session.lastRunAt) : undefined))}
+				{row(session?.lastGoodAt ? true : null, 'Terakhir berhasil mengambil post', session?.lastGoodAt ? formatWib(session.lastGoodAt) : 'belum pernah / tidak tercatat')}
+				{mem ? row(!lowMem, `RAM server tersedia ${mem.availableMb} MB dari ${mem.totalMb} MB`, lowMem ? 'kurang dari 200 MB: Python gagal dijalankan (ENOMEM)' : undefined) : null}
+				{session?.lastLoginError ? row(false, 'Login ulang otomatis', session.lastLoginError) : null}
+				{canEdit && (
+					<div className="space-y-2 border-t pt-3">
+						<Label htmlFor="ig-session">Perbarui sesi (tempel JSON cookie hasil ekspor browser)</Label>
+						<Textarea
+							id="ig-session"
+							value={raw}
+							onChange={(e) => setRaw(e.target.value)}
+							rows={4}
+							placeholder='[{"name":"sessionid","value":"..."},{"name":"csrftoken","value":"..."}]'
+							className="font-mono text-xs"
+						/>
+						<Button type="button" size="sm" disabled={!raw.trim() || saveMut.isPending} onClick={() => saveMut.mutate()}>
+							{saveMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+							Simpan sesi
+						</Button>
+					</div>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
 export default function SocialFeedSettingsPanel() {
 	const { toast } = useToast();
 	const queryClient = useQueryClient();
@@ -365,6 +453,12 @@ export default function SocialFeedSettingsPanel() {
 					sessionConfigured={data.instagramSessionConfigured}
 				/>
 			</div>
+
+			<InstagramSessionCard
+				session={data.instagramSession}
+				canEdit={canEdit}
+				onSaved={() => queryClient.invalidateQueries({ queryKey: ['/api/social-feed/manage'] })}
+			/>
 
 			<div className="grid gap-4 lg:grid-cols-2">
 				<Card>
