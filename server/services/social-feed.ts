@@ -37,7 +37,7 @@ import {
 	invalidateInstagramSession,
 	looksLikeInstagramLoginRequired,
 } from './instagram-session';
-import { fetchInstagramViaInstagrapi } from './instagram-instagrapi';
+import { fetchInstagramViaInstagrapi, type InstagrapiMedia, type InstagrapiResult } from './instagram-instagrapi';
 
 const UA_DESKTOP =
 	'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36';
@@ -1119,13 +1119,31 @@ async function syncInstagramViaInstagrapi(
 	const dailyLimit = Math.min(60, Math.max(12, config.fetchLimits.post + config.fetchLimits.reel));
 	// Backfill bertahap: maks 3 halaman per run (hemat rate limit); lanjut dari cursor bila ada
 	const resume = full && !!cursor;
-	const res = await fetchInstagramViaInstagrapi(
+	// Melanjutkan backfill dari cursor hanya mengambil halaman LAMA. Post terbaru harus tetap diambil tiap run
+	// (kalau tidak, backfill yang belum selesai membuat feed berhenti di tanggal terakhir sebelum cursor dibuat).
+	let head: InstagrapiResult | null = null;
+	if (resume) {
+		const h = await fetchInstagramViaInstagrapi(username, dailyLimit, knownUserId, {});
+		if (h.ok && h.items?.length) head = h;
+	}
+	const cont = await fetchInstagramViaInstagrapi(
 		username,
 		full ? 0 : dailyLimit,
 		knownUserId,
 		full ? { startMaxId: resume ? cursor : undefined, maxPages: 3 } : {},
 	);
-	if (!res.ok || !res.items?.length) return null;
+	const main = cont.ok && cont.items?.length ? cont : null;
+	if (!main && !head) return null;
+	// res = sumber metadata (profil/metode); item = gabungan terbaru + lanjutan tanpa duplikat
+	const res: InstagrapiResult & { items: InstagrapiMedia[] } = {
+		...(main || head!),
+		items: Array.from(
+			new Map([...(head?.items || []), ...(main?.items || [])].map((m) => [m.code, m] as const)).values(),
+		),
+		// Bila lanjutan gagal tetapi halaman terbaru berhasil: cursor lama dipertahankan
+		partial: main ? main.partial : true,
+		nextMaxId: main ? main.nextMaxId : cursor,
+	};
 
 	// Backfill terpotong / lanjutan: merge biasa (jangan buang arsip). Pembersihan item terhapus
 	// hanya bila seluruh daftar terambil dalam satu run dari halaman pertama.
@@ -1175,7 +1193,11 @@ async function syncInstagramViaInstagrapi(
 		merged.push(resume ? prev : { ...prev, pinned: undefined, pinnedRank: undefined });
 	}
 	const items = sortSocialItems(merged);
-	const newCount = items.filter((it) => !prevByCode.has(it.id.replace(/^ig-/, ''))).length;
+	// "Baru" = post lebih baru dari yang sudah ada; arsip lama hasil backfill tidak dihitung sebagai baru
+	const prevNewest = previous.reduce((mx, it) => Math.max(mx, Date.parse(it.publishedAt) || 0), 0);
+	const newCount = items.filter(
+		(it) => !prevByCode.has(it.id.replace(/^ig-/, '')) && (!prevNewest || (Date.parse(it.publishedAt) || 0) > prevNewest),
+	).length;
 
 	let profile: SocialProfile | undefined;
 	if (res.profile) {
