@@ -203,7 +203,7 @@ function parseSemesterNumberFromHeading(text: string): number {
 
 // ─── Profile parser ───
 
-async function parseProfile(): Promise<any> {
+export async function parseProfile(): Promise<any> {
 	const $ = await fetchPage(SOURCES.profile);
 	const root = getContentRoot($);
 	if (!root.length) return {};
@@ -396,7 +396,7 @@ interface LecturerGroup {
 	lecturers: any[];
 }
 
-async function parseLecturerList(): Promise<{ headAndSecretary: any[]; groups: LecturerGroup[]; staff: any[] }> {
+export async function parseLecturerList(): Promise<{ headAndSecretary: any[]; groups: LecturerGroup[]; staff: any[] }> {
 	const $ = await fetchPage(SOURCES.lecturers);
 	const root = getContentRoot($);
 	if (!root.length) return { headAndSecretary: [], groups: [], staff: [] };
@@ -1111,7 +1111,7 @@ function parseMasterSemesterTables(
 	});
 }
 
-async function parseCurriculumIndexEntries(): Promise<CurriculumIndexEntry[]> {
+export async function parseCurriculumIndexEntries(): Promise<CurriculumIndexEntry[]> {
 	const byYear = new Map<number, string>();
 	// Index cards currently use href="#"; keep known official detail URLs seeded.
 	byYear.set(2020, SOURCES.curriculumLegacy);
@@ -1522,7 +1522,7 @@ function parseTeachingLabsFromHeadings(
 
 // ─── Laboratories parser ───
 
-async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> {
+export async function parseLaboratories(type: 'teaching' | 'research'): Promise<any[]> {
 	const url = type === 'teaching' ? SOURCES.teachingLab : SOURCES.researchLab;
 	const $ = await fetchPage(url);
 	const root = getContentRoot($);

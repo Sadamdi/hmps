@@ -31,6 +31,116 @@ export type ProdiStudentGuide = {
 	nimExample?: string;
 };
 
+
+export type ProdiScholarship = {
+	id: string;
+	name: string;
+	provider: string;
+	/** internal = lewat kampus UIN Malang; eksternal = pemberi di luar kampus */
+	kind: 'internal' | 'eksternal';
+	levels: ('S1' | 'S2')[];
+	summary: string;
+	/** Tautan informasi resmi (bisa diubah admin dari dashboard). */
+	infoUrl: string;
+};
+
+export type ProdiScholarshipHub = {
+	programs: ProdiScholarship[];
+};
+
+/** Daftar awal; syarat dan jadwal selalu berubah, jadi pengunjung diarahkan ke situs resmi masing-masing. */
+export const DEFAULT_SCHOLARSHIPS: ProdiScholarship[] = [
+	{
+		id: 'kip-kuliah',
+		name: 'KIP Kuliah',
+		provider: 'Kemdiktisaintek (diseleksi kampus)',
+		kind: 'internal',
+		levels: ['S1'],
+		summary: 'Bantuan biaya kuliah dan hidup untuk mahasiswa kurang mampu; pendaftaran lewat portal resmi dan verifikasi kemahasiswaan UIN Malang.',
+		infoUrl: 'https://kip-kuliah.kemdiktisaintek.go.id/',
+	},
+	{
+		id: 'kemahasiswaan-uin',
+		name: 'Info beasiswa Kemahasiswaan UIN Malang',
+		provider: 'UIN Maulana Malik Ibrahim Malang',
+		kind: 'internal',
+		levels: ['S1', 'S2'],
+		summary: 'Pengumuman beasiswa yang dikelola kampus (mis. Cendekia BAZNAS, Bank Syariah Nasional, beasiswa pemerintah daerah).',
+		infoUrl: 'https://kemahasiswaan.uin-malang.ac.id/?s=beasiswa',
+	},
+	{
+		id: 'beasiswa-kemdiktisaintek',
+		name: 'Portal Beasiswa Kemdiktisaintek',
+		provider: 'Kemdiktisaintek RI',
+		kind: 'eksternal',
+		levels: ['S1', 'S2'],
+		summary: 'Portal resmi beasiswa pemerintah (termasuk pengumuman program seperti Australia Awards Garuda).',
+		infoUrl: 'https://beasiswa.kemdiktisaintek.go.id/',
+	},
+	{
+		id: 'lpdp',
+		name: 'LPDP',
+		provider: 'Kementerian Keuangan RI',
+		kind: 'eksternal',
+		levels: ['S2'],
+		summary: 'Beasiswa studi lanjut S2 dan S3 dalam dan luar negeri.',
+		infoUrl: 'https://lpdp.kemenkeu.go.id/',
+	},
+	{
+		id: 'bib-kemenag',
+		name: 'Beasiswa Indonesia Bangkit (BIB)',
+		provider: 'Kementerian Agama RI',
+		kind: 'eksternal',
+		levels: ['S1', 'S2'],
+		summary: 'Beasiswa Kemenag untuk mahasiswa PTKI, dalam dan luar negeri.',
+		infoUrl: 'https://beasiswa.kemenag.go.id/',
+	},
+	{
+		id: 'djarum-plus',
+		name: 'Djarum Beasiswa Plus',
+		provider: 'Djarum Foundation',
+		kind: 'eksternal',
+		levels: ['S1'],
+		summary: 'Beasiswa prestasi dan pengembangan soft skill untuk mahasiswa aktif.',
+		infoUrl: 'https://www.djarumbeasiswaplus.org/',
+	},
+	{
+		id: 'genbi',
+		name: 'GenBI (Bank Indonesia)',
+		provider: 'Bank Indonesia',
+		kind: 'eksternal',
+		levels: ['S1'],
+		summary: 'Beasiswa dan komunitas Generasi Baru Indonesia untuk mahasiswa berprestasi.',
+		infoUrl: 'https://genbi.id/',
+	},
+	{
+		id: 'tanoto',
+		name: 'Tanoto Foundation',
+		provider: 'Tanoto Foundation',
+		kind: 'eksternal',
+		levels: ['S1'],
+		summary: 'Program beasiswa dan pengembangan kepemimpinan; cek program yang sedang dibuka.',
+		infoUrl: 'https://www.tanotofoundation.org/',
+	},
+];
+
+export function sanitizeScholarshipHub(raw: any): ProdiScholarshipHub {
+	const list = Array.isArray(raw?.programs) ? raw.programs : null;
+	if (!list) return { programs: DEFAULT_SCHOLARSHIPS };
+	const programs = list
+		.map((p: any, i: number): ProdiScholarship => ({
+			id: String(p?.id || `custom-${i}`).slice(0, 60),
+			name: String(p?.name || '').trim().slice(0, 120),
+			provider: String(p?.provider || '').trim().slice(0, 120),
+			kind: p?.kind === 'internal' ? 'internal' : 'eksternal',
+			levels: (Array.isArray(p?.levels) ? p.levels : []).filter((l: unknown) => l === 'S1' || l === 'S2'),
+			summary: String(p?.summary || '').trim().slice(0, 400),
+			infoUrl: /^https?:\/\//i.test(String(p?.infoUrl || '').trim()) ? String(p.infoUrl).trim() : '',
+		}))
+		.filter((p: ProdiScholarship) => p.name);
+	return { programs };
+}
+
 export const PRODI_EXAMPLE_NIM = '240605110000';
 export const PRODI_EXAMPLE_EMAIL = `${PRODI_EXAMPLE_NIM}@student.uin-malang.ac.id`;
 
@@ -447,6 +557,7 @@ export function buildDefaultStudentHub(partial?: any) {
 		announcements: Array.isArray(partial?.announcements) ? partial.announcements : [],
 		skripsiHub: sanitizeStoredHub(skripsiHub),
 		pklHub: sanitizeStoredHub(pklHub),
+		scholarshipHub: sanitizeScholarshipHub(partial?.scholarshipHub),
 	};
 }
 

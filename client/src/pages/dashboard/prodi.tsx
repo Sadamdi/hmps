@@ -57,8 +57,87 @@ import {
 	Users,
 } from 'lucide-react';
 import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
+import { DEFAULT_SCHOLARSHIPS, type ProdiScholarship } from '@shared/prodi-student-hub';
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { cn } from '@/lib/utils';
+
+function ScholarshipEditor({
+	programs,
+	canEdit,
+	onChange,
+}: {
+	programs: ProdiScholarship[];
+	canEdit: boolean;
+	onChange: (next: ProdiScholarship[]) => void;
+}) {
+	const set = (i: number, patch: Partial<ProdiScholarship>) =>
+		onChange(programs.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+	const levelsValue = (p: ProdiScholarship) => (p.levels.length === 2 ? 'both' : p.levels[0] || 'S1');
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-base">Program beasiswa</CardTitle>
+				<CardDescription>{programs.length} program. Tautan harus diawali http:// atau https://</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				{programs.map((p, i) => (
+					<div key={p.id || i} className="rounded-lg border p-3 space-y-2">
+						<div className="grid gap-2 sm:grid-cols-2">
+							<Input disabled={!canEdit} value={p.name} placeholder="Nama program" onChange={(e) => set(i, { name: e.target.value })} />
+							<Input disabled={!canEdit} value={p.provider} placeholder="Penyedia" onChange={(e) => set(i, { provider: e.target.value })} />
+							<Input disabled={!canEdit} value={p.infoUrl} placeholder="Tautan info resmi (https://...)" onChange={(e) => set(i, { infoUrl: e.target.value })} />
+							<div className="flex gap-2">
+								<select
+									disabled={!canEdit}
+									className="h-10 flex-1 rounded-md border bg-background px-2 text-sm"
+									value={p.kind}
+									onChange={(e) => set(i, { kind: e.target.value as ProdiScholarship['kind'] })}>
+									<option value="internal">Internal UIN</option>
+									<option value="eksternal">Eksternal</option>
+								</select>
+								<select
+									disabled={!canEdit}
+									className="h-10 flex-1 rounded-md border bg-background px-2 text-sm"
+									value={levelsValue(p)}
+									onChange={(e) =>
+										set(i, { levels: e.target.value === 'both' ? ['S1', 'S2'] : [e.target.value as 'S1' | 'S2'] })
+									}>
+									<option value="S1">S1</option>
+									<option value="S2">S2</option>
+									<option value="both">S1 + S2</option>
+								</select>
+							</div>
+						</div>
+						<Textarea disabled={!canEdit} value={p.summary} placeholder="Ringkasan singkat" onChange={(e) => set(i, { summary: e.target.value })} />
+						{canEdit && (
+							<Button type="button" variant="outline" size="sm" onClick={() => onChange(programs.filter((_, idx) => idx !== i))}>
+								Hapus
+							</Button>
+						)}
+					</div>
+				))}
+				{canEdit && (
+					<div className="flex flex-wrap gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							onClick={() =>
+								onChange([
+									...programs,
+									{ id: `custom-${Date.now()}`, name: '', provider: '', kind: 'eksternal', levels: ['S1'], summary: '', infoUrl: '' },
+								])
+							}>
+							Tambah program
+						</Button>
+						<Button type="button" variant="ghost" onClick={() => onChange(DEFAULT_SCHOLARSHIPS)}>
+							Kembalikan daftar awal
+						</Button>
+					</div>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
 
 export default function DashboardProdi() {
 	usePermissionGuardAny(['prodi.view', 'prodi.edit', 'prodi.sync']);
@@ -407,6 +486,9 @@ export default function DashboardProdi() {
 						<TabsTrigger value="pkl" className="gap-2">
 							PKL
 						</TabsTrigger>
+						<TabsTrigger value="beasiswa" className="gap-2">
+							Beasiswa
+						</TabsTrigger>
 						<TabsTrigger value="pengumuman" className="gap-2">
 							Pengumuman
 						</TabsTrigger>
@@ -731,6 +813,24 @@ export default function DashboardProdi() {
 							canSync={canSync}
 							onChange={(next) => updateField('studentHub', 'pklHub', next)}
 							onSync={() => setPendingSyncScope('studentResources')}
+						/>
+					</TabsContent>
+
+					<TabsContent value="beasiswa" className="space-y-6 mt-6">
+						<DashboardHintCard
+							title="Panduan tab: Beasiswa"
+							variant="green"
+							storageKey="dashboard-prodi-tab-beasiswa"
+							description="Daftar program beasiswa S1/S2 di halaman publik /prodi?tab=beasiswa. Tautan info bisa diganti kapan saja; perubahan tidak ditimpa sync.">
+							<ul className="list-disc list-inside space-y-1.5 text-sm">
+								<li>Ubah nama, penyedia, jenjang, dan tautan info resmi → Simpan di header halaman.</li>
+								<li>Kabar beasiswa terbaru di bawah daftar datang otomatis dari Kemahasiswaan UIN, Kemdiktisaintek, dan Kemenag (BIB) lewat sync pengumuman.</li>
+							</ul>
+						</DashboardHintCard>
+						<ScholarshipEditor
+							programs={localContent?.studentHub?.scholarshipHub?.programs ?? DEFAULT_SCHOLARSHIPS}
+							canEdit={canEdit}
+							onChange={(programs) => updateField('studentHub', 'scholarshipHub', { programs })}
 						/>
 					</TabsContent>
 

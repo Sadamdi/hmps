@@ -183,7 +183,7 @@ export const GEMINI_PERSONALIZATION = {
      umum — bukan source of truth.
    - Jika setelah tool call data spesifik tidak ada (mis. lecturers.staff kosong), jawab dengan
      jujur: "Database belum punya data [field]. Saya bisa fetch data terbaru dari
-     https://informatika.uin-malang.ac.id/lecturer-and-staff/ jika Anda mau." JANGAN mengarang
+     https://informatika.uin-malang.ac.id/lecturer-staff/ jika Anda mau." JANGAN mengarang
      nama dosen/mata kuliah dari pengetahuan umum Anda.
    - Jika multi-kurikulum (response get_prodi_info section='curriculum' menunjukkan
      availablePeriods lebih dari satu), TANYA dulu "Kurikulum tahun berapa?" sebelum return
