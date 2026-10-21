@@ -2,6 +2,7 @@ import {
 	HubResourceSection,
 	KalenderSection,
 	PengumumanSection,
+	BeasiswaSection,
 	PortalSection,
 } from '@/components/prodi/student-hub-sections';
 import AIChat from '@/components/public/ai-chat';
@@ -53,6 +54,7 @@ type ProdiTabValue =
 	| 'portal'
 	| 'skripsi'
 	| 'pkl'
+	| 'beasiswa'
 	| 'pengumuman';
 
 const PRODI_TABS: ProdiTabValue[] = [
@@ -65,6 +67,7 @@ const PRODI_TABS: ProdiTabValue[] = [
 	'portal',
 	'skripsi',
 	'pkl',
+	'beasiswa',
 	'pengumuman',
 ];
 
@@ -323,6 +326,9 @@ export default function ProdiPage() {
 							<TabsTrigger value="pkl" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<Briefcase className="h-4 w-4 shrink-0" /> PKL
 							</TabsTrigger>
+							<TabsTrigger value="beasiswa" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
+								<Megaphone className="h-4 w-4 shrink-0" /> Beasiswa
+							</TabsTrigger>
 							<TabsTrigger value="pengumuman" className="gap-2 px-3 py-2.5 text-sm shrink-0 data-[state=active]:shadow-sm">
 								<Megaphone className="h-4 w-4 shrink-0" /> Pengumuman
 							</TabsTrigger>
@@ -368,6 +374,12 @@ export default function ProdiPage() {
 								title="PKL / Internship"
 								hub={studentHub.pklHub}
 								emptyHint="Hub PKL belum tersinkron. Jalankan sync Student Resources di dashboard."
+							/>
+						</TabsContent>
+						<TabsContent value="beasiswa" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">
+							<BeasiswaSection
+								programs={studentHub.scholarshipHub?.programs || []}
+								announcements={studentHub.announcements || []}
 							/>
 						</TabsContent>
 						<TabsContent value="pengumuman" className="data-[state=active]:animate-in data-[state=active]:fade-in-0 data-[state=active]:duration-300">

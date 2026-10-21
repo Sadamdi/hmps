@@ -9,6 +9,17 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.59.0] - 2026-10-21
+
+### Added
+
+- Tab Beasiswa di halaman prodi (internal/eksternal, filter S1/S2) dengan editor dashboard; tautan info bisa diubah admin.
+- Kabar beasiswa otomatis dari Kemahasiswaan UIN Malang, Kemdiktisaintek, dan Kemenag (BIB).
+
+### Fixed
+
+- Rujukan URL dosen lama (404) di konfigurasi Gemini dan default skema.
+
 ## [4.58.0] - 2026-10-21
 
 ### Fixed

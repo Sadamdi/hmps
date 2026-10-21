@@ -753,7 +753,7 @@ export function PengumumanSection({ items }: { items: any[] }) {
 							<ExternalLink className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" />
 						</a>
 						<p className="text-xs text-muted-foreground mt-1">
-							{{ ti: 'Teknik Informatika', lp2m: 'LP2M', fst: 'Fakultas Saintek' }[item.source as string] || 'UIN Malang'}
+							{{ ti: 'Teknik Informatika', lp2m: 'LP2M', fst: 'Fakultas Saintek', kemahasiswaan: 'Kemahasiswaan UIN Malang', kemdiktisaintek: 'Kemdiktisaintek', kemenag: 'Kemenag (BIB)' }[item.source as string] || 'UIN Malang'}
 							{item.category ? ` · ${item.category}` : ''}
 							{item.publishedAt ? ` · ${new Date(item.publishedAt).toLocaleDateString('id-ID')}` : ''}
 						</p>
@@ -802,3 +802,116 @@ export function PengumumanSection({ items }: { items: any[] }) {
 	);
 }
 
+
+
+const SCHOLARSHIP_KIND_FILTERS = [
+	{ id: 'all', label: 'Semua' },
+	{ id: 'internal', label: 'Internal UIN' },
+	{ id: 'eksternal', label: 'Eksternal' },
+] as const;
+const SCHOLARSHIP_LEVEL_FILTERS = [
+	{ id: 'all', label: 'S1 + S2' },
+	{ id: 'S1', label: 'S1' },
+	{ id: 'S2', label: 'S2' },
+] as const;
+
+function safeHttpUrl(url?: string): string {
+	return /^https?:\/\//i.test(String(url || '').trim()) ? String(url).trim() : '';
+}
+
+export function BeasiswaSection({ programs, announcements }: { programs: any[]; announcements: any[] }) {
+	const [kind, setKind] = useState<string>('all');
+	const [level, setLevel] = useState<string>('all');
+	const list = useMemo(
+		() =>
+			(programs || []).filter(
+				(p) =>
+					(kind === 'all' || p.kind === kind) &&
+					(level === 'all' || (Array.isArray(p.levels) && p.levels.includes(level))),
+			),
+		[programs, kind, level],
+	);
+	const latest = useMemo(
+		() => (announcements || []).filter((a) => a.category === 'beasiswa').slice(0, 12),
+		[announcements],
+	);
+	const chip = (active: boolean) =>
+		cn(
+			'rounded-md border px-3 py-1.5 text-xs sm:text-sm transition-colors',
+			active ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted',
+		);
+	return (
+		<div className="space-y-6">
+			<div className="space-y-2">
+				<h2 className="text-xl font-semibold">Beasiswa untuk S1 dan S2</h2>
+				<p className="text-sm text-muted-foreground">
+					Syarat dan jadwal berubah tiap periode. Selalu cek situs resmi pemberi beasiswa sebelum mendaftar.
+				</p>
+			</div>
+			<div className="flex flex-wrap gap-2">
+				{SCHOLARSHIP_KIND_FILTERS.map((f) => (
+					<button key={f.id} type="button" onClick={() => setKind(f.id)} className={chip(kind === f.id)}>
+						{f.label}
+					</button>
+				))}
+				<span className="mx-1 hidden sm:inline text-border">|</span>
+				{SCHOLARSHIP_LEVEL_FILTERS.map((f) => (
+					<button key={f.id} type="button" onClick={() => setLevel(f.id)} className={chip(level === f.id)}>
+						{f.label}
+					</button>
+				))}
+			</div>
+			{list.length === 0 ? (
+				<p className="text-center text-muted-foreground py-8">Tidak ada program untuk filter ini.</p>
+			) : (
+				<div className="grid gap-3 sm:grid-cols-2">
+					{list.map((p) => {
+						const href = safeHttpUrl(p.infoUrl);
+						return (
+							<div key={p.id || p.name} className="rounded-lg border border-border bg-card p-4 space-y-2">
+								<div className="flex items-start justify-between gap-2">
+									<p className="font-medium">{p.name}</p>
+									<span className="shrink-0 rounded bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+										{p.kind === 'internal' ? 'Internal' : 'Eksternal'} · {(p.levels || []).join('/') || '-'}
+									</span>
+								</div>
+								<p className="text-xs text-muted-foreground">{p.provider}</p>
+								{p.summary && <p className="text-sm text-muted-foreground">{p.summary}</p>}
+								{href && (
+									<a
+										href={href}
+										target="_blank"
+										rel="noopener noreferrer"
+										className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
+										Info resmi <ExternalLink className="h-3.5 w-3.5" />
+									</a>
+								)}
+							</div>
+						);
+					})}
+				</div>
+			)}
+			{latest.length > 0 && (
+				<div className="space-y-2">
+					<h3 className="text-lg font-semibold">Kabar beasiswa terbaru</h3>
+					<ul className="divide-y divide-border rounded-lg border border-border bg-card">
+						{latest.map((a, i) => (
+							<li key={(a.url || '') + i} className="p-3 hover:bg-muted/30">
+								<a
+									href={safeHttpUrl(a.url) || undefined}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="text-sm font-medium hover:text-primary">
+									{a.title}
+								</a>
+								<p className="text-xs text-muted-foreground mt-0.5">
+									{a.publishedAt ? new Date(a.publishedAt).toLocaleDateString('id-ID') : ''}
+								</p>
+							</li>
+						))}
+					</ul>
+				</div>
+			)}
+		</div>
+	);
+}

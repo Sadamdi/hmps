@@ -1178,7 +1178,7 @@ const prodiContentSchema = new mongoose.Schema(
 			},
 			lecturerUrl: {
 				type: String,
-				default: 'https://informatika.uin-malang.ac.id/lecturer-and-staff/',
+				default: 'https://informatika.uin-malang.ac.id/lecturer-staff/',
 			},
 			curriculumUrl: {
 				type: String,

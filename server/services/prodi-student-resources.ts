@@ -18,6 +18,9 @@ const TI_PENGUMUMAN_FEED = 'https://informatika.uin-malang.ac.id/category/pengum
 const UIN_PENGUMUMAN_FEED = 'https://uin-malang.ac.id/blog/pengumuman-3/feed';
 const LP2M_FEED = 'https://lp2m.uin-malang.ac.id/feed/';
 const FST_FEED = 'https://saintek.uin-malang.ac.id/feed/';
+const KEMAHASISWAAN_BEASISWA_FEED = 'https://kemahasiswaan.uin-malang.ac.id/?s=beasiswa&feed=rss2';
+const KEMDIKTISAINTEK_FEED = 'https://beasiswa.kemdiktisaintek.go.id/feed/';
+const KEMENAG_BIB_FEED = 'https://beasiswa.kemenag.go.id/feed/';
 const TI_SKRIPSI = 'https://informatika.uin-malang.ac.id/thesis-skripsi-s1/';
 const TI_PKL = 'https://informatika.uin-malang.ac.id/internship-pkl/';
 
@@ -68,6 +71,8 @@ export type AcademicCalendarEntry = {
 	sourceKind: string;
 	syncedAt: string;
 };
+
+export type AnnouncementFeedSource = 'ti' | 'uin' | 'lp2m' | 'fst' | 'kemahasiswaan' | 'kemdiktisaintek' | 'kemenag';
 
 export type AnnouncementCategory =
 	| 'thesis'
@@ -422,12 +427,12 @@ function categorizeAnnouncement(title: string, source?: string): AnnouncementCat
 	if (/wisuda/i.test(title)) return 'wisuda';
 	if (/ukt|uang kuliah|herregistrasi|bebas tanggungan/i.test(title)) return 'ukt';
 	if (/kalender akademik/i.test(title)) return 'kalender';
+	if (/beasiswa|scholarship|awards|kip kuliah|lpdp|cendekia|bantuan biaya pendidikan|bidikmisi/i.test(title)) return 'beasiswa';
 	if (/kkm|kuliah kerja|pengabdian|penelitian|uin mengabdi|pkm|hibah/i.test(title)) return 'kkm';
-	if (/beasiswa|scholarship/i.test(title)) return 'beasiswa';
 	return 'lainnya';
 }
 
-function parseRssItems(xml: string, source: 'ti' | 'uin' | 'lp2m' | 'fst'): StudentAnnouncement[] {
+function parseRssItems(xml: string, source: AnnouncementFeedSource): StudentAnnouncement[] {
 	const $ = cheerio.load(xml, { xmlMode: true });
 	const items: StudentAnnouncement[] = [];
 	$('item, entry').each((_, el) => {
@@ -482,6 +487,7 @@ function filterAnnouncements(items: StudentAnnouncement[]): StudentAnnouncement[
 		.filter((i) => {
 			if (i.source === 'ti') return tiRe.test(i.title);
 			if (i.source === 'lp2m') return i.category !== 'lainnya';
+			if (['kemahasiswaan', 'kemdiktisaintek', 'kemenag'].includes(i.source)) return i.category === 'beasiswa';
 			if (i.source === 'fst') return i.category !== 'lainnya' || fstRe.test(i.title);
 			return uinRe.test(i.title) || i.category !== 'lainnya';
 		})
@@ -592,11 +598,14 @@ export async function syncAnnouncementsFeed(): Promise<StudentAnnouncement[]> {
 		}
 	};
 
-	const feeds: { url: string; source: 'ti' | 'uin' | 'lp2m' | 'fst'; label: string }[] = [
+	const feeds: { url: string; source: AnnouncementFeedSource; label: string }[] = [
 		{ url: TI_PENGUMUMAN_FEED, source: 'ti', label: 'TI RSS' },
 		{ url: UIN_PENGUMUMAN_FEED, source: 'uin', label: 'UIN Atom' },
 		{ url: LP2M_FEED, source: 'lp2m', label: 'LP2M RSS' },
 		{ url: FST_FEED, source: 'fst', label: 'FST RSS' },
+		{ url: KEMAHASISWAAN_BEASISWA_FEED, source: 'kemahasiswaan', label: 'Kemahasiswaan RSS' },
+		{ url: KEMDIKTISAINTEK_FEED, source: 'kemdiktisaintek', label: 'Kemdiktisaintek RSS' },
+		{ url: KEMENAG_BIB_FEED, source: 'kemenag', label: 'Kemenag BIB RSS' },
 	];
 	for (const feed of feeds) {
 		for (let page = 1; page <= RSS_PAGE_LIMIT; page++) {
