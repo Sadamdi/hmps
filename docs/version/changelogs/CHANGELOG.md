@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.2] - 2026-10-21
+
+### Fixed
+
+- Instagram: backfill yang belum selesai tidak lagi menghentikan pengambilan post terbaru; hitungan "baru" tidak menghitung arsip lama.
+
 ## [4.60.1] - 2026-10-21
 
 ### Fixed
