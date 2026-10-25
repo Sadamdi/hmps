@@ -27,8 +27,8 @@ const entityTypeSchema = z.enum([
 
 const bodySchema = z.object({
 	entityType: entityTypeSchema,
-	fields: z.record(z.string()),
-	fieldLabels: z.record(z.string()).optional(),
+	fields: z.record(z.string(), z.string()),
+	fieldLabels: z.record(z.string(), z.string()).optional(),
 	options: z
 		.object({
 			preserveHtml: z.boolean().optional(),
