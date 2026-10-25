@@ -22,7 +22,7 @@ function log(...args) {
 }
 
 function childEnv() {
-	const nvmBin = '/root/.nvm/versions/node/v24.15.0/bin';
+	const nvmBin = '/root/.nvm/versions/node/v24.22.1/bin';
 	const pathEnv = `${nvmBin}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${process.env.PATH || ''}`;
 	return {
 		...process.env,

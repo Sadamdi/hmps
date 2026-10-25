@@ -331,7 +331,7 @@ if [[ -s "$NVM_DIR/nvm.sh" ]]; then
 	# shellcheck disable=SC1091
 	. "$NVM_DIR/nvm.sh"
 fi
-export PATH="/root/.nvm/versions/node/v24.15.0/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
+export PATH="/root/.nvm/versions/node/v24.22.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:${PATH:-}"
 
 PREV_HEAD="$(git rev-parse HEAD)"
 

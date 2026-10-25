@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.5] - 2026-10-25
+
+### Security
+
+- Node produksi 24.22.1 (rilis keamanan 21 Okt 2026); path ops disesuaikan.
+
 ## [4.60.4] - 2026-10-25
 
 ### Security
