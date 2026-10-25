@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.60.3`  
+**Current version:** `4.60.4`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.60.3`](./release/4.60.3.md) | 2026-10-21 | Backfill Instagram dibatasi 160 item agar permintaan login minim | PATCH | 1 | **Current** |
+| [`4.60.4`](./release/4.60.4.md) | 2026-10-25 | Update keamanan dependensi (body-parser, zod) | PATCH | 1 | **Current** |
+| [`4.60.3`](./release/4.60.3.md) | 2026-10-21 | Backfill Instagram dibatasi 160 item agar permintaan login minim | PATCH | 1 |  |
 | [`4.60.2`](./release/4.60.2.md) | 2026-10-21 | Instagram: post terbaru selalu diambil saat backfill, hitungan baru akurat | PATCH | 1 | Released |
 | [`4.60.1`](./release/4.60.1.md) | 2026-10-21 | ClamAV mati permanen (mask), tidak dinyalakan lagi oleh deploy | PATCH | 1 | Released |
 | [`4.60.0`](./release/4.60.0.md) | 2026-10-21 | Kesehatan Instagram di dashboard, pasang sesi tanpa akses server, penjaga RAM sebelum crawl | MINOR | 1 | Released |
