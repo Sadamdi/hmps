@@ -10,7 +10,7 @@ if [[ ! -f "$SRC" ]]; then
 fi
 cp "$SRC" "$DEST"
 chmod +x "$DEST"
-export PATH="/root/.nvm/versions/node/v24.15.0/bin:$PATH"
+export PATH="/root/.nvm/versions/node/v24.22.1/bin:$PATH"
 if pm2 describe hmps-auto-deploy >/dev/null 2>&1; then
 	pm2 restart hmps-auto-deploy --update-env
 else
