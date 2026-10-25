@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.6] - 2026-10-25
+
+### Security
+
+- npm audit 0 temuan: vite 7, esbuild 0.28, zod 4, override grpc/uuid/postcss; hapus paket tak terpakai.
+
 ## [4.60.5] - 2026-10-25
 
 ### Security
