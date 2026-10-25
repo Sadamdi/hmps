@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.4] - 2026-10-25
+
+### Security
+
+- Update dependensi aman: body-parser 1.20.9, zod 3.25.76, zod-validation-error 3.5.4.
+
 ## [4.60.3] - 2026-10-21
 
 ### Changed
