@@ -1,3 +1,4 @@
+import { looseMatches } from '@shared/smart-search';
 import CommentPanel from '@/components/dashboard/comment-panel';
 import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
@@ -241,8 +242,7 @@ export default function DashboardLibrary() {
 	const filteredItems = libraryItems
 		.filter(
 			(item) =>
-				item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				item.description.toLowerCase().includes(searchQuery.toLowerCase())
+				looseMatches(searchQuery, item.title, item.description)
 		)
 		.filter((item) => {
 			if (activeTab === 'all') return true;

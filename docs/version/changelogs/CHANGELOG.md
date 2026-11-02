@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.63.0] - 2026-11-03
+
+### Added
+
+- Pencarian pintar di toko (produk dan bundling), dashboard, dan tools AI.
+
+### Fixed
+
+- Pembatalan pesanan oleh pembeli tidak lagi bisa mengembalikan stok dua kali; label favorit tidak tersedia; timeout/batas ukuran proxy gambar Drive; batas qty 9999.
+
 ## [4.62.2] - 2026-11-03
 
 ### Fixed

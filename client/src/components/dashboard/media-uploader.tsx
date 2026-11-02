@@ -1,3 +1,4 @@
+import { looseMatches } from '@shared/smart-search';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { ContentEnhanceButton } from '@/components/dashboard/content-enhance-button';
 import { Badge } from '@/components/ui/badge';
@@ -768,7 +769,7 @@ export default function MediaUploader({
 							{eventsForLink
 								.filter((ev) =>
 									eventLinkSearch
-										? ev.title.toLowerCase().includes(eventLinkSearch.toLowerCase())
+										? looseMatches(eventLinkSearch, ev.title)
 										: true,
 								)
 								.map((ev) => {
@@ -841,7 +842,7 @@ export default function MediaUploader({
 							{beritaForLink
 								.filter((b) =>
 									beritaLinkSearch
-										? b.title.toLowerCase().includes(beritaLinkSearch.toLowerCase())
+										? looseMatches(beritaLinkSearch, b.title)
 										: true,
 								)
 								.map((b) => {

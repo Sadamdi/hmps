@@ -1,3 +1,4 @@
+import { looseMatches } from '@shared/smart-search';
 import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
@@ -140,10 +141,7 @@ export default function UsersPage() {
 	const filteredUsers = users
 		.filter(
 			(user: UserWithRole) =>
-				user.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				(user.name &&
-					user.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-				user.role.toLowerCase().includes(searchQuery.toLowerCase()),
+				looseMatches(searchQuery, `${user.username} ${user.name ?? ''}`, user.role),
 		)
 		.filter((user: UserWithRole) => {
 			if (selectedRole === 'all') return true;

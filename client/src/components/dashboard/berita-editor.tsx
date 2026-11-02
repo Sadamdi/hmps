@@ -1,3 +1,4 @@
+import { looseMatches } from '@shared/smart-search';
 import { Button } from '@/components/ui/button';
 import { safeHtml } from '@/lib/safe-html';
 import { Input } from '@/components/ui/input';
@@ -1821,7 +1822,7 @@ export default function BeritaEditor({
 							{attachEventsList
 								.filter((ev: any) =>
 									attachEventSearch
-										? ev.title.toLowerCase().includes(attachEventSearch.toLowerCase())
+										? looseMatches(attachEventSearch, ev.title)
 										: true
 								)
 								.map((ev: any) => {
@@ -1866,7 +1867,7 @@ export default function BeritaEditor({
 								})}
 							{attachEventsList.filter((ev: any) =>
 								attachEventSearch
-									? ev.title.toLowerCase().includes(attachEventSearch.toLowerCase())
+									? looseMatches(attachEventSearch, ev.title)
 									: true
 							).length === 0 && (
 								<p className="text-center text-sm text-muted-foreground py-4">
@@ -1913,7 +1914,7 @@ export default function BeritaEditor({
 						{libraryForBeritaLink
 							.filter((g) =>
 								attachGallerySearch
-									? g.title.toLowerCase().includes(attachGallerySearch.toLowerCase())
+									? looseMatches(attachGallerySearch, g.title)
 									: true,
 							)
 							.map((g) => {

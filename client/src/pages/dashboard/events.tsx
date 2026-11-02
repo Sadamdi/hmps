@@ -1,3 +1,4 @@
+import { looseMatches } from '@shared/smart-search';
 import CommentPanel from '@/components/dashboard/comment-panel';
 import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
@@ -1504,7 +1505,7 @@ export default function DashboardEvents() {
 							{libraryForLink
 								.filter((g) =>
 									gallerySearch
-										? g.title.toLowerCase().includes(gallerySearch.toLowerCase())
+										? looseMatches(gallerySearch, g.title)
 										: true,
 								)
 								.map((g) => {
@@ -1588,7 +1589,7 @@ export default function DashboardEvents() {
 							{publishedBerita
 								.filter((a) =>
 									beritaSearch
-										? a.title.toLowerCase().includes(beritaSearch.toLowerCase())
+										? looseMatches(beritaSearch, a.title)
 										: true,
 								)
 								.map((a) => {
@@ -1625,7 +1626,7 @@ export default function DashboardEvents() {
 								})}
 							{publishedBerita.filter((a) =>
 								beritaSearch
-									? a.title.toLowerCase().includes(beritaSearch.toLowerCase())
+									? looseMatches(beritaSearch, a.title)
 									: true,
 							).length === 0 && (
 								<p className="text-center text-sm text-muted-foreground py-4">

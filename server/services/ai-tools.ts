@@ -22,6 +22,7 @@ import { createTenantStorage } from '../tenant-storage';
 import { DEFAULT_BERITA_IMAGE_PATH } from '../upload';
 import { normalizeEventAttachmentArray } from '../event-attachments';
 import { normalizeProductCurrencyOverride } from '../../shared/store-currency';
+import { smartSearch } from '../../shared/smart-search';
 
 type ToolModelsBundle = {
 	Berita: typeof MainBerita;
@@ -1661,11 +1662,25 @@ export async function executeToolCall(
 					'tags',
 				]);
 				const query = kw ? { ...base, ...kw } : base;
-				const items = await Berita.find(query)
+				let items = await Berita.find(query)
 					.select('title excerpt author createdAt tags slug _id')
 					.sort({ createdAt: -1 })
 					.limit(Math.min(limit, 20))
 					.lean();
+				// Cadangan: pencarian pintar (typo, "R.O.A.R" vs "roar") bila regex tidak menemukan apa pun.
+				if (items.length === 0 && keyword?.trim()) {
+					const cands: any[] = await Berita.find(base)
+						.select('title excerpt author createdAt tags slug _id')
+						.sort({ createdAt: -1 })
+						.limit(600)
+						.lean();
+					items = smartSearch(
+						cands,
+						keyword,
+						(c) => String(c.title || ''),
+						(c) => `${c.excerpt || ''} ${(c.tags || []).join(' ')}`,
+					).slice(0, Math.min(limit, 20)) as typeof items;
+				}
 				return {
 					count: items.length,
 					berita: items.map((a) => {
@@ -1752,13 +1767,26 @@ export async function executeToolCall(
 					'fullDescription',
 				]);
 				const query = kw ? { ...base, ...kw } : base;
-				const items = await Library.find(query)
+				let items = await Library.find(query)
 					.select(
 						'title description fullDescription type createdAt _id'
 					)
 					.sort({ createdAt: -1 })
 					.limit(Math.min(limit, 20))
 					.lean();
+				if (items.length === 0 && keyword?.trim()) {
+					const cands: any[] = await Library.find(base)
+						.select('title description fullDescription type createdAt _id')
+						.sort({ createdAt: -1 })
+						.limit(600)
+						.lean();
+					items = smartSearch(
+						cands,
+						keyword,
+						(c) => String(c.title || ''),
+						(c) => `${c.description || ''} ${c.fullDescription || ''}`,
+					).slice(0, Math.min(limit, 20)) as typeof items;
+				}
 				return {
 					count: items.length,
 					items: items.map((item) => ({
@@ -2213,6 +2241,20 @@ export async function executeToolCall(
 						.sort({ startDate: -1 })
 						.limit(Math.min(limit, 20))
 						.lean();
+					if (items.length === 0 && keyword?.trim()) {
+						const cands: any[] = await Event.find(base)
+							.populate('yearId', 'year')
+							.select('title description startDate endDate month thumbnail')
+							.sort({ startDate: -1 })
+							.limit(600)
+							.lean();
+						items = smartSearch(
+							cands,
+							keyword,
+							(c) => String(c.title || ''),
+							(c) => String(c.description || '').replace(/<[^>]*>/g, ' '),
+						).slice(0, Math.min(limit, 20));
+					}
 				} else {
 					items = await Event.find(base)
 						.populate('yearId', 'year')

@@ -1,3 +1,4 @@
+import { looseMatches } from '@shared/smart-search';
 import BeritaEditor from '@/components/dashboard/berita-editor';
 import CommentPanel from '@/components/dashboard/comment-panel';
 import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
@@ -144,8 +145,7 @@ export default function DashboardBerita() {
 	const filteredBerita = beritaList
 		.filter(
 			(item: BeritaData) =>
-				item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				item.excerpt.toLowerCase().includes(searchQuery.toLowerCase())
+				looseMatches(searchQuery, item.title, item.excerpt)
 		)
 		.filter((item: BeritaData) => {
 			if (activeTab === 'all') return true;

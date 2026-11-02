@@ -110,6 +110,17 @@ export function smartSearchScore(query: string, title: string, body = ''): numbe
 	return all + 1.5 * smartMatchScore(query, title);
 }
 
+/**
+ * Untuk dashboard/daftar internal: lolos bila substring biasa (perilaku lama) ATAU pencarian pintar cocok.
+ * Jadi tidak ada hasil yang hilang dibanding `includes()`, tetapi typo dan tanda baca ikut ditoleransi.
+ */
+export function looseMatches(query: string, title: string, body = ''): boolean {
+	const q = String(query ?? '').trim().toLowerCase();
+	if (!q) return true;
+	if (`${title ?? ''} ${body ?? ''}`.toLowerCase().includes(q)) return true;
+	return smartSearchScore(query, title ?? '', body ?? '') > 0;
+}
+
 /** Saring + urutkan menurut relevansi; kueri kosong mengembalikan `items` apa adanya. */
 export function smartSearch<T>(
 	items: T[],
