@@ -21,7 +21,7 @@ export class RecommendationService {
 	private static vectors: Map<string, Map<string, number>> = new Map();
 	private static idf: Map<string, number> = new Map();
 	private static vocab: Set<string> = new Set();
-	private static readonly REFRESH_MS = 10 * 60 * 1000; // 10 minutes
+	private static readonly REFRESH_MS = 2 * 60 * 1000; // 2 minutes (berita yang di-draft-kan cepat hilang dari rekomendasi)
 
 	private static tokenize(text: string): string[] {
 		if (!text) return [];
@@ -42,22 +42,10 @@ export class RecommendationService {
 		if (now - this.cacheTimestamp < this.REFRESH_MS && this.beritaList.length > 0)
 			return;
 
-		let all = await mongoStorage.getPublishedBerita();
-		try {
-			const allAny = await mongoStorage.getAllBerita();
-			if (Array.isArray(allAny) && allAny.length > 0) {
-				const seen = new Set(
-					(all || []).map((a: any) => String(a._id || a.id))
-				);
-				for (const a of allAny) {
-					const k = String(a._id || a.id);
-					if (!seen.has(k)) {
-						all = [...(all || []), a];
-						seen.add(k);
-					}
-				}
-			}
-		} catch (_) {}
+		// Hanya berita published: draft tidak boleh muncul sebagai rekomendasi publik.
+		const all = (await mongoStorage.getPublishedBerita()).filter(
+			(a: any) => a.published !== false,
+		);
 		this.beritaList = (all || []).map((a: any) => ({
 			_id: String(a._id || a.id || ''),
 			title: a.title || '',

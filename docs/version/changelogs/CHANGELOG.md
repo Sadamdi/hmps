@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.7] - 2026-11-03
+
+### Fixed
+
+- Dialog link/gambar TinyMCE kembali bisa diedit; berita draft tidak lagi muncul di Berita Terkait.
+
 ## [4.60.6] - 2026-10-25
 
 ### Security
