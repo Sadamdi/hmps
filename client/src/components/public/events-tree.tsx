@@ -828,7 +828,7 @@ export default function EventsTree({
 									onClick={() => { setSelectedEvent(showSubEvents); setShowSubEvents(null); }}
 								>
 									<FileText className="h-4 w-4 mr-2" />
-									Detail Event Utama
+									Detail Event
 								</Button>
 							</div>
 							{showSubEvents.relatedBerita && showSubEvents.relatedBerita.length > 0 && (

@@ -1,4 +1,5 @@
 import { ArchiveIndex, formatArchiveIndex } from '@/components/public/archive/archive-meta';
+import { Badge } from '@/components/ui/badge';
 import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 import { ArrowUpRight } from 'lucide-react';
 import { Link } from 'wouter';
@@ -45,7 +46,7 @@ export function BeritaLead({
 	sideLabel?: string;
 }) {
 	return (
-		<section aria-label="Berita utama" className="grid gap-6 lg:gap-8 lg:grid-cols-3 mb-10 sm:mb-12">
+		<section aria-label="Sorotan berita" className="grid gap-6 lg:gap-8 lg:grid-cols-3 mb-10 sm:mb-12">
 			<article className="archive-card group lg:col-span-2 overflow-hidden rounded-xl border border-border/70 bg-card hover:border-primary/40 focus-within:ring-2 focus-within:ring-primary/40">
 				<Link href={beritaHref(lead)} className="block">
 					<div className="archive-card-media relative aspect-[16/10] sm:aspect-[16/9] overflow-hidden bg-muted">
@@ -61,8 +62,6 @@ export function BeritaLead({
 					</div>
 					<div className="p-4 sm:p-6">
 						<p className="archive-meta flex flex-wrap items-center gap-x-2 gap-y-1">
-							<span className="text-primary">Utama</span>
-							<span aria-hidden>·</span>
 							<time dateTime={lead.createdAt}>{formatBeritaDate(lead.createdAt)}</time>
 							<span aria-hidden>·</span>
 							<span>{lead.viewCount ?? 0} pembaca</span>
@@ -71,6 +70,15 @@ export function BeritaLead({
 							{lead.title}
 						</h2>
 						<p className="mt-3 hidden sm:block text-muted-foreground leading-7 line-clamp-3">{lead.excerpt}</p>
+						{lead.tags && lead.tags.length > 0 && (
+							<div className="mt-4 hidden sm:flex flex-wrap gap-1.5">
+								{lead.tags.slice(0, 4).map((tag) => (
+									<Badge key={tag} variant="secondary" className="text-xs">
+										{tag}
+									</Badge>
+								))}
+							</div>
+						)}
 						<p className="mt-4 text-sm text-muted-foreground">
 							Oleh <span className="font-medium text-foreground">{lead.authorsDisplay || lead.author}</span>
 						</p>
@@ -95,9 +103,11 @@ export function BeritaLead({
 										<span className="block font-semibold leading-snug text-foreground group-hover:text-primary transition-colors line-clamp-2">
 											{item.title}
 										</span>
-										<time dateTime={item.createdAt} className="archive-meta mt-1.5 block">
-											{formatBeritaDate(item.createdAt)}
-										</time>
+										<span className="archive-meta mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+											<time dateTime={item.createdAt}>{formatBeritaDate(item.createdAt)}</time>
+											<span aria-hidden>·</span>
+											<span>{item.viewCount ?? 0} pembaca</span>
+										</span>
 									</span>
 									<span className="relative h-16 w-16 sm:h-[72px] sm:w-[72px] shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60">
 										<img

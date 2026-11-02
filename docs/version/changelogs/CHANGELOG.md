@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.62.2] - 2026-11-03
+
+### Fixed
+
+- Link YouTube live/playlist kini di-embed; allowlist embed bawaan diperluas (YouTube, Google, Vimeo, Spotify, Canva, Instagram, TikTok).
+- Sorotan berita: hapus kata "Utama", tampilkan pembaca dan tag.
+
 ## [4.62.1] - 2026-11-03
 
 ### Fixed

@@ -1,4 +1,10 @@
-import { getYouTubeEmbedSrc, parseYouTubeVideoId } from '@/lib/youtube-embed';
+import {
+	getYouTubeEmbedSrc,
+	getYouTubePlaylistEmbedSrc,
+	isYouTubeHost,
+	parseYouTubePlaylistId,
+	parseYouTubeVideoId,
+} from '@/lib/youtube-embed';
 import { safeHtml } from '@/lib/safe-html';
 import { formatContentForDisplay } from '@/utils/formatContent';
 import { getDefaultEmbedHostSet } from '@shared/embed-default-hosts';
@@ -33,9 +39,37 @@ function isKnownEmbedDomain(url: string): boolean {
 	}
 }
 
+/** Host bawaan yang halaman biasanya menolak framing; iframe hanya untuk URL embed/player. */
+const EMBED_ONLY_HOSTS = new Set([
+	'open.spotify.com',
+	'www.instagram.com',
+	'www.tiktok.com',
+	'www.canva.com',
+	'player.vimeo.com',
+	'calendar.google.com',
+	'forms.gle',
+	'lookerstudio.google.com',
+]);
+
+const EMBEDDABLE_PATH_RE = /\/(embed|preview|viewer|view|uc|video)\b/i;
+const EMBEDDABLE_QUERY_RE = /[?&](embedded|embed|output)=/i;
+
 function classifyUrl(url: string, allowedHosts?: Set<string>): Segment | null {
 	const ytId = parseYouTubeVideoId(url);
 	if (ytId) return { kind: 'youtube', embedSrc: getYouTubeEmbedSrc(ytId) };
+
+	const playlistId = parseYouTubePlaylistId(url);
+	if (playlistId) return { kind: 'youtube', embedSrc: getYouTubePlaylistEmbedSrc(playlistId) };
+
+	// Kanal, profil, atau halaman YouTube lain tidak bisa di-iframe (X-Frame-Options): tampilkan sebagai tautan.
+	try {
+		const yt = new URL(url);
+		if (isYouTubeHost(yt.hostname)) {
+			return { kind: 'external_link', url, host: yt.hostname.toLowerCase() };
+		}
+	} catch {
+		/* bukan URL valid */
+	}
 
 	const src = detectMediaSource(url);
 	if (src.type === 'gdrive' && src.fileId) {
@@ -67,14 +101,15 @@ function classifyUrl(url: string, allowedHosts?: Set<string>): Segment | null {
 		// Default media hosts (YT/Drive/Maps/Photopea) → iframe.
 		// Custom allowlist: hanya iframe path viewer/embed; situs biasa (mis. wreckit.id)
 		// sering menolak framing (X-Frame-Options / frame-ancestors) → tampilkan kartu link.
+		const path = parsed.pathname + parsed.search;
+		const looksEmbeddable = EMBEDDABLE_PATH_RE.test(path) || EMBEDDABLE_QUERY_RE.test(path);
 		if (inDefault) {
+			if (EMBED_ONLY_HOSTS.has(host) && !looksEmbeddable) {
+				return { kind: 'external_link', url, host };
+			}
 			return { kind: 'external', url, host };
 		}
 		if (inAllow) {
-			const path = parsed.pathname + parsed.search;
-			const looksEmbeddable =
-				/\/(embed|preview|viewer|view|uc)\b/i.test(path) ||
-				/[?&](embedded|output)=/i.test(path);
 			if (looksEmbeddable) return { kind: 'external', url, host };
 			return { kind: 'external_link', url, host };
 		}
