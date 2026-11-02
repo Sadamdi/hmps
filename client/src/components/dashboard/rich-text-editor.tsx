@@ -622,7 +622,20 @@ export default function RichTextEditor({
 
 			{/* Enhanced CSS Override untuk fix conflicts */}
 			<style>{`
-				/* TinyMCE Z-index fixes */
+				/*
+					 * Modal Radix memasang pointer-events:none di <body>; dialog, menu, dan popup TinyMCE
+					 * dirender di luar modal sehingga mewarisinya (tombol Cancel/Save tidak bisa diklik).
+					 */
+					.tox-tinymce-aux,
+					.tox-tinymce-aux *,
+					.tox-dialog-wrap,
+					.tox-dialog-wrap *,
+					.tox-silver-sink,
+					.tox-silver-sink * {
+						pointer-events: auto !important;
+					}
+
+					/* TinyMCE Z-index fixes */
 				.tox-tinymce {
 					z-index: 1 !important;
 				}
