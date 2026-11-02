@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.60.8",
+    "version": "4.61.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -29593,6 +29593,108 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/library/{id}/related": {
+      "get": {
+        "tags": [
+          "library"
+        ],
+        "summary": "GET /api/library/{id}/related",
+        "description": "Rekomendasi TF-IDF; hanya item published. Berita dasar draft: 404 untuk anonim.",
+        "operationId": "get_api_library_id_related",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ObjectId",
+            "schema": {
+              "type": "string"
+            },
+            "example": "67f0f5fbb0f4f12bc1234567"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 3,
+              "maximum": 6
+            },
+            "example": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tidak ditemukan"
+          }
+        }
+      }
+    },
+    "/api/events/{id}/related": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "GET /api/events/{id}/related",
+        "description": "Rekomendasi TF-IDF; hanya item published. Berita dasar draft: 404 untuk anonim.",
+        "operationId": "get_api_events_id_related",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "ObjectId",
+            "schema": {
+              "type": "string"
+            },
+            "example": "67f0f5fbb0f4f12bc1234567"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 3,
+              "maximum": 6
+            },
+            "example": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tidak ditemukan"
           }
         }
       }

@@ -6,6 +6,11 @@ import {
 } from '@/components/public/library-item-detail';
 import Navbar from '@/components/public/navbar';
 import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
+import RelatedContentSection from '@/components/public/related-content-section';
+import {
+	getMediaDisplayTypeForSlot,
+	normalizeLibraryImageUrl,
+} from '@/lib/library-display';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
@@ -36,6 +41,27 @@ export default function LibraryDetailPage() {
 		},
 		enabled: !!id,
 		retry: false,
+	});
+
+	type RelatedGallery = {
+		_id: string;
+		title: string;
+		excerpt?: string;
+		slug?: string;
+		type?: 'photo' | 'video';
+		tags?: string[];
+		image?: string;
+		mediaKind?: 'image' | 'video';
+	};
+	const { data: relatedGalleries = [] } = useQuery<RelatedGallery[]>({
+		queryKey: ['library-related', item?._id],
+		queryFn: async () => {
+			const res = await apiRequest('GET', `/api/library/${item?._id}/related?limit=2`);
+			return res.json();
+		},
+		enabled: !!item?._id,
+		retry: false,
+		staleTime: 5 * 60 * 1000,
 	});
 
 	useEffect(() => {
@@ -113,6 +139,26 @@ export default function LibraryDetailPage() {
 							<LibraryItemDetailContent item={item} showHeader={false} />
 						</article>
 					) : null}
+					<RelatedContentSection
+						heading="Galeri Terkait"
+						items={relatedGalleries.map((r) => ({
+							key: r._id,
+							href: `/library/${r.slug || r._id}`,
+							title: r.title,
+							excerpt: r.excerpt,
+							image: normalizeLibraryImageUrl(r.image),
+							isVideo:
+								getMediaDisplayTypeForSlot(
+									{
+										images: r.image ? [r.image] : [],
+										mediaKinds: r.mediaKind ? [r.mediaKind] : undefined,
+										type: r.type,
+									},
+									0,
+								) === 'video',
+							badges: r.tags,
+						}))}
+					/>
 				</div>
 			</main>
 			<Footer />

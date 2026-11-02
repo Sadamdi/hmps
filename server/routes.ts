@@ -712,7 +712,7 @@ async function enrichLibraryRelations(item: any, req: Request): Promise<void> {
 			).catch(() => {});
 		}
 		if (eids?.length) {
-			const evs = await m.Event.find({ _id: { $in: eids } })
+			const evs = await m.Event.find({ _id: { $in: eids }, published: true })
 				.select('title yearId')
 				.populate('yearId', 'year')
 				.lean();
@@ -728,7 +728,7 @@ async function enrichLibraryRelations(item: any, req: Request): Promise<void> {
 			item.relatedEventsPreview = [];
 		}
 		if (bids?.length) {
-			const bs = await m.Berita.find({ _id: { $in: bids } })
+			const bs = await m.Berita.find({ _id: { $in: bids }, published: true })
 				.select('title slug')
 				.lean();
 			item.relatedBeritaPreview = (bs || []).map((b: any) => ({
@@ -4514,6 +4514,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			res.json(items);
 		} catch (error) {
 			console.error('Get library management error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
+
+	// Galeri terkait (TF-IDF); hanya galeri published, judul + deskripsi + tag
+	app.get('/api/library/:id/related', authenticateOptional, async (req, res) => {
+		try {
+			const id = String(req.params.id || '');
+			if (!/^[a-f0-9]{24}$/i.test(id)) {
+				return res.status(404).json({ message: 'Library item not found' });
+			}
+			const limit = Math.max(1, Math.min(6, parseInt(String(req.query.limit || '3'), 10) || 3));
+			const m = resolveModels(req);
+			const base: any = await m.Library.findById(id)
+				.select('title description fullDescription tags published')
+				.lean();
+			if (!base || (!base.published && !req.user)) {
+				return res.status(404).json({ message: 'Library item not found' });
+			}
+			const candidates: any[] = await m.Library.find({
+				published: true,
+				_id: { $ne: id },
+			})
+				.select('title description tags images mediaKinds type createdAt')
+				.sort({ createdAt: -1 })
+				.limit(300)
+				.lean();
+			const { rankRelated, makeExcerpt } = await import('./services/related-content');
+			const ranked = rankRelated(
+				{ title: base.title, body: `${base.description || ''} ${base.fullDescription || ''}`, tags: base.tags },
+				candidates,
+				(c) => ({ title: c.title, body: c.description, tags: c.tags }),
+				limit,
+			);
+			res.json(
+				ranked.map((c: any) => ({
+					_id: String(c._id),
+					title: c.title,
+					excerpt: makeExcerpt(c.description || ''),
+					slug: toUrlSlug(String(c.title || '')),
+					type: c.type,
+					tags: c.tags || [],
+					image: (c.images && c.images[0]) || '',
+					mediaKind: (c.mediaKinds && c.mediaKinds[0]) || undefined,
+				})),
+			);
+		} catch (error) {
+			console.error('Get related library error:', error);
 			res.status(500).json({ message: 'Internal server error' });
 		}
 	});
@@ -10108,6 +10156,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 		},
 	);
+
+	// Event terkait (TF-IDF); hanya event induk published, fallback event se-tahun
+	app.get('/api/events/:id/related', authenticateOptional, async (req, res) => {
+		try {
+			const id = String(req.params.id || '');
+			if (!/^[a-f0-9]{24}$/i.test(id)) {
+				return res.status(404).json({ message: 'Event not found' });
+			}
+			const limit = Math.max(1, Math.min(6, parseInt(String(req.query.limit || '3'), 10) || 3));
+			const m = resolveModels(req);
+			const base: any = await m.Event.findById(id)
+				.select('title description published yearId parentId')
+				.lean();
+			if (!base || (!base.published && !req.user)) {
+				return res.status(404).json({ message: 'Event not found' });
+			}
+			const candidates: any[] = await m.Event.find({
+				published: true,
+				parentId: null,
+				_id: { $ne: id },
+			})
+				.select('title description thumbnail yearId startDate')
+				.populate('yearId', 'year')
+				.sort({ startDate: -1 })
+				.limit(300)
+				.lean();
+			const { rankRelated, makeExcerpt } = await import('./services/related-content');
+			const ranked = rankRelated(
+				{ title: base.title, body: base.description },
+				candidates,
+				(c) => ({ title: c.title, body: c.description }),
+				limit,
+			);
+			const yearKey = (y: any) => String(y?._id ?? y ?? '');
+			if (ranked.length < limit) {
+				const taken = new Set(ranked.map((c: any) => String(c._id)));
+				const sameYear = candidates.filter(
+					(c) => !taken.has(String(c._id)) && yearKey(c.yearId) === yearKey(base.yearId),
+				);
+				ranked.push(...sameYear.slice(0, limit - ranked.length));
+			}
+			res.json(
+				ranked.map((c: any) => ({
+					_id: String(c._id),
+					title: c.title,
+					excerpt: makeExcerpt(c.description || ''),
+					thumbnail: c.thumbnail || '',
+					year: c.yearId && typeof c.yearId === 'object' ? c.yearId.year : undefined,
+					slug: toUrlSlug(String(c.title || '')),
+					startDate: c.startDate,
+				})),
+			);
+		} catch (error) {
+			console.error('Get related events error:', error);
+			res.status(500).json({ message: 'Internal server error' });
+		}
+	});
 
 	app.get('/api/events/:id', authenticateOptional, async (req, res) => {
 		try {

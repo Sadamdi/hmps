@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.60.8`  
+**Current version:** `4.61.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.60.8`](./release/4.60.8.md) | 2026-11-03 | Event/related berita draft tidak tampil di halaman publik | PATCH | 1 | **Current** |
+| [`4.61.0`](./release/4.61.0.md) | 2026-11-03 | Event Terkait dan Galeri Terkait | MINOR | 1 | **Current** |
+| [`4.60.8`](./release/4.60.8.md) | 2026-11-03 | Event/related berita draft tidak tampil di halaman publik | PATCH | 1 |  |
 | [`4.60.7`](./release/4.60.7.md) | 2026-11-03 | Fix dialog link editor dan draft di Berita Terkait | PATCH | 1 |  |
 | [`4.60.6`](./release/4.60.6.md) | 2026-10-25 | Dependensi 0 temuan audit (vite 7, esbuild, zod 4) | PATCH | 1 |  |
 | [`4.60.5`](./release/4.60.5.md) | 2026-10-25 | Node produksi dinaikkan ke 24.22.1 | PATCH | 1 |  |

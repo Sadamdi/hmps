@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.61.0] - 2026-11-03
+
+### Added
+
+- Event Terkait dan Galeri Terkait (endpoint related TF-IDF + UI di bawah halaman detail).
+
 ## [4.60.8] - 2026-11-03
 
 ### Fixed
