@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.62.1] - 2026-11-03
+
+### Fixed
+
+- Kolom kanan blok lead berita tidak lagi berjudul "Terbaru" saat diurutkan/dicari.
+
 ## [4.62.0] - 2026-11-03
 
 ### Added
