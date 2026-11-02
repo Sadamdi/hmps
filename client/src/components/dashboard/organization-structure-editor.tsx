@@ -1,3 +1,4 @@
+import { looseMatches } from '@shared/smart-search';
 /**
  * OrganizationStructureEditor
  * Komponen reusable yang berisi seluruh logika pengelolaan struktur organisasi
@@ -572,8 +573,7 @@ export default function OrganizationStructureEditor() {
 
 	const filteredMembers = members.filter((member) => {
 		const matchesSearch =
-			member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-			member.position.toLowerCase().includes(searchQuery.toLowerCase());
+			looseMatches(searchQuery, member.name, member.position);
 		const matchesDivision =
 			selectedDivision === 'all' || getDivisionFromPosition(member.position) === selectedDivision;
 		return matchesSearch && matchesDivision;

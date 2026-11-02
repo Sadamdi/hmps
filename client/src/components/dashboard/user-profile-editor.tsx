@@ -1,3 +1,4 @@
+import { looseMatches } from '@shared/smart-search';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AtSign, Briefcase, Clock, Loader2, Mail, Shield, User } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -619,7 +620,7 @@ export function PermissionOverridesSection({
 	const filteredPermissions = useMemo(() => {
 		return allPermissions.filter((p) => {
 			if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
-			if (searchFilter && !p.displayName.toLowerCase().includes(searchFilter.toLowerCase()) && !p.name.toLowerCase().includes(searchFilter.toLowerCase())) return false;
+			if (searchFilter && !looseMatches(searchFilter, p.displayName, p.name)) return false;
 			return true;
 		});
 	}, [allPermissions, categoryFilter, searchFilter]);

@@ -1,6 +1,7 @@
 import { getBuyer, getBuyerId } from '../services/buyer-auth';
 import crypto from 'crypto';
 import mongoose from 'mongoose';
+import { smartSearch } from '../../shared/smart-search';
 import type { Request, Response, NextFunction } from 'express';
 import { Router } from 'express';
 import {
@@ -949,12 +950,17 @@ router.get('/public/gdrive-image/:fileId', async (req, res) => {
 						'User-Agent':
 							'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
 					},
+					// Jangan menggantung koneksi bila Google lambat.
+					signal: AbortSignal.timeout(8000),
 				});
 				if (!r.ok) continue;
 				const contentType = String(r.headers.get('content-type') || '').toLowerCase();
 				if (!contentType.startsWith('image/')) continue;
+				// Batasi memori: proxy ini publik, tolak gambar lebih dari 12 MB.
+				const declared = Number(r.headers.get('content-length') || 0);
+				if (declared > 12 * 1024 * 1024) continue;
 				const arr = await r.arrayBuffer();
-				if (!arr.byteLength) continue;
+				if (!arr.byteLength || arr.byteLength > 12 * 1024 * 1024) continue;
 				res.setHeader('Content-Type', contentType);
 				res.setHeader('Cache-Control', 'public, max-age=3600');
 				return res.send(Buffer.from(arr));
@@ -1325,30 +1331,18 @@ router.get('/public/products', async (req, res) => {
 		const { StoreProduct, StoreProductCategory } = resolveModels(req);
 		await ensureProductSortOrderBackfill(StoreProduct);
 
-		const q = String(req.query.q || '').trim();
+		const q = String(req.query.q || '').trim().slice(0, 80);
 		const catParam = String(req.query.category || '').trim();
 		const filter: any = { published: true };
-		const qRx = q
-			? new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
-			: null;
-		const textOr = qRx
-			? [{ name: qRx }, { shortDescription: qRx }]
-			: null;
 
 		if (catParam === '__none') {
-			filter.$and = [
-				{ $or: [{ categoryId: null }, { categoryId: { $exists: false } }] },
-				...(textOr ? [{ $or: textOr }] : []),
-			];
+			filter.$or = [{ categoryId: null }, { categoryId: { $exists: false } }];
 		} else if (catParam) {
 			const cat = await StoreProductCategory.findOne({ slug: catParam }).select('_id').lean();
 			if (!cat) {
 				return res.json({ items: [], total: 0, page: 1, limit: 9 });
 			}
 			filter.categoryId = cat._id;
-			if (textOr) filter.$or = textOr;
-		} else if (textOr) {
-			filter.$or = textOr;
 		}
 
 		// Favorit (disimpan di browser): ?ids=a,b,c
@@ -1373,19 +1367,44 @@ router.get('/public/products', async (req, res) => {
 				? { createdAt: -1 }
 				: { sortOrder: 1, createdAt: -1 };
 
-		const total = await StoreProduct.countDocuments(filter);
-		const list = await StoreProduct.find(filter)
-			.sort(sortSpec)
-			.skip(skip)
-			.limit(limit)
+		// Pencarian pintar (abaikan tanda baca, toleran typo): urutkan kandidat dulu, baru paginasi.
+		let rankedIds: string[] | null = null;
+		if (q) {
+			const candidates: any[] = await StoreProduct.find(filter)
+				.select('name shortDescription')
+				.sort(sortSpec)
+				.limit(2000)
+				.lean();
+			rankedIds = smartSearch(
+				candidates,
+				q,
+				(c) => String(c.name || ''),
+				(c) => String(c.shortDescription || ''),
+			).map((c) => String(c._id));
+			if (rankedIds.length === 0) {
+				return res.json({ items: [], total: 0, page, limit });
+			}
+		}
+
+		const total = rankedIds ? rankedIds.length : await StoreProduct.countDocuments(filter);
+		const pageIds = rankedIds ? rankedIds.slice(skip, skip + limit) : null;
+		const query = pageIds
+			? StoreProduct.find({ _id: { $in: pageIds } })
+			: StoreProduct.find(filter).sort(sortSpec).skip(skip).limit(limit);
+		let list = await query
 			.populate({ path: 'categoryId', select: 'name slug' })
 			.select(
 				'slug name shortDescription price priceTiers priceTierMultiples stock currency thumbnail variants variantGroupName favoriteCount viewCount published createdAt updatedAt categoryId isPreOrder preOrderOpenAt preOrderCloseAt estimatedReadyAt preOrderDiscountPercent preOrderAllowAfterClose isFreeShipping originVillageCodeOverride shippingWeightGrams disableGlobalDiscount discountOverride preOrderTimeline dpMode dpPercent dpAmount dpSettleBy paymentChannelMode paymentChannelIds',
 			)
 			.lean();
-		// Favorit yang tidak lagi dijual: tetap ditampilkan sebagai "tidak tersedia" (hapus manual oleh pemilik)
+		if (pageIds) {
+			const pos = new Map(pageIds.map((id, i) => [id, i]));
+			list = (list as any[]).sort((a, b) => (pos.get(String(a._id)) ?? 0) - (pos.get(String(b._id)) ?? 0));
+		}
+		// Favorit yang tidak lagi dijual: tetap ditampilkan sebagai "tidak tersedia" (hapus manual oleh pemilik).
+		// Hanya tanpa pencarian/kategori; jika tidak, favorit yang sekadar tidak cocok ikut salah dilabeli "disembunyikan".
 		let unavailable: { _id: string; name: string; thumbnail: string; reason: 'hidden' | 'removed' }[] = [];
-		if (favIds.length && page === 1) {
+		if (favIds.length && page === 1 && !q && !catParam) {
 			const live = new Set((list as any[]).map((x) => String(x._id)));
 			const missing = favIds.map(String).filter((id) => !live.has(id));
 			if (missing.length) {
@@ -2770,11 +2789,31 @@ router.post('/orders/:orderNo/cancel', storeOrderActionRateLimiter, async (req, 
 		const hasPayment = (order.payments || []).some((p: any) => p.status !== 'rejected');
 		const canSelfCancel = !hasPayment && ['pending', 'confirmed'].includes(order.status);
 		if (canSelfCancel) {
-			order.status = 'cancelled';
-			if (!order.stockRestoredAt) {
+			// Klaim atomik: klik ganda/permintaan paralel tidak boleh mengembalikan stok dua kali.
+			const { StoreOrder } = resolveModels(req);
+			const restoredAt = new Date();
+			const claim = await StoreOrder.updateOne(
+				{
+					_id: order._id,
+					status: { $in: ['pending', 'confirmed'] },
+					$or: [{ stockRestoredAt: null }, { stockRestoredAt: { $exists: false } }],
+				},
+				{ $set: { status: 'cancelled', stockRestoredAt: restoredAt } },
+			);
+			if (claim.modifiedCount === 1) {
 				await restoreOrderStock(StoreProduct, order);
-				order.stockRestoredAt = new Date();
+				order.stockRestoredAt = restoredAt;
+			} else {
+				// Stok sudah pernah dikembalikan sebelumnya: cukup ubah status, tanpa mengembalikan stok lagi.
+				const flip = await StoreOrder.updateOne(
+					{ _id: order._id, status: { $in: ['pending', 'confirmed'] } },
+					{ $set: { status: 'cancelled' } },
+				);
+				if (flip.modifiedCount !== 1) {
+					return res.status(409).json({ message: 'Pesanan sedang diproses atau sudah dibatalkan' });
+				}
 			}
+			order.status = 'cancelled';
 			order.adminNote = `${order.adminNote ? `${order.adminNote}\n` : ''}Dibatalkan pembeli${reason ? `: ${reason}` : ''}`.slice(0, 1000);
 			await order.save();
 			queueSheetSync(req, orderNo, { stock: true });
@@ -3449,7 +3488,7 @@ router.post('/cart/items', storeCartRateLimiter, async (req, res) => {
 		const { GuestStoreSession, StoreProduct } = resolveModels(req);
 		const { doc } = await getOrCreateGuestSession(req, res);
 		const productId = req.body?.productId;
-		const qty = Math.max(1, parseInt(String(req.body?.qty || '1'), 10) || 1);
+		const qty = Math.min(9999, Math.max(1, parseInt(String(req.body?.qty || '1'), 10) || 1));
 		const p0 = await StoreProduct.findById(productId).lean();
 		if (!p0 || !p0.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
 		const variant = findVariant(p0, req.body?.variantId);
@@ -3527,7 +3566,7 @@ router.post('/cart/bundles', storeCartRateLimiter, async (req, res) => {
 		const { GuestStoreSession, StoreBundle, StoreProduct } = resolveModels(req);
 		const { doc } = await getOrCreateGuestSession(req, res);
 		const bid = req.body?.bundleId;
-		const qty = Math.max(1, parseInt(String(req.body?.qty || '1'), 10) || 1);
+		const qty = Math.min(9999, Math.max(1, parseInt(String(req.body?.qty || '1'), 10) || 1));
 		const b = await StoreBundle.findById(bid).lean();
 		if (!b || !b.published || !b.isActive) {
 			return res.status(400).json({ message: 'Bundling tidak tersedia' });
@@ -4236,7 +4275,7 @@ router.post('/checkout', storeCheckoutRateLimiter, (req, res) => {
 /** Checkout satuan: body.productId atau body.bundleId + field sama seperti /checkout */
 router.post('/direct-checkout', storeCheckoutRateLimiter, (req, res) => {
 	const body = (req.body || {}) as Record<string, unknown> & { productId?: string; bundleId?: string; qty?: number };
-	const qty = Math.max(1, parseInt(String(body.qty || 1), 10) || 1);
+	const qty = Math.min(9999, Math.max(1, parseInt(String(body.qty || 1), 10) || 1));
 	if (body.bundleId) {
 		return runStoreCheckoutFromBody(req, res, { ...body, items: [{ bundleId: String(body.bundleId), qty }] });
 	}
@@ -4253,7 +4292,7 @@ router.post('/buy-link', storeCheckoutRateLimiter, async (req, res) => {
 	try {
 		const { StoreProduct } = resolveModels(req);
 		const productId = req.body?.productId;
-		const qty = Math.max(1, parseInt(String(req.body?.qty || 1), 10) || 1);
+		const qty = Math.min(9999, Math.max(1, parseInt(String(req.body?.qty || 1), 10) || 1));
 		const p = await StoreProduct.findById(productId).lean();
 		if (!p || !p.published) return res.status(400).json({ message: 'Produk tidak tersedia' });
 

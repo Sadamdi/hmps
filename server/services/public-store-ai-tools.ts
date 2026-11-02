@@ -3,6 +3,7 @@
  * Dibatasi ke toko konteks aktif (situs utama atau komunitas), produk terbit & tidak dihapus. Tidak pernah
  * mengembalikan nomor WhatsApp admin, nomor rekening, data pembeli, atau pesanan.
  */
+import { smartSearch } from '../../shared/smart-search';
 import { StoreDiscountCampaign as MainCampaign, StoreBundle as MainBundle, StoreProduct as MainProduct, StoreReview as MainReview, StoreSettings as MainSettings } from '../../db/mongodb';
 import { getTenantModels } from '../../db/tenant';
 import { activeStoreWaAdmins } from '../../shared/store-wa';
@@ -96,6 +97,23 @@ export async function runPublicStoreTool(
 		if (kw) {
 			const parts = kw.split(/\s+/).filter(Boolean).slice(0, 5);
 			filter.$and = parts.map((w) => ({ $or: [{ name: { $regex: esc(w), $options: 'i' } }, { shortDescription: { $regex: esc(w), $options: 'i' } }, { slug: { $regex: esc(w), $options: 'i' } }] }));
+		}
+		// Cadangan pencarian pintar (typo, tanda baca) bila pencarian biasa tidak menemukan produk.
+		if (kw && (await Product.countDocuments(filter)) === 0) {
+			const cands: any[] = await Product.find(await publishedFilter())
+				.select('name slug shortDescription')
+				.limit(1000)
+				.lean();
+			const hit = smartSearch(
+				cands,
+				kw,
+				(c) => String(c.name || ''),
+				(c) => `${c.shortDescription || ''} ${c.slug || ''}`,
+			).map((c) => c._id);
+			if (hit.length) {
+				delete filter.$and;
+				filter._id = { $in: hit };
+			}
 		}
 		const sortKey = String(args.sort || 'latest');
 		const sort: any = sortKey === 'price_asc' ? { price: 1 } : sortKey === 'price_desc' ? { price: -1 } : sortKey === 'popular' ? { favoriteCount: -1, viewCount: -1 } : { sortOrder: 1, createdAt: -1 };

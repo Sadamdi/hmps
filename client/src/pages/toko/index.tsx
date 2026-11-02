@@ -20,6 +20,7 @@ import { ChevronDown, ChevronLeft, ChevronRight, Filter, Heart, Loader2, Package
 import { useStoreFavorites } from '@/hooks/use-store-favorites';
 import { useTenant } from '@/lib/tenant-context';
 import { useEffect, useMemo, useState } from 'react';
+import { smartSearch } from '@shared/smart-search';
 import { computeDiscountedBundleSubtotal, computeDiscountedSubtotal } from '@shared/store-discounts';
 import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency';
 
@@ -129,6 +130,19 @@ export default function TokoIndexPage() {
 	const totalPages = Math.max(1, Math.ceil(totalProducts / pageLimit));
 
 	const hasActiveFilters = categoryFilter !== '';
+
+	// Bundling ikut pencarian pintar; kategori produk tertentu menyembunyikan bundling.
+	const visibleBundles = useMemo(() => {
+		if (categoryFilter && categoryFilter !== '__bundle') return [];
+		return q.trim()
+			? smartSearch(
+					bundleList,
+					q,
+					(b: any) => String(b.name || ''),
+					(b: any) => String(b.shortDescription || ''),
+				)
+			: bundleList;
+	}, [bundleList, q, categoryFilter]);
 
 	const quickView = useStoreQuickView();
 	const quickAddMutation = useMutation({
@@ -278,14 +292,14 @@ export default function TokoIndexPage() {
 						</div>
 					)}
 
-					{bundleList.length > 0 && !loadingSettings && (
+					{visibleBundles.length > 0 && !loadingSettings && (
 						<section className="space-y-3">
 							<div className="flex items-center gap-2">
 								<Package className="h-5 w-5 text-primary" />
 								<h2 className="text-lg font-semibold">Bundling</h2>
 							</div>
 							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-								{bundleList.map((b: any) => {
+								{visibleBundles.map((b: any) => {
 									const bPr = computeDiscountedBundleSubtotal(
 										String(b._id),
 										Number(b.bundlePrice) || 0,
