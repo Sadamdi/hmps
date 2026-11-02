@@ -11,7 +11,9 @@ import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import EventAttachmentPreviewDialog, {
 	type EventAttachmentPreviewItem,
 } from '@/components/public/event-attachment-preview-dialog';
+import RelatedContentSection from '@/components/public/related-content-section';
 import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
+import { apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useTenant } from '@/lib/tenant-context';
@@ -75,6 +77,26 @@ export default function EventDetailPage() {
 			return res.json();
 		},
 		enabled: !!year && !!eventId,
+	});
+
+	const { data: relatedEvents = [] } = useQuery<
+		{
+			_id: string;
+			title: string;
+			excerpt?: string;
+			thumbnail?: string;
+			year?: number;
+			slug?: string;
+		}[]
+	>({
+		queryKey: ['event-related', event?._id],
+		queryFn: async () => {
+			const res = await apiRequest('GET', `/api/events/${event?._id}/related?limit=2`);
+			return res.json();
+		},
+		enabled: !!event?._id,
+		retry: false,
+		staleTime: 5 * 60 * 1000,
 	});
 
 	const { basePath } = useTenant();
@@ -294,6 +316,17 @@ export default function EventDetailPage() {
 									</div>
 								</div>
 							)}
+							<RelatedContentSection
+								heading="Event Terkait"
+								items={relatedEvents.map((r) => ({
+									key: r._id,
+									href: `/events/${r.year ?? year}/${r.slug || r._id}`,
+									title: r.title,
+									excerpt: r.excerpt,
+									image: r.thumbnail,
+									badges: r.year ? [String(r.year)] : [],
+								}))}
+							/>
 							{/* Komentar */}
 							<CommentThread
 								targetType="event"

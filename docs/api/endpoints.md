@@ -135,6 +135,7 @@ GET    /api/library
 GET    /api/library/manage
 GET    /api/library/:id
 GET    /api/library/slug/:slug
+GET    /api/library/:id/related
 GET    /api/library/:libraryId/folder/:folderId/files
 POST   /api/library
 PUT    /api/library/:id
@@ -157,6 +158,7 @@ GET    /api/events/by-year/:year
 GET    /api/events/year/:year/slug/:slug
 GET    /api/events
 GET    /api/events/:id
+GET    /api/events/:id/related
 POST   /api/events
 PATCH  /api/events/:id
 DELETE /api/events/:id
