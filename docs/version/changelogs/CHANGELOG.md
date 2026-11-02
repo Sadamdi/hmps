@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.63.1] - 2026-11-03
+
+### Fixed
+
+- Tombol Cancel/Save pada dialog TinyMCE (link, gambar) di dalam modal dashboard bisa diklik lagi.
+
 ## [4.63.0] - 2026-11-03
 
 ### Added
