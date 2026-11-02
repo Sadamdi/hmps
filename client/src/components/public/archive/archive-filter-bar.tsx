@@ -2,7 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent } from '@/components/ui/collapsible';
 import { Input } from '@/components/ui/input';
-import { ChevronDown, Filter, Search, X } from 'lucide-react';
+import { ArrowUpDown, CalendarRange, ChevronDown, Filter, Search, X } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -20,6 +20,19 @@ export type ArchiveFilterGroup = {
 	onSelect: (value: string) => void;
 };
 
+export type ArchiveSortControl = {
+	value: string;
+	options: ArchiveFilterOption[];
+	onChange: (value: string) => void;
+};
+
+export type ArchiveDateRangeControl = {
+	/** Format yyyy-mm-dd; string kosong = tidak dibatasi. */
+	from: string;
+	to: string;
+	onChange: (from: string, to: string) => void;
+};
+
 export type ArchiveActiveChip = {
 	key: string;
 	label: string;
@@ -31,6 +44,10 @@ type ArchiveFilterBarProps = {
 	onSearchChange: (value: string) => void;
 	searchPlaceholder: string;
 	groups?: ArchiveFilterGroup[];
+	/** Urutan hasil (dropdown di panel Filter). */
+	sort?: ArchiveSortControl;
+	/** Filter rentang tanggal (dari–sampai) di panel Filter. */
+	dateRange?: ArchiveDateRangeControl;
 	activeChips?: ArchiveActiveChip[];
 	onClearAll?: () => void;
 	/** Teks hasil, mis. "Menampilkan 9 dari 71 berita" */
@@ -49,6 +66,8 @@ export function ArchiveFilterBar({
 	onSearchChange,
 	searchPlaceholder,
 	groups = [],
+	sort,
+	dateRange,
 	activeChips = [],
 	onClearAll,
 	resultText,
@@ -70,6 +89,7 @@ export function ArchiveFilterBar({
 	}, []);
 
 	const visibleGroups = groups.filter((g) => g.options.length > 0);
+	const hasPanel = visibleGroups.length > 0 || !!sort || !!dateRange;
 
 	return (
 		<>
@@ -90,7 +110,7 @@ export function ArchiveFilterBar({
 								className="pl-10 bg-card/70"
 							/>
 						</div>
-						{visibleGroups.length > 0 && (
+						{hasPanel && (
 							<Button
 								type="button"
 								variant="outline"
@@ -110,9 +130,58 @@ export function ArchiveFilterBar({
 
 					{children}
 
-					{visibleGroups.length > 0 && (
+					{hasPanel && (
 						<Collapsible open={open} onOpenChange={setOpen}>
 							<CollapsibleContent className="space-y-3 bg-card/70 border border-border/70 rounded-xl p-4">
+								{(sort || dateRange) && (
+									<div className="grid gap-3 sm:grid-cols-2">
+										{sort && (
+											<label className="space-y-1.5 block">
+												<span className="archive-meta flex items-center gap-1 [&_svg]:h-3 [&_svg]:w-3">
+													<ArrowUpDown />
+													Urutkan
+												</span>
+												<select
+													value={sort.value}
+													onChange={(e) => sort.onChange(e.target.value)}
+													className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40">
+													{sort.options.map((o) => (
+														<option key={o.value} value={o.value}>
+															{o.label}
+														</option>
+													))}
+												</select>
+											</label>
+										)}
+										{dateRange && (
+											<div className="space-y-1.5">
+												<span className="archive-meta flex items-center gap-1 [&_svg]:h-3 [&_svg]:w-3">
+													<CalendarRange />
+													Rentang tanggal
+												</span>
+												<div className="flex items-center gap-2">
+													<input
+														type="date"
+														aria-label="Dari tanggal"
+														value={dateRange.from}
+														max={dateRange.to || undefined}
+														onChange={(e) => dateRange.onChange(e.target.value, dateRange.to)}
+														className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+													/>
+													<span className="text-muted-foreground text-xs">s/d</span>
+													<input
+														type="date"
+														aria-label="Sampai tanggal"
+														value={dateRange.to}
+														min={dateRange.from || undefined}
+														onChange={(e) => dateRange.onChange(dateRange.from, e.target.value)}
+														className="h-9 min-w-0 flex-1 rounded-md border border-input bg-background px-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+													/>
+												</div>
+											</div>
+										)}
+									</div>
+								)}
 								{visibleGroups.map((group) => (
 									<div key={group.key} className="space-y-1.5">
 										<span className="archive-meta flex items-center gap-1 [&_svg]:h-3 [&_svg]:w-3">

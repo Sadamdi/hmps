@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.62.0] - 2026-11-03
+
+### Added
+
+- Pencarian pintar (abaikan tanda baca, toleran typo) di berita, galeri, event.
+- Filter urutan dan rentang tanggal; thumbnail kecil di kolom kanan daftar berita.
+
 ## [4.61.0] - 2026-11-03
 
 ### Added

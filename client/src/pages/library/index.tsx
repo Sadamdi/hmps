@@ -48,11 +48,14 @@ export default function LibraryPage() {
 
 	const filters = useArchiveFilters<LibraryItem>({
 		items: libraryItems,
-		getSearchText: (i) => `${i.title}\n${i.description ?? ''}`,
+		getSearchText: (i) => `${i.description ?? ''} ${(i.tags ?? []).join(' ')}`,
+		getTitle: (i) => i.title,
+		getDate: (i) => i.activityDate || i.createdAt,
+		getUpdatedAt: (i) => i.updatedAt || i.createdAt,
 		getYear: deriveItemYear,
 		getTags: (i) => i.tags,
 	});
-	const { filtered, searchTerm, selectedTags, selectedYear } = filters;
+	const { filtered, searchTerm, selectedTags, selectedYear, sortKey, dateFrom, dateTo } = filters;
 
 	const { currentPage, totalPages, paginatedData, setCurrentPage, itemsPerPage } = usePagination({
 		data: filtered,
@@ -64,7 +67,7 @@ export default function LibraryPage() {
 	useEffect(() => {
 		setCurrentPage(1);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [searchTerm, selectedTags, selectedYear]);
+	}, [searchTerm, selectedTags, selectedYear, sortKey, dateFrom, dateTo]);
 
 	const gridRef = useRef<HTMLDivElement>(null);
 	const firstRender = useRef(true);
@@ -103,6 +106,8 @@ export default function LibraryPage() {
 					onSearchChange={filters.setSearchTerm}
 					searchPlaceholder="Cari di galeri..."
 					groups={filters.groups}
+					sort={filters.sort}
+					dateRange={filters.dateRange}
 					activeChips={filters.activeChips}
 					onClearAll={filters.clearFilters}
 					resultText={

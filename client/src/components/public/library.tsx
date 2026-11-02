@@ -4,6 +4,7 @@ import {
 } from '@/components/public/library-item-detail';
 import { PublicSectionHeader } from '@/components/public/section-header';
 import { ArchiveIndex } from '@/components/public/archive/archive-meta';
+import { smartSearch } from '@shared/smart-search';
 import { Button } from '@/components/ui/button';
 import {
 	Dialog,
@@ -305,10 +306,11 @@ export default function Library({ variant = 'section' }: LibraryProps) {
 	const filteredLibraryItems = useMemo(() => {
 		let items = libraryItems;
 		if (searchQuery) {
-			const q = searchQuery.toLowerCase();
-			items = items.filter((i) =>
-				i.title.toLowerCase().includes(q) ||
-				i.description?.toLowerCase().includes(q),
+			items = smartSearch(
+				items,
+				searchQuery,
+				(i) => i.title,
+				(i) => `${i.description ?? ''} ${(i.tags ?? []).join(' ')}`,
 			);
 		}
 		if (selectedTags.length > 0) {

@@ -58,7 +58,7 @@ export default function EventsYearPage() {
 	useEffect(() => {
 		setCurrentPage(1);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [filters.searchTerm, filters.status]);
+	}, [filters.searchTerm, filters.status, filters.sortKey, filters.dateFrom, filters.dateTo]);
 
 	const listRef = useRef<HTMLDivElement>(null);
 	const firstRender = useRef(true);
@@ -139,6 +139,8 @@ export default function EventsYearPage() {
 					onSearchChange={filters.setSearchTerm}
 					searchPlaceholder="Cari event berdasarkan judul atau deskripsi..."
 					groups={filters.groups}
+					sort={filters.sort}
+					dateRange={filters.dateRange}
 					activeChips={filters.activeChips}
 					onClearAll={filters.clearFilters}
 					resultText={

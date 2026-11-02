@@ -33,6 +33,7 @@ export interface LibraryDetailItem {
 	viewCount?: number;
 	activityDate?: string;
 	createdAt?: string;
+	updatedAt?: string;
 	relatedEventsPreview?: { _id: string; title: string; year?: number }[];
 	relatedBeritaPreview?: { _id: string; title: string; slug?: string }[];
 	gdriveEmbedFolders?: { folderId: string; url: string }[];

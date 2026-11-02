@@ -24,8 +24,8 @@ import { DEFAULT_IMAGE_URL } from '@/constants/default-image';
 
 type BeritaItem = BeritaListItem;
 
-/** Jumlah item yang diambil blok lead (1 utama + 4 terbaru). */
-const LEAD_COUNT = 5;
+/** Jumlah item yang diambil blok lead (1 utama + 5 di kolom kanan). */
+const LEAD_COUNT = 6;
 /** Jumlah tag yang tampil sebagai tab. Sisanya tetap ada di panel Filter. */
 const TAB_TAG_LIMIT = 8;
 
@@ -82,15 +82,26 @@ export default function AllBerita() {
 
 	const filters = useArchiveFilters<BeritaItem>({
 		items: beritaList,
-		getSearchText: (i) => `${i.title}\n${i.excerpt}`,
+		getSearchText: (i) => `${i.excerpt ?? ''} ${(i.tags ?? []).join(' ')}`,
+		getTitle: (i) => i.title,
+		getDate: (i) => i.createdAt,
+		getUpdatedAt: (i) => i.updatedAt ?? i.createdAt,
 		getYear: (i) => new Date(i.createdAt).getFullYear(),
 		getTags: (i) => i.tags,
 		initialTags,
 	});
-	const { filtered: filteredBerita, searchTerm, selectedTags, selectedYear, hasActiveFilters } = filters;
+	const {
+		filtered: filteredBerita,
+		searchTerm,
+		selectedTags,
+		selectedYear,
+		sortKey,
+		dateFrom,
+		dateTo,
+	} = filters;
 
-	// Lead story hanya saat tidak ada search/filter, supaya hasil pencarian tetap jujur.
-	const showLead = !searchTerm && !hasActiveFilters && filteredBerita.length > LEAD_COUNT;
+	// Format newsroom (1 utama + kolom kanan) dipertahankan walau sedang mencari/memfilter/mengurutkan.
+	const showLead = filteredBerita.length > 1;
 	const gridSource = useMemo(
 		() => (showLead ? filteredBerita.slice(LEAD_COUNT) : filteredBerita),
 		[showLead, filteredBerita],
@@ -127,7 +138,7 @@ export default function AllBerita() {
 	useEffect(() => {
 		setCurrentPage(1);
 		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [searchTerm, selectedTags, selectedYear]);
+	}, [searchTerm, selectedTags, selectedYear, sortKey, dateFrom, dateTo]);
 
 	const fetchBerita = async () => {
 		try {
@@ -176,7 +187,8 @@ export default function AllBerita() {
 	const activeTab = selectedTags.length === 1 ? selectedTags[0] : selectedTags.length === 0 ? null : undefined;
 	const selectTab = (tag: string | null) => filters.setSelectedTags(tag ? [tag] : []);
 
-	const shownCount = (showLead && currentPage === 1 ? LEAD_COUNT : 0) + paginatedBerita.length;
+	const shownCount =
+		(showLead && currentPage === 1 ? Math.min(LEAD_COUNT, filteredBerita.length) : 0) + paginatedBerita.length;
 
 	const header = (
 		<ArchiveHeader
@@ -246,6 +258,8 @@ export default function AllBerita() {
 					onSearchChange={filters.setSearchTerm}
 					searchPlaceholder="Cari berita berdasarkan judul atau deskripsi..."
 					groups={filters.groups}
+					sort={filters.sort}
+					dateRange={filters.dateRange}
 					activeChips={filters.activeChips}
 					onClearAll={filters.clearFilters}
 					resultText={
