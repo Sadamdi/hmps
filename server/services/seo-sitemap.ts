@@ -72,7 +72,7 @@ export function xmlEscape(s: string): string {
 
 export function extractYoutubeId(url: string): string | null {
 	const m = String(url || '').match(
-		/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})/,
+		/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([\w-]{11})/,
 	);
 	return m?.[1] || null;
 }

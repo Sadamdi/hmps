@@ -1,5 +1,5 @@
 /**
- * Ekstrak ID video YouTube dari URL umum (watch, youtu.be, shorts, embed).
+ * Ekstrak ID video YouTube dari URL umum (watch, youtu.be, shorts, live, embed).
  * Mengembalikan null jika tidak terdeteksi.
  */
 export function parseYouTubeVideoId(input: string): string | null {
@@ -20,16 +20,11 @@ export function parseYouTubeVideoId(input: string): string | null {
 		return id && /^[\w-]{11}$/.test(id) ? id : null;
 	}
 
-	if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'youtube-nocookie.com') {
+	if (isYouTubeHost(host)) {
 		const path = url.pathname;
-		if (path.startsWith('/embed/')) {
-			const id = path.split('/')[2];
-			return id && /^[\w-]{11}$/.test(id) ? id : null;
-		}
-		if (path.startsWith('/shorts/')) {
-			const id = path.split('/')[2]?.split('?')[0];
-			return id && /^[\w-]{11}$/.test(id) ? id : null;
-		}
+		// /embed/ID, /shorts/ID, /live/ID (siaran langsung), /v/ID
+		const m = path.match(/^\/(?:embed|shorts|live|v)\/([\w-]{11})(?:[/?#]|$)/);
+		if (m) return m[1];
 		if (path === '/watch' || path.startsWith('/watch')) {
 			const v = url.searchParams.get('v');
 			return v && /^[\w-]{11}$/.test(v) ? v : null;
@@ -37,6 +32,35 @@ export function parseYouTubeVideoId(input: string): string | null {
 	}
 
 	return null;
+}
+
+const YOUTUBE_HOSTS = new Set([
+	'youtube.com',
+	'm.youtube.com',
+	'music.youtube.com',
+	'youtube-nocookie.com',
+	'youtu.be',
+]);
+
+/** Host keluarga YouTube (tanpa "www."). */
+export function isYouTubeHost(host: string): boolean {
+	return YOUTUBE_HOSTS.has(host.toLowerCase().replace(/^www\./, ''));
+}
+
+/** ID playlist dari youtube.com/playlist?list=... (bukan video tunggal). */
+export function parseYouTubePlaylistId(input: string): string | null {
+	try {
+		const url = new URL(input.trim().startsWith('http') ? input.trim() : `https://${input.trim()}`);
+		if (!isYouTubeHost(url.hostname) || url.pathname !== '/playlist') return null;
+		const list = url.searchParams.get('list');
+		return list && /^[\w-]{10,64}$/.test(list) ? list : null;
+	} catch {
+		return null;
+	}
+}
+
+export function getYouTubePlaylistEmbedSrc(listId: string): string {
+	return `https://www.youtube-nocookie.com/embed/videoseries?list=${encodeURIComponent(listId)}`;
 }
 
 export function getYouTubeEmbedSrc(videoId: string): string {

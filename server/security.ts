@@ -5,6 +5,7 @@ import hpp from 'hpp';
 import { z } from 'zod';
 import { isProcessableImage } from './image-processor';
 import { getTrustedClientIp } from './lib/client-ip';
+import { getDefaultEmbedFrameSources } from '../shared/embed-default-hosts';
 
 // ==================== RATE LIMITING ====================
 function getClientIp(req: any): string {
@@ -125,14 +126,8 @@ export const securityMiddleware = {
 				],
 				frameSrc: [
 					"'self'",
-					'https://www.photopea.com',
-					'https://photopea.com',
-					'https://www.google.com',
-					'https://maps.google.com',
-					'https://www.youtube.com',
-					'https://www.youtube-nocookie.com',
-					'https://drive.google.com',
-					'https://docs.google.com',
+					// YouTube, Google, Photopea, dll: satu sumber di shared/embed-default-hosts.ts
+					...getDefaultEmbedFrameSources(),
 					// Firebase Auth helper iframe (authDomain)
 					'https://*.firebaseapp.com',
 					'https://accounts.google.com',
