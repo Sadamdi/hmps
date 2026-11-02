@@ -300,7 +300,11 @@ export default function AllBerita() {
 
 				<div className="pt-6 sm:pt-8">
 					{showLead && currentPage === 1 && (
-						<BeritaLead lead={filteredBerita[0]} latest={filteredBerita.slice(1, LEAD_COUNT)} />
+						<BeritaLead
+							lead={filteredBerita[0]}
+							latest={filteredBerita.slice(1, LEAD_COUNT)}
+							sideLabel={searchTerm || (sortKey !== 'default' && sortKey !== 'newest') ? 'Berikutnya' : 'Terbaru'}
+						/>
 					)}
 
 					{filteredBerita.length === 0 ? (

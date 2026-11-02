@@ -34,7 +34,16 @@ export function formatBeritaDate(dateString: string) {
  * Blok newsroom halaman berita: satu lead story besar + kolom "Terbaru" bernomor.
  * Dirender di halaman 1 (juga saat search/filter aktif); sisi kanan memuat thumbnail kecil per berita.
  */
-export function BeritaLead({ lead, latest }: { lead: BeritaListItem; latest: BeritaListItem[] }) {
+export function BeritaLead({
+	lead,
+	latest,
+	sideLabel = 'Terbaru',
+}: {
+	lead: BeritaListItem;
+	latest: BeritaListItem[];
+	/** Judul kolom kanan; "Terbaru" hanya benar bila urutan terbaru. */
+	sideLabel?: string;
+}) {
 	return (
 		<section aria-label="Berita utama" className="grid gap-6 lg:gap-8 lg:grid-cols-3 mb-10 sm:mb-12">
 			<article className="archive-card group lg:col-span-2 overflow-hidden rounded-xl border border-border/70 bg-card hover:border-primary/40 focus-within:ring-2 focus-within:ring-primary/40">
@@ -70,9 +79,9 @@ export function BeritaLead({ lead, latest }: { lead: BeritaListItem; latest: Ber
 			</article>
 
 			{latest.length > 0 && (
-				<aside aria-label="Terbaru" className="flex flex-col">
+				<aside aria-label={sideLabel} className="flex flex-col">
 					<div className="flex items-center justify-between border-b border-border/70 pb-3">
-						<h2 className="archive-meta text-foreground">Terbaru</h2>
+						<h2 className="archive-meta text-foreground">{sideLabel}</h2>
 						<span className="h-px flex-1 ml-3 bg-gradient-to-r from-cyan-400/60 to-transparent" />
 					</div>
 					<ol className="divide-y divide-border/70">

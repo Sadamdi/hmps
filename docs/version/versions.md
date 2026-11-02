@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.62.0`  
+**Current version:** `4.62.1`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.62.0`](./release/4.62.0.md) | 2026-11-03 | Filter urutan/tanggal dan pencarian pintar (berita, galeri, event) | MINOR | 1 | **Current** |
+| [`4.62.1`](./release/4.62.1.md) | 2026-11-03 | Label kolom kanan berita mengikuti urutan | PATCH | 1 | **Current** |
+| [`4.62.0`](./release/4.62.0.md) | 2026-11-03 | Filter urutan/tanggal dan pencarian pintar (berita, galeri, event) | MINOR | 1 |  |
 | [`4.61.0`](./release/4.61.0.md) | 2026-11-03 | Event Terkait dan Galeri Terkait | MINOR | 1 |  |
 | [`4.60.8`](./release/4.60.8.md) | 2026-11-03 | Event/related berita draft tidak tampil di halaman publik | PATCH | 1 |  |
 | [`4.60.7`](./release/4.60.7.md) | 2026-11-03 | Fix dialog link editor dan draft di Berita Terkait | PATCH | 1 |  |
