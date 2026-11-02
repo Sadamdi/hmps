@@ -133,7 +133,7 @@ export default function BeritaDetail() {
 	const eventsEndpoint = normalizedSlug
 		? `/api/berita/slug/${normalizedSlug}/events`
 		: fallbackId
-			? `/api/berita/${fallbackId}/events`
+			? `/api/berita/${fallbackId}/events?public=1`
 			: '';
 
 	const { data: linkedEvents = [] } = useQuery<

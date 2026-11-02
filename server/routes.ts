@@ -3115,7 +3115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const { id } = req.params;
 			let events = await resolveStorage(req).getEventsByBeritaId(id);
-			if (!req.user) {
+			if (!req.user || req.query.public === '1') {
 				events = events.filter((e: any) => e.published);
 			}
 			res.json(events);
@@ -3137,7 +3137,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(404).json({ message: 'Berita not found' });
 				}
 				let events = await storage.getEventsByBeritaId(String(beritaItem._id));
-				if (!req.user) {
+				// Endpoint halaman publik: draft tidak ditampilkan, termasuk untuk user login.
+				{
 					events = events.filter((e: any) => e.published);
 				}
 				res.json(events);
@@ -3149,7 +3150,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	);
 
 	// Related berita (PLACE BEFORE /api/berita/:id/:slug to avoid 302 redirect)
-	app.get('/api/berita/:id/related', async (req, res) => {
+	app.get('/api/berita/:id/related', authenticateOptional, async (req, res) => {
 		try {
 			const beritaId = req.params.id;
 			const limit = Math.max(
@@ -3158,7 +3159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			);
 
 			const base = await resolveStorage(req).getBeritaById(beritaId);
-			if (!base) {
+			if (!base || (!base.published && !req.user)) {
 				return res.status(404).json({ message: 'Berita not found' });
 			}
 
@@ -3443,7 +3444,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Related berita by similarity (tags + simple text overlap)
-	app.get('/api/berita/:id/related', async (req, res) => {
+	app.get('/api/berita/:id/related', authenticateOptional, async (req, res) => {
 		try {
 			const beritaId = req.params.id;
 			const limit = Math.max(
@@ -3452,7 +3453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			);
 
 			const base = await resolveStorage(req).getBeritaById(beritaId);
-			if (!base) {
+			if (!base || (!base.published && !req.user)) {
 				return res.status(404).json({ message: 'Berita not found' });
 			}
 
@@ -3484,11 +3485,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	});
 
 	// Related by slug as convenience
-	app.get('/api/berita/slug/:slug/related', async (req, res) => {
+	app.get('/api/berita/slug/:slug/related', authenticateOptional, async (req, res) => {
 		try {
 			const slug = req.params.slug;
 			const beritaItem = await resolveStorage(req).getBeritaBySlug(slug);
-			if (!beritaItem)
+			if (!beritaItem || (!beritaItem.published && !req.user))
 				return res.status(404).json({ message: 'Berita not found' });
 			// Use RecommendationService as well
 			const { RecommendationService } =

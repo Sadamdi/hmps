@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.60.8] - 2026-11-03
+
+### Fixed
+
+- Event draft tidak tampil di halaman berita publik (termasuk user login); related berita draft hanya untuk user login.
+
 ## [4.60.7] - 2026-11-03
 
 ### Fixed
