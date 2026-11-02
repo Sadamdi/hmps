@@ -13,6 +13,7 @@ export interface BeritaListItem {
 	authorsDisplay?: string;
 	authors?: string[];
 	createdAt: string;
+	updatedAt?: string;
 	tags: string[];
 	viewCount?: number;
 }
@@ -31,7 +32,7 @@ export function formatBeritaDate(dateString: string) {
 
 /**
  * Blok newsroom halaman berita: satu lead story besar + kolom "Terbaru" bernomor.
- * Hanya dirender di halaman 1 tanpa filter aktif (lihat pages/berita/index.tsx).
+ * Dirender di halaman 1 (juga saat search/filter aktif); sisi kanan memuat thumbnail kecil per berita.
  */
 export function BeritaLead({ lead, latest }: { lead: BeritaListItem; latest: BeritaListItem[] }) {
 	return (
@@ -89,7 +90,18 @@ export function BeritaLead({ lead, latest }: { lead: BeritaListItem; latest: Ber
 											{formatBeritaDate(item.createdAt)}
 										</time>
 									</span>
-									<ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+									<span className="relative h-16 w-16 sm:h-[72px] sm:w-[72px] shrink-0 overflow-hidden rounded-lg bg-muted ring-1 ring-border/60">
+										<img
+											src={item.image || DEFAULT_IMAGE_URL}
+											alt=""
+											loading="lazy"
+											className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+											onError={(e) => {
+												(e.target as HTMLImageElement).src = DEFAULT_IMAGE_URL;
+											}}
+										/>
+										<ArrowUpRight className="absolute right-1 top-1 h-4 w-4 rounded bg-background/80 p-0.5 text-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+									</span>
 								</Link>
 							</li>
 						))}

@@ -1,4 +1,10 @@
-import type { ArchiveActiveChip, ArchiveFilterGroup } from '@/components/public/archive/archive-filter-bar';
+import type {
+	ArchiveActiveChip,
+	ArchiveDateRangeControl,
+	ArchiveFilterGroup,
+	ArchiveSortControl,
+} from '@/components/public/archive/archive-filter-bar';
+import { searchTokens, smartSearchScore } from '@shared/smart-search';
 import { ArchiveGridItem } from '@/components/public/archive/archive-meta';
 import { formatEventDate, getEventStatus, StatusBadge } from '@/components/public/events-tree';
 import type { EventStatus } from '@shared/schema';
@@ -37,22 +43,74 @@ export function eventMonth(ev: Pick<TimelineEventItem, 'month' | 'startDate'>) {
 	return ev.month || new Date(ev.startDate).getMonth() + 1;
 }
 
-/** Search judul/deskripsi + filter status untuk halaman list event. */
+type EventSortKey = 'default' | 'newest' | 'oldest';
+
+const EVENT_SORT_LABELS: Record<EventSortKey, string> = {
+	default: 'Bawaan',
+	newest: 'Terbaru',
+	oldest: 'Terlama',
+};
+
+function dayBound(value: string, end: boolean): number | null {
+	if (!value) return null;
+	const t = new Date(`${value}T${end ? '23:59:59.999' : '00:00:00'}`).getTime();
+	return Number.isFinite(t) ? t : null;
+}
+
+/** Search pintar judul/deskripsi + filter status, rentang tanggal mulai, dan urutan untuk list event. */
 export function useEventArchiveFilters<T extends TimelineEventItem>(events: T[]) {
 	const [searchTerm, setSearchTerm] = useState('');
 	const [status, setStatus] = useState<EventStatus | null>(null);
+	const [sortKey, setSortKey] = useState<EventSortKey>('default');
+	const [dateFrom, setDateFrom] = useState('');
+	const [dateTo, setDateTo] = useState('');
 
 	const filtered = useMemo(() => {
 		let out = events;
-		if (searchTerm) {
-			const q = searchTerm.toLowerCase();
-			out = out.filter(
-				(e) => e.title.toLowerCase().includes(q) || (e.description ?? '').toLowerCase().includes(q),
-			);
+		if (searchTokens(searchTerm).length > 0) {
+			const scored = out
+				.map((e, index) => ({
+					e,
+					index,
+					score: smartSearchScore(searchTerm, e.title, (e.description ?? '').replace(/<[^>]*>/g, ' ')),
+				}))
+				.filter((x) => x.score > 0);
+			if (sortKey === 'default') scored.sort((a, b) => b.score - a.score || a.index - b.index);
+			out = scored.map((x) => x.e);
 		}
 		if (status) out = out.filter((e) => getEventStatus(e.startDate, e.endDate) === status);
+		if (dateFrom || dateTo) {
+			const from = dayBound(dateFrom, false);
+			const to = dayBound(dateTo, true);
+			out = out.filter((e) => {
+				const t = new Date(e.startDate).getTime();
+				return (from === null || t >= from) && (to === null || t <= to);
+			});
+		}
+		if (sortKey === 'newest') {
+			out = [...out].sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime());
+		} else if (sortKey === 'oldest') {
+			out = [...out].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+		}
 		return out;
-	}, [events, searchTerm, status]);
+	}, [events, searchTerm, status, sortKey, dateFrom, dateTo]);
+
+	const sort: ArchiveSortControl = {
+		value: sortKey,
+		options: (Object.keys(EVENT_SORT_LABELS) as EventSortKey[]).map((k) => ({
+			value: k,
+			label: k === 'default' && searchTerm ? 'Paling relevan' : EVENT_SORT_LABELS[k],
+		})),
+		onChange: (v) => setSortKey(v as EventSortKey),
+	};
+	const dateRange: ArchiveDateRangeControl = {
+		from: dateFrom,
+		to: dateTo,
+		onChange: (from, to) => {
+			setDateFrom(from);
+			setDateTo(to);
+		},
+	};
 
 	const presentStatuses = useMemo(() => {
 		const s = new Set<EventStatus>();
@@ -74,16 +132,49 @@ export function useEventArchiveFilters<T extends TimelineEventItem>(events: T[])
 				]
 			: [];
 
-	const activeChips: ArchiveActiveChip[] = status
-		? [{ key: `status-${status}`, label: STATUS_LABEL[status], onRemove: () => setStatus(null) }]
-		: [];
+	const fmt = (v: string) =>
+		new Date(`${v}T00:00:00`).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+	const activeChips: ArchiveActiveChip[] = [
+		...(status ? [{ key: `status-${status}`, label: STATUS_LABEL[status], onRemove: () => setStatus(null) }] : []),
+		...(dateFrom || dateTo
+			? [
+					{
+						key: 'date-range',
+						label: `${dateFrom ? fmt(dateFrom) : '…'} – ${dateTo ? fmt(dateTo) : '…'}`,
+						onRemove: () => {
+							setDateFrom('');
+							setDateTo('');
+						},
+					},
+				]
+			: []),
+		...(sortKey !== 'default'
+			? [{ key: 'sort', label: `Urut: ${EVENT_SORT_LABELS[sortKey]}`, onRemove: () => setSortKey('default') }]
+			: []),
+	];
 
 	const clearFilters = () => {
 		setSearchTerm('');
 		setStatus(null);
+		setSortKey('default');
+		setDateFrom('');
+		setDateTo('');
 	};
 
-	return { searchTerm, setSearchTerm, status, filtered, groups, activeChips, clearFilters };
+	return {
+		searchTerm,
+		setSearchTerm,
+		status,
+		sortKey,
+		dateFrom,
+		dateTo,
+		filtered,
+		groups,
+		sort,
+		dateRange,
+		activeChips,
+		clearFilters,
+	};
 }
 
 function TimelineEventCard({ ev, year, order }: { ev: TimelineEventItem; year: number; order: number }) {
