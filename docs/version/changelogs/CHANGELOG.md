@@ -9,6 +9,11 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.63.2] - 2026-11-04
+
+### Security
+- `npm audit fix` (follow-redirects high), patch OS server, fail2ban `sshd` + `recidive`, unattended-upgrades. Detail: [release/4.63.2.md](../release/4.63.2.md).
+
 ## [4.63.1] - 2026-11-03
 
 ### Fixed
