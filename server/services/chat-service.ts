@@ -24,6 +24,11 @@ import {
 	sanitizeAiAssistantText,
 	scrubThinkingFromChatMessages,
 } from '@shared/ai-response-sanitize';
+import {
+	MODEL_IDENTITY_REPLY,
+	isModelIdentityQuestion,
+	redactModelDisclosure,
+} from '@shared/ai-identity-guard';
 import { executeToolCall, getToolsForPermissions } from './ai-tools';
 import {
 	buildWriteToolStyleHint,
@@ -823,6 +828,24 @@ export class ChatService {
 			fileMimeType,
 			timestamp: new Date(),
 		});
+		// Pertanyaan soal model/vendor di balik asisten: jawab langsung, tidak memanggil model.
+		if (isModelIdentityQuestion(content)) {
+			chat.messages.push({
+				role: 'assistant',
+				content: MODEL_IDENTITY_REPLY,
+				timestamp: new Date(),
+			});
+			chat.lastActivityAt = new Date();
+			await chat.save();
+			if (imageUrl) {
+				try {
+					await fs.promises.unlink(ChatService.resolveUploadDiskPath(imageUrl));
+				} catch {
+					/* gambar sudah tidak ada */
+				}
+			}
+			return chat;
+		}
 		// Gabungkan seluruh history chat (user & assistant)
 		const MAX_HISTORY = 50; // Batasi jumlah history message
 
@@ -1178,7 +1201,7 @@ export class ChatService {
 			throw new Error('All AI providers returned empty response');
 		}
 
-		responseText = sanitizeAiAssistantText(responseText);
+		responseText = redactModelDisclosure(sanitizeAiAssistantText(responseText));
 		if (!responseText.trim()) {
 			throw new Error('All AI providers returned empty response after sanitization');
 		}

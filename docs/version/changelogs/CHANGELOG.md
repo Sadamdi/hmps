@@ -9,6 +9,11 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.63.3] - 2026-11-05
+
+### Security
+- Chat Enco: pintasan pertanyaan identitas + filter nama model/vendor di balasan. Detail: [release/4.63.3.md](../release/4.63.3.md).
+
 ## [4.63.2] - 2026-11-04
 
 ### Security
