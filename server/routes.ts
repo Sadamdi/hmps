@@ -54,6 +54,7 @@ import notificationRouter from './routes/notifications';
 import sharingRouter, { expirePendingShares } from './routes/sharing';
 import storeRouter from './routes/store';
 import systemErrorRouter from './routes/system-errors';
+import monitorRouter from './routes/monitor';
 import socialFeedRouter from './routes/social-feed';
 import {
 	DEFAULT_THEME_COLOR,
@@ -8917,6 +8918,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use('/api/comments', commentRouter);
 	app.use('/api/feedback', feedbackRouter);
 	app.use('/api/system-errors', systemErrorRouter);
+	// Server Monitor API (read-only, API key). Docs: docs/api/monitor-api.md
+	app.use('/api/monitor/v1', monitorRouter);
 	app.use('/api/store', storeRouter);
 	app.use('/api/notifications', notificationRouter);
 	app.use('/api/sharing', sharingRouter);

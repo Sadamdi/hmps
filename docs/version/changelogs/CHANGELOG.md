@@ -9,6 +9,11 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.64.0] - 2026-11-05
+
+### Added
+- Server Monitor API `/api/monitor/v1` (metrik server live, SSE, benchmark, API key scope basic/full). Detail: [release/4.64.0.md](../release/4.64.0.md).
+
 ## [4.63.3] - 2026-11-05
 
 ### Security

@@ -45,6 +45,7 @@ Public SSR  : http://localhost:5000/<route>
 | Comments | `/api/comments` | public/manage comments |
 | Feedback | `/api/feedback` | feedback, moderation, bug reports |
 | System Errors | `/api/system-errors` | bug otomatis (capture server/client, owner dashboard) |
+| Server Monitor | `/api/monitor/v1` | metrik server live read-only, API key (docs/api/monitor-api.md) |
 | Sharing | `/api/sharing` | invite/request/access notifications |
 | Notifications | `/api/notifications` | SSE/preferences/webpush |
 | Ops | `/api/backups`, `/api/assets`, `/api/admin` | backup, cleanup, migration |
