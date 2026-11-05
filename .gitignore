@@ -86,3 +86,6 @@ uploads/_quarantine/
 
 # Backup lokal skrip operasional (berisi hash/data) — jangan pernah di-commit
 .local-backups/
+
+# Dokumen privat (berisi API key) — jangan pernah di-commit
+docs-private/

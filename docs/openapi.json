@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.63.3",
+    "version": "4.64.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -29,6 +29,11 @@
         "type": "apiKey",
         "in": "cookie",
         "name": "token"
+      },
+      "ApiKeyMonitor": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key hmon_<id>_<secret> dari owner"
       }
     },
     "schemas": {
@@ -29695,6 +29700,272 @@
           },
           "404": {
             "description": "Tidak ditemukan"
+          }
+        }
+      }
+    },
+    "/api/monitor/v1/docs": {
+      "get": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Deskripsi API monitor (publik)",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/monitor/v1/ping": {
+      "get": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Cek API key, scope, dan batas rate",
+        "security": [
+          {
+            "ApiKeyMonitor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "INVALID_API_KEY"
+          },
+          "429": {
+            "description": "RATE_LIMITED"
+          }
+        }
+      }
+    },
+    "/api/monitor/v1/summary": {
+      "get": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Ringkasan server + status health",
+        "security": [
+          {
+            "ApiKeyMonitor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "INVALID_API_KEY"
+          },
+          "429": {
+            "description": "RATE_LIMITED"
+          }
+        }
+      }
+    },
+    "/api/monitor/v1/metrics": {
+      "get": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Snapshot metrik",
+        "security": [
+          {
+            "ApiKeyMonitor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "INVALID_API_KEY"
+          },
+          "429": {
+            "description": "RATE_LIMITED"
+          }
+        },
+        "parameters": [
+          {
+            "name": "sections",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "cpu,memory,disk,... (koma)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "cpu",
+                "mem",
+                "pid",
+                "name"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    "/api/monitor/v1/stream": {
+      "get": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Live metrik via SSE",
+        "security": [
+          {
+            "ApiKeyMonitor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "INVALID_API_KEY"
+          },
+          "429": {
+            "description": "RATE_LIMITED"
+          }
+        },
+        "parameters": [
+          {
+            "name": "interval",
+            "in": "query",
+            "schema": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 60,
+              "default": 2
+            }
+          },
+          {
+            "name": "sections",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/monitor/v1/processes": {
+      "get": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Daftar proses (scope full)",
+        "security": [
+          {
+            "ApiKeyMonitor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "INVALID_API_KEY"
+          },
+          "429": {
+            "description": "RATE_LIMITED"
+          }
+        }
+      }
+    },
+    "/api/monitor/v1/history": {
+      "get": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Riwayat metrik (maks 60 menit)",
+        "security": [
+          {
+            "ApiKeyMonitor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "INVALID_API_KEY"
+          },
+          "429": {
+            "description": "RATE_LIMITED"
+          }
+        },
+        "parameters": [
+          {
+            "name": "minutes",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 60
+            }
+          }
+        ]
+      }
+    },
+    "/api/monitor/v1/bench": {
+      "get": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Hasil benchmark terakhir",
+        "security": [
+          {
+            "ApiKeyMonitor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "INVALID_API_KEY"
+          },
+          "429": {
+            "description": "RATE_LIMITED"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Server Monitor"
+        ],
+        "summary": "Jalankan benchmark (dibatasi)",
+        "security": [
+          {
+            "ApiKeyMonitor": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "INVALID_API_KEY"
+          },
+          "409": {
+            "description": "BENCH_RUNNING"
+          },
+          "429": {
+            "description": "RATE_LIMITED"
           }
         }
       }

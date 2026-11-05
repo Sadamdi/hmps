@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.63.3`  
+**Current version:** `4.64.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.63.3`](./release/4.63.3.md) | 2026-11-05 | Guard identitas Enco: nama model AI tidak bocor | PATCH | 1 | **Current** |
+| [`4.64.0`](./release/4.64.0.md) | 2026-11-05 | Server Monitor API (metrik live + API key) | MINOR | 1 | **Current** |
+| [`4.63.3`](./release/4.63.3.md) | 2026-11-05 | Guard identitas Enco: nama model AI tidak bocor | PATCH | 1 |  |
 | [`4.63.2`](./release/4.63.2.md) | 2026-11-04 | Hardening server (fail2ban, patch OS) dan patch dependensi | PATCH | 1 |  |
 | [`4.63.1`](./release/4.63.1.md) | 2026-11-03 | Tombol dialog TinyMCE bisa diklik lagi | PATCH | 1 |  |
 | [`4.63.0`](./release/4.63.0.md) | 2026-11-03 | Pencarian pintar di toko, dashboard, tools AI; perbaikan toko | MINOR | 1 |  |

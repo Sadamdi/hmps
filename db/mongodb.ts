@@ -2244,6 +2244,27 @@ const SystemError =
 	mongoose.models.SystemError ||
 	mongoose.model('SystemError', systemErrorSchema);
 
+// Kunci API Server Monitor (read-only). Hanya hash SHA-256 yang disimpan; kunci asli tampil sekali saat dibuat.
+const monitorApiKeySchema = new mongoose.Schema(
+	{
+		keyId: { type: String, required: true, unique: true, index: true },
+		keyHash: { type: String, required: true },
+		name: { type: String, required: true, trim: true, maxlength: 80 },
+		scope: { type: String, enum: ['basic', 'full'], default: 'basic' },
+		rateLimitPerMin: { type: Number, default: 120 },
+		expiresAt: { type: Date, default: null },
+		revokedAt: { type: Date, default: null },
+		lastUsedAt: { type: Date, default: null },
+		lastUsedIp: { type: String, default: '' },
+		requestCount: { type: Number, default: 0 },
+		createdBy: { type: String, default: '' },
+	},
+	{ timestamps: true },
+);
+const MonitorApiKey =
+	mongoose.models.MonitorApiKey ||
+	mongoose.model('MonitorApiKey', monitorApiKeySchema);
+
 // ── Akun pembeli toko (terpisah dari User staf; satu akun untuk semua toko main + komunitas) ──
 const customerAddressSchema = new mongoose.Schema(
 	{
@@ -2580,6 +2601,7 @@ export {
 	StoreDiscountCampaign,
 	StoreBundle,
 	SystemError,
+	MonitorApiKey,
 	TempUpload,
 	User,
 	UserNotification,
