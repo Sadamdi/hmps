@@ -9,6 +9,11 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.64.1] - 2026-11-16
+
+### Docs
+- SOP 13: alur publikasi berita, galeri, event, dan teks WhatsApp grup/status. Detail: [release/4.64.1.md](../release/4.64.1.md).
+
 ## [4.64.0] - 2026-11-05
 
 ### Added
