@@ -418,23 +418,100 @@ export function requirePermission(permission: string) {
 	};
 }
 
-// Check if user can manage roles (only higher level roles can manage lower level roles)
-export function canManageRole(userRole: string, targetRole: string): boolean {
-	const roleLevels: { [key: string]: number } = {
-		owner: 1,
-		admin: 2,
-		chair: 3,
-		vice_chair: 4,
-		bph: 5,
-		division_head: 6,
-		medinfo: 6,
-	};
+/**
+ * Level jabatan bawaan (1 = paling atas). Role kustom memakai `level` dari
+ * dokumen Role di database — peta ini hanya cadangan bila dokumen Role tidak
+ * bisa dibaca (mis. nama role legacy).
+ */
+const BUILTIN_ROLE_LEVELS: { [key: string]: number } = {
+	owner: 1,
+	admin: 2,
+	chair: 3,
+	vice_chair: 4,
+	bph: 5,
+	division_head: 6,
+	medinfo: 6,
+};
 
-	const userLevel = roleLevels[userRole] || 999;
-	const targetLevel = roleLevels[targetRole] || 999;
+/** Nama role paling atas (tidak boleh dipindahkan/diturunkan siapa pun). */
+export const TOP_ROLE_NAME = 'owner';
+/** Level tertinggi (angka terkecil) yang dianggap "paling atas". */
+export const TOP_ROLE_LEVEL = 1;
 
-	// User can only manage roles with higher level numbers (lower hierarchy)
-	return userLevel < targetLevel;
+/** Level efektif sebuah nama role. Dokumen Role diutamakan, peta bawaan sebagai cadangan. */
+export function roleLevelOf(roleName: string, rolesByLevel?: Map<string, number>): number {
+	if (rolesByLevel && rolesByLevel.has(roleName)) {
+		const lv = rolesByLevel.get(roleName);
+		if (typeof lv === 'number' && Number.isFinite(lv)) return lv;
+	}
+	const builtin = BUILTIN_ROLE_LEVELS[roleName];
+	return typeof builtin === 'number' ? builtin : 999;
+}
+
+/** True bila role ini adalah role paling atas (owner / level 1). */
+export function isTopRole(roleName: string, rolesByLevel?: Map<string, number>): boolean {
+	return roleName === TOP_ROLE_NAME || roleLevelOf(roleName, rolesByLevel) <= TOP_ROLE_LEVEL;
+}
+
+/**
+ * Check if user can manage roles (only higher level roles can manage lower level roles).
+ * Owner kirim `rolesByLevel` (nama → level) agar role kustom ikut terhitung.
+ */
+export function canManageRole(
+	userRole: string,
+	targetRole: string,
+	rolesByLevel?: Map<string, number>,
+): boolean {
+	// Hanya boleh bila level yang mengelola LEBIH TINGGI (angka lebih kecil)
+	// daripada level target. Level sama tidak boleh saling mengubah.
+	return roleLevelOf(userRole, rolesByLevel) < roleLevelOf(targetRole, rolesByLevel);
+}
+
+/**
+ * Aturan keras: role paling atas (owner) tidak boleh diubah/diturunkan SIAPA PUN,
+ * termasuk oleh dirinya sendiri. Berlaku untuk semua jalur tulis role.
+ */
+export function assertTopRoleImmutable(
+	targetRole: string,
+	nextRole?: string,
+	rolesByLevel?: Map<string, number>,
+): { ok: true } | { ok: false; message: string } {
+	if (isTopRole(targetRole, rolesByLevel)) {
+		return {
+			ok: false,
+			message:
+				'Role pemilik (owner / level tertinggi) tidak dapat diubah atau diturunkan oleh siapa pun, termasuk oleh pemiliknya sendiri.',
+		};
+	}
+	if (nextRole !== undefined && isTopRole(nextRole, rolesByLevel)) {
+		return {
+			ok: false,
+			message:
+				'Role pemilik (owner / level tertinggi) tidak dapat diberikan melalui perubahan role. Hanya boleh ada satu pemilik.',
+		};
+	}
+	return { ok: true };
+}
+
+/**
+ * Bangun peta nama→level dari dokumen Role yang aktif di storage (tenant-aware).
+ * Gagal baca → peta kosong, pemanggil jatuh ke level bawaan.
+ */
+export async function buildRoleLevelMap(
+	storage: { getAllRoles: () => Promise<any[]> },
+): Promise<Map<string, number>> {
+	const map = new Map<string, number>();
+	try {
+		const roles = (await storage.getAllRoles()) as any[];
+		for (const r of roles || []) {
+			if (typeof r?.name === 'string' && typeof r?.level === 'number') {
+				map.set(r.name, r.level);
+			}
+		}
+	} catch (error) {
+		console.error('buildRoleLevelMap: gagal membaca roles, memakai level bawaan', error);
+	}
+	return map;
 }
 
 // Type augmentation for Express Request
