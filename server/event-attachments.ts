@@ -44,6 +44,75 @@ function toDriveDirectUrl(fileId: string): string {
 	return `https://drive.google.com/uc?export=download&id=${fileId}`;
 }
 
+/**
+ * Apakah `fileId` Google Drive ini benar-benar direferensikan oleh konten yang
+ * bisa dilihat publik (berita/event/library yang published, atau home image)?
+ *
+ * Dipakai untuk endpoint proxy Drive yang memakai service account: tanpa
+ * pemeriksaan ini, siapa pun yang punya (atau menebak) fileId bisa memakai
+ * kuota Drive dan membaca file melalui server.
+ *
+ * `models` datang dari pemanggil karena harus tenant-aware.
+ */
+export async function isDriveFileIdReferencedByPublicContent(
+	models: { Berita: any; Event: any; Library: any },
+	fileId: string,
+): Promise<boolean> {
+	if (!fileId || typeof fileId !== 'string' || fileId.length < 10) return false;
+	// Hanya id yang aman untuk dimasukkan ke regex literal.
+	if (!/^[A-Za-z0-9_-]+$/.test(fileId)) return false;
+
+	const pattern = new RegExp(fileId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+	try {
+		const queries: Array<Promise<any>> = [];
+
+		if (models.Berita?.findOne) {
+			queries.push(
+				models.Berita.findOne({
+					published: true,
+					$or: [
+						{ 'attachments.url': pattern },
+						{ image: pattern },
+						{ content: pattern },
+					],
+				})
+					.select('_id')
+					.lean(),
+			);
+		}
+		if (models.Event?.findOne) {
+			queries.push(
+				models.Event.findOne({
+					published: true,
+					$or: [{ 'attachments.url': pattern }, { content: pattern }],
+				})
+					.select('_id')
+					.lean(),
+			);
+		}
+		if (models.Library?.findOne) {
+			queries.push(
+				models.Library.findOne({
+					$or: [
+						{ 'attachments.url': pattern },
+						{ 'items.url': pattern },
+						{ content: pattern },
+					],
+				})
+					.select('_id')
+					.lean(),
+			);
+		}
+
+		const results = await Promise.all(queries);
+		return results.some((doc) => Boolean(doc));
+	} catch (error) {
+		console.error('isDriveFileIdReferencedByPublicContent error:', error);
+		return false;
+	}
+}
+
 export function normalizeEventAttachmentArray(
 	raw: unknown,
 ): { ok: true; attachments: NormalizedEventAttachment[] } | { ok: false; message: string } {
