@@ -1,4 +1,4 @@
-# Plan — Security Patches v4.64.2 (PATCH)
+# Plan — Security Patches v4.64.2 (PATCH) — **SELESAI**
 
 > Hasil pentest read-only 2026-11-18. Branch: `security/patches-4.64.2`
 > Base commit: `4ea43b0` (v4.64.1)
@@ -163,3 +163,36 @@ git checkout main                      # balik ke v4.64.1 bersih
 # atau per-patch:
 git checkout main -- server/routes/chat.ts
 ```
+
+
+---
+
+## Status eksekusi (2026-11-19)
+
+| # | Item | Commit | Status |
+|---|------|--------|--------|
+| P3 | Anti-enumerasi forgot-password + `/api/test/protection` non-produksi | `65c09ba` | selesai |
+| — | Role owner terkunci di backend + hierarki dua arah | `897e5c6` | selesai |
+| P1-A | SSRF `/api/prodi/preview` | `393325d` | selesai |
+| P0-A/B | Chat sesi bertanda tangan + anggaran LLM | `407992e` | selesai |
+| P1-B | Auth/scope proxy Google Drive | `92dfb7d` | selesai |
+| P2-B | OTP pepper + generator bebas bias | `b32d897` | selesai |
+| P2-A | `api-protection` allowlist eksplisit | `c4387d9` | selesai |
+| — | Validasi folderId proxy Drive | `6435dcf` | selesai |
+| — | Dokumen rilis v4.64.2 | `6e1d271` | selesai |
+
+### Hasil gerbang regresi (server lokal, `npx tsx server/index.ts`)
+
+- 11 halaman publik → 200, 0 gagal
+- 6 API publik → 200, 0 gagal
+- 3 endpoint ber-auth → 401, 0 gagal
+- SSRF loopback → 400 · Drive fileId arbitrer → 404 · Chat tanpa sesi → 403 · Lupa password email tak terdaftar → 200
+- Budget LLM (`LLM_DAILY_PER_IP=3`): pesan 1–3 → 200, pesan 4 → 429
+- `npm run check` bersih · `npm run build` sukses · 0 TypeError/ReferenceError di log
+
+### Catatan / belum dikerjakan
+
+1. **Verifikasi role butuh login staf.** Uji "owner tidak bisa diturunkan" dan "admin bisa menurunkan jabatan di bawahnya" tidak bisa dilakukan tanpa kredensial. Logika terverifikasi lewat typecheck + pembacaan kode; uji end-to-end harus dilakukan di browser dengan akun owner dan akun admin.
+2. **Lingkungan uji memakai database produksi.** `npm run dev` membaca `.env` proyek, jadi smoke test menyentuh `himatifwebmain`. Tidak ada data yang diubah selain satu komentar uji yang langsung dihapus (diverifikasi list kembali kosong).
+3. `server/services/otp.ts` pernah tertimpa isi `routes.ts` oleh kesalahan penulisan; dipulihkan via `git checkout` dan patch diterapkan ulang dengan benar.
+4. `/api/test/protection` masih 200 di `NODE_ENV=development` sesuai desain; di produksi tidak didaftarkan.
