@@ -12,17 +12,29 @@ const IP_HOURLY_LIMIT = 30;
 const IP_DAILY_LIMIT = 100;
 
 function generateOtpCode(length = 6): string {
-	const digits = '0123456789';
+	// randomInt bebas bias modular (256 % 10 !== 0 pada randomBytes[i] % 10).
 	let code = '';
-	const bytes = crypto.randomBytes(length);
 	for (let i = 0; i < length; i++) {
-		code += digits[bytes[i] % 10];
+		code += String(crypto.randomInt(0, 10));
 	}
 	return code;
 }
 
+/**
+ * Rahasia untuk mengikat hash OTP. Tanpa pepper, sha256(6 digit) hanya punya
+ * satu juta kemungkinan sehingga bisa diprecompute dari dump database.
+ * Memakai GUEST_KEY_PEPPER bila OTP_PEPPER belum di-set agar tidak menambah
+ * env wajib; kunci turunan tetap berbeda dari pemakaian lain.
+ */
+function otpPepper(): string {
+	const explicit = String(process.env.OTP_PEPPER || '').trim();
+	if (explicit) return explicit;
+	const base = String(process.env.GUEST_KEY_PEPPER || 'hmps-comment-pepper');
+	return `otp:${base}`;
+}
+
 function hashCode(code: string): string {
-	return crypto.createHash('sha256').update(code).digest('hex');
+	return crypto.createHmac('sha256', otpPepper()).update(code).digest('hex');
 }
 
 async function checkRateLimits(email: string, requestIp: string): Promise<void> {
