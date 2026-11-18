@@ -334,6 +334,18 @@ router.post(
 	authenticateOptional,
 	chatImageGuard,
 	async (req, res) => {
+		// Gerbang sesi DULU, sebelum header SSE dikirim: kalau header 200 sudah
+		// ter-flush, status 403 tidak bisa lagi dikirim dan koneksi menggantung.
+		if (!readChatSessionUserId(req) && !(req as any).user) {
+			res.status(403).json({
+				error: 'chat_session_required',
+				code: 'CHAT_SESSION_REQUIRED',
+				message:
+					'Sesi chat tidak ditemukan atau tidak sah. Buka halaman situs terlebih dahulu untuk mulai mengobrol.',
+			});
+			return;
+		}
+
 		// Setup SSE headers up-front (sebelum kerja berat).
 		// Express middleware sebelumnya sudah boleh tulis response kalau blocking;
 		// kita gunakan try/catch & defensive `res.headersSent` check.
