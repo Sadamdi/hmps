@@ -28,6 +28,7 @@ import { invokeBannerRender } from './banner-render-invoke';
 import { DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
 import { gdriveProxyRateLimiter } from './middleware/public-rate-limit';
 import {
+	isDriveFileIdReferencedByPublicContent,
 	normalizeBeritaAttachmentArray,
 	normalizeEventAttachmentArray,
 } from './event-attachments';
@@ -1064,6 +1065,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			try {
+				// Service account memakai kuota pemilik: hanya izinkan fileId yang
+				// benar-benar direferensikan konten publik (tenant-aware).
+				const driveModels: any = resolveModels(req);
+				const referenced = await isDriveFileIdReferencedByPublicContent(
+					{
+						Berita: driveModels?.Berita,
+						Event: driveModels?.Event,
+						Library: driveModels?.Library,
+					},
+					fileId,
+				);
+				if (!referenced) {
+					console.warn(
+						`[gdrive-stream] fileId tidak direferensikan konten publik: ${fileId}`,
+					);
+					return res.status(404).end();
+				}
+
 				const { getDriveAccessToken } = await import('./googleDrive');
 				const token = await getDriveAccessToken();
 
@@ -1105,7 +1124,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	app.post('/api/gdrive/media-url', gdriveProxyRateLimiter, async (req, res) => {
+	app.post(
+		'/api/gdrive/media-url',
+		gdriveProxyRateLimiter,
+		authenticateOptional,
+		async (req, res) => {
 		try {
 			const { fileId, url, mediaType: userSpecifiedType } = req.body;
 
@@ -1130,6 +1153,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			if (!actualFileId) {
 				return res.status(400).json({ message: 'Could not extract file ID' });
+			}
+
+			// Service account Drive dipakai untuk melayani konten publik, jadi
+			// fileId yang boleh diproses hanya yang direferensikan konten publik
+			// (tenant-aware), ATAU pemanggilnya staf yang sudah login.
+			if (!(req as any).user) {
+				const mediaModels: any = resolveModels(req);
+				const allowed = await isDriveFileIdReferencedByPublicContent(
+					{
+						Berita: mediaModels?.Berita,
+						Event: mediaModels?.Event,
+						Library: mediaModels?.Library,
+					},
+					String(actualFileId),
+				);
+				if (!allowed) {
+					console.warn(
+						`[gdrive-media-url] fileId tidak direferensikan konten publik: ${actualFileId}`,
+					);
+					return res
+						.status(404)
+						.json({ message: 'File tidak ditemukan pada konten publik' });
+				}
 			}
 
 			// Use the new folder detection function
