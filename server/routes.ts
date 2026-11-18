@@ -8967,6 +8967,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 			}
 
+			// folderId yang dikirim langsung klien wajib berbentuk id Drive.
+			// Tanpa validasi ini nilainya diteruskan apa adanya ke Google API.
+			if (typeof targetFolderId === 'string' && targetFolderId.trim()) {
+				const trimmed = targetFolderId.trim();
+				if (!/^[A-Za-z0-9_-]{10,}$/.test(trimmed)) {
+					console.warn(
+						`[gdrive-folder] folderId tidak valid: ${trimmed.slice(0, 40)}`,
+					);
+					return res.status(400).json({ message: 'folderId tidak valid' });
+				}
+				targetFolderId = trimmed;
+			}
+
 			const contents = await getFolderContents(targetFolderId);
 
 			res.json({
