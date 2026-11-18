@@ -57,31 +57,106 @@ async function getCachedMiddlewareSettings() {
 }
 
 // ==================== API PROTECTION CONFIGURATION ====================
-const ALLOWED_API_ROUTES = [
-	'/api/auth/login',
-	'/api/auth/register',
-	'/api/auth/me',
-	'/api/berita',
-	'/api/berita/slug/',
-	'/api/upload',
-	'/api/chat',
-	'/api/activities',
-	'/api/organizations',
-	'/api/content',
-	'/api/media',
-	'/api/settings',
-	'/api/stats',
-	'/api/library',
-	'/api/gdrive',
-	'/api/organization/members',
-	'/api/organization/periods',
-	'/api/organization/periods/', // For POST requests
-	'/api/communities',
-	'/api/register/validate-code',
-	'/api/register/community',
-	'/api/registration/',
-	'/api/c/', // Community tenant API prefix
+/**
+ * Daftar rute API yang boleh diakses tanpa konteks frontend tepercaya.
+ *
+ * Sebelumnya dicocokkan dengan `path.startsWith(route)` sehingga satu route
+ * baru di bawah prefix (mis. `/api/settings/*`) otomatis mewarisi bypass.
+ * Sekarang tiap entri punya bentuk eksplisit:
+ *  - `exact`:   path harus sama persis
+ *  - `prefix`:  path sama persis ATAU diawali `<prefix>/`
+ *  - `pattern`: regexp penuh (dipakai untuk path berparameter)
+ *
+ * Menambah rute publik baru = tambah satu baris di sini, bukan melebarkan
+ * prefix yang sudah ada.
+ */
+type AllowedRouteRule = {
+	kind: 'exact' | 'prefix' | 'pattern';
+	value: string | RegExp;
+};
+
+const ALLOWED_API_ROUTE_RULES: AllowedRouteRule[] = [
+	// Auth
+	{ kind: 'exact', value: '/api/auth/login' },
+	{ kind: 'exact', value: '/api/auth/login/google' },
+	{ kind: 'exact', value: '/api/auth/google/identify' },
+	{ kind: 'exact', value: '/api/auth/register' },
+	{ kind: 'exact', value: '/api/auth/me' },
+	{ kind: 'exact', value: '/api/auth/logout' },
+	{ kind: 'exact', value: '/api/auth/firebase-config' },
+	{ kind: 'exact', value: '/api/auth/login-targets' },
+	{ kind: 'exact', value: '/api/auth/switch-to-staff' },
+	{ kind: 'prefix', value: '/api/auth/forgot-password' },
+
+	// Konten publik
+	{ kind: 'prefix', value: '/api/berita' },
+	{ kind: 'prefix', value: '/api/library' },
+	{ kind: 'prefix', value: '/api/events' },
+	{ kind: 'prefix', value: '/api/event-years' },
+	{ kind: 'prefix', value: '/api/organization' },
+	{ kind: 'prefix', value: '/api/prodi' },
+	{ kind: 'prefix', value: '/api/profil' },
+	{ kind: 'prefix', value: '/api/home-images' },
+	{ kind: 'exact', value: '/api/stats' },
+	{ kind: 'exact', value: '/api/info' },
+	{ kind: 'exact', value: '/api/settings' },
+	{ kind: 'exact', value: '/api/settings/home-config' },
+	{ kind: 'exact', value: '/api/communities' },
+	{ kind: 'exact', value: '/api/roles/levels' },
+
+	// Aset & media
+	{ kind: 'prefix', value: '/api/upload' },
+	{ kind: 'prefix', value: '/api/gdrive' },
+	{ kind: 'prefix', value: '/api/og' },
+
+	// Chat & interaksi publik
+	{ kind: 'prefix', value: '/api/chat' },
+	{ kind: 'prefix', value: '/api/comments' },
+	{ kind: 'prefix', value: '/api/feedback' },
+	{ kind: 'prefix', value: '/api/social-feed' },
+	{ kind: 'prefix', value: '/api/notifications' },
+
+	// Toko publik
+	{ kind: 'prefix', value: '/api/store/public' },
+	{ kind: 'exact', value: '/api/store/cart' },
+	{ kind: 'prefix', value: '/api/store/cart' },
+	{ kind: 'prefix', value: '/api/store/checkout' },
+	{ kind: 'prefix', value: '/api/store/direct-checkout' },
+	{ kind: 'prefix', value: '/api/store/buy-link' },
+	{ kind: 'prefix', value: '/api/store/my-orders' },
+	{ kind: 'prefix', value: '/api/store/orders' },
+	{ kind: 'prefix', value: '/api/store/shipping' },
+	{ kind: 'prefix', value: '/api/store/payment-preview' },
+	{ kind: 'prefix', value: '/api/buyer' },
+
+	// Registrasi komunitas
+	{ kind: 'exact', value: '/api/register/validate-code' },
+	{ kind: 'exact', value: '/api/register/community' },
+	{ kind: 'prefix', value: '/api/register/upload' },
+	{ kind: 'prefix', value: '/api/registration' },
+
+	// Tenant API
+	{ kind: 'prefix', value: '/api/c' },
+
+	// Monitor (auth via API key di router sendiri)
+	{ kind: 'prefix', value: '/api/monitor' },
 ];
+
+/** Apakah path API ini boleh diakses tanpa konteks frontend tepercaya? */
+function isAllowedPublicApiPath(path: string): boolean {
+	for (const rule of ALLOWED_API_ROUTE_RULES) {
+		if (rule.kind === 'exact') {
+			if (path === rule.value) return true;
+		} else if (rule.kind === 'prefix') {
+			const prefix = String(rule.value);
+			if (path === prefix || path.startsWith(`${prefix}/`)) return true;
+		} else if (rule.kind === 'pattern') {
+			if ((rule.value as RegExp).test(path)) return true;
+		}
+	}
+	return false;
+}
+
 
 // ==================== BEAUTIFUL API ERROR RESPONSE ====================
 function sendBeautifulApiError(
@@ -153,10 +228,9 @@ export const apiProtectionMiddleware = async (
 			return next();
 		}
 
-		// Cek apakah route diizinkan untuk akses umum
-		const isAllowedRoute = ALLOWED_API_ROUTES.some((route) =>
-			path.startsWith(route),
-		);
+		// Cek apakah route diizinkan untuk akses umum (exact / prefix / pattern,
+		// bukan startsWith longgar agar sub-route baru tidak ikut terbuka).
+		const isAllowedRoute = isAllowedPublicApiPath(path);
 
 		// Cek apakah request dari browser (bukan server-to-server)
 		const isBrowserRequest =
