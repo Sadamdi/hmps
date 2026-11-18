@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.64.1`  
+**Current version:** `4.64.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.64.1`](./release/4.64.1.md) | 2026-11-16 | SOP publikasi berita, event, galeri, dan broadcast WA | PATCH | 1 | **Current** |
+| [`4.64.2`](./release/4.64.2.md) | 2026-11-19 | Hardening keamanan dari pentest (auth, SSRF, chat, role) | PATCH | 10 | **Current** |
+| [`4.64.1`](./release/4.64.1.md) | 2026-11-16 | SOP publikasi berita, event, galeri, dan broadcast WA | PATCH | 1 |  |
 | [`4.64.0`](./release/4.64.0.md) | 2026-11-05 | Server Monitor API (metrik live + API key) | MINOR | 1 |  |
 | [`4.63.3`](./release/4.63.3.md) | 2026-11-05 | Guard identitas Enco: nama model AI tidak bocor | PATCH | 1 |  |
 | [`4.63.2`](./release/4.63.2.md) | 2026-11-04 | Hardening server (fail2ban, patch OS) dan patch dependensi | PATCH | 1 |  |
