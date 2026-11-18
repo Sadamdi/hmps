@@ -2081,6 +2081,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	}
 
 	// --- Forgot password (no auth required) ---
+	// Anti-enumerasi: SEMUA hasil (email tidak ada, email dipakai >1 akun, email valid,
+	// kena rate limit per-email) dibalas dengan status + pesan yang sama. Tanpa ini,
+	// penyerang bisa memetakan email mana yang terdaftar hanya dari kode status.
+	const FORGOT_PASSWORD_GENERIC_MESSAGE =
+		'Jika email tersebut terdaftar, kode OTP telah dikirim. Periksa kotak masuk Anda.';
+
 	app.post('/api/auth/forgot-password/request-otp', async (req, res) => {
 		try {
 			const { email } = req.body;
@@ -2094,30 +2100,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			})
 				.limit(2)
 				.lean()) as any[];
-			if (!matches.length) {
-				return res
-					.status(404)
-					.json({ message: 'Tidak ada email yang tersedia' });
-			}
-			// Email bersama (dipakai >1 akun) tidak boleh dipakai reset: akun mana yang direset tidak pasti
-			if (matches.length > 1) {
-				return res.status(409).json({
-					message: 'Email ini dipakai lebih dari satu akun. Hubungi admin untuk reset password.',
-					error: { code: 'EMAIL_SHARED_BY_MULTIPLE_ACCOUNTS' },
-				});
+
+			// Tidak ada akun ATAU email dipakai >1 akun: jangan kirim OTP,
+			// tapi jawab tetap 200 generik supaya keberadaan akun tidak bocor.
+			if (!matches.length || matches.length > 1) {
+				return res.json({ message: FORGOT_PASSWORD_GENERIC_MESSAGE });
 			}
 			const user = matches[0];
 
-			const { challengeId } = await createOtpChallenge({
-				purpose: 'forgot_password',
-				email: user.email,
-				userId: user._id.toString(),
-				ttlMinutes: 10,
-				requestIp: getRequestIp(req),
-				username: user.username,
-			});
+			// Rate limit per email/IP tetap berlaku; jangan bocorkan lewat status berbeda.
+			try {
+				await createOtpChallenge({
+					purpose: 'forgot_password',
+					email: user.email,
+					userId: user._id.toString(),
+					ttlMinutes: 10,
+					requestIp: getRequestIp(req),
+					username: user.username,
+				});
+			} catch (otpError: any) {
+				if (!(otpError instanceof RateLimitError)) throw otpError;
+				// Rate limit → tetap 200 generik; klien tidak boleh tahu bedanya.
+				console.warn(
+					`[forgot-password] OTP rate limited untuk ${user.email}: ${otpError.message}`,
+				);
+			}
 
-			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
+			res.json({ message: FORGOT_PASSWORD_GENERIC_MESSAGE });
 		} catch (error: any) {
 			if (error instanceof RateLimitError) {
 				return res.status(429).json({
@@ -8904,12 +8913,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// Test route untuk API protection
-	app.get('/api/test/protection', (req, res) => {
-		res.json({
-			message: 'This route should be protected by API protection middleware',
+	// Test route untuk API protection — hanya di luar produksi (tidak boleh
+	// memberi tahu klien aturan middleware internal; lihat SOP 12 §2).
+	if (process.env.NODE_ENV !== 'production') {
+		app.get('/api/test/protection', (req, res) => {
+			res.json({
+				message: 'This route should be protected by API protection middleware',
+			});
 		});
-	});
+	}
 
 	app.use('/api/chat', chatRouter);
 	// Akun pembeli toko (terpisah dari akun staf)
