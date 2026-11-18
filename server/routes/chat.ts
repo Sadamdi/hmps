@@ -3,12 +3,14 @@ import dotenv from 'dotenv';
 import { Router } from 'express';
 import multer from 'multer';
 import path from 'path';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import {
 	sanitizeChatMessagesForClient,
 	scrubThinkingFromChatMessages,
 } from '@shared/ai-response-sanitize';
 import { authenticateOptional } from '../auth';
+import { llmDailyBudget } from '../middleware/llm-budget';
 import { Chat } from '../models/chat';
 import { mongoStorage } from '../mongo-storage';
 import { getPublisherDisplayName } from '../user-display';
@@ -18,10 +20,80 @@ import {
 	planningStep,
 } from '../services/ai-agent-progress';
 import type { AgentStep } from '../services/ai-agent-progress';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 
 function resolveStorage(req: Request): any {
 	return req.tenantStorage || mongoStorage;
+}
+
+/**
+ * Cookie sesi chat bertanda tangan.
+ *
+ * Cookie `userId` sebelumnya hanya UUID polos — klien bisa mengarang nilainya,
+ * sehingga "sesi" tidak membuktikan apa pun. Sekarang nilai final berbentuk
+ * `<uuid>.<hmac>`, dan hanya nilai bertanda tangan yang diterima.
+ *
+ * Catatan: cookie ini menandai sesi TAMU, bukan autentikasi. Izin tetap
+ * di-resolve dari sesi staf (JWT) di server, tidak dari sini.
+ */
+const CHAT_SESSION_COOKIE = 'userId';
+const CHAT_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
+function chatSessionSecret(): string {
+	const explicit = String(process.env.CHAT_SESSION_SECRET || '').trim();
+	if (explicit) return explicit;
+	// Turunan dari JWT_SECRET agar tidak menambah env wajib; tetap tidak bisa
+	// ditebak karena JWT_SECRET wajib >= 32 karakter di produksi.
+	return `chat-session:${process.env.JWT_SECRET || 'hmti-secret-key-change-in-production'}`;
+}
+
+function signChatUserId(userId: string): string {
+	return crypto.createHmac('sha256', chatSessionSecret()).update(userId).digest('base64url');
+}
+
+function buildSignedChatId(): string {
+	const userId = uuidv4();
+	return `${userId}.${signChatUserId(userId)}`;
+}
+
+/** Ambil userId dari cookie sesi HANYA bila tanda tangannya sah. */
+export function readChatSessionUserId(req: Request): string | null {
+	const raw = req.cookies?.[CHAT_SESSION_COOKIE];
+	if (typeof raw !== 'string' || !raw.includes('.')) return null;
+	const idx = raw.lastIndexOf('.');
+	const userId = raw.slice(0, idx);
+	const signature = raw.slice(idx + 1);
+	if (!userId || !signature) return null;
+	const expected = signChatUserId(userId);
+	const a = Buffer.from(signature);
+	const b = Buffer.from(expected);
+	if (a.length !== b.length) return null;
+	try {
+		if (!crypto.timingSafeEqual(a, b)) return null;
+	} catch {
+		return null;
+	}
+	return userId;
+}
+
+/**
+ * Pastikan request punya sesi chat bertanda tangan. Bila belum ada / tidak sah,
+ * terbitkan yang baru. Dipakai untuk minta token sebelum mengirim pesan pertama,
+ * sehingga UX tamu tidak berubah (buka halaman → cookie diterbitkan → chat jalan).
+ */
+function ensureChatSessionCookie(req: Request, res: Response): string {
+	const existing = readChatSessionUserId(req);
+	if (existing) return existing;
+
+	const signed = buildSignedChatId();
+	res.cookie(CHAT_SESSION_COOKIE, signed, {
+		httpOnly: true,
+		sameSite: 'lax',
+		secure: process.env.NODE_ENV === 'production',
+		path: '/',
+		maxAge: CHAT_SESSION_TTL_MS,
+	});
+	return signed.slice(0, signed.lastIndexOf('.'));
 }
 
 function getContextScope(req: Request): string {
@@ -141,11 +213,9 @@ function chatImageGuard(req: any, res: any, next: any) {
 // Get all chats for user (summary only, no full message content)
 router.get('/all', async (req, res) => {
 	try {
-		const userId = req.cookies.userId || uuidv4();
+		// Terbitkan / validasi sesi chat bertanda tangan sebelum dipakai.
+		const userId = ensureChatSessionCookie(req, res);
 		const contextScope = getContextScope(req);
-		if (!req.cookies.userId) {
-			res.cookie('userId', userId, { maxAge: 86400000 });
-		}
 		const chats = await Chat.find({ userId, contextScope })
 			.sort({ lastActivityAt: -1, createdAt: -1 })
 			.lean();
@@ -173,11 +243,9 @@ router.get('/all', async (req, res) => {
 // New chat
 router.post('/new', chatSessionRateLimiter, async (req, res) => {
 	try {
-		const userId = req.cookies.userId || uuidv4();
+		// Terbitkan / validasi sesi chat bertanda tangan sebelum dipakai.
+		const userId = ensureChatSessionCookie(req, res);
 		const contextScope = getContextScope(req);
-		if (!req.cookies.userId) {
-			res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
-		}
 		const chat = await ChatService.getOrCreateChat(userId, true, contextScope); // true = force new
 		// Remove sensitive data before sending response
 		const { apiKeySlot, apiKey, ...safeChat } = chat.toObject() as any;
@@ -191,7 +259,7 @@ router.post('/new', chatSessionRateLimiter, async (req, res) => {
 // Delete chat by id
 router.delete('/:id', chatSessionRateLimiter, async (req, res) => {
 	try {
-		const userId = req.cookies.userId;
+		const userId = readChatSessionUserId(req) || req.cookies.userId;
 		const chatId = req.params.id;
 		const contextScope = getContextScope(req);
 		if (!userId || !chatId) {
@@ -212,7 +280,7 @@ router.delete('/:id', chatSessionRateLimiter, async (req, res) => {
 // Get messages for a specific chat
 router.get('/:id/messages', async (req, res) => {
 	try {
-		const userId = req.cookies.userId;
+		const userId = readChatSessionUserId(req) || req.cookies.userId;
 		const chatId = req.params.id;
 		const contextScope = getContextScope(req);
 		if (!userId || !chatId) {
@@ -238,11 +306,9 @@ router.get('/:id/messages', async (req, res) => {
 // Mendapatkan riwayat chat (default: chat terakhir)
 router.get('/history', async (req, res) => {
 	try {
-		const userId = req.cookies.userId || uuidv4();
+		// Terbitkan / validasi sesi chat bertanda tangan sebelum dipakai.
+		const userId = ensureChatSessionCookie(req, res);
 		const contextScope = getContextScope(req);
-		if (!req.cookies.userId) {
-			res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
-		}
 
 		const chat = await Chat.findOne({ userId, contextScope }).sort({ createdAt: -1 });
 		if (chat && scrubThinkingFromChatMessages(chat.messages)) {
@@ -264,6 +330,7 @@ router.post(
 	chatLimiter,
 	chatUploadRateLimiter,
 	requireTrustedChatOrigin,
+	llmDailyBudget(),
 	authenticateOptional,
 	chatImageGuard,
 	async (req, res) => {
@@ -323,9 +390,25 @@ router.post(
 		};
 
 		try {
-			const userId = req.cookies.userId || uuidv4();
+			// Lapis bukti yang tidak bisa dipalsukan klien: cookie `userId` harus
+			// bertanda tangan HMAC, ATAU request membawa sesi staf (authToken JWT).
+			// Gerbang origin saja tidak cukup — header Origin/Sec-Fetch-Site bisa
+			// ditulis siapa pun lewat curl, sehingga endpoint LLM bisa dibebani
+			// orang luar atas biaya pemilik API key.
+			const sessionUserId = readChatSessionUserId(req);
+			const hasStaffSession = Boolean((req as any).user);
+			if (!sessionUserId && !hasStaffSession) {
+				return finish(403, {
+					error: 'chat_session_required',
+					code: 'CHAT_SESSION_REQUIRED',
+					message:
+						'Sesi chat tidak ditemukan atau tidak sah. Buka halaman situs terlebih dahulu untuk mulai mengobrol.',
+				});
+			}
+
+			const userId = sessionUserId || req.cookies.userId || uuidv4();
 			const contextScope = getContextScope(req);
-			if (!req.cookies.userId && !res.headersSent) {
+			if (!sessionUserId && !hasStaffSession && !res.headersSent) {
 				res.cookie('userId', userId, { maxAge: 86400000 }); // 1 hari
 			}
 
@@ -495,7 +578,7 @@ router.post(
 // Menghapus semua chat user (opsional)
 router.delete('/', chatSessionRateLimiter, async (req, res) => {
 	try {
-		const userId = req.cookies.userId;
+		const userId = readChatSessionUserId(req) || req.cookies.userId;
 		const contextScope = getContextScope(req);
 		if (!userId) {
 			return res.status(400).json({ error: 'No user ID found' });
