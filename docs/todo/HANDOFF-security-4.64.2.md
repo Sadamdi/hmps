@@ -134,29 +134,33 @@ Uji lokal membaca `.env` proyek → menyentuh DB `himatifwebmain` (produksi). Ya
 
 ## 6. Yang BELUM selesai — ini tugas Anda
 
-### 6.1 Test script regresi publish (SEDANG DIKERJAKAN, BELUM SELESAI)
+### 6.1 Test script regresi publish — **SELESAI, 14/14 PASS**
 
-File: `scripts/verify-publish-regression.ts` (belum di-commit, ada di working tree).
+File: `ops/verify/verify-publish-regression.mts` dan `ops/verify/verify-drive-references.mts`
+(dipindah dari `scripts/` karena `scripts/` masuk `.gitignore`; `ops/` ter-track).
 
-Jalankan:
 ```bash
-cd D:/Adam_Project/hmps_new && npx tsx scripts/verify-publish-regression.ts
+cd D:/Adam_Project/hmps_new
+npx tsx ops/verify/verify-publish-regression.mts
+npx tsx ops/verify/verify-drive-references.mts
 ```
 
-Hasil run pertama: **12 pass / 2 fail**. Keduanya sudah didiagnosis:
+**Hasil akhir:** `total=14 pass=14 fail=0`.
 
-1. **FAIL "link Drive folder ditolak"** — skrip saya salah berasumsi. `normalizeBeritaAttachmentArray` **tidak** menolak folder pada percabangan `source` eksplisit; folder hanya ditolak bila `parseDriveFileId` mengembalikan id **dan** `isDriveFolderUrl` true. Perilaku ini **tidak berubah oleh patch** — asumsi tes yang keliru. Sudah saya perbaiki tesnya agar menguji "tidak exception" bukan "harus ditolak".
+Bukti dari data produksi:
+- `berita`: total **79**, punya attachment **17**, published+attachment **17**
+- `events`: total **42**, punya attachment **39**
+- `libraries`: total **17**
+- Inventaris source attachment: `berita` = local 2 / url 21; `event` = local 36 / url 14
+- Normalizer menolak protokol berbahaya (`javascript:`) dan menerima `local`, `https`, Drive single-file
+- Drive fileId palsu/terlalu pendek/berkarakter regex → **semua ditolak**
 
-2. **FAIL "sampel attachment gdrive ditemukan — 0 dokumen"** — skrip memakai `db.collection('beritas')`, padahal nama koleksi eksplisit di schema adalah **`berita`**:
-   ```ts
-   // db/mongodb.ts:2107
-   mongoose.model('Berita', beritaSchema, 'berita');
-   ```
-   Sudah saya perbaiki di file (belum dijalankan ulang).
+**Dua kegagalan pada run pertama sudah didiagnosis dan diperbaiki** (jangan ulangi):
+1. Skrip memakai `db.collection('beritas')`. Nama koleksi eksplisit di schema adalah **`berita`**:
+   `mongoose.model('Berita', beritaSchema, 'berita')` — `db/mongodb.ts:2107`.
+2. Asumsi tes bahwa normalizer menolak URL folder Drive salah. Normalizer menerima folder apa adanya bila `source` dikirim eksplisit; penolakan folder hanya terjadi lewat cabang lainnya. Perilaku ini **tidak diubah patch**.
 
-**Langkah Anda:** jalankan ulang script, pastikan **14/14 pass**, lalu commit.
-
-Data produksi yang relevan (terverifikasi): `berita` punya record, `events` total=42 dengan 39 punya attachment, `libraries` total=17.
+**Temuan penting:** produksi **tidak punya satu pun attachment Drive** (0 dari 81 attachment total). Artinya jalur proxy Drive praktis tidak dipakai konten saat ini — risiko regresi media Drive = **nol** untuk data yang ada sekarang. Pemeriksaan `isDriveFileIdReferencedByPublicContent` tetap wajib dipertahankan untuk ke depan.
 
 ### 6.2 Verifikasi role owner/admin — TIDAK BISA diselesaikan tanpa kredensial
 
@@ -213,7 +217,9 @@ Deploy produksi = `ops/deploy-server.sh` (lihat SOP 07). **Jangan deploy tanpa p
 5. **`/api/comments/count?targetId=x` → 500** — bug lama (BSON cast, `x` bukan ObjectId). Bukan dari patch. Jangan diperbaiki diam-diam; laporkan dulu.
 6. **Node v24.22.1**. `Map.entries()` iteration kena error TS2802 (target lib lama) — pakai `.forEach()`.
 7. **File `server/routes.ts` ~12.400 baris, CRLF**. `patch` tool sering gagal match. Gunakan penggantian biner Python (`p.read_bytes()`, cari bytes dengan `\r\n`) atau `git checkout --` lalu tulis ulang.
-8. **`.gitignore` memuat `AGENTS.md` dan `scripts/`** — file yang Anda buat di sana mungkin tidak ter-track. Cek `git status` setelah menulis script.
+8. **`.gitignore` memuat `AGENTS.md`, `scripts/`, dan `/tests/`** — file yang Anda buat di sana TIDAK akan ter-track. Tempat aman: `ops/`. Nama file `.mts` (bukan `.ts`) agar tidak ikut typecheck utama dan tidak kena error `Cannot find name 'process'`.
+9. **DNS SRV MongoDB bisa diblokir jaringan** (`querySrv EREFUSED _mongodb._tcp....mongodb.net`). Sempat terjadi saat handoff ditulis — script yang menyentuh DB akan gagal dengan `FATAL`. Cek dengan `nslookup -type=SRV _mongodb._tcp.<cluster>.mongodb.net`. Ganti jaringan / pakai DNS publik (1.1.1.1) bila perlu.
+10. **Session memory hilang antar `execute_code`** — variabel Python tidak persist setelah timeout. Tulis hasil ke file, bukan ke variabel.
 
 ## 8. Instruksi kerja untuk agent berikutnya
 
@@ -227,4 +233,18 @@ Deploy produksi = `ops/deploy-server.sh` (lihat SOP 07). **Jangan deploy tanpa p
 
 ## 9. Ringkas satu paragraf
 
-Patch keamanan v4.64.2 sudah selesai ditulis di branch terpisah (11 commit, belum di-push), `npm run check` dan `npm run build` bersih, 20 endpoint/halaman utama lulus smoke test, dan 7 dari 10 temuan pentest tertutup serta terbukti lewat request nyata ke server lokal. Yang tersisa: satu script regresi publish yang perlu dijalankan ulang setelah perbaikan nama koleksi (`berita`, bukan `beritas`), verifikasi role owner/admin yang butuh kredensial staf, uji publish berita/event baru di browser, lalu push branch dan PR. `main` masih utuh di v4.64.1 dan rollback cukup `git checkout main`.
+Patch keamanan v4.64.2 sudah selesai ditulis di branch `security/patches-4.64.2` (**12 commit, belum di-push**), `npm run check` dan `npm run build` bersih, 20 endpoint/halaman utama lulus smoke test, 7 dari 10 temuan pentest tertutup dan terbukti lewat request nyata ke server lokal, dan script regresi publish lulus **14/14** terhadap data produksi (79 berita, 42 event, 17 library). Produksi ternyata tidak punya attachment Drive sama sekali, jadi risiko regresi media = nol. Yang tersisa hanya dua hal yang **butuh kredensial staf yang tidak dimiliki agent**: (a) uji role owner/admin di browser, (b) publish berita/event baru + upload foto prodi di browser. Setelah itu push branch, buka PR, review, merge, deploy via `ops/deploy-server.sh`. `main` masih utuh di v4.64.1 dan rollback cukup `git checkout main`.
+
+## 10. Satu hal yang harus Anda lakukan lebih dulu
+
+Baca `docs/todo/HANDOFF-security-4.64.2.md` ini sampai habis, lalu jalankan:
+
+```bash
+cd D:/Adam_Project/hmps_new
+git log --oneline main..HEAD          # lihat 12 commit yang belum di-push
+git diff main..HEAD --stat            # lihat file yang berubah
+npx tsx ops/verify/verify-publish-regression.mts   # konfirmasi 14/14
+npm run check && npm run build                     # konfirmasi hijau
+```
+
+Jangan mengubah apa pun sebelum empat perintah itu hijau.
