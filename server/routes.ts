@@ -37,6 +37,7 @@ import {
 	writePublicJsonCache,
 } from './lib/public-json-cache';
 import { ShortJsonCache } from './lib/short-cache';
+import { guardServerFetchUrl, safeServerFetch } from './lib/server-fetch-guard';
 import {
 	attachLibraryDisplayFields,
 	removeLibraryFromAllRelations,
@@ -6527,29 +6528,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!rawUrl) {
 				return res.status(400).json({ message: 'Parameter url wajib diisi' });
 			}
-			let parsed: URL;
-			try {
-				parsed = new URL(rawUrl);
-			} catch {
-				return res.status(400).json({ message: 'URL tidak valid' });
-			}
-			if (!['http:', 'https:'].includes(parsed.protocol)) {
-				return res
-					.status(400)
-					.json({ message: 'Hanya URL http/https yang didukung' });
+
+			// SSRF guard: allowlist host, tolak IP literal, redirect divalidasi per hop.
+			const guard = guardServerFetchUrl(rawUrl);
+			if (!guard.ok) {
+				return res.status(guard.status).json({ message: guard.message });
 			}
 
 			const controller = new AbortController();
 			const timeout = setTimeout(() => controller.abort(), 15000);
 
 			try {
-				const upstream = await fetch(parsed.toString(), {
-					redirect: 'follow',
+				const upstream = await safeServerFetch(guard.url.toString(), {
 					signal: controller.signal,
-					headers: {
-						'User-Agent': 'HMPS-Prodi-Preview/1.0',
-						Accept: '*/*',
-					},
+					userAgent: 'HMPS-Prodi-Preview/1.0',
 				});
 
 				if (!upstream.ok) {
