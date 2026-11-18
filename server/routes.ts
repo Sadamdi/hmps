@@ -12,7 +12,12 @@ import {
 	authenticate,
 	authenticateOptional,
 	authorize,
+	assertTopRoleImmutable,
+	buildRoleLevelMap,
 	canManageRole,
+	isTopRole,
+	roleLevelOf,
+	TOP_ROLE_LEVEL,
 	createSessionRecord,
 	generateToken,
 	mainOnly,
@@ -2605,6 +2610,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const existingUser = await storage.getUserById(userId);
 				if (!existingUser) {
 					return res.status(404).json({ message: 'User not found' });
+				}
+
+				if (role) {
+					const rolesByLevel = await buildRoleLevelMap(storage);
+					const requesterRole = (req.user as UserWithRole)?.role || '';
+
+					// Role paling atas (owner) tidak boleh disentuh siapa pun,
+					// termasuk oleh pemiliknya sendiri.
+					const immutable = assertTopRoleImmutable(existingUser.role, role, rolesByLevel);
+					if (!immutable.ok) {
+						return res.status(403).json({ message: immutable.message });
+					}
+
+					// Hierarki: hanya boleh mengubah role yang lebih rendah dari
+					// role pengubah. Level sama tidak boleh saling mengubah.
+					if (!canManageRole(requesterRole, existingUser.role, rolesByLevel)) {
+						return res.status(403).json({
+							message: 'Anda tidak berwenang mengubah role pengguna ini',
+						});
+					}
+					if (!canManageRole(requesterRole, role, rolesByLevel)) {
+						return res.status(403).json({
+							message: 'Anda tidak berwenang memberikan role tersebut',
+						});
+					}
 				}
 
 				const updateData: any = {};
@@ -9157,6 +9187,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						.json({ message: 'Current user role not found' });
 				}
 
+				const rolesByLevel = await buildRoleLevelMap(roleStorage);
+				const allRoles = (await roleStorage.getAllRoles()) as any[];
+				const targetRoleDoc = allRoles.find(
+					(r: any) => String(r?._id || r?.id) === String(id),
+				);
+				if (!targetRoleDoc) {
+					return res.status(404).json({ message: 'Role not found' });
+				}
+
+				// Role paling atas (owner) tidak boleh diedit levelnya/diturunkan.
+				if (isTopRole(targetRoleDoc.name, rolesByLevel)) {
+					return res.status(403).json({
+						message:
+							'Role pemilik (owner / level tertinggi) tidak dapat diubah, termasuk oleh pemiliknya sendiri.',
+					});
+				}
+				// Role kustom yang sedang mencapai level tertinggi juga dilindungi.
+				if (
+					typeof targetRoleDoc.level === 'number' &&
+					targetRoleDoc.level <= TOP_ROLE_LEVEL
+				) {
+					return res.status(403).json({
+						message:
+							'Role pada level tertinggi tidak dapat diubah. Hanya boleh ada satu pemilik.',
+					});
+				}
+
+				// Tidak boleh menaikkan level role ke level milik sendiri atau di atasnya,
+				// dan tidak boleh mengedit role yang levelnya lebih tinggi/sama dengan milik sendiri.
+				const requesterLevel = roleLevelOf((req.user as UserWithRole)?.role || '', rolesByLevel);
+				if (typeof targetRoleDoc.level === 'number' && targetRoleDoc.level <= requesterLevel) {
+					return res.status(403).json({
+						message: 'Anda hanya dapat mengedit role di bawah level Anda',
+					});
+				}
+				if (typeof level === 'number' && level <= requesterLevel) {
+					return res.status(403).json({
+						message: 'Anda tidak dapat menaikkan role ke level Anda atau di atasnya',
+					});
+				}
+
 				const updateData: any = {
 					displayName,
 					description,
@@ -9531,14 +9602,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Role is required' });
 				}
 
-				// Check if user can assign this role
-				if (!canManageRole((req.user as UserWithRole)?.role || '', role)) {
+				const storage = resolveStorage(req);
+				const rolesByLevel = await buildRoleLevelMap(storage);
+				const requesterRole = (req.user as UserWithRole)?.role || '';
+
+				const targetUser = await storage.getUserById(id);
+				if (!targetUser) {
+					return res.status(404).json({ message: 'User not found' });
+				}
+
+				// Role paling atas (owner) tidak boleh diubah/diturunkan siapa pun,
+				// termasuk oleh pemiliknya sendiri lewat halaman Profil.
+				const immutable = assertTopRoleImmutable(targetUser.role, role, rolesByLevel);
+				if (!immutable.ok) {
+					return res.status(403).json({ message: immutable.message });
+				}
+
+				// Cek hierarki dua arah: boleh mengubah target, dan boleh memberikan role baru.
+				if (!canManageRole(requesterRole, targetUser.role, rolesByLevel)) {
+					return res.status(403).json({
+						message: 'Anda tidak berwenang mengubah role pengguna ini',
+					});
+				}
+				if (!canManageRole(requesterRole, role, rolesByLevel)) {
 					return res
 						.status(403)
 						.json({ message: 'You cannot assign this role' });
 				}
 
-				const user = await resolveStorage(req).updateUser(id, { role });
+				const user = await storage.updateUser(id, { role });
 				if (!user) {
 					return res.status(404).json({ message: 'User not found' });
 				}
