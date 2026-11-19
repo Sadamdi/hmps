@@ -33,6 +33,7 @@ export default function ForgotPassword() {
 	const [confirmPassword, setConfirmPassword] = useState('');
 	const [showPassword, setShowPassword] = useState(false);
 	const [error, setError] = useState('');
+	const [notice, setNotice] = useState('');
 	const [loading, setLoading] = useState(false);
 	const [countdown, setCountdown] = useState(0);
 
@@ -79,9 +80,17 @@ export default function ForgotPassword() {
 				setError(data.message || 'Gagal mengirim OTP');
 				return;
 			}
-			if (data.challengeId) {
-				setChallengeId(data.challengeId);
+			// Server sengaja membalas pesan generik untuk semua kasus (anti-enumerasi
+			// email). Langkah OTP hanya bisa dilanjutkan bila server benar-benar
+			// menerbitkan challenge — artinya email itu terdaftar.
+			if (!data.challengeId) {
+				setNotice(
+					data.message ||
+						'Jika email tersebut terdaftar, kode OTP telah dikirim. Periksa kotak masuk Anda.',
+				);
+				return;
 			}
+			setChallengeId(data.challengeId);
 			setStep('otp');
 		} catch {
 			setError('Terjadi kesalahan. Coba lagi.');
@@ -202,6 +211,14 @@ export default function ForgotPassword() {
 				</CardHeader>
 
 				<CardContent className="px-8 pb-8 pt-4">
+					{notice && (
+						<div className="mb-4 px-4 py-3 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-500/40 rounded-lg">
+							<span className="text-emerald-800 dark:text-emerald-300 text-sm">
+								{notice}
+							</span>
+						</div>
+					)}
+
 					{error && (
 						<div className="mb-4 px-4 py-3 bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-500/40 rounded-lg">
 							<span className="text-red-700 dark:text-red-300 text-sm">

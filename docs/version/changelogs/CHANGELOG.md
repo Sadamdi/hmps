@@ -9,6 +9,28 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.64.2] - 2026-11-19
+
+### Security
+- `auth`: role `owner` (level tertinggi) tidak dapat diubah/diturunkan siapa pun, termasuk oleh pemiliknya sendiri; ditegakkan di backend pada kedua jalur `PUT /api/users/:id/role` dan `PUT /api/roles/:id`
+- `auth`: hierarki role dicek dua arah (target harus lebih rendah, role baru juga harus lebih rendah); salah satu handler sebelumnya tanpa cek hierarki sama sekali
+- `auth`: `canManageRole` memakai level dari dokumen Role (role kustom ikut dihitung)
+- `prodi`: `/api/prodi/preview` memakai allowlist host, menolak IP literal/localhost, dan memvalidasi setiap redirect (`server/lib/server-fetch-guard.ts`) — menutup SSRF ke loopback/internal
+- `gdrive`: `/api/gdrive/stream/:fileId` dan `/api/gdrive/media-url` hanya melayani fileId yang dirujuk konten publik; `folder-contents` memvalidasi bentuk folderId
+- `chat`: cookie sesi tamu bertanda tangan HMAC (`<uuid>.<hmac>`); `POST /api/chat/message` menolak request tanpa sesi sah atau sesi staf
+- `chat`: anggaran harian LLM per IP (default 40) dan global (default 2000) — `429 LLM_DAILY_QUOTA_EXCEEDED`
+- `auth`: `request-otp` lupa password selalu membalas 200 dengan pesan generik (anti-enumerasi email)
+- `otp`: hash OTP memakai HMAC-SHA256 berpepper; generator memakai `crypto.randomInt` (bebas bias modular)
+- `api-protection`: allowlist rute publik memakai aturan exact/prefix/pattern, bukan `startsWith` longgar
+
+### Removed
+- `/api/test/protection` tidak lagi didaftarkan di produksi
+
+## [4.64.1] - 2026-11-16
+
+### Docs
+- SOP 13: alur publikasi berita, galeri, event, dan teks WhatsApp grup/status. Detail: [release/4.64.1.md](../release/4.64.1.md).
+
 ## [4.64.0] - 2026-11-05
 
 ### Added
