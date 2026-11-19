@@ -45,6 +45,7 @@ Setiap kali merencanakan atau mengimplementasikan fitur, **WAJIB** baca:
 15. `docs/api/endpoints.md` — Cek endpoint yang sudah didefinisikan
 16. `docs/todo/master-todo.md` — Cek progress saat ini
 17. `docs/version/versions.md` — Versi Current + policy bump per unit kerja
+18. `docs/SOP/13-publikasi-berita-dan-broadcast.md` — Alur berita, galeri, event, dan teks WA grup/status
 
 ### Skills Lokal yang Tersedia
 
@@ -393,4 +394,4 @@ Pakai graph **dulu jika MCP available**. Fall back ke Grep/Glob/Read jika server
 
 ---
 
-*Terakhir diperbarui: 2026-10-03 · Current app version: `4.41.1` — lihat `docs/version/versions.md`*
+*Terakhir diperbarui: 2026-11-16 · Current app version: `4.64.1` — lihat `docs/version/versions.md`*

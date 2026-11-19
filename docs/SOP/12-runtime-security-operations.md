@@ -139,3 +139,44 @@ ClamAV tidak mendeteksi ancaman yang relevan (SVG/XSS/XXE/penyamaran ekstensi bu
 2. **Klien, saat render:** `client/src/lib/safe-html.ts` (`safeHtml`, DOMPurify). SEMUA `dangerouslySetInnerHTML` untuk konten CMS wajib memakainya; ini juga melindungi konten lama yang sudah tersimpan.
 3. Field baru berisi HTML: tambahkan kuncinya ke `CMS_HTML_KEYS` dan bungkus render dengan `safeHtml`. Menambah tag/atribut: ubah `ALLOWED_TAGS`/`allowedAttributes` di kedua tempat dan uji dengan korpus payload (komentar XSS 3 Juli 2026 pernah tersimpan di DB sebagai teks; tidak dieksekusi karena komentar dirender sebagai teks React).
 4. Tetap jangan melonggarkan CSP (`script-src-attr 'none'`). `stripUnsafeHtml` (penelusur atribut) tetap berlaku untuk semua string lain.
+
+## Guard fetch sisi server (anti-SSRF)
+
+Setiap endpoint yang mengambil URL milik pengguna **wajib** memakai `server/lib/server-fetch-guard.ts`, bukan `fetch()` langsung.
+
+- `guardServerFetchUrl(raw)` — hanya `http`/`https`; menolak IP literal (`127.0.0.1`, `127.1`, `[::1]`, `0x7f000001`), menolak hostname tanpa titik (`localhost`, nama service internal), dan mewajibkan host ada di allowlist.
+- `safeServerFetch(url, opts)` — `redirect: 'manual'` dan memvalidasi `Location` setiap hop (default maks 3). Jangan pernah memakai `redirect: 'follow'`: redirect ke IP internal akan lolos meski host awal sah.
+- Allowlist default: `drive.google.com`, `docs.google.com`, `drive.usercontent.google.com`, `informatika.uin-malang.ac.id`, `uin-malang.ac.id`, `www.uin-malang.ac.id`, `himatif-encoder.com`, `www.himatif-encoder.com`. Perluas lewat `SERVER_FETCH_ALLOWED_HOSTS` (koma), bukan dengan mengubah kode.
+- Pemakaian saat ini: `GET /api/prodi/preview`.
+
+## Proxy Google Drive (service account)
+
+`getDriveAccessToken()` memakai kuota pemilik. Endpoint proxy **tidak boleh** melayani `fileId` arbitrer.
+
+- `isDriveFileIdReferencedByPublicContent(models, fileId)` (`server/event-attachments.ts`) memeriksa berita/event published dan koleksi library.
+- `GET /api/gdrive/stream/:fileId` → 404 bila tidak dirujuk konten publik.
+- `POST /api/gdrive/media-url` memakai `authenticateOptional`; tamu dibatasi pemeriksaan yang sama, staf login bebas untuk dashboard.
+- `POST /api/gdrive/folder-contents` memvalidasi bentuk `folderId` (`^[A-Za-z0-9_-]{10,}$`).
+- Tambah sumber konten baru? Tambahkan koleksinya ke fungsi pemeriksa, jangan melonggarkan endpoint.
+
+## Sesi chat publik + anggaran LLM
+
+- Cookie `userId` untuk chat adalah `<uuid>.<hmac-sha256>` dengan `CHAT_SESSION_SECRET` (fallback turunan `JWT_SECRET`). HttpOnly, SameSite=Lax, Secure di produksi, TTL 24 jam.
+- Hanya nilai bertanda tangan yang diterima (`readChatSessionUserId`). `GET /api/chat/all`, `POST /api/chat/new`, `GET /api/chat/history` menerbitkan cookie.
+- `POST /api/chat/message` wajib sesi tamu bertanda tangan **atau** sesi staf (`authToken`), selain itu `403 CHAT_SESSION_REQUIRED`.
+- `server/middleware/llm-budget.ts`: `LLM_DAILY_PER_IP` (default 40) dan `LLM_DAILY_GLOBAL` (default 2000), reset tengah malam WIB, selalu aktif. Balasan `429 LLM_DAILY_QUOTA_EXCEEDED`.
+- Gerbang `Origin`/`Sec-Fetch-Site` tetap ada sebagai lapis kedua, **bukan** sebagai satu-satunya kontrol: header itu ditulis klien.
+
+## Role hierarchy & proteksi owner
+
+- Sumber kebenaran level: dokumen `Role` (koleksi roles) lewat `buildRoleLevelMap(storage)`; peta bawaan hanya cadangan.
+- `assertTopRoleImmutable(targetRole, nextRole?, rolesByLevel)` menolak perubahan yang menyentuh level tertinggi (`owner` / level 1).
+- Berlaku di `PUT /api/users/:id/role` (dua jalur), `PUT /api/roles/:id`.
+- Admin dan jabatan lain tetap dapat menurunkan jabatan di bawahnya lewat halaman Profil; hanya level tertinggi yang dikunci.
+
+## OTP: pepper & generator
+
+- `hashCode()` = `HMAC-SHA256(OTP_PEPPER, code)`; fallback `otp:<GUEST_KEY_PEPPER>`.
+- `generateOtpCode()` = `crypto.randomInt(0, 10)` per digit (hindari bias `randomBytes % 10`).
+- Mengganti pepper membuat OTP yang sedang berjalan tidak valid (TTL 10 menit).
+- `POST /api/auth/forgot-password/request-otp` selalu 200 dengan pesan generik (anti-enumerasi). Jangan mengembalikan status berbeda per kondisi akun.

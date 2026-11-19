@@ -12,7 +12,12 @@ import {
 	authenticate,
 	authenticateOptional,
 	authorize,
+	assertTopRoleImmutable,
+	buildRoleLevelMap,
 	canManageRole,
+	isTopRole,
+	roleLevelOf,
+	TOP_ROLE_LEVEL,
 	createSessionRecord,
 	generateToken,
 	mainOnly,
@@ -23,6 +28,7 @@ import { invokeBannerRender } from './banner-render-invoke';
 import { DEFAULT_MEMBER_IMAGE_PATH } from './constants/default-image';
 import { gdriveProxyRateLimiter } from './middleware/public-rate-limit';
 import {
+	isDriveFileIdReferencedByPublicContent,
 	normalizeBeritaAttachmentArray,
 	normalizeEventAttachmentArray,
 } from './event-attachments';
@@ -32,6 +38,7 @@ import {
 	writePublicJsonCache,
 } from './lib/public-json-cache';
 import { ShortJsonCache } from './lib/short-cache';
+import { guardServerFetchUrl, safeServerFetch } from './lib/server-fetch-guard';
 import {
 	attachLibraryDisplayFields,
 	removeLibraryFromAllRelations,
@@ -1058,6 +1065,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			}
 
 			try {
+				// Service account memakai kuota pemilik: hanya izinkan fileId yang
+				// benar-benar direferensikan konten publik (tenant-aware).
+				const driveModels: any = resolveModels(req);
+				const referenced = await isDriveFileIdReferencedByPublicContent(
+					{
+						Berita: driveModels?.Berita,
+						Event: driveModels?.Event,
+						Library: driveModels?.Library,
+					},
+					fileId,
+				);
+				if (!referenced) {
+					console.warn(
+						`[gdrive-stream] fileId tidak direferensikan konten publik: ${fileId}`,
+					);
+					return res.status(404).end();
+				}
+
 				const { getDriveAccessToken } = await import('./googleDrive');
 				const token = await getDriveAccessToken();
 
@@ -1099,7 +1124,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		},
 	);
 
-	app.post('/api/gdrive/media-url', gdriveProxyRateLimiter, async (req, res) => {
+	app.post(
+		'/api/gdrive/media-url',
+		gdriveProxyRateLimiter,
+		authenticateOptional,
+		async (req, res) => {
 		try {
 			const { fileId, url, mediaType: userSpecifiedType } = req.body;
 
@@ -1124,6 +1153,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 			if (!actualFileId) {
 				return res.status(400).json({ message: 'Could not extract file ID' });
+			}
+
+			// Service account Drive dipakai untuk melayani konten publik, jadi
+			// fileId yang boleh diproses hanya yang direferensikan konten publik
+			// (tenant-aware), ATAU pemanggilnya staf yang sudah login.
+			if (!(req as any).user) {
+				const mediaModels: any = resolveModels(req);
+				const allowed = await isDriveFileIdReferencedByPublicContent(
+					{
+						Berita: mediaModels?.Berita,
+						Event: mediaModels?.Event,
+						Library: mediaModels?.Library,
+					},
+					String(actualFileId),
+				);
+				if (!allowed) {
+					console.warn(
+						`[gdrive-media-url] fileId tidak direferensikan konten publik: ${actualFileId}`,
+					);
+					return res
+						.status(404)
+						.json({ message: 'File tidak ditemukan pada konten publik' });
+				}
 			}
 
 			// Use the new folder detection function
@@ -2081,6 +2133,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	}
 
 	// --- Forgot password (no auth required) ---
+	// Anti-enumerasi: SEMUA hasil (email tidak ada, email dipakai >1 akun, email valid,
+	// kena rate limit per-email) dibalas dengan status + pesan yang sama. Tanpa ini,
+	// penyerang bisa memetakan email mana yang terdaftar hanya dari kode status.
+	const FORGOT_PASSWORD_GENERIC_MESSAGE =
+		'Jika email tersebut terdaftar, kode OTP telah dikirim. Periksa kotak masuk Anda.';
+
 	app.post('/api/auth/forgot-password/request-otp', async (req, res) => {
 		try {
 			const { email } = req.body;
@@ -2094,30 +2152,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			})
 				.limit(2)
 				.lean()) as any[];
-			if (!matches.length) {
-				return res
-					.status(404)
-					.json({ message: 'Tidak ada email yang tersedia' });
-			}
-			// Email bersama (dipakai >1 akun) tidak boleh dipakai reset: akun mana yang direset tidak pasti
-			if (matches.length > 1) {
-				return res.status(409).json({
-					message: 'Email ini dipakai lebih dari satu akun. Hubungi admin untuk reset password.',
-					error: { code: 'EMAIL_SHARED_BY_MULTIPLE_ACCOUNTS' },
-				});
+
+			// Tidak ada akun ATAU email dipakai >1 akun: jangan kirim OTP,
+			// tapi jawab tetap 200 generik supaya keberadaan akun tidak bocor.
+			if (!matches.length || matches.length > 1) {
+				return res.json({ message: FORGOT_PASSWORD_GENERIC_MESSAGE });
 			}
 			const user = matches[0];
 
-			const { challengeId } = await createOtpChallenge({
-				purpose: 'forgot_password',
-				email: user.email,
-				userId: user._id.toString(),
-				ttlMinutes: 10,
-				requestIp: getRequestIp(req),
-				username: user.username,
-			});
+			// Rate limit per email/IP tetap berlaku; jangan bocorkan lewat status berbeda.
+			try {
+				await createOtpChallenge({
+					purpose: 'forgot_password',
+					email: user.email,
+					userId: user._id.toString(),
+					ttlMinutes: 10,
+					requestIp: getRequestIp(req),
+					username: user.username,
+				});
+			} catch (otpError: any) {
+				if (!(otpError instanceof RateLimitError)) throw otpError;
+				// Rate limit → tetap 200 generik; klien tidak boleh tahu bedanya.
+				console.warn(
+					`[forgot-password] OTP rate limited untuk ${user.email}: ${otpError.message}`,
+				);
+			}
 
-			res.json({ message: 'Kode OTP telah dikirim ke email.', challengeId });
+			res.json({ message: FORGOT_PASSWORD_GENERIC_MESSAGE });
 		} catch (error: any) {
 			if (error instanceof RateLimitError) {
 				return res.status(429).json({
@@ -2596,6 +2657,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				const existingUser = await storage.getUserById(userId);
 				if (!existingUser) {
 					return res.status(404).json({ message: 'User not found' });
+				}
+
+				if (role) {
+					const rolesByLevel = await buildRoleLevelMap(storage);
+					const requesterRole = (req.user as UserWithRole)?.role || '';
+
+					// Role paling atas (owner) tidak boleh disentuh siapa pun,
+					// termasuk oleh pemiliknya sendiri.
+					const immutable = assertTopRoleImmutable(existingUser.role, role, rolesByLevel);
+					if (!immutable.ok) {
+						return res.status(403).json({ message: immutable.message });
+					}
+
+					// Hierarki: hanya boleh mengubah role yang lebih rendah dari
+					// role pengubah. Level sama tidak boleh saling mengubah.
+					if (!canManageRole(requesterRole, existingUser.role, rolesByLevel)) {
+						return res.status(403).json({
+							message: 'Anda tidak berwenang mengubah role pengguna ini',
+						});
+					}
+					if (!canManageRole(requesterRole, role, rolesByLevel)) {
+						return res.status(403).json({
+							message: 'Anda tidak berwenang memberikan role tersebut',
+						});
+					}
 				}
 
 				const updateData: any = {};
@@ -6488,29 +6574,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			if (!rawUrl) {
 				return res.status(400).json({ message: 'Parameter url wajib diisi' });
 			}
-			let parsed: URL;
-			try {
-				parsed = new URL(rawUrl);
-			} catch {
-				return res.status(400).json({ message: 'URL tidak valid' });
-			}
-			if (!['http:', 'https:'].includes(parsed.protocol)) {
-				return res
-					.status(400)
-					.json({ message: 'Hanya URL http/https yang didukung' });
+
+			// SSRF guard: allowlist host, tolak IP literal, redirect divalidasi per hop.
+			const guard = guardServerFetchUrl(rawUrl);
+			if (!guard.ok) {
+				return res.status(guard.status).json({ message: guard.message });
 			}
 
 			const controller = new AbortController();
 			const timeout = setTimeout(() => controller.abort(), 15000);
 
 			try {
-				const upstream = await fetch(parsed.toString(), {
-					redirect: 'follow',
+				const upstream = await safeServerFetch(guard.url.toString(), {
 					signal: controller.signal,
-					headers: {
-						'User-Agent': 'HMPS-Prodi-Preview/1.0',
-						Accept: '*/*',
-					},
+					userAgent: 'HMPS-Prodi-Preview/1.0',
 				});
 
 				if (!upstream.ok) {
@@ -8890,6 +8967,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				}
 			}
 
+			// folderId yang dikirim langsung klien wajib berbentuk id Drive.
+			// Tanpa validasi ini nilainya diteruskan apa adanya ke Google API.
+			if (typeof targetFolderId === 'string' && targetFolderId.trim()) {
+				const trimmed = targetFolderId.trim();
+				if (!/^[A-Za-z0-9_-]{10,}$/.test(trimmed)) {
+					console.warn(
+						`[gdrive-folder] folderId tidak valid: ${trimmed.slice(0, 40)}`,
+					);
+					return res.status(400).json({ message: 'folderId tidak valid' });
+				}
+				targetFolderId = trimmed;
+			}
+
 			const contents = await getFolderContents(targetFolderId);
 
 			res.json({
@@ -8904,12 +8994,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		}
 	});
 
-	// Test route untuk API protection
-	app.get('/api/test/protection', (req, res) => {
-		res.json({
-			message: 'This route should be protected by API protection middleware',
+	// Test route untuk API protection — hanya di luar produksi (tidak boleh
+	// memberi tahu klien aturan middleware internal; lihat SOP 12 §2).
+	if (process.env.NODE_ENV !== 'production') {
+		app.get('/api/test/protection', (req, res) => {
+			res.json({
+				message: 'This route should be protected by API protection middleware',
+			});
 		});
-	});
+	}
 
 	app.use('/api/chat', chatRouter);
 	// Akun pembeli toko (terpisah dari akun staf)
@@ -9143,6 +9236,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res
 						.status(404)
 						.json({ message: 'Current user role not found' });
+				}
+
+				const rolesByLevel = await buildRoleLevelMap(roleStorage);
+				const allRoles = (await roleStorage.getAllRoles()) as any[];
+				const targetRoleDoc = allRoles.find(
+					(r: any) => String(r?._id || r?.id) === String(id),
+				);
+				if (!targetRoleDoc) {
+					return res.status(404).json({ message: 'Role not found' });
+				}
+
+				// Role paling atas (owner) tidak boleh diedit levelnya/diturunkan.
+				if (isTopRole(targetRoleDoc.name, rolesByLevel)) {
+					return res.status(403).json({
+						message:
+							'Role pemilik (owner / level tertinggi) tidak dapat diubah, termasuk oleh pemiliknya sendiri.',
+					});
+				}
+				// Role kustom yang sedang mencapai level tertinggi juga dilindungi.
+				if (
+					typeof targetRoleDoc.level === 'number' &&
+					targetRoleDoc.level <= TOP_ROLE_LEVEL
+				) {
+					return res.status(403).json({
+						message:
+							'Role pada level tertinggi tidak dapat diubah. Hanya boleh ada satu pemilik.',
+					});
+				}
+
+				// Tidak boleh menaikkan level role ke level milik sendiri atau di atasnya,
+				// dan tidak boleh mengedit role yang levelnya lebih tinggi/sama dengan milik sendiri.
+				const requesterLevel = roleLevelOf((req.user as UserWithRole)?.role || '', rolesByLevel);
+				if (typeof targetRoleDoc.level === 'number' && targetRoleDoc.level <= requesterLevel) {
+					return res.status(403).json({
+						message: 'Anda hanya dapat mengedit role di bawah level Anda',
+					});
+				}
+				if (typeof level === 'number' && level <= requesterLevel) {
+					return res.status(403).json({
+						message: 'Anda tidak dapat menaikkan role ke level Anda atau di atasnya',
+					});
 				}
 
 				const updateData: any = {
@@ -9519,14 +9653,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					return res.status(400).json({ message: 'Role is required' });
 				}
 
-				// Check if user can assign this role
-				if (!canManageRole((req.user as UserWithRole)?.role || '', role)) {
+				const storage = resolveStorage(req);
+				const rolesByLevel = await buildRoleLevelMap(storage);
+				const requesterRole = (req.user as UserWithRole)?.role || '';
+
+				const targetUser = await storage.getUserById(id);
+				if (!targetUser) {
+					return res.status(404).json({ message: 'User not found' });
+				}
+
+				// Role paling atas (owner) tidak boleh diubah/diturunkan siapa pun,
+				// termasuk oleh pemiliknya sendiri lewat halaman Profil.
+				const immutable = assertTopRoleImmutable(targetUser.role, role, rolesByLevel);
+				if (!immutable.ok) {
+					return res.status(403).json({ message: immutable.message });
+				}
+
+				// Cek hierarki dua arah: boleh mengubah target, dan boleh memberikan role baru.
+				if (!canManageRole(requesterRole, targetUser.role, rolesByLevel)) {
+					return res.status(403).json({
+						message: 'Anda tidak berwenang mengubah role pengguna ini',
+					});
+				}
+				if (!canManageRole(requesterRole, role, rolesByLevel)) {
 					return res
 						.status(403)
 						.json({ message: 'You cannot assign this role' });
 				}
 
-				const user = await resolveStorage(req).updateUser(id, { role });
+				const user = await storage.updateUser(id, { role });
 				if (!user) {
 					return res.status(404).json({ message: 'User not found' });
 				}
