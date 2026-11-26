@@ -129,6 +129,11 @@ const ALLOWED_API_ROUTE_RULES: AllowedRouteRule[] = [
 	{ kind: 'prefix', value: '/api/store/payment-preview' },
 	{ kind: 'prefix', value: '/api/buyer' },
 
+	// Karya Mahasiswa TI (akun mahasiswa via cookie sendiri; /api/karya/admin TIDAK di sini)
+	{ kind: 'prefix', value: '/api/karya/auth' },
+	{ kind: 'prefix', value: '/api/karya/public' },
+	{ kind: 'prefix', value: '/api/karya/me' },
+
 	// Registrasi komunitas
 	{ kind: 'exact', value: '/api/register/validate-code' },
 	{ kind: 'exact', value: '/api/register/community' },

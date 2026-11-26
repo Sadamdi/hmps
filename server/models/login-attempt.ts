@@ -16,7 +16,7 @@ export interface ILoginAttempt {
 		| 'success';
 	userId?: Types.ObjectId;
 	/** Pintu masuk: pengurus (default) atau pembeli toko */
-	scope?: 'staff' | 'buyer';
+	scope?: 'staff' | 'buyer' | 'student';
 }
 
 /** Retensi log login: 90 hari (cukup untuk investigasi insiden; ukuran kecil ~150 byte/baris). */
@@ -64,7 +64,7 @@ const loginAttemptSchema = new Schema<ILoginAttempt>(
 		},
 		scope: {
 			type: String,
-			enum: ['staff', 'buyer'],
+			enum: ['staff', 'buyer', 'student'],
 			default: 'staff',
 		},
 	},
@@ -111,7 +111,7 @@ export async function logLoginAttempt(event: {
 	success: boolean;
 	reason: ILoginAttempt['reason'];
 	userId?: Types.ObjectId | string;
-	scope?: 'staff' | 'buyer';
+	scope?: 'staff' | 'buyer' | 'student';
 }): Promise<void> {
 	try {
 		void syncRetention();

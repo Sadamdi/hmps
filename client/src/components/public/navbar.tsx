@@ -19,6 +19,7 @@ import { useApiUrl, useTenant } from '@/lib/tenant-context';
 import { useTheme } from '@/lib/theme';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+	Code2,
 	Bell,
 	BellOff,
 	BellRing,
@@ -638,6 +639,20 @@ export default function Navbar({
 			});
 		}
 
+		// Karya Mahasiswa TI (situs utama saja)
+		if (!isTenant) {
+			navItemMap.set('karya', {
+				id: 'karya',
+				label: 'Karya TI',
+				icon: <Code2 className="h-4 w-4" />,
+				homeSection: 'karya',
+				children: [
+					{ label: 'Lihat semua karya', href: '/karya' },
+					{ label: 'Masuk mahasiswa TI', href: '/karya/masuk' },
+				],
+			});
+		}
+
 		// Komunitas: situs utama = daftar komunitas; situs tenant = beranda Himatif dulu, lalu komunitas lain (+ aktif)
 		const communityList = Array.isArray(communities)
 			? (communities as any[])
@@ -706,7 +721,11 @@ export default function Navbar({
 						'komunitas',
 					];
 		if (isTenant) {
-			orderedIds = orderedIds.filter((id) => id !== 'prodi');
+			orderedIds = orderedIds.filter((id) => id !== 'prodi' && id !== 'karya');
+		} else if (!orderedIds.includes('karya')) {
+			// Konfigurasi navbar lama belum punya item "Karya TI": tampilkan setelah Toko (bisa disembunyikan di Settings Beranda)
+			const at = orderedIds.indexOf('toko');
+			orderedIds = at >= 0 ? [...orderedIds.slice(0, at + 1), 'karya', ...orderedIds.slice(at + 1)] : [...orderedIds, 'karya'];
 		}
 
 		const result: NavItem[] = [];
@@ -1117,6 +1136,13 @@ export default function Navbar({
 
 			if (itemId === 'toko') {
 				if (isVisible('toko', 'section')) return 'toko';
+				return null;
+			}
+
+			if (itemId === 'karya') {
+				// Blok karya otomatis ada di beranda bila belum dikonfigurasi
+				const b = visibleBlocks.find((x) => x.id === 'karya' && x.kind === 'section');
+				if (!b || b.visible) return 'karya';
 				return null;
 			}
 

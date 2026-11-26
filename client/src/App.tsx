@@ -37,6 +37,13 @@ const DashboardKelembagaan = lazy(() => import('@/pages/dashboard/kelembagaan'))
 const DashboardProdi = lazy(() => import('@/pages/dashboard/prodi'));
 const DashboardEvents = lazy(() => import('@/pages/dashboard/events'));
 const DashboardFeedback = lazy(() => import('@/pages/dashboard/feedback'));
+const DashboardKarya = lazy(() => import('@/pages/dashboard/karya'));
+const KaryaIndexPage = lazy(() => import('@/pages/karya/index'));
+const KaryaDetailPage = lazy(() => import('@/pages/karya/[slug]'));
+const KaryaStudentPage = lazy(() => import('@/pages/karya/mahasiswa/[username]'));
+const KaryaLoginPage = lazy(() => import('@/pages/karya/masuk'));
+const KaryaDashboardPage = lazy(() => import('@/pages/karya/saya'));
+const KaryaEditorPage = lazy(() => import('@/pages/karya/editor'));
 const DashboardRegistration = lazy(() => import('@/pages/dashboard/registration'));
 const RegisterPage = lazy(() => import('@/pages/register'));
 const CommunityShell = lazy(() => import('@/pages/community/index'));
@@ -199,6 +206,15 @@ function Router() {
 				<Route path="/toko/akun" component={TokoBuyerAccountPage} />
 				<Route path="/toko/:slug" component={TokoProductPage} />
 				<Route path="/toko" component={TokoIndexPage} />
+				{/* Karya Mahasiswa TI (akun mahasiswa terpisah) */}
+				<Route path="/karya/masuk" component={KaryaLoginPage} />
+				<Route path="/karya/daftar" component={KaryaLoginPage} />
+				<Route path="/karya/saya/baru" component={KaryaEditorPage} />
+				<Route path="/karya/saya/edit/:id" component={KaryaEditorPage} />
+				<Route path="/karya/saya" component={KaryaDashboardPage} />
+				<Route path="/karya/mahasiswa/:username" component={KaryaStudentPage} />
+				<Route path="/karya/:slug" component={KaryaDetailPage} />
+				<Route path="/karya" component={KaryaIndexPage} />
 				{storeBasePath !== '/toko' && (
 					<>
 						<Route path={`${storeBasePath}/cart`} component={TokoCartPage} />
@@ -280,6 +296,13 @@ function Router() {
 			{() => (
 				<ProtectedRoute>
 					<DashboardEvents />
+				</ProtectedRoute>
+			)}
+		</Route>
+		<Route path="/dashboard/karya">
+			{() => (
+				<ProtectedRoute>
+					<DashboardKarya />
 				</ProtectedRoute>
 			)}
 		</Route>

@@ -509,6 +509,69 @@ POST /webpush/subscribe
 DELETE /webpush/unsubscribe
 ```
 
+
+## Karya Mahasiswa TI — `/api/karya`
+
+Akun mahasiswa terpisah dari akun staf dan pembeli (cookie `studentToken`, JWT `aud: student`). Hanya situs utama (tidak ada di `/api/c/:slug`).
+Pendaftaran mandiri: email `NIM@student.uin-malang.ac.id`, NIM 12 digit, kode prodi digit 3–6 = `0605` (TI, angkatan berapa pun; env `KARYA_PRODI_CODES`).
+
+```text
+# Auth mahasiswa (publik / cookie studentToken)
+GET    /api/karya/auth/config                    # publik: enabled, registrationOpen, reviewMode, uploadsEnabled, googleEnabled, limits, categories
+POST   /api/karya/auth/register                  # {name, email, password} → OTP; email non-TI → 403 NOT_TI_STUDENT
+POST   /api/karya/auth/register/verify           # {challengeId, code} → sesi
+POST   /api/karya/auth/login                     # {email, password}; STUDENT_BLOCKED / STUDENT_SUSPENDED / EMAIL_UNVERIFIED
+POST   /api/karya/auth/google                    # {idToken}; akun baru → {needsOnboarding, email, name}
+POST   /api/karya/auth/google/complete           # {idToken, name, password, confirmPassword}
+POST   /api/karya/auth/logout
+GET    /api/karya/auth/me                        # data.student | null
+POST   /api/karya/auth/password/otp              # {email} (jawaban generik)
+POST   /api/karya/auth/password/reset            # {challengeId, code, newPassword} → cabut semua sesi
+POST   /api/karya/auth/password/change           # mahasiswa: {currentPassword, newPassword}
+GET    /api/karya/auth/sessions                  # mahasiswa
+DELETE /api/karya/auth/sessions/:id
+POST   /api/karya/auth/sessions/revoke-others
+POST   /api/karya/auth/delete/otp                # mahasiswa
+POST   /api/karya/auth/delete                    # {challengeId, code} → hapus akun + karya + file + shortlink
+
+# Profil & karya milik sendiri (mahasiswa)
+PATCH  /api/karya/me/profile                     # name, username, headline, bio, skills[], social{github,gitlab,linkedin,instagram,website,cv}, profilePublic
+POST   /api/karya/me/avatar                      # multipart file (gambar ≤5 MB → WebP 400px)
+GET    /api/karya/me/projects
+POST   /api/karya/me/projects                    # title, summary, description, role, category, tags, year, repoUrls[], links[], related[], visibility, action=draft|submit
+GET    /api/karya/me/projects/:id
+PATCH  /api/karya/me/projects/:id                # + coverMediaId, mediaCaptions
+DELETE /api/karya/me/projects/:id
+POST   /api/karya/me/projects/:id/media          # multipart file: gambar ≤5 MB (maks 8) / video ≤30 MB (maks 1); kuota 100 MB per mahasiswa
+DELETE /api/karya/me/projects/:id/media/:mediaId
+POST   /api/karya/me/repo-preview                # {url} GitHub/GitLab/Bitbucket publik
+GET    /api/karya/me/stats
+GET    /api/karya/me/shortlinks
+POST   /api/karya/me/shortlinks                  # {slug, targetUrl https}
+DELETE /api/karya/me/shortlinks/:id
+
+# Publik
+GET    /api/karya/public/projects                # ?q&tag&category&angkatan&sort=latest|popular&page&limit≤48 → data + meta
+GET    /api/karya/public/tags
+GET    /api/karya/public/projects/:slug          # 404 bila privat/belum disetujui/disembunyikan/akun nonaktif
+GET    /api/karya/public/students/:username      # 404 bila profil privat atau belum ada karya tayang
+
+# Admin (pengurus: karya.view / karya.manage — owner, chair, vice_chair, medinfo + divisi Medinfo)
+GET    /api/karya/admin/overview
+GET    /api/karya/admin/projects                 # ?status&q&page
+POST   /api/karya/admin/projects/:id/review      # {action: approve|revision|hide|unhide|feature|unfeature, note}
+DELETE /api/karya/admin/projects/:id
+GET    /api/karya/admin/students                 # ?q&status=active|suspended|blocked|pending
+POST   /api/karya/admin/students                 # {email, name, allowNonUin?}
+POST   /api/karya/admin/students/:id/moderate    # {action: suspend|unsuspend|block|unblock|logout, days?, reason?}
+DELETE /api/karya/admin/students/:id
+GET    /api/karya/admin/shortlinks               # ?status
+POST   /api/karya/admin/shortlinks/:id           # {action: approve|enable|disable}
+DELETE /api/karya/admin/shortlinks/:id
+GET    /api/karya/admin/settings
+PATCH  /api/karya/admin/settings                 # {enabled, registrationOpen, reviewMode, shortlinkReview, uploadsEnabled}
+```
+
 ## Ops
 
 ```text
@@ -536,6 +599,11 @@ GET /library
 GET /library/:id
 GET /toko
 GET /toko/:slug
+GET /karya                       # SPA daftar karya
+GET /karya/:slug                 # SSR meta + JSON-LD CreativeWork; privat/tidak ada → noindex
+GET /karya/mahasiswa/:username   # SSR meta + JSON-LD ProfilePage; tidak publik → noindex
+GET /karya/masuk|daftar|saya     # noindex
+GET /go/:slug                    # shortlink mahasiswa → 302 (aktif saja), X-Robots-Tag noindex
 GET /profil
 GET /kelembagaan
 GET /prodi
@@ -556,4 +624,4 @@ Sitemap helper: `server/services/seo-sitemap.ts` (image/video namespaces for Goo
 
 ---
 
-*Terakhir diperbarui: 2026-08-12*
+*Terakhir diperbarui: 2026-11-26*
