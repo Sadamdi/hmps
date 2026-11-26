@@ -819,6 +819,10 @@ const otpChallengeSchema = new mongoose.Schema({
 	verifiedAt: { type: Date, default: null },
 	resetTokenHash: { type: String, default: null },
 	resetTokenExpiresAt: { type: Date, default: null },
+	/** HMAC token link verifikasi (token mentah hanya ada di email). Kode & link satu challenge: pakai salah satu → keduanya hangus. */
+	linkTokenHash: { type: String, default: null },
+	/** Password baru (bcrypt) yang baru dipasang setelah OTP/link dikonfirmasi (ganti password). */
+	pendingPasswordHash: { type: String, default: null },
 	expiresAt: { type: Date, required: true },
 	createdAt: { type: Date, default: Date.now },
 });

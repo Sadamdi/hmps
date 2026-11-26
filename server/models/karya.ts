@@ -28,6 +28,8 @@ const studentSchema = new Schema(
 		nim: { type: String, default: '' },
 		/** Handle publik unik untuk URL profil /karya/mahasiswa/:username */
 		username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+		/** Username lama (setelah diganti) → dialihkan 301 ke username sekarang agar link lama tidak putus */
+		previousUsernames: { type: [String], default: [], index: true },
 		passwordHash: { type: String, default: '' },
 		googleSub: { type: String, default: undefined },
 		name: { type: String, default: '' },
@@ -94,7 +96,7 @@ const linkSchema = new Schema(
 
 const repoSchema = new Schema(
 	{
-		host: { type: String, enum: ['github', 'gitlab', 'bitbucket'] },
+		host: { type: String, enum: ['github', 'gitlab', 'bitbucket', 'codeberg'] },
 		owner: String,
 		name: String,
 		url: String,
@@ -104,6 +106,8 @@ const repoSchema = new Schema(
 		forks: Number,
 		language: String,
 		topics: [String],
+		license: String,
+		ogImage: String,
 		updatedAt: Date,
 		fetchedAt: Date,
 	},
@@ -137,6 +141,8 @@ const projectSchema = new Schema(
 		title: { type: String, required: true },
 		summary: { type: String, default: '' },
 		description: { type: String, default: '' },
+		/** text = teks biasa (lama); html = rich text yang sudah disanitasi server */
+		descriptionFormat: { type: String, enum: ['text', 'html'], default: 'text' },
 		role: { type: String, default: '' },
 		category: { type: String, default: 'lainnya' },
 		tags: { type: [String], default: [], index: true },

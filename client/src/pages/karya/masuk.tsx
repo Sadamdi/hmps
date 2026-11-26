@@ -113,10 +113,12 @@ export default function KaryaLoginPage() {
 			if (!precheckEmail(email)) return;
 			if (password !== confirm) return setError('Konfirmasi password tidak sama');
 			return run(async () => {
-				const r = await karyaApi<{ challengeId: string }>('POST', '/auth/register', { name, email, password });
-				setChallengeId(r.challengeId);
-				setCode('');
-				setMode('verify');
+				// Akun langsung aktif & masuk; email aktivasi (kode + link, 24 jam) dikirim otomatis
+				const r = await karyaApi<{ activation?: { challengeId: string; expiresAt: string } }>('POST', '/auth/register', { name, email, password });
+				if (r?.activation) sessionStorage.setItem('karya-activation', JSON.stringify(r.activation));
+				refreshStudent();
+				toast({ title: 'Akun dibuat', description: 'Cek email kampusmu untuk aktivasi (kode atau link, berlaku 24 jam). Sebelum aktivasi, karya hanya bisa disimpan privat.' });
+				navigate(next);
 			});
 		}
 		if (mode === 'verify') {
@@ -152,9 +154,9 @@ export default function KaryaLoginPage() {
 
 	const titles: Record<Mode, { t: string; d: string }> = {
 		login: { t: 'Masuk mahasiswa TI', d: 'Kelola profil, karya, dan shortlink kamu.' },
-		register: { t: 'Daftar akun mahasiswa TI', d: `Khusus email kampus NIM@${KARYA_STUDENT_EMAIL_DOMAIN}.` },
+		register: { t: 'Daftar akun mahasiswa TI', d: `Khusus email kampus NIM@${KARYA_STUDENT_EMAIL_DOMAIN}. Setelah daftar, aktivasi lewat email untuk mempublikasikan karya.` },
 		verify: { t: 'Verifikasi email', d: `Masukkan kode 6 digit yang dikirim ke ${email}.` },
-		forgot: { t: 'Lupa / atur password', d: 'Kami kirim kode OTP ke email akunmu.' },
+		forgot: { t: 'Lupa / atur password', d: 'Kami kirim kode dan link sekali pakai ke email akunmu (berlaku 10 menit). Pakai salah satunya.' },
 		reset: { t: 'Password baru', d: `Masukkan kode dari email ${email} dan password baru.` },
 		onboard: { t: 'Lengkapi akun', d: 'Akun Google kamu cocok. Buat password untuk masuk tanpa Google juga.' },
 	};
@@ -203,6 +205,13 @@ export default function KaryaLoginPage() {
 								<AlertTriangle className="h-4 w-4" />
 								<AlertTitle>Fitur sedang dinonaktifkan</AlertTitle>
 								<AlertDescription>Karya Mahasiswa sedang ditutup sementara oleh administrator.</AlertDescription>
+							</Alert>
+						) : null}
+
+						{params.get('google') === '1' && mode === 'register' ? (
+							<Alert>
+								<AlertTitle>Email kampusmu belum punya akun Karya</AlertTitle>
+								<AlertDescription>Tekan "Daftar dengan Google kampus" untuk membuat akun (otomatis terverifikasi).</AlertDescription>
 							</Alert>
 						) : null}
 
@@ -285,7 +294,7 @@ export default function KaryaLoginPage() {
 
 							<Button type="submit" className="w-full h-11 bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90" disabled={busy || (mode === 'register' && registrationClosed) || config?.enabled === false}>
 								{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <LogIn className="mr-2 h-4 w-4" />}
-								{{ login: 'Masuk', register: 'Daftar & kirim kode', verify: 'Verifikasi', forgot: 'Kirim kode', reset: 'Simpan password', onboard: 'Buat akun' }[mode]}
+								{{ login: 'Masuk', register: 'Daftar', verify: 'Verifikasi', forgot: 'Kirim kode & link', reset: 'Simpan password', onboard: 'Buat akun' }[mode]}
 							</Button>
 						</form>
 

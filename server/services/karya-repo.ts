@@ -46,7 +46,7 @@ const safeHomepage = (v: unknown) => {
 
 export async function fetchPublicRepo(rawUrl: string): Promise<KaryaRepoInfo> {
 	const p = parseRepoUrl(rawUrl);
-	if (!p) throw new RepoFetchError('URL repo tidak valid. Pakai https://github.com/user/repo, gitlab.com, atau bitbucket.org.', 'REPO_URL_INVALID');
+	if (!p) throw new RepoFetchError('URL repo tidak valid. Pakai https://github.com/user/repo, gitlab.com, bitbucket.org, atau codeberg.org.', 'REPO_URL_INVALID');
 	const key = `${p.host}/${p.owner}/${p.name}`.toLowerCase();
 	const hit = cache.get(key);
 	if (hit && Date.now() - hit.at < TTL) return hit.data;
@@ -73,6 +73,8 @@ export async function fetchPublicRepo(rawUrl: string): Promise<KaryaRepoInfo> {
 				forks: Number(b.forks_count) || 0,
 				language: str(b.language, 50),
 				topics: Array.isArray(b.topics) ? b.topics.slice(0, 10).map((t: unknown) => str(t, 40)) : [],
+				license: str(b.license?.spdx_id && b.license.spdx_id !== 'NOASSERTION' ? b.license.spdx_id : '', 40),
+				ogImage: `https://opengraph.githubassets.com/1/${encodeURIComponent(str(b.owner?.login, 100))}/${encodeURIComponent(str(b.name, 100))}`,
 				updatedAt: b.pushed_at || b.updated_at || null,
 				fetchedAt: now,
 			};
@@ -92,7 +94,29 @@ export async function fetchPublicRepo(rawUrl: string): Promise<KaryaRepoInfo> {
 				forks: Number(b.forks_count) || 0,
 				language: '',
 				topics: Array.isArray(b.topics) ? b.topics.slice(0, 10).map((t: unknown) => str(t, 40)) : [],
+				ogImage: /^https:\/\//.test(String(b.avatar_url || '')) ? str(b.avatar_url, 300) : '',
 				updatedAt: b.last_activity_at || null,
+				fetchedAt: now,
+			};
+		} else if (p.host === 'codeberg') {
+			const r = await getJson(`https://codeberg.org/api/v1/repos/${encodeURIComponent(p.owner)}/${encodeURIComponent(p.name)}`);
+			if (r.status === 429) throw new RepoFetchError('Batas akses Codeberg sedang penuh. Coba lagi nanti.', 'REPO_RATE_LIMITED');
+			if (r.status !== 200 || !r.body || r.body.private || r.body.internal) throw notPublic;
+			const b = r.body;
+			info = {
+				host: 'codeberg',
+				owner: str(b.owner?.login || p.owner, 100),
+				name: str(b.name || p.name, 100),
+				url: `https://codeberg.org/${str(b.full_name || `${p.owner}/${p.name}`, 200)}`,
+				description: str(b.description, 500),
+				homepage: safeHomepage(b.website),
+				stars: Number(b.stars_count) || 0,
+				forks: Number(b.forks_count) || 0,
+				language: str(b.language, 50),
+				topics: Array.isArray(b.topics) ? b.topics.slice(0, 10).map((t: unknown) => str(t, 40)) : [],
+				license: Array.isArray(b.licenses) ? str(b.licenses[0] || '', 40) : '',
+				ogImage: /^https:\/\//.test(String(b.avatar_url || '')) ? str(b.avatar_url, 300) : '',
+				updatedAt: b.updated_at || null,
 				fetchedAt: now,
 			};
 		} else {

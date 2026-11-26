@@ -13,6 +13,8 @@ import { useAuth } from '@/lib/auth';
 import { useBuyer } from '@/hooks/use-buyer';
 import { setActiveRole, useActiveRole } from '@/lib/active-role';
 import { BuyerNavMenu, useSwitchToBuyer } from '@/components/public/buyer-nav-menu';
+import { StudentNavMenu } from '@/components/public/student-nav-menu';
+import { useStudent } from '@/hooks/use-karya';
 import { LinkStaffDialog } from '@/components/auth/link-staff-dialog';
 import { getGuestIdentity } from '@/lib/guest-identity';
 import { useApiUrl, useTenant } from '@/lib/tenant-context';
@@ -264,6 +266,8 @@ export default function Navbar({
 	const loginHref = '/login';
 	// Pembeli toko yang sedang masuk (akun terpisah dari pengurus): tombol Login berubah jadi nama akun
 	const { buyer } = useBuyer();
+	// Akun mahasiswa (Karya TI) — tidak dimuat di situs komunitas
+	const { student } = useStudent();
 	const switchToBuyerAccount = useSwitchToBuyer();
 	// Dua sesi aktif (pengurus + pembeli): kanan atas mengikuti peran yang sedang dipakai
 	const activeRole = useActiveRole();
@@ -648,7 +652,7 @@ export default function Navbar({
 				homeSection: 'karya',
 				children: [
 					{ label: 'Lihat semua karya', href: '/karya' },
-					{ label: 'Masuk mahasiswa TI', href: '/karya/masuk' },
+					{ label: 'Masuk / Ruang Mahasiswa', href: '/karya/saya' },
 				],
 			});
 		}
@@ -1678,6 +1682,8 @@ export default function Navbar({
 									</button>
 									{buyer ? (
 										<BuyerNavMenu variant="desktop" />
+									) : student && !isTenant ? (
+										<StudentNavMenu variant="desktop" />
 									) : (
 										<Link
 											href={loginHref}
@@ -2052,6 +2058,8 @@ export default function Navbar({
 												</button>
 												{buyer ? (
 													<BuyerNavMenu variant="icon" />
+												) : student && !isTenant ? (
+													<StudentNavMenu variant="icon" />
 												) : (
 													<Link
 														href={loginHref}

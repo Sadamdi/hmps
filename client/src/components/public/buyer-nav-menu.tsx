@@ -1,6 +1,7 @@
+import { useStudent } from '@/hooks/use-karya';
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { LogOut, Loader2, ShieldCheck, UserRound } from 'lucide-react';
+import { GraduationCap, LogOut, Loader2, ShieldCheck, UserRound } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { buyerApi, refreshBuyerQueries, switchToStaff, useBuyer, useStorePaths } from '@/hooks/use-buyer';
 import { useToast } from '@/hooks/use-toast';
@@ -15,6 +16,7 @@ import { apiErrorText } from '@/lib/queryClient';
  */
 export function BuyerNavMenu({ variant }: { variant: 'desktop' | 'icon' }) {
 	const { buyer } = useBuyer();
+	const { student } = useStudent();
 	const { user: staffUser } = useAuth();
 	const { accountHref } = useStorePaths();
 	const { toast } = useToast();
@@ -82,6 +84,14 @@ export function BuyerNavMenu({ variant }: { variant: 'desktop' | 'icon' }) {
 						Akun & pesanan saya
 					</Link>
 				</DropdownMenuItem>
+				{student ? (
+					<DropdownMenuItem asChild>
+						<Link href="/karya/saya" className="cursor-pointer">
+							<GraduationCap className="mr-2 h-4 w-4" />
+							Ruang Mahasiswa (Karya TI)
+						</Link>
+					</DropdownMenuItem>
+				) : null}
 				{(buyer.alsoStaff || !!staffUser) && (
 					<DropdownMenuItem onClick={toStaff} disabled={busy} className="cursor-pointer">
 						<ShieldCheck className="mr-2 h-4 w-4" />

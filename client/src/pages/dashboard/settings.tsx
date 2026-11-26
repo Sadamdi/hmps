@@ -118,6 +118,7 @@ import {
 	type HomeNavbarGroup,
 	type HomeNavbarItem,
 } from '../../../../shared/schema';
+import { useOtpLinkPrefill } from '@/lib/otp-link-prefill';
 
 interface SiteSettings {
 	siteName: string;
@@ -255,6 +256,9 @@ export default function SettingsPage() {
 	const [pwChallengeId, setPwChallengeId] = useState('');
 	const [pwOtpCode, setPwOtpCode] = useState('');
 	const [pwOtpLoading, setPwOtpLoading] = useState(false);
+	// Link verifikasi di email → kode terisi otomatis
+	useOtpLinkPrefill('change_password', pwChallengeId, setPwOtpCode);
+	useOtpLinkPrefill('restore_backup', restoreChallengeId, setRestoreOtpCode);
 
 	// Sessions polling (heartbeat) every 15s to trigger 401 handling automatically
 	useEffect(() => {

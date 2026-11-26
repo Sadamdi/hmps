@@ -24,6 +24,8 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
 	'toko',
 	'karya',
 	'go',
+	'verifikasi',
+	'daftar',
 	'dashboard',
 	'communities',
 	'sitemap.xml',

@@ -1,5 +1,5 @@
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
-import { UnifiedGoogleDialog, buyerGoogleLogin, identifyGoogle, type GoogleStep } from '@/components/auth/unified-google';
+import { UnifiedGoogleDialog, buyerGoogleLogin, identifyGoogle, passwordTargets, studentGoogleLogin, studentPasswordLogin, type GoogleStep } from '@/components/auth/unified-google';
 import { buyerApi, refreshBuyerQueries, useStorePaths } from '@/hooks/use-buyer';
 import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { Button } from '@/components/ui/button';
@@ -150,8 +150,25 @@ export default function LoginForm() {
 		setPendingGoogleToken(null);
 
 		try {
-			// Email → coba akun pembeli dulu (gagal = lanjut ke login pengurus); username → pengurus
+			// Email → cek akun mahasiswa/pembeli yang cocok (tanpa membuat sesi); username → pengurus
 			if (username.includes('@')) {
+				const email = username.trim();
+				let t = { student: false, buyer: false, studentEligible: false };
+				try {
+					t = await passwordTargets(email, password);
+				} catch (tErr: any) {
+					if (tErr?.status === 429) throw tErr;
+				}
+				if (t.student && t.buyer) {
+					// Lebih dari satu akun cocok → pilih tujuan (Pengurus tetap bisa dicoba dari dialog)
+					setGoogleStep({ kind: 'choose', idToken: '', email, name: '', roles: { staff: true, buyer: true, student: true } });
+					return;
+				}
+				if (t.student) {
+					await studentPasswordLogin(email, password);
+					goStudent();
+					return;
+				}
 				try {
 					const r = await buyerApi<{ claimedOrders?: number; alsoStaff?: boolean }>('POST', '/login', { email: username.trim(), password });
 					if (r?.alsoStaff) {
@@ -192,8 +209,14 @@ export default function LoginForm() {
 			const idToken = await getGoogleIdToken();
 			// Pintu tunggal: tentukan alur dari identitas Google
 			const who = await identifyGoogle(idToken);
-			if (who.isStaff && who.isBuyer) {
-				setGoogleStep({ kind: 'choose', idToken, email: who.email, name: who.name });
+			const roles = { staff: !!who.isStaff, buyer: !!who.isBuyer, student: !!who.isStudent };
+			const count = Number(roles.staff) + Number(roles.buyer) + Number(roles.student);
+			if (count > 1) {
+				setGoogleStep({ kind: 'choose', idToken, email: who.email, name: who.name, roles });
+				return;
+			}
+			if (roles.student || (!roles.staff && !roles.buyer && who.studentEligible)) {
+				await continueAsStudent(idToken);
 				return;
 			}
 			if (!who.isStaff) {
@@ -225,6 +248,23 @@ export default function LoginForm() {
 		} finally {
 			setGoogleLoading(false);
 		}
+	};
+
+	/** Ke Ruang Mahasiswa (reload penuh agar navbar memuat sesi mahasiswa). */
+	const goStudent = () => {
+		const n = new URLSearchParams(window.location.search).get('next') || '';
+		window.location.assign(n.startsWith('/karya/') && !n.startsWith('//') ? n : '/karya/saya');
+	};
+
+	/** Masuk sebagai mahasiswa dengan Google; belum punya akun (email TI) → lanjut daftar di /karya/daftar. */
+	const continueAsStudent = async (idToken: string) => {
+		setGoogleStep(null);
+		const r = await studentGoogleLogin(idToken);
+		if (r.needsOnboarding) {
+			window.location.assign('/karya/daftar?google=1');
+			return;
+		}
+		goStudent();
 	};
 
 	/** Masuk sebagai pembeli dengan Google; belum punya akun → dialog onboarding. */
@@ -294,6 +334,19 @@ export default function LoginForm() {
 		<>
 		<UnifiedGoogleDialog
 			step={googleStep}
+			onChooseStudent={(token) => {
+				if (token) {
+					setGoogleLoading(true);
+					void continueAsStudent(token)
+						.catch((err: any) => setError(err?.message || 'Login gagal'))
+						.finally(() => setGoogleLoading(false));
+					return;
+				}
+				setGoogleStep(null);
+				void studentPasswordLogin(username.trim(), password)
+					.then(goStudent)
+					.catch((err: any) => setError(err?.message || 'Login gagal'));
+			}}
 			onClose={() => setGoogleStep(null)}
 			onChooseStaff={(token) => {
 				if (token) return void continueAsStaff(token);
@@ -303,7 +356,14 @@ export default function LoginForm() {
 				);
 			}}
 			onChooseBuyer={(token) => {
-				if (!token) return goBuyer();
+				if (!token) {
+					// Masuk pembeli dengan email+password (aman diulang bila sesi pembeli sudah ada)
+					setGoogleStep(null);
+					void buyerApi<{ claimedOrders?: number }>('POST', '/login', { email: username.trim(), password })
+						.then((r) => goBuyer(r?.claimedOrders))
+						.catch((err: any) => setError(err?.message || 'Login pembeli gagal'));
+					return;
+				}
 				setGoogleStep(null);
 				void continueAsBuyer(token, '', '');
 			}}
@@ -359,9 +419,9 @@ export default function LoginForm() {
 
 					{/* Brand name */}
 					<h1 className="text-2xl font-bold text-slate-800 dark:bg-gradient-to-r dark:from-white dark:via-blue-100 dark:to-cyan-300 dark:bg-clip-text dark:text-transparent">
-						Masuk ke Dashboard
+						Masuk
 					</h1>
-					<p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{siteName} · Admin Panel</p>
+					<p className="text-slate-500 dark:text-slate-400 text-sm mt-1">{siteName} · Pengurus, Mahasiswa TI, dan Pembeli</p>
 
 					{/* Accent line */}
 					<div className="mx-auto mt-4 h-px w-24 bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
@@ -561,19 +621,17 @@ export default function LoginForm() {
 							</div>
 						)}
 						<div className="mb-4">
-							<a
-								href={`${storeHref}/masuk?mode=daftar`}
-								className="text-sm text-blue-600 dark:text-cyan-400 hover:underline">
-								Belum punya akun? Daftar sebagai pembeli {storeLabel}
+							<a href="/daftar" className="text-sm text-blue-600 dark:text-cyan-400 hover:underline">
+								Belum punya akun? Daftar sebagai Mahasiswa TI atau pembeli {storeLabel}
 							</a>
 						</div>
 						<div className="h-px bg-slate-200 dark:bg-white/8 mb-4" />
 						<p className="text-xs text-slate-500 dark:text-slate-500">
-							Satu pintu untuk pengurus {siteName} dan pembeli {storeLabel}
+							Satu pintu untuk pengurus {siteName}, mahasiswa TI (Karya), dan pembeli {storeLabel}
 						</p>
 						{googleEnabled && (
 							<p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-								Masuk dengan Google dikenali otomatis: pengurus ke dashboard, pembeli ke akunnya.
+								Masuk dengan Google dikenali otomatis: pengurus ke dashboard, mahasiswa ke Ruang Mahasiswa, pembeli ke akunnya. Punya beberapa akun? Kamu bisa memilih.
 							</p>
 						)}
 					</div>

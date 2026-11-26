@@ -8,7 +8,7 @@
 **Tenant-Aware**: No — situs utama saja (blok beranda & navbar `karya` disaring dari tenant; slug `karya`/`go` dicadangkan)  
 **Permission Scope**: Public / Mahasiswa (akun terpisah) / Admin (`karya.view`, `karya.manage`)  
 **Since version**: 4.65.0  
-**Last documented version**: 4.65.1  
+**Last documented version**: 4.66.0  
 
 ---
 
@@ -68,6 +68,44 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 
 ---
 
+## Pembaruan 4.66.0 (batch 2)
+
+### OTP + link sekali pakai (semua alur OTP situs)
+- Setiap email OTP (pengurus, pembeli, mahasiswa, backup, komunitas) berisi **kode 6 digit + link** `/verifikasi?c=<challengeId>&t=<token>`. Kode dan token di-HMAC (pepper `OTP_PEPPER`/turunan), dicocokkan waktu-konstan, dan dikonsumsi **atomik**: memakai salah satu → keduanya hangus; dua permintaan serentak → hanya satu lolos. Maks 5 percobaan, limit per email/IP dan cooldown 60 dtk tetap.
+- Masa berlaku: aktivasi akun 24 jam; lainnya 10 menit. Ditulis di email (jam WIB) dan di halaman verifikasi.
+- `/verifikasi` tidak mengeksekusi apa pun saat dibuka (aman dari pemindai link email); `GET /api/verify/info` hanya mengembalikan tujuan, jenis akun, email tersamar, dan status.
+- Alur yang diselesaikan langsung di `/verifikasi`: aktivasi & reset password mahasiswa/pembeli, konfirmasi ganti password mahasiswa, hapus akun (butuh sesi), ganti email pembeli (butuh sesi), lupa password pengurus.
+- Alur yang butuh form asal (ganti password/email pengurus, restore backup, hapus komunitas, tautan pembeli↔pengurus): link mengisi kode otomatis di tab asal (`client/src/lib/otp-link-prefill.ts`, localStorage + event `storage`, 15 menit, sekali pakai).
+- Template email seragam `server/services/email-layout.ts` (header brand, lencana tujuan, kode, tombol + tautan cadangan, tabel detail: akun, nama, jenis akun, tujuan, waktu permintaan, asal permintaan IP tersamar + lokasi, berlaku sampai; peringatan keamanan; versi teks). Dipakai juga untuk email balasan feedback/bug (isi kini di-escape).
+
+### Aktivasi & kunci privat
+- Daftar email → langsung masuk dengan `emailVerified: false` + email aktivasi. Google = otomatis terverifikasi (sesi lama yang dibuat sebelum verifikasi dicabut).
+- Belum aktivasi: karya hanya Privat (`403 EMAIL_NOT_VERIFIED` di server), profil tidak publik, shortlink ditolak. Banner aktivasi + kirim ulang di Ruang Mahasiswa.
+
+### Ganti password & perangkat
+- Ganti password 2 langkah: password lama + baru → kode/link ke email (password baru disimpan sementara sebagai bcrypt di challenge) → konfirmasi → semua sesi dicabut.
+- Daftar perangkat: browser, OS, jenis, lokasi, IP tersamar, waktu masuk & aktif terakhir, keluarkan per perangkat / semua lainnya.
+
+### Profil & tampil publik
+- Profil tampil bila Publik + aktif + terverifikasi, **tanpa syarat karya**; kosong → `noindex` sampai ada karya tayang atau profil terisi (nama + headline / bio ≥ 40 karakter).
+- Username default dari nama (bukan NIM); ganti username → username lama dialihkan 301 (maks 5 riwayat, tidak bisa diambil akun lain). Dashboard menyarankan ganti bila username masih NIM.
+- Profil privat: karya publik tetap tampil, tanpa link ke profil.
+- Pratinjau pemilik: `/karya/saya/pratinjau/:id` (tampilan publik untuk karya privat/pending).
+- Cache daftar publik 10 dtk + stale-while-revalidate 30 dtk.
+
+### Karya
+- Wajib: Judul + Kategori; karya publik wajib punya minimal satu isi (ringkasan/deskripsi/media/repo/link) → `CONTENT_REQUIRED`. Label wajib/opsional di form.
+- Deskripsi rich text (TinyMCE yang sama dengan berita, mengikuti tema terang/gelap), disanitasi `sanitizeCmsHtml`, gambar lewat `POST /me/content-image` (ikut kuota). Deskripsi lama (teks) tetap tampil.
+- Repo: GitHub, GitLab, Bitbucket, **Codeberg**; ikon & label per platform; lisensi; tombol "Lihat selengkapnya di …"; gambar pratinjau repo.
+- Tag: input chip + saran dari tag yang ada; halaman `/karya/tag/:tag` (SSR `CollectionPage`, sitemap bila ≥ 2 karya).
+- Karya terkait otomatis: skor 3×tag sama + 2×kategori + 2×bahasa repo + 1×pembuat + 1×angkatan + kesegaran + 0,5×unggulan; maks 2 per pembuat; cache 10 menit; karya terkait manual tetap didahulukan.
+- Sampul: unggahan dipilih → gambar repo → thumbnail YouTube → **sampul template otomatis** PNG 1200×630 (`/api/karya/cover/:slug?theme=dark|light`, `server/services/karya-cover.ts`), juga dipakai og:image.
+
+### Login satu pintu
+- `/login` untuk pengurus, mahasiswa TI, dan pembeli. Email+password: `POST /api/karya/auth/password-targets` (tanpa sesi) → mahasiswa/pembeli/keduanya (pilih) → bila tidak cocok, login pengurus seperti biasa. Google: `/api/auth/google/identify` kini juga `isStudent`/`studentEligible`; lebih dari satu peran → dialog "Masuk sebagai: Mahasiswa TI / Pengurus / Pembeli".
+- Sesi tetap terpisah (3 cookie, 3 kunci JWT) → tidak bentrok; URL dashboard tidak dipindah (`/dashboard`, `/karya/saya`, `/toko/akun`).
+- `/daftar`: pilih Mahasiswa TI atau Pembeli. Menu profil mahasiswa di kanan atas navbar (Karya saya, Profil publik, Edit profil, Akun & keamanan, Akun toko bila ada, Keluar).
+
 ## Aturan akses & keamanan
 
 - **Kelayakan daftar mandiri**: domain `student.uin-malang.ac.id`, local-part 12 digit, digit 3–6 ∈ `KARYA_PRODI_CODES` (default `0605`). Ditolak → `403 NOT_TI_STUDENT` dengan pesan "hanya mahasiswa TI … hubungi administrator (himatif.encoder@gmail.com)". Login Google memakai petunjuk `hd=student.uin-malang.ac.id`, validasi tetap di server (email dari token Google, bukan dari client).
@@ -118,7 +156,7 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 
 ## Endpoint
 
-Lihat [`docs/api/endpoints.md` § Karya Mahasiswa TI](../../api/endpoints.md) dan tag `karya` di [`docs/openapi.json`](../../openapi.json) (48 operasi).
+Lihat [`docs/api/endpoints.md` § Karya Mahasiswa TI](../../api/endpoints.md) dan tag `karya` + `verify` di [`docs/openapi.json`](../../openapi.json) (55 + 1 operasi).
 
 ---
 

@@ -182,6 +182,15 @@ export async function authenticateStudent(req: Request, res: Response, next: Nex
 	next();
 }
 
+/** Akun mahasiswa (aktif/diblokir/disuspend — bukan terhapus) untuk email ini ada? Hanya baca. */
+export async function studentExistsForEmail(email: string): Promise<boolean> {
+	try {
+		return !!(await KaryaStudent.exists({ email: normalizeStudentEmail(email), status: { $in: ['active', 'blocked'] } }));
+	} catch {
+		return false;
+	}
+}
+
 /** Pesan bila akun tidak boleh masuk (blokir permanen / suspend sementara), atau null. */
 export function studentAccessBlock(s: any): { status: number; code: string; message: string } | null {
 	if (!s) return null;
