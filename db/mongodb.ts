@@ -823,6 +823,8 @@ const otpChallengeSchema = new mongoose.Schema({
 	linkTokenHash: { type: String, default: null },
 	/** Password baru (bcrypt) yang baru dipasang setelah OTP/link dikonfirmasi (ganti password). */
 	pendingPasswordHash: { type: String, default: null },
+	/** Dibatalkan karena ada permintaan kode/link yang lebih baru */
+	supersededAt: { type: Date, default: null },
 	expiresAt: { type: Date, required: true },
 	createdAt: { type: Date, default: Date.now },
 });

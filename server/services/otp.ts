@@ -174,6 +174,9 @@ export async function createOtpChallenge(params: {
 
 	await checkRateLimits(email, requestIp);
 
+	// Permintaan baru membatalkan kode & link lama (tujuan + email yang sama) yang belum dipakai
+	await OtpChallenge.updateMany({ email, purpose, consumedAt: null, verifiedAt: null }, { $set: { consumedAt: new Date(), supersededAt: new Date() } });
+
 	const code = generateOtpCode();
 	const codeHashed = hashCode(code);
 	const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
@@ -215,6 +218,9 @@ export async function verifyOtpChallenge(params: {
 		throw new OtpError('Kode OTP tidak valid');
 	}
 
+	if ((challenge as any).supersededAt) {
+		throw new OtpError('Kode/link ini sudah diganti yang lebih baru. Pakai email paling baru.');
+	}
 	if (challenge.consumedAt) {
 		throw new OtpError('Kode OTP sudah digunakan');
 	}
@@ -273,6 +279,9 @@ export async function verifyAndIssueResetToken(params: {
 		throw new OtpError('Kode OTP tidak valid');
 	}
 
+	if ((challenge as any).supersededAt) {
+		throw new OtpError('Kode/link ini sudah diganti yang lebih baru. Pakai email paling baru.');
+	}
 	if (challenge.consumedAt) {
 		throw new OtpError('Kode OTP sudah digunakan');
 	}

@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.66.0`  
+**Current version:** `4.66.1`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.66.0`](./release/4.66.0.md) | 2026-11-27 | OTP + link sekali pakai, aktivasi, login satu pintu, Karya TI batch 2 | MINOR | 1 | **Current** |
+| [`4.66.1`](./release/4.66.1.md) | 2026-11-27 | Tombol kirim ulang verifikasi (mahasiswa & pembeli), kode baru membatalkan yang lama | PATCH | 1 | **Current** |
+| [`4.66.0`](./release/4.66.0.md) | 2026-11-27 | OTP + link sekali pakai, aktivasi, login satu pintu, Karya TI batch 2 | MINOR | 1 |  |
 | [`4.65.1`](./release/4.65.1.md) | 2026-11-26 | Posisi default Karya TI setelah Toko (sebelum Media) di beranda, navbar, Settings | PATCH | 2 |  |
 | [`4.65.0`](./release/4.65.0.md) | 2026-11-26 | Karya Mahasiswa TI: akun mahasiswa, portofolio, review, shortlink, SEO | MINOR | 2 |  |
 | [`4.64.2`](./release/4.64.2.md) | 2026-11-19 | Hardening keamanan dari pentest (auth, SSRF, chat, role) | PATCH | 10 |  |

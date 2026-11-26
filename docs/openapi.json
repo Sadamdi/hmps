@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.66.0",
+    "version": "4.66.1",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -5249,6 +5249,81 @@
         ],
         "summary": "POST /api/buyer/register",
         "operationId": "post_api_buyer_register",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "message": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericRequestBody"
+              },
+              "examples": {
+                "default": {
+                  "value": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/buyer/register/resend": {
+      "post": {
+        "tags": [
+          "buyer"
+        ],
+        "summary": "POST /api/buyer/register/resend",
+        "operationId": "post_api_buyer_register_resend",
         "security": [
           {
             "bearerAuth": []
@@ -14365,6 +14440,81 @@
         ],
         "summary": "POST /api/karya/auth/activation/resend",
         "operationId": "post_api_karya_auth_activation_resend",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "message": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericRequestBody"
+              },
+              "examples": {
+                "default": {
+                  "value": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/karya/auth/activation/resend-public": {
+      "post": {
+        "tags": [
+          "karya"
+        ],
+        "summary": "POST /api/karya/auth/activation/resend-public",
+        "operationId": "post_api_karya_auth_activation_resend_public",
         "security": [
           {
             "bearerAuth": []
