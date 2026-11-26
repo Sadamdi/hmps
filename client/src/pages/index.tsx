@@ -29,7 +29,7 @@ import {
 	useState,
 } from 'react';
 import { useLocation } from 'wouter';
-import { ALL_SUBITEM_BLOCKS, DEFAULT_HOME_CONFIG, DEFAULT_TENANT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
+import { ALL_SUBITEM_BLOCKS, withKaryaDefault, DEFAULT_HOME_CONFIG, DEFAULT_TENANT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
 import { useTenant } from '@/lib/tenant-context';
 import { usePublicBrand } from '@/hooks/use-public-brand';
 import { ArrowRight } from 'lucide-react';
@@ -380,15 +380,10 @@ export default function Home() {
 	const savedBlocks: HomeBlockItem[] = settings?.homeConfig?.blocks?.length
 		? settings.homeConfig.blocks
 		: defaultHomeBlocks;
-	// Blok baru "Karya Mahasiswa TI" belum ada di konfigurasi lama → sisipkan sebelum footer (bisa disembunyikan di Settings Beranda)
-	const blocks: HomeBlockItem[] =
-		!isTenant && !savedBlocks.some((b) => b.id === 'karya')
-			? (() => {
-					const footerAt = savedBlocks.findIndex((b) => b.id === 'footer');
-					const karya: HomeBlockItem = { id: 'karya', kind: 'section', visible: true };
-					return footerAt >= 0 ? [...savedBlocks.slice(0, footerAt), karya, ...savedBlocks.slice(footerAt)] : [...savedBlocks, karya];
-				})()
-			: savedBlocks;
+	// Blok "Karya Mahasiswa TI" belum ada di konfigurasi lama → default setelah Toko, sebelum grup Media (bisa digeser/disembunyikan di Settings Beranda)
+	const blocks: HomeBlockItem[] = isTenant
+		? savedBlocks
+		: withKaryaDefault(savedBlocks, () => ({ id: 'karya', kind: 'section', visible: true }));
 
 	const visibleBlocks = blocks.filter((b) => b.visible);
 
