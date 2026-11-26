@@ -36,6 +36,7 @@ import {
 	validUsername,
 } from '../services/karya-auth';
 import { fetchPublicRepo, isDrivePublic, RepoFetchError } from '../services/karya-repo';
+import { fetchReadmeInsights, README_IMAGE_HOSTS } from '../services/karya-readme';
 import { deleteKaryaMediaFile, karyaMediaMiddleware, uploadKaryaMedia } from '../upload';
 import { sanitizeCmsHtml } from '../utils/cms-html';
 import { renderKaryaCover } from '../services/karya-cover';
@@ -251,6 +252,7 @@ router.post('/auth/google', requireEnabled, authLimiter, async (req, res) => {
 			const block = studentAccessBlock(s);
 			if (block) return fail(res, block.status, block.message, block.code);
 			if (!s.googleSub) s.googleSub = g.uid;
+			if (!s.avatarUrl && g.picture) s.avatarUrl = g.picture;
 			if (!s.emailVerified) {
 				// Email terbukti milik pemilik Google: cabut semua sesi yang dibuat sebelum verifikasi
 				s.tokenVersion = (s.tokenVersion || 0) + 1;
@@ -298,6 +300,7 @@ router.post('/auth/google/complete', requireEnabled, authLimiter, async (req, re
 			emailVerified: true,
 			status: 'active' as const,
 			googleSub: g.uid,
+			...(g.picture ? { avatarUrl: g.picture } : {}),
 			nim: elig.nim,
 			verifiedTi: true,
 			name: cleanName(parsed.data.name),
@@ -568,6 +571,8 @@ const profileSchema = z.object({
 	skills: z.array(z.string().max(30)).max(KARYA_LIMITS.maxSkills).optional(),
 	social: z.record(z.string(), z.string().max(500)).optional(),
 	profilePublic: z.boolean().optional(),
+	/** Avatar eksternal hanya dari GitHub/Google (hasil impor) */
+	avatarUrl: z.string().max(500).optional(),
 });
 
 router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, async (req, res) => {
@@ -598,8 +603,49 @@ router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, a
 	if (d.skills !== undefined) set.skills = cleanKaryaTags(d.skills, KARYA_LIMITS.maxSkills);
 	if (d.social !== undefined) set.social = cleanSocialLinks(d.social);
 	if (d.profilePublic !== undefined) set.profilePublic = d.profilePublic;
+	if (d.avatarUrl !== undefined) {
+		const url = cleanHttpsUrl(d.avatarUrl);
+		const host = url ? new URL(url).hostname.toLowerCase() : '';
+		if (!url || !(host === 'avatars.githubusercontent.com' || host.endsWith('.googleusercontent.com'))) return fail(res, 400, 'Foto profil eksternal hanya dari GitHub atau Google', 'AVATAR_INVALID');
+		// Ganti dari foto unggahan → hapus file lama & kembalikan kuota
+		if (me.avatarUrl && String(me.avatarUrl).startsWith('/uploads/')) {
+			await deleteKaryaMediaFile(me.avatarUrl, String(me._id));
+			if (me.avatarSize) await KaryaStudent.updateOne({ _id: me._id }, { $inc: { storageUsedBytes: -me.avatarSize } });
+		}
+		set.avatarUrl = url;
+		set.avatarSize = 0;
+	}
 	const s = await KaryaStudent.findByIdAndUpdate(me._id, { $set: set }, { new: true }).lean();
 	ok(res, { student: ownStudent(s) }, 'Profil disimpan');
+});
+
+/** Ambil data profil publik GitHub (nama, bio, website, foto, lokasi) untuk diisi ke profil — tidak menyimpan otomatis. */
+router.post('/me/profile/import-github', requireEnabled, authenticateStudent, repoLimiter, async (req, res) => {
+	const raw = String(req.body?.username || '').trim().replace(/^https:\/\/github\.com\//i, '').replace(/\/.*$/, '');
+	if (!/^[A-Za-z0-9-]{1,39}$/.test(raw)) return fail(res, 400, 'Username GitHub tidak valid', 'VALIDATION_ERROR');
+	try {
+		const headers: Record<string, string> = { 'User-Agent': 'himatif-encoder-karya', Accept: 'application/vnd.github+json' };
+		if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+		const ctrl = new AbortController();
+		const t = setTimeout(() => ctrl.abort(), 8000);
+		const r = await fetch(`https://api.github.com/users/${encodeURIComponent(raw)}`, { headers, signal: ctrl.signal }).finally(() => clearTimeout(t));
+		if (r.status === 404) return fail(res, 404, 'Akun GitHub tidak ditemukan', 'NOT_FOUND');
+		if (!r.ok) return fail(res, 429, 'GitHub sedang membatasi akses. Coba lagi nanti.', 'REPO_RATE_LIMITED');
+		const g: any = await r.json();
+		const blog = cleanHttpsUrl(/^https?:\/\//.test(String(g.blog || '')) ? String(g.blog).replace(/^http:/, 'https:') : g.blog ? `https://${g.blog}` : '');
+		ok(res, {
+			username: String(g.login || raw),
+			name: cleanName(g.name || ''),
+			bio: cleanText(g.bio || '', 1200),
+			website: blog,
+			location: cleanText(g.location || '', 80),
+			avatarUrl: /^https:\/\/avatars\.githubusercontent\.com\//.test(String(g.avatar_url || '')) ? String(g.avatar_url) : '',
+			githubUrl: `https://github.com/${String(g.login || raw)}`,
+			publicRepos: Number(g.public_repos) || 0,
+		});
+	} catch {
+		fail(res, 500, 'Gagal menghubungi GitHub', 'INTERNAL');
+	}
 });
 
 /** Multer + tangkap error ukuran file dengan pesan yang jelas. */
@@ -689,6 +735,8 @@ const projectSchema = z.object({
 	tags: z.union([z.array(z.string().max(40)), z.string().max(400)]).optional(),
 	year: z.number().int().min(2000).max(2100).nullable().optional(),
 	repoUrls: z.array(z.string().max(300)).max(5).optional(),
+	/** Gambar dari README repo (URL https host repo yang diizinkan) → media eksternal, tanpa kuota */
+	externalMedia: z.array(z.string().max(500)).max(8).optional(),
 	links: z.array(linkInput).max(KARYA_LIMITS.maxLinksPerProject).optional(),
 	related: z.array(relatedInput).max(KARYA_LIMITS.maxRelatedPerProject).optional(),
 	coverMediaId: z.string().max(40).optional(),
@@ -766,6 +814,27 @@ async function buildProjectFields(d: z.infer<typeof projectSchema>, studentId: a
 			}
 		}
 		f.related = out;
+	}
+	if (d.externalMedia?.length) {
+		const base = existing ? [...(existing.media || [])] : [];
+		for (const raw of d.externalMedia) {
+			const url = cleanHttpsUrl(raw);
+			if (!url) continue;
+			let host = '';
+			try {
+				host = new URL(url).hostname.toLowerCase();
+			} catch {
+				continue;
+			}
+			if (!README_IMAGE_HOSTS.includes(host) || base.some((m: any) => m.url === url)) continue;
+			if (base.filter((m: any) => m.type === 'image').length >= KARYA_LIMITS.maxImagesPerProject) break;
+			base.push({ id: crypto.randomBytes(6).toString('hex'), type: 'image', url, size: 0, caption: '', external: true });
+		}
+		f.media = base;
+		if (!existing?.coverMediaId && !d.coverMediaId) {
+			const firstImg = base.find((m: any) => m.type === 'image');
+			if (firstImg) f.coverMediaId = firstImg.id;
+		}
 	}
 	if (existing && d.mediaCaptions) {
 		f.media = (existing.media || []).map((m: any) => ({ ...m, caption: d.mediaCaptions?.[m.id] !== undefined ? cleanText(d.mediaCaptions[m.id], 160) : m.caption }));
@@ -948,11 +1017,11 @@ router.delete('/me/projects/:id/media/:mediaId', requireEnabled, authenticateStu
 	if (!p) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
 	const m = (p.media || []).find((x: any) => x.id === req.params.mediaId);
 	if (!m) return fail(res, 404, 'Media tidak ditemukan', 'NOT_FOUND');
-	await deleteKaryaMediaFile(m.url, String(me._id));
+	if (!m.external) await deleteKaryaMediaFile(m.url, String(me._id));
 	const set: Record<string, unknown> = {};
 	if (p.coverMediaId === m.id) set.coverMediaId = (p.media.find((x: any) => x.id !== m.id && x.type === 'image') || {}).id || '';
 	await KaryaProject.updateOne({ _id: p._id }, { $pull: { media: { id: m.id } }, ...(Object.keys(set).length ? { $set: set } : {}) });
-	await KaryaStudent.updateOne({ _id: me._id }, { $inc: { storageUsedBytes: -(m.size || 0) } });
+	if (!m.external && m.size) await KaryaStudent.updateOne({ _id: me._id }, { $inc: { storageUsedBytes: -(m.size || 0) } });
 	const fresh = await KaryaProject.findById(p._id).lean();
 	ok(res, ownProject(fresh), 'Media dihapus');
 });
@@ -960,7 +1029,10 @@ router.delete('/me/projects/:id/media/:mediaId', requireEnabled, authenticateStu
 router.post('/me/repo-preview', requireEnabled, authenticateStudent, repoLimiter, async (req, res) => {
 	const url = String(req.body?.url || '').slice(0, 300);
 	try {
-		ok(res, await fetchPublicRepo(url));
+		const info = await fetchPublicRepo(url);
+		// README pintar: ringkasan, deskripsi rich text, gambar & video di README
+		const readme = await fetchReadmeInsights(info.url).catch(() => null);
+		ok(res, { ...info, readme: readme ? { ...readme, descriptionHtml: sanitizeCmsHtml(readme.descriptionHtml, 60000) } : null });
 	} catch (e) {
 		if (e instanceof RepoFetchError) return fail(res, e.code === 'REPO_RATE_LIMITED' ? 429 : 400, e.message, e.code);
 		fail(res, 500, 'Gagal mengambil info repo', 'INTERNAL');

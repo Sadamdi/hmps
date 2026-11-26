@@ -539,7 +539,8 @@ POST   /api/karya/auth/delete/otp                # mahasiswa
 POST   /api/karya/auth/delete                    # {challengeId, code} → hapus akun + karya + file + shortlink
 
 # Profil & karya milik sendiri (mahasiswa)
-PATCH  /api/karya/me/profile                     # name, username, headline, bio, skills[], social{github,gitlab,linkedin,instagram,website,cv}, profilePublic
+PATCH  /api/karya/me/profile                     # name, username, headline, bio, skills[], social{github,gitlab,linkedin,instagram,website,cv}, profilePublic, avatarUrl (hanya avatars.githubusercontent.com / *.googleusercontent.com)
+POST   /api/karya/me/profile/import-github       # {username} → name, bio, website, avatarUrl, githubUrl (tidak menyimpan otomatis)
 POST   /api/karya/me/avatar                      # multipart file (gambar ≤5 MB → WebP 400px)
 POST   /api/karya/me/content-image               # multipart file: gambar deskripsi rich text (ikut kuota)
 GET    /api/karya/me/projects/:id/preview        # pratinjau karya sendiri (noindex)
@@ -551,7 +552,7 @@ PATCH  /api/karya/me/projects/:id                # + coverMediaId, mediaCaptions
 DELETE /api/karya/me/projects/:id
 POST   /api/karya/me/projects/:id/media          # multipart file: gambar ≤5 MB (maks 8) / video ≤30 MB (maks 1); kuota 100 MB per mahasiswa
 DELETE /api/karya/me/projects/:id/media/:mediaId
-POST   /api/karya/me/repo-preview                # {url} GitHub/GitLab/Bitbucket publik
+POST   /api/karya/me/repo-preview                # {url} repo publik → info + readme{summary, descriptionHtml (disanitasi), images[], youtube[], videoFiles[]}
 GET    /api/karya/me/stats
 GET    /api/karya/me/shortlinks
 POST   /api/karya/me/shortlinks                  # {slug, targetUrl https}

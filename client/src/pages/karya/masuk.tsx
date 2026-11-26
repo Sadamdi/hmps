@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { KARYA_PATHS, karyaApi, refreshStudent, useKaryaConfig, useStudent } from '@/hooks/use-karya';
+import { KARYA_PATHS, karyaApi, refreshStudent, setStudentCache, useKaryaConfig, useStudent, type KaryaStudentAccount } from '@/hooks/use-karya';
 import { useToast } from '@/hooks/use-toast';
 import { GoogleSignInCancelled, getGoogleIdToken } from '@/lib/google-signin';
 import { apiErrorText } from '@/lib/queryClient';
@@ -49,7 +49,8 @@ export default function KaryaLoginPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [loading, student]);
 
-	const done = (created?: boolean) => {
+	const done = (created?: boolean, student?: KaryaStudentAccount) => {
+		setStudentCache(student);
 		refreshStudent();
 		toast({ title: created ? 'Akun dibuat' : 'Berhasil masuk', description: created ? 'Lengkapi profil lalu tambahkan karya pertamamu.' : undefined });
 		navigate(next);
@@ -88,7 +89,7 @@ export default function KaryaLoginPage() {
 				if (e instanceof GoogleSignInCancelled) return;
 				throw e;
 			}
-			const r = await karyaApi<{ needsOnboarding?: boolean; email?: string; name?: string; created?: boolean }>('POST', '/auth/google', { idToken: token });
+			const r = await karyaApi<{ needsOnboarding?: boolean; email?: string; name?: string; created?: boolean; student?: KaryaStudentAccount }>('POST', '/auth/google', { idToken: token });
 			if (r?.needsOnboarding) {
 				setGoogleToken(token);
 				setEmail(r.email || '');
@@ -98,15 +99,15 @@ export default function KaryaLoginPage() {
 				setMode('onboard');
 				return;
 			}
-			done(r?.created);
+			done(r?.created, r?.student);
 		});
 
 	const submit = (e: FormEvent) => {
 		e.preventDefault();
 		if (mode === 'login') {
 			return run(async () => {
-				await karyaApi('POST', '/auth/login', { email, password });
-				done();
+				const r = await karyaApi<{ student?: KaryaStudentAccount }>('POST', '/auth/login', { email, password });
+				done(false, r?.student);
 			});
 		}
 		if (mode === 'register') {
@@ -114,8 +115,9 @@ export default function KaryaLoginPage() {
 			if (password !== confirm) return setError('Konfirmasi password tidak sama');
 			return run(async () => {
 				// Akun langsung aktif & masuk; email aktivasi (kode + link, 24 jam) dikirim otomatis
-				const r = await karyaApi<{ activation?: { challengeId: string; expiresAt: string } }>('POST', '/auth/register', { name, email, password });
+				const r = await karyaApi<{ activation?: { challengeId: string; expiresAt: string }; student?: KaryaStudentAccount }>('POST', '/auth/register', { name, email, password });
 				if (r?.activation) sessionStorage.setItem('karya-activation', JSON.stringify(r.activation));
+				setStudentCache(r?.student);
 				refreshStudent();
 				toast({ title: 'Akun dibuat', description: 'Cek email kampusmu untuk aktivasi (kode atau link, berlaku 24 jam). Sebelum aktivasi, karya hanya bisa disimpan privat.' });
 				navigate(next);
@@ -139,15 +141,15 @@ export default function KaryaLoginPage() {
 		if (mode === 'reset') {
 			if (!challengeId) return setError('Email tidak terdaftar atau kode belum dikirim. Periksa email kamu.');
 			return run(async () => {
-				await karyaApi('POST', '/auth/password/reset', { challengeId, code, newPassword: password });
-				done();
+				const r = await karyaApi<{ student?: KaryaStudentAccount }>('POST', '/auth/password/reset', { challengeId, code, newPassword: password });
+				done(false, r?.student);
 			});
 		}
 		if (mode === 'onboard') {
 			if (password !== confirm) return setError('Konfirmasi password tidak sama');
 			return run(async () => {
-				await karyaApi('POST', '/auth/google/complete', { idToken: googleToken, name, password, confirmPassword: confirm });
-				done(true);
+				const r = await karyaApi<{ student?: KaryaStudentAccount }>('POST', '/auth/google/complete', { idToken: googleToken, name, password, confirmPassword: confirm });
+				done(true, r?.student);
 			});
 		}
 	};

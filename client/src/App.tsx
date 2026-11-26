@@ -48,6 +48,7 @@ const VerifikasiPage = lazy(() => import('@/pages/verifikasi'));
 const DaftarPage = lazy(() => import('@/pages/daftar'));
 const KaryaTagPage = lazy(() => import('@/pages/karya/tag'));
 const KaryaPreviewPage = lazy(() => import('@/pages/karya/pratinjau'));
+const KaryaProfilePreviewPage = lazy(() => import('@/pages/karya/pratinjau-profil'));
 const DashboardRegistration = lazy(() => import('@/pages/dashboard/registration'));
 const RegisterPage = lazy(() => import('@/pages/register'));
 const CommunityShell = lazy(() => import('@/pages/community/index'));
@@ -215,6 +216,7 @@ function Router() {
 				<Route path="/karya/daftar" component={KaryaLoginPage} />
 				<Route path="/karya/saya/baru" component={KaryaEditorPage} />
 				<Route path="/karya/saya/edit/:id" component={KaryaEditorPage} />
+				<Route path="/karya/saya/pratinjau-profil" component={KaryaProfilePreviewPage} />
 				<Route path="/karya/saya/pratinjau/:id" component={KaryaPreviewPage} />
 				<Route path="/karya/tag/:tag" component={KaryaTagPage} />
 				<Route path="/karya/saya" component={KaryaDashboardPage} />

@@ -47,6 +47,9 @@ export default function KaryaEditorPage() {
 	const [repoUrls, setRepoUrls] = useState<string[]>([]);
 	const [repoInput, setRepoInput] = useState('');
 	const [repoPreview, setRepoPreview] = useState<KaryaRepoInfo[]>([]);
+	/** Gambar dari README repo yang dipilih untuk galeri (disimpan sebagai media eksternal, tanpa kuota) */
+	const [readmeImages, setReadmeImages] = useState<{ url: string; use: boolean }[]>([]);
+	const [readmeNote, setReadmeNote] = useState('');
 	const [links, setLinks] = useState<LinkRow[]>([]);
 	const [linkInput, setLinkInput] = useState('');
 	const [related, setRelated] = useState<RelatedRow[]>([]);
@@ -91,14 +94,46 @@ export default function KaryaEditorPage() {
 		setError('');
 		setBusy('repo');
 		try {
-			const info = await karyaApi<KaryaRepoInfo>('POST', '/me/repo-preview', { url });
+			type Readme = { summary: string; descriptionHtml: string; images: string[]; youtube: string[]; videoFiles: string[] };
+			const info = await karyaApi<KaryaRepoInfo & { readme?: Readme | null }>('POST', '/me/repo-preview', { url });
 			setRepoUrls((r) => (r.includes(info.url) ? r : [...r, info.url]));
 			setRepoPreview((r) => (r.some((x) => x.url === info.url) ? r : [...r, info]));
-			// Repo pertama mengisi kolom yang masih kosong
-			if (!title) setTitle(info.name.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
-			if (!summary && info.description) setSummary(info.description.slice(0, 240));
-			if (!tags && info.topics.length) setTags(info.topics.slice(0, 8).join(', '));
-			if (info.homepage && !links.some((l) => l.url === info.homepage)) setLinks((l) => [...l, { url: info.homepage, label: 'Demo' }]);
+			// Isi otomatis pintar: hanya kolom yang masih kosong (tidak menimpa tulisanmu)
+			const rd = info.readme;
+			const filled: string[] = [];
+			if (!title) {
+				setTitle(info.name.replace(/[-_]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
+				filled.push('judul');
+			}
+			const sum = info.description || rd?.summary || '';
+			if (!summary && sum) {
+				setSummary(sum.slice(0, 240));
+				filled.push('ringkasan');
+			}
+			if (!description.trim() && rd?.descriptionHtml) {
+				setDescription(rd.descriptionHtml);
+				setDescriptionFormat('html');
+				filled.push('deskripsi dari README');
+			}
+			if (!tags && info.topics.length) {
+				setTags(info.topics.slice(0, 8).join(', '));
+				filled.push('tag');
+			}
+			const newLinks: { url: string; label: string }[] = [];
+			if (info.homepage) newLinks.push({ url: info.homepage, label: 'Demo' });
+			(rd?.youtube || []).forEach((u, i) => newLinks.push({ url: u, label: `Video ${i + 1} (README)` }));
+			(rd?.videoFiles || []).forEach((u, i) => newLinks.push({ url: u, label: `Video demo ${i + 1} (README)` }));
+			const addL = newLinks.filter((n) => !links.some((l) => l.url === n.url));
+			if (addL.length) {
+				setLinks((l) => [...l, ...addL]);
+				filled.push(`${addL.length} link/video`);
+			}
+			const imgs = (rd?.images || []).filter((u) => !(project?.media || []).some((m) => m.url === u));
+			if (imgs.length) {
+				setReadmeImages((cur) => [...cur, ...imgs.filter((u) => !cur.some((c) => c.url === u)).map((u) => ({ url: u, use: true }))]);
+				filled.push(`${imgs.length} gambar README (bisa dipilih)`);
+			}
+			setReadmeNote(filled.length ? `Terisi otomatis dari repo: ${filled.join(', ')}. Periksa dan ubah bila perlu.` : 'Info repo ditambahkan. Kolom yang sudah kamu isi tidak diubah.');
 			setRepoInput('');
 		} catch (e) {
 			setError(apiErrorText(e, 'Repo tidak bisa diambil'));
@@ -143,6 +178,7 @@ export default function KaryaEditorPage() {
 		visibility,
 		action,
 		...(project ? { coverMediaId: project.coverMediaId } : {}),
+		externalMedia: readmeImages.filter((x) => x.use).map((x) => x.url),
 	});
 
 	/** Simpan; untuk karya baru kembalikan id agar media bisa diunggah. */
@@ -160,6 +196,7 @@ export default function KaryaEditorPage() {
 			refreshStudent();
 			queryClient.invalidateQueries({ queryKey: ['karya-my-project'] });
 			setProject(p);
+			setReadmeImages([]);
 			if (stay) {
 				if (!project) window.history.replaceState(null, '', KARYA_PATHS.editProject(p.id));
 				return p;
@@ -308,6 +345,25 @@ export default function KaryaEditorPage() {
 									{busy === 'repo' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Ambil info repo
 								</Button>
 							</div>
+							{readmeNote ? <p className="rounded-md bg-primary/10 px-3 py-2 text-xs text-foreground">{readmeNote}</p> : null}
+							{readmeImages.length ? (
+								<div className="space-y-2">
+									<p className="text-xs font-semibold text-foreground">Gambar dari README — klik untuk memilih/batal (dipakai di galeri, tidak memakan kuota)</p>
+									<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+										{readmeImages.map((im) => (
+											<button
+												key={im.url}
+												type="button"
+												aria-pressed={im.use}
+												onClick={() => setReadmeImages((cur) => cur.map((c) => (c.url === im.url ? { ...c, use: !c.use } : c)))}
+												className={cn('relative aspect-video overflow-hidden rounded-md border-2 bg-muted', im.use ? 'border-primary' : 'border-transparent opacity-50')}>
+												<img src={im.url} alt="" loading="lazy" className="h-full w-full object-cover" />
+												<span className="absolute right-1 top-1 rounded bg-background/90 px-1 text-[10px] text-foreground">{im.use ? 'Dipakai' : 'Tidak'}</span>
+											</button>
+										))}
+									</div>
+								</div>
+							) : null}
 							{repoPreview.map((r) => (
 								<div key={r.url} className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm">
 									<div className="min-w-0 flex-1">

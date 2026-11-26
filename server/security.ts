@@ -123,6 +123,9 @@ export const securityMiddleware = {
 					'https://drive.google.com',
 					'https://*.google.com',
 					'https://*.googlevideo.com',
+					// Video demo dari README repo (lampiran GitHub)
+					'https://github.com',
+					'https://*.githubusercontent.com',
 				],
 				frameSrc: [
 					"'self'",

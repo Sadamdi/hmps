@@ -145,7 +145,14 @@ export function useStudent() {
 		queryFn: async () => (await getData<{ student: KaryaStudentAccount | null }>('/auth/me'))?.student ?? null,
 		staleTime: 60_000,
 	});
-	return { student: q.data ?? null, loading: q.isLoading, refetch: q.refetch };
+	// Data lama kosong yang sedang dimuat ulang (mis. tepat setelah daftar/masuk) dihitung masih memuat — mencegah
+	// halaman terlindungi melempar ke /login sebelum sesi baru terbaca.
+	return { student: q.data ?? null, loading: q.isLoading || (q.isFetching && !q.data), refetch: q.refetch };
+}
+
+/** Isi cache akun mahasiswa langsung dari respons login/daftar (tanpa menunggu refetch). */
+export function setStudentCache(student: KaryaStudentAccount | null | undefined) {
+	if (student) queryClient.setQueryData(['karya-me'], student);
 }
 
 export function refreshStudent() {
@@ -199,6 +206,14 @@ export function useProjectPreview(id: string) {
 	return useQuery<KaryaProjectDetail | null>({ queryKey: ['karya-preview', id], queryFn: () => getData<KaryaProjectDetail>(`/me/projects/${id}/preview`), enabled: !!id });
 }
 
+export function useProfilePreview(enabled = true) {
+	return useQuery<{ student: KaryaStudentPublic; projects: KaryaProjectCard[]; preview: boolean; visible: boolean } | null>({
+		queryKey: ['karya-profile-preview'],
+		queryFn: () => getData('/me/profile/preview'),
+		enabled,
+	});
+}
+
 export function usePublicTag(tag: string) {
 	return useQuery<{ tag: string; total: number; related: { tag: string; count: number }[] } | null>({
 		queryKey: ['karya-tag', tag],
@@ -217,5 +232,6 @@ export const KARYA_PATHS = {
 	project: (slug: string) => `/karya/${slug}`,
 	tag: (tag: string) => `/karya/tag/${encodeURIComponent(tag)}`,
 	preview: (id: string) => `/karya/saya/pratinjau/${id}`,
+	profilePreview: '/karya/saya/pratinjau-profil',
 	student: (username: string) => `/karya/mahasiswa/${username}`,
 };

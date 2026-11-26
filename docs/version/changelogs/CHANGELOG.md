@@ -9,6 +9,18 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.67.0] - 2026-11-27
+
+### Added
+- `karya`: isi otomatis pintar dari README repo — ringkasan, deskripsi rich text, gambar (media eksternal tanpa kuota, bisa dipilih), video YouTube & lampiran video GitHub
+- `karya`: impor profil dari GitHub (nama, bio, headline, website, link, foto) + foto Google otomatis; `POST /api/karya/me/profile/import-github`
+- `karya`: pratinjau profil sendiri `/karya/saya/pratinjau-profil`; penjelasan shortlink + tombol "Pratinjau tujuan" / "Uji shortlink"
+
+### Fixed
+- `auth`: setelah daftar/masuk mahasiswa atau pembeli, halaman akun tidak lagi mengalihkan ke `/login` (cache "belum login" yang sedang dimuat ulang)
+
+Detail: [release/4.67.0.md](../release/4.67.0.md).
+
 ## [4.66.1] - 2026-11-27
 
 ### Added
