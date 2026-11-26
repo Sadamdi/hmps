@@ -81,13 +81,15 @@ const mediaSchema = new Schema(
 		url: { type: String, required: true },
 		size: { type: Number, default: 0 },
 		caption: { type: String, default: '' },
+		/** Gambar eksternal (mis. dari README repo) — tidak memakai kuota, tidak ada file di server */
+		external: { type: Boolean, default: false },
 	},
 	{ _id: false },
 );
 
 const linkSchema = new Schema(
 	{
-		kind: { type: String, enum: ['youtube', 'gdrive', 'demo', 'repo', 'other'], required: true },
+		kind: { type: String, enum: ['youtube', 'gdrive', 'demo', 'repo', 'video', 'other'], required: true },
 		url: { type: String, required: true },
 		label: { type: String, default: '' },
 	},

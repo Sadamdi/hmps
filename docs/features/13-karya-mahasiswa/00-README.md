@@ -8,7 +8,7 @@
 **Tenant-Aware**: No — situs utama saja (blok beranda & navbar `karya` disaring dari tenant; slug `karya`/`go` dicadangkan)  
 **Permission Scope**: Public / Mahasiswa (akun terpisah) / Admin (`karya.view`, `karya.manage`)  
 **Since version**: 4.65.0  
-**Last documented version**: 4.66.1  
+**Last documented version**: 4.67.0  
 
 ---
 
@@ -67,6 +67,14 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 ```
 
 ---
+
+## Pembaruan 4.67.0
+
+- **README pintar:** "Ambil info repo" kini membaca README (GitHub/GitLab/Codeberg) → ringkasan (paragraf bermakna pertama), deskripsi rich text (badge dibuang, URL relatif diperbaiki, disanitasi), gambar README (maks 8, badge/ikon dibuang, dipilih/batal di editor) disimpan sebagai **media eksternal** tanpa kuota (`externalMedia`, host diizinkan: raw/user-images/camo GitHub, GitLab, Codeberg, Bitbucket, Imgur), video YouTube dan lampiran video GitHub (`kind: 'video'`, diputar di galeri). Hanya mengisi kolom yang masih kosong. Sumber: `server/services/karya-readme.ts` (`marked`).
+- **Sinkron profil:** "Impor dari GitHub" (nama, bio, headline, website, link GitHub, foto) dan "Pakai foto GitHub"; masuk dengan Google memakai foto Google bila belum ada foto. Foto eksternal hanya dari `avatars.githubusercontent.com` / `*.googleusercontent.com`.
+- **Pratinjau profil:** `/karya/saya/pratinjau-profil` — tampilan publik profil sendiri walau privat/belum aktivasi.
+- **Shortlink:** penjelasan cara kerja di tab Shortlink; tombol "Pratinjau tujuan" (semua status) dan "Uji shortlink" (aktif).
+- **Perbaikan:** setelah daftar/masuk (mahasiswa & pembeli) tidak lagi dilempar ke `/login` — hook `useStudent`/`useBuyer` menganggap data kosong yang sedang dimuat ulang masih memuat, dan cache akun diisi langsung dari respons.
 
 ## Pembaruan 4.66.0 (batch 2)
 

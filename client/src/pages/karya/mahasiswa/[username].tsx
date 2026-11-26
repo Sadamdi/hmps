@@ -5,7 +5,7 @@ import { KARYA_PATHS, usePublicStudent } from '@/hooks/use-karya';
 import { BadgeCheck, FileText, Github, Globe, Instagram, Link2, Linkedin, Loader2 } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
-import type { KaryaSocialLinks } from '@shared/karya';
+import type { KaryaProjectCard, KaryaSocialLinks, KaryaStudentPublic } from '@shared/karya';
 
 const SOCIAL: { key: keyof KaryaSocialLinks; label: string; icon: ReactNode }[] = [
 	{ key: 'github', label: 'GitHub', icon: <Github className="h-4 w-4" /> },
@@ -52,12 +52,21 @@ export default function KaryaStudentPage() {
 		);
 	}
 
-	const featured = data.projects.find((p) => p.featured) || data.projects[0];
-	const rest = data.projects.filter((p) => p !== featured);
+	return (
+		<KaryaPublicLayout breadcrumb={crumbs} title={`${s.name} — Karya Mahasiswa TI | Himatif Encoder`} noindex={data.indexable === false}>
+			<StudentProfileView s={s} projects={data.projects} />
+		</KaryaPublicLayout>
+	);
+}
+
+/** Tampilan profil (dipakai halaman publik dan pratinjau pemilik). */
+export function StudentProfileView({ s, projects }: { s: KaryaStudentPublic & { shortlink?: string }; projects: KaryaProjectCard[] }) {
+	const featured = projects.find((p) => p.featured) || projects[0];
+	const rest = projects.filter((p) => p !== featured);
 	const socials = SOCIAL.filter((x) => s.social?.[x.key]);
 
 	return (
-		<KaryaPublicLayout breadcrumb={crumbs} title={`${s.name} — Karya Mahasiswa TI | Himatif Encoder`} noindex={data.indexable === false}>
+		<>
 			<div className="h-32 sm:h-40 bg-gradient-to-r from-blue-600 via-cyan-700 to-background" aria-hidden />
 			<div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 pb-14 grid gap-8 lg:grid-cols-[320px_1fr]">
 				<aside className="space-y-4 self-start rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -104,9 +113,9 @@ export default function KaryaStudentPage() {
 
 				<section className="min-w-0 space-y-6 lg:pt-20">
 					<div className="flex flex-wrap items-baseline justify-between gap-2">
-						<h2 className="text-xl font-semibold text-foreground">Portofolio ({data.projects.length})</h2>
+						<h2 className="text-xl font-semibold text-foreground">Portofolio ({projects.length})</h2>
 					</div>
-					{!data.projects.length ? (
+					{!projects.length ? (
 						<div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
 							<p className="font-semibold text-foreground">Belum ada karya yang tayang</p>
 							<p className="mt-1 text-sm text-muted-foreground">Karya {s.name.split(' ')[0]} akan muncul di sini setelah dipublikasikan.</p>
@@ -122,6 +131,6 @@ export default function KaryaStudentPage() {
 					) : null}
 				</section>
 			</div>
-		</KaryaPublicLayout>
+		</>
 	);
 }

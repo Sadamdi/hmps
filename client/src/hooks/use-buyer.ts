@@ -43,7 +43,8 @@ export function useBuyer() {
 		},
 		staleTime: 60_000,
 	});
-	return { buyer: q.data ?? null, loading: q.isLoading, refetch: q.refetch };
+	// Data lama kosong yang sedang dimuat ulang (tepat setelah daftar/masuk) = masih memuat → tidak dilempar ke login
+	return { buyer: q.data ?? null, loading: q.isLoading || (q.isFetching && !q.data), refetch: q.refetch };
 }
 
 /** POST/PATCH ke /api/buyer/* dan kembalikan `data` (error dilempar dengan pesan server). */

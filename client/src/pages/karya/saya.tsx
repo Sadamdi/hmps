@@ -89,6 +89,11 @@ export default function KaryaDashboardPage() {
 					</div>
 					<div className="flex flex-wrap gap-2">
 						<Button asChild variant="outline">
+							<Link href={KARYA_PATHS.profilePreview}>
+								<Eye className="mr-2 h-4 w-4" /> Pratinjau profil
+							</Link>
+						</Button>
+						<Button asChild variant="ghost">
 							<Link href={KARYA_PATHS.student(student.username)}>
 								<ExternalLink className="mr-2 h-4 w-4" /> Profil publik
 							</Link>
@@ -323,6 +328,44 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 		}
 	};
 
+	const [ghUser, setGhUser] = useState(() => String((student.social as Record<string, string>)?.github || '').replace(/^https:\/\/github\.com\//, '').replace(/\/.*$/, ''));
+	const [importing, setImporting] = useState(false);
+	/** Isi form dari profil GitHub publik (nama, bio, website, foto, link GitHub) — disimpan setelah kamu tekan Simpan. */
+	const importGithub = async () => {
+		if (!ghUser.trim()) return toast({ title: 'Isi username GitHub dulu', variant: 'destructive' });
+		setImporting(true);
+		try {
+			const g = await karyaApi<{ username: string; name: string; bio: string; website: string; avatarUrl: string; githubUrl: string }>('POST', '/me/profile/import-github', { username: ghUser.trim() });
+			setForm((f) => ({
+				...f,
+				name: f.name || g.name,
+				bio: f.bio || g.bio,
+				headline: f.headline || (g.bio ? g.bio.split(/[.\n]/)[0].slice(0, 120) : ''),
+				social: { ...f.social, github: g.githubUrl, ...(g.website && !f.social.website ? { website: g.website } : {}) },
+			}));
+			if (g.avatarUrl && !student.avatarUrl) {
+				await karyaApi('PATCH', '/me/profile', { avatarUrl: g.avatarUrl });
+				refreshStudent();
+			}
+			toast({ title: 'Data GitHub dimasukkan', description: 'Kolom kosong terisi dari GitHub. Periksa lalu tekan "Simpan profil".' });
+		} catch (e) {
+			toast({ title: 'Gagal impor dari GitHub', description: apiErrorText(e, 'Periksa username'), variant: 'destructive' });
+		} finally {
+			setImporting(false);
+		}
+	};
+	const useGithubAvatar = async () => {
+		try {
+			const g = await karyaApi<{ avatarUrl: string }>('POST', '/me/profile/import-github', { username: ghUser.trim() });
+			if (!g.avatarUrl) return;
+			await karyaApi('PATCH', '/me/profile', { avatarUrl: g.avatarUrl });
+			refreshStudent();
+			toast({ title: 'Foto profil memakai foto GitHub' });
+		} catch (e) {
+			toast({ title: 'Gagal', description: apiErrorText(e, 'Coba lagi'), variant: 'destructive' });
+		}
+	};
+
 	const uploadAvatar = async (f: File | undefined) => {
 		if (!f) return;
 		if (f.size > 5 * 1024 * 1024) return toast({ title: 'Foto maks 5 MB', variant: 'destructive' });
@@ -346,6 +389,17 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 			<Card>
 				<CardHeader>
 					<CardTitle>Profil publik</CardTitle>
+					<div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-border bg-muted/30 p-3">
+						<span className="text-sm font-medium text-foreground">Sinkronkan dari GitHub</span>
+						<Input aria-label="Username GitHub" className="h-9 w-[180px]" placeholder="username GitHub" value={ghUser} onChange={(e) => setGhUser(e.target.value.trim())} />
+						<Button type="button" size="sm" variant="outline" onClick={importGithub} disabled={importing}>
+							{importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Impor dari GitHub
+						</Button>
+						<Button type="button" size="sm" variant="ghost" onClick={useGithubAvatar} disabled={!ghUser.trim()}>
+							Pakai foto GitHub
+						</Button>
+						<span className="w-full text-xs text-muted-foreground">Mengisi kolom yang masih kosong (nama, bio, headline, website, link GitHub). Masuk dengan Google kampus otomatis memakai foto Google bila belum ada foto.</span>
+					</div>
 					<CardDescription>
 						Alamat profil: /karya/mahasiswa/{form.username || student.username}. Tampil publik bila diset Publik dan email sudah diaktivasi, walau belum ada karya.
 						{/^\d{12}$/.test(student.username) ? ' Saran: ganti username agar NIM tidak terlihat di link publik (link lama tetap dialihkan).' : ''}
@@ -460,7 +514,10 @@ function ShortlinkTab() {
 			<Card>
 				<CardHeader>
 					<CardTitle>Buat shortlink</CardTitle>
-					<CardDescription>Contoh: himatif-encoder.com/go/nama-kamu → portofolio atau CV.</CardDescription>
+					<CardDescription className="space-y-2">
+						<span className="block">Shortlink = alamat pendek <strong>himatif-encoder.com/go/nama-kamu</strong> yang langsung mengalihkan pengunjung ke URL tujuanmu (CV, LinkedIn, portofolio, demo).</span>
+						<span className="block">Cara kerja: kamu buat → {config?.shortlinkReview ? 'menunggu persetujuan pengurus →' : ''} aktif → siapa pun yang membuka alamat pendek itu dialihkan ke tujuan, dan jumlah klik tercatat. Shortlink aktif pertama juga tampil di profil publikmu. Pengurus bisa menonaktifkan shortlink yang melanggar.</span>
+					</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<form onSubmit={create} className="space-y-3">
@@ -496,17 +553,31 @@ function ShortlinkTab() {
 										{statusLabel[l.status]} · {l.clicks} klik{l.reviewNote ? ` · ${l.reviewNote}` : ''}
 									</p>
 								</div>
+								<Button asChild variant="outline" size="sm" title="Buka URL tujuan di tab baru">
+									<a href={l.targetUrl} target="_blank" rel="noopener noreferrer nofollow">
+										<Eye className="mr-1 h-3.5 w-3.5" /> Pratinjau tujuan
+									</a>
+								</Button>
 								{l.status === 'active' ? (
-									<Button
-										variant="outline"
-										size="sm"
-										onClick={() => {
-											navigator.clipboard.writeText(`https://himatif-encoder.com/go/${l.slug}`).catch(() => null);
-											toast({ title: 'Link disalin' });
-										}}>
-										<Copy className="mr-1 h-3.5 w-3.5" /> Salin
-									</Button>
-								) : null}
+									<>
+										<Button asChild variant="outline" size="sm" title="Coba alamat pendeknya (menambah 1 klik)">
+											<a href={`/go/${l.slug}`} target="_blank" rel="noopener noreferrer">
+												<ExternalLink className="mr-1 h-3.5 w-3.5" /> Uji shortlink
+											</a>
+										</Button>
+										<Button
+											variant="outline"
+											size="sm"
+											onClick={() => {
+												navigator.clipboard.writeText(`https://himatif-encoder.com/go/${l.slug}`).catch(() => null);
+												toast({ title: 'Link disalin' });
+											}}>
+											<Copy className="mr-1 h-3.5 w-3.5" /> Salin
+										</Button>
+									</>
+								) : (
+									<span className="text-xs text-muted-foreground">{l.status === 'pending' ? 'Bisa diuji setelah disetujui' : 'Nonaktif'}</span>
+								)}
 								<Button variant="ghost" size="sm" className="text-destructive" onClick={() => remove(l.id)} aria-label={`Hapus shortlink ${l.slug}`}>
 									<Trash2 className="h-4 w-4" />
 								</Button>
