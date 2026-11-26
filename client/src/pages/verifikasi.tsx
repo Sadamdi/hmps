@@ -18,7 +18,7 @@ type Info = {
 	action: string;
 	email: string;
 	expiresAt: string;
-	state: 'ready' | 'used' | 'expired' | 'locked';
+	state: 'ready' | 'used' | 'expired' | 'locked' | 'replaced';
 };
 
 /** Alur yang diselesaikan di halaman ini. */
@@ -132,6 +132,9 @@ export default function VerifikasiPage() {
 								<AlertTitle>Link tidak valid</AlertTitle>
 								<AlertDescription>Salin ulang link dari email, atau masukkan kode 6 digit di halaman tempat kamu memintanya.</AlertDescription>
 							</Alert>
+						) : null}
+						{!validParams ? (
+							<ResendVerification purpose={null} />
 						) : isLoading ? (
 							<div className="flex justify-center py-8">
 								<Loader2 className="h-6 w-6 animate-spin text-primary" aria-label="Memuat" />
@@ -140,7 +143,7 @@ export default function VerifikasiPage() {
 							<Alert variant="destructive">
 								<Clock className="h-4 w-4" />
 								<AlertTitle>Link sudah kedaluwarsa atau tidak ada</AlertTitle>
-								<AlertDescription>Minta kode/link baru dari halaman asal. Setiap link hanya berlaku sementara dan sekali pakai.</AlertDescription>
+								<AlertDescription>Minta kode/link baru di bawah. Setiap link hanya berlaku sementara dan sekali pakai.</AlertDescription>
 							</Alert>
 						) : done ? (
 							<div className="space-y-4 text-center">
@@ -153,11 +156,13 @@ export default function VerifikasiPage() {
 						) : info.state !== 'ready' ? (
 							<Alert variant="destructive">
 								<Clock className="h-4 w-4" />
-								<AlertTitle>{info.state === 'used' ? 'Kode/link ini sudah dipakai' : info.state === 'locked' ? 'Terlalu banyak percobaan salah' : 'Link sudah kedaluwarsa'}</AlertTitle>
+								<AlertTitle>{info.state === 'replaced' ? 'Link ini sudah diganti yang lebih baru' : info.state === 'used' ? 'Kode/link ini sudah dipakai' : info.state === 'locked' ? 'Terlalu banyak percobaan salah' : 'Link sudah kedaluwarsa'}</AlertTitle>
 								<AlertDescription>
-									{info.state === 'used'
+									{info.state === 'replaced'
+										? 'Kamu sudah meminta kode/link baru, jadi yang ini tidak berlaku. Buka email paling baru — atau kirim ulang di bawah.'
+										: info.state === 'used'
 										? 'Kode dan link hanya bisa dipakai sekali; memakai salah satunya membatalkan yang lain. Bila prosesnya belum selesai, minta kode/link baru.'
-										: 'Minta kode/link baru dari halaman asal.'}
+										: 'Minta kode/link baru di bawah.'}
 								</AlertDescription>
 							</Alert>
 						) : direct ? (
@@ -215,9 +220,101 @@ export default function VerifikasiPage() {
 						) : (
 							<p className="text-sm text-muted-foreground">Masukkan kode 6 digit dari email di halaman tempat kamu memintanya.</p>
 						)}
+						{validParams && !isLoading && !done && (infoErr || !info || info.state !== 'ready') ? <ResendVerification purpose={info?.purpose || null} /> : null}
 					</CardContent>
 				</Card>
 			</div>
 		</KaryaPublicLayout>
+	);
+}
+
+/** Jenis akun yang bisa dikirimi ulang email verifikasi tanpa login. */
+type ResendKind = 'student' | 'buyer';
+const ACTIVATION_KIND: Record<string, ResendKind> = { karya_register: 'student', buyer_register: 'buyer' };
+/** Tujuan lain: arahkan ke halaman untuk meminta kode/link baru. */
+const REQUEST_AGAIN: Record<string, { href: string; label: string }> = {
+	karya_password: { href: '/karya/masuk', label: 'Minta link reset password Karya baru' },
+	karya_password_change: { href: '/karya/saya?tab=akun', label: 'Ulangi ganti password' },
+	karya_delete: { href: '/karya/saya?tab=akun', label: 'Minta kode hapus akun baru' },
+	buyer_password: { href: '/toko/masuk', label: 'Minta link reset password toko baru' },
+	buyer_email_change: { href: '/toko/akun', label: 'Ulangi ganti email' },
+	buyer_delete: { href: '/toko/akun', label: 'Minta kode hapus akun baru' },
+	forgot_password: { href: '/login', label: 'Minta link reset password pengurus baru' },
+};
+
+/**
+ * Tombol "Kirim ulang verifikasi" saat link/kode aktivasi sudah tidak berlaku (kedaluwarsa, dipakai, terkunci, rusak).
+ * Mahasiswa: /api/karya/auth/activation/resend-public; pembeli: /api/buyer/register/resend. Jawaban selalu generik.
+ */
+function ResendVerification({ purpose }: { purpose: string | null }) {
+	const known = purpose ? ACTIVATION_KIND[purpose] : undefined;
+	const again = purpose ? REQUEST_AGAIN[purpose] : undefined;
+	const [kind, setKind] = useState<ResendKind>(known || 'student');
+	const [email, setEmail] = useState('');
+	const [busy, setBusy] = useState(false);
+	const [msg, setMsg] = useState('');
+	const [err, setErr] = useState('');
+
+	if (again && !known) {
+		return (
+			<Button asChild variant="outline" className="w-full">
+				<Link href={again.href}>{again.label}</Link>
+			</Button>
+		);
+	}
+
+	const send = async (e: FormEvent) => {
+		e.preventDefault();
+		setErr('');
+		setMsg('');
+		setBusy(true);
+		try {
+			const url = kind === 'student' ? '/api/karya/auth/activation/resend-public' : '/api/buyer/register/resend';
+			const r = await apiRequest('POST', url, { email: email.trim() });
+			const j = await r.json().catch(() => ({}));
+			setMsg(j?.message || 'Jika email terdaftar dan belum diverifikasi, kode & link baru sudah dikirim.');
+		} catch (e2) {
+			setErr(apiErrorText(e2, 'Gagal mengirim. Coba lagi sebentar lagi.'));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	return (
+		<form onSubmit={send} className="space-y-3 rounded-lg border border-border p-4">
+			<p className="text-sm font-semibold text-foreground">Kirim ulang email verifikasi</p>
+			{!known ? (
+				<div className="flex flex-wrap gap-2" role="group" aria-label="Jenis akun">
+					{([
+						['student', 'Mahasiswa TI (Karya)'],
+						['buyer', 'Pembeli (Toko)'],
+					] as const).map(([k, label]) => (
+						<Button key={k} type="button" size="sm" variant={kind === k ? 'default' : 'outline'} aria-pressed={kind === k} onClick={() => setKind(k)}>
+							{label}
+						</Button>
+					))}
+				</div>
+			) : null}
+			<div className="space-y-1.5">
+				<Label htmlFor="rv-email">Email akun</Label>
+				<Input id="rv-email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={kind === 'student' ? 'NIM@student.uin-malang.ac.id' : 'email@contoh.com'} />
+			</div>
+			{err ? (
+				<p className="text-sm text-destructive" role="alert">
+					{err}
+				</p>
+			) : null}
+			{msg ? (
+				<p className="text-sm text-emerald-600 dark:text-emerald-400" role="status">
+					{msg} Buka email terbaru lalu pakai kode atau link di dalamnya.
+				</p>
+			) : null}
+			<Button type="submit" className="h-11 w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90" disabled={busy || !email.trim()}>
+				{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MailCheck className="mr-2 h-4 w-4" />} Kirim ulang verifikasi
+			</Button>
+			<p className="text-xs text-muted-foreground">
+				Akun sudah aktif? <Link href="/login" className="text-primary hover:underline">Masuk di sini</Link>. Kode & link baru otomatis membatalkan yang lama — selalu pakai email paling baru. Berlaku 24 jam (mahasiswa) / 60 menit (pembeli).
+			</p>
+		</form>
 	);
 }

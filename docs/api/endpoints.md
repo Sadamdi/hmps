@@ -521,6 +521,7 @@ GET    /api/karya/auth/config                    # publik: enabled, registration
 POST   /api/karya/auth/register                  # {name, email, password} → langsung masuk (belum aktivasi) + email aktivasi kode & link 24 jam; email non-TI → 403 NOT_TI_STUDENT
 POST   /api/karya/auth/register/verify           # {challengeId, code: 6 digit | token link} → aktivasi
 POST   /api/karya/auth/activation/resend         # mahasiswa: kirim ulang aktivasi
+POST   /api/karya/auth/activation/resend-public  # tanpa login: {email} → kirim ulang aktivasi (jawaban generik)
 POST   /api/karya/auth/password-targets          # pintu /login: {email, password} → {student, buyer, studentEligible} tanpa membuat sesi
 POST   /api/karya/auth/login                     # {email, password}; STUDENT_BLOCKED / STUDENT_SUSPENDED / EMAIL_UNVERIFIED
 POST   /api/karya/auth/google                    # {idToken}; akun baru → {needsOnboarding, email, name}
@@ -565,7 +566,8 @@ GET    /api/karya/public/projects/:slug          # 404 bila privat/belum disetuj
 GET    /api/karya/public/students/:username      # 404 bila profil privat / belum aktivasi; tanpa karya tetap tampil (indexable=false); redirectTo bila username lama
 
 # Verifikasi email (semua alur OTP: kode 6 digit + link sekali pakai di email; pakai salah satunya → keduanya hangus)
-GET    /api/verify/info?c=<challengeId>          # tujuan, jenis akun, email tersamar, state ready|used|expired|locked (tidak memakai token)
+GET    /api/verify/info?c=<challengeId>          # tujuan, jenis akun, email tersamar, state ready|used|expired|locked|replaced (tidak memakai token)
+POST   /api/buyer/register/resend                # {email} → kirim ulang verifikasi pembeli (data.challengeId | null)
 
 # Admin (pengurus: karya.view / karya.manage — owner, chair, vice_chair, medinfo + divisi Medinfo)
 GET    /api/karya/admin/overview

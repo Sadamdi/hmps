@@ -79,6 +79,18 @@ export default function TokoBuyerLoginPage() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [loading, buyer]);
 
+	/** Kirim ulang kode + link verifikasi akun pembeli yang belum diverifikasi (tanpa daftar ulang). */
+	const resendVerification = () =>
+		run(async () => {
+			const r = await buyerApi<{ challengeId: string | null }>('POST', '/register/resend', { email: email.trim() });
+			if (r?.challengeId) {
+				setChallengeId(r.challengeId);
+				setCode('');
+				setMode('verify');
+			}
+			toast({ title: 'Cek email kamu', description: 'Jika akun belum diverifikasi, kode & link baru sudah dikirim (berlaku 60 menit). Pakai salah satunya.' });
+		});
+
 	const run = async (fn: () => Promise<void>) => {
 		setError('');
 		setBusy(true);
@@ -295,6 +307,11 @@ export default function TokoBuyerLoginPage() {
 									{error}
 								</p>
 							)}
+							{mode === 'login' && /belum diverifikasi/i.test(error) && (
+								<Button type="button" variant="outline" className="w-full gap-2" disabled={busy} onClick={resendVerification}>
+									<Mail className="h-4 w-4" /> Kirim ulang verifikasi
+								</Button>
+							)}
 							<Button type="submit" className="w-full gap-2" disabled={busy}>
 								{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : mode === 'login' ? <LogIn className="h-4 w-4" /> : mode === 'register' || mode === 'forgot' ? <Mail className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
 								{{ login: 'Masuk', register: 'Kirim kode verifikasi', verify: 'Verifikasi & masuk', forgot: 'Kirim kode OTP', reset: 'Simpan password & masuk' }[mode]}
@@ -318,7 +335,7 @@ export default function TokoBuyerLoginPage() {
 								</button>
 							)}
 							{(mode === 'verify' || mode === 'reset') && (
-								<button type="button" className="text-muted-foreground hover:underline" onClick={() => { setError(''); setMode(mode === 'verify' ? 'register' : 'forgot'); }}>
+								<button type="button" className="text-muted-foreground hover:underline" onClick={() => { if (mode === 'verify') { void resendVerification(); } else { setError(''); setMode('forgot'); } }}>
 									Kirim ulang kode
 								</button>
 							)}

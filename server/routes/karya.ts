@@ -443,6 +443,24 @@ router.post('/auth/password/change/confirm', requireEnabled, authLimiter, async 
 	}
 });
 
+/**
+ * Kirim ulang aktivasi TANPA login (link/kode lama kedaluwarsa atau hilang). Jawaban selalu sama agar email tidak
+ * bisa ditebak; email hanya dikirim bila akun mahasiswa aktif & belum terverifikasi.
+ */
+router.post('/auth/activation/resend-public', requireEnabled, authLimiter, async (req, res) => {
+	const email = normalizeStudentEmail(req.body?.email);
+	const generic = 'Jika email terdaftar dan belum diaktivasi, kode & link aktivasi baru sudah dikirim (berlaku 24 jam).';
+	if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail(res, 400, 'Format email tidak valid', 'EMAIL_INVALID');
+	try {
+		const s: any = await KaryaStudent.findOne({ email, status: 'active', emailVerified: false }).lean();
+		if (!s || studentAccessBlock(s)) return ok(res, { sent: true }, generic);
+		await createOtpChallenge({ purpose: 'karya_register', email, userId: String(s._id), ttlMinutes: ACTIVATION_TTL_MINUTES, requestIp: reqIp(req), username: s.name });
+		ok(res, { sent: true }, generic);
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
 /** Kirim ulang email aktivasi (kode + link, 24 jam). */
 router.post('/auth/activation/resend', requireEnabled, authenticateStudent, authLimiter, async (req, res) => {
 	const me: any = await getStudent(req);
