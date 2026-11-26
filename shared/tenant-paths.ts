@@ -22,6 +22,8 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
 	'youtube',
 	'instagram',
 	'toko',
+	'karya',
+	'go',
 	'dashboard',
 	'communities',
 	'sitemap.xml',

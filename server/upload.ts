@@ -446,6 +446,65 @@ export async function uploadStoreReviewMedia(
 	return { url, type: kind, size: buffer.length };
 }
 
+/** Multer khusus media Karya Mahasiswa: 1 file per request, maks 30 MB (batas per jenis dicek lagi di route). */
+export const karyaMediaMiddleware = multer({
+	storage,
+	limits: { fileSize: 30 * 1024 * 1024, files: 1, fields: 8 },
+});
+
+/**
+ * Simpan media Karya Mahasiswa ke uploads/karya/<studentId>/. Foto diproses ulang ke WebP (metadata/payload
+ * tersembunyi dibuang); video divalidasi tipe + tanda tangan file. Didaftarkan ke pemindai antivirus.
+ * `avatar: true` → foto persegi kecil 400px.
+ */
+export async function uploadKaryaMedia(
+	file: Express.Multer.File,
+	studentId: string,
+	opts: { avatar?: boolean } = {},
+): Promise<{ url: string; type: 'image' | 'video'; size: number }> {
+	if (!/^[a-f0-9]{24}$/.test(studentId)) throw new Error('ID tidak valid');
+	const kind = classifyReviewMedia(file);
+	if (!kind) throw new Error('Tipe file tidak didukung');
+	if (opts.avatar && kind !== 'image') throw new Error('Foto profil harus gambar');
+	const sub = `karya/${studentId}`;
+	const dir = path.join(uploadDir, sub);
+	if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+	let buffer: Buffer;
+	let ext: string;
+	let mime: string;
+	if (kind === 'image') {
+		buffer = opts.avatar
+			? await processImage(file.buffer, { quality: 80, maxWidth: 400, maxHeight: 400, format: 'webp' })
+			: await processImage(file.buffer, { quality: 80, maxWidth: 1920, maxHeight: 1920, format: 'webp' });
+		ext = '.webp';
+		mime = 'image/webp';
+	} else {
+		if (!looksLikeVideo(file.buffer, file.mimetype)) throw new Error('Isi file bukan video yang valid');
+		buffer = file.buffer;
+		ext = REVIEW_VIDEO_TYPES[file.mimetype];
+		mime = file.mimetype;
+	}
+	const fileName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
+	const filePath = path.join(dir, fileName);
+	await writeFile(filePath, buffer);
+	const url = `/uploads/${sub}/${fileName}`;
+	registerUploadedFile({ url, diskPath: filePath, originalName: file.originalname, mimeType: mime, size: buffer.length, category: 'karya' });
+	return { url, type: kind, size: buffer.length };
+}
+
+/** Hapus file media karya milik mahasiswa tertentu (hanya di folder miliknya). */
+export async function deleteKaryaMediaFile(url: string, studentId: string): Promise<void> {
+	const prefix = `/uploads/karya/${studentId}/`;
+	if (!url.startsWith(prefix) || url.includes('..')) return;
+	const name = url.slice(prefix.length);
+	if (!/^[\w.-]+$/.test(name)) return;
+	try {
+		await fs.promises.unlink(path.join(uploadDir, 'karya', studentId, name));
+	} catch {
+		/* sudah tidak ada */
+	}
+}
+
 /**
  * Upload a content image for an event's rich-text description.
  * Files go under events/{eventId}/content/ (or events/{parentId}/sub-events/{eventId}/content/).

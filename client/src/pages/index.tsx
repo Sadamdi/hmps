@@ -9,6 +9,7 @@ import Hero from '@/components/public/hero';
 import Library from '@/components/public/library';
 import Navbar from '@/components/public/navbar';
 import TokoSection from '@/components/public/toko-section';
+import KaryaSection from '@/components/public/karya-section';
 import {
 	InstagramHomeSection,
 	YoutubeHomeSection,
@@ -28,7 +29,7 @@ import {
 	useState,
 } from 'react';
 import { useLocation } from 'wouter';
-import { ALL_SUBITEM_BLOCKS, DEFAULT_HOME_CONFIG, DEFAULT_TENANT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
+import { ALL_SUBITEM_BLOCKS, withKaryaDefault, DEFAULT_HOME_CONFIG, DEFAULT_TENANT_HOME_CONFIG, type HomeBlockItem, type HomeConfig } from '../../../shared/schema';
 import { useTenant } from '@/lib/tenant-context';
 import { usePublicBrand } from '@/hooks/use-public-brand';
 import { ArrowRight } from 'lucide-react';
@@ -286,6 +287,7 @@ export default function Home() {
 		'youtube',
 		'instagram',
 		'toko',
+		'karya',
 		'profil-tentangKami',
 		'profil-sejarah',
 		'profil-filosofi',
@@ -341,6 +343,7 @@ export default function Home() {
 				{ id: 'youtube', navId: 'youtube' },
 				{ id: 'instagram', navId: 'instagram' },
 				{ id: 'toko', navId: 'toko' },
+				{ id: 'karya', navId: 'karya' },
 			];
 			const currentPosition = window.scrollY + 200;
 			for (const section of sections) {
@@ -374,9 +377,13 @@ export default function Home() {
 		return <MaintenanceMode />;
 	}
 
-	const blocks: HomeBlockItem[] = settings?.homeConfig?.blocks?.length
+	const savedBlocks: HomeBlockItem[] = settings?.homeConfig?.blocks?.length
 		? settings.homeConfig.blocks
 		: defaultHomeBlocks;
+	// Blok "Karya Mahasiswa TI" belum ada di konfigurasi lama → default setelah Toko, sebelum grup Media (bisa digeser/disembunyikan di Settings Beranda)
+	const blocks: HomeBlockItem[] = isTenant
+		? savedBlocks
+		: withKaryaDefault(savedBlocks, () => ({ id: 'karya', kind: 'section', visible: true }));
 
 	const visibleBlocks = blocks.filter((b) => b.visible);
 
@@ -441,6 +448,8 @@ export default function Home() {
 				return <Library key="library" />;
 				case 'toko':
 					return <TokoSection key="toko" />;
+				case 'karya':
+					return isTenant ? null : <KaryaSection key="karya" />;
 				case 'footer':
 					return <Footer key="footer" />;
 				default:

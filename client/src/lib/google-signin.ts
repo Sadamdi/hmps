@@ -25,7 +25,8 @@ export function fetchFirebaseConfig(): Promise<FirebaseWebConfig | null> {
 export class GoogleSignInCancelled extends Error {}
 
 /** Buka popup pemilihan akun Google dan kembalikan Firebase ID token. */
-export async function getGoogleIdToken(): Promise<string> {
+/** `hostedDomain` hanya petunjuk tampilan pemilih akun Google; validasi domain tetap di server. */
+export async function getGoogleIdToken(opts: { hostedDomain?: string } = {}): Promise<string> {
 	const config = await fetchFirebaseConfig();
 	if (!config) throw new Error('Login Google belum tersedia');
 
@@ -35,7 +36,7 @@ export async function getGoogleIdToken(): Promise<string> {
 	await authMod.setPersistence(auth, authMod.inMemoryPersistence);
 
 	const provider = new authMod.GoogleAuthProvider();
-	provider.setCustomParameters({ prompt: 'select_account' });
+	provider.setCustomParameters(opts.hostedDomain ? { prompt: 'select_account', hd: opts.hostedDomain } : { prompt: 'select_account' });
 
 	try {
 		const cred = await authMod.signInWithPopup(auth, provider);

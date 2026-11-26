@@ -106,6 +106,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_EMBED_HOSTNAMES } from '../../../../shared/embed-default-hosts';
 import {
 	ALL_NAVBAR_ITEMS,
+	withKaryaDefault,
 	ALL_SECTION_BLOCKS,
 	ALL_SUBITEM_BLOCKS,
 	DEFAULT_HOME_CONFIG,
@@ -4808,7 +4809,10 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 
 	const buildInitial = useCallback((): HomeConfig => {
 		const prodiFilter = (items: any[]) =>
-			isTenant ? items.filter((i: any) => i.id !== 'prodi') : items;
+			isTenant ? items.filter((i: any) => i.id !== 'prodi' && i.id !== 'karya') : items;
+		// Blok "Karya Mahasiswa TI" (baru) disisipkan setelah Toko bila belum ada — sama dengan beranda publik
+		const withKarya = (blocks: HomeBlockItem[]): HomeBlockItem[] =>
+			isTenant ? blocks : withKaryaDefault(blocks, () => ({ id: 'karya', kind: 'section', visible: true }));
 
 		if (settings?.homeConfig?.blocks?.length) {
 			const currentNavbar = settings.homeConfig.navbar?.length
@@ -4819,7 +4823,11 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 			const missing = defaultCfg.navbar.filter(
 				(n) => !currentIds.has(n.id),
 			);
-			const mergedNavbar = [...currentNavbar, ...missing];
+			// Item navbar baru masuk di akhir, kecuali "Karya TI" yang default setelah Toko (sama dengan navbar publik)
+			const mergedNavbar = withKaryaDefault(
+				[...currentNavbar, ...missing.filter((n) => n.id !== 'karya')],
+				() => ({ id: 'karya', visible: true }),
+			);
 
 			const sourceGroups: HomeNavbarGroup[] = Array.isArray(
 				settings.homeConfig.navbarGroups,
@@ -4836,7 +4844,7 @@ function HomeConfigTab({ canEdit, isTenant }: { canEdit: boolean; isTenant: bool
 			}));
 
 			return {
-				blocks: prodiFilter(settings.homeConfig.blocks),
+				blocks: prodiFilter(withKarya(settings.homeConfig.blocks)),
 				navbar: prodiFilter(mergedNavbar),
 				navbarGroups: sanitizedGroups,
 				showDashboardLink: settings.homeConfig.showDashboardLink ?? true,

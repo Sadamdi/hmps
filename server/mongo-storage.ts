@@ -2926,6 +2926,21 @@ async function initializeDefaultPermissions() {
 				category: 'feedback',
 			},
 
+			// Karya Mahasiswa TI
+			{
+				name: 'karya.view',
+				displayName: 'View Karya Mahasiswa',
+				description: 'Melihat antrean karya, akun mahasiswa, dan shortlink di dashboard',
+				category: 'karya',
+			},
+			{
+				name: 'karya.manage',
+				displayName: 'Manage Karya Mahasiswa',
+				description:
+					'Review/suspend/hapus karya, suspend/blokir akun mahasiswa, buat akun, kelola shortlink & pengaturan review',
+				category: 'karya',
+			},
+
 			// Toko / katalog
 			{
 				name: 'toko.view',
@@ -3042,6 +3057,14 @@ async function initializeDefaultPermissions() {
 						$each: ['social_feed.view', 'social_feed.edit', 'social_feed.sync'],
 					},
 				},
+				$set: { updatedAt: new Date() },
+			},
+		);
+		// Karya Mahasiswa TI: owner (otomatis semua), ketua, wakil, dan Medinfo (role + grant divisi)
+		await Role.updateMany(
+			{ name: { $in: ['chair', 'vice_chair', 'medinfo'] } },
+			{
+				$addToSet: { permissions: { $each: ['karya.view', 'karya.manage'] } },
 				$set: { updatedAt: new Date() },
 			},
 		);

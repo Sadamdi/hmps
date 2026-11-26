@@ -467,8 +467,26 @@ app.get('/sitemap.xml', async (_req, res) => {
 			);
 		}
 
+		let karyaUrls: SitemapUrlEntry[] = [];
+		try {
+			const { karyaSitemapEntries } = await import('./routes/karya');
+			const entries = await karyaSitemapEntries();
+			if (entries.length) karyaUrls.push({ loc: `${host}/karya`, changefreq: 'daily', priority: '0.8', lastmod: now });
+			karyaUrls = karyaUrls.concat(
+				entries.map((e) => ({
+					loc: `${host}${e.loc}`,
+					lastmod: lastmodOf({ updatedAt: e.lastmod }),
+					changefreq: 'weekly',
+					priority: e.loc.startsWith('/karya/mahasiswa/') ? '0.6' : '0.7',
+				})),
+			);
+		} catch (karyaErr: any) {
+			console.log('karya sitemap skipped:', karyaErr?.message);
+		}
+
 		const urls = [
 			...baseUrls,
+			...karyaUrls,
 			...beritaUrls,
 			...eventUrls,
 			...libraryUrls,
@@ -1015,6 +1033,130 @@ process.on('unhandledRejection', (reason: any) => {
 				.replace(/-+/g, '-')
 				.replace(/^-+|-+$/g, '')
 				.substring(0, 80);
+
+		// ==================== KARYA MAHASISWA: prerender SEO detail karya & profil ====================
+		const karyaHtmlTemplate = (): string | null => {
+			const htmlPath = path.join(path.resolve(process.cwd(), 'dist', 'public'), 'index.html');
+			return fs.existsSync(htmlPath) ? fs.readFileSync(htmlPath, 'utf-8') : null;
+		};
+		const karyaNoindex = (html: string) => html.replace('</head>', '<meta name="robots" content="noindex, nofollow" />\n</head>');
+		const karyaAbsUrl = (u: string) => (!u ? defaultOgImage : /^https?:\/\//.test(u) ? u : `https://himatif-encoder.com${u}`);
+
+		app.get('/karya/mahasiswa/:username', async (req, res, next) => {
+			try {
+				const html0 = karyaHtmlTemplate();
+				if (!html0) return next();
+				res.set('Content-Type', 'text/html');
+				const { karyaSeoStudent } = await import('./routes/karya');
+				const data = await karyaSeoStudent(req.params.username);
+				// Profil tidak publik / tidak ada: SPA tetap jalan (menampilkan 404), tapi jangan diindeks
+				if (!data) return res.send(karyaNoindex(html0));
+				const s = data.student;
+				const name = String(s.name || 'Mahasiswa TI');
+				const canonicalUrl = `https://himatif-encoder.com/karya/mahasiswa/${s.username}`;
+				const description = String(
+					s.headline || s.bio || `Portofolio ${name}, mahasiswa Teknik Informatika UIN Malang — ${data.count} karya.`,
+				)
+					.replace(/\s+/g, ' ')
+					.slice(0, 160);
+				const sameAs = Object.values(s.social || {}).filter((v: any) => typeof v === 'string' && v.startsWith('https://'));
+				return res.send(
+					injectArticleMeta(html0, {
+						title: `${name} — Karya Mahasiswa TI | Himatif Encoder`,
+						description,
+						canonicalUrl,
+						ogImage: karyaAbsUrl(s.avatarUrl),
+						ogImageAlt: name,
+						jsonLd: {
+							'@context': 'https://schema.org',
+							'@type': 'ProfilePage',
+							url: canonicalUrl,
+							mainEntity: {
+								'@type': 'Person',
+								name,
+								description,
+								...(s.avatarUrl ? { image: karyaAbsUrl(s.avatarUrl) } : {}),
+								affiliation: { '@type': 'CollegeOrUniversity', name: 'UIN Maulana Malik Ibrahim Malang' },
+								knowsAbout: (s.skills || []).slice(0, 10),
+								sameAs,
+							},
+						},
+					}),
+				);
+			} catch (err) {
+				console.log('Karya profile prerender error:', err);
+				return next();
+			}
+		});
+
+		app.get('/karya/:slug', async (req, res, next) => {
+			try {
+				const html0 = karyaHtmlTemplate();
+				if (!html0) return next();
+				res.set('Content-Type', 'text/html');
+				// Halaman aplikasi mahasiswa (masuk/daftar/dashboard) tidak diindeks
+				if (['masuk', 'daftar', 'saya', 'lupa-password'].includes(req.params.slug)) return res.send(karyaNoindex(html0));
+				const { karyaSeoProject } = await import('./routes/karya');
+				const data = await karyaSeoProject(req.params.slug);
+				// Privat / belum disetujui / disembunyikan / tidak ada → noindex (SPA menampilkan 404)
+				if (!data) return res.send(karyaNoindex(html0));
+				const p = data.project;
+				const s = data.student;
+				const canonicalUrl = `https://himatif-encoder.com/karya/${p.slug}`;
+				const description = String(p.summary || p.description || `Karya ${s.name || 'mahasiswa'} — Teknik Informatika UIN Malang.`)
+					.replace(/\s+/g, ' ')
+					.slice(0, 160);
+				const ogImage = karyaAbsUrl(data.cover);
+				const repo = (p.repos || [])[0];
+				return res.send(
+					injectArticleMeta(html0, {
+						title: `${p.title} — Karya ${s.name || 'Mahasiswa TI'} | Himatif Encoder`,
+						description,
+						canonicalUrl,
+						ogImage,
+						ogImageAlt: String(p.title),
+						jsonLd: [
+							{
+								'@context': 'https://schema.org',
+								'@type': 'CreativeWork',
+								name: String(p.title),
+								headline: String(p.title),
+								description,
+								url: canonicalUrl,
+								image: ogImage,
+								keywords: (p.tags || []).join(', '),
+								genre: p.category,
+								datePublished: p.publishedAt,
+								dateModified: p.updatedAt,
+								author: {
+									'@type': 'Person',
+									name: String(s.name || 'Mahasiswa TI'),
+									url: `https://himatif-encoder.com/karya/mahasiswa/${s.username}`,
+								},
+								publisher: {
+									'@type': 'Organization',
+									name: 'Himatif Encoder TI UIN Malang',
+									logo: { '@type': 'ImageObject', url: defaultOgImage },
+								},
+								...(repo ? { codeRepository: repo.url, ...(repo.language ? { programmingLanguage: repo.language } : {}) } : {}),
+							},
+							{
+								'@context': 'https://schema.org',
+								'@type': 'BreadcrumbList',
+								itemListElement: [
+									{ '@type': 'ListItem', position: 1, name: 'Beranda', item: 'https://himatif-encoder.com/' },
+									{ '@type': 'ListItem', position: 2, name: 'Karya Mahasiswa', item: 'https://himatif-encoder.com/karya' },
+									{ '@type': 'ListItem', position: 3, name: String(p.title), item: canonicalUrl },
+								],
+							},
+						],
+					}),
+				);
+			} catch (err) {
+				console.log('Karya prerender error:', err);
+				return next();
+			}
+		});
 
 		// ==================== BERITA 301 REDIRECT: old /berita/:id/:slug → /berita/:slug ====================
 		app.get('/berita/:id/:slug', async (req, res) => {

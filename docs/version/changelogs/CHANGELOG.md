@@ -9,6 +9,23 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.65.1] - 2026-11-26
+
+### Changed
+- `karya`: posisi default blok beranda "Karya Mahasiswa TI" dan item navbar "Karya TI" untuk konfigurasi lama kini tepat setelah Toko (sebelum grup Media), sama di beranda publik, navbar, dan Settings → Beranda; urutan yang sudah disimpan admin tetap dipakai. Detail: [release/4.65.1.md](../release/4.65.1.md).
+
+## [4.65.0] - 2026-11-26
+
+### Added
+- `karya`: Karya Mahasiswa TI — akun mahasiswa terpisah (cookie `studentToken`), daftar/masuk hanya email `NIM@student.uin-malang.ac.id` prodi TI (`0605`, angkatan berapa pun) via Google atau email + OTP; selain itu ditolak dengan arahan hubungi administrator
+- `karya`: dashboard mahasiswa `/karya/saya` (karya, profil + foto, shortlink, ganti/atur password, sesi perangkat, hapus akun) dan editor karya (isi otomatis dari repo GitHub/GitLab/Bitbucket publik, link YouTube/Google Drive/demo, unggah gambar ≤5 MB ×8 dan video ≤30 MB ×1, kuota 100 MB per mahasiswa, proyek terkait, publik/privat)
+- `karya`: halaman publik `/karya` (cari, tag, kategori, angkatan, urutan), detail `/karya/:slug`, profil `/karya/mahasiswa/:username`, shortlink `/go/:slug`, section beranda "Karya Mahasiswa TI" + item navbar "Karya TI" (bisa disembunyikan/digabung dari Settings → Beranda)
+- `karya`: dashboard admin `/dashboard/karya` — review karya (setujui, minta revisi, suspend, pulihkan, unggulkan, hapus), akun mahasiswa (suspend sementara 1–365 hari, blokir permanen, logout paksa, hapus, buat akun), shortlink, pengaturan (fitur aktif, pendaftaran, review manual/otomatis, unggah file, review shortlink)
+- `permissions`: `karya.view`, `karya.manage` untuk owner, `chair`, `vice_chair`, `medinfo`, dan divisi Medinfo
+- SEO: prerender meta + JSON-LD `CreativeWork`/`ProfilePage`/`BreadcrumbList`, sitemap karya & profil, `noindex` untuk privat/belum disetujui/halaman aplikasi
+
+Detail: [release/4.65.0.md](../release/4.65.0.md).
+
 ## [4.64.2] - 2026-11-19
 
 ### Security
