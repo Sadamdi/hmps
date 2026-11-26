@@ -50,7 +50,7 @@ type FirebaseClaims = JWTPayload & {
 	firebase?: { sign_in_provider?: string };
 };
 
-export async function verifyGoogleIdToken(idToken: string): Promise<{ email: string; uid: string; name: string }> {
+export async function verifyGoogleIdToken(idToken: string): Promise<{ email: string; uid: string; name: string; picture?: string }> {
 	// JALUR UJI (bukan produksi): token `test:<email>|<nama>|<uid>` diterima HANYA bila NODE_ENV bukan production,
 	// GOOGLE_LOGIN_TEST_MODE=1, dan STORE_EMAIL_OUTBOX di-set (variabel khusus pengujian). Tidak aktif di server nyata.
 	if (
@@ -91,5 +91,6 @@ export async function verifyGoogleIdToken(idToken: string): Promise<{ email: str
 	if (!email || payload.email_verified !== true) {
 		throw new GoogleLoginError('GOOGLE_EMAIL_UNVERIFIED', 'Email Google belum terverifikasi');
 	}
-	return { email, uid: payload.sub, name: String(payload.name || '').slice(0, 120) };
+	const picture = typeof (payload as any).picture === 'string' && /^https:\/\/[a-z0-9.-]+\.googleusercontent\.com\//i.test((payload as any).picture) ? String((payload as any).picture).slice(0, 500) : '';
+	return { email, uid: payload.sub, name: String(payload.name || '').slice(0, 120), picture };
 }

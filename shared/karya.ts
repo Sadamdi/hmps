@@ -80,7 +80,7 @@ export const KARYA_STATUS_LABEL: Record<KaryaStatus, string> = {
 	hidden: 'Disembunyikan admin',
 };
 
-export type KaryaLinkKind = 'youtube' | 'gdrive' | 'demo' | 'repo' | 'other';
+export type KaryaLinkKind = 'youtube' | 'gdrive' | 'demo' | 'repo' | 'video' | 'other';
 export type KaryaRepoHost = 'github' | 'gitlab' | 'bitbucket' | 'codeberg';
 
 export const KARYA_REPO_HOSTS: Record<KaryaRepoHost, { label: string; domain: string }> = {
@@ -178,6 +178,8 @@ export function classifyKaryaLink(url: string): KaryaLinkKind {
 	try {
 		const h = new URL(url).hostname.toLowerCase();
 		if (h === 'youtu.be' || h.endsWith('youtube.com')) return 'youtube';
+		// File video langsung (mis. lampiran video README GitHub) → diputar di galeri
+		if (/\.(mp4|webm|mov)(\?|$)/i.test(new URL(url).pathname) || (h === 'github.com' && /^\/user-attachments\/assets\//.test(new URL(url).pathname))) return 'video';
 		if (h === 'drive.google.com' || h === 'docs.google.com') return 'gdrive';
 		if (h === 'github.com' || h === 'gitlab.com' || h === 'bitbucket.org' || h === 'codeberg.org') return 'repo';
 		return 'demo';

@@ -110,6 +110,7 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 	const slides: Slide[] = [
 		...youtube.map((y) => ({ key: `yt-${y.id}`, kind: 'youtube' as const, src: `https://www.youtube-nocookie.com/embed/${y.id}`, caption: y.label })),
 		...p.media.map((m) => ({ key: m.id, kind: m.type, src: m.url, caption: m.caption })),
+		...p.links.filter((l) => l.kind === 'video').map((l, i) => ({ key: `vf-${i}`, kind: 'video' as const, src: l.url, caption: l.label })),
 		...drive.filter((d) => d.id).map((d) => ({ key: `gd-${d.id}`, kind: 'drive' as const, src: `https://drive.google.com/file/d/${d.id}/preview`, caption: d.label })),
 	];
 	const current = slides[Math.min(active, slides.length - 1)];
