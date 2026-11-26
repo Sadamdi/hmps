@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.66.1] - 2026-11-27
+
+### Added
+- `auth`: tombol "Kirim ulang verifikasi" saat link/kode aktivasi tidak valid, kedaluwarsa, dipakai, terkunci, atau sudah diganti — untuk mahasiswa (`POST /api/karya/auth/activation/resend-public`) dan pembeli (`POST /api/buyer/register/resend`); juga di login toko saat email belum diverifikasi
+
+### Changed
+- `otp`: setiap permintaan kode baru membatalkan kode & link lama yang belum dipakai (tujuan + email sama); `/api/verify/info` mengenal state `replaced`
+
+Detail: [release/4.66.1.md](../release/4.66.1.md).
+
 ## [4.66.0] - 2026-11-27
 
 ### Added

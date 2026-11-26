@@ -24,7 +24,7 @@ router.get('/info', limiter, async (req, res) => {
 	const c = String(req.query.c || '');
 	if (!/^[a-f0-9]{24}$/.test(c)) return res.status(400).json({ success: false, message: 'Link tidak valid', error: { code: 'LINK_INVALID' } });
 	try {
-		const ch: any = await OtpChallenge.findById(c).select('purpose email expiresAt consumedAt verifiedAt attempts maxAttempts linkTokenHash').lean();
+		const ch: any = await OtpChallenge.findById(c).select('purpose email expiresAt consumedAt verifiedAt supersededAt attempts maxAttempts linkTokenHash').lean();
 		// Dokumen kedaluwarsa dihapus otomatis (TTL) → tidak ditemukan = kedaluwarsa / tidak ada
 		if (!ch) return res.status(404).json({ success: false, message: 'Link tidak ditemukan atau sudah kedaluwarsa', error: { code: 'LINK_EXPIRED' } });
 		const meta = otpPurposeMeta(ch.purpose);
@@ -43,7 +43,7 @@ router.get('/info', limiter, async (req, res) => {
 				action: meta.action,
 				email: maskEmail(ch.email),
 				expiresAt: ch.expiresAt,
-				state: used ? 'used' : expired ? 'expired' : locked ? 'locked' : 'ready',
+				state: ch.supersededAt ? 'replaced' : used ? 'used' : expired ? 'expired' : locked ? 'locked' : 'ready',
 				hasLink: !!ch.linkTokenHash,
 			},
 		});

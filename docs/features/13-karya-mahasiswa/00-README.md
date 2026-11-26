@@ -8,7 +8,7 @@
 **Tenant-Aware**: No — situs utama saja (blok beranda & navbar `karya` disaring dari tenant; slug `karya`/`go` dicadangkan)  
 **Permission Scope**: Public / Mahasiswa (akun terpisah) / Admin (`karya.view`, `karya.manage`)  
 **Since version**: 4.65.0  
-**Last documented version**: 4.66.0  
+**Last documented version**: 4.66.1  
 
 ---
 
@@ -79,6 +79,7 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 - Template email seragam `server/services/email-layout.ts` (header brand, lencana tujuan, kode, tombol + tautan cadangan, tabel detail: akun, nama, jenis akun, tujuan, waktu permintaan, asal permintaan IP tersamar + lokasi, berlaku sampai; peringatan keamanan; versi teks). Dipakai juga untuk email balasan feedback/bug (isi kini di-escape).
 
 ### Aktivasi & kunci privat
+- **Kirim ulang verifikasi (4.66.1):** link/kode tidak valid, kedaluwarsa, dipakai, terkunci, atau sudah diganti → tombol "Kirim ulang verifikasi" di `/verifikasi` (pilih Mahasiswa/Pembeli bila jenis tidak diketahui) memanggil `POST /api/karya/auth/activation/resend-public` atau `POST /api/buyer/register/resend` (jawaban generik). Login toko yang tertahan `EMAIL_UNVERIFIED` juga menampilkan tombol ini dan langsung membuka isian kode. Setiap permintaan kode baru membatalkan kode & link lama (tujuan + email sama; `supersededAt`, state `replaced`).
 - Daftar email → langsung masuk dengan `emailVerified: false` + email aktivasi. Google = otomatis terverifikasi (sesi lama yang dibuat sebelum verifikasi dicabut).
 - Belum aktivasi: karya hanya Privat (`403 EMAIL_NOT_VERIFIED` di server), profil tidak publik, shortlink ditolak. Banner aktivasi + kirim ulang di Ruang Mahasiswa.
 

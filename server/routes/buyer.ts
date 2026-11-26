@@ -121,6 +121,24 @@ router.post('/register', authLimiter, async (req, res) => {
 });
 
 // Kode 6 digit dari email ATAU token link verifikasi (semua tujuan OTP punya link, lihat services/otp.ts)
+/**
+ * Kirim ulang verifikasi akun pembeli (kode + link) untuk pendaftaran yang belum diverifikasi.
+ * Jawaban selalu sama (anti-tebak email); challengeId dikembalikan agar kode bisa diisi di halaman yang sama.
+ */
+router.post('/register/resend', authLimiter, async (req, res) => {
+	const email = normalizeBuyerEmail(req.body?.email);
+	if (!BUYER_EMAIL_RE.test(email)) return fail(res, 400, 'Format email tidak valid', 'EMAIL_INVALID');
+	const message = 'Jika email terdaftar dan belum diverifikasi, kode & link verifikasi baru sudah dikirim.';
+	try {
+		const c: any = await Customer.findOne({ email, status: 'pending' }).lean();
+		if (!c) return res.json({ success: true, message, data: { challengeId: null } });
+		const { challengeId } = await createOtpChallenge({ purpose: 'buyer_register', email, userId: String(c._id), ttlMinutes: 60, requestIp: reqIp(req), username: c.name });
+		res.json({ success: true, message, data: { challengeId } });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
 const otpVerifySchema = z.object({ challengeId: z.string().min(10).max(64), code: z.string().regex(/^(\d{6}|[A-Za-z0-9_-]{43})$/) });
 
 router.post('/register/verify', authLimiter, async (req, res) => {
@@ -168,7 +186,7 @@ router.post('/login', authLimiter, async (req, res) => {
 	resetAccountLoginFailures(throttleKey);
 	void logLoginAttempt({ ip: getRealClientIp(req), email, success: true, reason: 'success', userId: c._id, scope: 'buyer' });
 	if (c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
-	if (c.status !== 'active' || !c.emailVerified) return fail(res, 403, 'Email belum diverifikasi. Daftar ulang untuk menerima kode verifikasi.', 'EMAIL_UNVERIFIED');
+	if (c.status !== 'active' || !c.emailVerified) return fail(res, 403, 'Email belum diverifikasi. Tekan "Kirim ulang verifikasi" untuk menerima kode & link baru.', 'EMAIL_UNVERIFIED');
 	// Email yang sama juga terdaftar sebagai pengurus? (hanya diberitahukan setelah password pembeli benar)
 	const alsoStaff = await isStaffBound(c);
 	return completeLogin(req, res, c, { alsoStaff });
