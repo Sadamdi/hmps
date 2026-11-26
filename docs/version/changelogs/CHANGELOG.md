@@ -9,6 +9,11 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.65.1] - 2026-11-26
+
+### Changed
+- `karya`: posisi default blok beranda "Karya Mahasiswa TI" dan item navbar "Karya TI" untuk konfigurasi lama kini tepat setelah Toko (sebelum grup Media), sama di beranda publik, navbar, dan Settings → Beranda; urutan yang sudah disimpan admin tetap dipakai. Detail: [release/4.65.1.md](../release/4.65.1.md).
+
 ## [4.65.0] - 2026-11-26
 
 ### Added
