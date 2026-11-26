@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.65.0`  
+**Current version:** `4.65.1`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.65.0`](./release/4.65.0.md) | 2026-11-26 | Karya Mahasiswa TI: akun mahasiswa, portofolio, review, shortlink, SEO | MINOR | 2 | **Current** |
+| [`4.65.1`](./release/4.65.1.md) | 2026-11-26 | Posisi default Karya TI setelah Toko (sebelum Media) di beranda, navbar, Settings | PATCH | 2 | **Current** |
+| [`4.65.0`](./release/4.65.0.md) | 2026-11-26 | Karya Mahasiswa TI: akun mahasiswa, portofolio, review, shortlink, SEO | MINOR | 2 |  |
 | [`4.64.2`](./release/4.64.2.md) | 2026-11-19 | Hardening keamanan dari pentest (auth, SSRF, chat, role) | PATCH | 10 |  |
 | [`4.64.1`](./release/4.64.1.md) | 2026-11-16 | SOP publikasi berita, event, galeri, dan broadcast WA | PATCH | 1 |  |
 | [`4.64.0`](./release/4.64.0.md) | 2026-11-05 | Server Monitor API (metrik live + API key) | MINOR | 1 |  |
