@@ -1,3 +1,4 @@
+import { useTheme } from '@/lib/theme';
 import { useToast } from '@/hooks/use-toast';
 import { ALL_IMAGE_ACCEPT } from '@/lib/image-accept';
 import { useEffect, useRef } from 'react';
@@ -27,6 +28,8 @@ interface RichTextEditorProps {
 	beritaId?: string;
 	eventId?: string;
 	parentEventId?: string;
+	/** Endpoint upload gambar khusus (field `file`, respons `{url}` atau `{data:{url}}`) — mis. Karya Mahasiswa */
+	uploadEndpoint?: string;
 }
 
 export default function RichTextEditor({
@@ -37,8 +40,12 @@ export default function RichTextEditor({
 	beritaId,
 	eventId,
 	parentEventId,
+	uploadEndpoint,
 }: RichTextEditorProps) {
 	const { toast } = useToast();
+	// Skin & warna isi editor mengikuti tema situs (gelap: navy, terang: putih)
+	const { theme } = useTheme();
+	const dark = theme === 'dark';
 	const editorRef = useRef<HTMLDivElement>(null);
 	const editorIdRef = useRef(
 		`tinymce-editor-${Math.random().toString(36).slice(2, 11)}`,
@@ -148,10 +155,12 @@ export default function RichTextEditor({
 							font-size: 14px;
 							line-height: 1.6;
 							margin: 20px;
-							background: white;
+							background: ${dark ? '#0f1430' : 'white'};
+							color: ${dark ? '#e2e8f0' : '#1f2937'};
 						}
+						a { color: ${dark ? '#38bdf8' : '#2563eb'}; }
 						h1, h2, h3, h4, h5, h6 {
-							color: #333;
+							color: ${dark ? '#ffffff' : '#333'};
 							margin-top: 20px;
 							margin-bottom: 10px;
 						}
@@ -187,7 +196,7 @@ export default function RichTextEditor({
 						'img[src|alt|title|width|height|class|style|data*]',
 
 					// UI fixes untuk mencegah toolbar bugs
-					skin: 'oxide',
+					skin: dark ? 'oxide-dark' : 'oxide',
 					theme: 'silver',
 
 					// Fix z-index dan positioning issues
@@ -199,10 +208,12 @@ export default function RichTextEditor({
 						return new Promise(async (resolve, reject) => {
 							try {
 								const formData = new FormData();
-								formData.append('image', blobInfo.blob(), blobInfo.filename());
+								formData.append(uploadEndpoint ? 'file' : 'image', blobInfo.blob(), blobInfo.filename());
 
 								let endpoint: string;
-								if (eventId) {
+								if (uploadEndpoint) {
+									endpoint = uploadEndpoint;
+								} else if (eventId) {
 									const targetEventId = eventId || 'temp-' + Date.now();
 									formData.append('eventId', targetEventId);
 									if (parentEventId)
@@ -217,14 +228,14 @@ export default function RichTextEditor({
 								const response = await fetch(endpoint, {
 									method: 'POST',
 									body: formData,
+									credentials: 'include',
 								});
 
+								const data = await response.json().catch(() => ({}));
 								if (!response.ok) {
-									throw new Error(`Upload failed: ${response.statusText}`);
+									throw new Error(data?.message || `Upload failed: ${response.statusText}`);
 								}
-
-								const data = await response.json();
-								resolve(data.url);
+								resolve(data?.data?.url || data.url);
 							} catch (error) {
 								reject(error);
 							}
@@ -247,10 +258,12 @@ export default function RichTextEditor({
 								if (file) {
 									try {
 										const formData = new FormData();
-										formData.append('image', file);
+										formData.append(uploadEndpoint ? 'file' : 'image', file);
 
 										let endpoint: string;
-										if (eventId) {
+										if (uploadEndpoint) {
+											endpoint = uploadEndpoint;
+										} else if (eventId) {
 											const targetEventId = eventId || 'temp-' + Date.now();
 											formData.append('eventId', targetEventId);
 											if (parentEventId)
@@ -265,14 +278,14 @@ export default function RichTextEditor({
 										const response = await fetch(endpoint, {
 											method: 'POST',
 											body: formData,
+											credentials: 'include',
 										});
 
+										const data = await response.json().catch(() => ({}));
 										if (!response.ok) {
-											throw new Error(`Upload failed: ${response.statusText}`);
+											throw new Error(data?.message || `Upload failed: ${response.statusText}`);
 										}
-
-										const data = await response.json();
-										callback(data.url, { alt: file.name });
+										callback(data?.data?.url || data.url, { alt: file.name });
 									} catch (error) {
 										console.error('❌ File picker upload failed:', error);
 									}
@@ -492,7 +505,7 @@ export default function RichTextEditor({
 				(window as any).tinymce.remove(editorRef.current);
 			}
 		};
-	}, [beritaId, eventId, parentEventId]);
+	}, [beritaId, eventId, parentEventId, dark]);
 
 	// Update content when value prop changes
 	useEffect(() => {

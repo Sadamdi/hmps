@@ -87,7 +87,7 @@ export default function KaryaSection() {
 						</div>
 					</div>
 					<Button asChild className="shrink-0 bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90">
-						<Link href={config?.registrationOpen === false ? KARYA_PATHS.login : KARYA_PATHS.register}>
+						<Link href={config?.registrationOpen === false ? '/login' : KARYA_PATHS.register}>
 							{config?.registrationOpen === false ? 'Masuk mahasiswa' : 'Daftar dengan email UIN'}
 						</Link>
 					</Button>

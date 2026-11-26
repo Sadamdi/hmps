@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { refreshBuyerQueries, useStorePaths } from '@/hooks/use-buyer';
 import { setActiveRole } from '@/lib/active-role';
+import { useOtpLinkPrefill } from '@/lib/otp-link-prefill';
 
 export const LINK_STAFF_EVENT = 'hmps-link-staff-open';
 
@@ -31,6 +32,7 @@ export function LinkStaffDialog() {
 	const [challengeId, setChallengeId] = useState('');
 	const [email, setEmail] = useState('');
 	const [code, setCode] = useState('');
+	useOtpLinkPrefill('buyer_link_staff', challengeId, setCode);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState('');
 

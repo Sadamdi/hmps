@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { Loader2, ShieldCheck, ShoppingBag, UserCog } from 'lucide-react';
+import { GraduationCap, Loader2, ShieldCheck, ShoppingBag, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,10 @@ export interface GoogleIdentity {
 	name: string;
 	isStaff: boolean;
 	isBuyer: boolean;
+	/** Punya akun Karya Mahasiswa TI */
+	isStudent?: boolean;
+	/** Email mahasiswa TI (boleh daftar Karya) */
+	studentEligible?: boolean;
 }
 
 export async function identifyGoogle(idToken: string): Promise<GoogleIdentity> {
@@ -43,7 +47,31 @@ export async function buyerGoogleLogin(idToken: string): Promise<BuyerGoogleResu
 	return { claimedOrders: r?.claimedOrders };
 }
 
-export type GoogleStep = null | { kind: 'choose' | 'onboard'; idToken: string; email: string; name: string };
+/** Masuk mahasiswa (Karya) dengan Google; belum punya akun → onboarding di /karya/daftar. */
+export async function studentGoogleLogin(idToken: string): Promise<{ needsOnboarding?: boolean }> {
+	const r = await fetch('/api/karya/auth/google', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }) });
+	const j = await r.json().catch(() => ({}));
+	if (!r.ok) throw Object.assign(new Error(j?.message || 'Login Google gagal'), { status: r.status });
+	return { needsOnboarding: !!j?.data?.needsOnboarding };
+}
+
+/** Masuk mahasiswa (Karya) dengan email + password. */
+export async function studentPasswordLogin(email: string, password: string): Promise<void> {
+	const r = await fetch('/api/karya/auth/login', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+	const j = await r.json().catch(() => ({}));
+	if (!r.ok) throw Object.assign(new Error(j?.message || 'Login gagal'), { status: r.status, retryAfter: j?.retryAfter });
+}
+
+/** Akun mahasiswa / pembeli mana yang cocok dengan email+password (tanpa membuat sesi). */
+export async function passwordTargets(email: string, password: string): Promise<{ student: boolean; buyer: boolean; studentEligible: boolean }> {
+	const r = await fetch('/api/karya/auth/password-targets', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+	const j = await r.json().catch(() => ({}));
+	if (!r.ok) throw Object.assign(new Error(j?.message || 'Login gagal'), { status: r.status, retryAfter: j?.retryAfter });
+	return j.data;
+}
+
+export type GoogleRoles = { staff: boolean; buyer: boolean; student: boolean };
+export type GoogleStep = null | { kind: 'choose' | 'onboard'; idToken: string; email: string; name: string; roles?: GoogleRoles };
 
 /** Dialog: pilih peran (email ganda) atau onboarding akun pembeli baru. */
 export function UnifiedGoogleDialog({
@@ -52,12 +80,15 @@ export function UnifiedGoogleDialog({
 	onChooseStaff,
 	onChooseBuyer,
 	onBuyerDone,
+	onChooseStudent,
 }: {
 	step: GoogleStep;
 	onClose: () => void;
 	onChooseStaff: (idToken: string) => void;
 	onChooseBuyer: (idToken: string) => void;
 	onBuyerDone: (claimedOrders?: number) => void;
+	/** Pilih masuk sebagai mahasiswa (Karya TI) */
+	onChooseStudent?: (idToken: string) => void;
 }) {
 	const [name, setName] = useState('');
 	const [phone, setPhone] = useState('');
@@ -108,9 +139,21 @@ export function UnifiedGoogleDialog({
 					<>
 						<DialogHeader>
 							<DialogTitle>Masuk sebagai apa?</DialogTitle>
-							<DialogDescription className="break-all">{step.email} terdaftar sebagai pengurus dan juga pembeli.</DialogDescription>
+							<DialogDescription className="break-all">
+								{step.email} punya lebih dari satu jenis akun. Pilih tujuan masuk — kamu bisa pindah lagi dari menu profil.
+							</DialogDescription>
 						</DialogHeader>
 						<div className="grid gap-2">
+							{(step.roles?.student ?? false) && onChooseStudent ? (
+								<Button variant="outline" className="h-auto justify-start gap-3 py-3 text-left" onClick={() => onChooseStudent(step.idToken)}>
+									<GraduationCap className="h-5 w-5 shrink-0 text-primary" />
+									<span>
+										<span className="block font-medium">Mahasiswa TI</span>
+										<span className="block text-xs text-muted-foreground font-normal">Karya, profil portofolio, shortlink</span>
+									</span>
+								</Button>
+							) : null}
+							{(step.roles?.staff ?? true) ? (
 							<Button variant="outline" className="h-auto justify-start gap-3 py-3 text-left" onClick={() => onChooseStaff(step.idToken)}>
 								<UserCog className="h-5 w-5 shrink-0 text-primary" />
 								<span>
@@ -118,6 +161,8 @@ export function UnifiedGoogleDialog({
 									<span className="block text-xs text-muted-foreground font-normal">Masuk ke dashboard</span>
 								</span>
 							</Button>
+							) : null}
+							{(step.roles?.buyer ?? true) ? (
 							<Button variant="outline" className="h-auto justify-start gap-3 py-3 text-left" onClick={() => onChooseBuyer(step.idToken)}>
 								<ShoppingBag className="h-5 w-5 shrink-0 text-primary" />
 								<span>
@@ -125,6 +170,7 @@ export function UnifiedGoogleDialog({
 									<span className="block text-xs text-muted-foreground font-normal">Pesanan & akun belanja</span>
 								</span>
 							</Button>
+							) : null}
 						</div>
 					</>
 				)}

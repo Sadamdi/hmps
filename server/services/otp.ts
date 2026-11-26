@@ -1,6 +1,23 @@
 import crypto from 'crypto';
 import { OtpChallenge } from '../../db/mongodb';
 import { sendOtpEmail } from './email';
+import { lookupGeo } from '../lib/geoip';
+
+/** IP disamarkan + perkiraan lokasi untuk ditampilkan di email (bukan IP lengkap). */
+function describeRequestFrom(ip: string): string | undefined {
+	const raw = String(ip || '').replace(/^::ffff:/, '');
+	if (!raw) return undefined;
+	const masked = /^\d+\.\d+\.\d+\.\d+$/.test(raw) ? raw.split('.').slice(0, 2).join('.') + '.x.x' : raw.split(':').slice(0, 3).join(':') + ':…';
+	let place = '';
+	try {
+		const g: any = lookupGeo(raw);
+		if (g?.countryCode === 'LO') place = 'jaringan lokal';
+		else if (g?.countryCode && g.countryCode !== 'XX') place = [g.city, g.country].filter(Boolean).join(', ');
+	} catch {
+		/* opsional */
+	}
+	return place ? `${masked} (${place})` : masked;
+}
 
 const DEFAULT_OTP_TTL_MINUTES = 10;
 const MAX_ATTEMPTS = 5;
@@ -35,6 +52,46 @@ function otpPepper(): string {
 
 function hashCode(code: string): string {
 	return crypto.createHmac('sha256', otpPepper()).update(code).digest('hex');
+}
+
+function hashLinkToken(token: string): string {
+	return crypto.createHmac('sha256', otpPepper()).update(`link:${token}`).digest('hex');
+}
+
+function safeEqualHex(a: string | null | undefined, b: string): boolean {
+	if (!a || a.length !== b.length) return false;
+	try {
+		return crypto.timingSafeEqual(Buffer.from(a, 'hex'), Buffer.from(b, 'hex'));
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Semua tujuan OTP mendapat kode DAN link sekali pakai di email. Alur yang butuh isian lain saat konfirmasi
+ * (form dashboard pengurus, restore backup, hapus komunitas, tautan pembeli↔pengurus) membuka halaman asalnya
+ * dengan kode terisi otomatis (lihat client /verifikasi).
+ */
+export function purposeHasLink(_purpose: string): boolean {
+	return true;
+}
+
+/** Kode 6 digit ATAU token link (base64url 43 karakter). */
+export function isOtpInput(v: unknown): boolean {
+	const s = String(v ?? '');
+	return /^\d{6}$/.test(s) || /^[A-Za-z0-9_-]{43}$/.test(s);
+}
+
+/** Cocokkan input (kode atau token link) dengan challenge — waktu konstan. */
+function secretMatches(challenge: any, input: string): boolean {
+	const s = String(input || '').trim();
+	if (/^\d{6}$/.test(s)) return safeEqualHex(challenge.codeHash, hashCode(s));
+	if (/^[A-Za-z0-9_-]{43}$/.test(s)) return safeEqualHex(challenge.linkTokenHash, hashLinkToken(s));
+	return false;
+}
+
+function siteUrl(): string {
+	return String(process.env.PUBLIC_SITE_URL || 'https://himatif-encoder.com').replace(/\/+$/, '');
 }
 
 async function checkRateLimits(email: string, requestIp: string): Promise<void> {
@@ -104,7 +161,9 @@ export async function createOtpChallenge(params: {
 	ttlMinutes?: number;
 	requestIp?: string;
 	username?: string;
-}): Promise<{ challengeId: string }> {
+	/** Password baru (sudah di-hash bcrypt) yang dipasang setelah konfirmasi */
+	pendingPasswordHash?: string;
+}): Promise<{ challengeId: string; expiresAt: Date; ttlMinutes: number; withLink: boolean }> {
 	const { purpose, email, userId } = params;
 	const requestIp = params.requestIp || '';
 	const ttlMinutesRaw = params.ttlMinutes ?? DEFAULT_OTP_TTL_MINUTES;
@@ -118,6 +177,8 @@ export async function createOtpChallenge(params: {
 	const code = generateOtpCode();
 	const codeHashed = hashCode(code);
 	const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000);
+	const withLink = purposeHasLink(purpose);
+	const linkToken = withLink ? crypto.randomBytes(32).toString('base64url') : '';
 
 	const challenge = await OtpChallenge.create({
 		purpose,
@@ -125,20 +186,24 @@ export async function createOtpChallenge(params: {
 		userId: userId || null,
 		requestIp,
 		codeHash: codeHashed,
+		linkTokenHash: withLink ? hashLinkToken(linkToken) : null,
+		pendingPasswordHash: params.pendingPasswordHash || null,
 		maxAttempts: MAX_ATTEMPTS,
 		expiresAt,
 	});
+	const challengeId = (challenge as any)._id.toString();
+	const linkUrl = withLink ? `${siteUrl()}/verifikasi?c=${challengeId}&t=${linkToken}` : undefined;
 
-	await sendOtpEmail({ to: email, code, purpose, ttlMinutes, username: params.username });
+	await sendOtpEmail({ to: email, code, purpose, ttlMinutes, username: params.username, linkUrl, expiresAt, requestFrom: describeRequestFrom(requestIp) });
 
-	return { challengeId: (challenge as any)._id.toString() };
+	return { challengeId, expiresAt, ttlMinutes, withLink };
 }
 
 export async function verifyOtpChallenge(params: {
 	challengeId: string;
 	code: string;
 	purpose: string;
-}): Promise<{ valid: true; email: string; userId: string | null }> {
+}): Promise<{ valid: true; email: string; userId: string | null; pendingPasswordHash: string | null }> {
 	const { challengeId, code, purpose } = params;
 
 	const challenge = await OtpChallenge.findById(challengeId);
@@ -162,8 +227,7 @@ export async function verifyOtpChallenge(params: {
 		throw new OtpError('Terlalu banyak percobaan. Minta OTP baru.');
 	}
 
-	const inputHash = hashCode(code);
-	if (inputHash !== challenge.codeHash) {
+	if (!secretMatches(challenge, code)) {
 		await OtpChallenge.updateOne(
 			{ _id: challenge._id },
 			{ $inc: { attempts: 1 } },
@@ -172,15 +236,18 @@ export async function verifyOtpChallenge(params: {
 		throw new OtpError(`Kode OTP salah. Sisa percobaan: ${remaining}`);
 	}
 
-	await OtpChallenge.updateOne(
-		{ _id: challenge._id },
+	// Atomik: kode & link di challenge yang sama hangus bersamaan; dua permintaan serentak → hanya satu yang lolos
+	const consumed = await OtpChallenge.findOneAndUpdate(
+		{ _id: challenge._id, consumedAt: null, expiresAt: { $gt: new Date() } },
 		{ $set: { consumedAt: new Date() } },
 	);
+	if (!consumed) throw new OtpError('Kode/link sudah digunakan atau kedaluwarsa');
 
 	return {
 		valid: true,
 		email: challenge.email,
 		userId: challenge.userId?.toString() || null,
+		pendingPasswordHash: (challenge as any).pendingPasswordHash || null,
 	};
 }
 
@@ -222,8 +289,7 @@ export async function verifyAndIssueResetToken(params: {
 		throw new OtpError('Terlalu banyak percobaan. Minta OTP baru.');
 	}
 
-	const inputHash = hashCode(code);
-	if (inputHash !== challenge.codeHash) {
+	if (!secretMatches(challenge, code)) {
 		await OtpChallenge.updateOne(
 			{ _id: challenge._id },
 			{ $inc: { attempts: 1 } },
@@ -236,8 +302,9 @@ export async function verifyAndIssueResetToken(params: {
 	const resetTokenHashed = hashCode(resetToken);
 	const resetTokenExpiresAt = new Date(Date.now() + resetTtl * 60 * 1000);
 
-	await OtpChallenge.updateOne(
-		{ _id: challenge._id },
+	// Atomik: kode & link sekali pakai (yang kedua ditolak)
+	const marked = await OtpChallenge.findOneAndUpdate(
+		{ _id: challenge._id, verifiedAt: null, consumedAt: null, expiresAt: { $gt: new Date() } },
 		{
 			$set: {
 				verifiedAt: new Date(),
@@ -246,6 +313,7 @@ export async function verifyAndIssueResetToken(params: {
 			},
 		},
 	);
+	if (!marked) throw new OtpError('Kode/link sudah digunakan atau kedaluwarsa');
 
 	return {
 		resetToken,

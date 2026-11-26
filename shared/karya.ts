@@ -81,7 +81,14 @@ export const KARYA_STATUS_LABEL: Record<KaryaStatus, string> = {
 };
 
 export type KaryaLinkKind = 'youtube' | 'gdrive' | 'demo' | 'repo' | 'other';
-export type KaryaRepoHost = 'github' | 'gitlab' | 'bitbucket';
+export type KaryaRepoHost = 'github' | 'gitlab' | 'bitbucket' | 'codeberg';
+
+export const KARYA_REPO_HOSTS: Record<KaryaRepoHost, { label: string; domain: string }> = {
+	github: { label: 'GitHub', domain: 'github.com' },
+	gitlab: { label: 'GitLab', domain: 'gitlab.com' },
+	bitbucket: { label: 'Bitbucket', domain: 'bitbucket.org' },
+	codeberg: { label: 'Codeberg', domain: 'codeberg.org' },
+};
 
 export interface KaryaRepoInfo {
 	host: KaryaRepoHost;
@@ -94,6 +101,10 @@ export interface KaryaRepoInfo {
 	forks: number;
 	language: string;
 	topics: string[];
+	/** SPDX lisensi bila ada (mis. MIT) */
+	license?: string;
+	/** Gambar pratinjau repo (Open Graph) — dipakai sebagai sampul cadangan */
+	ogImage?: string;
 	updatedAt: string | null;
 	fetchedAt: string;
 }
@@ -168,7 +179,7 @@ export function classifyKaryaLink(url: string): KaryaLinkKind {
 		const h = new URL(url).hostname.toLowerCase();
 		if (h === 'youtu.be' || h.endsWith('youtube.com')) return 'youtube';
 		if (h === 'drive.google.com' || h === 'docs.google.com') return 'gdrive';
-		if (h === 'github.com' || h === 'gitlab.com' || h === 'bitbucket.org') return 'repo';
+		if (h === 'github.com' || h === 'gitlab.com' || h === 'bitbucket.org' || h === 'codeberg.org') return 'repo';
 		return 'demo';
 	} catch {
 		return 'other';
@@ -216,6 +227,7 @@ export function parseRepoUrl(raw: string): { host: KaryaRepoHost; owner: string;
 			'www.github.com': 'github',
 			'gitlab.com': 'gitlab',
 			'bitbucket.org': 'bitbucket',
+			'codeberg.org': 'codeberg',
 		};
 		const host = hostMap[u.hostname.toLowerCase()];
 		if (!host) return null;
@@ -285,6 +297,8 @@ export interface KaryaStudentPublic {
 	skills: string[];
 	social: KaryaSocialLinks;
 	verifiedTi: boolean;
+	/** Profil boleh dibuka publik (link profil hanya ditampilkan bila true) */
+	profileVisible?: boolean;
 	shortlink?: string;
 }
 
@@ -295,6 +309,8 @@ export interface KaryaProjectCard {
 	category: string;
 	tags: string[];
 	coverUrl: string;
+	/** Sampul otomatis dari template (tambahkan `?theme=light|dark` sesuai tema) */
+	coverGenerated?: boolean;
 	mediaLabel: string;
 	featured: boolean;
 	author: { username: string; name: string; angkatan: number | null; avatarUrl: string };

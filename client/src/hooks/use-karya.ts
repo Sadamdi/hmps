@@ -41,6 +41,7 @@ export interface KaryaOwnProject {
 	title: string;
 	summary: string;
 	description: string;
+	descriptionFormat?: 'text' | 'html';
 	role: string;
 	category: string;
 	tags: string[];
@@ -95,8 +96,14 @@ export interface KaryaProjectDetail {
 	links: KaryaLink[];
 	media: KaryaMedia[];
 	coverUrl: string;
+	coverGenerated?: boolean;
+	descriptionFormat?: 'text' | 'html';
 	related: { projectSlug?: string; url?: string; label: string }[];
 	relatedCards: KaryaProjectCard[];
+	relatedAuto: KaryaProjectCard[];
+	preview?: boolean;
+	status?: KaryaStatus;
+	visibility?: KaryaVisibility;
 	moreFromAuthor: KaryaProjectCard[];
 	viewCount: number;
 	publishedAt: string | null;
@@ -181,10 +188,22 @@ export function usePublicProject(slug: string) {
 }
 
 export function usePublicStudent(username: string) {
-	return useQuery<{ student: KaryaStudentPublic; projects: KaryaProjectCard[] } | null>({
+	return useQuery<{ student: KaryaStudentPublic; projects: KaryaProjectCard[]; redirectTo?: string; indexable?: boolean } | null>({
 		queryKey: ['karya-student', username],
 		queryFn: () => getData(`/public/students/${encodeURIComponent(username)}`),
 		enabled: !!username,
+	});
+}
+
+export function useProjectPreview(id: string) {
+	return useQuery<KaryaProjectDetail | null>({ queryKey: ['karya-preview', id], queryFn: () => getData<KaryaProjectDetail>(`/me/projects/${id}/preview`), enabled: !!id });
+}
+
+export function usePublicTag(tag: string) {
+	return useQuery<{ tag: string; total: number; related: { tag: string; count: number }[] } | null>({
+		queryKey: ['karya-tag', tag],
+		queryFn: () => getData(`/public/tags/${encodeURIComponent(tag)}`),
+		enabled: !!tag,
 	});
 }
 
@@ -196,5 +215,7 @@ export const KARYA_PATHS = {
 	newProject: '/karya/saya/baru',
 	editProject: (id: string) => `/karya/saya/edit/${id}`,
 	project: (slug: string) => `/karya/${slug}`,
+	tag: (tag: string) => `/karya/tag/${encodeURIComponent(tag)}`,
+	preview: (id: string) => `/karya/saya/pratinjau/${id}`,
 	student: (username: string) => `/karya/mahasiswa/${username}`,
 };

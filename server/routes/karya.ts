@@ -37,6 +37,8 @@ import {
 } from '../services/karya-auth';
 import { fetchPublicRepo, isDrivePublic, RepoFetchError } from '../services/karya-repo';
 import { deleteKaryaMediaFile, karyaMediaMiddleware, uploadKaryaMedia } from '../upload';
+import { sanitizeCmsHtml } from '../utils/cms-html';
+import { renderKaryaCover } from '../services/karya-cover';
 import {
 	angkatanFromNim,
 	classifyKaryaLink,
@@ -72,6 +74,24 @@ const publicLimiter = createPublicRateLimiter('karya-public', [
 ]);
 
 const PASSWORD_MIN = 8;
+/** Kode & link aktivasi akun berlaku 24 jam (kirim ulang dari dashboard bila lewat). */
+const ACTIVATION_TTL_MINUTES = 24 * 60;
+
+/** Browser & OS ringkas dari user-agent (untuk daftar perangkat). */
+function describeUserAgent(ua: string): { browser: string; os: string } {
+	const u = String(ua || '');
+	const browser = /Edg\//.test(u) ? 'Edge' : /OPR\//.test(u) ? 'Opera' : /SamsungBrowser/.test(u) ? 'Samsung Internet' : /Firefox\//.test(u) ? 'Firefox' : /Chrome\//.test(u) ? 'Chrome' : /Safari\//.test(u) ? 'Safari' : 'Browser lain';
+	const os = /Windows/.test(u) ? 'Windows' : /Android/.test(u) ? 'Android' : /iPhone|iPad|iOS/.test(u) ? 'iOS' : /Mac OS X/.test(u) ? 'macOS' : /Linux/.test(u) ? 'Linux' : 'OS lain';
+	return { browser, os };
+}
+
+/** IP disamarkan sebagian (privasi): 36.72.x.x / 2001:db8:…. */
+function maskIp(ip: string): string {
+	const s = String(ip || '').replace(/^::ffff:/, '');
+	if (/^\d+\.\d+\.\d+\.\d+$/.test(s)) return s.split('.').slice(0, 2).join('.') + '.x.x';
+	if (s.includes(':')) return s.split(':').slice(0, 3).join(':') + ':…';
+	return s ? 'tersamar' : '';
+}
 const fail = (res: Response, status: number, message: string, code: string, details?: unknown) =>
 	res.status(status).json({ success: false, message, error: { code, ...(details ? { details } : {}) } });
 const ok = (res: Response, data: unknown, message = 'OK', meta?: unknown) =>
@@ -137,17 +157,21 @@ router.post('/auth/register', requireEnabled, authLimiter, async (req, res) => {
 	try {
 		let s: any = await KaryaStudent.findOne({ email });
 		if (s && s.status !== 'pending') return fail(res, 409, 'Email ini sudah terdaftar. Silakan masuk, atau pakai "Lupa password".', 'EMAIL_REGISTERED');
-		const fields = { name: cleanName(parsed.data.name), passwordHash: await hashPassword(parsed.data.password), nim: elig.nim, verifiedTi: true };
-		if (s) await KaryaStudent.updateOne({ _id: s._id }, { $set: fields });
-		else s = await KaryaStudent.create({ email, status: 'pending', emailVerified: false, username: await uniqueUsername(elig.nim), ...fields });
-		const { challengeId } = await createOtpChallenge({ purpose: 'karya_register', email, userId: String(s._id), ttlMinutes: 10, requestIp: reqIp(req) });
-		ok(res, { challengeId, email }, 'Kode verifikasi dikirim ke email kampusmu.');
+		const fields = { name: cleanName(parsed.data.name), passwordHash: await hashPassword(parsed.data.password), nim: elig.nim, verifiedTi: true, status: 'active', emailVerified: false };
+		if (s) {
+			await KaryaStudent.updateOne({ _id: s._id }, { $set: fields, $inc: { tokenVersion: 1 } });
+			s = await KaryaStudent.findById(s._id);
+		} else s = await KaryaStudent.create({ email, username: await uniqueUsername(fields.name || 'mahasiswa'), ...fields });
+		// Akun langsung bisa dipakai; publikasi karya terkunci sampai email diaktivasi (kode/link berlaku 24 jam)
+		const otp = await createOtpChallenge({ purpose: 'karya_register', email, userId: String(s._id), ttlMinutes: ACTIVATION_TTL_MINUTES, requestIp: reqIp(req), username: s.name });
+		return completeLogin(req, res, s.toObject ? s.toObject() : s, { created: true, activation: { challengeId: otp.challengeId, expiresAt: otp.expiresAt } });
 	} catch (e) {
 		otpErrorResponse(res, e);
 	}
 });
 
-const otpVerifySchema = z.object({ challengeId: z.string().min(10).max(64), code: z.string().regex(/^\d{6}$/) });
+// Kode 6 digit dari email ATAU token link verifikasi (semua tujuan OTP punya link, lihat services/otp.ts)
+const otpVerifySchema = z.object({ challengeId: z.string().min(10).max(64), code: z.string().regex(/^(\d{6}|[A-Za-z0-9_-]{43})$/) });
 
 router.post('/auth/register/verify', requireEnabled, authLimiter, async (req, res) => {
 	const parsed = otpVerifySchema.safeParse(req.body || {});
@@ -161,7 +185,10 @@ router.post('/auth/register/verify', requireEnabled, authLimiter, async (req, re
 		s.emailVerified = true;
 		if (s.status === 'pending') s.status = 'active';
 		await s.save();
-		return completeLogin(req, res, s.toObject(), { created: true });
+		const me = await getStudent(req);
+		// Diaktivasi dari browser yang sama → tetap masuk; dari perangkat lain (link email) → masuk juga (pemilik email terbukti)
+		if (me && String(me._id) === String(s._id)) return ok(res, { student: ownStudent(s.toObject()), activated: true }, 'Email berhasil diaktivasi');
+		return completeLogin(req, res, s.toObject(), { activated: true });
 	} catch (e) {
 		otpErrorResponse(res, e);
 	}
@@ -194,7 +221,7 @@ router.post('/auth/login', requireEnabled, authLimiter, async (req, res) => {
 	resetAccountLoginFailures(throttleKey);
 	const block = studentAccessBlock(s);
 	if (block) return fail(res, block.status, block.message, block.code);
-	if (s.status !== 'active' || !s.emailVerified) return fail(res, 403, 'Email belum diverifikasi. Daftar ulang untuk menerima kode verifikasi.', 'EMAIL_UNVERIFIED');
+	if (s.status !== 'active') return fail(res, 403, 'Akun belum aktif. Daftar ulang untuk menerima email aktivasi.', 'EMAIL_UNVERIFIED');
 	void logLoginAttempt({ ip, email, success: true, reason: 'success', userId: s._id, scope: 'student' });
 	return completeLogin(req, res, s);
 });
@@ -224,6 +251,11 @@ router.post('/auth/google', requireEnabled, authLimiter, async (req, res) => {
 			const block = studentAccessBlock(s);
 			if (block) return fail(res, block.status, block.message, block.code);
 			if (!s.googleSub) s.googleSub = g.uid;
+			if (!s.emailVerified) {
+				// Email terbukti milik pemilik Google: cabut semua sesi yang dibuat sebelum verifikasi
+				s.tokenVersion = (s.tokenVersion || 0) + 1;
+				await KaryaStudentSession.updateMany({ studentId: s._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+			}
 			s.emailVerified = true;
 			await s.save();
 			void logLoginAttempt({ ip: getRealClientIp(req), email, success: true, reason: 'success', userId: s._id, scope: 'student' });
@@ -273,7 +305,7 @@ router.post('/auth/google/complete', requireEnabled, authLimiter, async (req, re
 		};
 		const s: any = existing
 			? await KaryaStudent.findOneAndUpdate({ _id: existing._id }, { $set: fields }, { new: true })
-			: await KaryaStudent.create({ ...fields, username: await uniqueUsername(elig.nim) });
+			: await KaryaStudent.create({ ...fields, username: await uniqueUsername(fields.name || 'mahasiswa') });
 		return completeLogin(req, res, s.toObject ? s.toObject() : s, { created: true });
 	} catch (e) {
 		console.error('[karya] google complete', e);
@@ -289,6 +321,34 @@ router.post('/auth/logout', async (req, res) => {
 router.get('/auth/me', async (req, res) => {
 	const s = await getStudent(req);
 	ok(res, { student: s ? ownStudent(s) : null });
+});
+
+// ── Pintu masuk tunggal /login: cek akun mana (mahasiswa / pembeli) yang cocok dengan email+password TANPA membuat sesi ──
+const targetsSchema = z.object({ email: z.string().min(3).max(200), password: z.string().min(1).max(200) });
+
+router.post('/auth/password-targets', authLimiter, async (req, res) => {
+	const parsed = targetsSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Email dan password wajib diisi', 'VALIDATION_ERROR');
+	const email = normalizeStudentEmail(parsed.data.email);
+	const ip = getRealClientIp(req);
+	const key = `targets:${email}:${ip}`;
+	const lockedFor = accountLockRemaining(key);
+	if (lockedFor > 0) return res.status(429).json({ success: false, message: 'Terlalu banyak percobaan login. Coba lagi nanti.', retryAfter: lockedFor, error: { code: 'ACCOUNT_LOGIN_THROTTLED' } });
+	try {
+		const { Customer } = await import('../../db/mongodb');
+		const [s, c]: any[] = await Promise.all([KaryaStudent.findOne({ email }).select('passwordHash status').lean(), Customer.findOne({ email }).select('passwordHash status').lean()]);
+		const [student, buyer] = await Promise.all([
+			s?.passwordHash && s.status !== 'deleted' ? verifyPassword(parsed.data.password, s.passwordHash) : Promise.resolve(false),
+			c?.passwordHash && c.status === 'active' ? verifyPassword(parsed.data.password, c.passwordHash) : Promise.resolve(false),
+		]);
+		if (!student && !buyer) recordAccountLoginFailure(key);
+		else resetAccountLoginFailures(key);
+		// Hanya mengungkap akun yang password-nya BENAR (bukan keberadaan email); pengurus dicek lewat login pengurus
+		ok(res, { student: !!student, buyer: !!buyer, studentEligible: checkStudentEmail(email).ok });
+	} catch (e) {
+		console.error('[karya] password-targets', e);
+		fail(res, 500, 'Terjadi kesalahan. Coba lagi.', 'INTERNAL');
+	}
 });
 
 // ── Password: lupa password (OTP) ──
@@ -333,6 +393,10 @@ router.post('/auth/password/reset', requireEnabled, authLimiter, async (req, res
 // ── Ganti password saat login (pakai password lama) ──
 const changePwSchema = z.object({ currentPassword: z.string().min(1).max(200), newPassword: z.string().min(PASSWORD_MIN).max(200) });
 
+/**
+ * Langkah 1 ganti password: cek password lama, simpan password baru (bcrypt) di challenge, kirim kode + link ke email.
+ * Password belum berubah sampai dikonfirmasi lewat kode atau link (10 menit, sekali pakai).
+ */
 router.post('/auth/password/change', authenticateStudent, authLimiter, async (req, res) => {
 	const parsed = changePwSchema.safeParse(req.body || {});
 	if (!parsed.success) return fail(res, 400, `Password baru minimal ${PASSWORD_MIN} karakter`, 'VALIDATION_ERROR');
@@ -341,11 +405,54 @@ router.post('/auth/password/change', authenticateStudent, authLimiter, async (re
 	if (!s?.passwordHash || !(await verifyPassword(parsed.data.currentPassword, s.passwordHash))) {
 		return fail(res, 400, 'Password lama salah. Belum punya password? Pakai "Atur password lewat email".', 'INVALID_PASSWORD');
 	}
-	s.passwordHash = await hashPassword(parsed.data.newPassword);
-	s.tokenVersion = (s.tokenVersion || 0) + 1;
-	await s.save();
-	await KaryaStudentSession.updateMany({ studentId: s._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
-	return completeLogin(req, res, s.toObject(), { passwordChanged: true });
+	if (await verifyPassword(parsed.data.newPassword, s.passwordHash)) return fail(res, 400, 'Password baru tidak boleh sama dengan password lama', 'PASSWORD_SAME');
+	try {
+		const otp = await createOtpChallenge({
+			purpose: 'karya_password_change',
+			email: s.email,
+			userId: String(s._id),
+			ttlMinutes: 10,
+			requestIp: reqIp(req),
+			username: s.name,
+			pendingPasswordHash: await hashPassword(parsed.data.newPassword),
+		});
+		ok(res, { challengeId: otp.challengeId, expiresAt: otp.expiresAt }, 'Kode dan link konfirmasi dikirim ke email. Password berubah setelah dikonfirmasi.');
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+/** Langkah 2: konfirmasi dengan kode ATAU link email → pasang password baru, keluarkan semua perangkat. */
+router.post('/auth/password/change/confirm', requireEnabled, authLimiter, async (req, res) => {
+	const parsed = otpVerifySchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Kode OTP 6 digit wajib diisi', 'VALIDATION_ERROR');
+	try {
+		const r = await verifyOtpChallenge({ challengeId: parsed.data.challengeId, code: parsed.data.code, purpose: 'karya_password_change' });
+		const s: any = r.userId ? await KaryaStudent.findById(r.userId) : null;
+		if (!s || s.email !== r.email || !r.pendingPasswordHash) return fail(res, 400, 'Permintaan ganti password tidak ditemukan', 'NOT_FOUND');
+		const block = studentAccessBlock(s);
+		if (block) return fail(res, block.status, block.message, block.code);
+		s.passwordHash = r.pendingPasswordHash;
+		s.emailVerified = true;
+		s.tokenVersion = (s.tokenVersion || 0) + 1;
+		await s.save();
+		await KaryaStudentSession.updateMany({ studentId: s._id, revokedAt: null }, { $set: { revokedAt: new Date() } });
+		return completeLogin(req, res, s.toObject(), { passwordChanged: true });
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
+});
+
+/** Kirim ulang email aktivasi (kode + link, 24 jam). */
+router.post('/auth/activation/resend', requireEnabled, authenticateStudent, authLimiter, async (req, res) => {
+	const me: any = await getStudent(req);
+	if (me.emailVerified) return ok(res, { alreadyVerified: true }, 'Email sudah terverifikasi');
+	try {
+		const otp = await createOtpChallenge({ purpose: 'karya_register', email: me.email, userId: String(me._id), ttlMinutes: ACTIVATION_TTL_MINUTES, requestIp: reqIp(req), username: me.name });
+		ok(res, { challengeId: otp.challengeId, expiresAt: otp.expiresAt }, 'Email aktivasi dikirim ulang');
+	} catch (e) {
+		otpErrorResponse(res, e);
+	}
 });
 
 // ── Sesi aktif ──
@@ -355,7 +462,7 @@ router.get('/auth/sessions', authenticateStudent, async (req, res) => {
 	const rows: any[] = await KaryaStudentSession.find({ studentId: me._id, revokedAt: null }).sort({ lastActive: -1 }).limit(20).lean();
 	ok(
 		res,
-		rows.map((s) => ({ id: String(s._id), device: s.device, userAgent: s.userAgent, ip: s.ip || '', location: s.location || '', lastActive: s.lastActive, createdAt: s.createdAt, current: s.sessionId === sid })),
+		rows.map((s) => ({ id: String(s._id), device: s.device, ...describeUserAgent(s.userAgent), ip: maskIp(s.ip), location: s.location || '', lastActive: s.lastActive, createdAt: s.createdAt, current: s.sessionId === sid })),
 	);
 });
 
@@ -459,8 +566,14 @@ router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, a
 	if (d.username !== undefined) {
 		const u = String(d.username).trim().toLowerCase();
 		if (!validUsername(u)) return fail(res, 400, 'Username 3–30 karakter: huruf kecil, angka, dan tanda minus.', 'USERNAME_INVALID');
-		if (u !== me.username && (await KaryaStudent.exists({ username: u, _id: { $ne: me._id } }))) return fail(res, 409, 'Username sudah dipakai', 'USERNAME_TAKEN');
-		set.username = u;
+		if (u !== me.username && (await KaryaStudent.exists({ $or: [{ username: u }, { previousUsernames: u }], _id: { $ne: me._id } }))) {
+			return fail(res, 409, 'Username sudah dipakai', 'USERNAME_TAKEN');
+		}
+		if (u !== me.username) {
+			set.username = u;
+			// Username lama dialihkan ke yang baru (maks 5 riwayat), dan tidak bisa diambil akun lain
+			set.previousUsernames = Array.from(new Set([me.username, ...(me.previousUsernames || [])])).filter((x) => x !== u).slice(0, 5);
+		}
 	}
 	if (d.headline !== undefined) set.headline = cleanText(d.headline, 120);
 	if (d.bio !== undefined) set.bio = cleanText(d.bio, 1200);
@@ -512,6 +625,7 @@ function ownProject(p: any) {
 		title: p.title,
 		summary: p.summary || '',
 		description: p.description || '',
+		descriptionFormat: p.descriptionFormat === 'html' ? 'html' : 'text',
 		role: p.role || '',
 		category: p.category || 'lainnya',
 		tags: p.tags || [],
@@ -550,7 +664,8 @@ const relatedInput = z.object({ projectSlug: z.string().max(100).optional(), url
 const projectSchema = z.object({
 	title: z.string().min(3).max(120),
 	summary: z.string().max(240).optional(),
-	description: z.string().max(8000).optional(),
+	description: z.string().max(60000).optional(),
+	descriptionFormat: z.enum(['text', 'html']).optional(),
 	role: z.string().max(300).optional(),
 	category: z.string().max(30).optional(),
 	tags: z.union([z.array(z.string().max(40)), z.string().max(400)]).optional(),
@@ -570,7 +685,8 @@ async function buildProjectFields(d: z.infer<typeof projectSchema>, studentId: a
 	const f: Record<string, unknown> = {
 		title: cleanText(d.title, 120),
 		summary: cleanText(d.summary, 240),
-		description: cleanText(d.description, 8000),
+		description: d.descriptionFormat === 'html' ? sanitizeCmsHtml(String(d.description || ''), 60000) : cleanText(d.description, 8000),
+		descriptionFormat: d.descriptionFormat === 'html' ? 'html' : 'text',
 		role: cleanText(d.role, 300),
 		category: KARYA_CATEGORIES.some((c) => c.id === d.category) ? d.category : 'lainnya',
 		tags: cleanKaryaTags(d.tags),
@@ -640,6 +756,15 @@ async function buildProjectFields(d: z.infer<typeof projectSchema>, studentId: a
 	return { fields: f };
 }
 
+/** Karya publik minimal punya satu isi: ringkasan, deskripsi, media, repo, atau link. */
+function publicContentMissing(fields: Record<string, any>, existing: any | null): boolean {
+	const text = String(fields.summary || '').trim() || String(fields.description || '').replace(/<[^>]+>/g, '').trim();
+	const repos = (fields.repos ?? existing?.repos ?? []).length;
+	const links = (fields.links ?? existing?.links ?? []).length;
+	const media = (existing?.media ?? []).length;
+	return !text && !repos && !links && !media;
+}
+
 /** Status baru setelah mahasiswa menyimpan. Karya yang disembunyikan admin tetap tersembunyi. */
 function nextStatus(prevStatus: string, visibility: 'public' | 'private', action: 'draft' | 'submit', reviewMode: 'manual' | 'auto'): string {
 	if (prevStatus === 'hidden') return 'hidden';
@@ -665,6 +790,9 @@ router.post('/me/projects', requireEnabled, authenticateStudent, writeLimiter, a
 	const parsed = projectSchema.safeParse(req.body || {});
 	if (!parsed.success) return fail(res, 400, 'Judul karya wajib (3–120 karakter) dan isian harus valid', 'VALIDATION_ERROR', parsed.error.issues.slice(0, 5));
 	const me = await getStudent(req);
+	if (parsed.data.visibility === 'public' && !me.emailVerified) {
+		return fail(res, 403, 'Aktivasi email dulu untuk mempublikasikan karya. Karya bisa disimpan sebagai Privat.', 'EMAIL_NOT_VERIFIED');
+	}
 	if ((await KaryaProject.countDocuments({ studentId: me._id })) >= KARYA_LIMITS.maxProjectsPerStudent) {
 		return fail(res, 400, `Maksimal ${KARYA_LIMITS.maxProjectsPerStudent} karya per mahasiswa.`, 'PROJECT_LIMIT');
 	}
@@ -675,6 +803,9 @@ router.post('/me/projects', requireEnabled, authenticateStudent, writeLimiter, a
 		const visibility = parsed.data.visibility || 'private';
 		const action = parsed.data.action || 'draft';
 		const status = nextStatus('draft', visibility, action, settings.reviewMode);
+		if (status !== 'draft' && publicContentMissing(built.fields, null)) {
+			return fail(res, 400, 'Karya publik wajib punya minimal satu isi: ringkasan, deskripsi, media, repo, atau link.', 'CONTENT_REQUIRED');
+		}
 		const now = new Date();
 		const p = await KaryaProject.create({
 			...built.fields,
@@ -700,6 +831,9 @@ router.patch('/me/projects/:id', requireEnabled, authenticateStudent, writeLimit
 	const me = await getStudent(req);
 	const existing: any = await KaryaProject.findOne({ _id: req.params.id, studentId: me._id }).lean();
 	if (!existing) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
+	if (parsed.data.visibility === 'public' && !me.emailVerified) {
+		return fail(res, 403, 'Aktivasi email dulu untuk mempublikasikan karya. Karya bisa disimpan sebagai Privat.', 'EMAIL_NOT_VERIFIED');
+	}
 	try {
 		const built = await buildProjectFields(parsed.data, me._id, existing);
 		if ('error' in built) return fail(res, 400, built.error, built.code);
@@ -707,6 +841,9 @@ router.patch('/me/projects/:id', requireEnabled, authenticateStudent, writeLimit
 		const visibility = parsed.data.visibility || existing.visibility;
 		const action = parsed.data.action || 'draft';
 		const status = nextStatus(existing.status, visibility, action, settings.reviewMode);
+		if ((status === 'pending' || status === 'approved') && publicContentMissing(built.fields, existing)) {
+			return fail(res, 400, 'Karya publik wajib punya minimal satu isi: ringkasan, deskripsi, media, repo, atau link.', 'CONTENT_REQUIRED');
+		}
 		const now = new Date();
 		const set: Record<string, unknown> = { ...built.fields, visibility, status };
 		if (built.fields.title !== existing.title) set.slug = await uniqueProjectSlug(String(built.fields.title), existing._id);
@@ -852,6 +989,7 @@ router.post('/me/shortlinks', requireEnabled, authenticateStudent, writeLimiter,
 	if (!parsed.success) return fail(res, 400, 'Slug dan URL tujuan wajib diisi', 'VALIDATION_ERROR');
 	const me = await getStudent(req);
 	const slug = parsed.data.slug.trim().toLowerCase();
+	if (!me.emailVerified) return fail(res, 403, 'Aktivasi email dulu untuk membuat shortlink.', 'EMAIL_NOT_VERIFIED');
 	if (!validShortlinkSlug(slug)) return fail(res, 400, 'Slug 3–40 karakter: huruf kecil, angka, tanda minus; bukan kata cadangan.', 'SLUG_INVALID');
 	const targetUrl = cleanHttpsUrl(parsed.data.targetUrl);
 	if (!targetUrl) return fail(res, 400, 'URL tujuan wajib https://', 'URL_INVALID');
@@ -885,29 +1023,36 @@ async function visibleStudentFilter(): Promise<any> {
 
 const PUBLIC_PROJECT_BASE = { status: 'approved', visibility: 'public' } as const;
 
-function coverOf(p: any): { url: string; label: string } {
+/**
+ * Sampul karya, prioritas: gambar unggahan yang dipilih/ pertama → gambar pratinjau repo → thumbnail YouTube
+ * → sampul template otomatis (/api/karya/cover/:slug, tema terang/gelap).
+ */
+function coverOf(p: any): { url: string; label: string; generated: boolean } {
 	const media = p.media || [];
 	const cover = media.find((m: any) => m.id === p.coverMediaId && m.type === 'image') || media.find((m: any) => m.type === 'image');
 	const yt = (p.links || []).find((l: any) => l.kind === 'youtube');
 	const ytId = yt ? youtubeIdFromUrl(yt.url) : null;
-	const url = cover?.url || (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : '');
+	const repoOg = (p.repos || []).find((r: any) => r.ogImage && /^https:\/\//.test(r.ogImage))?.ogImage || '';
+	const pick = cover?.url || repoOg || (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : '');
+	const url = pick || `/api/karya/cover/${encodeURIComponent(p.slug)}`;
 	let label = '';
+	const hostLabel: Record<string, string> = { github: 'GitHub', gitlab: 'GitLab', bitbucket: 'Bitbucket', codeberg: 'Codeberg' };
 	if (yt) label = 'Video YouTube';
 	else if (media.some((m: any) => m.type === 'video')) label = 'Video';
-	else if ((p.repos || []).length) label = 'Repo ' + (p.repos[0].host === 'github' ? 'GitHub' : p.repos[0].host === 'gitlab' ? 'GitLab' : 'Bitbucket');
+	else if ((p.repos || []).length) label = 'Repo ' + (hostLabel[p.repos[0].host] || 'kode');
 	else if ((p.links || []).some((l: any) => l.kind === 'gdrive')) label = 'Google Drive';
 	else if ((p.links || []).some((l: any) => l.kind === 'demo')) label = 'Demo live';
 	else if (media.length) label = `${media.length} foto`;
-	return { url, label };
+	return { url, label, generated: !pick };
 }
 
 function publicAuthor(s: any) {
-	return { username: s?.username || '', name: s?.name || 'Mahasiswa TI', angkatan: angkatanFromNim(s?.nim), avatarUrl: s?.avatarUrl || '' };
+	return { username: profileVisible(s) ? s?.username || '' : '', name: s?.name || 'Mahasiswa TI', angkatan: angkatanFromNim(s?.nim), avatarUrl: s?.avatarUrl || '' };
 }
 
 async function toCards(rows: any[]): Promise<KaryaProjectCard[]> {
 	const ids = Array.from(new Set(rows.map((r) => String(r.studentId))));
-	const students: any[] = await KaryaStudent.find({ _id: { $in: ids } }).select('username name nim avatarUrl').lean();
+	const students: any[] = await KaryaStudent.find({ _id: { $in: ids } }).select('username name nim avatarUrl status profilePublic emailVerified suspendedUntil').lean();
 	const byId = new Map(students.map((s) => [String(s._id), s]));
 	return rows.map((p) => {
 		const c = coverOf(p);
@@ -918,6 +1063,7 @@ async function toCards(rows: any[]): Promise<KaryaProjectCard[]> {
 			category: p.category || 'lainnya',
 			tags: p.tags || [],
 			coverUrl: c.url,
+			coverGenerated: c.generated,
 			mediaLabel: c.label,
 			featured: !!p.featured,
 			author: publicAuthor(byId.get(String(p.studentId))),
@@ -956,7 +1102,7 @@ router.get('/public/projects', requireEnabled, publicLimiter, async (req, res) =
 		KaryaProject.find(filter).sort(sortSpec).skip((page - 1) * limit).limit(limit).lean(),
 		KaryaProject.countDocuments(filter),
 	]);
-	res.set('Cache-Control', 'public, max-age=30');
+	res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
 	ok(res, await toCards(rows), 'OK', { page, limit, total });
 });
 
@@ -981,17 +1127,86 @@ router.get('/public/projects/:slug', requireEnabled, publicLimiter, async (req, 
 		if (viewedRecently.size > 20000) viewedRecently.clear();
 		void KaryaProject.updateOne({ _id: p._id }, { $inc: { viewCount: 1 } }).catch(() => {});
 	}
-	// Karya terkait: hanya yang publik
+	ok(res, await buildProjectDetail(p, s));
+});
+
+
+// ── Detail karya + karya terkait otomatis ──
+
+const relatedCache = new Map<string, { at: number; slugs: string[] }>();
+const RELATED_TTL = 10 * 60_000;
+
+/**
+ * Karya terkait otomatis. Skor per kandidat (karya publik lain dari akun yang terlihat):
+ * 3×tag sama + 2×kategori sama + 2×bahasa repo sama + 1×pembuat sama + 1×angkatan sama
+ * + kesegaran (0–1, 1 tahun terakhir) + 0.5×unggulan. Maks 2 karya dari pembuat yang sama. Cache 10 menit.
+ */
+async function autoRelatedSlugs(p: any, author: any, exclude: string[]): Promise<string[]> {
+	const key = String(p._id);
+	const hit = relatedCache.get(key);
+	if (hit && Date.now() - hit.at < RELATED_TTL) return hit.slugs;
+	const langs = Array.from(new Set((p.repos || []).map((r: any) => r.language).filter(Boolean)));
+	const or: any[] = [{ category: p.category }, { studentId: p.studentId }];
+	if ((p.tags || []).length) or.push({ tags: { $in: p.tags } });
+	if (langs.length) or.push({ 'repos.language': { $in: langs } });
+	const candidates: any[] = await KaryaProject.find({ ...PUBLIC_PROJECT_BASE, ...(await visibleStudentFilter()), _id: { $ne: p._id }, $or: or })
+		.select('slug tags category repos.language studentId publishedAt featured')
+		.limit(300)
+		.lean();
+	const authorIds = Array.from(new Set(candidates.map((c) => String(c.studentId))));
+	const authors: any[] = await KaryaStudent.find({ _id: { $in: authorIds } }).select('nim').lean();
+	const yy = new Map(authors.map((a) => [String(a._id), String(a.nim || '').slice(0, 2)]));
+	const myYy = String(author?.nim || '').slice(0, 2);
+	const tagSet = new Set<string>(p.tags || []);
+	const now = Date.now();
+	const scored = candidates
+		.filter((c) => !exclude.includes(c.slug))
+		.map((c) => {
+			const sameTags = (c.tags || []).filter((t: string) => tagSet.has(t)).length;
+			const sameLang = (c.repos || []).some((r: any) => r.language && langs.includes(r.language));
+			const age = c.publishedAt ? (now - new Date(c.publishedAt).getTime()) / (365 * 86400_000) : 1;
+			const score =
+				3 * sameTags +
+				(c.category === p.category ? 2 : 0) +
+				(sameLang ? 2 : 0) +
+				(String(c.studentId) === String(p.studentId) ? 1 : 0) +
+				(myYy && yy.get(String(c.studentId)) === myYy ? 1 : 0) +
+				Math.max(0, 1 - age) +
+				(c.featured ? 0.5 : 0);
+			return { slug: c.slug, author: String(c.studentId), score };
+		})
+		.sort((a, b) => b.score - a.score);
+	const perAuthor = new Map<string, number>();
+	const out: string[] = [];
+	for (const c of scored) {
+		const n = perAuthor.get(c.author) || 0;
+		if (n >= 2) continue;
+		perAuthor.set(c.author, n + 1);
+		out.push(c.slug);
+		if (out.length >= 6) break;
+	}
+	relatedCache.set(key, { at: Date.now(), slugs: out });
+	if (relatedCache.size > 2000) relatedCache.clear();
+	return out;
+}
+
+/** Bentuk data detail karya (dipakai halaman publik dan pratinjau pemilik). */
+async function buildProjectDetail(p: any, s: any, opts: { preview?: boolean } = {}) {
+	// Karya terkait manual: hanya yang publik
 	const relSlugs = (p.related || []).map((r: any) => r.projectSlug).filter(Boolean);
 	const relPublic = relSlugs.length ? await KaryaProject.find({ slug: { $in: relSlugs }, ...PUBLIC_PROJECT_BASE }).lean() : [];
 	const relCards = await toCards(relPublic);
+	const autoSlugs = await autoRelatedSlugs(p, s, [p.slug, ...relSlugs]);
+	const autoRows = autoSlugs.length ? await KaryaProject.find({ slug: { $in: autoSlugs }, ...PUBLIC_PROJECT_BASE }).lean() : [];
+	const autoCards = (await toCards(autoRows)).sort((a, b) => autoSlugs.indexOf(a.slug) - autoSlugs.indexOf(b.slug));
 	const more = await KaryaProject.find({ studentId: p.studentId, _id: { $ne: p._id }, ...PUBLIC_PROJECT_BASE }).sort({ publishedAt: -1 }).limit(4).lean();
 	const c = coverOf(p);
-	ok(res, {
+	return {
 		slug: p.slug,
 		title: p.title,
 		summary: p.summary || '',
 		description: p.description || '',
+		descriptionFormat: p.descriptionFormat === 'html' ? 'html' : 'text',
 		role: p.role || '',
 		category: p.category,
 		tags: p.tags || [],
@@ -1000,16 +1215,37 @@ router.get('/public/projects/:slug', requireEnabled, publicLimiter, async (req, 
 		links: p.links || [],
 		media: p.media || [],
 		coverUrl: c.url,
+		coverGenerated: c.generated,
 		related: (p.related || [])
-			.map((r: any) => (r.projectSlug ? relCards.find((x) => x.slug === r.projectSlug) ? { projectSlug: r.projectSlug, label: r.label } : null : { url: r.url, label: r.label }))
+			.map((r: any) => (r.projectSlug ? (relCards.find((x) => x.slug === r.projectSlug) ? { projectSlug: r.projectSlug, label: r.label } : null) : { url: r.url, label: r.label }))
 			.filter(Boolean),
 		relatedCards: relCards,
+		relatedAuto: autoCards,
 		moreFromAuthor: await toCards(more),
 		viewCount: p.viewCount || 0,
 		publishedAt: p.publishedAt,
 		updatedAt: p.updatedAt,
 		author: publicStudent(s),
-	});
+		...(opts.preview ? { preview: true, status: p.status, visibility: p.visibility } : {}),
+	};
+}
+
+/** Pratinjau karya sendiri (status apa pun) — tampilan sama dengan publik, hanya pemilik. */
+router.get('/me/projects/:id/preview', requireEnabled, authenticateStudent, async (req, res) => {
+	if (!isId(req.params.id)) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
+	const me = await getStudent(req);
+	const p: any = await KaryaProject.findOne({ _id: req.params.id, studentId: me._id }).lean();
+	if (!p) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
+	res.set('X-Robots-Tag', 'noindex');
+	ok(res, await buildProjectDetail(p, me, { preview: true }));
+});
+
+/** Pratinjau profil sendiri (walau privat/belum verifikasi). */
+router.get('/me/profile/preview', requireEnabled, authenticateStudent, async (req, res) => {
+	const me = await getStudent(req);
+	const rows = await KaryaProject.find({ studentId: me._id, ...PUBLIC_PROJECT_BASE }).sort({ featured: -1, publishedAt: -1 }).lean();
+	res.set('X-Robots-Tag', 'noindex');
+	ok(res, { student: publicStudent(me), projects: await toCards(rows), preview: true, visible: profileVisible(me) });
 });
 
 function publicStudent(s: any): KaryaStudentPublic {
@@ -1023,18 +1259,96 @@ function publicStudent(s: any): KaryaStudentPublic {
 		skills: s.skills || [],
 		social: s.social || {},
 		verifiedTi: !!s.verifiedTi,
+		profileVisible: profileVisible(s),
 	};
 }
 
-router.get('/public/students/:username', requireEnabled, publicLimiter, async (req, res) => {
-	const username = String(req.params.username || '').toLowerCase().slice(0, 40);
+/** Profil boleh dilihat publik: aktif, tidak disuspend, email terverifikasi, profil diset publik. Tidak perlu punya karya. */
+function profileVisible(s: any): boolean {
+	if (!s || s.status !== 'active' || s.profilePublic === false || !s.emailVerified) return false;
+	return !(s.suspendedUntil && new Date(s.suspendedUntil) > new Date());
+}
+
+/** Profil cukup terisi untuk diindeks Google walau belum ada karya tayang. */
+function profileFilled(s: any): boolean {
+	return !!(String(s?.name || '').trim() && (String(s?.headline || '').trim() || String(s?.bio || '').trim().length >= 40));
+}
+
+/** Cari mahasiswa by username sekarang atau username lama (untuk redirect). */
+async function findByUsername(raw: string): Promise<{ student: any; redirectTo?: string } | null> {
+	const username = String(raw || '').toLowerCase().slice(0, 40);
 	const s: any = await KaryaStudent.findOne({ username, status: 'active' }).lean();
-	if (!s || s.profilePublic === false || (s.suspendedUntil && new Date(s.suspendedUntil) > new Date())) return fail(res, 404, 'Profil tidak ditemukan', 'NOT_FOUND');
+	if (s) return { student: s };
+	const old: any = await KaryaStudent.findOne({ previousUsernames: username, status: 'active' }).lean();
+	return old ? { student: old, redirectTo: old.username } : null;
+}
+
+router.get('/public/students/:username', requireEnabled, publicLimiter, async (req, res) => {
+	const found = await findByUsername(req.params.username);
+	if (!found || !profileVisible(found.student)) return fail(res, 404, 'Profil tidak ditemukan', 'NOT_FOUND');
+	const s = found.student;
 	const rows = await KaryaProject.find({ studentId: s._id, ...PUBLIC_PROJECT_BASE }).sort({ featured: -1, publishedAt: -1 }).lean();
-	// Profil hanya tampil publik bila punya minimal satu karya yang tayang
-	if (!rows.length) return fail(res, 404, 'Profil tidak ditemukan', 'NOT_FOUND');
 	const link: any = await KaryaShortlink.findOne({ studentId: s._id, status: 'active' }).sort({ createdAt: 1 }).lean();
-	ok(res, { student: { ...publicStudent(s), shortlink: link ? `/go/${link.slug}` : undefined }, projects: await toCards(rows) });
+	ok(res, {
+		student: { ...publicStudent(s), shortlink: link ? `/go/${link.slug}` : undefined },
+		projects: await toCards(rows),
+		redirectTo: found.redirectTo,
+		indexable: rows.length > 0 || profileFilled(s),
+	});
+});
+
+
+/** Upload gambar untuk deskripsi rich text karya (ikut kuota 100 MB). */
+router.post('/me/content-image', requireEnabled, authenticateStudent, writeLimiter, karyaUpload, async (req, res) => {
+	const settings = await getKaryaSettings();
+	if (!settings.uploadsEnabled) return fail(res, 403, 'Upload file sedang dinonaktifkan. Tempel link gambar/YouTube.', 'UPLOADS_DISABLED');
+	const me = await getStudent(req);
+	const file = (req as any).file as Express.Multer.File | undefined;
+	if (!file) return fail(res, 400, 'Pilih file gambar', 'VALIDATION_ERROR');
+	if (!/^image\//.test(file.mimetype)) return fail(res, 400, 'Hanya gambar', 'UPLOAD_FAILED');
+	if (file.size > KARYA_LIMITS.maxImageBytes) return fail(res, 413, 'Gambar maks 5 MB', 'FILE_TOO_LARGE');
+	if ((await remainingQuota(me._id)) <= 0) return fail(res, 413, 'Kuota penyimpanan 100 MB sudah habis.', 'QUOTA_EXCEEDED');
+	try {
+		const up = await uploadKaryaMedia(file, String(me._id));
+		await KaryaStudent.updateOne({ _id: me._id }, { $inc: { storageUsedBytes: up.size } });
+		ok(res, { url: up.url, size: up.size }, 'Gambar diunggah');
+	} catch (e) {
+		fail(res, 400, (e as Error).message || 'Upload gagal', 'UPLOAD_FAILED');
+	}
+});
+
+/** Sampul template otomatis (PNG, tema terang/gelap) untuk karya tanpa gambar — juga dipakai og:image. */
+router.get('/cover/:slug', publicLimiter, async (req, res) => {
+	const slug = karyaSlugify(req.params.slug, 100);
+	const theme = req.query.theme === 'light' ? 'light' : 'dark';
+	const p: any = await KaryaProject.findOne({ slug }).select('slug title category studentId status visibility updatedAt').lean();
+	if (!p) return res.status(404).end();
+	// Karya belum publik: hanya pemiliknya (pratinjau) — judul karya privat tidak bocor
+	if (!(p.status === 'approved' && p.visibility === 'public')) {
+		const me = await getStudent(req);
+		if (!me || String(me._id) !== String(p.studentId)) return res.status(404).end();
+	}
+	const s: any = await KaryaStudent.findById(p.studentId).select('name nim').lean();
+	try {
+		const png = await renderKaryaCover({ key: `${p.slug}:${new Date(p.updatedAt).getTime()}:${theme}`, title: p.title, category: p.category, author: s?.name || 'Mahasiswa TI', angkatan: angkatanFromNim(s?.nim), theme });
+		res.set('Content-Type', 'image/png');
+		res.set('Cache-Control', 'public, max-age=86400');
+		res.send(png);
+	} catch (e) {
+		console.warn('[karya-cover]', (e as Error)?.message);
+		res.status(500).end();
+	}
+});
+
+/** Halaman tag: jumlah karya + tag terkait (sering muncul bersama). */
+router.get('/public/tags/:tag', requireEnabled, publicLimiter, async (req, res) => {
+	const tag = cleanKaryaTags([String(req.params.tag || '')], 1)[0] || '';
+	if (!tag) return fail(res, 404, 'Tag tidak ditemukan', 'NOT_FOUND');
+	const filter: any = { ...PUBLIC_PROJECT_BASE, ...(await visibleStudentFilter()), tags: tag };
+	const total = await KaryaProject.countDocuments(filter);
+	const related = await KaryaProject.aggregate([{ $match: filter }, { $unwind: '$tags' }, { $match: { tags: { $ne: tag } } }, { $group: { _id: '$tags', n: { $sum: 1 } } }, { $sort: { n: -1, _id: 1 } }, { $limit: 12 }]);
+	res.set('Cache-Control', 'public, max-age=30');
+	ok(res, { tag, total, related: related.map((r: any) => ({ tag: r._id, count: r.n })) });
 });
 
 // ═════════════════════════════ ADMIN ═════════════════════════════
@@ -1208,7 +1522,7 @@ router.post('/admin/students', ...adminManage, async (req, res) => {
 		name: cleanName(parsed.data.name),
 		nim: elig.ok ? elig.nim : '',
 		verifiedTi: elig.ok,
-		username: await uniqueUsername(elig.ok ? elig.nim : parsed.data.name),
+		username: await uniqueUsername(parsed.data.name),
 		status: 'active',
 		// Belum terverifikasi: pemilik email mengatur password lewat "Lupa password" (OTP ke email itu) atau Google
 		emailVerified: false,
@@ -1344,21 +1658,36 @@ export async function karyaSeoProject(slug: string) {
 export async function karyaSeoStudent(username: string) {
 	const settings = await getKaryaSettings();
 	if (!settings.enabled) return null;
-	const s: any = await KaryaStudent.findOne({ username: String(username).toLowerCase().slice(0, 40), status: 'active' }).lean();
-	if (!s || s.profilePublic === false || (s.suspendedUntil && new Date(s.suspendedUntil) > new Date())) return null;
+	const found = await findByUsername(username);
+	if (!found || !profileVisible(found.student)) return null;
+	const s = found.student;
 	const count = await KaryaProject.countDocuments({ studentId: s._id, ...PUBLIC_PROJECT_BASE });
-	if (!count) return null;
-	return { student: s, count };
+	return { student: s, count, redirectTo: found.redirectTo, indexable: count > 0 || profileFilled(s) };
+}
+
+export async function karyaSeoTag(raw: string) {
+	const settings = await getKaryaSettings();
+	if (!settings.enabled) return null;
+	const tag = cleanKaryaTags([String(raw || '')], 1)[0] || '';
+	if (!tag) return null;
+	const total = await KaryaProject.countDocuments({ ...PUBLIC_PROJECT_BASE, ...(await visibleStudentFilter()), tags: tag });
+	return total ? { tag, total } : null;
 }
 
 export async function karyaSitemapEntries(): Promise<{ loc: string; lastmod: Date }[]> {
 	const settings = await getKaryaSettings();
 	if (!settings.enabled) return [];
 	const filter: any = { ...PUBLIC_PROJECT_BASE, ...(await visibleStudentFilter()) };
-	const rows: any[] = await KaryaProject.find(filter).select('slug updatedAt studentId').lean();
-	const studentIds = Array.from(new Set(rows.map((r) => String(r.studentId))));
-	const students: any[] = await KaryaStudent.find({ _id: { $in: studentIds }, profilePublic: { $ne: false } }).select('username updatedAt').lean();
+	const rows: any[] = await KaryaProject.find(filter).select('slug updatedAt studentId tags').lean();
+	const withWorks = new Set(rows.map((r) => String(r.studentId)));
+	const candidates: any[] = await KaryaStudent.find({ status: 'active', profilePublic: { $ne: false }, emailVerified: true })
+		.select('username updatedAt name headline bio suspendedUntil status profilePublic emailVerified')
+		.lean();
+	const students = candidates.filter((s) => profileVisible(s) && (withWorks.has(String(s._id)) || profileFilled(s)));
+	// Halaman tag diindeks bila minimal 2 karya publik
+	const tagRows = await KaryaProject.aggregate([{ $match: filter }, { $unwind: '$tags' }, { $group: { _id: '$tags', n: { $sum: 1 }, last: { $max: '$updatedAt' } } }, { $match: { n: { $gte: 2 } } }, { $limit: 500 }]);
 	return [
+		...tagRows.map((t: any) => ({ loc: `/karya/tag/${encodeURIComponent(t._id)}`, lastmod: t.last })),
 		...rows.map((r) => ({ loc: `/karya/${r.slug}`, lastmod: r.updatedAt })),
 		...students.map((s) => ({ loc: `/karya/mahasiswa/${s.username}`, lastmod: s.updatedAt })),
 	];

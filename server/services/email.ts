@@ -25,54 +25,109 @@ function getTransporter(): Mailer {
 	return transporter;
 }
 
-const PURPOSE_LABELS: Record<string, string> = {
-	forgot_password: 'Reset Password',
-	change_password: 'Verifikasi Ganti Password',
-	change_email: 'Verifikasi Ganti Email',
-	restore_backup: 'Restore Database dari Backup',
-	buyer_register: 'Verifikasi Akun Toko',
-	buyer_link_staff: 'Tautkan Akun Pembeli dengan Akun Pengurus',
-	buyer_password: 'Atur Ulang Password Akun Toko',
-	buyer_email_change: 'Verifikasi Email Baru Akun Toko',
-	buyer_delete: 'Konfirmasi Hapus Akun Toko',
-	karya_register: 'Verifikasi Akun Karya Mahasiswa TI',
-	karya_password: 'Atur Password Akun Karya Mahasiswa TI',
-	karya_delete: 'Konfirmasi Hapus Akun Karya Mahasiswa TI',
+import { renderEmailLayout, type EmailTone } from './email-layout';
+
+const FROM = () => `"Himatif Encoder" <${process.env.EMAIL}>`;
+
+type PurposeMeta = { label: string; account: string; action: string; tone: EmailTone; warning?: string };
+
+/** Info tiap tujuan OTP: dipakai subjek, judul, penjelasan email, dan halaman /verifikasi. */
+export const OTP_PURPOSES: Record<string, PurposeMeta> = {
+	forgot_password: { label: 'Reset Password Akun Pengurus', account: 'Pengurus', action: 'mengatur ulang password akun pengurus', tone: 'warning' },
+	change_password: { label: 'Konfirmasi Ganti Password Pengurus', account: 'Pengurus', action: 'mengganti password akun pengurus', tone: 'warning' },
+	change_email: { label: 'Konfirmasi Ganti Email Pengurus', account: 'Pengurus', action: 'mengganti email akun pengurus ke alamat ini', tone: 'info' },
+	restore_backup: { label: 'Konfirmasi Restore Database', account: 'Pengurus (owner)', action: 'memulihkan database dari backup', tone: 'danger', warning: 'Restore menimpa data saat ini. Lanjutkan hanya bila kamu yang memintanya.' },
+	delete_community: { label: 'Konfirmasi Hapus Komunitas', account: 'Pengurus komunitas', action: 'menghapus komunitas beserta datanya', tone: 'danger', warning: 'Penghapusan permanen dan tidak bisa dibatalkan.' },
+	buyer_register: { label: 'Verifikasi Akun Toko', account: 'Pembeli (Encoder Store)', action: 'memverifikasi email akun pembeli', tone: 'info' },
+	buyer_link_staff: { label: 'Tautkan Akun Pembeli dengan Pengurus', account: 'Pengurus + Pembeli', action: 'menautkan akun pembeli ke akun pengurus ini', tone: 'info' },
+	buyer_password: { label: 'Atur Ulang Password Akun Toko', account: 'Pembeli (Encoder Store)', action: 'mengatur ulang password akun pembeli', tone: 'warning' },
+	buyer_email_change: { label: 'Verifikasi Email Baru Akun Toko', account: 'Pembeli (Encoder Store)', action: 'mengganti email akun pembeli ke alamat ini', tone: 'info' },
+	buyer_delete: { label: 'Konfirmasi Hapus Akun Toko', account: 'Pembeli (Encoder Store)', action: 'menghapus akun pembeli', tone: 'danger', warning: 'Akun dihapus permanen; riwayat pesanan tetap disimpan toko untuk pembukuan.' },
+	karya_register: { label: 'Aktivasi Akun Karya Mahasiswa TI', account: 'Mahasiswa TI (Karya)', action: 'mengaktifkan akun Karya Mahasiswa TI agar karya bisa dipublikasikan', tone: 'success' },
+	karya_password: { label: 'Atur Password Akun Karya Mahasiswa TI', account: 'Mahasiswa TI (Karya)', action: 'mengatur password akun Karya Mahasiswa TI', tone: 'warning' },
+	karya_password_change: { label: 'Konfirmasi Ganti Password Karya Mahasiswa TI', account: 'Mahasiswa TI (Karya)', action: 'mengganti password akun Karya Mahasiswa TI', tone: 'warning', warning: 'Setelah dikonfirmasi, semua perangkat lain akan dikeluarkan.' },
+	karya_delete: { label: 'Konfirmasi Hapus Akun Karya Mahasiswa TI', account: 'Mahasiswa TI (Karya)', action: 'menghapus akun beserta semua karya dan file', tone: 'danger', warning: 'Penghapusan permanen dan tidak bisa dibatalkan.' },
 };
 
-export async function sendFeedbackReplyEmail(params: {
+export function otpPurposeMeta(purpose: string): PurposeMeta {
+	return OTP_PURPOSES[purpose] || { label: 'Verifikasi Akun', account: 'Akun Himatif Encoder', action: 'melanjutkan proses verifikasi', tone: 'info' };
+}
+
+function outbox(entry: Record<string, unknown>): boolean {
+	if (!process.env.STORE_EMAIL_OUTBOX) return false;
+	fs.appendFileSync(process.env.STORE_EMAIL_OUTBOX, `${JSON.stringify(entry)}\n`);
+	return true;
+}
+
+const wib = (d: Date) => d.toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Jakarta' }) + ' WIB';
+
+export async function sendOtpEmail(params: {
 	to: string;
-	senderName: string;
-	feedbackBody: string;
-	replyMessage: string;
-	adminName: string;
+	code: string;
+	purpose: string;
+	ttlMinutes: number;
+	/** Nama/username pemilik akun */
+	username?: string;
+	/** Link verifikasi sekali pakai (alternatif kode) */
+	linkUrl?: string;
+	expiresAt?: Date;
+	/** Asal permintaan (IP disamarkan + perkiraan lokasi) */
+	requestFrom?: string;
 }): Promise<void> {
-	const { to, senderName, feedbackBody, replyMessage, adminName } = params;
-	const transport = getTransporter();
+	const { to, code, purpose, ttlMinutes, username, linkUrl } = params;
+	const meta = otpPurposeMeta(purpose);
+	const expiresAt = params.expiresAt || new Date(Date.now() + ttlMinutes * 60_000);
+	const ttlText = ttlMinutes >= 60 ? `${Math.round(ttlMinutes / 60)} jam` : `${ttlMinutes} menit`;
+	const subject = `[Himatif Encoder] ${meta.label} — kode & link`;
+	if (outbox({ to, kind: `otp:${purpose}`, code, link: linkUrl || null, subject })) return;
 
-	const truncatedBody = feedbackBody.length > 300 ? feedbackBody.slice(0, 297) + '...' : feedbackBody;
-
-	await transport.sendMail({
-		from: `"HMTI System" <${process.env.EMAIL}>`,
-		to,
-		subject: `[HMTI] Balasan untuk Saran/Kritik Anda`,
-		html: `
-			<div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
-				<h2 style="color: #1a1a1a; margin-bottom: 8px;">Hai ${senderName},</h2>
-				<p style="color: #555; margin-bottom: 16px;">Saran/kritik Anda telah mendapat balasan dari admin HMTI.</p>
-				<div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Pesan Anda:</p>
-					<p style="color: #333; font-size: 14px; margin: 0; white-space: pre-wrap;">${truncatedBody}</p>
-				</div>
-				<div style="background: #eef6ff; border-left: 3px solid #3b82f6; border-radius: 4px; padding: 16px; margin-bottom: 16px;">
-					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Balasan dari <strong>${adminName}</strong>:</p>
-					<p style="color: #1a1a1a; font-size: 14px; margin: 0; white-space: pre-wrap;">${replyMessage}</p>
-				</div>
-				<hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-				<p style="color: #aaa; font-size: 12px;">Terima kasih telah memberikan masukan untuk HMTI UIN Malang.</p>
-			</div>
-		`,
+	const { html, text } = renderEmailLayout({
+		subject,
+		preheader: `Kode ${code} · berlaku ${ttlText} · ${meta.label}`,
+		badge: { text: meta.label, tone: meta.tone },
+		headline: username ? `Halo ${username}, konfirmasi permintaanmu` : 'Konfirmasi permintaanmu',
+		paragraphs: [
+			`Ada permintaan untuk ${meta.action}. Konfirmasi dengan kode di bawah atau tombol verifikasi.`,
+			`Kode dan tombol berlaku ${ttlText} dan hanya bisa dipakai sekali. Memakai salah satunya otomatis membatalkan yang lain.`,
+		],
+		code,
+		cta: linkUrl ? { label: 'Verifikasi sekarang', url: linkUrl } : undefined,
+		details: [
+			['Akun', to],
+			...(username ? ([['Nama / username', username]] as [string, string][]) : []),
+			['Jenis akun', meta.account],
+			['Tujuan', meta.label],
+			['Diminta pada', wib(new Date())],
+			...(params.requestFrom ? ([['Asal permintaan', params.requestFrom]] as [string, string][]) : []),
+			['Berlaku sampai', wib(expiresAt)],
+		],
+		notice: {
+			text: `${meta.warning ? meta.warning + ' ' : ''}Jangan bagikan kode atau link ini kepada siapa pun, termasuk pengurus. Bukan kamu yang meminta? Abaikan email ini — tidak ada yang berubah tanpa kode/link ini.`,
+			tone: meta.tone === 'danger' ? 'danger' : 'warning',
+		},
+		footerReason: `Email ini dikirim karena ada permintaan "${meta.label}" untuk akun ${to}.`,
 	});
+	await getTransporter().sendMail({ from: FROM(), to, subject, html, text });
+}
+
+const clip = (v: string, n = 300) => (v.length > n ? v.slice(0, n - 3) + '...' : v);
+
+export async function sendFeedbackReplyEmail(params: { to: string; senderName: string; feedbackBody: string; replyMessage: string; adminName: string }): Promise<void> {
+	const subject = '[Himatif Encoder] Balasan untuk saran/kritik kamu';
+	if (outbox({ to: params.to, kind: 'feedback:reply', subject })) return;
+	const { html, text } = renderEmailLayout({
+		subject,
+		preheader: `Balasan dari ${params.adminName}`,
+		badge: { text: 'Saran & Kritik', tone: 'info' },
+		headline: `Halo ${params.senderName}, saranmu sudah dibalas`,
+		paragraphs: ['Terima kasih sudah memberi masukan. Berikut balasan dari pengurus HMTI.'],
+		quotes: [
+			{ label: 'Pesan kamu', text: clip(params.feedbackBody) },
+			{ label: `Balasan dari ${params.adminName}`, text: params.replyMessage, tone: 'success' },
+		],
+		footerReason: 'Email ini dikirim karena kamu mengirim saran/kritik di himatif-encoder.com dan mencantumkan email.',
+	});
+	await getTransporter().sendMail({ from: FROM(), to: params.to, subject, html, text });
 }
 
 export async function sendFeedbackDecisionEmail(params: {
@@ -83,115 +138,40 @@ export async function sendFeedbackDecisionEmail(params: {
 	decisionComment: string;
 	adminName: string;
 }): Promise<void> {
-	const { to, senderName, feedbackBody, decision, decisionComment, adminName } = params;
-	const transport = getTransporter();
-
-	const truncatedBody = feedbackBody.length > 300 ? feedbackBody.slice(0, 297) + '...' : feedbackBody;
-	const statusLabel = decision === 'accepted' ? 'Diterima' : 'Ditolak';
-	const statusColor = decision === 'accepted' ? '#16a34a' : '#dc2626';
-	const commentSection = decisionComment
-		? `<div style="background: #f4f4f5; border-radius: 4px; padding: 12px; margin-bottom: 16px;">
-				<p style="color: #888; font-size: 12px; margin: 0 0 4px;">Komentar dari <strong>${adminName}</strong>:</p>
-				<p style="color: #333; font-size: 14px; margin: 0; white-space: pre-wrap;">${decisionComment}</p>
-			</div>`
-		: '';
-
-	await transport.sendMail({
-		from: `"HMTI System" <${process.env.EMAIL}>`,
-		to,
-		subject: `[HMTI] Saran Anda telah ${statusLabel}`,
-		html: `
-			<div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
-				<h2 style="color: #1a1a1a; margin-bottom: 8px;">Hai ${senderName},</h2>
-				<p style="color: #555; margin-bottom: 16px;">Saran yang Anda kirimkan telah ditinjau oleh admin HMTI.</p>
-				<div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Saran Anda:</p>
-					<p style="color: #333; font-size: 14px; margin: 0; white-space: pre-wrap;">${truncatedBody}</p>
-				</div>
-				<div style="border-left: 4px solid ${statusColor}; border-radius: 4px; padding: 12px 16px; margin-bottom: 16px; background: ${decision === 'accepted' ? '#f0fdf4' : '#fef2f2'};">
-					<p style="color: ${statusColor}; font-size: 16px; font-weight: bold; margin: 0;">Status: ${statusLabel}</p>
-				</div>
-				${commentSection}
-				<hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-				<p style="color: #aaa; font-size: 12px;">Terima kasih telah memberikan masukan untuk HMTI UIN Malang.</p>
-			</div>
-		`,
+	const accepted = params.decision === 'accepted';
+	const statusLabel = accepted ? 'Diterima' : 'Ditolak';
+	const subject = `[Himatif Encoder] Saranmu ${statusLabel.toLowerCase()}`;
+	if (outbox({ to: params.to, kind: `feedback:${params.decision}`, subject })) return;
+	const { html, text } = renderEmailLayout({
+		subject,
+		preheader: `Status saranmu: ${statusLabel}`,
+		badge: { text: `Saran ${statusLabel}`, tone: accepted ? 'success' : 'danger' },
+		headline: `Halo ${params.senderName}, saranmu sudah ditinjau`,
+		paragraphs: [`Pengurus HMTI telah meninjau saran yang kamu kirim. Status: ${statusLabel}.`],
+		quotes: [
+			{ label: 'Saran kamu', text: clip(params.feedbackBody) },
+			...(params.decisionComment ? [{ label: `Komentar dari ${params.adminName}`, text: params.decisionComment, tone: (accepted ? 'success' : 'danger') as EmailTone }] : []),
+		],
+		footerReason: 'Email ini dikirim karena kamu mengirim saran/kritik di himatif-encoder.com dan mencantumkan email.',
 	});
+	await getTransporter().sendMail({ from: FROM(), to: params.to, subject, html, text });
 }
 
-export async function sendBugReplyEmail(params: {
-	to: string;
-	reporterName: string;
-	bugDescription: string;
-	replyMessage: string;
-	adminName: string;
-}): Promise<void> {
-	const { to, reporterName, bugDescription, replyMessage, adminName } = params;
-	const transport = getTransporter();
-
-	const plainDesc = bugDescription.replace(/<[^>]+>/g, ' ').trim();
-	const truncatedDesc = plainDesc.length > 300 ? plainDesc.slice(0, 297) + '...' : plainDesc;
-
-	await transport.sendMail({
-		from: `"HMTI System" <${process.env.EMAIL}>`,
-		to,
-		subject: `[HMTI] Balasan untuk Bug Report Anda`,
-		html: `
-			<div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 24px;">
-				<h2 style="color: #1a1a1a; margin-bottom: 8px;">Hai ${reporterName},</h2>
-				<p style="color: #555; margin-bottom: 16px;">Bug report yang Anda kirimkan telah mendapat balasan.</p>
-				<div style="background: #f4f4f5; border-radius: 8px; padding: 16px; margin-bottom: 16px;">
-					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Bug report Anda:</p>
-					<p style="color: #333; font-size: 14px; margin: 0; white-space: pre-wrap;">${truncatedDesc}</p>
-				</div>
-				<div style="background: #eef6ff; border-left: 3px solid #ef4444; border-radius: 4px; padding: 16px; margin-bottom: 16px;">
-					<p style="color: #888; font-size: 12px; margin: 0 0 8px;">Balasan dari <strong>${adminName}</strong>:</p>
-					<p style="color: #1a1a1a; font-size: 14px; margin: 0; white-space: pre-wrap;">${replyMessage}</p>
-				</div>
-				<hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-				<p style="color: #aaa; font-size: 12px;">Terima kasih telah membantu meningkatkan kualitas sistem HMTI.</p>
-			</div>
-		`,
+export async function sendBugReplyEmail(params: { to: string; reporterName: string; bugDescription: string; replyMessage: string; adminName: string }): Promise<void> {
+	const subject = '[Himatif Encoder] Balasan untuk laporan bug kamu';
+	if (outbox({ to: params.to, kind: 'bug:reply', subject })) return;
+	const plain = params.bugDescription.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+	const { html, text } = renderEmailLayout({
+		subject,
+		preheader: `Balasan dari ${params.adminName}`,
+		badge: { text: 'Laporan Bug', tone: 'warning' },
+		headline: `Halo ${params.reporterName}, laporanmu sudah dibalas`,
+		paragraphs: ['Terima kasih sudah membantu meningkatkan kualitas sistem Himatif Encoder.'],
+		quotes: [
+			{ label: 'Laporan kamu', text: clip(plain) },
+			{ label: `Balasan dari ${params.adminName}`, text: params.replyMessage, tone: 'success' },
+		],
+		footerReason: 'Email ini dikirim karena kamu mengirim laporan bug di himatif-encoder.com.',
 	});
-}
-
-export async function sendOtpEmail(params: {
-	to: string;
-	code: string;
-	purpose: string;
-	ttlMinutes: number;
-	username?: string;
-}): Promise<void> {
-	const { to, code, purpose, ttlMinutes, username } = params;
-	const label = PURPOSE_LABELS[purpose] || 'Verifikasi OTP';
-	// Mode uji (STORE_EMAIL_OUTBOX): tulis ke file alih-alih mengirim — tidak dipakai di production
-	if (process.env.STORE_EMAIL_OUTBOX) {
-		fs.appendFileSync(process.env.STORE_EMAIL_OUTBOX, `${JSON.stringify({ to, kind: `otp:${purpose}`, code, subject: label })}\n`);
-		return;
-	}
-	const transport = getTransporter();
-
-	const subjectSuffix = username ? ` (${username})` : '';
-	const usernameRow = username
-		? `<p style="color: #555; margin-bottom: 16px;">Untuk akun: <strong>${username}</strong></p>`
-		: '';
-
-	await transport.sendMail({
-		from: `"HMTI System" <${process.env.EMAIL}>`,
-		to,
-		subject: `[HMTI] Kode OTP - ${label}${subjectSuffix}`,
-		html: `
-			<div style="font-family: Arial, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px;">
-				<h2 style="color: #1a1a1a; margin-bottom: 8px;">${label}</h2>
-				${usernameRow}
-				<p style="color: #555; margin-bottom: 24px;">Gunakan kode OTP berikut untuk melanjutkan proses ${label.toLowerCase()}:</p>
-				<div style="background: #f4f4f5; border-radius: 8px; padding: 24px; text-align: center; margin-bottom: 24px;">
-					<span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #111;">${code}</span>
-				</div>
-				<p style="color: #888; font-size: 13px;">Kode ini berlaku selama <strong>${ttlMinutes} menit</strong>. Jangan bagikan kode ini kepada siapapun.</p>
-				<hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
-				<p style="color: #aaa; font-size: 12px;">Jika Anda tidak meminta kode ini, abaikan email ini.</p>
-			</div>
-		`,
-	});
+	await getTransporter().sendMail({ from: FROM(), to: params.to, subject, html, text });
 }

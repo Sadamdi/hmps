@@ -5,6 +5,13 @@ import { Link } from 'wouter';
 import type { KaryaProjectCard as Card } from '@shared/karya';
 import { KARYA_CATEGORIES } from '@shared/karya';
 import { KARYA_PATHS } from '@/hooks/use-karya';
+import { useTheme } from '@/lib/theme';
+
+/** URL sampul: sampul template otomatis mengikuti tema terang/gelap. */
+export function useCoverUrl(url: string, generated?: boolean): string {
+	const { theme } = useTheme();
+	return generated && url ? `${url}${url.includes('?') ? '&' : '?'}theme=${theme === 'light' ? 'light' : 'dark'}` : url;
+}
 
 export function initialsOf(name: string): string {
 	return (
@@ -31,6 +38,7 @@ export const categoryLabel = (id: string) => KARYA_CATEGORIES.find((c) => c.id =
 
 /** Kartu karya publik: sampul, label media, judul, ringkasan, tag, pembuat. */
 export function KaryaCard({ item, className }: { item: Card; className?: string }) {
+	const cover = useCoverUrl(item.coverUrl, item.coverGenerated);
 	return (
 		<Link
 			href={KARYA_PATHS.project(item.slug)}
@@ -40,8 +48,8 @@ export function KaryaCard({ item, className }: { item: Card; className?: string 
 				className,
 			)}>
 			<div className="relative aspect-[16/10] overflow-hidden bg-muted">
-				{item.coverUrl ? (
-					<img src={item.coverUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+				{cover ? (
+					<img src={cover} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
 				) : (
 					<div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 via-background to-accent/15">
 						<Code2 className="h-10 w-10 text-primary/60" aria-hidden />

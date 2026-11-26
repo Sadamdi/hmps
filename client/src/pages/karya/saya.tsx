@@ -50,7 +50,7 @@ export default function KaryaDashboardPage() {
 	const [tab, setTab] = useState(tabFromUrl);
 
 	useEffect(() => {
-		if (!loading && !student) navigate(`${KARYA_PATHS.login}?next=${encodeURIComponent(KARYA_PATHS.dashboard)}`);
+		if (!loading && !student) navigate(`/login?next=${encodeURIComponent(KARYA_PATHS.dashboard)}`);
 	}, [loading, student, navigate]);
 
 	if (loading || !student) {
@@ -98,6 +98,8 @@ export default function KaryaDashboardPage() {
 						</Button>
 					</div>
 				</div>
+
+				<ActivationBanner student={student} />
 
 				<Tabs value={tab} onValueChange={setTab}>
 					<TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
@@ -240,6 +242,13 @@ function ProjectsTab({ student }: { student: KaryaStudentAccount }) {
 											<Link href={KARYA_PATHS.project(p.slug)}>Lihat</Link>
 										</Button>
 									) : null}
+									{p.status !== 'approved' ? (
+										<Button asChild variant="ghost" size="sm">
+											<Link href={KARYA_PATHS.preview(p.id)}>
+												<Eye className="mr-1 h-3.5 w-3.5" /> Pratinjau
+											</Link>
+										</Button>
+									) : null}
 									<Button asChild variant="outline" size="sm">
 										<Link href={KARYA_PATHS.editProject(p.id)}>
 											<Pencil className="mr-1 h-3.5 w-3.5" /> Edit
@@ -337,7 +346,10 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 			<Card>
 				<CardHeader>
 					<CardTitle>Profil publik</CardTitle>
-					<CardDescription>Tampil di /karya/mahasiswa/{form.username || student.username} setelah ada karya yang tayang.</CardDescription>
+					<CardDescription>
+						Alamat profil: /karya/mahasiswa/{form.username || student.username}. Tampil publik bila diset Publik dan email sudah diaktivasi, walau belum ada karya.
+						{/^\d{12}$/.test(student.username) ? ' Saran: ganti username agar NIM tidak terlihat di link publik (link lama tetap dialihkan).' : ''}
+					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
 					<div className="grid gap-4 sm:grid-cols-2">
@@ -397,7 +409,7 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 							<Label htmlFor="p-public" className="font-semibold">
 								Profil publik
 							</Label>
-							<p className="text-xs text-muted-foreground">Matikan agar profil tidak tampil (karya publik tetap bisa tampil di halaman karya).</p>
+							<p className="text-xs text-muted-foreground">Publik: siapa pun bisa membuka profilmu walau belum ada karya. Privat: profil tersembunyi (karya publik tetap tampil, tanpa link ke profil).</p>
 						</div>
 						<Switch id="p-public" checked={form.profilePublic} onCheckedChange={(v) => setForm({ ...form, profilePublic: v })} />
 					</CardContent>
@@ -507,13 +519,85 @@ function ShortlinkTab() {
 	);
 }
 
-type Session = { id: string; device: string; userAgent: string; ip: string; location: string; lastActive: string; current: boolean };
+type Session = { id: string; device: string; browser: string; os: string; ip: string; location: string; lastActive: string; createdAt: string; current: boolean };
+
+const fmtTime = (d: string) => new Date(d).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+
+/** Banner aktivasi email: belum aktivasi → karya terkunci privat. Kode dari email atau klik link di email. */
+export function ActivationBanner({ student }: { student: KaryaStudentAccount }) {
+	const { toast } = useToast();
+	// Kode aktivasi dari pendaftaran barusan (email sudah terkirim) → langsung bisa diisi
+	const initial = (() => {
+		try {
+			return JSON.parse(sessionStorage.getItem('karya-activation') || 'null') as { challengeId: string; expiresAt: string } | null;
+		} catch {
+			return null;
+		}
+	})();
+	const [challengeId, setChallengeId] = useState(initial?.challengeId || '');
+	const [expiresAt, setExpiresAt] = useState(initial?.expiresAt || '');
+	const [code, setCode] = useState('');
+	const [busy, setBusy] = useState(false);
+	if (student.emailVerified) {
+		sessionStorage.removeItem('karya-activation');
+		return null;
+	}
+	const resend = async () => {
+		setBusy(true);
+		try {
+			const r = await karyaApi<{ challengeId: string; expiresAt: string }>('POST', '/auth/activation/resend');
+			setChallengeId(r?.challengeId || '');
+			setExpiresAt(r?.expiresAt || '');
+			toast({ title: 'Email aktivasi dikirim', description: 'Pakai kode atau klik link di email. Berlaku 24 jam, sekali pakai.' });
+		} catch (e) {
+			toast({ title: 'Gagal mengirim', description: apiErrorText(e, 'Coba lagi nanti'), variant: 'destructive' });
+		} finally {
+			setBusy(false);
+		}
+	};
+	const verify = async (e: FormEvent) => {
+		e.preventDefault();
+		setBusy(true);
+		try {
+			await karyaApi('POST', '/auth/register/verify', { challengeId, code });
+			refreshStudent();
+			toast({ title: 'Email berhasil diaktivasi', description: 'Sekarang karya bisa dipublikasikan.' });
+		} catch (err) {
+			toast({ title: 'Kode salah', description: apiErrorText(err, 'Periksa kode'), variant: 'destructive' });
+		} finally {
+			setBusy(false);
+		}
+	};
+	return (
+		<div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-foreground">
+			<p className="font-semibold">Aktivasi email dulu untuk mempublikasikan karya</p>
+			<p className="mt-1 text-muted-foreground">
+				Kode dan link aktivasi dikirim ke <strong className="text-foreground">{student.email}</strong> (berlaku 24 jam, sekali pakai). Sebelum aktivasi, karya hanya bisa disimpan Privat, profil belum tampil publik, dan shortlink belum bisa dibuat. Masuk dengan Google kampus juga otomatis mengaktivasi.
+			</p>
+			<div className="mt-3 flex flex-wrap items-center gap-2">
+				<Button size="sm" variant="outline" onClick={resend} disabled={busy}>
+					{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} {challengeId ? 'Kirim ulang' : 'Kirim ulang email aktivasi'}
+				</Button>
+				{challengeId ? (
+					<form onSubmit={verify} className="flex flex-wrap items-center gap-2">
+						<Input aria-label="Kode aktivasi" className="h-9 w-[140px]" inputMode="numeric" maxLength={6} placeholder="Kode 6 digit" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
+						<Button size="sm" type="submit" disabled={code.length !== 6 || busy}>
+							Aktivasi
+						</Button>
+						{expiresAt ? <span className="text-xs text-muted-foreground">berlaku s.d. {fmtTime(expiresAt)}</span> : null}
+					</form>
+				) : null}
+			</div>
+		</div>
+	);
+}
 
 function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDeleted: () => void }) {
 	const { toast } = useToast();
 	const { data: sessions, refetch } = useQuery<Session[]>({ queryKey: ['karya-sessions'], queryFn: async () => (await karyaApi<Session[]>('GET', '/auth/sessions')) || [] });
-	const [pw, setPw] = useState({ current: '', next: '' });
-	const [otp, setOtp] = useState({ challengeId: '', code: '', next: '' });
+	const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
+	const [change, setChange] = useState<{ challengeId: string; expiresAt: string; code: string } | null>(null);
+	const [reset, setReset] = useState({ challengeId: '', code: '', next: '' });
 	const [del, setDel] = useState({ challengeId: '', code: '' });
 	const [busy, setBusy] = useState('');
 
@@ -533,19 +617,21 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 			<Card>
 				<CardHeader>
 					<CardTitle>Password</CardTitle>
-					<CardDescription>{student.hasPassword ? 'Ganti password. Semua perangkat lain akan dikeluarkan.' : 'Akunmu belum punya password (masuk via Google / dibuat pengurus). Atur lewat kode email.'}</CardDescription>
+					<CardDescription>
+						Demi keamanan, setiap perubahan password harus dikonfirmasi dari email {student.email} dengan kode 6 digit atau link (berlaku 10 menit, sekali pakai). Setelah berhasil, semua perangkat lain dikeluarkan.
+					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4">
-					{student.hasPassword ? (
+					{student.hasPassword && !change ? (
 						<form
 							className="space-y-3"
 							onSubmit={(e) => {
 								e.preventDefault();
+								if (pw.next !== pw.confirm) return toast({ title: 'Konfirmasi password tidak sama', variant: 'destructive' });
 								run('pw', async () => {
-									await karyaApi('POST', '/auth/password/change', { currentPassword: pw.current, newPassword: pw.next });
-									setPw({ current: '', next: '' });
-									refreshStudent();
-									toast({ title: 'Password diganti' });
+									const r = await karyaApi<{ challengeId: string; expiresAt: string }>('POST', '/auth/password/change', { currentPassword: pw.current, newPassword: pw.next });
+									setChange({ challengeId: r.challengeId, expiresAt: r.expiresAt, code: '' });
+									toast({ title: 'Cek email kamu', description: 'Masukkan kode atau klik link konfirmasi. Password belum berubah sampai dikonfirmasi.' });
 								});
 							}}>
 							<div className="space-y-1.5">
@@ -556,25 +642,59 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 								<Label htmlFor="pw-new">Password baru (min. 8)</Label>
 								<Input id="pw-new" type="password" autoComplete="new-password" minLength={8} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
 							</div>
+							<div className="space-y-1.5">
+								<Label htmlFor="pw-new2">Ulangi password baru</Label>
+								<Input id="pw-new2" type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
+							</div>
 							<Button type="submit" disabled={busy === 'pw'}>
-								{busy === 'pw' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Ganti password
+								{busy === 'pw' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Lanjut: kirim kode konfirmasi
 							</Button>
 						</form>
 					) : null}
+					{change ? (
+						<form
+							className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4"
+							onSubmit={(e) => {
+								e.preventDefault();
+								run('pwc', async () => {
+									await karyaApi('POST', '/auth/password/change/confirm', { challengeId: change.challengeId, code: change.code });
+									setChange(null);
+									setPw({ current: '', next: '', confirm: '' });
+									refreshStudent();
+									refetch();
+									toast({ title: 'Password berhasil diganti', description: 'Perangkat lain sudah dikeluarkan.' });
+								});
+							}}>
+							<p className="text-sm text-foreground">
+								Kode dikirim ke <strong>{student.email}</strong>, berlaku sampai <strong>{fmtTime(change.expiresAt)}</strong>. Klik link di email juga bisa — memakai salah satunya membatalkan yang lain.
+							</p>
+							<Input aria-label="Kode konfirmasi" inputMode="numeric" maxLength={6} placeholder="Kode 6 digit" value={change.code} onChange={(e) => setChange({ ...change, code: e.target.value.replace(/\D/g, '') })} required />
+							<div className="flex flex-wrap gap-2">
+								<Button type="submit" disabled={change.code.length !== 6 || busy === 'pwc'}>
+									Konfirmasi ganti password
+								</Button>
+								<Button type="button" variant="ghost" onClick={() => setChange(null)}>
+									Batal
+								</Button>
+							</div>
+						</form>
+					) : null}
 					<div className="space-y-3 border-t border-border pt-4">
-						<p className="text-sm text-muted-foreground">Lupa password lama? Atur ulang lewat kode OTP ke {student.email}.</p>
-						{!otp.challengeId ? (
+						<p className="text-sm text-muted-foreground">
+							{student.hasPassword ? 'Lupa password lama?' : 'Akunmu belum punya password (masuk via Google / dibuat pengurus).'} Atur lewat kode atau link ke {student.email} (10 menit).
+						</p>
+						{!reset.challengeId ? (
 							<Button
 								variant="outline"
 								disabled={busy === 'otp'}
 								onClick={() =>
 									run('otp', async () => {
 										const r = await karyaApi<{ challengeId: string }>('POST', '/auth/password/otp', {});
-										setOtp({ ...otp, challengeId: r?.challengeId || '' });
-										toast({ title: 'Kode dikirim ke email' });
+										setReset({ ...reset, challengeId: r?.challengeId || '' });
+										toast({ title: 'Kode & link dikirim ke email' });
 									})
 								}>
-								Kirim kode ke email
+								Kirim kode & link ke email
 							</Button>
 						) : (
 							<form
@@ -582,14 +702,14 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 								onSubmit={(e) => {
 									e.preventDefault();
 									run('otp', async () => {
-										await karyaApi('POST', '/auth/password/reset', { challengeId: otp.challengeId, code: otp.code, newPassword: otp.next });
-										setOtp({ challengeId: '', code: '', next: '' });
+										await karyaApi('POST', '/auth/password/reset', { challengeId: reset.challengeId, code: reset.code, newPassword: reset.next });
+										setReset({ challengeId: '', code: '', next: '' });
 										refreshStudent();
 										toast({ title: 'Password disimpan' });
 									});
 								}}>
-								<Input aria-label="Kode OTP" inputMode="numeric" maxLength={6} placeholder="Kode 6 digit" value={otp.code} onChange={(e) => setOtp({ ...otp, code: e.target.value.replace(/\D/g, '') })} required />
-								<Input aria-label="Password baru" type="password" autoComplete="new-password" minLength={8} placeholder="Password baru (min. 8)" value={otp.next} onChange={(e) => setOtp({ ...otp, next: e.target.value })} required />
+								<Input aria-label="Kode OTP" inputMode="numeric" maxLength={6} placeholder="Kode 6 digit" value={reset.code} onChange={(e) => setReset({ ...reset, code: e.target.value.replace(/\D/g, '') })} required />
+								<Input aria-label="Password baru" type="password" autoComplete="new-password" minLength={8} placeholder="Password baru (min. 8)" value={reset.next} onChange={(e) => setReset({ ...reset, next: e.target.value })} required />
 								<Button type="submit" disabled={busy === 'otp'}>
 									Simpan password
 								</Button>
@@ -604,28 +724,46 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 					<CardTitle className="flex items-center gap-2">
 						<MonitorSmartphone className="h-5 w-5" /> Perangkat yang masuk
 					</CardTitle>
-					<CardDescription>Keluarkan perangkat yang tidak kamu kenal.</CardDescription>
+					<CardDescription>Periksa perangkat yang sedang masuk ke akunmu. Tidak kenal? Keluarkan, lalu ganti password.</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3">
 					{(sessions || []).map((s) => (
-						<div key={s.id} className="flex items-center gap-3 rounded-lg border border-border p-3 text-sm">
+						<div key={s.id} className="flex items-start gap-3 rounded-lg border border-border p-3 text-sm">
 							<div className="min-w-0 flex-1">
 								<p className="font-medium text-foreground">
-									{s.device} {s.current ? <Badge variant="secondary">Perangkat ini</Badge> : null}
+									{s.browser} di {s.os} <span className="text-muted-foreground">· {s.device}</span> {s.current ? <Badge variant="secondary">Perangkat ini</Badge> : null}
 								</p>
-								<p className="truncate text-xs text-muted-foreground">
-									{s.location || s.ip} · aktif {new Date(s.lastActive).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}
+								<p className="text-xs text-muted-foreground">{[s.location, s.ip].filter(Boolean).join(' · ') || 'Lokasi tidak diketahui'}</p>
+								<p className="text-xs text-muted-foreground">
+									Masuk {fmtTime(s.createdAt)} · aktif terakhir {fmtTime(s.lastActive)}
 								</p>
 							</div>
 							{!s.current ? (
-								<Button variant="ghost" size="sm" onClick={() => run('s', async () => { await karyaApi('DELETE', `/auth/sessions/${s.id}`); refetch(); })}>
+								<Button
+									variant="outline"
+									size="sm"
+									onClick={() =>
+										run('s', async () => {
+											await karyaApi('DELETE', `/auth/sessions/${s.id}`);
+											refetch();
+											toast({ title: 'Perangkat dikeluarkan' });
+										})
+									}>
 									Keluarkan
 								</Button>
 							) : null}
 						</div>
 					))}
 					{(sessions || []).length > 1 ? (
-						<Button variant="outline" onClick={() => run('s', async () => { await karyaApi('POST', '/auth/sessions/revoke-others'); refetch(); })}>
+						<Button
+							variant="outline"
+							onClick={() =>
+								run('s', async () => {
+									await karyaApi('POST', '/auth/sessions/revoke-others');
+									refetch();
+									toast({ title: 'Semua perangkat lain dikeluarkan' });
+								})
+							}>
 							Keluarkan semua perangkat lain
 						</Button>
 					) : null}
@@ -635,7 +773,7 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 			<Card className="border-destructive/40 lg:col-span-2">
 				<CardHeader>
 					<CardTitle className="text-destructive">Hapus akun</CardTitle>
-					<CardDescription>Semua karya, file, dan shortlink dihapus permanen. Tidak bisa dibatalkan.</CardDescription>
+					<CardDescription>Semua karya, file, dan shortlink dihapus permanen. Konfirmasi dengan kode atau link di email (10 menit, sekali pakai).</CardDescription>
 				</CardHeader>
 				<CardContent className="flex flex-wrap items-center gap-3">
 					{!del.challengeId ? (
@@ -648,7 +786,7 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 									setDel({ challengeId: r?.challengeId || '', code: '' });
 								})
 							}>
-							Kirim kode konfirmasi
+							Kirim kode & link konfirmasi
 						</Button>
 					) : (
 						<>
