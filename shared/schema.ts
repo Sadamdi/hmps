@@ -260,6 +260,21 @@ export const DEFAULT_HOME_CONFIG: HomeConfig = {
 	showDashboardLink: true,
 };
 
+/**
+ * Sisipkan item `karya` (blok beranda atau item navbar) ke konfigurasi lama yang belum memilikinya.
+ * Posisi default: tepat setelah `toko` (sebelum grup Media: event/berita/galeri/YouTube/Instagram),
+ * bila tidak ada `toko` → sebelum `footer`, bila tidak ada juga → paling akhir.
+ * Setelah admin menyimpan Settings Beranda, urutan tersimpan yang dipakai (bisa digeser bebas).
+ */
+export function withKaryaDefault<T extends { id: string }>(items: T[], make: () => T): T[] {
+	if (items.some((i) => i.id === 'karya')) return items;
+	const toko = items.findIndex((i) => i.id === 'toko');
+	if (toko >= 0) return [...items.slice(0, toko + 1), make(), ...items.slice(toko + 1)];
+	const footer = items.findIndex((i) => i.id === 'footer');
+	if (footer >= 0) return [...items.slice(0, footer), make(), ...items.slice(footer)];
+	return [...items, make()];
+}
+
 /** Prodi & Karya Mahasiswa TI hanya ada di situs utama (bukan tenant komunitas). */
 const PRODI_IDS = new Set(['prodi', 'karya']);
 export const TENANT_SECTION_BLOCKS = ALL_SECTION_BLOCKS.filter((s) => !PRODI_IDS.has(s.id));
