@@ -26,6 +26,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useTenant } from '@/lib/tenant-context';
 import { Loader2, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useOtpLinkPrefill } from '@/lib/otp-link-prefill';
 
 type Phase = 'idle' | 'otp' | 'final' | 'countdown';
 
@@ -46,6 +47,7 @@ export function TenantOwnerDeleteAccountSection() {
 	const [challengeId, setChallengeId] = useState('');
 	const [resetToken, setResetToken] = useState('');
 	const [otpValue, setOtpValue] = useState('');
+	useOtpLinkPrefill('delete_community', challengeId, setOtpValue);
 	const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
 
 	const credsRef = useRef({ challengeId: '', resetToken: '' });

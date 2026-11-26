@@ -3,8 +3,8 @@ import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
 import { Button } from '@/components/ui/button';
 import { KARYA_PATHS, usePublicStudent } from '@/hooks/use-karya';
 import { BadgeCheck, FileText, Github, Globe, Instagram, Link2, Linkedin, Loader2 } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { Link, useParams } from 'wouter';
+import { useEffect, type ReactNode } from 'react';
+import { Link, useLocation, useParams } from 'wouter';
 import type { KaryaSocialLinks } from '@shared/karya';
 
 const SOCIAL: { key: keyof KaryaSocialLinks; label: string; icon: ReactNode }[] = [
@@ -21,7 +21,12 @@ const shortHandle = (url: string) => url.replace(/^https:\/\/(www\.)?/, '').repl
 export default function KaryaStudentPage() {
 	const { username = '' } = useParams<{ username: string }>();
 	const { data, isLoading, isError } = usePublicStudent(username);
+	const [, navigate] = useLocation();
 	const s = data?.student;
+	// Username lama → alamat baru
+	useEffect(() => {
+		if (data?.redirectTo) navigate(KARYA_PATHS.student(data.redirectTo), { replace: true });
+	}, [data?.redirectTo, navigate]);
 	const crumbs = [{ label: 'Beranda', href: '/' }, { label: 'Karya TI', href: KARYA_PATHS.index }, { label: s?.name || 'Profil' }];
 
 	if (isLoading) {
@@ -38,7 +43,7 @@ export default function KaryaStudentPage() {
 			<KaryaPublicLayout breadcrumb={crumbs} title="Profil tidak ditemukan | Himatif Encoder" noindex>
 				<div className="max-w-xl mx-auto px-4 py-24 text-center">
 					<h1 className="text-2xl font-bold text-foreground">Profil tidak ditemukan</h1>
-					<p className="mt-2 text-muted-foreground">Profil ini privat atau belum punya karya yang tayang.</p>
+					<p className="mt-2 text-muted-foreground">Profil ini privat, belum diverifikasi, atau tidak ada.</p>
 					<Button asChild variant="outline" className="mt-6">
 						<Link href={KARYA_PATHS.index}>Lihat karya mahasiswa</Link>
 					</Button>
@@ -52,7 +57,7 @@ export default function KaryaStudentPage() {
 	const socials = SOCIAL.filter((x) => s.social?.[x.key]);
 
 	return (
-		<KaryaPublicLayout breadcrumb={crumbs} title={`${s.name} — Karya Mahasiswa TI | Himatif Encoder`}>
+		<KaryaPublicLayout breadcrumb={crumbs} title={`${s.name} — Karya Mahasiswa TI | Himatif Encoder`} noindex={data.indexable === false}>
 			<div className="h-32 sm:h-40 bg-gradient-to-r from-blue-600 via-cyan-700 to-background" aria-hidden />
 			<div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 pb-14 grid gap-8 lg:grid-cols-[320px_1fr]">
 				<aside className="space-y-4 self-start rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -101,6 +106,12 @@ export default function KaryaStudentPage() {
 					<div className="flex flex-wrap items-baseline justify-between gap-2">
 						<h2 className="text-xl font-semibold text-foreground">Portofolio ({data.projects.length})</h2>
 					</div>
+					{!data.projects.length ? (
+						<div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
+							<p className="font-semibold text-foreground">Belum ada karya yang tayang</p>
+							<p className="mt-1 text-sm text-muted-foreground">Karya {s.name.split(' ')[0]} akan muncul di sini setelah dipublikasikan.</p>
+						</div>
+					) : null}
 					{featured ? <KaryaCard item={featured} className="sm:[&>div:first-child]:aspect-[21/9]" /> : null}
 					{rest.length ? (
 						<div className="grid gap-5 sm:grid-cols-2">

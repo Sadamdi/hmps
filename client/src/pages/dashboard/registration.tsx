@@ -53,6 +53,7 @@ import {
 } from 'lucide-react';
 import { buildSimpleEncoPageData } from '@shared/dashboard-enco-context';
 import { useMemo, useState } from 'react';
+import { useOtpLinkPrefill } from '@/lib/otp-link-prefill';
 
 function formatDate(d: string | Date) {
 	return new Date(d).toLocaleDateString('id-ID', {
@@ -115,6 +116,7 @@ export default function DashboardRegistration() {
 	const [deleteStep, setDeleteStep] = useState<'confirm' | 'otp' | 'verify'>('confirm');
 	const [otpChallengeId, setOtpChallengeId] = useState('');
 	const [otpCode, setOtpCode] = useState('');
+	useOtpLinkPrefill('delete_community', otpChallengeId, setOtpCode);
 	const [deleteResetToken, setDeleteResetToken] = useState('');
 
 	const [editingCode, setEditingCode] = useState<any>(null);

@@ -9,6 +9,24 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.66.0] - 2026-11-27
+
+### Added
+- `auth`: semua email OTP (pengurus, pembeli, mahasiswa, backup, komunitas) berisi kode 6 digit **dan** link sekali pakai `/verifikasi`; memakai salah satunya membatalkan yang lain (hash HMAC, konsumsi atomik); `GET /api/verify/info`
+- `email`: template email seragam (tujuan, akun, jenis akun, waktu & asal permintaan, masa berlaku, peringatan) untuk OTP, balasan feedback, keputusan feedback, balasan bug
+- `auth`: login satu pintu `/login` untuk pengurus, mahasiswa TI, dan pembeli (pilih peran bila lebih dari satu), `/daftar` pilih jenis akun, menu profil mahasiswa di navbar
+- `karya`: aktivasi email (24 jam), kunci privat sebelum aktivasi, ganti password via kode/link, daftar perangkat rinci, pratinjau karya, halaman tag `/karya/tag/:tag`, karya terkait otomatis, deskripsi rich text, repo Codeberg + lisensi, sampul otomatis terang/gelap
+
+### Changed
+- `karya`: daftar langsung masuk (belum aktivasi); ganti password 2 langkah; profil publik tampil walau belum ada karya; username default dari nama + redirect username lama; wajib minimal satu isi untuk karya publik
+- `editor`: TinyMCE mengikuti tema terang/gelap (juga di berita)
+
+### Fixed
+- `karya`: profil publik 404 bila belum ada karya; NIM tampil di URL profil; label repo selalu GitHub
+- `email`: isi feedback/bug tidak di-escape
+
+Detail: [release/4.66.0.md](../release/4.66.0.md).
+
 ## [4.65.1] - 2026-11-26
 
 ### Changed

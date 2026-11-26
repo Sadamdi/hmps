@@ -133,6 +133,9 @@ const ALLOWED_API_ROUTE_RULES: AllowedRouteRule[] = [
 	{ kind: 'prefix', value: '/api/karya/auth' },
 	{ kind: 'prefix', value: '/api/karya/public' },
 	{ kind: 'prefix', value: '/api/karya/me' },
+	{ kind: 'exact', value: '/api/verify/info' },
+	// Sampul karya otomatis (og:image diambil crawler WhatsApp/Facebook tanpa referer)
+	{ kind: 'prefix', value: '/api/karya/cover' },
 
 	// Registrasi komunitas
 	{ kind: 'exact', value: '/api/register/validate-code' },

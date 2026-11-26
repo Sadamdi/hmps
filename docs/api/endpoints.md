@@ -518,8 +518,10 @@ Pendaftaran mandiri: email `NIM@student.uin-malang.ac.id`, NIM 12 digit, kode pr
 ```text
 # Auth mahasiswa (publik / cookie studentToken)
 GET    /api/karya/auth/config                    # publik: enabled, registrationOpen, reviewMode, uploadsEnabled, googleEnabled, limits, categories
-POST   /api/karya/auth/register                  # {name, email, password} → OTP; email non-TI → 403 NOT_TI_STUDENT
-POST   /api/karya/auth/register/verify           # {challengeId, code} → sesi
+POST   /api/karya/auth/register                  # {name, email, password} → langsung masuk (belum aktivasi) + email aktivasi kode & link 24 jam; email non-TI → 403 NOT_TI_STUDENT
+POST   /api/karya/auth/register/verify           # {challengeId, code: 6 digit | token link} → aktivasi
+POST   /api/karya/auth/activation/resend         # mahasiswa: kirim ulang aktivasi
+POST   /api/karya/auth/password-targets          # pintu /login: {email, password} → {student, buyer, studentEligible} tanpa membuat sesi
 POST   /api/karya/auth/login                     # {email, password}; STUDENT_BLOCKED / STUDENT_SUSPENDED / EMAIL_UNVERIFIED
 POST   /api/karya/auth/google                    # {idToken}; akun baru → {needsOnboarding, email, name}
 POST   /api/karya/auth/google/complete           # {idToken, name, password, confirmPassword}
@@ -527,7 +529,8 @@ POST   /api/karya/auth/logout
 GET    /api/karya/auth/me                        # data.student | null
 POST   /api/karya/auth/password/otp              # {email} (jawaban generik)
 POST   /api/karya/auth/password/reset            # {challengeId, code, newPassword} → cabut semua sesi
-POST   /api/karya/auth/password/change           # mahasiswa: {currentPassword, newPassword}
+POST   /api/karya/auth/password/change           # mahasiswa: {currentPassword, newPassword} → kirim kode & link (10 menit), password BELUM berubah
+POST   /api/karya/auth/password/change/confirm   # {challengeId, code | token link} → pasang password baru, cabut semua sesi
 GET    /api/karya/auth/sessions                  # mahasiswa
 DELETE /api/karya/auth/sessions/:id
 POST   /api/karya/auth/sessions/revoke-others
@@ -537,6 +540,9 @@ POST   /api/karya/auth/delete                    # {challengeId, code} → hapus
 # Profil & karya milik sendiri (mahasiswa)
 PATCH  /api/karya/me/profile                     # name, username, headline, bio, skills[], social{github,gitlab,linkedin,instagram,website,cv}, profilePublic
 POST   /api/karya/me/avatar                      # multipart file (gambar ≤5 MB → WebP 400px)
+POST   /api/karya/me/content-image               # multipart file: gambar deskripsi rich text (ikut kuota)
+GET    /api/karya/me/projects/:id/preview        # pratinjau karya sendiri (noindex)
+GET    /api/karya/me/profile/preview             # pratinjau profil sendiri
 GET    /api/karya/me/projects
 POST   /api/karya/me/projects                    # title, summary, description, role, category, tags, year, repoUrls[], links[], related[], visibility, action=draft|submit
 GET    /api/karya/me/projects/:id
@@ -553,8 +559,13 @@ DELETE /api/karya/me/shortlinks/:id
 # Publik
 GET    /api/karya/public/projects                # ?q&tag&category&angkatan&sort=latest|popular&page&limit≤48 → data + meta
 GET    /api/karya/public/tags
+GET    /api/karya/public/tags/:tag                # total + tag terkait
+GET    /api/karya/cover/:slug                     # sampul template PNG (?theme=dark|light), og:image
 GET    /api/karya/public/projects/:slug          # 404 bila privat/belum disetujui/disembunyikan/akun nonaktif
-GET    /api/karya/public/students/:username      # 404 bila profil privat atau belum ada karya tayang
+GET    /api/karya/public/students/:username      # 404 bila profil privat / belum aktivasi; tanpa karya tetap tampil (indexable=false); redirectTo bila username lama
+
+# Verifikasi email (semua alur OTP: kode 6 digit + link sekali pakai di email; pakai salah satunya → keduanya hangus)
+GET    /api/verify/info?c=<challengeId>          # tujuan, jenis akun, email tersamar, state ready|used|expired|locked (tidak memakai token)
 
 # Admin (pengurus: karya.view / karya.manage — owner, chair, vice_chair, medinfo + divisi Medinfo)
 GET    /api/karya/admin/overview
@@ -601,7 +612,10 @@ GET /toko
 GET /toko/:slug
 GET /karya                       # SPA daftar karya
 GET /karya/:slug                 # SSR meta + JSON-LD CreativeWork; privat/tidak ada → noindex
-GET /karya/mahasiswa/:username   # SSR meta + JSON-LD ProfilePage; tidak publik → noindex
+GET /karya/mahasiswa/:username   # SSR meta + JSON-LD ProfilePage; username lama → 301; tidak publik → noindex; kosong → tampil + noindex
+GET /karya/tag/:tag              # SSR CollectionPage; < 2 karya → noindex
+GET /verifikasi                  # halaman link verifikasi email (noindex)
+GET /daftar                      # pilih jenis akun: Mahasiswa TI / Pembeli (noindex)
 GET /karya/masuk|daftar|saya     # noindex
 GET /go/:slug                    # shortlink mahasiswa → 302 (aktif saja), X-Robots-Tag noindex
 GET /profil

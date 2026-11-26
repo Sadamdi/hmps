@@ -30,6 +30,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from '../ui/select';
+import { useOtpLinkPrefill } from '@/lib/otp-link-prefill';
 
 interface UserProfileData {
 	username: string;
@@ -78,6 +79,8 @@ export function UserProfileEditor({ user, onUpdate }: UserProfileEditorProps) {
 	const [newEmail, setNewEmail] = useState('');
 	const [emailChallengeId, setEmailChallengeId] = useState('');
 	const [emailOtpCode, setEmailOtpCode] = useState('');
+	// Link verifikasi di email → kode terisi otomatis
+	useOtpLinkPrefill('change_email', emailChallengeId, setEmailOtpCode);
 	const [emailLoading, setEmailLoading] = useState(false);
 	const [emailCountdown, setEmailCountdown] = useState(0);
 

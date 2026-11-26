@@ -44,6 +44,10 @@ const KaryaStudentPage = lazy(() => import('@/pages/karya/mahasiswa/[username]')
 const KaryaLoginPage = lazy(() => import('@/pages/karya/masuk'));
 const KaryaDashboardPage = lazy(() => import('@/pages/karya/saya'));
 const KaryaEditorPage = lazy(() => import('@/pages/karya/editor'));
+const VerifikasiPage = lazy(() => import('@/pages/verifikasi'));
+const DaftarPage = lazy(() => import('@/pages/daftar'));
+const KaryaTagPage = lazy(() => import('@/pages/karya/tag'));
+const KaryaPreviewPage = lazy(() => import('@/pages/karya/pratinjau'));
 const DashboardRegistration = lazy(() => import('@/pages/dashboard/registration'));
 const RegisterPage = lazy(() => import('@/pages/register'));
 const CommunityShell = lazy(() => import('@/pages/community/index'));
@@ -211,10 +215,16 @@ function Router() {
 				<Route path="/karya/daftar" component={KaryaLoginPage} />
 				<Route path="/karya/saya/baru" component={KaryaEditorPage} />
 				<Route path="/karya/saya/edit/:id" component={KaryaEditorPage} />
+				<Route path="/karya/saya/pratinjau/:id" component={KaryaPreviewPage} />
+				<Route path="/karya/tag/:tag" component={KaryaTagPage} />
 				<Route path="/karya/saya" component={KaryaDashboardPage} />
 				<Route path="/karya/mahasiswa/:username" component={KaryaStudentPage} />
 				<Route path="/karya/:slug" component={KaryaDetailPage} />
 				<Route path="/karya" component={KaryaIndexPage} />
+				{/* Link verifikasi email (kode + link sekali pakai) */}
+				<Route path="/verifikasi" component={VerifikasiPage} />
+				{/* Daftar satu pintu: pilih Mahasiswa TI atau Pembeli */}
+				<Route path="/daftar" component={DaftarPage} />
 				{storeBasePath !== '/toko' && (
 					<>
 						<Route path={`${storeBasePath}/cart`} component={TokoCartPage} />

@@ -6,11 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { KARYA_PATHS, karyaApi, refreshStudent, useKaryaConfig, useMyProject, useStudent, type KaryaOwnProject } from '@/hooks/use-karya';
+import { KARYA_PATHS, karyaApi, refreshStudent, useKaryaConfig, useMyProject, usePublicTags, useStudent, type KaryaOwnProject } from '@/hooks/use-karya';
+import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { RepoHostIcon } from './[slug]';
+import { useCoverUrl } from '@/components/karya/karya-card';
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorText, queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
-import { classifyKaryaLink, formatBytes, KARYA_CATEGORIES, type KaryaRepoInfo } from '@shared/karya';
+import { classifyKaryaLink, cleanKaryaTags, formatBytes, KARYA_CATEGORIES, KARYA_REPO_HOSTS, type KaryaRepoInfo } from '@shared/karya';
 import { ArrowLeft, Github, ImagePlus, Link2, Loader2, Lock, Plus, Star, Trash2, Upload, Globe2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
@@ -34,6 +37,9 @@ export default function KaryaEditorPage() {
 	const [title, setTitle] = useState('');
 	const [summary, setSummary] = useState('');
 	const [description, setDescription] = useState('');
+	const [descriptionFormat, setDescriptionFormat] = useState<'text' | 'html'>('html');
+	const [tagInput, setTagInput] = useState('');
+	const { data: tagSuggestions } = usePublicTags();
 	const [role, setRole] = useState('');
 	const [category, setCategory] = useState('web');
 	const [tags, setTags] = useState('');
@@ -46,13 +52,16 @@ export default function KaryaEditorPage() {
 	const [related, setRelated] = useState<RelatedRow[]>([]);
 	const [relatedInput, setRelatedInput] = useState('');
 	const [visibility, setVisibility] = useState<'public' | 'private'>('public');
+	useEffect(() => {
+		if (student && !student.emailVerified) setVisibility('private');
+	}, [student]);
 	const [mediaTab, setMediaTab] = useState<MediaTab>('link');
 	const [busy, setBusy] = useState<'' | 'repo' | 'save' | 'upload'>('');
 	const [error, setError] = useState('');
 	const fileRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
-		if (!loading && !student) navigate(`${KARYA_PATHS.login}?next=${encodeURIComponent(window.location.pathname)}`);
+		if (!loading && !student) navigate(`/login?next=${encodeURIComponent(window.location.pathname)}`);
 	}, [loading, student, navigate]);
 
 	const hydrate = (p: KaryaOwnProject) => {
@@ -60,6 +69,7 @@ export default function KaryaEditorPage() {
 		setTitle(p.title);
 		setSummary(p.summary);
 		setDescription(p.description);
+		setDescriptionFormat(p.descriptionFormat === 'html' ? 'html' : p.description ? 'text' : 'html');
 		setRole(p.role);
 		setCategory(p.category);
 		setTags(p.tags.join(', '));
@@ -122,6 +132,7 @@ export default function KaryaEditorPage() {
 		title,
 		summary,
 		description,
+		descriptionFormat,
 		role,
 		category,
 		tags,
@@ -270,15 +281,24 @@ export default function KaryaEditorPage() {
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2 text-base">
-								<Github className="h-5 w-5" /> 1. Mulai dari repo (opsional, paling cepat)
+								<Github className="h-5 w-5" /> 1. Mulai dari repo <span className="text-xs font-normal text-muted-foreground">(opsional, paling cepat)</span>
 							</CardTitle>
-							<CardDescription>GitHub, GitLab, atau Bitbucket. Repo wajib publik. Judul, deskripsi, topik, dan demo terisi otomatis.</CardDescription>
+							<CardDescription className="space-y-2">
+								<span className="flex flex-wrap gap-3" aria-label="Platform yang didukung">
+									{Object.entries(KARYA_REPO_HOSTS).map(([k, h]) => (
+										<span key={k} className="inline-flex items-center gap-1 rounded-full border border-border px-2.5 py-1 text-xs text-foreground">
+											<RepoHostIcon host={k} className="h-3.5 w-3.5" /> {h.label}
+										</span>
+									))}
+								</span>
+								<span className="block">Repo wajib publik. Judul, ringkasan, topik → tag, demo, dan gambar pratinjau repo terisi otomatis. Di halaman karya muncul tombol "Lihat selengkapnya di …" ke repo.</span>
+							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-3">
 							<div className="flex flex-wrap gap-2">
 								<Input
 									aria-label="URL repo"
-									placeholder="https://github.com/username/repo"
+									placeholder="https://github.com/… · gitlab.com/… · bitbucket.org/… · codeberg.org/…"
 									value={repoInput}
 									onChange={(e) => setRepoInput(e.target.value)}
 									onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addRepo())}
@@ -291,8 +311,9 @@ export default function KaryaEditorPage() {
 							{repoPreview.map((r) => (
 								<div key={r.url} className="flex items-start gap-3 rounded-lg border border-border bg-muted/40 p-3 text-sm">
 									<div className="min-w-0 flex-1">
-										<p className="font-semibold text-foreground">
-											{r.owner}/{r.name}
+										<p className="flex items-center gap-1.5 font-semibold text-foreground">
+											<RepoHostIcon host={r.host} /> {r.owner}/{r.name}
+											<span className="text-xs font-normal text-muted-foreground">· {KARYA_REPO_HOSTS[r.host]?.label}</span>
 										</p>
 										<p className="text-xs text-muted-foreground">
 											{r.language || '—'} · ★ {r.stars} · {r.description || 'Tanpa deskripsi'}
@@ -317,27 +338,38 @@ export default function KaryaEditorPage() {
 					<Card>
 						<CardHeader>
 							<CardTitle className="text-base">2. Detail karya</CardTitle>
+							<CardDescription>Wajib: <strong>Judul</strong> dan <strong>Kategori</strong>. Karya publik juga wajib punya minimal satu isi: ringkasan, deskripsi, media, repo, atau link. Lainnya opsional.</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<div className="space-y-1.5">
-								<Label htmlFor="e-title">Judul *</Label>
+								<Label htmlFor="e-title">Judul <span className="text-destructive">*</span> <span className="text-xs font-normal text-muted-foreground">(wajib, 3–120 karakter)</span></Label>
 								<Input id="e-title" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
 							</div>
 							<div className="space-y-1.5">
-								<Label htmlFor="e-summary">Ringkasan singkat (tampil di kartu &amp; Google)</Label>
+								<Label htmlFor="e-summary">Ringkasan singkat <span className="text-xs font-normal text-muted-foreground">(opsional, disarankan — tampil di kartu &amp; Google, maks 240)</span></Label>
 								<Input id="e-summary" value={summary} maxLength={240} onChange={(e) => setSummary(e.target.value)} />
 							</div>
 							<div className="space-y-1.5">
-								<Label htmlFor="e-desc">Deskripsi lengkap</Label>
-								<Textarea id="e-desc" rows={6} value={description} maxLength={8000} onChange={(e) => setDescription(e.target.value)} placeholder="Masalah yang diselesaikan, fitur utama, teknologi, hasil…" />
+								<Label htmlFor="e-desc">Deskripsi lengkap <span className="text-xs font-normal text-muted-foreground">(opsional — bisa heading, list, gambar, kode, link seperti berita)</span></Label>
+								{descriptionFormat === 'html' ? (
+									<RichTextEditor value={description} onChange={setDescription} height={360} placeholder="Masalah yang diselesaikan, fitur utama, teknologi, hasil…" uploadEndpoint="/api/karya/me/content-image" />
+								) : (
+									<div className="space-y-2">
+										<Textarea id="e-desc" rows={6} value={description} maxLength={8000} onChange={(e) => setDescription(e.target.value)} />
+										<Button type="button" variant="outline" size="sm" onClick={() => { setDescription(description.split(/\n{2,}/).map((para) => `<p>${para.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c] as string).replace(/\n/g, '<br>')}</p>`).join('')); setDescriptionFormat('html'); }}>
+											Ubah ke editor rich text
+										</Button>
+									</div>
+								)}
+								<p className="text-xs text-muted-foreground">Gambar di deskripsi ikut kuota 100 MB.</p>
 							</div>
 							<div className="space-y-1.5">
-								<Label htmlFor="e-role">Peran kamu</Label>
+								<Label htmlFor="e-role">Peran kamu <span className="text-xs font-normal text-muted-foreground">(opsional, maks 300)</span></Label>
 								<Textarea id="e-role" rows={2} value={role} maxLength={300} onChange={(e) => setRole(e.target.value)} placeholder="Contoh: backend & integrasi MQTT (tim 3 orang)" />
 							</div>
 							<div className="grid gap-4 sm:grid-cols-3">
 								<div className="space-y-1.5">
-									<Label>Kategori</Label>
+									<Label>Kategori <span className="text-destructive">*</span></Label>
 									<Select value={category} onValueChange={setCategory}>
 										<SelectTrigger aria-label="Kategori">
 											<SelectValue />
@@ -352,12 +384,56 @@ export default function KaryaEditorPage() {
 									</Select>
 								</div>
 								<div className="space-y-1.5 sm:col-span-2">
-									<Label htmlFor="e-tags">Tag (pisahkan koma, maks 8)</Label>
-									<Input id="e-tags" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="react, iot, mqtt" />
+									<Label htmlFor="e-tags">Tag <span className="text-xs font-normal text-muted-foreground">(opsional, maks 8 — Enter/koma untuk menambah)</span></Label>
+									<div className="flex min-h-[44px] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring">
+										{cleanKaryaTags(tags).map((t) => (
+											<span key={t} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+												#{t}
+												<button type="button" aria-label={`Hapus tag ${t}`} onClick={() => setTags(cleanKaryaTags(tags).filter((x) => x !== t).join(', '))}>
+													<X className="h-3 w-3" />
+												</button>
+											</span>
+										))}
+										<input
+											id="e-tags"
+											list="karya-tag-suggest"
+											className="min-w-[120px] flex-1 bg-transparent text-sm outline-none"
+											value={tagInput}
+											placeholder={cleanKaryaTags(tags).length ? '' : 'react, iot, mqtt'}
+											onChange={(e) => {
+												const v = e.target.value;
+												if (/[,\n]$/.test(v)) {
+													setTags(cleanKaryaTags([...cleanKaryaTags(tags), v.slice(0, -1)]).join(', '));
+													setTagInput('');
+												} else setTagInput(v);
+											}}
+											onKeyDown={(e) => {
+												if (e.key === 'Enter' && tagInput.trim()) {
+													e.preventDefault();
+													setTags(cleanKaryaTags([...cleanKaryaTags(tags), tagInput]).join(', '));
+													setTagInput('');
+												} else if (e.key === 'Backspace' && !tagInput) {
+													setTags(cleanKaryaTags(tags).slice(0, -1).join(', '));
+												}
+											}}
+											onBlur={() => {
+												if (tagInput.trim()) {
+													setTags(cleanKaryaTags([...cleanKaryaTags(tags), tagInput]).join(', '));
+													setTagInput('');
+												}
+											}}
+										/>
+										<datalist id="karya-tag-suggest">
+											{(tagSuggestions || []).map((t) => (
+												<option key={t.tag} value={t.tag} />
+											))}
+										</datalist>
+									</div>
+									<p className="text-xs text-muted-foreground">Pakai tag yang sudah ada bila cocok (muncul saran) agar karyamu satu halaman tag dengan karya serupa.</p>
 								</div>
 							</div>
 							<div className="space-y-1.5 max-w-[160px]">
-								<Label htmlFor="e-year">Tahun dibuat</Label>
+								<Label htmlFor="e-year">Tahun dibuat <span className="text-xs font-normal text-muted-foreground">(opsional)</span></Label>
 								<Input id="e-year" inputMode="numeric" maxLength={4} value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, ''))} placeholder={String(new Date().getFullYear())} />
 							</div>
 						</CardContent>
@@ -365,7 +441,7 @@ export default function KaryaEditorPage() {
 
 					<Card>
 						<CardHeader>
-							<CardTitle className="text-base">3. Media</CardTitle>
+							<CardTitle className="text-base">3. Media <span className="text-xs font-normal text-muted-foreground">(opsional)</span></CardTitle>
 							<CardDescription>Disarankan link YouTube / Google Drive: video tetap lancar dan tidak memakan kuota.</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
@@ -495,11 +571,17 @@ export default function KaryaEditorPage() {
 				</div>
 
 				<aside className="space-y-4 lg:sticky lg:top-24">
+					<CoverPreview project={project} repos={repoPreview} links={links} />
 					<Card>
 						<CardHeader>
 							<CardTitle className="text-base">Visibilitas</CardTitle>
 						</CardHeader>
 						<CardContent className="space-y-3">
+							{!student.emailVerified ? (
+								<p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-foreground">
+									<Lock className="mr-1 inline h-3.5 w-3.5" /> Publik terkunci sampai email diaktivasi (kode/link di email kampusmu, atau masuk dengan Google kampus). Karya tetap bisa disimpan Privat.
+								</p>
+							) : null}
 							{([
 								['public', 'Publik', manual ? 'Tampil di profil & beranda, diindeks Google — setelah disetujui pengurus.' : 'Langsung tampil di profil & diindeks Google.', Globe2],
 								['private', 'Privat', 'Hanya kamu. Tidak tampil, tidak masuk sitemap, noindex.', Lock],
@@ -508,8 +590,9 @@ export default function KaryaEditorPage() {
 									key={v}
 									type="button"
 									aria-pressed={visibility === v}
+									disabled={v === 'public' && !student.emailVerified}
 									onClick={() => setVisibility(v)}
-									className={cn('w-full rounded-lg border p-3 text-left transition-colors', visibility === v ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40')}>
+									className={cn('w-full rounded-lg border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50', visibility === v ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40')}>
 									<span className="flex items-center gap-2 text-sm font-semibold text-foreground">
 										<Icon className="h-4 w-4" /> {label}
 									</span>
@@ -535,6 +618,11 @@ export default function KaryaEditorPage() {
 						{busy === 'save' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
 						{visibility === 'private' ? 'Simpan sebagai privat' : manual ? 'Kirim untuk review' : 'Terbitkan'}
 					</Button>
+					{project ? (
+						<Button asChild type="button" variant="ghost" className="h-11 w-full">
+							<Link href={KARYA_PATHS.preview(project.id)}>Pratinjau tampilan publik</Link>
+						</Button>
+					) : null}
 					{project?.status !== 'approved' ? (
 						<Button type="button" variant="outline" className="w-full h-11" disabled={!!busy} onClick={() => save('draft')}>
 							Simpan draf
@@ -545,5 +633,34 @@ export default function KaryaEditorPage() {
 				</aside>
 			</div>
 		</KaryaPublicLayout>
+	);
+}
+
+/** Pratinjau sampul: unggahan dipilih → gambar repo → thumbnail YouTube → sampul otomatis (ikut tema). */
+function CoverPreview({ project, repos, links }: { project: KaryaOwnProject | null; repos: KaryaRepoInfo[]; links: { url: string }[] }) {
+	const media = project?.media || [];
+	const chosen = media.find((m) => m.id === project?.coverMediaId && m.type === 'image') || media.find((m) => m.type === 'image');
+	const repoOg = repos.find((r) => r.ogImage)?.ogImage;
+	const yt = links.map((l) => l.url).find((u) => /youtu\.?be/.test(u));
+	const ytId = yt ? (yt.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{11})/) || [])[1] : '';
+	const source = chosen ? 'Gambar unggahan' : repoOg ? 'Gambar pratinjau repo' : ytId ? 'Thumbnail YouTube' : 'Sampul otomatis (template)';
+	const generated = !chosen && !repoOg && !ytId;
+	const base = chosen?.url || repoOg || (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : project ? `/api/karya/cover/${project.slug}` : '');
+	const url = useCoverUrl(base, generated);
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-base">Sampul <span className="text-xs font-normal text-muted-foreground">(opsional)</span></CardTitle>
+				<CardDescription>Dipakai di kartu, Google, dan saat dibagikan. Pilih gambar unggahan (ikon bintang di Media) atau biarkan otomatis.</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-2">
+				{url ? (
+					<img src={url} alt="Pratinjau sampul" className="aspect-[1200/630] w-full rounded-lg border border-border object-cover" />
+				) : (
+					<div className="flex aspect-[1200/630] w-full items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">Sampul otomatis dibuat setelah karya disimpan</div>
+				)}
+				<p className="text-xs text-muted-foreground">Sumber: {source}</p>
+			</CardContent>
+		</Card>
 	);
 }

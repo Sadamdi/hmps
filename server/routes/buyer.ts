@@ -120,7 +120,8 @@ router.post('/register', authLimiter, async (req, res) => {
 	}
 });
 
-const otpVerifySchema = z.object({ challengeId: z.string().min(10).max(64), code: z.string().regex(/^\d{6}$/) });
+// Kode 6 digit dari email ATAU token link verifikasi (semua tujuan OTP punya link, lihat services/otp.ts)
+const otpVerifySchema = z.object({ challengeId: z.string().min(10).max(64), code: z.string().regex(/^(\d{6}|[A-Za-z0-9_-]{43})$/) });
 
 router.post('/register/verify', authLimiter, async (req, res) => {
 	const parsed = otpVerifySchema.safeParse(req.body || {});

@@ -1051,17 +1051,21 @@ process.on('unhandledRejection', (reason: any) => {
 				const data = await karyaSeoStudent(req.params.username);
 				// Profil tidak publik / tidak ada: SPA tetap jalan (menampilkan 404), tapi jangan diindeks
 				if (!data) return res.send(karyaNoindex(html0));
+				// Username lama → alamat baru (link lama tidak putus)
+				if (data.redirectTo) return res.redirect(301, `/karya/mahasiswa/${encodeURIComponent(data.redirectTo)}`);
 				const s = data.student;
 				const name = String(s.name || 'Mahasiswa TI');
 				const canonicalUrl = `https://himatif-encoder.com/karya/mahasiswa/${s.username}`;
 				const description = String(
-					s.headline || s.bio || `Portofolio ${name}, mahasiswa Teknik Informatika UIN Malang — ${data.count} karya.`,
+					s.headline || s.bio || data.count ? `Portofolio ${name}, mahasiswa Teknik Informatika UIN Malang — ${data.count} karya.` : `Profil ${name}, mahasiswa Teknik Informatika UIN Malang.`,
 				)
 					.replace(/\s+/g, ' ')
 					.slice(0, 160);
 				const sameAs = Object.values(s.social || {}).filter((v: any) => typeof v === 'string' && v.startsWith('https://'));
+				// Profil publik tapi masih kosong (belum ada karya tayang & belum terisi): tampil, tidak diindeks
+				const profileHtml = data.indexable ? html0 : karyaNoindex(html0);
 				return res.send(
-					injectArticleMeta(html0, {
+					injectArticleMeta(profileHtml, {
 						title: `${name} — Karya Mahasiswa TI | Himatif Encoder`,
 						description,
 						canonicalUrl,
@@ -1089,13 +1093,44 @@ process.on('unhandledRejection', (reason: any) => {
 			}
 		});
 
+		app.get('/karya/tag/:tag', async (req, res, next) => {
+			try {
+				const html0 = karyaHtmlTemplate();
+				if (!html0) return next();
+				res.set('Content-Type', 'text/html');
+				const { karyaSeoTag } = await import('./routes/karya');
+				const data = await karyaSeoTag(req.params.tag);
+				if (!data) return res.send(karyaNoindex(html0));
+				const canonicalUrl = `https://himatif-encoder.com/karya/tag/${encodeURIComponent(data.tag)}`;
+				const html = data.total >= 2 ? html0 : karyaNoindex(html0);
+				return res.send(
+					injectArticleMeta(html, {
+						title: `#${data.tag} — Karya Mahasiswa TI | Himatif Encoder`,
+						description: `${data.total} karya mahasiswa Teknik Informatika UIN Malang dengan tag #${data.tag}.`,
+						canonicalUrl,
+						ogImage: defaultOgImage,
+						jsonLd: {
+							'@context': 'https://schema.org',
+							'@type': 'CollectionPage',
+							name: `Karya bertag #${data.tag}`,
+							url: canonicalUrl,
+							isPartOf: { '@type': 'WebSite', name: 'Himatif Encoder', url: 'https://himatif-encoder.com' },
+						},
+					}),
+				);
+			} catch (err) {
+				console.log('Karya tag prerender error:', err);
+				return next();
+			}
+		});
+
 		app.get('/karya/:slug', async (req, res, next) => {
 			try {
 				const html0 = karyaHtmlTemplate();
 				if (!html0) return next();
 				res.set('Content-Type', 'text/html');
 				// Halaman aplikasi mahasiswa (masuk/daftar/dashboard) tidak diindeks
-				if (['masuk', 'daftar', 'saya', 'lupa-password'].includes(req.params.slug)) return res.send(karyaNoindex(html0));
+				if (['masuk', 'daftar', 'saya', 'lupa-password', 'tag'].includes(req.params.slug)) return res.send(karyaNoindex(html0));
 				const { karyaSeoProject } = await import('./routes/karya');
 				const data = await karyaSeoProject(req.params.slug);
 				// Privat / belum disetujui / disembunyikan / tidak ada → noindex (SPA menampilkan 404)

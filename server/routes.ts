@@ -55,6 +55,7 @@ import chatRouter from './routes/chat';
 import { createPublicRateLimiter as createIdentifyRateLimiter } from './middleware/public-rate-limit';
 import buyerRouter from './routes/buyer';
 import karyaRouter from './routes/karya';
+import verifyRouter from './routes/verify';
 import aiEnhanceRouter from './routes/ai-enhance';
 import commentRouter from './routes/comments';
 import feedbackRouter from './routes/feedback';
@@ -1726,8 +1727,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 		try {
 			const g = await verifyGoogleIdToken(parsed.data.idToken);
 			const { staffExistsForEmail, buyerExistsForEmail } = await import('./services/unified-login');
-			const [isStaff, isBuyer] = await Promise.all([staffExistsForEmail(g.email), buyerExistsForEmail(g.email)]);
-			return res.json({ success: true, data: { email: g.email, name: g.name, isStaff, isBuyer } });
+			const { studentExistsForEmail } = await import('./services/karya-auth');
+			const { checkStudentEmail } = await import('./services/karya-auth');
+			const [isStaff, isBuyer, isStudent] = await Promise.all([staffExistsForEmail(g.email), buyerExistsForEmail(g.email), studentExistsForEmail(g.email)]);
+			// studentEligible: email mahasiswa TI yang belum punya akun Karya → tawarkan daftar Mahasiswa TI
+			return res.json({ success: true, data: { email: g.email, name: g.name, isStaff, isBuyer, isStudent, studentEligible: checkStudentEmail(g.email).ok } });
 		} catch (err) {
 			if (err instanceof GoogleLoginError) {
 				return res.status(err.code === 'GOOGLE_LOGIN_DISABLED' ? 503 : 401).json({ success: false, message: err.message, error: { code: err.code } });
@@ -9010,6 +9014,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use('/api/buyer', buyerRouter);
 	// Karya Mahasiswa TI (akun mahasiswa terpisah dari staf & pembeli; situs utama saja)
 	app.use('/api/karya', karyaRouter);
+	// Info link verifikasi email (kode + link sekali pakai)
+	app.use('/api/verify', verifyRouter);
 	// Shortlink mahasiswa /go/:slug → 302 (hanya yang aktif, pemilik aktif, fitur aktif). Tidak ada → lanjut ke SPA (404).
 	app.get('/go/:slug', async (req, res, next) => {
 		try {
