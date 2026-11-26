@@ -9,6 +9,7 @@ import {
 	Bug,
 	Building2,
 	Calendar,
+	Code2,
 	ChevronLeft,
 	ChevronRight,
 	FileText,
@@ -138,6 +139,17 @@ export default function Sidebar({
 			active: location.startsWith('/dashboard/feedback'),
 			requirePermission: 'feedback.view',
 		},
+		...(!isTenant
+			? [
+					{
+						label: 'Karya Mahasiswa',
+						icon: <Code2 className="h-5 w-5" />,
+						href: '/dashboard/karya',
+						active: location.startsWith('/dashboard/karya'),
+						requirePermission: 'karya.view',
+					},
+				]
+			: []),
 		{
 			label: 'Toko',
 			icon: <ShoppingBag className="h-5 w-5" />,
@@ -278,6 +290,10 @@ export default function Sidebar({
 									!hasSpecificPermission('feedback.view') &&
 									!hasSpecificPermission('feedback.manage')
 								) {
+									return null;
+								}
+							} else if (item.requirePermission === 'karya.view') {
+								if (!hasSpecificPermission('karya.view') && !hasSpecificPermission('karya.manage')) {
 									return null;
 								}
 							} else if (item.requirePermission === 'toko.view') {

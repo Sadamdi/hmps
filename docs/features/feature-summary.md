@@ -75,14 +75,15 @@ mindmap
 | 10 | [Ops, Security & Maintenance](./10-ops-security/00-README.md) | 7 | 7 | `admin`, `backups`, `test` |
 | 11 | [Auxiliary Runtime](./11-auxiliary-runtime/00-README.md) | 10 | 0 | - |
 | 12 | [Runtime Infrastructure](./12-runtime-infrastructure/00-README.md) | 8 | 0 | - |
+| 13 | [Karya Mahasiswa TI](./13-karya-mahasiswa/00-README.md) | 1 | 48 | `karya` |
 
 Public discovery (SSR / sitemap): [`02-public-content/04-ssr-sitemap.md`](./02-public-content/04-ssr-sitemap.md) — HTML prerender, `/sitemap.xml` image/video, `robots.txt`.
 
-Total feature category folders: **12**  
+Total feature category folders: **13**  
 Total markdown docs in `docs/features`: **114**  
 Total numbered feature docs: **100**  
-Total OpenAPI operations: **294**  
-Total OpenAPI tags: **34**
+Total OpenAPI operations: **436**  
+Total OpenAPI tags: **35**
 
 ---
 
@@ -109,6 +110,7 @@ Total OpenAPI tags: **34**
 | `register` | [Community Tenant](./05-community-tenant/00-README.md) | 3 |
 | `registration` | [Community Tenant](./05-community-tenant/00-README.md) | 12 |
 | `store` | [Store / Toko](./06-store-toko/00-README.md) | 57 |
+| `karya` | [Karya Mahasiswa TI](./13-karya-mahasiswa/00-README.md) | 48 |
 | `assets` | [Media & Assets](./07-media-assets/00-README.md) | 1 |
 | `gdrive` | [Media & Assets](./07-media-assets/00-README.md) | 3 |
 | `home-images` | [Media & Assets](./07-media-assets/00-README.md) | 12 |

@@ -9,6 +9,7 @@ import Hero from '@/components/public/hero';
 import Library from '@/components/public/library';
 import Navbar from '@/components/public/navbar';
 import TokoSection from '@/components/public/toko-section';
+import KaryaSection from '@/components/public/karya-section';
 import {
 	InstagramHomeSection,
 	YoutubeHomeSection,
@@ -286,6 +287,7 @@ export default function Home() {
 		'youtube',
 		'instagram',
 		'toko',
+		'karya',
 		'profil-tentangKami',
 		'profil-sejarah',
 		'profil-filosofi',
@@ -341,6 +343,7 @@ export default function Home() {
 				{ id: 'youtube', navId: 'youtube' },
 				{ id: 'instagram', navId: 'instagram' },
 				{ id: 'toko', navId: 'toko' },
+				{ id: 'karya', navId: 'karya' },
 			];
 			const currentPosition = window.scrollY + 200;
 			for (const section of sections) {
@@ -374,9 +377,18 @@ export default function Home() {
 		return <MaintenanceMode />;
 	}
 
-	const blocks: HomeBlockItem[] = settings?.homeConfig?.blocks?.length
+	const savedBlocks: HomeBlockItem[] = settings?.homeConfig?.blocks?.length
 		? settings.homeConfig.blocks
 		: defaultHomeBlocks;
+	// Blok baru "Karya Mahasiswa TI" belum ada di konfigurasi lama → sisipkan sebelum footer (bisa disembunyikan di Settings Beranda)
+	const blocks: HomeBlockItem[] =
+		!isTenant && !savedBlocks.some((b) => b.id === 'karya')
+			? (() => {
+					const footerAt = savedBlocks.findIndex((b) => b.id === 'footer');
+					const karya: HomeBlockItem = { id: 'karya', kind: 'section', visible: true };
+					return footerAt >= 0 ? [...savedBlocks.slice(0, footerAt), karya, ...savedBlocks.slice(footerAt)] : [...savedBlocks, karya];
+				})()
+			: savedBlocks;
 
 	const visibleBlocks = blocks.filter((b) => b.visible);
 
@@ -441,6 +453,8 @@ export default function Home() {
 				return <Library key="library" />;
 				case 'toko':
 					return <TokoSection key="toko" />;
+				case 'karya':
+					return isTenant ? null : <KaryaSection key="karya" />;
 				case 'footer':
 					return <Footer key="footer" />;
 				default:

@@ -226,6 +226,7 @@ export const ALL_SECTION_BLOCKS: { id: string; label: string }[] = [
 	{ id: 'instagram', label: 'Instagram (Beranda)' },
 	{ id: 'library', label: 'Galeri / Library' },
 	{ id: 'toko', label: 'Toko / Katalog' },
+	{ id: 'karya', label: 'Karya Mahasiswa TI' },
 	{ id: 'footer', label: 'Footer' },
 ];
 
@@ -248,6 +249,7 @@ export const ALL_NAVBAR_ITEMS: { id: string; label: string }[] = [
 	{ id: 'instagram', label: 'Instagram' },
 	{ id: 'library', label: 'Galeri' },
 	{ id: 'toko', label: 'Toko' },
+	{ id: 'karya', label: 'Karya TI' },
 	{ id: 'komunitas', label: 'Komunitas' },
 ];
 
@@ -258,7 +260,8 @@ export const DEFAULT_HOME_CONFIG: HomeConfig = {
 	showDashboardLink: true,
 };
 
-const PRODI_IDS = new Set(['prodi']);
+/** Prodi & Karya Mahasiswa TI hanya ada di situs utama (bukan tenant komunitas). */
+const PRODI_IDS = new Set(['prodi', 'karya']);
 export const TENANT_SECTION_BLOCKS = ALL_SECTION_BLOCKS.filter((s) => !PRODI_IDS.has(s.id));
 export const TENANT_NAVBAR_ITEMS = ALL_NAVBAR_ITEMS.filter((n) => !PRODI_IDS.has(n.id));
 export const DEFAULT_TENANT_HOME_CONFIG: HomeConfig = {

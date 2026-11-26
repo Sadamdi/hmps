@@ -54,6 +54,7 @@ import { mongoStorage } from './mongo-storage';
 import chatRouter from './routes/chat';
 import { createPublicRateLimiter as createIdentifyRateLimiter } from './middleware/public-rate-limit';
 import buyerRouter from './routes/buyer';
+import karyaRouter from './routes/karya';
 import aiEnhanceRouter from './routes/ai-enhance';
 import commentRouter from './routes/comments';
 import feedbackRouter from './routes/feedback';
@@ -9007,6 +9008,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use('/api/chat', chatRouter);
 	// Akun pembeli toko (terpisah dari akun staf)
 	app.use('/api/buyer', buyerRouter);
+	// Karya Mahasiswa TI (akun mahasiswa terpisah dari staf & pembeli; situs utama saja)
+	app.use('/api/karya', karyaRouter);
+	// Shortlink mahasiswa /go/:slug → 302 (hanya yang aktif, pemilik aktif, fitur aktif). Tidak ada → lanjut ke SPA (404).
+	app.get('/go/:slug', async (req, res, next) => {
+		try {
+			const { resolveShortlink } = await import('./routes/karya');
+			const target = await resolveShortlink(req.params.slug);
+			if (!target) return next();
+			res.set('X-Robots-Tag', 'noindex');
+			res.set('Cache-Control', 'no-store');
+			return res.redirect(302, target);
+		} catch {
+			return next();
+		}
+	});
 	app.use('/api/ai', aiEnhanceRouter);
 	app.use('/api/comments', commentRouter);
 	app.use('/api/feedback', feedbackRouter);

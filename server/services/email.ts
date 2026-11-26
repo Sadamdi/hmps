@@ -35,6 +35,9 @@ const PURPOSE_LABELS: Record<string, string> = {
 	buyer_password: 'Atur Ulang Password Akun Toko',
 	buyer_email_change: 'Verifikasi Email Baru Akun Toko',
 	buyer_delete: 'Konfirmasi Hapus Akun Toko',
+	karya_register: 'Verifikasi Akun Karya Mahasiswa TI',
+	karya_password: 'Atur Password Akun Karya Mahasiswa TI',
+	karya_delete: 'Konfirmasi Hapus Akun Karya Mahasiswa TI',
 };
 
 export async function sendFeedbackReplyEmail(params: {
