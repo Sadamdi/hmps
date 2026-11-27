@@ -112,6 +112,21 @@ export async function sendOtpEmail(params: {
 
 const clip = (v: string, n = 300) => (v.length > n ? v.slice(0, n - 3) + '...' : v);
 
+export async function sendKaryaWarningEmail(params: { to: string; name: string; target: string; message: string; adminName: string }): Promise<void> {
+	const subject = '[Himatif Encoder] Peringatan dari pengurus Karya TI';
+	if (outbox({ to: params.to, kind: 'karya:warning', subject })) return;
+	const { html, text } = renderEmailLayout({
+		subject,
+		preheader: `Peringatan untuk ${params.target}`,
+		badge: { text: 'Karya TI · Peringatan', tone: 'warning' as EmailTone },
+		headline: `Halo ${params.name}, ada peringatan untuk ${params.target}`,
+		paragraphs: ['Pengurus HMTI memberi peringatan berikut. Mohon tindak lanjuti lewat Ruang Mahasiswa (himatif-encoder.com/karya/saya). Peringatan yang diabaikan dapat berlanjut ke penyembunyian karya atau suspend akun.'],
+		quotes: [{ label: `Dari ${params.adminName}`, text: params.message, tone: 'warning' as EmailTone }],
+		footerReason: 'Email ini dikirim karena akunmu terdaftar di Karya Mahasiswa TI himatif-encoder.com.',
+	});
+	await getTransporter().sendMail({ from: FROM(), to: params.to, subject, html, text });
+}
+
 export async function sendFeedbackReplyEmail(params: { to: string; senderName: string; feedbackBody: string; replyMessage: string; adminName: string }): Promise<void> {
 	const subject = '[Himatif Encoder] Balasan untuk saran/kritik kamu';
 	if (outbox({ to: params.to, kind: 'feedback:reply', subject })) return;

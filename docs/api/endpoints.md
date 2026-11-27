@@ -540,7 +540,8 @@ POST   /api/karya/auth/delete                    # {challengeId, code} → hapus
 
 # Profil & karya milik sendiri (mahasiswa)
 PATCH  /api/karya/me/profile                     # name, username, headline, bio, skills[], social{github,gitlab,linkedin,instagram,website,cv}, profilePublic, avatarUrl (hanya avatars.githubusercontent.com / *.googleusercontent.com)
-POST   /api/karya/me/profile/import-github       # {username} → name, bio, website, avatarUrl, githubUrl (tidak menyimpan otomatis)
+POST   /api/karya/me/profile/import-github       # {username} → name, bio, website, avatarUrl, githubUrl, profileReadmeHtml (README repo username/username) — tidak menyimpan otomatis
+POST   /api/karya/me/warnings/:id/ack            # tandai peringatan pengurus (akun/karya) sudah dibaca
 POST   /api/karya/me/avatar                      # multipart file (gambar ≤5 MB → WebP 400px)
 POST   /api/karya/me/content-image               # multipart file: gambar deskripsi rich text (ikut kuota)
 GET    /api/karya/me/projects/:id/preview        # pratinjau karya sendiri (noindex)
@@ -578,6 +579,9 @@ DELETE /api/karya/admin/projects/:id
 GET    /api/karya/admin/students                 # ?q&status=active|suspended|blocked|pending
 POST   /api/karya/admin/students                 # {email, name, allowNonUin?}
 POST   /api/karya/admin/students/:id/moderate    # {action: suspend|unsuspend|block|unblock|logout, days?, reason?}
+GET    /api/karya/admin/students/:id             # detail akun + semua karya (termasuk draf) + shortlink
+POST   /api/karya/admin/students/:id/warn        # {message (5–1000), notifyEmail?=true}
+POST   /api/karya/admin/projects/:id/warn        # {message, notifyEmail?} — karya status apa pun (draf/menunggu/tayang)
 DELETE /api/karya/admin/students/:id
 GET    /api/karya/admin/shortlinks               # ?status
 POST   /api/karya/admin/shortlinks/:id           # {action: approve|enable|disable}

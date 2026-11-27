@@ -302,6 +302,8 @@ export interface KaryaStudentPublic {
 	/** Profil boleh dibuka publik (link profil hanya ditampilkan bila true) */
 	profileVisible?: boolean;
 	shortlink?: string;
+	/** README profil (HTML tersanitasi) */
+	profileReadme?: string;
 }
 
 export interface KaryaProjectCard {

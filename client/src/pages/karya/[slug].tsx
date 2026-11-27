@@ -202,7 +202,7 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 					<section>
 						<h2 className="mb-2 text-xl font-semibold text-foreground">Tentang karya</h2>
 						{p.descriptionFormat === 'html' ? (
-							<RichHtmlWithEmbeds content={p.description} className="prose max-w-none dark:prose-invert" />
+							<RichHtmlWithEmbeds allowAnyHost content={p.description} className="prose max-w-none dark:prose-invert" />
 						) : (
 							<p className="whitespace-pre-line leading-7 text-foreground/90">{p.description}</p>
 						)}
