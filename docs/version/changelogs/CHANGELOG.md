@@ -9,6 +9,11 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.75.1] - 2026-11-28
+
+### Changed
+- `ui`: transisi pindah halaman kini berkedalaman 3D halus (halaman lama mundur, halaman baru maju dengan kemiringan perspektif)
+
 ## [4.75.0] - 2026-11-28
 
 ### Added
