@@ -278,6 +278,13 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 	});
 	const mdRef = useRef<HTMLInputElement>(null);
 	/** Unggah README.md → dikonversi server ke HTML tersanitasi, lalu bisa diedit lagi di editor. */
+	const [readmeFile, setReadmeFile] = useState<File | null>(null);
+	/** README profil sudah berisi → konfirmasi dulu sebelum unggahan .md menimpanya */
+	const pickReadme = (f: File | undefined) => {
+		if (!f) return;
+		if (form.profileReadme && form.profileReadme.replace(/<[^>]+>/g, '').trim()) setReadmeFile(f);
+		else uploadReadme(f);
+	};
 	const uploadReadme = async (f: File | undefined) => {
 		if (!f) return;
 		if (f.size > 60_000) return toast({ title: 'File terlalu besar', description: 'README maks 60 KB', variant: 'destructive' });
@@ -430,14 +437,26 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 					<div className="space-y-2 rounded-lg border border-border p-3">
 						<div className="flex flex-wrap items-center gap-2">
 							<Label className="flex-1 font-semibold">README profil (gaya profil GitHub)</Label>
-							<input ref={mdRef} type="file" accept=".md,.markdown,text/markdown,text/plain" className="sr-only" onChange={(e) => uploadReadme(e.target.files?.[0])} />
+							<input ref={mdRef} type="file" accept=".md,.markdown,text/markdown,text/plain" className="sr-only" onChange={(e) => pickReadme(e.target.files?.[0])} />
 							<Button type="button" size="sm" variant="outline" onClick={() => mdRef.current?.click()}>
 								<FileUp className="mr-1 h-3.5 w-3.5" /> Unggah README.md
 							</Button>
 						</div>
 						<p className="text-xs text-muted-foreground">Tampil di profil publik di bawah bio, seperti README di github.com/username. "Impor dari GitHub" otomatis mengisi dari repo <code>username/username</code> bila ada. Gambar &amp; statistik (mis. github-readme-stats) dari domain https apa pun ikut tampil.</p>
 						<RichTextEditor value={form.profileReadme} onChange={(v) => setForm((x) => ({ ...x, profileReadme: v }))} height={420} placeholder="Tentang aku, tech stack, statistik GitHub…" uploadEndpoint="/api/karya/me/content-image" />
-					</div>
+						</div>
+						<AlertDialog open={!!readmeFile} onOpenChange={(o) => { if (!o) { setReadmeFile(null); if (mdRef.current) mdRef.current.value = ''; } }}>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>Timpa README profil?</AlertDialogTitle>
+									<AlertDialogDescription>README profilmu sudah berisi. Mengunggah {readmeFile?.name} akan menggantikan seluruh isinya.</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>Batal</AlertDialogCancel>
+									<AlertDialogAction onClick={() => { const f = readmeFile; setReadmeFile(null); uploadReadme(f || undefined); }}>Timpa dengan file</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
 				</CardContent>
 			</Card>
 

@@ -297,7 +297,13 @@ export default function RichHtmlWithEmbeds({
 }: RichHtmlWithEmbedsProps) {
 	const hostsFromSettings = useEmbedAllowedHosts();
 
-	const html = content ? formatContentForDisplay(content) : '';
+	// Inline code yang tertinggal sebagai `teks` (README lama) → <code>, kecuali di dalam <pre>
+	const html = content
+		? formatContentForDisplay(content)
+				.split(/(<pre[\s\S]*?<\/pre>)/i)
+				.map((part) => (/^<pre/i.test(part) ? part : part.replace(/`([^`<>\n]{1,200})`/g, '<code>$1</code>')))
+				.join('')
+		: '';
 	const merged = [...(allowedEmbedHosts ?? []), ...hostsFromSettings];
 	const extraHosts =
 		merged.length > 0 ? new Set(merged.map((h) => h.toLowerCase())) : undefined;
@@ -327,7 +333,7 @@ export default function RichHtmlWithEmbeds({
 
 	/** Konten README/HTML tidak boleh melebarkan halaman di HP: tabel, kode, gambar, iframe menggulir/menyusut di dalam kotaknya. */
 	const fitClass =
-		'min-w-0 max-w-full break-words [overflow-wrap:anywhere] [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_img]:max-w-full [&_img]:h-auto [&_iframe]:max-w-full [&_video]:max-w-full';
+		'rich-fit min-w-0 max-w-full break-words';
 	const proseClass = `${
 		className ??
 		'prose prose-sm max-w-none dark:prose-invert prose-p:text-foreground prose-headings:text-foreground'

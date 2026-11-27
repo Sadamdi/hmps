@@ -169,6 +169,11 @@ export default function RichTextEditor({
 						}
 						p { margin-bottom: 16px; }
 						img { max-width: 100%; height: auto; }
+						/* Layar sempit: tabel digeser ke samping, kolom tidak gepeng */
+						table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+						th, td { min-width: 7rem; vertical-align: top; border: 1px solid ${dark ? '#334155' : '#e5e7eb'}; padding: 6px 8px; }
+						pre { max-width: 100%; overflow-x: auto; }
+						@media (max-width: 640px) { body { margin: 12px; font-size: 15px; } }
 						img.hmps-img-rot-90,
 						img.hmps-img-rot-180,
 						img.hmps-img-rot-270,

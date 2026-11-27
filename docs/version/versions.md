@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.71.1`  
+**Current version:** `4.71.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.71.1`](./release/4.71.1.md) | 2026-11-27 | Editor karya: link halaman di host repo (mis. GitHub Releases) bisa jadi tautan berlabel | PATCH | 1 | **Current** |
+| [`4.71.2`](./release/4.71.2.md) | 2026-11-27 | Tabel konten bisa digeser di HP (global), tanpa backtick dekoratif, konfirmasi timpa deskripsi/README | PATCH | 1 | **Current** |
+| [`4.71.1`](./release/4.71.1.md) | 2026-11-27 | Editor karya: link halaman di host repo (mis. GitHub Releases) bisa jadi tautan berlabel | PATCH | 1 |  |
 | [`4.71.0`](./release/4.71.0.md) | 2026-11-27 | Ruang Mahasiswa (/ruang-mahasiswa), kontributor karya, profil 2 tab, dashboard & admin berkartu, hardening keamanan | MINOR | 1 |  |
 | [`4.70.0`](./release/4.70.0.md) | 2026-11-27 | Kategori karya lebih banyak + kategori buatan mahasiswa, tampilan mobile detail karya & profil tidak melebar | MINOR | 1 |  |
 | [`4.69.2`](./release/4.69.2.md) | 2026-11-27 | Editor karya: tag buatan mahasiswa tampil di penjelajah tag + tombol Tambah tag | PATCH | 1 |  |

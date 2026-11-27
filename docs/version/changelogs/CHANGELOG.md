@@ -9,6 +9,19 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.71.2] - 2026-11-27
+
+### Fixed
+- `ui` (global, semua konten rich text: Karya, Berita, Event, Library, README profil): tabel di HP dipatahkan per huruf (efek `overflow-wrap:anywhere` 4.70.0). Tabel kini menggulir ke samping dengan lebar kolom wajar (min 8rem), teks sel tidak dipatahkan per huruf, kode/gambar tidak melebarkan halaman
+- `ui`: backtick dekoratif bawaan Tailwind Typography di sekitar `<code>` dihapus; inline code bergaya chip
+- `karya`: inline code README yang tertinggal sebagai `` `teks` `` (mis. di tabel HTML) dirender sebagai `<code>` (impor baru & tampilan karya lama)
+- `editor`: isi TinyMCE di HP (tabel bergulir, sel berbingkai, margin lebih kecil)
+
+### Added
+- `karya`: "Ambil info repo" saat deskripsi sudah terisi menawarkan dialog "Ganti deskripsi dengan README repo?" (sebelumnya diam-diam tidak menimpa); unggah README.md ke README profil yang sudah berisi meminta konfirmasi
+
+Detail: [release/4.71.2.md](../release/4.71.2.md).
+
 ## [4.71.1] - 2026-11-27
 
 ### Fixed
