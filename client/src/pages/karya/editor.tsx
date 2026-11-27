@@ -1,5 +1,6 @@
 import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -52,6 +53,8 @@ export default function KaryaEditorPage() {
 	const catTouched = useRef(false);
 	const [tagGroup, setTagGroup] = useState<string>('language');
 	const [newTag, setNewTag] = useState('');
+	/** Tawaran menimpa deskripsi (dan ringkasan) yang sudah terisi dengan README repo */
+	const [replaceAsk, setReplaceAsk] = useState<{ html: string; summary: string } | null>(null);
 	const [newCat, setNewCat] = useState('');
 	const [contributors, setContributors] = useState<ContributorRow[]>([]);
 	const { data: usedCategories } = usePublicCategories();
@@ -132,6 +135,9 @@ export default function KaryaEditorPage() {
 				setDescription(rd.descriptionHtml);
 				setDescriptionFormat('html');
 				filled.push('deskripsi dari README');
+			} else if (description.trim() && rd?.descriptionHtml && rd.descriptionHtml !== description) {
+				// Deskripsi sudah ada: tanyakan dulu sebelum ditimpa README (tidak menimpa diam-diam)
+				setReplaceAsk({ html: rd.descriptionHtml, summary: sum && sum !== summary ? sum.slice(0, 240) : '' });
 			}
 			// Contributor repo → kontributor karya (yang punya akun Karya TI langsung tertaut)
 			if (info.contributors?.length) {
@@ -863,6 +869,30 @@ export default function KaryaEditorPage() {
 					)}
 				</aside>
 			</div>
+			<AlertDialog open={!!replaceAsk} onOpenChange={(o) => !o && setReplaceAsk(null)}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Ganti deskripsi dengan README repo?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Deskripsi karya ini sudah kamu isi. README dari repo bisa menggantikannya{replaceAsk?.summary ? ', termasuk ringkasan singkat' : ''}. Deskripsi lama akan ditimpa (belum tersimpan sampai kamu menekan Simpan/Kirim). Tag, link, dan gambar dari repo hanya ditambahkan, tidak menimpa.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Biarkan deskripsi saya</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								if (!replaceAsk) return;
+								setDescription(replaceAsk.html);
+								setDescriptionFormat('html');
+								if (replaceAsk.summary) setSummary(replaceAsk.summary);
+								setReadmeNote((n) => `${n ? `${n} ` : ''}Deskripsi diganti dengan README repo.`);
+								setReplaceAsk(null);
+							}}>
+							Ganti dengan README
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</KaryaPublicLayout>
 	);
 }

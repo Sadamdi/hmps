@@ -105,6 +105,11 @@ export async function markdownToHtml(md: string, opts: { rawBase?: string; blobB
 	} catch {
 		return '';
 	}
+	// Inline code yang tertinggal sebagai `teks` (mis. di dalam tabel HTML README) → <code>, kecuali di dalam <pre>
+	html = html
+		.split(/(<pre[\s\S]*?<\/pre>)/i)
+		.map((part) => (/^<pre/i.test(part) ? part : part.replace(/`([^`<>\n]{1,200})`/g, '<code>$1</code>')))
+		.join('');
 	return html
 		.replace(/(<img[^>]*\ssrc=)(["'])([^"']+)\2/gi, (_a, pre, q, src) => {
 			const u = rawBase ? resolveUrl(src, rawBase, blobBase) : /^https:\/\//i.test(src) ? src : '';

@@ -1728,3 +1728,68 @@ body {
 		transform: none;
 	}
 }
+
+/*
+ * Konten rich text (Karya, Berita, Event, Library, README) di layar sempit:
+ * tabel menggulir ke samping dengan lebar kolom wajar (bukan dipatahkan per huruf),
+ * kode & gambar tidak melebarkan halaman. Berlaku global untuk semua .prose.
+ */
+.prose table,
+.rich-fit table {
+	display: block;
+	max-width: 100%;
+	width: max-content;
+	min-width: 100%;
+	overflow-x: auto;
+	-webkit-overflow-scrolling: touch;
+	border-collapse: collapse;
+}
+.prose th,
+.prose td,
+.rich-fit th,
+.rich-fit td {
+	min-width: 8rem;
+	max-width: 28rem;
+	overflow-wrap: normal;
+	word-break: normal;
+	vertical-align: top;
+}
+.prose td code,
+.prose th code,
+.rich-fit td code {
+	white-space: nowrap;
+}
+.prose pre,
+.rich-fit pre {
+	max-width: 100%;
+	overflow-x: auto;
+}
+.prose img,
+.prose video,
+.prose iframe,
+.rich-fit img,
+.rich-fit video,
+.rich-fit iframe {
+	max-width: 100%;
+}
+.prose img,
+.rich-fit img {
+	height: auto;
+}
+.rich-fit p,
+.rich-fit li,
+.rich-fit a {
+	overflow-wrap: anywhere;
+}
+
+/* Tailwind Typography menambahkan backtick dekoratif di sekitar <code>; konten README sudah berupa kode → hilangkan */
+.prose :where(code):not(:where([class~='not-prose'] *))::before,
+.prose :where(code):not(:where([class~='not-prose'] *))::after {
+	content: none;
+}
+.prose :where(code):not(:where(pre code)) {
+	border-radius: 0.3rem;
+	padding: 0.1rem 0.35rem;
+	background: hsl(var(--muted));
+	font-weight: 500;
+}
