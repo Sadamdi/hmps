@@ -9,6 +9,17 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.76.0] - 2026-11-28
+
+### Added
+- `ui`: kerangka halaman berkilau + progress bar tipis saat halaman/data belum siap (pengganti spinner)
+- `ui`: animasi masuk otomatis untuk judul section, item grid, dan blok konten di semua halaman
+- `ui`: kode halaman publik utama dimuat diam-diam saat browser senggang (pindah halaman instan)
+
+### Fixed
+- `ui`: transisi pindah halaman tidak lagi dibatalkan browser (timeout) sehingga kini benar-benar beranimasi; fallback fade di HP
+- `beranda`: scroll tidak tersendat di Struktur Organisasi (foto di-decode async + lazy)
+
 ## [4.75.1] - 2026-11-28
 
 ### Changed

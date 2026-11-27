@@ -394,4 +394,4 @@ Pakai graph **dulu jika MCP available**. Fall back ke Grep/Glob/Read jika server
 
 ---
 
-*Terakhir diperbarui: 2026-11-28 · Current app version: `4.75.1` — lihat `docs/version/versions.md`*
+*Terakhir diperbarui: 2026-11-28 · Current app version: `4.76.0` — lihat `docs/version/versions.md`*

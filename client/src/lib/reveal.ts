@@ -47,7 +47,45 @@ function track(el: Element) {
 	io.observe(h);
 }
 
+/**
+ * Animasi otomatis untuk komponen yang belum punya data-aos: judul section, item grid, dan blok konten section.
+ * Dilewati: header/nav/hero, dialog/popover, elemen fixed/sticky, elemen yang sudah punya animasi sendiri,
+ * dan elemen di dalam elemen yang sudah beranimasi (agar tidak dobel). Tandai [data-no-reveal] untuk mengecualikan.
+ */
+const AUTO = [
+	'section h2',
+	'main h2',
+	'[class*="grid"] > *',
+	'section > div > *:not(:first-child)',
+	'main > *',
+	'main > div > *',
+	'[class*="page-shell"] > *',
+].join(',');
+const SKIP = 'header,nav,footer [class*="grid"] > *,form,table,[role="dialog"],[data-radix-popper-content-wrapper],[data-no-reveal],#home,#hero,[data-hero]';
+
+function autoTag(el: Element) {
+	const h = el as HTMLElement;
+	if (h.hasAttribute('data-aos') || h.closest(SKIP) || h.parentElement?.closest(SEL)) return;
+	if (h.querySelector(SEL)) return; // anaknya sudah beranimasi sendiri
+	const cs = getComputedStyle(h);
+	if (cs.position === 'fixed' || cs.position === 'sticky' || cs.animationName !== 'none' || cs.display === 'none' || cs.display === 'contents') return;
+	// Terlalu kecil, atau pembungkus besar (lebih tinggi dari layar) → biarkan anak-anaknya yang beranimasi satu per satu.
+	if (h.offsetHeight < 24 || h.offsetHeight > window.innerHeight * 0.9) return;
+	h.setAttribute('data-aos', 'fade-up');
+}
+
+/** Gambar tanpa mode decode → async, agar decode foto besar tidak memblokir scroll/animasi. */
+function asyncImages(root: ParentNode) {
+	if (root instanceof HTMLImageElement && !root.hasAttribute('decoding')) root.decoding = 'async';
+	root.querySelectorAll?.('img:not([decoding])').forEach((i) => ((i as HTMLImageElement).decoding = 'async'));
+}
+
 function scan(root: ParentNode = document) {
+	asyncImages(root);
+	if (!reduced()) {
+		if (root instanceof Element && root.matches(AUTO)) autoTag(root);
+		root.querySelectorAll?.(AUTO).forEach(autoTag);
+	}
 	if (root instanceof Element && root.matches(SEL)) track(root);
 	root.querySelectorAll?.(SEL).forEach(track);
 }

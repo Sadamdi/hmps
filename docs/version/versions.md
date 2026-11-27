@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.75.1`  
+**Current version:** `4.76.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.75.1`](./release/4.75.1.md) | 2026-11-28 | Transisi pindah halaman dengan kedalaman 3D halus | PATCH | 1 | **Current** |
+| [`4.76.0`](./release/4.76.0.md) | 2026-11-28 | Transisi halaman tanpa spinner, skeleton + progress bar, animasi masuk otomatis, decode foto async | MINOR | 1 | **Current** |
+| [`4.75.1`](./release/4.75.1.md) | 2026-11-28 | Transisi pindah halaman dengan kedalaman 3D halus | PATCH | 1 | Superseded |
 | [`4.75.0`](./release/4.75.0.md) | 2026-11-28 | Animasi masuk ringan (pengganti AOS), transisi antarhalaman, header & peta footer tanpa tersendat | MINOR | 1 | Superseded |
 | [`4.74.0`](./release/4.74.0.md) | 2026-11-27 | Kategori otomatis dari 3 bahasa terbanyak repo (±240 bahasa), backfill karya lama, filter Karya seperti Berita | MINOR | 1 | Superseded |
 | [`4.73.2`](./release/4.73.2.md) | 2026-11-27 | Halaman masuk tanpa teks penjelas, embed diblokir tanpa tombol Buka, migrasi teks "Analisis AI" → Enco | PATCH | 1 | Superseded |
