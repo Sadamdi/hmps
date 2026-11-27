@@ -1,3 +1,4 @@
+import { STUDENT_SPACE_PATHS } from '@shared/student-space-paths';
 import { useQuery } from '@tanstack/react-query';
 import { apiRequest, queryClient } from '@/lib/queryClient';
 import type {
@@ -48,6 +49,9 @@ export interface KaryaStudentAccount {
 }
 
 export interface KaryaOwnProject {
+	coverUrl?: string;
+	coverGenerated?: boolean;
+	contributors?: import('@/components/karya/contributors-editor').ContributorRow[];
 	id: string;
 	slug: string;
 	title: string;
@@ -100,6 +104,7 @@ export interface KaryaConfig {
 }
 
 export interface KaryaProjectDetail {
+	contributors?: import('@shared/karya').KaryaContributorPublic[];
 	slug: string;
 	title: string;
 	summary: string;
@@ -263,16 +268,8 @@ export function usePublicTag(tag: string) {
 	});
 }
 
+/** Alamat halaman Karya & Ruang Mahasiswa (lihat shared/student-space-paths.ts). */
 export const KARYA_PATHS = {
-	index: '/karya',
-	login: '/karya/masuk',
-	register: '/karya/daftar',
-	dashboard: '/karya/saya',
-	newProject: '/karya/saya/baru',
-	editProject: (id: string) => `/karya/saya/edit/${id}`,
-	project: (slug: string) => `/karya/${slug}`,
-	tag: (tag: string) => `/karya/tag/${encodeURIComponent(tag)}`,
-	preview: (id: string) => `/karya/saya/pratinjau/${id}`,
-	profilePreview: '/karya/saya/pratinjau-profil',
-	student: (username: string) => `/karya/mahasiswa/${username}`,
+	...STUDENT_SPACE_PATHS,
+	index: STUDENT_SPACE_PATHS.karya,
 };

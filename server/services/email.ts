@@ -120,7 +120,7 @@ export async function sendKaryaWarningEmail(params: { to: string; name: string; 
 		preheader: `Peringatan untuk ${params.target}`,
 		badge: { text: 'Karya TI · Peringatan', tone: 'warning' as EmailTone },
 		headline: `Halo ${params.name}, ada peringatan untuk ${params.target}`,
-		paragraphs: ['Pengurus HMTI memberi peringatan berikut. Mohon tindak lanjuti lewat Ruang Mahasiswa (himatif-encoder.com/karya/saya). Peringatan yang diabaikan dapat berlanjut ke penyembunyian karya atau suspend akun.'],
+		paragraphs: ['Pengurus HMTI memberi peringatan berikut. Mohon tindak lanjuti lewat Ruang Mahasiswa (himatif-encoder.com/ruang-mahasiswa/dashboard). Peringatan yang diabaikan dapat berlanjut ke penyembunyian karya atau suspend akun.'],
 		quotes: [{ label: `Dari ${params.adminName}`, text: params.message, tone: 'warning' as EmailTone }],
 		footerReason: 'Email ini dikirim karena akunmu terdaftar di Karya Mahasiswa TI himatif-encoder.com.',
 	});

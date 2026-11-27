@@ -106,7 +106,7 @@ export function UsernameOnboarding({ student }: { student: KaryaStudentAccount }
 			const extra = imported && tab === 'import' ? buildProfilePatchFromImport(imported, student) : {};
 			await karyaApi('PATCH', '/me/profile', { ...extra, username: u });
 			refreshStudent();
-			toast({ title: 'Username disimpan', description: `Profil publikmu: /karya/mahasiswa/${u}` });
+			toast({ title: 'Username disimpan', description: `Profil publikmu: /ruang-mahasiswa/mahasiswa/${u}` });
 		} catch (e) {
 			toast({ title: 'Gagal menyimpan', description: apiErrorText(e, 'Coba username lain'), variant: 'destructive' });
 		} finally {
@@ -130,7 +130,7 @@ export function UsernameOnboarding({ student }: { student: KaryaStudentAccount }
 		<div className="space-y-1.5">
 			<Label htmlFor="onb-username">Username Karya TI</Label>
 			<div className="flex items-center rounded-md border border-input bg-background pl-3 text-sm focus-within:ring-2 focus-within:ring-ring">
-				<span className="shrink-0 text-muted-foreground">/karya/mahasiswa/</span>
+				<span className="shrink-0 text-muted-foreground">/ruang-mahasiswa/mahasiswa/</span>
 				<input
 					id="onb-username"
 					value={username}

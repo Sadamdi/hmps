@@ -26,7 +26,8 @@ export default function KaryaTagPage() {
 			noindex={!info || info.total < 2}
 			breadcrumb={[
 				{ label: 'Beranda', href: '/' },
-				{ label: 'Karya TI', href: KARYA_PATHS.index },
+				{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.home },
+		{ label: 'Karya', href: KARYA_PATHS.index },
 				{ label: `#${tag}` },
 			]}>
 			<div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">

@@ -10,7 +10,7 @@ export default function DaftarPage() {
 	const { storeHref, storeLabel } = useStorePaths();
 	const options = [
 		{
-			href: '/karya/daftar',
+			href: '/ruang-mahasiswa/daftar',
 			icon: <GraduationCap className="h-7 w-7" aria-hidden />,
 			title: 'Mahasiswa TI',
 			desc: `Pajang karya & portofolio, profil publik, shortlink. Khusus email kampus NIM@${KARYA_STUDENT_EMAIL_DOMAIN} (Teknik Informatika, angkatan berapa pun).`,

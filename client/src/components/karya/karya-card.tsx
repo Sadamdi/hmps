@@ -70,6 +70,9 @@ export function KaryaCard({ item, className }: { item: Card; className?: string 
 							{categoryLabel(c)}
 						</Badge>
 					))}
+					{item.asContributor ? (
+						<Badge className="bg-violet-500 text-white hover:bg-violet-500">Kontributor</Badge>
+					) : null}
 					{item.featured ? (
 						<Badge className="bg-amber-400 text-slate-900 hover:bg-amber-400">
 							<Star className="mr-1 h-3 w-3" aria-hidden /> Unggulan
@@ -93,7 +96,12 @@ export function KaryaCard({ item, className }: { item: Card; className?: string 
 					</div>
 				) : null}
 				<div className="mt-auto flex items-center gap-2 border-t border-border/60 pt-3">
-					<KaryaAvatar name={item.author.name} url={item.author.avatarUrl} className="h-7 w-7 text-xs" />
+					<span className="flex -space-x-2">
+						<KaryaAvatar name={item.author.name} url={item.author.avatarUrl} className="h-7 w-7 text-xs ring-2 ring-card" />
+						{(item.contributorAvatars || []).slice(0, 3).map((c, i) => (
+							<KaryaAvatar key={i} name={c.name} url={c.avatarUrl} className="h-7 w-7 text-[10px] ring-2 ring-card" />
+						))}
+					</span>
 					<span className="truncate text-sm text-muted-foreground">
 						{item.author.name}
 						{item.author.angkatan ? ` · Angkatan ${item.author.angkatan}` : ''}

@@ -161,9 +161,10 @@ export const securityMiddleware = {
 			const extraHosts: string[] = settings?.embedAllowedHosts ?? [];
 			if (extraHosts.length === 0) return next();
 
+			// Hanya hostname murni: nilai berisi spasi/; bisa menyisipkan directive CSP baru (header injection).
 			const additional = extraHosts
-				.map((h: string) => h.trim().toLowerCase())
-				.filter(Boolean)
+				.map((h: string) => String(h || '').trim().toLowerCase())
+				.filter((h: string) => /^(?:\*\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(h))
 				.map((h: string) => `https://${h}`);
 
 			const existing = res.getHeader('Content-Security-Policy') as string | undefined;

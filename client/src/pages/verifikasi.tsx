@@ -26,10 +26,10 @@ type Info = {
 type DirectFlow = { kind: 'confirm' | 'password'; endpoint: string; done: { title: string; href: string; cta: string }; needsLogin?: string };
 
 const DIRECT: Record<string, DirectFlow> = {
-	karya_register: { kind: 'confirm', endpoint: '/api/karya/auth/register/verify', done: { title: 'Akun berhasil diaktivasi', href: '/karya/saya', cta: 'Buka Ruang Mahasiswa' } },
-	karya_password: { kind: 'password', endpoint: '/api/karya/auth/password/reset', done: { title: 'Password disimpan', href: '/karya/saya', cta: 'Buka Ruang Mahasiswa' } },
-	karya_password_change: { kind: 'confirm', endpoint: '/api/karya/auth/password/change/confirm', done: { title: 'Password berhasil diganti', href: '/karya/saya', cta: 'Buka Ruang Mahasiswa' } },
-	karya_delete: { kind: 'confirm', endpoint: '/api/karya/auth/delete', done: { title: 'Akun dihapus', href: '/karya', cta: 'Ke halaman Karya' }, needsLogin: '/karya/masuk' },
+	karya_register: { kind: 'confirm', endpoint: '/api/karya/auth/register/verify', done: { title: 'Akun berhasil diaktivasi', href: '/ruang-mahasiswa/dashboard', cta: 'Buka Ruang Mahasiswa' } },
+	karya_password: { kind: 'password', endpoint: '/api/karya/auth/password/reset', done: { title: 'Password disimpan', href: '/ruang-mahasiswa/dashboard', cta: 'Buka Ruang Mahasiswa' } },
+	karya_password_change: { kind: 'confirm', endpoint: '/api/karya/auth/password/change/confirm', done: { title: 'Password berhasil diganti', href: '/ruang-mahasiswa/dashboard', cta: 'Buka Ruang Mahasiswa' } },
+	karya_delete: { kind: 'confirm', endpoint: '/api/karya/auth/delete', done: { title: 'Akun dihapus', href: '/ruang-mahasiswa/karya', cta: 'Ke halaman Karya' }, needsLogin: '/karya/masuk' },
 	buyer_register: { kind: 'confirm', endpoint: '/api/buyer/register/verify', done: { title: 'Akun toko terverifikasi', href: '/toko/akun', cta: 'Buka akun toko' } },
 	buyer_password: { kind: 'password', endpoint: '/api/buyer/password/reset', done: { title: 'Password disimpan', href: '/toko/akun', cta: 'Buka akun toko' } },
 	buyer_email_change: { kind: 'confirm', endpoint: '/api/buyer/email/verify', done: { title: 'Email akun toko diganti', href: '/toko/akun', cta: 'Buka akun toko' }, needsLogin: '/toko/masuk' },
@@ -234,9 +234,9 @@ type ResendKind = 'student' | 'buyer';
 const ACTIVATION_KIND: Record<string, ResendKind> = { karya_register: 'student', buyer_register: 'buyer' };
 /** Tujuan lain: arahkan ke halaman untuk meminta kode/link baru. */
 const REQUEST_AGAIN: Record<string, { href: string; label: string }> = {
-	karya_password: { href: '/karya/masuk', label: 'Minta link reset password Karya baru' },
-	karya_password_change: { href: '/karya/saya?tab=akun', label: 'Ulangi ganti password' },
-	karya_delete: { href: '/karya/saya?tab=akun', label: 'Minta kode hapus akun baru' },
+	karya_password: { href: '/ruang-mahasiswa/masuk', label: 'Minta link reset password Karya baru' },
+	karya_password_change: { href: '/ruang-mahasiswa/dashboard?tab=akun', label: 'Ulangi ganti password' },
+	karya_delete: { href: '/ruang-mahasiswa/dashboard?tab=akun', label: 'Minta kode hapus akun baru' },
 	buyer_password: { href: '/toko/masuk', label: 'Minta link reset password toko baru' },
 	buyer_email_change: { href: '/toko/akun', label: 'Ulangi ganti email' },
 	buyer_delete: { href: '/toko/akun', label: 'Minta kode hapus akun baru' },

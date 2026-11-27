@@ -42,6 +42,22 @@ import { sendKaryaWarningEmail } from '../services/email';
 import { cleanKaryaCategories, karyaCategoriesOf, normalizeCustomCategory } from '@shared/karya';
 import { canonicalKaryaTag, inferKaryaStack } from '@shared/karya-tags';
 import { preAnalyzeEmbedsInHtml } from '../services/embed-domain-analysis';
+import {
+	buildContributorEntries,
+	contributorCandidatesFromRepo,
+	githubLoginFromUrl,
+	linkStudentToContributions,
+	publicContributors,
+	resolveContributorInput,
+	syncProjectContributors,
+	syncStaleContributors,
+} from '../services/karya-contributors';
+
+// Backfill bertahap: karya lama/baru dengan repo GitHub disinkron kontributornya tiap 6 jam (15 karya per putaran).
+if (process.env.NODE_ENV !== 'test') {
+	setTimeout(() => void syncStaleContributors(15).catch(() => null), 60_000).unref?.();
+	setInterval(() => void syncStaleContributors(15).catch(() => null), 6 * 3_600_000).unref?.();
+}
 
 /** Deskripsi HTML disimpan apa adanya; domain embed di dalamnya dianalisis di background (sekali per domain). */
 function preAnalyzed(html: string): string {
@@ -636,6 +652,7 @@ router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, a
 		set.avatarSize = 0;
 	}
 	const s = await KaryaStudent.findByIdAndUpdate(me._id, { $set: set }, { new: true }).lean();
+	if (set.social) void linkStudentToContributions(s).catch(() => null);
 	ok(res, { student: ownStudent(s) }, 'Profil disimpan');
 });
 
@@ -807,6 +824,62 @@ router.post('/me/profile/import-github', requireEnabled, authenticateStudent, re
 	}
 });
 
+/** Cari kontributor dari username/link profil Karya TI atau username/link GitHub. */
+router.post('/me/contributors/resolve', requireEnabled, authenticateStudent, repoLimiter, async (req, res) => {
+	const c = await resolveContributorInput(String(req.body?.input || ''));
+	if (!c) return fail(res, 404, 'Tidak ditemukan. Pakai username/link profil Karya TI atau username/link GitHub.', 'NOT_FOUND');
+	const me = await getStudent(req);
+	if (c.studentId === String(me._id)) return fail(res, 400, 'Itu akunmu sendiri — pemilik karya otomatis tercantum.', 'SELF');
+	ok(res, c);
+});
+
+/** Ambil ulang kontributor dari repo GitHub karya ini. */
+router.post('/me/projects/:id/contributors/sync', requireEnabled, authenticateStudent, repoLimiter, async (req, res) => {
+	if (!isId(req.params.id)) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
+	const me = await getStudent(req);
+	const p: any = await KaryaProject.findOne({ _id: req.params.id, studentId: me._id }).select('_id').lean();
+	if (!p) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
+	const added = await syncProjectContributors(p._id);
+	const fresh = await KaryaProject.findById(p._id).lean();
+	ok(res, ownProject(fresh), added ? `${added} kontributor baru dari repo` : 'Tidak ada kontributor baru di repo');
+});
+
+/** Karya orang lain tempat aku tercatat sebagai kontributor. */
+router.get('/me/contributions', requireEnabled, authenticateStudent, async (req, res) => {
+	const me = await getStudent(req);
+	const rows: any[] = await KaryaProject.find({ 'contributors.studentId': me._id }).select('slug title status visibility studentId contributors updatedAt').sort({ updatedAt: -1 }).lean();
+	const owners: any[] = await KaryaStudent.find({ _id: { $in: rows.map((r) => r.studentId) } }).select('name username').lean();
+	const byId = new Map(owners.map((o) => [String(o._id), o]));
+	ok(
+		res,
+		rows.map((p) => {
+			const mine = (p.contributors || []).find((c: any) => String(c.studentId) === String(me._id));
+			return {
+				id: String(p._id),
+				slug: p.slug,
+				title: p.title,
+				live: p.status === 'approved' && p.visibility === 'public',
+				owner: byId.get(String(p.studentId))?.name || 'Mahasiswa',
+				role: mine?.role || '',
+				source: mine?.source || 'manual',
+				hidden: !!mine?.hiddenByContributor,
+			};
+		}),
+	);
+});
+
+router.post('/me/contributions/:id/visibility', requireEnabled, authenticateStudent, writeLimiter, async (req, res) => {
+	if (!isId(req.params.id)) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
+	const me = await getStudent(req);
+	const hidden = req.body?.hidden === true;
+	const r = await KaryaProject.updateOne(
+		{ _id: req.params.id, 'contributors.studentId': me._id },
+		{ $set: { 'contributors.$.hiddenByContributor': hidden } },
+	);
+	if (!r.matchedCount) return fail(res, 404, 'Kamu tidak tercatat sebagai kontributor karya ini', 'NOT_FOUND');
+	ok(res, { hidden }, hidden ? 'Karya disembunyikan dari profilmu' : 'Karya ditampilkan di profilmu');
+});
+
 /** Tandai peringatan (akun atau karya) sudah dibaca. */
 router.post('/me/warnings/:id/ack', requireEnabled, authenticateStudent, writeLimiter, async (req, res) => {
 	const wid = String(req.params.id || '').slice(0, 40);
@@ -853,7 +926,10 @@ router.post('/me/avatar', requireEnabled, authenticateStudent, writeLimiter, kar
 // ═════════════════════════════ KARYA MILIK SENDIRI ═════════════════════════════
 
 function ownProject(p: any) {
+	const cover = coverOf(p);
 	return {
+		coverUrl: cover.url,
+		coverGenerated: cover.generated,
 		id: String(p._id),
 		slug: p.slug,
 		title: p.title,
@@ -874,6 +950,7 @@ function ownProject(p: any) {
 		status: p.status,
 		reviewNote: p.reviewNote || '',
 		warnings: (p.warnings || []).slice(-20).map(warningOut),
+		contributors: (p.contributors || []).map((c: any) => ({ key: c.key, name: c.name, avatarUrl: c.avatarUrl, role: c.role || '', source: c.source, githubLogin: c.githubLogin || '', hasAccount: !!c.studentId })),
 		featured: !!p.featured,
 		viewCount: p.viewCount || 0,
 		publishedAt: p.publishedAt,
@@ -905,6 +982,7 @@ const projectSchema = z.object({
 	role: z.string().max(300).optional(),
 	category: z.string().max(30).optional(),
 	categories: z.array(z.string().max(30)).max(5).optional(),
+	contributors: z.array(z.object({ key: z.string().max(60), role: z.string().max(60).optional(), source: z.enum(['manual', 'repo']).optional() })).max(20).optional(),
 	tags: z.union([z.array(z.string().max(40)), z.string().max(400)]).optional(),
 	year: z.number().int().min(2000).max(2100).nullable().optional(),
 	repoUrls: z.array(z.string().max(300)).max(5).optional(),
@@ -934,6 +1012,10 @@ async function buildProjectFields(d: z.infer<typeof projectSchema>, studentId: a
 		tags: cleanKaryaTags((Array.isArray(d.tags) ? d.tags : String(d.tags || '').split(',')).map((t) => canonicalKaryaTag(String(t)))),
 		year: d.year ?? null,
 	};
+	if (d.contributors) {
+		const entries = await buildContributorEntries(d.contributors, studentId, existing?.contributors || []);
+		if (entries) f.contributors = entries;
+	}
 	// Repo: wajib publik; info diambil server
 	if (d.repoUrls) {
 		const repos = [];
@@ -1080,6 +1162,7 @@ router.post('/me/projects', requireEnabled, authenticateStudent, writeLimiter, a
 			publishedAt: status === 'approved' ? now : null,
 			reviewLog: status === 'approved' ? [{ action: 'auto-approve', note: 'Review otomatis aktif', at: now }] : [],
 		});
+		if ((p.repos || []).some((x: any) => x.host === 'github')) void syncProjectContributors(p._id).catch(() => null);
 		ok(res, ownProject(p.toObject()), status === 'pending' ? 'Karya dikirim untuk direview pengurus' : 'Karya disimpan');
 	} catch (e) {
 		console.error('[karya] create', e);
@@ -1116,6 +1199,7 @@ router.patch('/me/projects/:id', requireEnabled, authenticateStudent, writeLimit
 		if (status === 'approved' && existing.status !== 'approved') set.publishedAt = existing.publishedAt || now;
 		if (status === 'pending' || status === 'approved') set.reviewNote = existing.status === 'revision' ? '' : existing.reviewNote;
 		const p = await KaryaProject.findByIdAndUpdate(existing._id, { $set: set }, { new: true }).lean();
+		if (p && (p as any).repos?.some((x: any) => x.host === 'github') && !(p as any).contributorsSyncedAt) void syncProjectContributors(existing._id).catch(() => null);
 		const msg = status === 'pending' ? 'Karya dikirim untuk direview pengurus' : status === 'hidden' ? 'Disimpan. Karya ini sedang disembunyikan administrator.' : 'Karya disimpan';
 		ok(res, ownProject(p), msg);
 	} catch (e) {
@@ -1215,7 +1299,9 @@ router.post('/me/repo-preview', requireEnabled, authenticateStudent, repoLimiter
 			text: `${info.description} ${readme?.summary || ''} ${String(readme?.descriptionHtml || '').replace(/<[^>]+>/g, ' ')}`,
 			homepage: info.homepage,
 		});
-		ok(res, { ...info, files: undefined, detected, readme: readme ? { ...readme, descriptionHtml: sanitizeCmsHtml(readme.descriptionHtml, 60000) } : null });
+		const meP: any = await getStudent(req);
+		const contributors = await contributorCandidatesFromRepo(info, meP._id, githubLoginFromUrl(meP.social?.github || '')).catch(() => []);
+		ok(res, { ...info, files: undefined, detected, contributors, readme: readme ? { ...readme, descriptionHtml: sanitizeCmsHtml(readme.descriptionHtml, 60000) } : null });
 	} catch (e) {
 		if (e instanceof RepoFetchError) return fail(res, e.code === 'REPO_RATE_LIMITED' ? 429 : 400, e.message, e.code);
 		fail(res, 500, 'Gagal mengambil info repo', 'INTERNAL');
@@ -1342,6 +1428,12 @@ async function toCards(rows: any[]): Promise<KaryaProjectCard[]> {
 			featured: !!p.featured,
 			author: publicAuthor(byId.get(String(p.studentId))),
 			publishedAt: p.publishedAt ? new Date(p.publishedAt).toISOString() : null,
+			viewCount: p.viewCount || 0,
+			activeAt: (() => {
+				const ts = [p.updatedAt, ...(p.repos || []).map((x: any) => x.updatedAt)].filter(Boolean).map((d: any) => new Date(d).getTime()).filter((n: number) => Number.isFinite(n));
+				return ts.length ? new Date(Math.max(...ts)).toISOString() : null;
+			})(),
+			contributorAvatars: (p.contributors || []).slice(0, 5).map((c: any) => ({ name: c.name, avatarUrl: c.avatarUrl || '' })),
 		};
 	});
 }
@@ -1415,6 +1507,7 @@ router.get('/public/projects/:slug', requireEnabled, publicLimiter, async (req, 
 		if (viewedRecently.size > 20000) viewedRecently.clear();
 		void KaryaProject.updateOne({ _id: p._id }, { $inc: { viewCount: 1 } }).catch(() => {});
 	}
+	if ((p.repos || []).some((x: any) => x.host === 'github') && (!p.contributorsSyncedAt || Date.now() - new Date(p.contributorsSyncedAt).getTime() > 86_400_000)) void syncProjectContributors(p._id).catch(() => null);
 	ok(res, await buildProjectDetail(p, s));
 });
 
@@ -1515,6 +1608,7 @@ async function buildProjectDetail(p: any, s: any, opts: { preview?: boolean } = 
 		publishedAt: p.publishedAt,
 		updatedAt: p.updatedAt,
 		author: publicStudent(s),
+		contributors: await publicContributors(p),
 		...(opts.preview ? { preview: true, status: p.status, visibility: p.visibility } : {}),
 	};
 }
@@ -1626,11 +1720,16 @@ router.get('/public/students/:username', requireEnabled, publicLimiter, async (r
 	const found = await findByUsername(req.params.username);
 	if (!found || !profileVisible(found.student)) return fail(res, 404, 'Profil tidak ditemukan', 'NOT_FOUND');
 	const s = found.student;
-	const rows = await KaryaProject.find({ studentId: s._id, ...PUBLIC_PROJECT_BASE }).sort({ featured: -1, publishedAt: -1 }).lean();
+	const rows = await KaryaProject.find({
+		...PUBLIC_PROJECT_BASE,
+		$or: [{ studentId: s._id }, { contributors: { $elemMatch: { studentId: s._id, hiddenByContributor: { $ne: true } } } }],
+	})
+		.sort({ featured: -1, publishedAt: -1 })
+		.lean();
 	const link: any = await KaryaShortlink.findOne({ studentId: s._id, status: 'active' }).sort({ createdAt: 1 }).lean();
 	ok(res, {
 		student: { ...publicStudent(s), shortlink: link ? `/go/${link.slug}` : undefined },
-		projects: await toCards(rows),
+		projects: (await toCards(rows)).map((c, i) => ({ ...c, asContributor: String(rows[i].studentId) !== String(s._id) })),
 		redirectTo: found.redirectTo,
 		indexable: rows.length > 0 || profileFilled(s),
 	});
@@ -1744,6 +1843,15 @@ router.get('/admin/students/:id', ...adminView, async (req, res) => {
 		projects: projects.map((p: any) => ({ ...ownProject(p), cover: coverOf(p) })),
 		shortlinks: shortlinks.map((l: any) => ({ id: String(l._id), slug: l.slug, targetUrl: l.targetUrl, status: l.status, clicks: l.clicks || 0 })),
 	});
+});
+
+/** Sinkron kontributor repo untuk karya lama (bertahap). */
+router.post('/admin/contributors/sync', ...adminManage, async (req, res) => {
+	const limit = Math.max(1, Math.min(100, Number(req.body?.limit) || 30));
+	const all = req.body?.force === true;
+	const r = await syncStaleContributors(limit, all ? 0 : 7 * 86_400_000);
+	logKarya(req, 'update', 'Sinkron kontributor karya', 'contributors', r);
+	ok(res, r, `${r.checked} karya diperiksa, ${r.added} kontributor ditambahkan`);
 });
 
 router.post('/admin/students/:id/warn', ...adminManage, async (req, res) => {
@@ -2090,9 +2198,9 @@ export async function karyaSitemapEntries(): Promise<{ loc: string; lastmod: Dat
 	// Halaman tag diindeks bila minimal 2 karya publik
 	const tagRows = await KaryaProject.aggregate([{ $match: filter }, { $unwind: '$tags' }, { $group: { _id: '$tags', n: { $sum: 1 }, last: { $max: '$updatedAt' } } }, { $match: { n: { $gte: 2 } } }, { $limit: 500 }]);
 	return [
-		...tagRows.map((t: any) => ({ loc: `/karya/tag/${encodeURIComponent(t._id)}`, lastmod: t.last })),
-		...rows.map((r) => ({ loc: `/karya/${r.slug}`, lastmod: r.updatedAt })),
-		...students.map((s) => ({ loc: `/karya/mahasiswa/${s.username}`, lastmod: s.updatedAt })),
+		...tagRows.map((t: any) => ({ loc: `/ruang-mahasiswa/karya/tag/${encodeURIComponent(t._id)}`, lastmod: t.last })),
+		...rows.map((r) => ({ loc: `/ruang-mahasiswa/karya/${r.slug}`, lastmod: r.updatedAt })),
+		...students.map((s) => ({ loc: `/ruang-mahasiswa/mahasiswa/${s.username}`, lastmod: s.updatedAt })),
 	];
 }
 

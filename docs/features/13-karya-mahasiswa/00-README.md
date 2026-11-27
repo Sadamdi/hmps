@@ -8,7 +8,7 @@
 **Tenant-Aware**: No — situs utama saja (blok beranda & navbar `karya` disaring dari tenant; slug `karya`/`go` dicadangkan)  
 **Permission Scope**: Public / Mahasiswa (akun terpisah) / Admin (`karya.view`, `karya.manage`)  
 **Since version**: 4.65.0  
-**Last documented version**: 4.70.0  
+**Last documented version**: 4.71.0  
 
 ---
 
@@ -67,6 +67,15 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 ```
 
 ---
+
+## Pembaruan 4.71.0
+
+- **Ruang Mahasiswa:** semua halaman mahasiswa pindah ke `/ruang-mahasiswa/*` (publik: `/karya`, `/karya/:slug`, `/karya/tag/:tag`, `/mahasiswa/:username`; dashboard: `/dashboard`, `/dashboard/karya/baru|edit/:id|pratinjau/:id`, `/dashboard/pratinjau-profil`; `/masuk`, `/daftar`). Satu sumber alamat `shared/student-space-paths.ts`; alamat lama 301 (server) + redirect klien; SEO prerender, canonical, JSON-LD, sitemap ikut pindah. Navbar "Karya TI" → "Ruang Mahasiswa". Breadcrumb: Beranda / Ruang Mahasiswa / Dashboard, … / Karya / Judul, … / Mahasiswa / Nama. Ruang lain (belajar, kelompok, dll.) cukup menambah segmen baru.
+- **Kontributor karya** (`server/services/karya-contributors.ts`): tambah lewat username/link profil Karya TI atau username/link GitHub; contributor repo GitHub otomatis (bot dibuang) saat info repo diambil, saat simpan, saat detail dibuka (>24 jam), dan scheduler 6 jam untuk karya lama. Kontributor GitHub otomatis tertaut ke akun Karya TI yang link GitHub-nya sama (juga saat mahasiswa menyetel link GitHub belakangan). Karya tampil di profil kontributor (badge "Kontributor"); kontributor bisa menyembunyikannya dari profilnya. Detail karya menampilkan "Tim pembuat".
+- **Profil publik 2 tab:** Ringkasan (README, Sedang aktif, Terpopuler) dan Portofolio (cari, filter kategori, urut terakhir aktif/terpopuler/terbaru). Kartu membawa `viewCount`, `activeAt`, avatar kontributor.
+- **Dashboard mahasiswa:** "Karya saya" berupa kartu bersampul (status, kategori, dilihat, jumlah pembuat, Edit/Lihat/Pratinjau/Hapus).
+- **Dashboard admin Karya:** grid kartu bersampul + panel "Tinjau" berisi deskripsi ter-render (bukan HTML mentah), galeri media, repo/tautan, tim pembuat, peringatan, riwayat, dan semua aksi review.
+- **Mode gelap/terang:** TinyMCE (menubar, toolbar, menu, statusbar, dialog) mengikuti token tema.
 
 ## Pembaruan 4.69.0
 
