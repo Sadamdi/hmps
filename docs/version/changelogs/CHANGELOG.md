@@ -9,6 +9,23 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.73.0] - 2026-11-27
+
+### Added
+- `karya`: "Mulai dari link" di editor — Figma, Behance, Dribbble, Canva, itch.io, Game Jolt, Roblox, Google Play, App Store, ArtStation, Sketchfab, YouTube, Vimeo, CodePen, Hugging Face, Kaggle, Colab, Notion, Medium, jurnal, situs apa pun: judul, ringkasan, kategori, tag, tautan berlabel, dan gambar pratinjau terisi otomatis (`POST /api/karya/me/link-preview`, `shared/karya-sources.ts`)
+- `karya`: gambar pratinjau link disimpan sebagai media eksternal bila tanda tangan HMAC server valid (`externalMediaSigned`)
+- `embed`: riwayat keputusan per domain (Enco/admin, dari → ke, alasan) + tombol "Batalkan" (`POST /api/embed-domains/:host/undo`)
+- `ui`: tombol "ke atas" melayang (kiri bawah) yang muncul setelah setengah halaman / dekat bawah, gulir halus ber-easing (menggantikan tombol kembali 4.72.0)
+
+### Changed
+- `karya`: tag populer di halaman Karya diringkas jadi 10 teratas + "+N tag lainnya" (buka/ciutkan); di HP satu baris geser
+- `embed`: penilaian AI disebut **Enco** (nama AI Himatif) di alasan, pemeriksaan, dan panel
+
+### Fixed
+- `notif`: mengaktifkan notifikasi bisa berputar lalu gagal walau izin browser sudah "Allow" — menunggu service worker registrasi sendiri aktif (maks 20 dtk, sebelumnya `serviceWorker.ready` 5 dtk), subscribe 25 dtk (sebelumnya 8), langganan berkunci VAPID lama dilepas & dicoba ulang otomatis, pesan galat yang jelas (navbar & pop-up "Nyalakan")
+
+Detail: [release/4.73.0.md](../release/4.73.0.md).
+
 ## [4.72.0] - 2026-11-27
 
 ### Added

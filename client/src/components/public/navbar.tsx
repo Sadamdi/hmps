@@ -1,4 +1,5 @@
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { useToast } from '@/hooks/use-toast';
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -251,6 +252,7 @@ export default function Navbar({
 	scrollToSection,
 }: NavbarProps) {
 	const [scrolled, setScrolled] = useState(false);
+	const { toast } = useToast();
 	const [location, navigate] = useLocation();
 	const { user, logout } = useAuth();
 	const { theme, toggleTheme } = useTheme();
@@ -979,12 +981,20 @@ export default function Navbar({
 			return;
 		}
 
-		const reg = await withTimeout(
-			navigator.serviceWorker.register(SW_PATH),
-			8000,
-			'SW register',
-		);
-		await withTimeout(navigator.serviceWorker.ready, 5000, 'SW ready');
+		const reg = await withTimeout(navigator.serviceWorker.register(SW_PATH), 15000, 'SW register');
+		// Tunggu worker milik registrasi ini aktif (serviceWorker.ready bisa lama / milik worker lain)
+		const worker = reg.installing || reg.waiting || reg.active;
+		if (worker && worker.state !== 'activated') {
+			await withTimeout(
+				new Promise<void>((resolve) => {
+					const done = () => worker.state === 'activated' && resolve();
+					worker.addEventListener('statechange', done);
+					done();
+				}),
+				20000,
+				'SW aktif',
+			);
+		}
 
 		const vapidRes = await fetch('/api/notifications/webpush/vapid-key', {
 			credentials: 'include',
@@ -992,23 +1002,39 @@ export default function Navbar({
 		const { publicKey } = await vapidRes.json();
 		if (!publicKey)
 			throw new Error('VAPID public key belum tersedia di server');
+		const appKey = urlBase64ToUint8Array(publicKey);
+		const sameKey = (s0: PushSubscription) => {
+			const k = s0.options?.applicationServerKey;
+			if (!k) return true;
+			const a1 = new Uint8Array(k as ArrayBuffer);
+			return a1.length === appKey.length && a1.every((v, i) => v === appKey[i]);
+		};
 
 		let sub = await reg.pushManager.getSubscription();
+		// Langganan lama dengan kunci server berbeda → lepas dulu agar subscribe tidak gagal
+		if (sub && !sameKey(sub)) {
+			await sub.unsubscribe().catch(() => {});
+			sub = null;
+		}
+		const doSubscribe = () =>
+			withTimeout(
+				reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: appKey } as any),
+				25000,
+				'pushManager.subscribe',
+			);
 		if (!sub) {
 			try {
-				sub = await withTimeout(
-					reg.pushManager.subscribe({
-						userVisibleOnly: true,
-						applicationServerKey: urlBase64ToUint8Array(publicKey),
-					} as any),
-					8000,
-					'pushManager.subscribe',
-				);
+				sub = await doSubscribe();
 			} catch (err: any) {
-				// Browser tertentu bisa melempar InvalidStateError meski subscription sudah ada.
-				const fallbackSub = await reg.pushManager.getSubscription();
-				if (!fallbackSub) throw err;
-				sub = fallbackSub;
+				// InvalidStateError / AbortError: bersihkan sisa langganan lalu coba sekali lagi
+				const left = await reg.pushManager.getSubscription();
+				if (left && sameKey(left)) sub = left;
+				else {
+					await left?.unsubscribe().catch(() => {});
+					await new Promise((r) => setTimeout(r, 600));
+					sub = await doSubscribe().catch(() => null);
+					if (!sub) throw err;
+				}
 			}
 		}
 		const subJson = sub.toJSON();
@@ -1059,6 +1085,16 @@ export default function Navbar({
 			}
 		} catch (error) {
 			console.error('Push toggle failed:', error);
+			const msg = String((error as Error)?.message || error);
+			toast({
+				title: 'Notifikasi belum bisa diaktifkan',
+				description: /timeout|SW/i.test(msg)
+					? 'Browser lambat menyiapkan notifikasi. Coba lagi beberapa detik lagi, atau muat ulang halaman.'
+					: /AbortError|push service|Registration failed/i.test(msg)
+						? 'Layanan push browser menolak pendaftaran. Pastikan tidak memakai mode penyamaran / VPN pemblokir, lalu coba lagi.'
+						: 'Coba lagi. Bila tetap gagal, buka pengaturan situs browser → Notifikasi → Reset, lalu aktifkan ulang.',
+				variant: 'destructive',
+			});
 		} finally {
 			setIsPushActionLoading(false);
 			refreshPushStatus();

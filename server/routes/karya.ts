@@ -42,6 +42,7 @@ import { sendKaryaWarningEmail } from '../services/email';
 import { cleanKaryaCategories, karyaCategoriesOf, normalizeCustomCategory } from '@shared/karya';
 import { canonicalKaryaTag, inferKaryaStack } from '@shared/karya-tags';
 import { preAnalyzeEmbedsInHtml } from '../services/embed-domain-analysis';
+import { fetchLinkPreview, LinkPreviewError, verifyMediaUrl } from '../services/karya-link-preview';
 import {
 	buildContributorEntries,
 	contributorCandidatesFromRepo,
@@ -988,6 +989,8 @@ const projectSchema = z.object({
 	repoUrls: z.array(z.string().max(300)).max(5).optional(),
 	/** Gambar dari README repo (URL https host repo yang diizinkan) → media eksternal, tanpa kuota */
 	externalMedia: z.array(z.string().max(500)).max(8).optional(),
+	/** Gambar dari pratinjau link (Open Graph), ditandatangani server saat pratinjau */
+	externalMediaSigned: z.array(z.object({ url: z.string().max(800), sig: z.string().max(64) })).max(4).optional(),
 	links: z.array(linkInput).max(KARYA_LIMITS.maxLinksPerProject).optional(),
 	related: z.array(relatedInput).max(KARYA_LIMITS.maxRelatedPerProject).optional(),
 	coverMediaId: z.string().max(40).optional(),
@@ -1072,6 +1075,21 @@ async function buildProjectFields(d: z.infer<typeof projectSchema>, studentId: a
 			}
 		}
 		f.related = out;
+	}
+	if (d.externalMediaSigned?.length) {
+		const base = existing ? [...(existing.media || [])] : [];
+		for (const x of d.externalMediaSigned) {
+			const url = cleanHttpsUrl(x.url, null);
+			if (!url || !verifyMediaUrl(url, x.sig) || base.some((m: any) => m.url === url)) continue;
+			if (base.filter((m: any) => m.type === 'image').length >= KARYA_LIMITS.maxImagesPerProject) break;
+			base.push({ id: crypto.randomBytes(6).toString('hex'), type: 'image', url, size: 0, caption: '', external: true });
+		}
+		f.media = base;
+		existing = { ...(existing || {}), media: base };
+		if (!existing?.coverMediaId && !d.coverMediaId) {
+			const firstImg = base.find((m: any) => m.type === 'image');
+			if (firstImg) f.coverMediaId = firstImg.id;
+		}
 	}
 	if (d.externalMedia?.length) {
 		const base = existing ? [...(existing.media || [])] : [];
@@ -1286,6 +1304,17 @@ router.delete('/me/projects/:id/media/:mediaId', requireEnabled, authenticateStu
 	if (!m.external && m.size) await KaryaStudent.updateOne({ _id: me._id }, { $inc: { storageUsedBytes: -(m.size || 0) } });
 	const fresh = await KaryaProject.findById(p._id).lean();
 	ok(res, ownProject(fresh), 'Media dihapus');
+});
+
+/** Pratinjau link non-repo (Figma, Behance, itch.io, YouTube, situs apa pun) untuk mengisi karya. */
+router.post('/me/link-preview', requireEnabled, authenticateStudent, repoLimiter, async (req, res) => {
+	try {
+		const data = await fetchLinkPreview(String(req.body?.url || '').slice(0, 800));
+		ok(res, data);
+	} catch (e) {
+		if (e instanceof LinkPreviewError) return fail(res, 400, e.message, e.code);
+		fail(res, 502, 'Gagal mengambil info link', 'UPSTREAM_ERROR');
+	}
 });
 
 router.post('/me/repo-preview', requireEnabled, authenticateStudent, repoLimiter, async (req, res) => {

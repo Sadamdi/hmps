@@ -98,7 +98,19 @@ export default function NotificationPrompt({ showPrompt = true }: { showPrompt?:
 				OP_TIMEOUT_MS,
 				'SW register',
 			);
-			await withTimeout(navigator.serviceWorker.ready, 5000, 'SW ready');
+			// Tunggu worker registrasi ini aktif (serviceWorker.ready bisa lama di perangkat lambat)
+			const worker = reg.installing || reg.waiting || reg.active;
+			if (worker && worker.state !== 'activated') {
+				await withTimeout(
+					new Promise<void>((resolve) => {
+						const done = () => worker.state === 'activated' && resolve();
+						worker.addEventListener('statechange', done);
+						done();
+					}),
+					20000,
+					'SW aktif',
+				);
+			}
 
 			const vapidRes = await fetch('/api/notifications/webpush/vapid-key');
 			const { publicKey } = await vapidRes.json();
@@ -127,7 +139,7 @@ export default function NotificationPrompt({ showPrompt = true }: { showPrompt?:
 							userVisibleOnly: true,
 							applicationServerKey: urlBase64ToUint8Array(publicKey),
 						} as any),
-						OP_TIMEOUT_MS,
+						25000,
 						'pushManager.subscribe',
 					);
 				} catch (err: any) {
