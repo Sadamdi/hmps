@@ -8,6 +8,8 @@ const Card = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <div
     ref={ref}
+    // Animasi masuk bawaan (lib/reveal.ts); bisa dimatikan dengan data-aos="" atau diganti varian lain.
+    data-aos="fade-up"
     className={cn(
       "rounded-2xl border border-border/70 bg-card text-card-foreground shadow-[0_1px_2px_hsl(222_47%_11%/0.04),0_12px_36px_hsl(222_47%_11%/0.04)]",
       className

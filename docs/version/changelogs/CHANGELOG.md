@@ -9,6 +9,20 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.75.0] - 2026-11-28
+
+### Added
+- `ui`: transisi antarhalaman halus (View Transitions API) di PC dan HP, header tetap diam
+- `ui`: animasi masuk bawaan untuk semua `Card`
+
+### Changed
+- `ui`: AOS diganti sistem animasi masuk ringan berbasis IntersectionObserver (atribut `data-aos` lama tetap berlaku)
+
+### Fixed
+- `navbar`: tidak lagi tersendat saat mulai scroll (tinggi tetap, blur tidak dimatikan)
+- `footer`: peta Google dimuat lebih awal saat browser senggang lalu memudar masuk, tidak lagi membuat footer tersendat
+- `ui`: elemen beranimasi tidak lagi tertinggal tak terlihat setelah render ulang React
+
 ## [4.74.0] - 2026-11-27
 
 ### Added

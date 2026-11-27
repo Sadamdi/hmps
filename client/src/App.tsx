@@ -9,8 +9,8 @@ import Error from '@/pages/error';
 import NotFound from '@/pages/not-found';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useQuery } from '@tanstack/react-query';
-import AOS from 'aos';
-import 'aos/dist/aos.css';
+import AOS from '@/lib/reveal';
+import { initPageTransitions } from '@/lib/page-transitions';
 import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { Route, Switch, useLocation, type RouteComponentProps } from 'wouter';
 import { useEffect as useLegacyEffect } from 'react';
@@ -444,18 +444,8 @@ function PublicNotifStream() {
 
 function App() {
 	useEffect(() => {
-		AOS.init({
-			duration: 420,
-			easing: 'ease-out',
-			once: true,
-			mirror: false,
-			offset: 48,
-			throttleDelay: 99,
-			disableMutationObserver: false,
-			disable: () =>
-				typeof window !== 'undefined' &&
-				window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-		});
+		AOS.init();
+		initPageTransitions();
 	}, []);
 
 	return (

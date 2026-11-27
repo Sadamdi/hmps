@@ -18,7 +18,7 @@ import VisionMission from '@/components/public/vision-mission';
 import { useAppLoading } from '@/hooks/use-app-loading';
 import { apiRequest } from '@/lib/queryClient';
 import { useQuery } from '@tanstack/react-query';
-import AOS from 'aos';
+import AOS from '@/lib/reveal';
 import {
 	lazy,
 	Suspense,
