@@ -9,6 +9,19 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.73.2] - 2026-11-27
+
+### Changed
+- `login`: dua baris teks penjelas di bawah formulir masuk dihapus (masukan owner)
+
+### Security
+- `embed`: kartu embed yang diblokir (mis. situs judi) tidak lagi menampilkan tombol "Buka" ke situs tersebut
+
+### Fixed
+- `embed`: catatan analisis lama di database masih bertuliskan "Analisis AI"; dimigrasi otomatis sekali saat server berjalan menjadi "Penilaian Enco" (alasan) dan "Enco:" (pemeriksaan)
+
+Detail: [release/4.73.2.md](../release/4.73.2.md).
+
 ## [4.73.1] - 2026-11-27
 
 ### Changed
