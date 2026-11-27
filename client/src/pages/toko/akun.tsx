@@ -82,7 +82,7 @@ function OrderRow({ o }: { o: BuyerOrder }) {
 			</div>
 			{(needsPay(o) || owesBalance(o)) && (
 				<p className="mt-2 text-xs font-medium text-amber-600 dark:text-amber-400">
-					{owesBalance(o) ? `Sisa pelunasan ${formatStoreMoney(o.balanceDue || 0, 'IDR')}` : STORE_PAYMENT_STATUS_LABEL[o.paymentStatus || 'unpaid'] || 'Belum dibayar'} — buka untuk bayar
+					{owesBalance(o) ? `Sisa pelunasan ${formatStoreMoney(o.balanceDue || 0, 'IDR')}` : STORE_PAYMENT_STATUS_LABEL[o.paymentStatus || 'unpaid'] || 'Belum dibayar'} · buka untuk membayar
 				</p>
 			)}
 		</Link>
@@ -133,7 +133,7 @@ function ProfileTab({ onDeleted, onLogout }: { onDeleted: () => void; onLogout: 
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-base">Profil</CardTitle>
-					<CardDescription>Dipakai untuk mengisi checkout otomatis.</CardDescription>
+					<CardDescription>Dipakai untuk mengisi data checkout.</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3">
 					<div className="space-y-1">
@@ -220,7 +220,7 @@ function ProfileTab({ onDeleted, onLogout }: { onDeleted: () => void; onLogout: 
 				<CardHeader>
 					<CardTitle className="text-base">{buyer.hasPassword ? 'Ganti password' : 'Atur password'}</CardTitle>
 					<CardDescription>
-						{buyer.hasPassword ? 'Demi keamanan, kode OTP dikirim ke email akun.' : 'Akunmu masuk lewat Google. Atur password agar bisa masuk dengan email juga.'} Setelah diganti, perangkat lain otomatis keluar.
+						{buyer.hasPassword ? 'Demi keamanan, kode OTP dikirim ke email akun.' : 'Akun Anda masuk lewat Google. Atur password agar bisa masuk dengan email juga.'} Setelah diganti, sesi di perangkat lain diakhiri.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3 max-w-md">
@@ -297,7 +297,7 @@ export default function TokoBuyerAccountPage() {
 			const n = sessionStorage.getItem('buyerClaimedToast');
 			if (n) {
 				sessionStorage.removeItem('buyerClaimedToast');
-				toast({ title: 'Berhasil masuk', description: `${n} pesanan lama ditambahkan ke akunmu.` });
+				toast({ title: 'Berhasil masuk', description: `${n} pesanan lama ditambahkan ke akun Anda.` });
 			}
 		} catch {
 			/* abaikan */

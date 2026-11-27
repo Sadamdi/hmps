@@ -9,6 +9,14 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.73.1] - 2026-11-27
+
+### Changed
+- `ui`: perapian bahasa di halaman masuk, Ruang Mahasiswa (dashboard, editor, onboarding, kontributor, pratinjau), Encoder Store (masuk, akun), verifikasi, dan panel Domain Embed — kalimat lugas dan formal, tanpa gaya promosi/tanda pisah berlebihan; sapaan diseragamkan menjadi "Anda" (mengikuti mayoritas antarmuka)
+- `login`: subjudul "Masuk untuk pengurus …, mahasiswa TI, dan pembeli …"; penjelasan pengenalan akun dipersingkat
+
+Detail: [release/4.73.1.md](../release/4.73.1.md).
+
 ## [4.73.0] - 2026-11-27
 
 ### Added

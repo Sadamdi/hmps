@@ -627,11 +627,11 @@ export default function LoginForm() {
 						</div>
 						<div className="h-px bg-slate-200 dark:bg-white/8 mb-4" />
 						<p className="text-xs text-slate-500 dark:text-slate-500">
-							Satu pintu untuk pengurus {siteName}, mahasiswa TI (Karya), dan pembeli {storeLabel}
+							Masuk untuk pengurus {siteName}, mahasiswa TI, dan pembeli {storeLabel}
 						</p>
 						{googleEnabled && (
 							<p className="mt-1 text-xs text-slate-500 dark:text-slate-500">
-								Masuk dengan Google dikenali otomatis: pengurus ke dashboard, mahasiswa ke Ruang Mahasiswa, pembeli ke akunnya. Punya beberapa akun? Kamu bisa memilih.
+								Jenis akun dikenali dari email. Jika email Anda terdaftar di lebih dari satu layanan, Anda akan diminta memilih.
 							</p>
 						)}
 					</div>

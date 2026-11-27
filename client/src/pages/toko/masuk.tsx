@@ -23,8 +23,8 @@ type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 
 const BENEFITS = [
 	'Riwayat pesanan tersimpan & bisa dibuka dari HP mana saja',
-	'Data checkout (nama, WA, email) terisi otomatis',
-	'Pesanan lama di perangkat ini & dengan email kamu ikut tersimpan',
+	'Data checkout (nama, WhatsApp, email) tersimpan',
+	'Pesanan lama di perangkat ini & dengan email Anda ikut tersimpan',
 ];
 
 /** Logo "G" Google (SVG resmi sederhana). */
@@ -69,7 +69,7 @@ export default function TokoBuyerLoginPage() {
 		refreshBuyerQueries();
 		toast({
 			title: 'Berhasil masuk',
-			description: claimed ? `${claimed} pesanan lama ditambahkan ke akunmu.` : undefined,
+			description: claimed ? `${claimed} pesanan lama ditambahkan ke akun Anda.` : undefined,
 		});
 		navigate(next || accountHref);
 	};
@@ -89,7 +89,7 @@ export default function TokoBuyerLoginPage() {
 				setCode('');
 				setMode('verify');
 			}
-			toast({ title: 'Cek email kamu', description: 'Jika akun belum diverifikasi, kode & link baru sudah dikirim (berlaku 60 menit). Pakai salah satunya.' });
+			toast({ title: 'Cek email Anda', description: 'Jika akun belum diverifikasi, kode & link baru sudah dikirim (berlaku 60 menit). Pakai salah satunya.' });
 		});
 
 	const run = async (fn: () => Promise<void>) => {
@@ -200,10 +200,10 @@ export default function TokoBuyerLoginPage() {
 	};
 
 	const titles: Record<Mode, [string, string]> = {
-		login: ['Masuk akun pembeli', 'Lacak semua pesananmu dari satu tempat.'],
+		login: ['Masuk akun pembeli', 'Lacak semua pesanan Anda dari satu tempat.'],
 		register: ['Daftar akun pembeli', 'Gratis. Kode verifikasi dikirim ke email.'],
 		verify: ['Verifikasi email', `Masukkan 6 digit kode yang dikirim ke ${email}.`],
-		forgot: ['Lupa password', 'Kami kirim kode OTP ke email akunmu.'],
+		forgot: ['Lupa password', 'Kami kirim kode OTP ke email akun Anda.'],
 		reset: ['Atur password baru', `Masukkan kode dari email ${email} dan password baru.`],
 	};
 
@@ -242,7 +242,7 @@ export default function TokoBuyerLoginPage() {
 				{staffUser && !buyer && (
 					<div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm space-y-2">
 						<p>
-							Kamu sudah masuk sebagai pengurus <strong>{staffUser.name || staffUser.username}</strong>. Mau belanja memakai akun yang sama?
+							Anda sudah masuk sebagai pengurus <strong>{staffUser.name || staffUser.username}</strong>. Mau belanja memakai akun yang sama?
 						</p>
 						<Button type="button" size="sm" className="gap-2" onClick={switchToBuyerAccount}>
 							Lanjut sebagai pembeli
@@ -350,7 +350,7 @@ export default function TokoBuyerLoginPage() {
 										{b}
 									</li>
 								))}
-								<li className="pt-1">Tidak wajib — kamu tetap bisa belanja tanpa akun.</li>
+								<li className="pt-1">Akun tidak wajib; belanja tetap bisa tanpa akun.</li>
 							</ul>
 						)}
 					</CardContent>

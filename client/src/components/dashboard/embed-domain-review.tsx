@@ -81,10 +81,10 @@ export default function EmbedDomainReview({ canEdit }: { canEdit: boolean }) {
 	return (
 		<div className="space-y-3">
 			<div>
-				<h4 className="text-sm font-semibold">Analisis otomatis domain</h4>
+				<h4 className="text-sm font-semibold">Analisis domain oleh Enco</h4>
 				<p className="text-xs text-muted-foreground">
 					Domain embed baru di konten (mis. README karya) diperiksa <strong>sekali</strong>: https, DNS publik, kata terlarang,
-					respons halaman, header framing, dan penilaian <strong>Enco</strong>. Lolos → otomatis masuk daftar tambahan. Domain yang sudah diputuskan tidak
+					respons halaman, header framing, dan penilaian <strong>Enco</strong>. Domain yang lolos ditambahkan ke daftar domain tambahan. Domain yang sudah diputuskan tidak
 					dianalisis ulang kecuali Anda menekan <em>Analisis ulang</em>.
 				</p>
 			</div>

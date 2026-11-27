@@ -184,7 +184,7 @@ export default function KaryaEditorPage() {
 				setReadmeImages((cur) => [...cur, ...imgs.filter((u) => !cur.some((c) => c.url === u)).map((u) => ({ url: u, use: true }))]);
 				filled.push(`${imgs.length} gambar README (bisa dipilih)`);
 			}
-			setReadmeNote(filled.length ? `Terisi otomatis dari repo: ${filled.join(', ')}. Periksa dan ubah bila perlu.` : 'Info repo ditambahkan. Kolom yang sudah kamu isi tidak diubah.');
+			setReadmeNote(filled.length ? `Diisi dari repo: ${filled.join(', ')}. Periksa kembali sebelum menyimpan.` : 'Info repo ditambahkan. Kolom yang sudah terisi tidak diubah.');
 			setRepoInput('');
 		} catch (e) {
 			setError(apiErrorText(e, 'Repo tidak bisa diambil'));
@@ -233,7 +233,7 @@ export default function KaryaEditorPage() {
 				setLinkImages((cur) => [...cur, ...pv.images.filter((im) => !cur.some((c) => c.url === im.url)).map((im) => ({ ...im, use: true }))]);
 				filled.push('gambar pratinjau');
 			}
-			setSrcNote(`${pv.source ? pv.source.label : pv.siteName}: ${filled.length ? `terisi ${filled.join(', ')}` : 'info ditambahkan'}. Kolom yang sudah kamu isi tidak diubah.`);
+			setSrcNote(`${pv.source ? pv.source.label : pv.siteName}: ${filled.length ? `terisi ${filled.join(', ')}` : 'info ditambahkan'}. Kolom yang sudah Anda isi tidak diubah.`);
 			setSrcInput('');
 		} catch (e) {
 			setError(apiErrorText(e, 'Link tidak bisa diambil'));
@@ -251,7 +251,7 @@ export default function KaryaEditorPage() {
 		const isRepoRoot = REPO_ROOT_RE.test(url);
 		if (classifyKaryaLink(url) === 'repo' && isRepoRoot && !linkLabel.trim()) {
 			setRepoInput(url);
-			return setError('Itu link repo — pakai kolom "Mulai dari GitHub" agar infonya terambil.');
+			return setError('Link tersebut adalah repo. Gunakan kolom URL repo di atas.');
 		}
 		setLinks((l) => [...l, { url, label: linkLabel.trim().slice(0, 80) }]);
 		setLinkInput('');
@@ -437,7 +437,7 @@ export default function KaryaEditorPage() {
 										</span>
 									))}
 								</span>
-								<span className="block">Repo wajib publik. Judul, ringkasan, topik → tag, demo, dan gambar pratinjau repo terisi otomatis. Di halaman karya muncul tombol "Lihat selengkapnya di …" ke repo.</span>
+								<span className="block">Repo harus publik. Judul, ringkasan, tag, tautan demo, dan gambar pratinjau diambil dari repo.</span>
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-3">
@@ -456,8 +456,8 @@ export default function KaryaEditorPage() {
 							</div>
 							<div className="space-y-2 border-t border-border/60 pt-3">
 								<p className="text-sm font-medium text-foreground">
-									Bukan kode? Mulai dari link karyamu{' '}
-									<span className="text-xs font-normal text-muted-foreground">— desain, game, 3D, animasi, video, paper, atau situs apa pun</span>
+									Karya non-kode{' '}
+									<span className="text-xs font-normal text-muted-foreground">(desain, game, 3D, animasi, video, paper, atau situs lain)</span>
 								</p>
 								<div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
 									{['Figma', 'Behance', 'Dribbble', 'Canva', 'itch.io', 'Google Play', 'ArtStation', 'Sketchfab', 'YouTube', 'Kaggle', 'Hugging Face', 'Notion'].map((x) => (
@@ -482,7 +482,7 @@ export default function KaryaEditorPage() {
 								{srcNote ? <p className="rounded-md bg-primary/10 px-3 py-2 text-xs text-foreground">{srcNote}</p> : null}
 								{linkImages.length ? (
 									<div className="space-y-1.5">
-										<p className="text-xs font-semibold text-foreground">Gambar pratinjau link — klik untuk memilih/batal (jadi galeri & sampul, tanpa kuota)</p>
+										<p className="text-xs font-semibold text-foreground">Gambar pratinjau. Klik untuk memilih atau membatalkan. Tidak memakai kuota.</p>
 										<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
 											{linkImages.map((im) => (
 												<button
@@ -501,7 +501,7 @@ export default function KaryaEditorPage() {
 							{readmeNote ? <p className="rounded-md bg-primary/10 px-3 py-2 text-xs text-foreground">{readmeNote}</p> : null}
 							{readmeImages.length ? (
 								<div className="space-y-2">
-									<p className="text-xs font-semibold text-foreground">Gambar dari README — klik untuk memilih/batal (dipakai di galeri, tidak memakan kuota)</p>
+									<p className="text-xs font-semibold text-foreground">Gambar dari README. Klik untuk memilih atau membatalkan. Tidak memakai kuota.</p>
 									<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
 										{readmeImages.map((im) => (
 											<button
@@ -555,11 +555,11 @@ export default function KaryaEditorPage() {
 								<Input id="e-title" value={title} maxLength={120} onChange={(e) => setTitle(e.target.value)} />
 							</div>
 							<div className="space-y-1.5">
-								<Label htmlFor="e-summary">Ringkasan singkat <span className="text-xs font-normal text-muted-foreground">(opsional, disarankan — tampil di kartu &amp; Google, maks 240)</span></Label>
+								<Label htmlFor="e-summary">Ringkasan singkat <span className="text-xs font-normal text-muted-foreground">(opsional, maks. 240 karakter, tampil di kartu dan hasil pencarian)</span></Label>
 								<Input id="e-summary" value={summary} maxLength={240} onChange={(e) => setSummary(e.target.value)} />
 							</div>
 							<div className="space-y-1.5">
-								<Label htmlFor="e-desc">Deskripsi lengkap <span className="text-xs font-normal text-muted-foreground">(opsional — bisa heading, list, gambar, kode, link seperti berita)</span></Label>
+								<Label htmlFor="e-desc">Deskripsi lengkap <span className="text-xs font-normal text-muted-foreground">(opsional, mendukung judul, daftar, gambar, kode, dan tautan)</span></Label>
 								{descriptionFormat === 'html' ? (
 									<RichTextEditor value={description} onChange={setDescription} height={360} placeholder="Masalah yang diselesaikan, fitur utama, teknologi, hasil…" uploadEndpoint="/api/karya/me/content-image" />
 								) : (
@@ -573,12 +573,12 @@ export default function KaryaEditorPage() {
 								<p className="text-xs text-muted-foreground">Gambar di deskripsi ikut kuota 100 MB.</p>
 							</div>
 							<div className="space-y-1.5">
-								<Label htmlFor="e-role">Peran kamu <span className="text-xs font-normal text-muted-foreground">(opsional, maks 300)</span></Label>
+								<Label htmlFor="e-role">Peran Anda <span className="text-xs font-normal text-muted-foreground">(opsional, maks 300)</span></Label>
 								<Textarea id="e-role" rows={2} value={role} maxLength={300} onChange={(e) => setRole(e.target.value)} placeholder="Contoh: backend & integrasi MQTT (tim 3 orang)" />
 							</div>
 							<div className="grid gap-4 sm:grid-cols-3">
 								<div className="space-y-1.5 sm:col-span-3">
-									<Label>Kategori <span className="text-destructive">*</span> <span className="text-xs font-normal text-muted-foreground">(boleh lebih dari satu, maks 3 — mis. Web + Mobile)</span></Label>
+									<Label>Kategori <span className="text-destructive">*</span> <span className="text-xs font-normal text-muted-foreground">(maks. 3)</span></Label>
 									<div className="flex flex-wrap gap-1.5" role="group" aria-label="Kategori karya">
 										{[
 											...KARYA_CATEGORIES,
@@ -642,7 +642,7 @@ export default function KaryaEditorPage() {
 									{detectNote ? <p className="text-xs text-emerald-600 dark:text-emerald-400">{detectNote}</p> : null}
 								</div>
 								<div className="space-y-1.5 sm:col-span-3">
-									<Label htmlFor="e-tags">Tag <span className="text-xs font-normal text-muted-foreground">(opsional, maks 8 — Enter/koma untuk menambah)</span></Label>
+									<Label htmlFor="e-tags">Tag <span className="text-xs font-normal text-muted-foreground">(opsional, maks. 8; tekan Enter atau koma untuk menambah)</span></Label>
 									<div className="flex min-h-[44px] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring">
 										{cleanKaryaTags(tags).map((t) => (
 											<span key={t} className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs', karyaTagToneClass(t))}>
@@ -732,9 +732,9 @@ export default function KaryaEditorPage() {
 												+ Tambah tag
 											</Button>
 										</form>
-										<p className="mt-1 text-[11px] text-muted-foreground">Tag baru langsung bisa dipakai dan akan muncul sebagai saran untuk mahasiswa lain setelah karyamu tayang.</p>
+										<p className="mt-1 text-[11px] text-muted-foreground">Tag baru langsung bisa dipakai dan akan muncul sebagai saran untuk mahasiswa lain setelah karya Anda tayang.</p>
 									</div>
-									<p className="text-xs text-muted-foreground">Pakai tag yang sudah ada bila cocok (muncul saran) agar karyamu satu halaman tag dengan karya serupa.</p>
+									<p className="text-xs text-muted-foreground">Pakai tag yang sudah ada bila cocok (muncul saran) agar karya Anda satu halaman tag dengan karya serupa.</p>
 								</div>
 							</div>
 							<div className="space-y-1.5 max-w-[160px]">
@@ -791,7 +791,7 @@ export default function KaryaEditorPage() {
 									<div className="flex flex-wrap gap-2">
 										<Input
 											aria-label="Tempel link"
-											placeholder="https://youtu.be/… · https://drive.google.com/file/d/… · https://demo-kamu.app"
+											placeholder="https://youtu.be/… · https://drive.google.com/file/d/… · https://demo-Anda.app"
 											value={linkInput}
 											onChange={(e) => setLinkInput(e.target.value)}
 											onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addLink())}
@@ -801,7 +801,7 @@ export default function KaryaEditorPage() {
 											<Plus className="mr-1 h-4 w-4" /> Tambah
 										</Button>
 									</div>
-									<p className="text-xs text-muted-foreground">Bisa lebih dari satu tautan (maks {config?.limits.maxLinksPerProject ?? 10}), masing-masing dengan nama sendiri. YouTube tampil sebagai video. Google Drive wajib "Siapa saja yang memiliki link" — dicek saat menyimpan.</p>
+									<p className="text-xs text-muted-foreground">Maks. {config?.limits.maxLinksPerProject ?? 10} tautan, masing-masing dengan nama. YouTube tampil sebagai video. Google Drive wajib "Siapa saja yang memiliki link" — dicek saat menyimpan.</p>
 								</div>
 							) : config?.uploadsEnabled === false ? (
 								<p className="text-sm text-muted-foreground">Unggah file sedang dinonaktifkan administrator. Pakai link YouTube / Google Drive.</p>
@@ -812,9 +812,9 @@ export default function KaryaEditorPage() {
 										{busy === 'upload' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4" />} Pilih file
 									</Button>
 									<ul className="mt-3 space-y-1 text-xs text-muted-foreground">
-										<li>Gambar JPG/PNG/WebP · maks {formatBytes(config?.limits.maxImageBytes || 5242880)} per file · maks {config?.limits.maxImagesPerProject ?? 8} gambar · otomatis dikompres ke WebP</li>
+										<li>Gambar JPG/PNG/WebP · maks {formatBytes(config?.limits.maxImageBytes || 5242880)} per file · maks {config?.limits.maxImagesPerProject ?? 8} gambar · dikompres ke WebP</li>
 										<li>Video MP4/WebM · maks {formatBytes(config?.limits.maxVideoBytes || 31457280)} · {config?.limits.maxVideosPerProject ?? 1} per karya (cuplikan demo)</li>
-										<li>Kuota total semua karyamu: {formatBytes(config?.limits.quotaBytesPerStudent || 104857600)} (terpakai {formatBytes(student.storageUsedBytes)})</li>
+										<li>Kuota total semua karya Anda: {formatBytes(config?.limits.quotaBytesPerStudent || 104857600)} (terpakai {formatBytes(student.storageUsedBytes)})</li>
 									</ul>
 								</div>
 							)}
@@ -867,7 +867,7 @@ export default function KaryaEditorPage() {
 					<Card>
 						<CardHeader>
 							<CardTitle className="text-base">Tim & kontributor (opsional)</CardTitle>
-							<CardDescription>Siapa saja yang ikut membuat karya ini. Kamu sebagai pemilik otomatis tercantum.</CardDescription>
+							<CardDescription>Anggota tim yang ikut membuat karya ini. Pemilik karya tercantum dengan sendirinya.</CardDescription>
 						</CardHeader>
 						<CardContent>
 							<ContributorsEditor
@@ -915,12 +915,12 @@ export default function KaryaEditorPage() {
 						<CardContent className="space-y-3">
 							{!student.emailVerified ? (
 								<p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-foreground">
-									<Lock className="mr-1 inline h-3.5 w-3.5" /> Publik terkunci sampai email diaktivasi (kode/link di email kampusmu, atau masuk dengan Google kampus). Karya tetap bisa disimpan Privat.
+									<Lock className="mr-1 inline h-3.5 w-3.5" /> Publik terkunci sampai email diaktivasi (kode/link di email kampus Anda, atau masuk dengan Google kampus). Karya tetap bisa disimpan Privat.
 								</p>
 							) : null}
 							{([
-								['public', 'Publik', manual ? 'Tampil di profil & beranda, diindeks Google — setelah disetujui pengurus.' : 'Langsung tampil di profil & diindeks Google.', Globe2],
-								['private', 'Privat', 'Hanya kamu. Tidak tampil, tidak masuk sitemap, noindex.', Lock],
+								['public', 'Publik', manual ? 'Tampil di profil dan beranda setelah disetujui pengurus.' : 'Langsung tampil di profil.', Globe2],
+								['private', 'Privat', 'Hanya Anda. Tidak tampil, tidak masuk sitemap, noindex.', Lock],
 							] as const).map(([v, label, help, Icon]) => (
 								<button
 									key={v}
@@ -973,7 +973,7 @@ export default function KaryaEditorPage() {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Ganti deskripsi dengan README repo?</AlertDialogTitle>
 						<AlertDialogDescription>
-							Deskripsi karya ini sudah kamu isi. README dari repo bisa menggantikannya{replaceAsk?.summary ? ', termasuk ringkasan singkat' : ''}. Deskripsi lama akan ditimpa (belum tersimpan sampai kamu menekan Simpan/Kirim). Tag, link, dan gambar dari repo hanya ditambahkan, tidak menimpa.
+							Deskripsi karya ini sudah Anda isi. README dari repo bisa menggantikannya{replaceAsk?.summary ? ', termasuk ringkasan singkat' : ''}. Deskripsi lama akan ditimpa (belum tersimpan sampai Anda menekan Simpan/Kirim). Tag, link, dan gambar dari repo hanya ditambahkan, tidak menimpa.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1003,7 +1003,7 @@ function CoverPreview({ project, repos, links }: { project: KaryaOwnProject | nu
 	const repoOg = repos.find((r) => r.ogImage)?.ogImage;
 	const yt = links.map((l) => l.url).find((u) => /youtu\.?be/.test(u));
 	const ytId = yt ? (yt.match(/(?:v=|youtu\.be\/|shorts\/|embed\/)([A-Za-z0-9_-]{11})/) || [])[1] : '';
-	const source = chosen ? 'Gambar unggahan' : repoOg ? 'Gambar pratinjau repo' : ytId ? 'Thumbnail YouTube' : 'Sampul otomatis (template)';
+	const source = chosen ? 'Gambar unggahan' : repoOg ? 'Gambar pratinjau repo' : ytId ? 'Thumbnail YouTube' : 'Sampul bawaan';
 	const generated = !chosen && !repoOg && !ytId;
 	const base = chosen?.url || repoOg || (ytId ? `https://i.ytimg.com/vi/${ytId}/hqdefault.jpg` : project ? `/api/karya/cover/${project.slug}` : '');
 	const url = useCoverUrl(base, generated);
@@ -1011,13 +1011,13 @@ function CoverPreview({ project, repos, links }: { project: KaryaOwnProject | nu
 		<Card>
 			<CardHeader>
 				<CardTitle className="text-base">Sampul <span className="text-xs font-normal text-muted-foreground">(opsional)</span></CardTitle>
-				<CardDescription>Dipakai di kartu, Google, dan saat dibagikan. Pilih gambar unggahan (ikon bintang di Media) atau biarkan otomatis.</CardDescription>
+				<CardDescription>Dipakai di kartu dan saat dibagikan. Pilih gambar dengan ikon bintang di bagian Media, atau gunakan sampul bawaan.</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-2">
 				{url ? (
 					<img src={url} alt="Pratinjau sampul" className="aspect-[1200/630] w-full rounded-lg border border-border object-cover" />
 				) : (
-					<div className="flex aspect-[1200/630] w-full items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">Sampul otomatis dibuat setelah karya disimpan</div>
+					<div className="flex aspect-[1200/630] w-full items-center justify-center rounded-lg border border-dashed border-border text-xs text-muted-foreground">Sampul bawaan dibuat setelah karya disimpan</div>
 				)}
 				<p className="text-xs text-muted-foreground">Sumber: {source}</p>
 			</CardContent>

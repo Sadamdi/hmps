@@ -430,7 +430,7 @@ export default function RichHtmlWithEmbeds({
 					const st = statusOf(seg.host);
 					if (st === 'allowed' && !isAllowedAtLoad(seg.host)) {
 						// Baru saja lolos analisis: CSP halaman ini belum memuat host tsb → perlu muat ulang sekali.
-						return linkCard(i, seg.url, 'reload', `Embed ${seg.host} siap ditampilkan`, 'Domain baru lolos pemeriksaan keamanan — muat ulang untuk menampilkannya');
+						return linkCard(i, seg.url, 'reload', `Embed ${seg.host} siap ditampilkan`, 'Domain telah lolos pemeriksaan. Muat ulang halaman untuk menampilkannya.');
 					}
 					if (st === 'allowed') {
 						return (

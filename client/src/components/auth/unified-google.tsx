@@ -141,7 +141,7 @@ export function UnifiedGoogleDialog({
 						<DialogHeader>
 							<DialogTitle>Masuk sebagai apa?</DialogTitle>
 							<DialogDescription className="break-all">
-								{step.email} punya lebih dari satu jenis akun. Pilih tujuan masuk — kamu bisa pindah lagi dari menu profil.
+								{step.email} punya lebih dari satu jenis akun. Pilih tujuan masuk — Anda bisa pindah lagi dari menu profil.
 							</DialogDescription>
 						</DialogHeader>
 						<div className="grid gap-2">

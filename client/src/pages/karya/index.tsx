@@ -92,14 +92,14 @@ export default function KaryaIndexPage() {
 					icon={<Code2 />}
 					actions={
 						<Button asChild className="bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90">
-							<Link href={KARYA_PATHS.dashboard}>Pajang karyamu</Link>
+							<Link href={KARYA_PATHS.dashboard}>Pajang karya Anda</Link>
 						</Button>
 					}
 				/>
 
 				{config?.tutorialYoutubeUrl || config?.tutorialGdriveUrl ? (
 					<details className="mb-6 max-w-3xl rounded-xl border border-border bg-card p-3 [&_summary::-webkit-details-marker]:hidden">
-						<summary className="cursor-pointer select-none text-sm font-medium text-primary">▶ Tonton tutorial: cara memajang karyamu</summary>
+						<summary className="cursor-pointer select-none text-sm font-medium text-primary">▶ Tonton tutorial: cara memajang karya Anda</summary>
 						<KaryaTutorialVideo title="Dari daftar akun sampai karya tayang" className="mt-3" />
 					</details>
 				) : null}
