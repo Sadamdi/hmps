@@ -27,6 +27,9 @@ type RelatedRow = { projectSlug?: string; url?: string; label: string };
 
 type MediaTab = 'link' | 'upload';
 
+/** URL akar repo (github.com/user/repo) — selain ini, halaman di host repo diperlakukan sebagai tautan biasa. */
+const REPO_ROOT_RE = /^https:\/\/(www\.)?(github\.com|gitlab\.com|bitbucket\.org|codeberg\.org)\/[^/]+\/[^/]+\/?$/i;
+
 export default function KaryaEditorPage() {
 	const params = useParams<{ id?: string }>();
 	const id = params.id || null;
@@ -93,7 +96,8 @@ export default function KaryaEditorPage() {
 		setYear(p.year ? String(p.year) : '');
 		setRepoUrls(p.repos.map((r) => r.url));
 		setRepoPreview(p.repos);
-		setLinks(p.links.filter((l) => l.kind !== 'repo').map((l) => ({ url: l.url, label: l.label || '' })));
+		// Link berjenis repo tetap disimpan bila berlabel atau bukan akar repo (mis. halaman Releases)
+		setLinks(p.links.filter((l) => l.kind !== 'repo' || !!l.label || !REPO_ROOT_RE.test(l.url)).map((l) => ({ url: l.url, label: l.label || '' })));
 		setRelated(p.related.map((r) => ({ projectSlug: r.projectSlug || undefined, url: r.url || undefined, label: r.label })));
 		setVisibility(p.visibility);
 	};
@@ -182,7 +186,10 @@ export default function KaryaEditorPage() {
 		const url = linkInput.trim();
 		if (!/^https:\/\//i.test(url)) return setError('Link wajib diawali https://');
 		if (links.length >= (config?.limits.maxLinksPerProject || 10)) return setError('Batas jumlah link tercapai');
-		if (classifyKaryaLink(url) === 'repo') {
+		// Hanya akar repo (github.com/user/repo) yang diarahkan ke kolom repo. Halaman lain di host repo
+		// (Releases, file, wiki, …) adalah tautan sah, mis. "Link Download" → github.com/user/repo/releases.
+		const isRepoRoot = REPO_ROOT_RE.test(url);
+		if (classifyKaryaLink(url) === 'repo' && isRepoRoot && !linkLabel.trim()) {
 			setRepoInput(url);
 			return setError('Itu link repo — pakai kolom "Mulai dari GitHub" agar infonya terambil.');
 		}

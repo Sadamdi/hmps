@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.71.1] - 2026-11-27
+
+### Fixed
+- `karya`: link ke halaman di host repo selain akar repo (mis. `github.com/user/repo/releases` untuk "Link Download") ditolak dengan pesan "Itu link repo"; kini hanya akar repo tanpa label yang diarahkan ke kolom repo. Link berlabel/berjenis repo juga tidak lagi hilang saat karya dibuka ulang di editor
+
+Detail: [release/4.71.1.md](../release/4.71.1.md).
+
 ## [4.71.0] - 2026-11-27
 
 ### Added
