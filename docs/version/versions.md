@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.69.1`  
+**Current version:** `4.69.2`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.69.1`](./release/4.69.1.md) | 2026-11-27 | Embed: domain yang baru diizinkan tampil sebagai kartu "Muat ulang", bukan iframe kosong | PATCH | 1 | **Current** |
+| [`4.69.2`](./release/4.69.2.md) | 2026-11-27 | Editor karya: tag buatan mahasiswa tampil di penjelajah tag + tombol Tambah tag | PATCH | 1 | **Current** |
+| [`4.69.1`](./release/4.69.1.md) | 2026-11-27 | Embed: domain yang baru diizinkan tampil sebagai kartu "Muat ulang", bukan iframe kosong | PATCH | 1 |  |
 | [`4.69.0`](./release/4.69.0.md) | 2026-11-27 | Fix error 500 dari log produksi, allowlist embed pintar, onboarding username, kategori ganda & taksonomi tag, direktori profil, video tutorial | MINOR | 1 |  |
 | [`4.68.0`](./release/4.68.0.md) | 2026-11-27 | Peringatan admin & detail mahasiswa, README profil gaya GitHub, render README utuh + embed domain apa pun, fix Edit 500 | MINOR | 1 |  |
 | [`4.67.0`](./release/4.67.0.md) | 2026-11-27 | README pintar, sinkron profil GitHub/Google, pratinjau profil, shortlink, fix redirect login | MINOR | 1 |  |

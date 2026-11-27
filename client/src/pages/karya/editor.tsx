@@ -46,6 +46,7 @@ export default function KaryaEditorPage() {
 	/** true setelah mahasiswa memilih kategori sendiri → impor repo hanya menambah, tidak mengganti */
 	const catTouched = useRef(false);
 	const [tagGroup, setTagGroup] = useState<string>('language');
+	const [newTag, setNewTag] = useState('');
 	const [detectNote, setDetectNote] = useState('');
 	const [tags, setTags] = useState('');
 	const [year, setYear] = useState('');
@@ -521,14 +522,20 @@ export default function KaryaEditorPage() {
 									</div>
 									<div className="rounded-lg border border-border p-2.5">
 										<div className="flex flex-wrap gap-1">
-											{KARYA_TAG_GROUPS.map((g) => (
+											{[...KARYA_TAG_GROUPS, { id: 'custom', label: 'Tag lainnya (buatan mahasiswa)' }].map((g) => (
 												<button key={g.id} type="button" onClick={() => setTagGroup(g.id)} className={cn('rounded-md px-2 py-1 text-xs', tagGroup === g.id ? 'bg-primary/15 font-medium text-primary' : 'text-muted-foreground hover:text-foreground')}>
 													{g.label}
 												</button>
 											))}
 										</div>
 										<div className="mt-2 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
-											{KARYA_TAGS.filter((t) => t.group === tagGroup).map((t) => {
+											{(tagGroup === 'custom'
+												? // Tag baru yang sudah dipakai karya lain (di luar taksonomi) — ikut tampil seperti tag berita
+													Array.from(new Set([...(tagSuggestions || []).map((x) => x.tag), ...cleanKaryaTags(tags)]))
+														.filter((x) => !KARYA_TAGS.some((k) => k.tag === x))
+														.map((tag) => ({ tag, group: 'topic' as const }))
+												: KARYA_TAGS.filter((t) => t.group === tagGroup)
+											).map((t) => {
 												const on = cleanKaryaTags(tags).includes(t.tag);
 												return (
 													<button
@@ -543,6 +550,22 @@ export default function KaryaEditorPage() {
 												);
 											})}
 										</div>
+										<form
+											className="mt-2 flex gap-1.5"
+											onSubmit={(e) => {
+												e.preventDefault();
+												const v = canonicalKaryaTag(newTag);
+												if (!v) return;
+												setTags(cleanKaryaTags([...cleanKaryaTags(tags), v]).join(', '));
+												setNewTag('');
+												if (!KARYA_TAGS.some((k) => k.tag === v)) setTagGroup('custom');
+											}}>
+											<Input aria-label="Tag baru" value={newTag} maxLength={30} onChange={(e) => setNewTag(e.target.value)} placeholder="Belum ada? Tulis tag baru, mis. supabase-auth" className="h-8 text-xs" />
+											<Button type="submit" size="sm" variant="outline" className="h-8 shrink-0 text-xs" disabled={!newTag.trim()}>
+												+ Tambah tag
+											</Button>
+										</form>
+										<p className="mt-1 text-[11px] text-muted-foreground">Tag baru langsung bisa dipakai dan akan muncul sebagai saran untuk mahasiswa lain setelah karyamu tayang.</p>
 									</div>
 									<p className="text-xs text-muted-foreground">Pakai tag yang sudah ada bila cocok (muncul saran) agar karyamu satu halaman tag dengan karya serupa.</p>
 								</div>

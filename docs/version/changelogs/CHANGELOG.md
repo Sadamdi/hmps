@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.69.2] - 2026-11-27
+
+### Changed
+- `karya`: penjelajah tag di editor punya grup "Tag lainnya (buatan mahasiswa)" berisi tag di luar taksonomi yang sudah dipakai karya lain, plus kolom "+ Tambah tag" (dinormalisasi ke bentuk kanonik bila dikenal)
+
+Detail: [release/4.69.2.md](../release/4.69.2.md).
+
 ## [4.69.1] - 2026-11-27
 
 ### Fixed
