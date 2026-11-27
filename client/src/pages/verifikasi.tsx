@@ -1,4 +1,5 @@
 import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -174,11 +175,11 @@ export default function VerifikasiPage() {
 									<>
 										<div className="space-y-1.5">
 											<Label htmlFor="v-pw">Password baru (min. 8 karakter)</Label>
-											<Input id="v-pw" type="password" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} />
+											<PasswordInput id="v-pw" autoComplete="new-password" value={pw} onChange={(e) => setPw(e.target.value)} required minLength={8} />
 										</div>
 										<div className="space-y-1.5">
 											<Label htmlFor="v-pw2">Ulangi password baru</Label>
-											<Input id="v-pw2" type="password" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} required />
+											<PasswordInput id="v-pw2" autoComplete="new-password" value={pw2} onChange={(e) => setPw2(e.target.value)} required />
 										</div>
 									</>
 								) : null}

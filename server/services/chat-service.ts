@@ -257,7 +257,7 @@ export class ChatService {
 	}
 
 	private static looksLikeUserWantsWriteAction(content: string): boolean {
-		const lower = content.toLowerCase();
+		const lower = String(content || '').toLowerCase();
 		const intentPatterns = [
 			/\bbuatkan\b/,
 			/\bbuat\b/,
@@ -458,7 +458,7 @@ export class ChatService {
 	 * Digunakan untuk force tool baca publik saat model over-explaining.
 	 */
 	private static looksLikeUserWantsPublicRead(content: string): boolean {
-		const lower = content.toLowerCase();
+		const lower = String(content || '').toLowerCase();
 		const patterns = [
 			/\b(cari|carikan|cariin|tampilkan|tunjukin|list|listkan|lihat|lihatkan)\b.*\b(berita|event|kegiatan|acara|artikel|lomba|workshop|seminar|kajian|galeri|library|perpustakaan|dokumentasi|struktur|organisasi|pengurus|visi|misi|profil|dosen|kurikulum)\b/,
 			/\b(berita|event|kegiatan|acara|artikel|lomba|workshop|seminar|kajian|galeri|library|perpustakaan|dokumentasi|struktur|organisasi|pengurus|visi|misi|profil|dosen|kurikulum)\b.*\b(dari database|dari sistem|dari hmps|dari himatif|dari website|dari situs|dari portal)\b/,
@@ -823,7 +823,8 @@ export class ChatService {
 		// Tambahkan pesan user
 		chat.messages.push({
 			role: 'user',
-			content,
+			// Pesan hanya-lampiran: field content wajib di schema, jadi beri penanda agar save tidak gagal (500).
+			content: String(content || '').trim() || (imageUrl ? '(lampiran)' : '(pesan kosong)'),
 			imageUrl,
 			fileMimeType,
 			timestamp: new Date(),

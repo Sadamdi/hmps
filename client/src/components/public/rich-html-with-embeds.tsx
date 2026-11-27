@@ -10,7 +10,8 @@ import { formatContentForDisplay } from '@/utils/formatContent';
 import { getDefaultEmbedHostSet } from '@shared/embed-default-hosts';
 import { detectMediaSource } from '@shared/mediaUtils';
 import { useQuery } from '@tanstack/react-query';
-import { ExternalLink, ShieldAlert } from 'lucide-react';
+import { ExternalLink, Loader2, RefreshCw, ShieldX } from 'lucide-react';
+import { apiRequest, queryClient } from '@/lib/queryClient';
 import MediaDisplay from '../MediaDisplay';
 
 type Segment =
@@ -137,7 +138,6 @@ function replaceAnchorEmbedsWithMarkers(html: string): string {
 }
 
 /** Host yang menolak di-iframe (X-Frame-Options) → selalu kartu tautan. */
-const NO_FRAME_HOSTS = /(^|\.)(github\.com|gitlab\.com|bitbucket\.org|codeberg\.org|linkedin\.com|facebook\.com|x\.com|twitter\.com|google\.com|npmjs\.com|stackoverflow\.com)$/i;
 
 function splitStandaloneUrls(
 	html: string,
@@ -245,8 +245,6 @@ interface RichHtmlWithEmbedsProps {
 	className?: string;
 	/** Extra hosts that are allowed for iframe embedding (from admin settings) */
 	allowedEmbedHosts?: string[];
-	/** Izinkan iframe dari domain https apa pun (kecuali host yang menolak framing → kartu tautan). */
-	allowAnyHost?: boolean;
 }
 
 function useEmbedAllowedHosts(): string[] {
@@ -257,22 +255,68 @@ function useEmbedAllowedHosts(): string[] {
 	return data?.embedAllowedHosts ?? [];
 }
 
+type EmbedDomainStatus = 'pending' | 'allowed' | 'noframe' | 'blocked';
+type EmbedResolveMap = Record<string, { status: EmbedDomainStatus; reason: string }>;
+
+/**
+ * Domain embed di luar daftar bawaan/Settings ditanyakan ke server. Server menganalisis host baru
+ * SEKALI (keamanan + framing + AI) lalu menyimpan keputusannya; host yang sudah diputuskan langsung
+ * dijawab dari catatan tanpa analisis ulang.
+ */
+function useEmbedDomainResolve(urls: string[]) {
+	const key = urls.slice().sort().join('|');
+	return useQuery<EmbedResolveMap>({
+		queryKey: ['/api/embed-domains/resolve', key],
+		enabled: urls.length > 0,
+		staleTime: 10 * 60_000,
+		retry: 1,
+		queryFn: async () => {
+			const res = await apiRequest('POST', '/api/embed-domains/resolve', { urls: urls.slice(0, 20) });
+			const body = await res.json();
+			return (body?.data || {}) as EmbedResolveMap;
+		},
+		// Masih ada yang "pending" (analisis > 9 dtk): tanya lagi sebentar kemudian.
+		refetchInterval: (q) => {
+			const d = q.state.data as EmbedResolveMap | undefined;
+			return d && Object.values(d).some((v) => v.status === 'pending') ? 15_000 : false;
+		},
+	});
+}
+
 export default function RichHtmlWithEmbeds({
 	content,
 	className,
 	allowedEmbedHosts,
-	allowAnyHost,
 }: RichHtmlWithEmbedsProps) {
 	const hostsFromSettings = useEmbedAllowedHosts();
-	if (!content) return null;
 
-	const html = formatContentForDisplay(content);
+	const html = content ? formatContentForDisplay(content) : '';
 	const merged = [...(allowedEmbedHosts ?? []), ...hostsFromSettings];
 	const extraHosts =
 		merged.length > 0 ? new Set(merged.map((h) => h.toLowerCase())) : undefined;
-	const segments = buildSegments(html, extraHosts);
+	const segments = html ? buildSegments(html, extraHosts) : [];
 
-	if (segments.length === 0) return null;
+	/** Diizinkan sejak halaman dimuat (CSP frame-src halaman ini sudah memuatnya). */
+	const isAllowedAtLoad = (host: string) => {
+		const bare = host.replace(/^www\./, '');
+		return (
+			DEFAULT_EMBED_HOSTS.has(host) ||
+			DEFAULT_EMBED_HOSTS.has(bare) ||
+			!!extraHosts?.has(host) ||
+			!!extraHosts?.has(bare) ||
+			!!extraHosts?.has(`www.${bare}`)
+		);
+	};
+	const unknownUrls = Array.from(
+		new Set(
+			segments
+				.filter((x): x is Extract<Segment, { kind: 'external' }> => x.kind === 'external' && !isAllowedAtLoad(x.host))
+				.map((x) => x.url),
+		),
+	);
+	const { data: resolved, isLoading: resolving } = useEmbedDomainResolve(unknownUrls);
+
+	if (!content || segments.length === 0) return null;
 
 	const proseClass =
 		className ??
@@ -287,15 +331,36 @@ export default function RichHtmlWithEmbeds({
 		);
 	}
 
-	const isAllowed = (host: string) => {
-		const bare = host.replace(/^www\./, '');
-		if (allowAnyHost) return true;
+	const statusOf = (host: string): EmbedDomainStatus | 'unknown' => {
+		if (isAllowedAtLoad(host)) return 'allowed';
+		const r = resolved?.[host] || resolved?.[host.replace(/^www\./, '')];
+		return r ? r.status : 'unknown';
+	};
+
+	const linkCard = (key: number, url: string, tone: 'neutral' | 'pending' | 'blocked' | 'reload', title: string, note?: string) => {
+		const toneCls =
+			tone === 'blocked'
+				? 'border-red-400/50 bg-red-50 dark:bg-red-950/30'
+				: tone === 'pending'
+					? 'border-sky-400/40 bg-sky-50 dark:bg-sky-950/30'
+					: 'border-border bg-card';
 		return (
-			DEFAULT_EMBED_HOSTS.has(host) ||
-			DEFAULT_EMBED_HOSTS.has(bare) ||
-			!!extraHosts?.has(host) ||
-			!!extraHosts?.has(bare) ||
-			!!extraHosts?.has(`www.${bare}`)
+			<div key={key} className={`not-prose my-4 flex items-center gap-3 rounded-lg border p-4 text-sm ${toneCls}`}>
+				{tone === 'blocked' ? <ShieldX className="h-5 w-5 shrink-0 text-red-600" /> : null}
+				{tone === 'pending' ? <Loader2 className="h-5 w-5 shrink-0 animate-spin text-sky-600" /> : null}
+				<div className="min-w-0 flex-1">
+					<p className="truncate font-medium text-foreground">{title}</p>
+					<p className="truncate text-xs text-muted-foreground">{note || url.replace(/^https?:\/\//, '')}</p>
+				</div>
+				{tone === 'reload' ? (
+					<button type="button" onClick={() => window.location.reload()} className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
+						<RefreshCw className="h-3.5 w-3.5" /> Muat ulang
+					</button>
+				) : null}
+				<a href={url} target="_blank" rel="noopener noreferrer nofollow" className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
+					<ExternalLink className="h-3.5 w-3.5" /> Buka
+				</a>
+			</div>
 		);
 	};
 
@@ -344,18 +409,14 @@ export default function RichHtmlWithEmbeds({
 						</div>
 					);
 				}
-				if (seg.kind === 'external' && allowAnyHost && NO_FRAME_HOSTS.test(seg.host)) {
-					return (
-						<div key={i} className="not-prose my-4 flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-sm">
-							<p className="min-w-0 flex-1 truncate font-medium text-foreground">{seg.url.replace(/^https?:\/\//, '')}</p>
-							<a href={seg.url} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
-								<ExternalLink className="h-3.5 w-3.5" /> Buka
-							</a>
-						</div>
-					);
-				}
 				if (seg.kind === 'external') {
-					if (isAllowed(seg.host)) {
+					const st = statusOf(seg.host);
+					if (st === 'allowed' && !isAllowedAtLoad(seg.host)) {
+						// Baru saja lolos analisis: CSP halaman ini belum memuat host tsb → perlu muat ulang sekali.
+						queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
+						return linkCard(i, seg.url, 'reload', `Embed ${seg.host} siap ditampilkan`, 'Domain baru lolos pemeriksaan keamanan — muat ulang untuk menampilkannya');
+					}
+					if (st === 'allowed') {
 						return (
 							<div
 								key={i}
@@ -367,35 +428,21 @@ export default function RichHtmlWithEmbeds({
 										src={seg.url}
 										className="absolute inset-0 w-full h-full border-0"
 										allowFullScreen
+										loading="lazy"
+										referrerPolicy="strict-origin-when-cross-origin"
 										title={`Embed dari ${seg.host}`}
-										sandbox="allow-scripts allow-same-origin allow-popups"
+										sandbox="allow-scripts allow-same-origin allow-popups allow-forms"
 									/>
 								</div>
 							</div>
 						);
 					}
-					return (
-						<div
-							key={i}
-							className="not-prose my-4 flex items-center gap-3 rounded-lg border border-amber-400/50 bg-amber-50 dark:bg-amber-950/30 p-4 text-sm">
-							<ShieldAlert className="h-5 w-5 shrink-0 text-amber-600" />
-							<div className="min-w-0 flex-1">
-								<p className="font-medium text-amber-800 dark:text-amber-300">
-									Domain belum diizinkan untuk embed
-								</p>
-								<p className="text-amber-700/80 dark:text-amber-400/70 text-xs truncate">
-									{seg.host}
-								</p>
-							</div>
-							<a
-								href={seg.url}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="shrink-0 inline-flex items-center gap-1 rounded-md bg-amber-200 dark:bg-amber-900 px-3 py-1.5 text-xs font-medium text-amber-900 dark:text-amber-200 hover:bg-amber-300 dark:hover:bg-amber-800 transition-colors">
-								<ExternalLink className="h-3.5 w-3.5" /> Buka
-							</a>
-						</div>
-					);
+					if (st === 'noframe') return linkCard(i, seg.url, 'neutral', seg.url.replace(/^https?:\/\//, ''), seg.host);
+					if (st === 'blocked') {
+						return linkCard(i, seg.url, 'blocked', `Embed dari ${seg.host} tidak ditampilkan`, resolved?.[seg.host]?.reason || 'Tidak lolos pemeriksaan keamanan');
+					}
+					const busy = resolving || st === 'pending';
+					return linkCard(i, seg.url, busy ? 'pending' : 'neutral', seg.url.replace(/^https?:\/\//, ''), busy ? `Memeriksa keamanan domain ${seg.host}…` : seg.host);
 				}
 				if (seg.kind === 'external_link') {
 					const looksFile = /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar|7z)(\?|$)/i.test(

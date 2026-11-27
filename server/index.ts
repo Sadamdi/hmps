@@ -2,6 +2,7 @@
 // terlambat untuk modul yang membaca env saat load (mis. JWT_SECRET di server/auth.ts).
 import 'dotenv/config';
 
+import { classifyError } from './lib/http-error';
 import express, { NextFunction, type Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -959,24 +960,26 @@ process.on('unhandledRejection', (reason: any) => {
 
 	// ==================== ERROR HANDLING ====================
 	app.use((err: any, req: Request, res: Response, _next: NextFunction) => {
-		const status = err.status || err.statusCode || 500;
-		const message = err.message || 'Internal Server Error';
+		const c = classifyError(err, 'Internal Server Error');
 
 		// Log security-related errors
-		if (status === 403 || status === 429 || status === 503) {
-			console.log(`🚨 Security Error: ${status} - ${message}`);
+		if (c.status === 403 || c.status === 429 || c.status === 503) {
+			console.log(`🚨 Security Error: ${c.status} - ${err?.message}`);
 		}
 
-		// Bug monitoring otomatis: tangkap kegagalan server nyata (5xx).
-		// Best-effort — tidak boleh mengganggu response.
-		try {
-			void captureServerError(err, req, { statusCode: status });
-		} catch {
-			/* abaikan */
+		// Bug monitoring otomatis: hanya kegagalan server nyata (bukan input klien / request terputus).
+		if (!c.clientFault) {
+			console.error('Unhandled route error:', err);
+			try {
+				void captureServerError(err, req, { statusCode: c.status });
+			} catch {
+				/* abaikan */
+			}
 		}
 
-		res.status(status).json({ message });
-		throw err;
+		// Klien sudah memutus koneksi atau response sudah terkirim: jangan menulis lagi (dulu: throw → log stack ganda).
+		if (res.headersSent || req.destroyed) return;
+		res.status(c.status).json({ message: c.message, code: c.code });
 	});
 
 	// Debug environment

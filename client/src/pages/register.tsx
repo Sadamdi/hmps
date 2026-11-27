@@ -1,4 +1,5 @@
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { PasswordInput } from '@/components/ui/password-input';
 import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -1304,7 +1305,7 @@ export default function RegisterPage() {
 													placeholder="Username"
 													className="text-sm h-8"
 												/>
-												<Input
+												<PasswordInput
 													value={entry.password}
 													onChange={(e) => {
 														const ne = [...accountEntries];
@@ -1312,7 +1313,6 @@ export default function RegisterPage() {
 														setAccountEntries(ne);
 													}}
 													placeholder="Password (kosong = dibuat otomatis)"
-													type="password"
 													className="text-sm h-8"
 												/>
 											</div>

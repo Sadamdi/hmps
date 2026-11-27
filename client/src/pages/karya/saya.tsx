@@ -1,5 +1,8 @@
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { PasswordInput } from '@/components/ui/password-input';
 import { KaryaAvatar } from '@/components/karya/karya-card';
+import { UsernameOnboarding } from '@/components/karya/username-onboarding';
+import { KaryaTutorialVideo } from '@/components/karya/karya-tutorial-video';
 import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
@@ -108,7 +111,12 @@ export default function KaryaDashboardPage() {
 
 				<ActivationBanner student={student} />
 				<WarningsBanner student={student} />
+				{student.emailVerified ? <UsernameOnboarding student={student} /> : null}
 
+				<details className="group mb-6 rounded-xl border border-border bg-card p-4 [&_summary::-webkit-details-marker]:hidden" open={!student.usernameSet}>
+					<summary className="cursor-pointer select-none text-sm font-medium text-primary">Lihat video tutorial Karya TI</summary>
+					<KaryaTutorialVideo className="mt-3" />
+				</details>
 				<Tabs value={tab} onValueChange={setTab}>
 					<TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
 						<TabsTrigger value="karya">Karya saya</TabsTrigger>
@@ -293,6 +301,7 @@ function ProjectsTab({ student }: { student: KaryaStudentAccount }) {
 const SOCIAL_FIELDS: { key: string; label: string; placeholder: string }[] = [
 	{ key: 'github', label: 'GitHub', placeholder: 'https://github.com/username' },
 	{ key: 'gitlab', label: 'GitLab', placeholder: 'https://gitlab.com/username' },
+	{ key: 'bitbucket', label: 'Bitbucket', placeholder: 'https://bitbucket.org/username' },
 	{ key: 'linkedin', label: 'LinkedIn', placeholder: 'https://www.linkedin.com/in/username' },
 	{ key: 'instagram', label: 'Instagram', placeholder: 'https://www.instagram.com/username' },
 	{ key: 'website', label: 'Website', placeholder: 'https://namamu.dev' },
@@ -777,15 +786,15 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 							}}>
 							<div className="space-y-1.5">
 								<Label htmlFor="pw-cur">Password lama</Label>
-								<Input id="pw-cur" type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
+								<PasswordInput id="pw-cur" autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} required />
 							</div>
 							<div className="space-y-1.5">
 								<Label htmlFor="pw-new">Password baru (min. 8)</Label>
-								<Input id="pw-new" type="password" autoComplete="new-password" minLength={8} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
+								<PasswordInput id="pw-new" autoComplete="new-password" minLength={8} value={pw.next} onChange={(e) => setPw({ ...pw, next: e.target.value })} required />
 							</div>
 							<div className="space-y-1.5">
 								<Label htmlFor="pw-new2">Ulangi password baru</Label>
-								<Input id="pw-new2" type="password" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
+								<PasswordInput id="pw-new2" autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} required />
 							</div>
 							<Button type="submit" disabled={busy === 'pw'}>
 								{busy === 'pw' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Lanjut: kirim kode konfirmasi
@@ -850,7 +859,7 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 									});
 								}}>
 								<Input aria-label="Kode OTP" inputMode="numeric" maxLength={6} placeholder="Kode 6 digit" value={reset.code} onChange={(e) => setReset({ ...reset, code: e.target.value.replace(/\D/g, '') })} required />
-								<Input aria-label="Password baru" type="password" autoComplete="new-password" minLength={8} placeholder="Password baru (min. 8)" value={reset.next} onChange={(e) => setReset({ ...reset, next: e.target.value })} required />
+								<PasswordInput aria-label="Password baru" autoComplete="new-password" minLength={8} placeholder="Password baru (min. 8)" value={reset.next} onChange={(e) => setReset({ ...reset, next: e.target.value })} required />
 								<Button type="submit" disabled={busy === 'otp'}>
 									Simpan password
 								</Button>

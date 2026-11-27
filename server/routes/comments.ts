@@ -1,3 +1,4 @@
+import { sendRouteError } from '../lib/http-error';
 import crypto from 'crypto';
 import type { Request } from 'express';
 import { Router } from 'express';
@@ -128,8 +129,7 @@ router.get('/count', async (req, res) => {
 		});
 		res.json({ count });
 	} catch (error) {
-		console.error('Error counting comments:', error);
-		res.status(500).json({ message: 'Internal server error' });
+		sendRouteError(res, error, 'Error counting comments');
 	}
 });
 

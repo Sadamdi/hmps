@@ -1,4 +1,5 @@
 import { BannerEditor } from '@/components/dashboard/banner-editor';
+import EmbedDomainReview, { useEmbedDomains } from '@/components/dashboard/embed-domain-review';
 import { ConfirmDeleteAlertDialog } from '@/components/dashboard/confirm-delete-alert-dialog';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
@@ -208,6 +209,10 @@ export default function SettingsPage() {
 	);
 	const [isResetting, setIsResetting] = useState(false);
 	const [embedDialogOpen, setEmbedDialogOpen] = useState(false);
+	/** Hasil allowlist pintar: host → keputusan (untuk penanda di daftar & ringkasan diblokir). */
+	const { data: embedAnalysis } = useEmbedDomains('', '');
+	const embedAuto = new Map((embedAnalysis?.items ?? []).map((d) => [d.host, d]));
+	const embedBlockedCount = embedAnalysis?.counts?.blocked ?? 0;
 	const [embedHostsResetConfirmOpen, setEmbedHostsResetConfirmOpen] = useState(false);
 	const [resetAllSettingsConfirmOpen, setResetAllSettingsConfirmOpen] = useState(false);
 
@@ -1647,6 +1652,10 @@ export default function SettingsPage() {
 											{(formData.embedAllowedHosts ?? []).filter(Boolean).length} tambahan). Buka
 											dialog untuk melihat daftar lengkap.
 										</p>
+										<p className="text-xs text-muted-foreground">
+											Domain baru di konten dianalisis otomatis (keamanan + AI) satu kali: lolos → masuk daftar tambahan;
+											{embedBlockedCount > 0 ? <strong className="text-red-600"> {embedBlockedCount} domain diblokir menunggu tinjauan.</strong> : ' belum ada yang diblokir.'}
+										</p>
 										<Button
 											variant="outline"
 											onClick={() => setEmbedDialogOpen(true)}>
@@ -1686,6 +1695,8 @@ export default function SettingsPage() {
 												</div>
 											</div>
 
+											<EmbedDomainReview canEdit={!!canEditSettings} />
+
 											{/* Daftar tambahan (editable) */}
 											<div>
 												<h4 className="text-sm font-semibold mb-1.5">Domain tambahan</h4>
@@ -1706,6 +1717,11 @@ export default function SettingsPage() {
 																disabled={!canEditSettings}
 																className="flex-1 h-8 text-sm"
 															/>
+															{embedAuto.get(host)?.decidedBy === 'auto' ? (
+																<span title={embedAuto.get(host)?.reason} className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
+																	otomatis · AI
+																</span>
+															) : null}
 															<Button
 																type="button"
 																variant="ghost"

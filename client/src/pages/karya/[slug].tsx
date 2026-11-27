@@ -5,8 +5,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { KARYA_PATHS, usePublicProject, type KaryaProjectDetail } from '@/hooks/use-karya';
 import { useToast } from '@/hooks/use-toast';
-import { gdriveFileIdFromUrl, KARYA_REPO_HOSTS, KARYA_STATUS_LABEL, youtubeIdFromUrl, type KaryaRepoInfo } from '@shared/karya';
-import { BadgeCheck, Code2, Eye, ExternalLink, GitFork, Globe, Link2, Loader2, Scale, Share2, Star } from 'lucide-react';
+import { gdriveFileIdFromUrl, KARYA_REPO_HOSTS, KARYA_STATUS_LABEL, youtubeIdFromUrl, karyaLinkIcon, karyaCategoriesOf, type KaryaRepoInfo } from '@shared/karya';
+import { BookOpen, Download, Palette, PlayCircle, Smartphone, BadgeCheck, Code2, Eye, ExternalLink, GitFork, Globe, Link2, Loader2, Scale, Share2, Star } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { KARYA_TAG_GROUPS, karyaTagGroup, karyaTagToneClass } from '@shared/karya-tags';
 import { useState } from 'react';
 import { Link, useParams } from 'wouter';
 
@@ -139,7 +141,9 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 				) : null}
 				<header className="space-y-3">
 					<div className="flex flex-wrap items-center gap-2">
-						<Badge variant="secondary">{categoryLabel(p.category)}</Badge>
+						{karyaCategoriesOf(p).map((c) => (
+							<Badge key={c} variant="secondary">{categoryLabel(c)}</Badge>
+						))}
 						{p.year ? <Badge variant="outline">{p.year}</Badge> : null}
 					</div>
 					<h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">{p.title}</h1>
@@ -202,7 +206,7 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 					<section>
 						<h2 className="mb-2 text-xl font-semibold text-foreground">Tentang karya</h2>
 						{p.descriptionFormat === 'html' ? (
-							<RichHtmlWithEmbeds allowAnyHost content={p.description} className="prose max-w-none dark:prose-invert" />
+							<RichHtmlWithEmbeds content={p.description} className="prose max-w-none dark:prose-invert" />
 						) : (
 							<p className="whitespace-pre-line leading-7 text-foreground/90">{p.description}</p>
 						)}
@@ -218,7 +222,7 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 				{p.tags.length ? (
 					<div className="flex flex-wrap gap-2" aria-label="Tag">
 						{p.tags.map((t) => (
-							<Link key={t} href={KARYA_PATHS.tag(t)} className="rounded-full bg-primary/10 px-3 py-1 text-sm text-primary hover:bg-primary/20">
+							<Link key={t} href={KARYA_PATHS.tag(t)} title={KARYA_TAG_GROUPS.find((g) => g.id === karyaTagGroup(t))?.label} className={cn('rounded-full px-3 py-1 text-sm hover:opacity-80', karyaTagToneClass(t))}>
 								#{t}
 							</Link>
 						))}
@@ -277,12 +281,25 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 				{otherLinks.length || drive.some((d) => !d.id) ? (
 					<div className="space-y-2 rounded-xl border border-border bg-card p-4">
 						<p className="text-sm font-semibold text-foreground">Tautan</p>
-						{[...otherLinks, ...drive.filter((d) => !d.id)].map((l) => (
-							<a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer nofollow" className="flex min-h-[40px] items-center gap-2 text-sm text-primary hover:underline">
-								{l.kind === 'demo' ? <Globe className="h-4 w-4" aria-hidden /> : <Link2 className="h-4 w-4" aria-hidden />}
-								<span className="truncate">{l.label || l.url.replace(/^https:\/\//, '')}</span>
-							</a>
-						))}
+						{[...otherLinks, ...drive.filter((d) => !d.id)].map((l, idx) => {
+							const ic = karyaLinkIcon(l.label || '', l.url);
+							const Icon = ic === 'download' ? Download : ic === 'store' ? Smartphone : ic === 'docs' ? BookOpen : ic === 'design' ? Palette : ic === 'video' ? PlayCircle : ic === 'demo' ? Globe : Link2;
+							return (
+								<a
+									key={l.url}
+									href={l.url}
+									target="_blank"
+									rel="noopener noreferrer nofollow"
+									className={cn(
+										'flex min-h-[44px] items-center gap-2.5 rounded-lg border px-3 text-sm font-medium transition-colors',
+										idx === 0 ? 'border-primary bg-primary text-primary-foreground hover:bg-primary/90' : 'border-border text-foreground hover:border-primary/40 hover:text-primary',
+									)}>
+									<Icon className="h-4 w-4 shrink-0" aria-hidden />
+									<span className="min-w-0 flex-1 truncate">{l.label || l.url.replace(/^https:\/\/(www\.)?/, '')}</span>
+									<ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+								</a>
+							);
+						})}
 					</div>
 				) : null}
 

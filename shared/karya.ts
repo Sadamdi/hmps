@@ -55,6 +55,34 @@ export const KARYA_LIMITS = {
 	maxSkills: 20,
 } as const;
 
+/** Label siap pakai untuk tautan karya (mahasiswa tetap bisa menulis label sendiri). */
+export const KARYA_LINK_PRESETS = [
+	'Demo langsung',
+	'Link Download',
+	'Download APK',
+	'Google Play',
+	'App Store',
+	'Dokumentasi',
+	'Desain Figma',
+	'Video demo',
+	'Laporan / Paper',
+	'Presentasi',
+	'API / Postman',
+	'Dataset',
+] as const;
+
+/** Jenis ikon tombol tautan dari label/URL. */
+export function karyaLinkIcon(label: string, url: string): 'download' | 'store' | 'docs' | 'design' | 'video' | 'demo' | 'link' {
+	const t = `${label} ${url}`.toLowerCase();
+	if (/download|unduh|\.apk|\.zip|\.exe|\.dmg|release/.test(t)) return 'download';
+	if (/play\.google|apps\.apple|play store|app store|google play/.test(t)) return 'store';
+	if (/figma|desain|design/.test(t)) return 'design';
+	if (/doc|dokumentasi|readme|paper|laporan|api|postman|gitbook|notion/.test(t)) return 'docs';
+	if (/video|youtu/.test(t)) return 'video';
+	if (/demo|live|vercel|netlify|\.app\b|website|situs/.test(t)) return 'demo';
+	return 'link';
+}
+
 export const KARYA_CATEGORIES = [
 	{ id: 'web', label: 'Web' },
 	{ id: 'mobile', label: 'Mobile' },
@@ -101,6 +129,10 @@ export interface KaryaRepoInfo {
 	forks: number;
 	language: string;
 	topics: string[];
+	/** Bahasa repo urut terbanyak (GitHub) */
+	languages?: string[];
+	/** Nama file/folder di root repo (GitHub) — untuk deteksi stack */
+	files?: string[];
 	/** SPDX lisensi bila ada (mis. MIT) */
 	license?: string;
 	/** Gambar pratinjau repo (Open Graph) — dipakai sebagai sampul cadangan */
@@ -133,6 +165,7 @@ export interface KaryaRelated {
 export interface KaryaSocialLinks {
 	github?: string;
 	gitlab?: string;
+	bitbucket?: string;
 	linkedin?: string;
 	instagram?: string;
 	website?: string;
@@ -143,6 +176,7 @@ export interface KaryaSocialLinks {
 const SOCIAL_HOSTS: Record<keyof KaryaSocialLinks, string[] | null> = {
 	github: ['github.com'],
 	gitlab: ['gitlab.com'],
+	bitbucket: ['bitbucket.org'],
 	linkedin: ['linkedin.com', 'www.linkedin.com', 'id.linkedin.com'],
 	instagram: ['instagram.com', 'www.instagram.com'],
 	website: null,
@@ -311,6 +345,8 @@ export interface KaryaProjectCard {
 	title: string;
 	summary: string;
 	category: string;
+	/** Semua kategori karya (kategori utama di posisi pertama) */
+	categories?: string[];
 	tags: string[];
 	coverUrl: string;
 	/** Sampul otomatis dari template (tambahkan `?theme=light|dark` sesuai tema) */
@@ -319,4 +355,18 @@ export interface KaryaProjectCard {
 	featured: boolean;
 	author: { username: string; name: string; angkatan: number | null; avatarUrl: string };
 	publishedAt: string | null;
+}
+
+/** Normalisasi daftar kategori: hanya id valid, unik, maks 3; kosong → ['lainnya']. */
+export function cleanKaryaCategories(raw: unknown, fallback?: string): string[] {
+	const ids = new Set<string>(KARYA_CATEGORIES.map((c) => c.id));
+	const list = (Array.isArray(raw) ? raw : raw ? [raw] : []).map((x) => String(x || '').trim()).filter((x) => ids.has(x) && x !== 'lainnya');
+	const out = Array.from(new Set(list)).slice(0, 3);
+	if (!out.length && fallback && ids.has(fallback)) out.push(fallback);
+	return out.length ? out : ['lainnya'];
+}
+
+/** Kategori sebuah karya (data lama hanya punya `category`). */
+export function karyaCategoriesOf(p: { category?: string; categories?: string[] }): string[] {
+	return p.categories && p.categories.length ? p.categories : [p.category || 'lainnya'];
 }

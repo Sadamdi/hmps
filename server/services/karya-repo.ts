@@ -62,8 +62,19 @@ export async function fetchPublicRepo(rawUrl: string): Promise<KaryaRepoInfo> {
 			if (r.status === 403 || r.status === 429) throw new RepoFetchError('Batas akses GitHub sedang penuh. Coba lagi beberapa menit lagi.', 'REPO_RATE_LIMITED');
 			if (r.status !== 200 || !r.body || r.body.private || r.body.visibility === 'private') throw notPublic;
 			const b = r.body;
+			// Bahasa & isi root repo → deteksi stack (web/mobile/AI…). Gagal = diabaikan.
+			const [langR, rootR] = await Promise.all([
+				getJson(`https://api.github.com/repos/${encodeURIComponent(p.owner)}/${encodeURIComponent(p.name)}/languages`, headers).catch(() => null),
+				getJson(`https://api.github.com/repos/${encodeURIComponent(p.owner)}/${encodeURIComponent(p.name)}/contents`, headers).catch(() => null),
+			]);
+			const languages = langR && langR.status === 200 && langR.body && typeof langR.body === 'object'
+				? Object.entries(langR.body as Record<string, number>).sort((a, c) => Number(c[1]) - Number(a[1])).map(([k]) => str(k, 40)).slice(0, 10)
+				: [];
+			const files = rootR && rootR.status === 200 && Array.isArray(rootR.body) ? rootR.body.map((x: any) => str(x?.name, 100)).slice(0, 200) : [];
 			info = {
 				host: 'github',
+				languages,
+				files,
 				owner: str(b.owner?.login, 100),
 				name: str(b.name, 100),
 				url: `https://github.com/${str(b.full_name, 200)}`,

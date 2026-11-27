@@ -3,7 +3,8 @@ import { cn } from '@/lib/utils';
 import { Code2, Star } from 'lucide-react';
 import { Link } from 'wouter';
 import type { KaryaProjectCard as Card } from '@shared/karya';
-import { KARYA_CATEGORIES } from '@shared/karya';
+import { KARYA_CATEGORIES, karyaCategoriesOf } from '@shared/karya';
+import { karyaTagToneClass } from '@shared/karya-tags';
 import { KARYA_PATHS } from '@/hooks/use-karya';
 import { useTheme } from '@/lib/theme';
 
@@ -39,6 +40,9 @@ export const categoryLabel = (id: string) => KARYA_CATEGORIES.find((c) => c.id =
 /** Kartu karya publik: sampul, label media, judul, ringkasan, tag, pembuat. */
 export function KaryaCard({ item, className }: { item: Card; className?: string }) {
 	const cover = useCoverUrl(item.coverUrl, item.coverGenerated);
+	/** Gambar pratinjau repo (OG 2:1, berisi teks) jangan dipotong: tampilkan utuh di latar putih. */
+	const isRepoOg = /opengraph\.githubassets\.com|gitlab\.com\/uploads|avatar/.test(cover);
+	const cats = karyaCategoriesOf(item);
 	return (
 		<Link
 			href={KARYA_PATHS.project(item.slug)}
@@ -49,16 +53,23 @@ export function KaryaCard({ item, className }: { item: Card; className?: string 
 			)}>
 			<div className="relative aspect-[16/10] overflow-hidden bg-muted">
 				{cover ? (
-					<img src={cover} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+					<img
+						src={cover}
+						alt=""
+						loading="lazy"
+						className={cn('h-full w-full transition-transform duration-300 group-hover:scale-[1.03]', isRepoOg ? 'object-contain bg-white px-2 pt-9 pb-8' : 'object-cover')}
+					/>
 				) : (
 					<div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 via-background to-accent/15">
 						<Code2 className="h-10 w-10 text-primary/60" aria-hidden />
 					</div>
 				)}
-				<div className="absolute left-3 top-3 flex gap-2">
-					<Badge variant="secondary" className="bg-background/85 backdrop-blur text-foreground">
-						{categoryLabel(item.category)}
-					</Badge>
+				<div className="absolute left-3 right-3 top-2.5 flex flex-wrap gap-1.5">
+					{cats.map((c) => (
+						<Badge key={c} variant="secondary" className="bg-slate-950/75 text-white backdrop-blur hover:bg-slate-950/75">
+							{categoryLabel(c)}
+						</Badge>
+					))}
 					{item.featured ? (
 						<Badge className="bg-amber-400 text-slate-900 hover:bg-amber-400">
 							<Star className="mr-1 h-3 w-3" aria-hidden /> Unggulan
@@ -66,7 +77,7 @@ export function KaryaCard({ item, className }: { item: Card; className?: string 
 					) : null}
 				</div>
 				{item.mediaLabel ? (
-					<span className="absolute bottom-3 left-3 rounded-md bg-slate-950/80 px-2 py-1 text-xs font-medium text-white">{item.mediaLabel}</span>
+					<span className="absolute bottom-2 left-3 rounded-md bg-slate-950/80 px-2 py-0.5 text-[11px] font-medium text-white">{item.mediaLabel}</span>
 				) : null}
 			</div>
 			<div className="flex flex-1 flex-col gap-2 p-4">
@@ -75,7 +86,7 @@ export function KaryaCard({ item, className }: { item: Card; className?: string 
 				{item.tags.length ? (
 					<div className="flex flex-wrap gap-1.5">
 						{item.tags.slice(0, 4).map((t) => (
-							<span key={t} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+							<span key={t} className={cn('rounded-full px-2 py-0.5 text-xs', karyaTagToneClass(t))}>
 								#{t}
 							</span>
 						))}

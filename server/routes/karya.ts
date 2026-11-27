@@ -39,6 +39,15 @@ import {
 import { fetchPublicRepo, isDrivePublic, RepoFetchError } from '../services/karya-repo';
 import { fetchReadmeInsights, markdownToHtml, README_IMAGE_HOSTS } from '../services/karya-readme';
 import { sendKaryaWarningEmail } from '../services/email';
+import { cleanKaryaCategories, karyaCategoriesOf } from '@shared/karya';
+import { canonicalKaryaTag, inferKaryaStack } from '@shared/karya-tags';
+import { preAnalyzeEmbedsInHtml } from '../services/embed-domain-analysis';
+
+/** Deskripsi HTML disimpan apa adanya; domain embed di dalamnya dianalisis di background (sekali per domain). */
+function preAnalyzed(html: string): string {
+	preAnalyzeEmbedsInHtml(html);
+	return html;
+}
 import { deleteKaryaMediaFile, karyaMediaMiddleware, uploadKaryaMedia } from '../upload';
 import { sanitizeCmsHtml } from '../utils/cms-html';
 import { renderKaryaCover } from '../services/karya-cover';
@@ -137,6 +146,8 @@ router.get('/auth/config', async (_req, res) => {
 		reviewMode: s.reviewMode,
 		uploadsEnabled: s.uploadsEnabled,
 		shortlinkReview: s.shortlinkReview,
+		tutorialYoutubeUrl: s.tutorialYoutubeUrl,
+		tutorialGdriveUrl: s.tutorialGdriveUrl,
 		googleEnabled: googleLoginEnabled(),
 		limits: KARYA_LIMITS,
 		categories: KARYA_CATEGORIES,
@@ -597,6 +608,7 @@ router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, a
 		if (u !== me.username && (await KaryaStudent.exists({ $or: [{ username: u }, { previousUsernames: u }], _id: { $ne: me._id } }))) {
 			return fail(res, 409, 'Username sudah dipakai', 'USERNAME_TAKEN');
 		}
+		set.usernameSet = true;
 		if (u !== me.username) {
 			set.username = u;
 			// Username lama dialihkan ke yang baru (maks 5 riwayat), dan tidak bisa diambil akun lain
@@ -610,10 +622,11 @@ router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, a
 	if (d.profilePublic !== undefined) set.profilePublic = d.profilePublic;
 	if (d.profileReadmeMarkdown !== undefined) set.profileReadme = sanitizeCmsHtml(await markdownToHtml(d.profileReadmeMarkdown, { keepBadges: true }), 60000);
 	else if (d.profileReadme !== undefined) set.profileReadme = sanitizeCmsHtml(d.profileReadme, 60000);
+	if (set.profileReadme) preAnalyzeEmbedsInHtml(String(set.profileReadme));
 	if (d.avatarUrl !== undefined) {
 		const url = cleanHttpsUrl(d.avatarUrl);
 		const host = url ? new URL(url).hostname.toLowerCase() : '';
-		if (!url || !(host === 'avatars.githubusercontent.com' || host.endsWith('.googleusercontent.com'))) return fail(res, 400, 'Foto profil eksternal hanya dari GitHub atau Google', 'AVATAR_INVALID');
+		if (!url || !EXTERNAL_AVATAR_HOST.test(host)) return fail(res, 400, 'Foto profil eksternal hanya dari GitHub, GitLab, Bitbucket, atau Google', 'AVATAR_INVALID');
 		// Ganti dari foto unggahan → hapus file lama & kembalikan kuota
 		if (me.avatarUrl && String(me.avatarUrl).startsWith('/uploads/')) {
 			await deleteKaryaMediaFile(me.avatarUrl, String(me._id));
@@ -624,6 +637,141 @@ router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, a
 	}
 	const s = await KaryaStudent.findByIdAndUpdate(me._id, { $set: set }, { new: true }).lean();
 	ok(res, { student: ownStudent(s) }, 'Profil disimpan');
+});
+
+/** Host foto profil eksternal yang diterima (hasil impor akun Git / Google). */
+const EXTERNAL_AVATAR_HOST = /^(avatars\.githubusercontent\.com|[a-z0-9-]+\.googleusercontent\.com|secure\.gravatar\.com|gitlab\.com|[a-z0-9.-]+\.atl-paas\.net|bitbucket\.org)$/i;
+
+type GitProvider = 'github' | 'gitlab' | 'bitbucket';
+
+/** "https://gitlab.com/budi", "bitbucket.org/budi", "@budi" (+provider) → { provider, user }. */
+export function parseGitProfileSource(source: string, providerHint?: string): { provider: GitProvider; user: string } | null {
+	const raw = String(source || '').trim();
+	const m = raw.match(/^(?:https?:\/\/)?(?:www\.)?(github\.com|gitlab\.com|bitbucket\.org)\/([^/?#\s]+)/i);
+	if (m) {
+		const provider = (m[1].toLowerCase().split('.')[0]) as GitProvider;
+		return { provider, user: m[2] };
+	}
+	const user = raw.replace(/^@/, '');
+	const provider = (['github', 'gitlab', 'bitbucket'].includes(String(providerHint)) ? providerHint : 'github') as GitProvider;
+	if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,38}$/.test(user)) return null;
+	return { provider, user };
+}
+
+/** Saran username Karya TI dari username akun Git (huruf kecil, angka, minus). */
+export function suggestKaryaUsername(login: string): string {
+	return String(login || '').toLowerCase().replace(/[._]+/g, '-').replace(/[^a-z0-9-]/g, '').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 30);
+}
+
+async function fetchJson(url: string, headers: Record<string, string> = {}) {
+	const ctrl = new AbortController();
+	const t = setTimeout(() => ctrl.abort(), 8000);
+	try {
+		const r = await fetch(url, { headers: { 'User-Agent': 'himatif-encoder-karya', ...headers }, signal: ctrl.signal });
+		return { status: r.status, ok: r.ok, body: r.ok ? await r.json() : null };
+	} finally {
+		clearTimeout(t);
+	}
+}
+
+/** Profil publik dari GitHub / GitLab / Bitbucket dalam satu bentuk. */
+async function fetchGitProfile(provider: GitProvider, user: string) {
+	if (provider === 'gitlab') {
+		const list = await fetchJson(`https://gitlab.com/api/v4/users?username=${encodeURIComponent(user)}`);
+		const first = Array.isArray(list.body) ? list.body[0] : null;
+		if (!first) return { notFound: true as const };
+		const full = await fetchJson(`https://gitlab.com/api/v4/users/${first.id}`);
+		const g: any = full.body || first;
+		const login = String(g.username || user);
+		return {
+			login,
+			name: cleanName(g.name || ''),
+			bio: cleanText(g.bio || '', 1200),
+			website: cleanHttpsUrl(String(g.website_url || '').replace(/^http:/, 'https:')),
+			location: cleanText(g.location || '', 80),
+			avatarUrl: cleanHttpsUrl(g.avatar_url || ''),
+			profileUrl: `https://gitlab.com/${login}`,
+			publicRepos: 0,
+			profileReadmeHtml: '',
+		};
+	}
+	if (provider === 'bitbucket') {
+		const r = await fetchJson(`https://api.bitbucket.org/2.0/users/${encodeURIComponent(user)}`);
+		if (r.status === 404) return { notFound: true as const };
+		if (!r.ok) return { limited: true as const };
+		const g: any = r.body;
+		const login = String(g.username || g.nickname || user);
+		return {
+			login,
+			name: cleanName(g.display_name || ''),
+			bio: '',
+			website: cleanHttpsUrl(g.website || ''),
+			location: cleanText(g.location || '', 80),
+			avatarUrl: cleanHttpsUrl(g.links?.avatar?.href || ''),
+			profileUrl: `https://bitbucket.org/${login}`,
+			publicRepos: 0,
+			profileReadmeHtml: '',
+		};
+	}
+	const headers: Record<string, string> = { Accept: 'application/vnd.github+json' };
+	if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
+	const r = await fetchJson(`https://api.github.com/users/${encodeURIComponent(user)}`, headers);
+	if (r.status === 404) return { notFound: true as const };
+	if (!r.ok) return { limited: true as const };
+	const g: any = r.body;
+	const login = String(g.login || user);
+	const readme = await fetchReadmeInsights(`https://github.com/${login}/${login}`, { keepBadges: true }).catch(() => null);
+	return {
+		login,
+		name: cleanName(g.name || ''),
+		bio: cleanText(g.bio || '', 1200),
+		website: cleanHttpsUrl(/^https?:\/\//.test(String(g.blog || '')) ? String(g.blog).replace(/^http:/, 'https:') : g.blog ? `https://${g.blog}` : ''),
+		location: cleanText(g.location || '', 80),
+		avatarUrl: /^https:\/\/avatars\.githubusercontent\.com\//.test(String(g.avatar_url || '')) ? String(g.avatar_url) : '',
+		profileUrl: `https://github.com/${login}`,
+		publicRepos: Number(g.public_repos) || 0,
+		profileReadmeHtml: readme?.descriptionHtml ? sanitizeCmsHtml(readme.descriptionHtml, 60000) : '',
+	};
+}
+
+async function usernameAvailable(u: string, myId: any): Promise<boolean> {
+	return !(await KaryaStudent.exists({ $or: [{ username: u }, { previousUsernames: u }], _id: { $ne: myId } }));
+}
+
+/** Cek ketersediaan username (onboarding & tab profil). */
+router.get('/me/username-available', requireEnabled, authenticateStudent, async (req, res) => {
+	const u = String(req.query.u || '').trim().toLowerCase();
+	const me = await getStudent(req);
+	if (!validUsername(u)) return ok(res, { username: u, valid: false, available: false });
+	ok(res, { username: u, valid: true, available: await usernameAvailable(u, me._id) });
+});
+
+/**
+ * Impor profil dari link atau username GitHub / GitLab / Bitbucket. Tidak menyimpan otomatis;
+ * mengembalikan data + saran username Karya TI (sama dengan username akun Git bila tersedia).
+ */
+router.post('/me/profile/import', requireEnabled, authenticateStudent, repoLimiter, async (req, res) => {
+	const src = parseGitProfileSource(String(req.body?.source || ''), String(req.body?.provider || ''));
+	if (!src) return fail(res, 400, 'Masukkan link profil (github.com/…, gitlab.com/…, bitbucket.org/…) atau username yang valid', 'VALIDATION_ERROR');
+	try {
+		const p: any = await fetchGitProfile(src.provider, src.user);
+		if (p.notFound) return fail(res, 404, `Akun ${src.provider} tidak ditemukan`, 'NOT_FOUND');
+		if (p.limited) return fail(res, 429, `${src.provider} sedang membatasi akses. Coba lagi nanti.`, 'REPO_RATE_LIMITED');
+		const me = await getStudent(req);
+		const suggested = suggestKaryaUsername(p.login);
+		const valid = validUsername(suggested);
+		ok(res, {
+			provider: src.provider,
+			...p,
+			username: p.login,
+			githubUrl: src.provider === 'github' ? p.profileUrl : '',
+			suggestedUsername: suggested,
+			suggestedValid: valid,
+			suggestedAvailable: valid ? await usernameAvailable(suggested, me._id) : false,
+		});
+	} catch {
+		fail(res, 502, 'Gagal menghubungi layanan Git', 'UPSTREAM_ERROR');
+	}
 });
 
 /** Ambil data profil publik GitHub (nama, bio, website, foto, lokasi) untuk diisi ke profil — tidak menyimpan otomatis. */
@@ -714,6 +862,7 @@ function ownProject(p: any) {
 		descriptionFormat: p.descriptionFormat === 'html' ? 'html' : 'text',
 		role: p.role || '',
 		category: p.category || 'lainnya',
+		categories: karyaCategoriesOf(p),
 		tags: p.tags || [],
 		year: p.year || null,
 		repos: p.repos || [],
@@ -755,6 +904,7 @@ const projectSchema = z.object({
 	descriptionFormat: z.enum(['text', 'html']).optional(),
 	role: z.string().max(300).optional(),
 	category: z.string().max(30).optional(),
+	categories: z.array(z.string().max(30)).max(5).optional(),
 	tags: z.union([z.array(z.string().max(40)), z.string().max(400)]).optional(),
 	year: z.number().int().min(2000).max(2100).nullable().optional(),
 	repoUrls: z.array(z.string().max(300)).max(5).optional(),
@@ -774,11 +924,14 @@ async function buildProjectFields(d: z.infer<typeof projectSchema>, studentId: a
 	const f: Record<string, unknown> = {
 		title: cleanText(d.title, 120),
 		summary: cleanText(d.summary, 240),
-		description: d.descriptionFormat === 'html' ? sanitizeCmsHtml(String(d.description || ''), 60000) : cleanText(d.description, 8000),
+		description: d.descriptionFormat === 'html' ? preAnalyzed(sanitizeCmsHtml(String(d.description || ''), 60000)) : cleanText(d.description, 8000),
 		descriptionFormat: d.descriptionFormat === 'html' ? 'html' : 'text',
 		role: cleanText(d.role, 300),
-		category: KARYA_CATEGORIES.some((c) => c.id === d.category) ? d.category : 'lainnya',
-		tags: cleanKaryaTags(d.tags),
+		...(() => {
+			const categories = cleanKaryaCategories(d.categories, KARYA_CATEGORIES.some((c) => c.id === d.category) ? d.category : undefined);
+			return { categories, category: categories[0] };
+		})(),
+		tags: cleanKaryaTags((Array.isArray(d.tags) ? d.tags : String(d.tags || '').split(',')).map((t) => canonicalKaryaTag(String(t)))),
 		year: d.year ?? null,
 	};
 	// Repo: wajib publik; info diambil server
@@ -1055,7 +1208,14 @@ router.post('/me/repo-preview', requireEnabled, authenticateStudent, repoLimiter
 		const info = await fetchPublicRepo(url);
 		// README pintar: ringkasan, deskripsi rich text, gambar & video di README
 		const readme = await fetchReadmeInsights(info.url).catch(() => null);
-		ok(res, { ...info, readme: readme ? { ...readme, descriptionHtml: sanitizeCmsHtml(readme.descriptionHtml, 60000) } : null });
+		const detected = inferKaryaStack({
+			languages: info.languages?.length ? info.languages : info.language ? [info.language] : [],
+			files: info.files || [],
+			topics: info.topics,
+			text: `${info.description} ${readme?.summary || ''} ${String(readme?.descriptionHtml || '').replace(/<[^>]+>/g, ' ')}`,
+			homepage: info.homepage,
+		});
+		ok(res, { ...info, files: undefined, detected, readme: readme ? { ...readme, descriptionHtml: sanitizeCmsHtml(readme.descriptionHtml, 60000) } : null });
 	} catch (e) {
 		if (e instanceof RepoFetchError) return fail(res, e.code === 'REPO_RATE_LIMITED' ? 429 : 400, e.message, e.code);
 		fail(res, 500, 'Gagal mengambil info repo', 'INTERNAL');
@@ -1174,6 +1334,7 @@ async function toCards(rows: any[]): Promise<KaryaProjectCard[]> {
 			title: p.title,
 			summary: p.summary || '',
 			category: p.category || 'lainnya',
+			categories: karyaCategoriesOf(p),
 			tags: p.tags || [],
 			coverUrl: c.url,
 			coverGenerated: c.generated,
@@ -1199,7 +1360,7 @@ router.get('/public/projects', requireEnabled, publicLimiter, async (req, res) =
 	const limit = Math.max(1, Math.min(48, Number(req.query.limit) || 12));
 	const filter: any = { ...PUBLIC_PROJECT_BASE, ...(await visibleStudentFilter()) };
 	if (tag) filter.tags = tag;
-	if (KARYA_CATEGORIES.some((c) => c.id === category)) filter.category = category;
+	if (KARYA_CATEGORIES.some((c) => c.id === category)) filter.$and = [{ $or: [{ category }, { categories: category }] }];
 	if (q) {
 		const rx = new RegExp(escapeRegex(q), 'i');
 		const authorIds = (await KaryaStudent.find({ $or: [{ name: rx }, { username: rx }] }).select('_id').limit(200).lean()).map((s: any) => s._id);
@@ -1322,6 +1483,7 @@ async function buildProjectDetail(p: any, s: any, opts: { preview?: boolean } = 
 		descriptionFormat: p.descriptionFormat === 'html' ? 'html' : 'text',
 		role: p.role || '',
 		category: p.category,
+		categories: karyaCategoriesOf(p),
 		tags: p.tags || [],
 		year: p.year || null,
 		repos: p.repos || [],
@@ -1396,6 +1558,55 @@ async function findByUsername(raw: string): Promise<{ student: any; redirectTo?:
 	const old: any = await KaryaStudent.findOne({ previousUsernames: username, status: 'active' }).lean();
 	return old ? { student: old, redirectTo: old.username } : null;
 }
+
+/** Direktori profil mahasiswa publik: cari nama/username/headline/skill, filter angkatan. */
+router.get('/public/students', requireEnabled, publicLimiter, async (req, res) => {
+	const q = cleanText(req.query.q, 80);
+	const angkatan = Number(req.query.angkatan) || 0;
+	const page = Math.max(1, Math.min(200, Number(req.query.page) || 1));
+	const limit = Math.max(1, Math.min(48, Number(req.query.limit) || 12));
+	const filter: any = {
+		status: 'active',
+		emailVerified: true,
+		profilePublic: { $ne: false },
+		$and: [{ $or: [{ suspendedUntil: null }, { suspendedUntil: { $lte: new Date() } }] }],
+	};
+	if (q) {
+		const rx = new RegExp(escapeRegex(q), 'i');
+		filter.$and.push({ $or: [{ name: rx }, { username: rx }, { headline: rx }, { skills: rx }] });
+	}
+	if (angkatan >= 2000 && angkatan <= 2100) filter.nim = new RegExp(`^${String(angkatan).slice(2)}`);
+	const [rows, total] = await Promise.all([
+		KaryaStudent.find(filter).select('username name nim headline avatarUrl skills updatedAt').sort({ updatedAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+		KaryaStudent.countDocuments(filter),
+	]);
+	const ids = rows.map((s: any) => s._id);
+	const counts: any[] = ids.length
+		? await KaryaProject.aggregate([{ $match: { ...PUBLIC_PROJECT_BASE, studentId: { $in: ids } } }, { $group: { _id: '$studentId', n: { $sum: 1 }, tags: { $push: '$tags' } } }])
+		: [];
+	const byId = new Map(counts.map((c) => [String(c._id), c]));
+	res.json({
+		success: true,
+		message: 'OK',
+		data: rows.map((s: any) => {
+			const c = byId.get(String(s._id));
+			const tagCount = new Map<string, number>();
+			for (const t of ([] as string[]).concat(...((c?.tags || []) as string[][]))) tagCount.set(t, (tagCount.get(t) || 0) + 1);
+			const topTags = Array.from(tagCount.entries()).sort((a, b) => b[1] - a[1]).map(([t]) => t).slice(0, 4);
+			return {
+				username: s.username,
+				name: s.name || 'Mahasiswa TI',
+				angkatan: angkatanFromNim(s.nim),
+				headline: s.headline || '',
+				avatarUrl: s.avatarUrl || '',
+				skills: (s.skills || []).slice(0, 6),
+				projectCount: c?.n || 0,
+				topTags,
+			};
+		}),
+		meta: { page, limit, total },
+	});
+});
 
 router.get('/public/students/:username', requireEnabled, publicLimiter, async (req, res) => {
 	const found = await findByUsername(req.params.username);
@@ -1786,6 +1997,16 @@ const settingsSchema = z.object({
 	reviewMode: z.enum(['manual', 'auto']).optional(),
 	shortlinkReview: z.boolean().optional(),
 	uploadsEnabled: z.boolean().optional(),
+	tutorialYoutubeUrl: z
+		.string()
+		.max(300)
+		.refine((v) => !v || /^https:\/\/(www\.|m\.)?(youtube\.com|youtu\.be)\//i.test(v), 'Link YouTube tidak valid')
+		.optional(),
+	tutorialGdriveUrl: z
+		.string()
+		.max(300)
+		.refine((v) => !v || /^https:\/\/drive\.google\.com\//i.test(v), 'Link Google Drive tidak valid')
+		.optional(),
 });
 
 router.get('/admin/settings', ...adminView, async (_req, res) => ok(res, await getKaryaSettings()));

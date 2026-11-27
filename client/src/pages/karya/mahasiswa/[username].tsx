@@ -132,7 +132,7 @@ export function StudentProfileView({ s, projects }: { s: KaryaStudentPublic & { 
 								<BookOpen className="h-4 w-4" aria-hidden /> {s.username} / README.md
 							</div>
 							<div className="p-5 sm:p-6">
-								<RichHtmlWithEmbeds allowAnyHost content={s.profileReadme} className="prose prose-sm max-w-none dark:prose-invert [&_img]:inline-block [&_img]:my-1 [&_p[align=center]]:text-center [&_div[align=center]]:text-center" />
+								<RichHtmlWithEmbeds content={s.profileReadme} className="prose prose-sm max-w-none dark:prose-invert [&_img]:inline-block [&_img]:my-1 [&_p[align=center]]:text-center [&_div[align=center]]:text-center" />
 							</div>
 						</article>
 					) : null}
