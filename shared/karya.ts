@@ -141,6 +141,8 @@ export interface KaryaRepoInfo {
 	topics: string[];
 	/** Bahasa repo urut terbanyak (GitHub) */
 	languages?: string[];
+	/** Porsi byte tiap bahasa (0–1), sejajar dengan `languages`. */
+	languageShares?: number[];
 	/** Nama file/folder di root repo (GitHub) — untuk deteksi stack */
 	files?: string[];
 	/** SPDX lisensi bila ada (mis. MIT) */

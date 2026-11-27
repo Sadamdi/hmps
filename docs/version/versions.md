@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.73.2`  
+**Current version:** `4.74.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.73.2`](./release/4.73.2.md) | 2026-11-27 | Halaman masuk tanpa teks penjelas, embed diblokir tanpa tombol Buka, migrasi teks "Analisis AI" → Enco | PATCH | 1 | **Current** |
+| [`4.74.0`](./release/4.74.0.md) | 2026-11-27 | Kategori otomatis dari 3 bahasa terbanyak repo (±240 bahasa), backfill karya lama, filter Karya seperti Berita | MINOR | 1 | **Current** |
+| [`4.73.2`](./release/4.73.2.md) | 2026-11-27 | Halaman masuk tanpa teks penjelas, embed diblokir tanpa tombol Buka, migrasi teks "Analisis AI" → Enco | PATCH | 1 | Superseded |
 | [`4.73.1`](./release/4.73.1.md) | 2026-11-27 | Perapian bahasa antarmuka: formal, sapaan "Anda" seragam, tanpa gaya promosi | PATCH | 1 |  |
 | [`4.73.0`](./release/4.73.0.md) | 2026-11-27 | Karya dari link apa pun (desain/game/video/3D), tag ringkas, tombol ke atas, fix aktivasi notifikasi, Enco di moderasi embed + riwayat & batal | MINOR | 1 |  |
 | [`4.72.0`](./release/4.72.0.md) | 2026-11-27 | Notifikasi terpadu (mahasiswa + pembeli + pengurus per perangkat), topik karya/beasiswa/PKL/pesanan, tombol kembali | MINOR | 1 |  |

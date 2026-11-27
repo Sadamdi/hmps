@@ -68,6 +68,13 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 
 ---
 
+## Pembaruan 4.74.0
+
+- **Kategori otomatis dari bahasa repo**: tiga bahasa terbanyak (porsi byte ≥ 5%) menyumbang kategorinya. Peta ±240 bahasa di `shared/karya-languages.ts`; bahasa khas (Dart → Mobile, HTML/CSS/TypeScript → Web, Jupyter → AI/Data, Solidity → Blockchain, GDScript → Game, VHDL → IoT, Dockerfile → Cloud, TeX → Riset) langsung menetapkan kategori, bahasa serbaguna (Python, Java, Go, C, C#, Rust, Shell) butuh bukti lain (file root, framework, topik, README).
+- **Karya lama ikut dikoreksi**: `classifyStaleProjects` berjalan 2 menit setelah server mulai lalu tiap 3 jam (15 karya/putaran, ulang tiap 30 hari). Admin dapat memicu `POST /api/karya/admin/projects/reclassify`. Kategori deteksi ditaruh di depan, pilihan pemilik tetap disimpan (maks 5), "lainnya" dibuang bila ada deteksi nyata.
+- Repo GitHub yang di-rename/dipindah (301) tetap terbaca.
+- Halaman publik Karya memakai `ArchiveFilterBar` seperti Berita.
+
 ## Pembaruan 4.73.0
 
 - **Mulai dari link** (editor, kartu pertama): link karya apa pun → judul, ringkasan, kategori, tag, tautan berlabel, gambar pratinjau (dipilih, jadi galeri & sampul tanpa kuota). Sumber dikenali di `shared/karya-sources.ts`; situs lain via Open Graph; YouTube/Vimeo via oEmbed. Server: `server/services/karya-link-preview.ts`.

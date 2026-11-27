@@ -9,7 +9,8 @@ import { karyaTagToneClass } from '@shared/karya-tags';
 import { KaryaTutorialVideo } from '@/components/karya/karya-tutorial-video';
 import { cn } from '@/lib/utils';
 import { KARYA_CATEGORIES, karyaCategoryLabel } from '@shared/karya';
-import { Code2, FolderGit2, Search, Users, X } from 'lucide-react';
+import { ArchiveFilterBar } from '@/components/public/archive/archive-filter-bar';
+import { Code2, FolderGit2, GraduationCap, Layers, Search, Tag as TagIcon, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 
@@ -121,66 +122,97 @@ export default function KaryaIndexPage() {
 					))}
 				</div>
 
-				<div className={cn('mb-6 grid gap-3', state.view === 'students' ? 'md:grid-cols-[1fr_180px]' : 'md:grid-cols-[1fr_180px_160px_160px]')}>
-					<div className="relative">
-						<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
-						<Input
-							aria-label={state.view === 'students' ? 'Cari nama, username, atau keahlian mahasiswa' : 'Cari karya, teknologi, atau nama mahasiswa'}
-							placeholder={state.view === 'students' ? 'Cari nama, username, atau keahlian (mis. flutter)…' : 'Cari karya, teknologi, atau nama mahasiswa…'}
-							value={qInput}
-							onChange={(e) => setQInput(e.target.value)}
-							className="h-11 pl-9"
-						/>
-					</div>
-					{state.view === 'projects' ? (
-					<Select value={state.category || 'all'} onValueChange={(v) => setState((s) => ({ ...s, category: v === 'all' ? '' : v, page: 1 }))}>
-						<SelectTrigger className="h-11" aria-label="Kategori">
-							<SelectValue placeholder="Kategori" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">Semua kategori</SelectItem>
-							{catOptions.map((c) => (
-								<SelectItem key={c.id} value={c.id}>
-									{c.label}
-									{catCount.get(c.id) ? <span className="ml-1 opacity-60">({catCount.get(c.id)})</span> : null}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
+				<ArchiveFilterBar
+					searchValue={qInput}
+					onSearchChange={setQInput}
+					searchPlaceholder={state.view === 'students' ? 'Cari nama, username, atau keahlian mahasiswa...' : 'Cari karya, teknologi, atau nama mahasiswa...'}
+					groups={[
+						...(state.view === 'projects'
+							? [
+									{
+										key: 'kategori',
+										label: 'Kategori',
+										icon: <Layers className="h-3.5 w-3.5" />,
+										options: catOptions.map((c) => ({ value: c.id, label: catCount.get(c.id) ? `${c.label} (${catCount.get(c.id)})` : c.label })),
+										isSelected: (v: string) => state.category === v,
+										onSelect: (v: string) => setState((s) => ({ ...s, category: s.category === v ? '' : v, page: 1 })),
+									},
+								]
+							: []),
+						{
+							key: 'angkatan',
+							label: 'Angkatan',
+							icon: <GraduationCap className="h-3.5 w-3.5" />,
+							options: years.map((y) => ({ value: String(y), label: String(y) })),
+							isSelected: (v: string) => String(state.angkatan) === v,
+							onSelect: (v: string) => setState((s) => ({ ...s, angkatan: String(s.angkatan) === v ? 0 : Number(v), page: 1 })),
+						},
+						...(state.view === 'projects' && tags?.length
+							? [
+									{
+										key: 'tag',
+										label: 'Tag',
+										icon: <TagIcon className="h-3.5 w-3.5" />,
+										options: tags.slice(0, 80).map((t) => ({ value: t.tag, label: t.tag })),
+										isSelected: (v: string) => state.tag === v,
+										onSelect: (v: string) => setState((s) => ({ ...s, tag: s.tag === v ? '' : v, page: 1 })),
+									},
+								]
+							: []),
+					]}
+					sort={
+						state.view === 'projects'
+							? {
+									value: state.sort,
+									options: [
+										{ value: 'latest', label: 'Terbaru' },
+										{ value: 'popular', label: 'Terpopuler' },
+									],
+									onChange: (v: string) => setState((s) => ({ ...s, sort: v, page: 1 })),
+								}
+							: undefined
+					}
+					activeChips={[
+						...(state.category ? [{ key: 'cat', label: karyaCategoryLabel(state.category), onRemove: () => setState((s) => ({ ...s, category: '', page: 1 })) }] : []),
+						...(state.angkatan ? [{ key: 'ang', label: `Angkatan ${state.angkatan}`, onRemove: () => setState((s) => ({ ...s, angkatan: 0, page: 1 })) }] : []),
+						...(state.tag ? [{ key: 'tag', label: `#${state.tag}`, onRemove: () => setState((s) => ({ ...s, tag: '', page: 1 })) }] : []),
+					]}
+					onClearAll={() => {
+						setQInput('');
+						setState((s) => ({ q: '', tag: '', category: '', sort: 'latest', angkatan: 0, page: 1, view: s.view }));
+					}}
+					resultText={state.view === 'projects' ? (isLoading ? 'Memuat karya...' : `${total} karya`) : undefined}>
+					{state.view === 'projects' && tags?.length ? (
+						<nav aria-label="Topik karya" className="archive-tabs -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+							<ul className="flex w-max gap-1 border-b border-border/70">
+								{[null, ...tags.slice(0, 8).map((t) => t.tag)].map((tag) => {
+									const active = (state.tag || null) === tag;
+									return (
+										<li key={tag ?? '__all'}>
+											<button
+												type="button"
+												aria-current={active ? 'page' : undefined}
+												onClick={() => setState((s) => ({ ...s, tag: tag || '', page: 1 }))}
+												className={cn(
+													'relative whitespace-nowrap px-3 py-2 font-mono text-[11px] uppercase tracking-wider transition-colors sm:text-xs',
+													active ? 'text-primary' : 'text-muted-foreground hover:text-foreground',
+												)}>
+												{tag ?? 'Semua'}
+												<span aria-hidden className={cn('absolute inset-x-2 -bottom-px h-0.5 origin-left rounded-full bg-primary transition-transform duration-200', active ? 'scale-x-100' : 'scale-x-0')} />
+											</button>
+										</li>
+									);
+								})}
+							</ul>
+						</nav>
 					) : null}
-					<Select value={state.angkatan ? String(state.angkatan) : 'all'} onValueChange={(v) => setState((s) => ({ ...s, angkatan: v === 'all' ? 0 : Number(v), page: 1 }))}>
-						<SelectTrigger className="h-11" aria-label="Angkatan">
-							<SelectValue placeholder="Angkatan" />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">Semua angkatan</SelectItem>
-							{years.map((y) => (
-								<SelectItem key={y} value={String(y)}>
-									Angkatan {y}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
-					{state.view === 'projects' ? (
-					<Select value={state.sort} onValueChange={(v) => setState((s) => ({ ...s, sort: v, page: 1 }))}>
-						<SelectTrigger className="h-11" aria-label="Urutkan">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="latest">Terbaru</SelectItem>
-							<SelectItem value="popular">Terpopuler</SelectItem>
-						</SelectContent>
-					</Select>
-					) : null}
-				</div>
+				</ArchiveFilterBar>
 
 				{state.view === 'students' ? (
 					<StudentDirectory q={studentsQ} page={state.page} setPage={(n) => setState((s) => ({ ...s, page: n }))} />
 				) : null}
 
-				{state.view === 'projects' && tags?.length ? (
-					<TagStrip tags={tags} active={state.tag} onPick={(t) => setState((s) => ({ ...s, tag: s.tag === t ? '' : t, page: 1 }))} />
-				) : null}
+
 
 				{state.view === 'projects' ? (
 				<>

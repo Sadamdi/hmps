@@ -1,3 +1,4 @@
+import { languageDef } from './karya-languages';
 /**
  * Taksonomi tag Karya TI + deteksi otomatis kategori/tag dari repo.
  *
@@ -207,15 +208,6 @@ export function karyaTagToneClass(tag: string): string {
 	return KARYA_TAG_TONE_CLASS[tone];
 }
 
-/** Bahasa GitHub (linguist) → tag kanonik. */
-const LANGUAGE_TAG: Record<string, string> = {
-	JavaScript: 'javascript', TypeScript: 'typescript', Python: 'python', Java: 'java', Kotlin: 'kotlin', Swift: 'swift', Dart: 'dart',
-	Go: 'go', Rust: 'rust', C: 'c', 'C++': 'c++', 'C#': 'c#', PHP: 'php', Ruby: 'ruby', R: 'r', Julia: 'julia', Scala: 'scala',
-	Elixir: 'elixir', Lua: 'lua', MATLAB: 'matlab', Shell: 'bash', PowerShell: 'powershell', HTML: 'html', CSS: 'css', SCSS: 'css',
-	Solidity: 'solidity', Assembly: 'assembly', Zig: 'zig', Haskell: 'haskell', 'Objective-C': 'objective-c', 'Jupyter Notebook': 'jupyter',
-	Vue: 'vue', Svelte: 'svelte', Astro: 'astro', 'C++ ': 'c++', GDScript: 'godot', ShaderLab: 'unity', HLSL: 'unity', Blade: 'laravel',
-};
-
 /** File penanda di root repo → tag. */
 const FILE_TAGS: [RegExp, string][] = [
 	[/^pubspec\.yaml$/i, 'flutter'], [/^android$/i, 'android'], [/^ios$/i, 'ios'], [/^app\.json$/i, 'expo'],
@@ -250,10 +242,12 @@ const TEXT_TAGS: [RegExp, string][] = [
 	[/\bdashboard\b/i, 'dashboard'], [/\be-?commerce\b/i, 'e-commerce'],
 ];
 
-const CATEGORY_ORDER = ['web', 'mobile', 'ai-data', 'game', 'iot', 'uiux', 'desktop', 'security'];
+const CATEGORY_ORDER = ['mobile', 'web', 'ai-data', 'game', 'iot', 'desktop', 'cloud', 'security', 'blockchain', 'sistem-informasi', 'tools', 'riset', 'uiux', 'multimedia', 'ar-vr', 'bot', 'robotika', 'jaringan'];
 
 export interface KaryaStackInput {
 	languages?: string[];
+	/** Porsi byte (0–1) sejajar `languages`; kosong = dianggap urutan saja. */
+	languageShares?: number[];
 	files?: string[];
 	topics?: string[];
 	text?: string;
@@ -271,7 +265,25 @@ export function inferKaryaStack(input: KaryaStackInput): { categories: string[];
 		if (!c) return;
 		score.set(c, (score.get(c) || 0) + w);
 	};
-	(input.languages || []).forEach((l, i) => LANGUAGE_TAG[l] && add(LANGUAGE_TAG[l], i === 0 ? 4 : i < 3 ? 2 : 1));
+	// 3 bahasa terbanyak (porsi ≥ 5%) menjadi dasar kategori. Bahasa 'strong' langsung menetapkan kategorinya;
+	// bahasa serbaguna ('weak') hanya menambah bobot dan perlu bukti lain (file/framework/topik/README).
+	const langs = input.languages || [];
+	const shares = input.languageShares || [];
+	const catScore = new Map<string, number>();
+	const forced = new Set<string>();
+	const addCat = (c: string, w: number) => catScore.set(c, (catScore.get(c) || 0) + w);
+	let counted = 0;
+	langs.forEach((l, i) => {
+		const def = languageDef(l);
+		const share = typeof shares[i] === 'number' ? shares[i] : i === 0 ? 0.6 : i < 3 ? 0.15 : 0.03;
+		add(def.tag, i === 0 ? 4 : i < 3 ? 2 : 1);
+		if (!def.category || counted >= 3 || share < 0.05) return;
+		counted++;
+		if (def.strength === 'strong') {
+			forced.add(def.category);
+			addCat(def.category, 6 + share * 6);
+		} else addCat(def.category, 1 + share * 2);
+	});
 	for (const f of input.files || []) for (const [re, tag] of FILE_TAGS) if (re.test(f)) add(tag, 3);
 	for (const t of input.topics || []) add(t, 3);
 	const text = String(input.text || '').slice(0, 20000);
@@ -282,17 +294,16 @@ export function inferKaryaStack(input: KaryaStackInput): { categories: string[];
 		.map(([t]) => t)
 		.filter((t) => t.length <= 30);
 
-	const catScore = new Map<string, number>();
 	for (const [t, s] of Array.from(score.entries())) {
 		const c = BY_TAG.get(t)?.category;
-		if (c) catScore.set(c, (catScore.get(c) || 0) + s);
+		if (c) addCat(c, s);
 	}
 	// Ada homepage web → minimal juga Web.
 	if (input.homepage && /^https:\/\//.test(input.homepage) && !/play\.google|apps\.apple/.test(input.homepage)) catScore.set('web', (catScore.get('web') || 0) + 2);
 	if (/play\.google|apps\.apple/.test(input.homepage || '')) catScore.set('mobile', (catScore.get('mobile') || 0) + 4);
 	const top = Math.max(0, ...Array.from(catScore.values()));
 	const categories = Array.from(catScore.entries())
-		.filter(([, s]) => s >= Math.max(3, top * 0.35))
+		.filter(([c, s]) => forced.has(c) || s >= Math.max(3, top * 0.35))
 		.sort((a, b) => b[1] - a[1] || CATEGORY_ORDER.indexOf(a[0]) - CATEGORY_ORDER.indexOf(b[0]))
 		.map(([c]) => c)
 		.slice(0, 3);
