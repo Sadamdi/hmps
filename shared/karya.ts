@@ -365,6 +365,24 @@ export interface KaryaProjectCard {
 	featured: boolean;
 	author: { username: string; name: string; angkatan: number | null; avatarUrl: string };
 	publishedAt: string | null;
+	/** Jumlah dilihat (untuk "Terpopuler" di profil) */
+	viewCount?: number;
+	/** Aktivitas terakhir: push repo terakhir atau pembaruan karya (untuk "Sedang aktif") */
+	activeAt?: string | null;
+	/** true bila ditampilkan di profil orang lain sebagai kontributor */
+	asContributor?: boolean;
+	/** Avatar kontributor (maks 5) untuk ditumpuk di kartu */
+	contributorAvatars?: { name: string; avatarUrl: string }[];
+}
+
+export interface KaryaContributorPublic {
+	name: string;
+	avatarUrl: string;
+	role: string;
+	source: string;
+	username?: string;
+	githubUrl?: string;
+	commits?: number;
 }
 
 /** Normalisasi daftar kategori: hanya id valid, unik, maks 3; kosong → ['lainnya']. */

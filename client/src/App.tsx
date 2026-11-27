@@ -12,6 +12,22 @@ import AOS from 'aos';
 import 'aos/dist/aos.css';
 import { lazy, Suspense, useEffect, useMemo } from 'react';
 import { Route, Switch, useLocation, type RouteComponentProps } from 'wouter';
+import { useEffect as useLegacyEffect } from 'react';
+import { legacyStudentSpacePath, STUDENT_SPACE_PATHS as RM } from '@shared/student-space-paths';
+
+/** Alamat lama /karya/* dan /mahasiswa* → /ruang-mahasiswa/* (server juga 301; ini untuk navigasi di dalam SPA). */
+function LegacyStudentRedirect() {
+	const [, navigate] = useLocation();
+	useLegacyEffect(() => {
+		navigate((legacyStudentSpacePath(window.location.pathname) || RM.karya) + window.location.search, { replace: true });
+	}, [navigate]);
+	return null;
+}
+function StudentSpaceHome() {
+	const [, navigate] = useLocation();
+	useLegacyEffect(() => navigate(RM.karya, { replace: true }), [navigate]);
+	return null;
+}
 
 const NotificationPrompt = lazy(() => import('@/components/public/notification-prompt'));
 const NotificationStream = lazy(() => import('@/components/public/notification-stream'));
@@ -212,17 +228,24 @@ function Router() {
 				<Route path="/toko/:slug" component={TokoProductPage} />
 				<Route path="/toko" component={TokoIndexPage} />
 				{/* Karya Mahasiswa TI (akun mahasiswa terpisah) */}
-				<Route path="/karya/masuk" component={KaryaLoginPage} />
-				<Route path="/karya/daftar" component={KaryaLoginPage} />
-				<Route path="/karya/saya/baru" component={KaryaEditorPage} />
-				<Route path="/karya/saya/edit/:id" component={KaryaEditorPage} />
-				<Route path="/karya/saya/pratinjau-profil" component={KaryaProfilePreviewPage} />
-				<Route path="/karya/saya/pratinjau/:id" component={KaryaPreviewPage} />
-				<Route path="/karya/tag/:tag" component={KaryaTagPage} />
-				<Route path="/karya/saya" component={KaryaDashboardPage} />
-				<Route path="/karya/mahasiswa/:username" component={KaryaStudentPage} />
-				<Route path="/karya/:slug" component={KaryaDetailPage} />
-				<Route path="/karya" component={KaryaIndexPage} />
+				{/* Ruang Mahasiswa: wadah fitur mahasiswa TI (saat ini: Karya). Ruang baru cukup menambah segmen. */}
+				<Route path="/ruang-mahasiswa/masuk" component={KaryaLoginPage} />
+				<Route path="/ruang-mahasiswa/daftar" component={KaryaLoginPage} />
+				<Route path="/ruang-mahasiswa/dashboard/karya/baru" component={KaryaEditorPage} />
+				<Route path="/ruang-mahasiswa/dashboard/karya/edit/:id" component={KaryaEditorPage} />
+				<Route path="/ruang-mahasiswa/dashboard/karya/pratinjau/:id" component={KaryaPreviewPage} />
+				<Route path="/ruang-mahasiswa/dashboard/pratinjau-profil" component={KaryaProfilePreviewPage} />
+				<Route path="/ruang-mahasiswa/dashboard" component={KaryaDashboardPage} />
+				<Route path="/ruang-mahasiswa/karya/tag/:tag" component={KaryaTagPage} />
+				<Route path="/ruang-mahasiswa/karya/:slug" component={KaryaDetailPage} />
+				<Route path="/ruang-mahasiswa/karya" component={KaryaIndexPage} />
+				<Route path="/ruang-mahasiswa/mahasiswa/:username" component={KaryaStudentPage} />
+				<Route path="/ruang-mahasiswa" component={StudentSpaceHome} />
+				{/* Alamat lama → alamat baru */}
+				<Route path="/karya/:rest*" component={LegacyStudentRedirect} />
+				<Route path="/karya" component={LegacyStudentRedirect} />
+				<Route path="/mahasiswa/:rest*" component={LegacyStudentRedirect} />
+				<Route path="/mahasiswa" component={LegacyStudentRedirect} />
 				{/* Link verifikasi email (kode + link sekali pakai) */}
 				<Route path="/verifikasi" component={VerifikasiPage} />
 				{/* Daftar satu pintu: pilih Mahasiswa TI atau Pembeli */}

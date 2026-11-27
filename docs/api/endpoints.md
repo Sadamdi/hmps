@@ -544,6 +544,11 @@ POST   /api/karya/me/profile/import-github       # {username} → name, bio, web
 POST   /api/karya/me/warnings/:id/ack            # tandai peringatan pengurus (akun/karya) sudah dibaca
 GET    /api/karya/me/username-available?u=       # {username, valid, available} — onboarding username
 POST   /api/karya/me/profile/import              # {source: link/username GitHub|GitLab|Bitbucket, provider?} → profil + suggestedUsername/suggestedAvailable (tidak menyimpan)
+POST   /api/karya/me/contributors/resolve        # {input: username/link Karya TI | username/link GitHub} → kandidat kontributor (akun Karya TI bila tertaut)
+POST   /api/karya/me/projects/:id/contributors/sync  # ambil ulang contributor repo GitHub karya sendiri
+GET    /api/karya/me/contributions               # karya orang lain tempat aku kontributor
+POST   /api/karya/me/contributions/:id/visibility  # {hidden} sembunyikan/tampilkan di profilku
+POST   /api/karya/admin/contributors/sync        # karya.manage · {limit?, force?} backfill kontributor karya lama
 GET    /api/karya/public/categories              # kategori yang dipakai karya tayang (bawaan + buatan mahasiswa) + jumlah
 GET    /api/karya/public/students?q=&angkatan=&page=  # direktori profil publik (tanpa email/NIM) + projectCount, topTags
 POST   /api/karya/me/avatar                      # multipart file (gambar ≤5 MB → WebP 400px)
@@ -663,3 +668,21 @@ DELETE /api/embed-domains/:host                  # settings.edit · hapus catata
 ```
 
 Status: `allowed` (otomatis masuk `Settings.embedAllowedHosts` → CSP frame-src), `noframe` (aman tapi menolak iframe → kartu tautan), `blocked` (gagal pemeriksaan → tampil di Settings → Domain Embed), `pending`.
+
+
+## Alamat halaman Ruang Mahasiswa (4.71.0)
+
+Halaman (bukan API) dipindah dari `/karya*` ke `/ruang-mahasiswa/*` (sumber: `shared/student-space-paths.ts`). Server membalas **301** dari alamat lama (query dipertahankan):
+
+| Lama | Baru |
+|------|------|
+| `/karya` | `/ruang-mahasiswa/karya` |
+| `/karya/:slug` | `/ruang-mahasiswa/karya/:slug` |
+| `/karya/tag/:tag` | `/ruang-mahasiswa/karya/tag/:tag` |
+| `/karya/mahasiswa/:username` | `/ruang-mahasiswa/mahasiswa/:username` |
+| `/karya/saya` | `/ruang-mahasiswa/dashboard` |
+| `/karya/saya/baru`, `/edit/:id`, `/pratinjau/:id` | `/ruang-mahasiswa/dashboard/karya/...` |
+| `/karya/saya/pratinjau-profil` | `/ruang-mahasiswa/dashboard/pratinjau-profil` |
+| `/karya/masuk`, `/karya/daftar` | `/ruang-mahasiswa/masuk`, `/ruang-mahasiswa/daftar` |
+
+API tetap `/api/karya/*`; shortlink tetap `/go/:slug`. Halaman dashboard/masuk/daftar `noindex`.

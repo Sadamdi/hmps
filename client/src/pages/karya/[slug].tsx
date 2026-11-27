@@ -278,6 +278,43 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 					</div>
 				)}
 
+				{p.contributors?.length ? (
+					<div className="space-y-2 rounded-xl border border-border bg-card p-4">
+						<p className="text-sm font-semibold text-foreground">Tim pembuat</p>
+						<ul className="space-y-1.5">
+							{p.contributors.map((c, i) => {
+								const inner = (
+									<>
+										<KaryaAvatar name={c.name} url={c.avatarUrl} className="h-8 w-8 shrink-0 text-xs" />
+										<span className="min-w-0 flex-1">
+											<span className="block truncate text-sm font-medium text-foreground">{c.name}</span>
+											<span className="block truncate text-xs text-muted-foreground">
+												{c.role || (c.source === 'repo' ? 'Contributor repo' : 'Kontributor')}
+												{c.username ? ` · @${c.username}` : c.githubUrl ? ' · GitHub' : ''}
+											</span>
+										</span>
+									</>
+								);
+								return (
+									<li key={i}>
+										{c.username ? (
+											<Link href={KARYA_PATHS.student(c.username)} className="flex min-h-[44px] items-center gap-2.5 rounded-md px-1 hover:bg-muted/60">
+												{inner}
+											</Link>
+										) : c.githubUrl ? (
+											<a href={c.githubUrl} target="_blank" rel="noopener noreferrer nofollow" className="flex min-h-[44px] items-center gap-2.5 rounded-md px-1 hover:bg-muted/60">
+												{inner}
+											</a>
+										) : (
+											<div className="flex min-h-[44px] items-center gap-2.5 px-1">{inner}</div>
+										)}
+									</li>
+								);
+							})}
+						</ul>
+					</div>
+				) : null}
+
 				{otherLinks.length || drive.some((d) => !d.id) ? (
 					<div className="space-y-2 rounded-xl border border-border bg-card p-4">
 						<p className="text-sm font-semibold text-foreground">Tautan</p>
@@ -321,7 +358,8 @@ export default function KaryaDetailPage() {
 	const { data: p, isLoading, isError } = usePublicProject(slug);
 	const crumbs = [
 		{ label: 'Beranda', href: '/' },
-		{ label: 'Karya TI', href: KARYA_PATHS.index },
+		{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.home },
+		{ label: 'Karya', href: KARYA_PATHS.index },
 		{ label: p?.title || 'Karya' },
 	];
 

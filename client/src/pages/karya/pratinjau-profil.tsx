@@ -17,7 +17,7 @@ export default function KaryaProfilePreviewPage() {
 	}, [loading, student, navigate]);
 
 	return (
-		<KaryaPublicLayout noindex title="Pratinjau profil | Karya TI" breadcrumb={[{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.dashboard }, { label: 'Pratinjau profil' }]}>
+		<KaryaPublicLayout noindex title="Pratinjau profil | Karya TI" breadcrumb={[{ label: 'Beranda', href: '/' }, { label: 'Ruang Mahasiswa', href: KARYA_PATHS.home }, { label: 'Dashboard', href: KARYA_PATHS.dashboard }, { label: 'Pratinjau profil' }]}>
 			{loading || isLoading || !data ? (
 				<div className="flex justify-center py-24">
 					<Loader2 className="h-8 w-8 animate-spin text-primary" aria-label="Memuat" />

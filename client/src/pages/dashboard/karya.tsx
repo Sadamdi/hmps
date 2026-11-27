@@ -1,3 +1,4 @@
+import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import DashboardLayout from '@/components/dashboard/dashboard-layout';
 import { DashboardHintCard } from '@/components/dashboard/dashboard-hint-card';
 import { StatusBadge } from '@/pages/karya/saya';
@@ -17,9 +18,9 @@ import { usePermissionRefresh } from '@/hooks/use-permission-refresh';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/lib/auth';
 import { apiErrorText, apiRequest } from '@/lib/queryClient';
-import { KARYA_STATUS_LABEL, formatBytes, type KaryaStatus } from '@shared/karya';
+import { KARYA_STATUS_LABEL, formatBytes, karyaCategoriesOf, karyaCategoryLabel, type KaryaStatus } from '@shared/karya';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Ban, CheckCircle2, ExternalLink, EyeOff, Loader2, PauseCircle, Search, Star, Trash2, UserPlus, UserRound } from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, ExternalLink, Eye, EyeOff, Loader2, PauseCircle, Search, Star, Trash2, UserPlus, UserRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { KaryaOwnProject, KaryaStudentAccount, KaryaWarning } from '@/hooks/use-karya';
 
@@ -113,7 +114,7 @@ function StudentDetailDialog({ id, onClose, canManage, onWarn }: { id: string | 
 							<Badge variant="outline">{d.student.profileVisible ? 'Profil publik' : 'Profil tidak tampil'}</Badge>
 							<Badge variant="outline">{formatBytes(d.student.storageUsedBytes)}</Badge>
 							{d.student.profileVisible ? (
-								<a href={`/karya/mahasiswa/${d.student.username}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Buka profil <ExternalLink className="h-3 w-3" /></a>
+								<a href={`/ruang-mahasiswa/mahasiswa/${d.student.username}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Buka profil <ExternalLink className="h-3 w-3" /></a>
 							) : null}
 							{canManage ? (
 								<Button size="sm" variant="outline" className="ml-auto text-red-600" onClick={() => onWarn({ kind: 'students', id: d.student.id, label: `Akun ${d.student.name || d.student.email}` })}>
@@ -138,7 +139,7 @@ function StudentDetailDialog({ id, onClose, canManage, onWarn }: { id: string | 
 											<WarningList list={p.warnings} />
 										</div>
 										<div className="flex gap-1">
-											{p.status === 'approved' ? <Button asChild size="sm" variant="ghost"><a href={`/karya/${p.slug}`} target="_blank" rel="noopener noreferrer" aria-label="Buka karya"><ExternalLink className="h-3.5 w-3.5" /></a></Button> : null}
+											{p.status === 'approved' ? <Button asChild size="sm" variant="ghost"><a href={`/ruang-mahasiswa/karya/${p.slug}`} target="_blank" rel="noopener noreferrer" aria-label="Buka karya"><ExternalLink className="h-3.5 w-3.5" /></a></Button> : null}
 											{canManage ? (
 												<Button size="sm" variant="outline" className="text-red-600" onClick={() => onWarn({ kind: 'projects', id: p.id, label: `Karya "${p.title}"` })}><AlertTriangle className="h-3.5 w-3.5" /></Button>
 											) : null}
@@ -270,6 +271,7 @@ function ProjectsPanel({ canManage }: { canManage: boolean }) {
 	const [dialog, setDialog] = useState<{ p: AdminProject; action: ReviewAction | 'delete' } | null>(null);
 	const [warn, setWarn] = useState<WarnTarget | null>(null);
 	const [detailId, setDetailId] = useState<string | null>(null);
+	const [reviewing, setReviewing] = useState<AdminProject | null>(null);
 	const [note, setNote] = useState('');
 	const [busy, setBusy] = useState(false);
 
@@ -320,76 +322,17 @@ function ProjectsPanel({ canManage }: { canManage: boolean }) {
 			) : !data?.data?.length ? (
 				<p className="py-12 text-center text-sm text-muted-foreground">Tidak ada karya di filter ini.</p>
 			) : (
-				data.data.map((p) => (
-					<Card key={p.id}>
-						<CardContent className="space-y-3 p-4">
-							<div className="flex flex-wrap items-start gap-3">
-								{p.media.find((m) => m.type === 'image') ? (
-									<img src={(p.media.find((m) => m.id === p.coverMediaId) || p.media.find((m) => m.type === 'image'))!.url} alt="" className="h-20 w-32 rounded-md object-cover" />
-								) : null}
-								<div className="min-w-0 flex-1">
-									<div className="flex flex-wrap items-center gap-2">
-										<p className="font-semibold">{p.title}</p>
-										<StatusBadge status={p.status} visibility={p.visibility} />
-										{p.featured ? <Badge className="bg-amber-400 text-slate-900">Unggulan</Badge> : null}
-									</div>
-									<p className="text-xs text-muted-foreground">
-										{p.student ? `${p.student.name} · ${p.student.email}` : 'Akun tidak ada'} · {p.visibility === 'public' ? 'Publik' : 'Privat'} · {p.submittedAt ? `dikirim ${new Date(p.submittedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
-									</p>
-									{p.summary ? <p className="mt-1 text-sm">{p.summary}</p> : null}
-									<div className="mt-2 flex flex-wrap gap-2 text-xs">
-										{p.repos.map((r) => (
-											<a key={r.url} href={r.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-												{r.owner}/{r.name} <ExternalLink className="h-3 w-3" />
-											</a>
-										))}
-										{p.links.map((l) => (
-											<a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
-												{l.kind} <ExternalLink className="h-3 w-3" />
-											</a>
-										))}
-										{p.media.length ? <span className="text-muted-foreground">{p.media.length} file ({formatBytes(p.media.reduce((a, m) => a + m.size, 0))})</span> : null}
-									</div>
-									{p.description ? <details className="mt-2 text-sm"><summary className="cursor-pointer text-muted-foreground">Deskripsi</summary><p className="mt-1 whitespace-pre-line">{p.description}</p></details> : null}
-									<WarningList list={p.warnings} />
-									{p.reviewLog?.length ? (
-										<details className="mt-1 text-xs text-muted-foreground">
-											<summary className="cursor-pointer">Riwayat review ({p.reviewLog.length})</summary>
-											<ul className="mt-1 space-y-0.5">
-												{p.reviewLog.map((l, i) => (
-													<li key={i}>{new Date(l.at).toLocaleString('id-ID')} · {l.action} · {l.byName}{l.note ? ` — ${l.note}` : ''}</li>
-												))}
-											</ul>
-										</details>
-									) : null}
-								</div>
-							</div>
-							{canManage ? (
-								<div className="flex flex-wrap gap-2 border-t pt-3">
-									{p.status !== 'approved' && p.status !== 'hidden' && p.visibility === 'public' ? (
-										<Button size="sm" onClick={() => setDialog({ p, action: 'approve' })}><CheckCircle2 className="mr-1 h-4 w-4" /> Setujui</Button>
-									) : null}
-									{p.status === 'pending' || p.status === 'approved' ? (
-										<Button size="sm" variant="outline" onClick={() => setDialog({ p, action: 'revision' })}>Minta revisi</Button>
-									) : null}
-									{p.status === 'approved' ? (
-										<Button size="sm" variant="outline" onClick={() => setDialog({ p, action: p.featured ? 'unfeature' : 'feature' })}><Star className="mr-1 h-4 w-4" /> {p.featured ? 'Lepas unggulan' : 'Unggulkan'}</Button>
-									) : null}
-									{p.status === 'hidden' ? (
-										<Button size="sm" variant="outline" onClick={() => setDialog({ p, action: 'unhide' })}>Pulihkan</Button>
-									) : (
-										<Button size="sm" variant="outline" className="text-orange-600" onClick={() => setDialog({ p, action: 'hide' })}><EyeOff className="mr-1 h-4 w-4" /> Suspend</Button>
-									)}
-									<Button size="sm" variant="outline" className="text-red-600" onClick={() => setWarn({ kind: 'projects', id: p.id, label: `Karya "${p.title}"` })}><AlertTriangle className="mr-1 h-4 w-4" /> Peringatkan</Button>
-									{p.student?.id ? <Button size="sm" variant="ghost" onClick={() => setDetailId(p.student!.id)}><UserRound className="mr-1 h-4 w-4" /> Detail mahasiswa</Button> : null}
-									<Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDialog({ p, action: 'delete' })}><Trash2 className="mr-1 h-4 w-4" /> Hapus</Button>
-								</div>
-							) : p.student?.id ? (
-								<div className="border-t pt-3"><Button size="sm" variant="ghost" onClick={() => setDetailId(p.student!.id)}><UserRound className="mr-1 h-4 w-4" /> Detail mahasiswa</Button></div>
-							) : null}
-						</CardContent>
-					</Card>
-				))
+				<div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
+					{data.data.map((p) => (
+						<AdminProjectCard
+							key={p.id}
+							p={p}
+							canManage={canManage}
+							onReview={() => setReviewing(p)}
+							onAction={(action) => setDialog({ p, action })}
+						/>
+					))}
+				</div>
 			)}
 			{total > 20 ? (
 				<div className="flex justify-center gap-2">
@@ -400,6 +343,17 @@ function ProjectsPanel({ canManage }: { canManage: boolean }) {
 
 			<WarnDialog target={warn} onClose={() => setWarn(null)} />
 			<StudentDetailDialog id={detailId} onClose={() => setDetailId(null)} canManage={canManage} onWarn={setWarn} />
+			<ProjectReviewDialog
+				p={reviewing}
+				canManage={canManage}
+				onClose={() => setReviewing(null)}
+				onAction={(action) => {
+					if (!reviewing) return;
+					setDialog({ p: reviewing, action });
+				}}
+				onWarn={() => reviewing && setWarn({ kind: 'projects', id: reviewing.id, label: `Karya "${reviewing.title}"` })}
+				onStudent={() => reviewing?.student?.id && setDetailId(reviewing.student.id)}
+			/>
 			<Dialog open={!!dialog} onOpenChange={(o) => !o && setDialog(null)}>
 				<DialogContent>
 					<DialogHeader>
@@ -758,5 +712,261 @@ function TutorialVideoSettings({ data, canManage, onSave }: { data: Settings; ca
 				</div>
 			</CardContent>
 		</Card>
+	);
+}
+
+type ReviewOrDelete = ReviewAction | 'delete';
+
+function adminCover(p: AdminProject): { url: string; contain: boolean } {
+	const own = p.media.find((m) => m.id === p.coverMediaId) || p.media.find((m) => m.type === 'image');
+	if (own) return { url: own.url, contain: false };
+	const url = (p as AdminProject & { coverUrl?: string; coverGenerated?: boolean }).coverUrl || '';
+	const gen = (p as AdminProject & { coverGenerated?: boolean }).coverGenerated;
+	return { url: gen && url ? `${url}${url.includes('?') ? '&' : '?'}theme=dark` : url, contain: /opengraph\.githubassets\.com/.test(url) };
+}
+
+/** Kartu karya di dashboard admin: sampul, status, pembuat, ringkasan, aksi cepat. */
+function AdminProjectCard({ p, canManage, onReview, onAction }: { p: AdminProject; canManage: boolean; onReview: () => void; onAction: (a: ReviewOrDelete) => void }) {
+	const cover = adminCover(p);
+	const cats = karyaCategoriesOf(p as unknown as { category?: string; categories?: string[] });
+	return (
+		<Card className="flex flex-col overflow-hidden">
+			<button type="button" onClick={onReview} className="relative block aspect-[16/9] w-full overflow-hidden bg-muted text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={`Tinjau ${p.title}`}>
+				{cover.url ? (
+					<img src={cover.url} alt="" loading="lazy" className={cover.contain ? 'h-full w-full bg-white object-contain p-2' : 'h-full w-full object-cover'} />
+				) : (
+					<div className="flex h-full items-center justify-center text-sm text-muted-foreground">Tanpa sampul</div>
+				)}
+				<div className="absolute left-2.5 top-2.5 flex flex-wrap gap-1.5">
+					<StatusBadge status={p.status} visibility={p.visibility} />
+					{p.featured ? <Badge className="bg-amber-400 text-slate-900 hover:bg-amber-400">Unggulan</Badge> : null}
+					{p.warnings?.some((w) => !w.acknowledgedAt) ? <Badge className="bg-red-600 text-white hover:bg-red-600">Diperingatkan</Badge> : null}
+				</div>
+			</button>
+			<CardContent className="flex flex-1 flex-col gap-2 p-4">
+				<div className="flex flex-wrap gap-1">
+					{cats.map((c) => (
+						<span key={c} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+							{karyaCategoryLabel(c)}
+						</span>
+					))}
+				</div>
+				<button type="button" onClick={onReview} className="line-clamp-2 text-left font-semibold leading-snug hover:text-primary">
+					{p.title}
+				</button>
+				<p className="truncate text-xs text-muted-foreground">
+					{p.student ? `${p.student.name} · ${p.student.email}` : 'Akun tidak ada'}
+				</p>
+				{p.summary ? <p className="line-clamp-2 text-sm text-muted-foreground">{p.summary}</p> : null}
+				<p className="mt-auto pt-1 text-xs text-muted-foreground">
+					{p.visibility === 'public' ? 'Publik' : 'Privat'}
+					{p.submittedAt ? ` · dikirim ${new Date(p.submittedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
+					{p.repos.length ? ` · ${p.repos.length} repo` : ''}
+					{p.media.length ? ` · ${p.media.length} media` : ''}
+				</p>
+				<div className="flex flex-wrap gap-2 border-t border-border/60 pt-3">
+					<Button size="sm" onClick={onReview} variant={p.status === 'pending' ? 'default' : 'outline'}>
+						<Eye className="mr-1 h-4 w-4" /> Tinjau
+					</Button>
+					{canManage && p.status === 'pending' && p.visibility === 'public' ? (
+						<Button size="sm" variant="outline" onClick={() => onAction('approve')}>
+							<CheckCircle2 className="mr-1 h-4 w-4" /> Setujui
+						</Button>
+					) : null}
+					{canManage && (p.status === 'pending' || p.status === 'approved') ? (
+						<Button size="sm" variant="ghost" onClick={() => onAction('revision')}>
+							Minta revisi
+						</Button>
+					) : null}
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+/** Panel tinjau karya: isi lengkap dirender seperti halaman publik + semua aksi pengurus. */
+function ProjectReviewDialog({
+	p,
+	canManage,
+	onClose,
+	onAction,
+	onWarn,
+	onStudent,
+}: {
+	p: AdminProject | null;
+	canManage: boolean;
+	onClose: () => void;
+	onAction: (a: ReviewOrDelete) => void;
+	onWarn: () => void;
+	onStudent: () => void;
+}) {
+	if (!p) return null;
+	const cover = adminCover(p);
+	const contributors = ((p as unknown as { contributors?: { name: string; role?: string; avatarUrl?: string; hasAccount?: boolean }[] }).contributors) || [];
+	const run = (a: ReviewOrDelete) => {
+		onClose();
+		onAction(a);
+	};
+	return (
+		<Dialog open onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="block max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-4xl overflow-y-auto p-0">
+				{cover.url ? (
+					<div className="relative h-40 w-full shrink-0 overflow-hidden bg-muted sm:h-56">
+						<img src={cover.url} alt="" className={cover.contain ? 'absolute inset-0 h-full w-full bg-white object-contain p-3' : 'absolute inset-0 h-full w-full object-cover'} />
+					</div>
+				) : null}
+				<div className="space-y-5 p-5 sm:p-6">
+					<DialogHeader className="space-y-2 text-left">
+						<div className="flex flex-wrap items-center gap-2">
+							<StatusBadge status={p.status} visibility={p.visibility} />
+							{karyaCategoriesOf(p as unknown as { category?: string; categories?: string[] }).map((c) => (
+								<Badge key={c} variant="secondary">
+									{karyaCategoryLabel(c)}
+								</Badge>
+							))}
+						</div>
+						<DialogTitle className="text-2xl">{p.title}</DialogTitle>
+						<DialogDescription>
+							{p.student ? `${p.student.name} · ${p.student.email}` : 'Akun tidak ada'} · {p.visibility === 'public' ? 'Publik' : 'Privat'}
+							{p.submittedAt ? ` · dikirim ${new Date(p.submittedAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
+						</DialogDescription>
+					</DialogHeader>
+
+					{p.summary ? <p className="text-base text-foreground">{p.summary}</p> : null}
+
+					{p.media.length ? (
+						<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+							{p.media.map((m) =>
+								m.type === 'image' ? (
+									<a key={m.id} href={m.url} target="_blank" rel="noopener noreferrer" className="block aspect-video overflow-hidden rounded-md bg-muted">
+										<img src={m.url} alt={m.caption || ''} className="h-full w-full object-cover" loading="lazy" />
+									</a>
+								) : (
+									<video key={m.id} src={m.url} controls preload="metadata" className="aspect-video w-full rounded-md bg-black" />
+								),
+							)}
+						</div>
+					) : null}
+
+					{p.description ? (
+						<section className="space-y-2">
+							<h3 className="text-sm font-semibold text-foreground">Deskripsi</h3>
+							<div className="max-h-[50vh] overflow-y-auto rounded-lg border border-border bg-card p-4">
+								{(p as AdminProject & { descriptionFormat?: string }).descriptionFormat === 'html' ? (
+									<RichHtmlWithEmbeds content={p.description} className="prose prose-sm max-w-none dark:prose-invert" />
+								) : (
+									<p className="whitespace-pre-line text-sm">{p.description}</p>
+								)}
+							</div>
+						</section>
+					) : null}
+
+					<div className="grid gap-4 sm:grid-cols-2">
+						{p.repos.length || p.links.length ? (
+							<section className="space-y-2">
+								<h3 className="text-sm font-semibold text-foreground">Repo & tautan</h3>
+								<ul className="space-y-1 text-sm">
+									{p.repos.map((r) => (
+										<li key={r.url}>
+											<a href={r.url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1 text-primary hover:underline">
+												{r.owner}/{r.name} <ExternalLink className="h-3 w-3" />
+											</a>
+										</li>
+									))}
+									{p.links.map((l) => (
+										<li key={l.url} className="truncate">
+											<a href={l.url} target="_blank" rel="noopener noreferrer nofollow" className="inline-flex items-center gap-1 text-primary hover:underline">
+												{(l as { label?: string }).label || l.kind} <ExternalLink className="h-3 w-3" />
+											</a>
+											<span className="ml-1 text-xs text-muted-foreground">{l.url.replace(/^https:\/\//, '')}</span>
+										</li>
+									))}
+								</ul>
+							</section>
+						) : null}
+						{contributors.length ? (
+							<section className="space-y-2">
+								<h3 className="text-sm font-semibold text-foreground">Tim pembuat</h3>
+								<ul className="space-y-1 text-sm">
+									{contributors.map((c, i) => (
+										<li key={i}>
+											{c.name}
+											{c.role ? <span className="text-muted-foreground"> · {c.role}</span> : null}
+											{c.hasAccount ? <span className="ml-1 text-xs text-primary">(akun Karya TI)</span> : null}
+										</li>
+									))}
+								</ul>
+							</section>
+						) : null}
+					</div>
+
+					<WarningList list={p.warnings} />
+					{p.reviewLog?.length ? (
+						<details className="text-xs text-muted-foreground">
+							<summary className="cursor-pointer">Riwayat review ({p.reviewLog.length})</summary>
+							<ul className="mt-1 space-y-0.5">
+								{p.reviewLog.map((l, i) => (
+									<li key={i}>
+										{new Date(l.at).toLocaleString('id-ID')} · {l.action} · {l.byName}
+										{l.note ? ` — ${l.note}` : ''}
+									</li>
+								))}
+							</ul>
+						</details>
+					) : null}
+
+					<div className="sticky bottom-0 -mx-5 flex flex-wrap gap-2 border-t border-border bg-background/95 px-5 py-3 backdrop-blur sm:-mx-6 sm:px-6">
+						{canManage ? (
+							<>
+								{p.status !== 'approved' && p.status !== 'hidden' && p.visibility === 'public' ? (
+									<Button size="sm" onClick={() => run('approve')}>
+										<CheckCircle2 className="mr-1 h-4 w-4" /> Setujui
+									</Button>
+								) : null}
+								{p.status === 'pending' || p.status === 'approved' ? (
+									<Button size="sm" variant="outline" onClick={() => run('revision')}>
+										Minta revisi
+									</Button>
+								) : null}
+								{p.status === 'approved' ? (
+									<Button size="sm" variant="outline" onClick={() => run(p.featured ? 'unfeature' : 'feature')}>
+										<Star className="mr-1 h-4 w-4" /> {p.featured ? 'Lepas unggulan' : 'Unggulkan'}
+									</Button>
+								) : null}
+								{p.status === 'hidden' ? (
+									<Button size="sm" variant="outline" onClick={() => run('unhide')}>
+										Pulihkan
+									</Button>
+								) : (
+									<Button size="sm" variant="outline" className="text-orange-600" onClick={() => run('hide')}>
+										<EyeOff className="mr-1 h-4 w-4" /> Suspend
+									</Button>
+								)}
+								<Button size="sm" variant="outline" className="text-red-600" onClick={() => { onClose(); onWarn(); }}>
+									<AlertTriangle className="mr-1 h-4 w-4" /> Peringatkan
+								</Button>
+							</>
+						) : null}
+						{p.student?.id ? (
+							<Button size="sm" variant="ghost" onClick={() => { onClose(); onStudent(); }}>
+								<UserRound className="mr-1 h-4 w-4" /> Detail mahasiswa
+							</Button>
+						) : null}
+						{p.status === 'approved' ? (
+							<Button size="sm" variant="ghost" asChild>
+								<a href={`/ruang-mahasiswa/karya/${p.slug}`} target="_blank" rel="noopener noreferrer">
+									<ExternalLink className="mr-1 h-4 w-4" /> Buka halaman publik
+								</a>
+							</Button>
+						) : null}
+						{canManage ? (
+							<Button size="sm" variant="ghost" className="ml-auto text-destructive" onClick={() => run('delete')}>
+								<Trash2 className="mr-1 h-4 w-4" /> Hapus
+							</Button>
+						) : null}
+					</div>
+				</div>
+			</DialogContent>
+		</Dialog>
 	);
 }

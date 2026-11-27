@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { KARYA_PATHS, karyaApi, refreshStudent, useKaryaConfig, useMyProject, usePublicCategories, usePublicTags, useStudent, type KaryaOwnProject } from '@/hooks/use-karya';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
+import { ContributorsEditor, candidateToRow, type ContributorCandidate, type ContributorRow } from '@/components/karya/contributors-editor';
 import { RepoHostIcon } from './[slug]';
 import { useCoverUrl } from '@/components/karya/karya-card';
 import { useToast } from '@/hooks/use-toast';
@@ -49,6 +50,7 @@ export default function KaryaEditorPage() {
 	const [tagGroup, setTagGroup] = useState<string>('language');
 	const [newTag, setNewTag] = useState('');
 	const [newCat, setNewCat] = useState('');
+	const [contributors, setContributors] = useState<ContributorRow[]>([]);
 	const { data: usedCategories } = usePublicCategories();
 	const [detectNote, setDetectNote] = useState('');
 	const [tags, setTags] = useState('');
@@ -85,6 +87,7 @@ export default function KaryaEditorPage() {
 		setDescriptionFormat(p.descriptionFormat === 'html' ? 'html' : p.description ? 'text' : 'html');
 		setRole(p.role);
 		setCategories(p.categories?.length ? p.categories : [p.category]);
+		setContributors(p.contributors || []);
 		catTouched.current = true;
 		setTags(p.tags.join(', '));
 		setYear(p.year ? String(p.year) : '');
@@ -106,7 +109,7 @@ export default function KaryaEditorPage() {
 		setBusy('repo');
 		try {
 			type Readme = { summary: string; descriptionHtml: string; images: string[]; youtube: string[]; videoFiles: string[] };
-			const info = await karyaApi<KaryaRepoInfo & { readme?: Readme | null; detected?: { categories: string[]; tags: string[] } }>('POST', '/me/repo-preview', { url });
+			const info = await karyaApi<KaryaRepoInfo & { readme?: Readme | null; detected?: { categories: string[]; tags: string[] }; contributors?: ContributorCandidate[] }>('POST', '/me/repo-preview', { url });
 			setRepoUrls((r) => (r.includes(info.url) ? r : [...r, info.url]));
 			setRepoPreview((r) => (r.some((x) => x.url === info.url) ? r : [...r, info]));
 			// Isi otomatis pintar: hanya kolom yang masih kosong (tidak menimpa tulisanmu)
@@ -125,6 +128,14 @@ export default function KaryaEditorPage() {
 				setDescription(rd.descriptionHtml);
 				setDescriptionFormat('html');
 				filled.push('deskripsi dari README');
+			}
+			// Contributor repo → kontributor karya (yang punya akun Karya TI langsung tertaut)
+			if (info.contributors?.length) {
+				const fresh = info.contributors.filter((c) => !contributors.some((x) => x.key === c.key || (c.githubLogin && x.githubLogin === c.githubLogin)));
+				if (fresh.length) {
+					setContributors((cur) => [...cur, ...fresh.map((c) => candidateToRow(c, 'repo'))].slice(0, 20));
+					filled.push(`${fresh.length} kontributor`);
+				}
 			}
 			// Deteksi stack dari bahasa, file root, topics, dan README (mis. Flutter + Next.js → Mobile + Web)
 			const det = info.detected;
@@ -197,6 +208,7 @@ export default function KaryaEditorPage() {
 		role,
 		category: categories[0] || 'lainnya',
 		categories,
+		contributors: contributors.map((c) => ({ key: c.key, role: c.role, source: c.source })),
 		tags,
 		year: year ? Number(year) : null,
 		repoUrls,
@@ -318,9 +330,11 @@ export default function KaryaEditorPage() {
 			noindex
 			title={`${project ? 'Edit karya' : 'Karya baru'} | Karya TI`}
 			breadcrumb={[
-				{ label: 'Karya TI', href: KARYA_PATHS.index },
-				{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.dashboard },
-				{ label: project ? 'Edit karya' : 'Karya baru' },
+				{ label: 'Beranda', href: '/' },
+				{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.home },
+				{ label: 'Dashboard', href: KARYA_PATHS.dashboard },
+				{ label: 'Karya', href: `${KARYA_PATHS.dashboard}?tab=karya` },
+				{ label: project ? 'Edit' : 'Baru' },
 			]}>
 			<div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
 				<div className="min-w-0 space-y-5">
@@ -735,6 +749,22 @@ export default function KaryaEditorPage() {
 									<ImagePlus className="h-4 w-4" /> Belum ada media. Karya dengan gambar/video jauh lebih menarik.
 								</p>
 							)}
+						</CardContent>
+					</Card>
+
+					<Card>
+						<CardHeader>
+							<CardTitle className="text-base">Tim & kontributor (opsional)</CardTitle>
+							<CardDescription>Siapa saja yang ikut membuat karya ini. Kamu sebagai pemilik otomatis tercantum.</CardDescription>
+						</CardHeader>
+						<CardContent>
+							<ContributorsEditor
+								rows={contributors}
+								onChange={setContributors}
+								projectId={project?.id}
+								hasGithubRepo={repoPreview.some((r) => r.host === 'github')}
+								onSynced={setContributors}
+							/>
 						</CardContent>
 					</Card>
 

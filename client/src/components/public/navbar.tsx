@@ -647,12 +647,13 @@ export default function Navbar({
 		if (!isTenant) {
 			navItemMap.set('karya', {
 				id: 'karya',
-				label: 'Karya TI',
+				label: 'Ruang Mahasiswa',
 				icon: <Code2 className="h-4 w-4" />,
 				homeSection: 'karya',
 				children: [
-					{ label: 'Lihat semua karya', href: '/karya' },
-					{ label: 'Masuk / Ruang Mahasiswa', href: '/karya/saya' },
+					{ label: 'Karya mahasiswa', href: '/ruang-mahasiswa/karya' },
+					{ label: 'Profil mahasiswa', href: '/ruang-mahasiswa/karya?lihat=mahasiswa' },
+					{ label: 'Dashboard / Masuk', href: '/ruang-mahasiswa/dashboard' },
 				],
 			});
 		}

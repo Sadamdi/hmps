@@ -363,18 +363,41 @@ body {
 
 /* TinyMCE Global Fixes */
 .tox-tinymce {
-	border: 1px solid #e5e7eb !important;
+	border: 1px solid hsl(var(--border)) !important;
 	border-radius: 8px !important;
 }
 
-.tox-toolbar {
-	border-bottom: 1px solid #e5e7eb !important;
-	background: #f9fafb !important;
+/* Warna mengikuti tema (terang/gelap) — dulu selalu terang sehingga menu tak terbaca di mode gelap */
+.tox .tox-toolbar,
+.tox .tox-toolbar__primary,
+.tox .tox-toolbar__overflow,
+.tox .tox-editor-header {
+	border-bottom: 1px solid hsl(var(--border)) !important;
+	background: hsl(var(--muted)) !important;
 }
 
-.tox-menubar {
-	border-bottom: 1px solid #e5e7eb !important;
-	background: #f9fafb !important;
+.tox .tox-menubar {
+	border-bottom: 1px solid hsl(var(--border)) !important;
+	background: hsl(var(--muted)) !important;
+}
+
+.tox .tox-mbtn,
+.tox .tox-mbtn__select-label,
+.tox .tox-tbtn,
+.tox .tox-tbtn svg {
+	color: hsl(var(--foreground)) !important;
+	fill: hsl(var(--foreground)) !important;
+}
+
+.tox .tox-statusbar {
+	background: hsl(var(--muted)) !important;
+	border-top: 1px solid hsl(var(--border)) !important;
+	color: hsl(var(--muted-foreground)) !important;
+}
+.tox .tox-statusbar a,
+.tox .tox-statusbar__path-item,
+.tox .tox-statusbar__wordcount {
+	color: hsl(var(--muted-foreground)) !important;
 }
 
 /* Fix button interactions */
@@ -385,9 +408,12 @@ body {
 	cursor: pointer !important;
 }
 
-.tox-tbtn:hover,
-.tox-mbtn:hover {
-	background-color: #e5e7eb !important;
+.tox .tox-tbtn:hover,
+.tox .tox-mbtn:hover,
+.tox .tox-tbtn--enabled,
+.tox .tox-mbtn--active {
+	background-color: hsl(var(--accent)) !important;
+	color: hsl(var(--accent-foreground)) !important;
 }
 
 /* Fix dropdown menus */
@@ -403,9 +429,49 @@ body {
 	cursor: pointer !important;
 }
 
-.tox-collection__item:hover,
-.tox-menu__item:hover {
-	background-color: #e5e7eb !important;
+.tox .tox-menu,
+.tox .tox-collection--list,
+.tox .tox-collection--toolbar {
+	background-color: hsl(var(--popover)) !important;
+	border-color: hsl(var(--border)) !important;
+}
+.tox .tox-collection__item,
+.tox .tox-collection__item-label,
+.tox .tox-collection__item-accessory {
+	color: hsl(var(--popover-foreground)) !important;
+}
+.tox .tox-collection__item:hover,
+.tox .tox-menu__item:hover,
+.tox .tox-collection__item--active {
+	background-color: hsl(var(--accent)) !important;
+	color: hsl(var(--accent-foreground)) !important;
+}
+
+/* Dialog TinyMCE di mode gelap: input mengikuti tema (aturan putih di editor hanya untuk mode terang) */
+.dark .tox .tox-dialog,
+.dark .tox .tox-dialog__header,
+.dark .tox .tox-dialog__footer {
+	background-color: hsl(var(--card)) !important;
+	color: hsl(var(--card-foreground)) !important;
+	border-color: hsl(var(--border)) !important;
+}
+.dark .tox .tox-dialog input[type='text'],
+.dark .tox .tox-dialog input[type='url'],
+.dark .tox .tox-dialog input[type='email'],
+.dark .tox .tox-dialog textarea,
+.dark .tox .tox-dialog .tox-textfield,
+.dark .tox .tox-dialog .tox-textarea,
+.dark .tox .tox-dialog input[readonly],
+.dark .tox .tox-dialog input[disabled],
+.dark .tox .tox-listboxfield .tox-listbox--select {
+	background-color: hsl(var(--background)) !important;
+	color: hsl(var(--foreground)) !important;
+	border-color: hsl(var(--border)) !important;
+}
+.dark .tox .tox-label,
+.dark .tox .tox-dialog__title,
+.dark .tox .tox-dialog__body {
+	color: hsl(var(--foreground)) !important;
 }
 
 /* SUPER AGGRESSIVE: Dialog fixes */

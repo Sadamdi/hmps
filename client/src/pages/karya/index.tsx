@@ -76,14 +76,14 @@ export default function KaryaIndexPage() {
 
 	if (config && !config.enabled) {
 		return (
-			<KaryaPublicLayout title="Karya Mahasiswa TI | Himatif Encoder" breadcrumb={[{ label: 'Beranda', href: '/' }, { label: 'Karya TI' }]}>
+			<KaryaPublicLayout title="Karya Mahasiswa TI | Himatif Encoder" breadcrumb={[{ label: 'Beranda', href: '/' }, { label: 'Ruang Mahasiswa', href: KARYA_PATHS.home }, { label: 'Karya' }]}>
 				<div className="max-w-xl mx-auto px-4 py-24 text-center text-muted-foreground">Halaman Karya Mahasiswa sedang dinonaktifkan sementara.</div>
 			</KaryaPublicLayout>
 		);
 	}
 
 	return (
-		<KaryaPublicLayout title="Karya Mahasiswa TI — Portofolio Mahasiswa Teknik Informatika UIN Malang | Himatif Encoder" breadcrumb={[{ label: 'Beranda', href: '/' }, { label: 'Karya TI' }]}>
+		<KaryaPublicLayout title="Karya Mahasiswa TI — Portofolio Mahasiswa Teknik Informatika UIN Malang | Himatif Encoder" breadcrumb={[{ label: 'Beranda', href: '/' }, { label: 'Ruang Mahasiswa', href: KARYA_PATHS.home }, { label: 'Karya' }]}>
 			<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
 				<PublicSectionHeader
 					eyebrow="Karya Mahasiswa"
