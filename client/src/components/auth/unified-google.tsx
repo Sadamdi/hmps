@@ -48,7 +48,7 @@ export async function buyerGoogleLogin(idToken: string): Promise<BuyerGoogleResu
 	return { claimedOrders: r?.claimedOrders };
 }
 
-/** Masuk mahasiswa (Karya) dengan Google; belum punya akun → onboarding di /karya/daftar. */
+/** Masuk mahasiswa (Karya) dengan Google; belum punya akun → onboarding di /ruang-mahasiswa/daftar. */
 export async function studentGoogleLogin(idToken: string): Promise<{ needsOnboarding?: boolean }> {
 	const r = await fetch('/api/karya/auth/google', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idToken }) });
 	const j = await r.json().catch(() => ({}));

@@ -113,7 +113,7 @@ function StudentDetailDialog({ id, onClose, canManage, onWarn }: { id: string | 
 							<Badge variant="outline">{d.student.profileVisible ? 'Profil publik' : 'Profil tidak tampil'}</Badge>
 							<Badge variant="outline">{formatBytes(d.student.storageUsedBytes)}</Badge>
 							{d.student.profileVisible ? (
-								<a href={`/karya/mahasiswa/${d.student.username}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Buka profil <ExternalLink className="h-3 w-3" /></a>
+								<a href={`/ruang-mahasiswa/mahasiswa/${d.student.username}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Buka profil <ExternalLink className="h-3 w-3" /></a>
 							) : null}
 							{canManage ? (
 								<Button size="sm" variant="outline" className="ml-auto text-red-600" onClick={() => onWarn({ kind: 'students', id: d.student.id, label: `Akun ${d.student.name || d.student.email}` })}>
@@ -138,7 +138,7 @@ function StudentDetailDialog({ id, onClose, canManage, onWarn }: { id: string | 
 											<WarningList list={p.warnings} />
 										</div>
 										<div className="flex gap-1">
-											{p.status === 'approved' ? <Button asChild size="sm" variant="ghost"><a href={`/karya/${p.slug}`} target="_blank" rel="noopener noreferrer" aria-label="Buka karya"><ExternalLink className="h-3.5 w-3.5" /></a></Button> : null}
+											{p.status === 'approved' ? <Button asChild size="sm" variant="ghost"><a href={`/ruang-mahasiswa/karya/${p.slug}`} target="_blank" rel="noopener noreferrer" aria-label="Buka karya"><ExternalLink className="h-3.5 w-3.5" /></a></Button> : null}
 											{canManage ? (
 												<Button size="sm" variant="outline" className="text-red-600" onClick={() => onWarn({ kind: 'projects', id: p.id, label: `Karya "${p.title}"` })}><AlertTriangle className="h-3.5 w-3.5" /></Button>
 											) : null}

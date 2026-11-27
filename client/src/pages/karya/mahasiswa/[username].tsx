@@ -4,7 +4,11 @@ import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
 import { Button } from '@/components/ui/button';
 import { KARYA_PATHS, usePublicStudent } from '@/hooks/use-karya';
 import { BadgeCheck, BookOpen, FileText, FolderGit2, Github, Globe, Instagram, Link2, Linkedin, Loader2 } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
+import { karyaCategoriesOf, karyaCategoryLabel } from '@shared/karya';
+import { Activity, Flame, Search } from 'lucide-react';
 import { Link, useLocation, useParams } from 'wouter';
 import type { KaryaProjectCard, KaryaSocialLinks, KaryaStudentPublic } from '@shared/karya';
 
@@ -28,7 +32,7 @@ export default function KaryaStudentPage() {
 	useEffect(() => {
 		if (data?.redirectTo) navigate(KARYA_PATHS.student(data.redirectTo), { replace: true });
 	}, [data?.redirectTo, navigate]);
-	const crumbs = [{ label: 'Beranda', href: '/' }, { label: 'Karya TI', href: KARYA_PATHS.index }, { label: s?.name || 'Profil' }];
+	const crumbs = [{ label: 'Beranda', href: '/' }, { label: 'Ruang Mahasiswa', href: KARYA_PATHS.home }, { label: 'Mahasiswa', href: KARYA_PATHS.studentsDirectory }, { label: s?.name || 'Profil' }];
 
 	if (isLoading) {
 		return (
@@ -62,8 +66,6 @@ export default function KaryaStudentPage() {
 
 /** Tampilan profil (dipakai halaman publik dan pratinjau pemilik). */
 export function StudentProfileView({ s, projects }: { s: KaryaStudentPublic & { shortlink?: string }; projects: KaryaProjectCard[] }) {
-	const featured = projects.find((p) => p.featured) || projects[0];
-	const rest = projects.filter((p) => p !== featured);
 	const socials = SOCIAL.filter((x) => s.social?.[x.key]);
 	const tagCount = new Map<string, number>();
 	for (const p of projects) for (const t of p.tags || []) tagCount.set(t, (tagCount.get(t) || 0) + 1);
@@ -115,17 +117,96 @@ export function StudentProfileView({ s, projects }: { s: KaryaStudentPublic & { 
 					) : null}
 				</aside>
 
-				<section className="min-w-0 space-y-6 lg:pt-20">
-					<div className="flex flex-wrap items-center gap-2 border-b border-border pb-3 text-sm">
-						<span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 font-medium text-foreground">
-							<FolderGit2 className="h-4 w-4" aria-hidden /> {projects.length} karya
-						</span>
-						{topTags.map(([t, n]) => (
-							<Link key={t} href={KARYA_PATHS.tag(t)} className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">
-								#{t} <span className="opacity-70">{n}</span>
-							</Link>
-						))}
-					</div>
+				<ProfileMain s={s} projects={projects} topTags={topTags} />
+			</div>
+		</>
+	);
+}
+
+type SortKey = 'active' | 'popular' | 'latest';
+
+/**
+ * Isi profil gaya GitHub:
+ * - Ringkasan: README, lalu "Sedang aktif" (aktivitas repo/karya terbaru) dan "Terpopuler" (paling banyak dilihat).
+ * - Portofolio: semua karya (milik sendiri + sebagai kontributor) dalam kartu, bisa dicari, difilter kategori, diurutkan.
+ */
+function ProfileMain({ s, projects, topTags }: { s: KaryaStudentPublic; projects: KaryaProjectCard[]; topTags: [string, number][] }) {
+	const [tab, setTab] = useState<'overview' | 'portfolio'>(() =>
+		typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('tab') === 'portofolio' ? 'portfolio' : 'overview',
+	);
+	const [q, setQ] = useState('');
+	const [cat, setCat] = useState('');
+	const [sort, setSort] = useState<SortKey>('active');
+	const ts = (d?: string | null) => (d ? new Date(d).getTime() : 0);
+	const active = useMemo(() => [...projects].sort((a, b) => ts(b.activeAt || b.publishedAt) - ts(a.activeAt || a.publishedAt)).slice(0, 4), [projects]);
+	const popular = useMemo(
+		() => [...projects].filter((p) => !active.slice(0, 2).includes(p)).sort((a, b) => (b.viewCount || 0) - (a.viewCount || 0)).slice(0, 4),
+		[projects, active],
+	);
+	const cats = useMemo(() => Array.from(new Set(projects.flatMap((p) => karyaCategoriesOf(p)))), [projects]);
+	const list = useMemo(() => {
+		const needle = q.trim().toLowerCase();
+		const out = projects.filter(
+			(p) =>
+				(!cat || karyaCategoriesOf(p).includes(cat)) &&
+				(!needle || `${p.title} ${p.summary} ${p.tags.join(' ')}`.toLowerCase().includes(needle)),
+		);
+		return out.sort((a, b) =>
+			sort === 'popular' ? (b.viewCount || 0) - (a.viewCount || 0) : sort === 'latest' ? ts(b.publishedAt) - ts(a.publishedAt) : ts(b.activeAt || b.publishedAt) - ts(a.activeAt || a.publishedAt),
+		);
+	}, [projects, q, cat, sort]);
+
+	const setTabUrl = (t: 'overview' | 'portfolio') => {
+		setTab(t);
+		const u = new URL(window.location.href);
+		if (t === 'portfolio') u.searchParams.set('tab', 'portofolio');
+		else u.searchParams.delete('tab');
+		window.history.replaceState(null, '', u.toString());
+	};
+
+	const empty = (
+		<div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
+			<p className="font-semibold text-foreground">Belum ada karya yang tayang</p>
+			<p className="mt-1 text-sm text-muted-foreground">Karya {s.name.split(' ')[0]} akan muncul di sini setelah dipublikasikan.</p>
+		</div>
+	);
+
+	return (
+		<section className="min-w-0 space-y-6 lg:pt-20">
+			<div className="flex flex-wrap items-center gap-1 border-b border-border" role="tablist" aria-label="Bagian profil">
+				{(
+					[
+						['overview', 'Ringkasan', BookOpen, null],
+						['portfolio', 'Portofolio', FolderGit2, projects.length],
+					] as const
+				).map(([id, label, Icon, n]) => (
+					<button
+						key={id}
+						type="button"
+						role="tab"
+						aria-selected={tab === id}
+						onClick={() => setTabUrl(id)}
+						className={cn(
+							'-mb-px inline-flex min-h-[44px] items-center gap-1.5 border-b-2 px-3 text-sm font-medium transition-colors',
+							tab === id ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
+						)}>
+						<Icon className="h-4 w-4" aria-hidden /> {label}
+						{n !== null ? <span className="rounded-full bg-muted px-2 text-xs">{n}</span> : null}
+					</button>
+				))}
+			</div>
+
+			{tab === 'overview' ? (
+				<div className="space-y-8">
+					{topTags.length ? (
+						<div className="flex flex-wrap gap-1.5">
+							{topTags.map(([t, n]) => (
+								<Link key={t} href={KARYA_PATHS.tag(t)} className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">
+									#{t} <span className="opacity-70">{n}</span>
+								</Link>
+							))}
+						</div>
+					) : null}
 					{s.profileReadme ? (
 						<article className="overflow-hidden rounded-xl border border-border bg-card">
 							<div className="flex items-center gap-2 border-b border-border bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground">
@@ -136,25 +217,83 @@ export function StudentProfileView({ s, projects }: { s: KaryaStudentPublic & { 
 							</div>
 						</article>
 					) : null}
-					<div className="flex flex-wrap items-baseline justify-between gap-2">
-						<h2 className="text-xl font-semibold text-foreground">Portofolio ({projects.length})</h2>
-					</div>
 					{!projects.length ? (
-						<div className="rounded-xl border border-dashed border-border bg-card/50 p-10 text-center">
-							<p className="font-semibold text-foreground">Belum ada karya yang tayang</p>
-							<p className="mt-1 text-sm text-muted-foreground">Karya {s.name.split(' ')[0]} akan muncul di sini setelah dipublikasikan.</p>
+						empty
+					) : (
+						<>
+							<div className="space-y-3">
+								<h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+									<Activity className="h-5 w-5 text-emerald-500" aria-hidden /> Sedang aktif
+								</h2>
+								<div className="grid gap-5 sm:grid-cols-2">
+									{active.slice(0, 2).map((p) => (
+										<KaryaCard key={p.slug} item={p} />
+									))}
+								</div>
+							</div>
+							{popular.length ? (
+								<div className="space-y-3">
+									<h2 className="flex items-center gap-2 text-lg font-semibold text-foreground">
+										<Flame className="h-5 w-5 text-orange-500" aria-hidden /> Terpopuler
+									</h2>
+									<div className="grid gap-5 sm:grid-cols-2">
+										{popular.slice(0, 2).map((p) => (
+											<KaryaCard key={p.slug} item={p} />
+										))}
+									</div>
+								</div>
+							) : null}
+							{projects.length > 2 ? (
+								<Button variant="outline" onClick={() => setTabUrl('portfolio')}>
+									Lihat semua {projects.length} karya
+								</Button>
+							) : null}
+						</>
+					)}
+				</div>
+			) : (
+				<div className="space-y-4">
+					<div className="grid grid-cols-[minmax(0,1fr)] gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+						<div className="relative">
+							<Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+							<Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={`Cari di karya ${s.name.split(' ')[0]}…`} aria-label="Cari karya di profil" className="h-10 pl-9" />
 						</div>
-					) : null}
-					{featured ? <KaryaCard item={featured} className="sm:[&>div:first-child]:aspect-[21/9]" /> : null}
-					{rest.length ? (
-						<div className="grid gap-5 sm:grid-cols-2">
-							{rest.map((p) => (
-								<KaryaCard key={p.slug} item={p} />
+						<div className="flex gap-1 rounded-lg border border-border p-1" role="group" aria-label="Urutkan">
+							{(
+								[
+									['active', 'Terakhir aktif'],
+									['popular', 'Terpopuler'],
+									['latest', 'Terbaru'],
+								] as const
+							).map(([k, label]) => (
+								<button key={k} type="button" aria-pressed={sort === k} onClick={() => setSort(k)} className={cn('rounded-md px-2.5 py-1 text-xs', sort === k ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground')}>
+									{label}
+								</button>
+							))}
+						</div>
+					</div>
+					{cats.length > 1 ? (
+						<div className="flex flex-wrap gap-1.5">
+							{['', ...cats].map((c) => (
+								<button key={c || 'all'} type="button" aria-pressed={cat === c} onClick={() => setCat(c)} className={cn('min-h-[32px] rounded-full border px-3 text-xs', cat === c ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:text-foreground')}>
+									{c ? karyaCategoryLabel(c) : 'Semua'}
+								</button>
 							))}
 						</div>
 					) : null}
-				</section>
-			</div>
-		</>
+					{!projects.length ? (
+						empty
+					) : list.length ? (
+						<div className="grid gap-5 sm:grid-cols-2">
+							{list.map((p) => (
+								<KaryaCard key={p.slug} item={p} />
+							))}
+						</div>
+					) : (
+						<p className="py-10 text-center text-sm text-muted-foreground">Tidak ada karya yang cocok.</p>
+					)}
+				</div>
+			)}
+		</section>
 	);
 }

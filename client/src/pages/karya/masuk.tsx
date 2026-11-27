@@ -30,7 +30,7 @@ export default function KaryaLoginPage() {
 	const { data: config } = useKaryaConfig();
 	const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
 	const nextRaw = params.get('next') || '';
-	const next = nextRaw.startsWith('/karya/') && !nextRaw.startsWith('//') ? nextRaw : KARYA_PATHS.dashboard;
+	const next = nextRaw.startsWith('/ruang-mahasiswa') && !nextRaw.startsWith('//') ? nextRaw : KARYA_PATHS.dashboard;
 	const initialMode: Mode = typeof window !== 'undefined' && /\/daftar$/.test(window.location.pathname) ? 'register' : 'login';
 
 	const [mode, setMode] = useState<Mode>(initialMode);
@@ -172,7 +172,7 @@ export default function KaryaLoginPage() {
 			title={`${titles[mode].t} | Karya Mahasiswa TI`}
 			breadcrumb={[
 				{ label: 'Beranda', href: '/' },
-				{ label: 'Karya TI', href: KARYA_PATHS.index },
+				{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.home },
 				{ label: mode === 'register' ? 'Daftar' : 'Masuk' },
 			]}>
 			<div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_420px] items-start">

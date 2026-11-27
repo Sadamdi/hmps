@@ -1,6 +1,7 @@
 // Harus import PERTAMA: import ESM dievaluasi sebelum body modul, jadi `dotenv.config()` di body
 // terlambat untuk modul yang membaca env saat load (mis. JWT_SECRET di server/auth.ts).
 import 'dotenv/config';
+import { legacyStudentSpacePath } from '../shared/student-space-paths';
 
 import { classifyError } from './lib/http-error';
 import express, { NextFunction, type Request, Response } from 'express';
@@ -472,13 +473,13 @@ app.get('/sitemap.xml', async (_req, res) => {
 		try {
 			const { karyaSitemapEntries } = await import('./routes/karya');
 			const entries = await karyaSitemapEntries();
-			if (entries.length) karyaUrls.push({ loc: `${host}/karya`, changefreq: 'daily', priority: '0.8', lastmod: now });
+			if (entries.length) karyaUrls.push({ loc: `${host}/ruang-mahasiswa/karya`, changefreq: 'daily', priority: '0.8', lastmod: now });
 			karyaUrls = karyaUrls.concat(
 				entries.map((e) => ({
 					loc: `${host}${e.loc}`,
 					lastmod: lastmodOf({ updatedAt: e.lastmod }),
 					changefreq: 'weekly',
-					priority: e.loc.startsWith('/karya/mahasiswa/') ? '0.6' : '0.7',
+					priority: e.loc.startsWith('/ruang-mahasiswa/mahasiswa/') ? '0.6' : '0.7',
 				})),
 			);
 		} catch (karyaErr: any) {
@@ -1037,6 +1038,23 @@ process.on('unhandledRejection', (reason: any) => {
 				.replace(/^-+|-+$/g, '')
 				.substring(0, 80);
 
+		// ==================== RUANG MAHASISWA: alamat lama → baru (301) ====================
+		// /karya, /karya/:slug, /karya/tag/:t, /karya/mahasiswa/:u, /karya/saya/*, /karya/masuk|daftar, /mahasiswa*
+		// dipindah ke /ruang-mahasiswa/* (4.71.0). Query string dipertahankan; link Google & lama tidak putus.
+		app.get(['/karya', '/karya/*', '/mahasiswa', '/mahasiswa/*'], (req, res, next) => {
+			const target = legacyStudentSpacePath(req.path);
+			if (!target) return next();
+			const qs = req.originalUrl.includes('?') ? req.originalUrl.slice(req.originalUrl.indexOf('?')) : '';
+			return res.redirect(301, target + qs);
+		});
+		// Halaman aplikasi (dashboard, masuk, daftar) tidak diindeks
+		app.get(['/ruang-mahasiswa', '/ruang-mahasiswa/dashboard', '/ruang-mahasiswa/dashboard/*', '/ruang-mahasiswa/masuk', '/ruang-mahasiswa/daftar'], (_req, res, next) => {
+			const html0 = karyaHtmlTemplate();
+			if (!html0) return next();
+			res.set('Content-Type', 'text/html');
+			return res.send(karyaNoindex(html0));
+		});
+
 		// ==================== KARYA MAHASISWA: prerender SEO detail karya & profil ====================
 		const karyaHtmlTemplate = (): string | null => {
 			const htmlPath = path.join(path.resolve(process.cwd(), 'dist', 'public'), 'index.html');
@@ -1045,7 +1063,7 @@ process.on('unhandledRejection', (reason: any) => {
 		const karyaNoindex = (html: string) => html.replace('</head>', '<meta name="robots" content="noindex, nofollow" />\n</head>');
 		const karyaAbsUrl = (u: string) => (!u ? defaultOgImage : /^https?:\/\//.test(u) ? u : `https://himatif-encoder.com${u}`);
 
-		app.get('/karya/mahasiswa/:username', async (req, res, next) => {
+		app.get('/ruang-mahasiswa/mahasiswa/:username', async (req, res, next) => {
 			try {
 				const html0 = karyaHtmlTemplate();
 				if (!html0) return next();
@@ -1055,10 +1073,10 @@ process.on('unhandledRejection', (reason: any) => {
 				// Profil tidak publik / tidak ada: SPA tetap jalan (menampilkan 404), tapi jangan diindeks
 				if (!data) return res.send(karyaNoindex(html0));
 				// Username lama → alamat baru (link lama tidak putus)
-				if (data.redirectTo) return res.redirect(301, `/karya/mahasiswa/${encodeURIComponent(data.redirectTo)}`);
+				if (data.redirectTo) return res.redirect(301, `/ruang-mahasiswa/mahasiswa/${encodeURIComponent(data.redirectTo)}`);
 				const s = data.student;
 				const name = String(s.name || 'Mahasiswa TI');
-				const canonicalUrl = `https://himatif-encoder.com/karya/mahasiswa/${s.username}`;
+				const canonicalUrl = `https://himatif-encoder.com/ruang-mahasiswa/mahasiswa/${s.username}`;
 				const description = String(
 					s.headline || s.bio || data.count ? `Portofolio ${name}, mahasiswa Teknik Informatika UIN Malang — ${data.count} karya.` : `Profil ${name}, mahasiswa Teknik Informatika UIN Malang.`,
 				)
@@ -1096,7 +1114,7 @@ process.on('unhandledRejection', (reason: any) => {
 			}
 		});
 
-		app.get('/karya/tag/:tag', async (req, res, next) => {
+		app.get('/ruang-mahasiswa/karya/tag/:tag', async (req, res, next) => {
 			try {
 				const html0 = karyaHtmlTemplate();
 				if (!html0) return next();
@@ -1104,7 +1122,7 @@ process.on('unhandledRejection', (reason: any) => {
 				const { karyaSeoTag } = await import('./routes/karya');
 				const data = await karyaSeoTag(req.params.tag);
 				if (!data) return res.send(karyaNoindex(html0));
-				const canonicalUrl = `https://himatif-encoder.com/karya/tag/${encodeURIComponent(data.tag)}`;
+				const canonicalUrl = `https://himatif-encoder.com/ruang-mahasiswa/karya/tag/${encodeURIComponent(data.tag)}`;
 				const html = data.total >= 2 ? html0 : karyaNoindex(html0);
 				return res.send(
 					injectArticleMeta(html, {
@@ -1127,7 +1145,7 @@ process.on('unhandledRejection', (reason: any) => {
 			}
 		});
 
-		app.get('/karya/:slug', async (req, res, next) => {
+		app.get('/ruang-mahasiswa/karya/:slug', async (req, res, next) => {
 			try {
 				const html0 = karyaHtmlTemplate();
 				if (!html0) return next();
@@ -1140,7 +1158,7 @@ process.on('unhandledRejection', (reason: any) => {
 				if (!data) return res.send(karyaNoindex(html0));
 				const p = data.project;
 				const s = data.student;
-				const canonicalUrl = `https://himatif-encoder.com/karya/${p.slug}`;
+				const canonicalUrl = `https://himatif-encoder.com/ruang-mahasiswa/karya/${p.slug}`;
 				const description = String(p.summary || p.description || `Karya ${s.name || 'mahasiswa'} — Teknik Informatika UIN Malang.`)
 					.replace(/\s+/g, ' ')
 					.slice(0, 160);
@@ -1169,7 +1187,7 @@ process.on('unhandledRejection', (reason: any) => {
 								author: {
 									'@type': 'Person',
 									name: String(s.name || 'Mahasiswa TI'),
-									url: `https://himatif-encoder.com/karya/mahasiswa/${s.username}`,
+									url: `https://himatif-encoder.com/ruang-mahasiswa/mahasiswa/${s.username}`,
 								},
 								publisher: {
 									'@type': 'Organization',
@@ -1183,7 +1201,7 @@ process.on('unhandledRejection', (reason: any) => {
 								'@type': 'BreadcrumbList',
 								itemListElement: [
 									{ '@type': 'ListItem', position: 1, name: 'Beranda', item: 'https://himatif-encoder.com/' },
-									{ '@type': 'ListItem', position: 2, name: 'Karya Mahasiswa', item: 'https://himatif-encoder.com/karya' },
+									{ '@type': 'ListItem', position: 2, name: 'Karya Mahasiswa', item: 'https://himatif-encoder.com/ruang-mahasiswa/karya' },
 									{ '@type': 'ListItem', position: 3, name: String(p.title), item: canonicalUrl },
 								],
 							},

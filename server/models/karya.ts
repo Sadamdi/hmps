@@ -154,6 +154,24 @@ const reviewLogSchema = new Schema(
 	{ _id: false },
 );
 
+/** Kontributor karya selain pemilik (manual atau dari contributor repo GitHub). */
+const contributorSchema = new Schema(
+	{
+		/** s:<studentId> atau gh:<login> */
+		key: { type: String, required: true },
+		studentId: { type: Schema.Types.ObjectId, ref: 'KaryaStudent', default: null },
+		githubLogin: { type: String, default: '' },
+		name: { type: String, default: '' },
+		avatarUrl: { type: String, default: '' },
+		role: { type: String, default: '' },
+		source: { type: String, enum: ['manual', 'repo'], default: 'manual' },
+		/** Kontributor memilih menyembunyikan karya ini dari profilnya */
+		hiddenByContributor: { type: Boolean, default: false },
+		commits: { type: Number, default: 0 },
+	},
+	{ _id: false },
+);
+
 const projectSchema = new Schema(
 	{
 		studentId: { type: Schema.Types.ObjectId, ref: 'KaryaStudent', required: true, index: true },
@@ -179,6 +197,8 @@ const projectSchema = new Schema(
 		reviewNote: { type: String, default: '' },
 		reviewLog: { type: [reviewLogSchema], default: [] },
 		warnings: { type: [warningSchema], default: [] },
+		contributors: { type: [contributorSchema], default: [] },
+		contributorsSyncedAt: { type: Date, default: null },
 		/** Pernah disetujui; versi tayang terakhir dipakai sampai revisi disetujui lagi */
 		publishedAt: { type: Date, default: null },
 		featured: { type: Boolean, default: false },
@@ -188,6 +208,8 @@ const projectSchema = new Schema(
 	{ timestamps: true },
 );
 projectSchema.index({ status: 1, visibility: 1, publishedAt: -1 });
+projectSchema.index({ 'contributors.studentId': 1 });
+projectSchema.index({ 'contributors.key': 1 });
 projectSchema.index({ title: 'text', summary: 'text', tags: 'text' }, { weights: { title: 5, tags: 3, summary: 1 }, name: 'karya_text' });
 
 const shortlinkSchema = new Schema(

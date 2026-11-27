@@ -80,8 +80,8 @@ export default function KaryaDashboardPage() {
 			title="Ruang Mahasiswa | Karya TI"
 			breadcrumb={[
 				{ label: 'Beranda', href: '/' },
-				{ label: 'Karya TI', href: KARYA_PATHS.index },
-				{ label: 'Ruang Mahasiswa' },
+				{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.home },
+				{ label: 'Dashboard' },
 			]}>
 			<div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 				<div className="flex flex-wrap items-center justify-between gap-4">
@@ -126,6 +126,7 @@ export default function KaryaDashboardPage() {
 					</TabsList>
 					<TabsContent value="karya" className="mt-6">
 						<ProjectsTab student={student} />
+						<MyContributions />
 					</TabsContent>
 					<TabsContent value="profil" className="mt-6">
 						<ProfileTab student={student} />
@@ -432,7 +433,7 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 						<span className="w-full text-xs text-muted-foreground">Mengisi kolom yang masih kosong (nama, bio, headline, website, link GitHub). Masuk dengan Google kampus otomatis memakai foto Google bila belum ada foto.</span>
 					</div>
 					<CardDescription>
-						Alamat profil: /karya/mahasiswa/{form.username || student.username}. Tampil publik bila diset Publik dan email sudah diaktivasi, walau belum ada karya.
+						Alamat profil: /ruang-mahasiswa/mahasiswa/{form.username || student.username}. Tampil publik bila diset Publik dan email sudah diaktivasi, walau belum ada karya.
 						{/^\d{12}$/.test(student.username) ? ' Saran: ganti username agar NIM tidak terlihat di link publik (link lama tetap dialihkan).' : ''}
 					</CardDescription>
 				</CardHeader>
@@ -671,6 +672,52 @@ function WarningsBanner({ student }: { student: KaryaStudentAccount }) {
 				</div>
 			))}
 		</div>
+	);
+}
+
+/** Karya orang lain yang mencantumkan aku sebagai kontributor — bisa disembunyikan dari profilku. */
+function MyContributions() {
+	const { toast } = useToast();
+	type Row = { id: string; slug: string; title: string; live: boolean; owner: string; role: string; source: string; hidden: boolean };
+	const { data, refetch } = useQuery<Row[]>({ queryKey: ['karya-my-contributions'], queryFn: async () => (await karyaApi<Row[]>('GET', '/me/contributions')) || [] });
+	if (!data?.length) return null;
+	const toggle = async (r: Row) => {
+		try {
+			await karyaApi('POST', `/me/contributions/${r.id}/visibility`, { hidden: !r.hidden });
+			refetch();
+		} catch (e) {
+			toast({ title: 'Gagal', description: apiErrorText(e, 'Coba lagi'), variant: 'destructive' });
+		}
+	};
+	return (
+		<Card className="mt-6">
+			<CardHeader>
+				<CardTitle className="text-base">Karya tempat kamu jadi kontributor</CardTitle>
+				<CardDescription>Ditambahkan pemilik karya atau otomatis dari contributor repo GitHub (lewat link GitHub di profilmu). Karya yang tayang ikut tampil di profilmu.</CardDescription>
+			</CardHeader>
+			<CardContent className="space-y-2">
+				{data.map((r) => (
+					<div key={r.id} className="flex flex-wrap items-center gap-2 rounded-lg border border-border p-3 text-sm">
+						<div className="min-w-0 flex-1">
+							{r.live ? (
+								<Link href={KARYA_PATHS.project(r.slug)} className="font-medium hover:text-primary">{r.title}</Link>
+							) : (
+								<span className="font-medium">{r.title}</span>
+							)}
+							<p className="text-xs text-muted-foreground">
+								milik {r.owner}
+								{r.role ? ` · ${r.role}` : ''}
+								{r.source === 'repo' ? ' · dari repo' : ''}
+								{r.live ? '' : ' · belum tayang'}
+							</p>
+						</div>
+						<Button size="sm" variant="outline" onClick={() => toggle(r)}>
+							{r.hidden ? 'Tampilkan di profilku' : 'Sembunyikan dari profilku'}
+						</Button>
+					</div>
+				))}
+			</CardContent>
+		</Card>
 	);
 }
 

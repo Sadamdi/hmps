@@ -22,7 +22,7 @@ export const RESERVED_FIRST_SEGMENTS: readonly string[] = [
 	'youtube',
 	'instagram',
 	'toko',
-	'karya',
+	'karya', 'ruang-mahasiswa', 'mahasiswa',
 	'go',
 	'verifikasi',
 	'daftar',

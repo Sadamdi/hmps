@@ -253,15 +253,15 @@ export default function LoginForm() {
 	/** Ke Ruang Mahasiswa (reload penuh agar navbar memuat sesi mahasiswa). */
 	const goStudent = () => {
 		const n = new URLSearchParams(window.location.search).get('next') || '';
-		window.location.assign(n.startsWith('/karya/') && !n.startsWith('//') ? n : '/karya/saya');
+		window.location.assign(n.startsWith('/ruang-mahasiswa') && !n.startsWith('//') ? n : '/ruang-mahasiswa/dashboard');
 	};
 
-	/** Masuk sebagai mahasiswa dengan Google; belum punya akun (email TI) → lanjut daftar di /karya/daftar. */
+	/** Masuk sebagai mahasiswa dengan Google; belum punya akun (email TI) → lanjut daftar di /ruang-mahasiswa/daftar. */
 	const continueAsStudent = async (idToken: string) => {
 		setGoogleStep(null);
 		const r = await studentGoogleLogin(idToken);
 		if (r.needsOnboarding) {
-			window.location.assign('/karya/daftar?google=1');
+			window.location.assign('/ruang-mahasiswa/daftar?google=1');
 			return;
 		}
 		goStudent();

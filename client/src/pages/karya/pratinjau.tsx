@@ -22,8 +22,10 @@ export default function KaryaPreviewPage() {
 			noindex
 			title="Pratinjau karya | Karya TI"
 			breadcrumb={[
-				{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.dashboard },
-				{ label: 'Pratinjau' },
+				{ label: 'Beranda', href: '/' },
+				{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.home },
+				{ label: 'Dashboard', href: KARYA_PATHS.dashboard },
+				{ label: 'Pratinjau karya' },
 			]}>
 			{loading || isLoading ? (
 				<div className="flex justify-center py-24">

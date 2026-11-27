@@ -86,7 +86,7 @@ export function BuyerNavMenu({ variant }: { variant: 'desktop' | 'icon' }) {
 				</DropdownMenuItem>
 				{student ? (
 					<DropdownMenuItem asChild>
-						<Link href="/karya/saya" className="cursor-pointer">
+						<Link href="/ruang-mahasiswa/dashboard" className="cursor-pointer">
 							<GraduationCap className="mr-2 h-4 w-4" />
 							Ruang Mahasiswa (Karya TI)
 						</Link>
