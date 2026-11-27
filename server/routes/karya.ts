@@ -1163,6 +1163,7 @@ router.post('/me/projects', requireEnabled, authenticateStudent, writeLimiter, a
 			reviewLog: status === 'approved' ? [{ action: 'auto-approve', note: 'Review otomatis aktif', at: now }] : [],
 		});
 		if ((p.repos || []).some((x: any) => x.host === 'github')) void syncProjectContributors(p._id).catch(() => null);
+		if (status === 'approved') void notifyKaryaPublished(p.toObject());
 		ok(res, ownProject(p.toObject()), status === 'pending' ? 'Karya dikirim untuk direview pengurus' : 'Karya disimpan');
 	} catch (e) {
 		console.error('[karya] create', e);
@@ -1200,6 +1201,7 @@ router.patch('/me/projects/:id', requireEnabled, authenticateStudent, writeLimit
 		if (status === 'pending' || status === 'approved') set.reviewNote = existing.status === 'revision' ? '' : existing.reviewNote;
 		const p = await KaryaProject.findByIdAndUpdate(existing._id, { $set: set }, { new: true }).lean();
 		if (p && (p as any).repos?.some((x: any) => x.host === 'github') && !(p as any).contributorsSyncedAt) void syncProjectContributors(existing._id).catch(() => null);
+		if (status === 'approved' && !existing.publishedAt && p) void notifyKaryaPublished(p);
 		const msg = status === 'pending' ? 'Karya dikirim untuk direview pengurus' : status === 'hidden' ? 'Disimpan. Karya ini sedang disembunyikan administrator.' : 'Karya disimpan';
 		ok(res, ownProject(p), msg);
 	} catch (e) {
@@ -1925,6 +1927,42 @@ const reviewSchema = z.object({
 	note: z.string().max(500).optional(),
 });
 
+/** Karya pertama kali tayang → broadcast "karya baru" (topik karyaNew). */
+async function notifyKaryaPublished(p: any) {
+	try {
+		const s: any = await KaryaStudent.findById(p.studentId).select('name').lean();
+		const { broadcastNotification } = await import('../services/notification-orchestrator');
+		const c = coverOf(p);
+		await broadcastNotification('karya_published', { userId: null as any, name: 'Ruang Mahasiswa' } as any, {
+			title: `Karya baru: ${p.title}`,
+			description: `${s?.name || 'Mahasiswa TI'}${p.summary ? ` — ${String(p.summary).slice(0, 110)}` : ''}`,
+			actionUrl: `/ruang-mahasiswa/karya/${p.slug}`,
+			image: c.generated ? '' : c.url,
+			tag: `karya-${p.slug}`,
+		});
+	} catch (err) {
+		console.warn('[karya] notif karya baru gagal:', (err as Error)?.message);
+	}
+}
+
+/** Status karya berubah → web push ke perangkat pemilik (topik karyaStatus). */
+async function notifyKaryaStatus(p: any, status: string, note: string) {
+	const titles: Record<string, string> = { approved: 'Karyamu sudah tayang 🎉', revision: 'Karyamu perlu revisi', hidden: 'Karyamu disembunyikan pengurus' };
+	const title = titles[status];
+	if (!title) return;
+	try {
+		const { dispatchIdentityPush } = await import('../services/notification-orchestrator');
+		await dispatchIdentityPush({ studentId: String(p.studentId) }, 'karya_status', {
+			title,
+			description: note ? `"${p.title}" — ${note.slice(0, 140)}` : `"${p.title}"`,
+			actionUrl: status === 'approved' ? `/ruang-mahasiswa/karya/${p.slug}` : `/ruang-mahasiswa/dashboard/karya/edit/${p._id}`,
+			tag: `karya-status-${p._id}`,
+		});
+	} catch (err) {
+		console.warn('[karya] notif status gagal:', (err as Error)?.message);
+	}
+}
+
 router.post('/admin/projects/:id/review', ...adminManage, async (req, res) => {
 	if (!isId(req.params.id)) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
 	const parsed = reviewSchema.safeParse(req.body || {});
@@ -1967,6 +2005,8 @@ router.post('/admin/projects/:id/review', ...adminManage, async (req, res) => {
 	}
 	await KaryaProject.updateOne({ _id: p._id }, { $set: set, $push: { reviewLog: { $each: [{ action, note, byUserId: adminId(req), byName: adminName(req), at: now }], $slice: -50 } } });
 	logKarya(req, action === 'approve' ? 'publish' : action === 'hide' ? 'unpublish' : 'update', p.title, String(p._id), { action, note });
+	if (action === 'approve' || action === 'revision' || action === 'hide') void notifyKaryaStatus(p, String(set.status), note);
+	if (action === 'approve' && !p.publishedAt) void notifyKaryaPublished({ ...p, ...set });
 	ok(res, ownProject(await KaryaProject.findById(p._id).lean()), 'Karya diperbarui');
 });
 

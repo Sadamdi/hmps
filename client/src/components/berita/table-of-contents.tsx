@@ -122,8 +122,8 @@ export default function TableOfContents({ content }: TableOfContentsProps) {
         </div>
       </div>
 
-      {/* Mobile TOC — pojok kiri-bawah agar tidak bertabrakan dengan tombol AI chat (kanan-bawah) */}
-      <div className="lg:hidden fixed bottom-4 left-4 z-50">
+      {/* Mobile TOC — kiri-bawah, di atas tombol Kembali (tombol AI chat di kanan-bawah) */}
+      <div className="lg:hidden fixed bottom-[5.5rem] left-3 z-50">
         <div className="relative">
           {isOpen && (
             <div className="absolute bottom-16 left-0 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-y-auto bg-white rounded-lg shadow-xl border border-gray-200 p-6">

@@ -12,7 +12,13 @@ export type NotifEventType =
 	| 'feedback_reply'
 	| 'bug_reply'
 	| 'store_order'
-	| 'store_chat';
+	| 'store_chat'
+	| 'store_order_buyer'
+	| 'karya_status'
+	| 'karya_published'
+	| 'info_scholarship'
+	| 'info_internship'
+	| 'info_announcement';
 
 const EVENT_TO_PREF_KEY: Record<NotifEventType, string> = {
 	news_published: 'news',
@@ -23,7 +29,18 @@ const EVENT_TO_PREF_KEY: Record<NotifEventType, string> = {
 	// Tidak ada kunci preferensi → default in-app + web push aktif
 	store_order: 'storeOrder',
 	store_chat: 'storeChat',
+	store_order_buyer: 'storeOrder',
+	karya_status: 'karyaStatus',
+	karya_published: 'karyaNew',
+	info_scholarship: 'scholarship',
+	info_internship: 'internship',
+	info_announcement: 'announcement',
 };
+
+/** Topik yang preferensinya selalu disimpan per perangkat (langganan), juga untuk akun admin. */
+const DEVICE_LEVEL_TOPICS = new Set(['storeOrder', 'karyaStatus', 'karyaNew', 'scholarship', 'internship', 'announcement']);
+/** Default bila langganan lama belum punya kunci topik ini. */
+const TOPIC_DEFAULT: Record<string, boolean> = { announcement: false, bugReply: false };
 
 export interface NotifPayload {
 	title: string;
@@ -450,7 +467,10 @@ export async function broadcastNotification(
 				const userId = (sub as any).userId;
 				let topicChannel: any = { webPush: true };
 
-				if (userId) {
+				if (DEVICE_LEVEL_TOPICS.has(prefKey)) {
+					const v = (sub as any)?.preferences?.[prefKey]?.webPush;
+					topicChannel = { webPush: typeof v === 'boolean' ? v : TOPIC_DEFAULT[prefKey] ?? true };
+				} else if (userId) {
 					const subPref: any = await NotifPreference.findOne({ userId }).lean();
 					topicChannel = subPref?.[prefKey] || topicChannel;
 				} else {
@@ -529,4 +549,52 @@ export async function dispatchGuestNotification(
 	} catch (err) {
 		console.error(`Guest stream dispatch failed for ${eventType}:`, err);
 	}
+}
+
+
+/**
+ * Web push ke semua perangkat milik satu identitas (mahasiswa Ruang Mahasiswa / pembeli Encoder Store),
+ * mengikuti preferensi topik per perangkat. Juga dikirim ke tab yang terbuka lewat SSE bila relevan.
+ */
+export async function dispatchIdentityPush(
+	identity: { studentId?: string | null; customerId?: string | null },
+	eventType: NotifEventType,
+	payload: NotifPayload,
+): Promise<{ sent: number; skipped: number; failed: number; expired: number }> {
+	const stats = { sent: 0, skipped: 0, failed: 0, expired: 0 };
+	const or: Record<string, any>[] = [];
+	if (identity.studentId) or.push({ studentId: identity.studentId });
+	if (identity.customerId) or.push({ customerId: identity.customerId });
+	if (!or.length) return stats;
+	const subs = await WebPushSubscription.find({ isActive: true, $or: or }).lean();
+	const { vapidPublic, vapidPrivate, vapidSubject } = getVapidConfig();
+	if (!subs.length || !vapidPublic || !vapidPrivate) return stats;
+	const prefKey = EVENT_TO_PREF_KEY[eventType];
+	try {
+		const webpush = await getWebPushClient();
+		webpush.setVapidDetails(vapidSubject, vapidPublic, vapidPrivate);
+		const body = buildPushPayload(payload);
+		for (const sub of subs) {
+			const v = (sub as any)?.preferences?.[prefKey]?.webPush;
+			if (v === false || (typeof v !== 'boolean' && TOPIC_DEFAULT[prefKey] === false)) {
+				stats.skipped++;
+				continue;
+			}
+			try {
+				if (shouldDeactivateByVapidMismatch(sub, vapidPublic)) {
+					await WebPushSubscription.updateOne({ _id: (sub as any)._id }, { $set: { isActive: false } });
+					stats.expired++;
+					continue;
+				}
+				await webpush.sendNotification({ endpoint: (sub as any).endpoint, keys: (sub as any).keys }, body, { TTL: 24 * 60 * 60, urgency: 'high' as const });
+				stats.sent++;
+			} catch (err: any) {
+				await handleWebPushError(sub, err, stats, 'dispatch-identity');
+			}
+		}
+	} catch (err) {
+		console.error('Identity push error:', err);
+	}
+	notifLog('identity-push', { eventType, ...stats });
+	return stats;
 }

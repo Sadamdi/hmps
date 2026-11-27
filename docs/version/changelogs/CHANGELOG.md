@@ -9,6 +9,17 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.72.0] - 2026-11-27
+
+### Added
+- `notif`: satu langganan web push per perangkat kini tertaut ke akun pengurus, mahasiswa (Ruang Mahasiswa), dan pembeli Encoder Store yang login di perangkat itu — satu pengaturan untuk semua
+- `notif`: topik baru — status pesanan Encoder Store (pembeli, selain email), status karyaku (disetujui/revisi/disembunyikan), karya mahasiswa baru tayang, info beasiswa, info PKL/magang, pengumuman kampus lain
+- `notif`: feed pengumuman (TI, UIN, LP2M, FST, Kemahasiswaan, Kemdiktisaintek, Kemenag BIB) mengirim notifikasi untuk item BARU saja (maks 3 per topik + ringkasan; sinkron pertama tidak mengirim)
+- `notif`: modal "Pengaturan Notifikasi" dikelompokkan (Kabar Himatif, Ruang Mahasiswa, Info kampus, Encoder Store, Balasan), menampilkan akun yang tertaut; bisa dibuka dari Ruang Mahasiswa ("Notifikasi") dan akun Encoder Store ("Notifikasi pesanan")
+- `ui`: tombol Kembali melayang di kiri bawah (HP & PC), sejajar tombol AI chat; tidak tampil di Beranda & dashboard admin; tombol daftar isi berita dipindah ke atasnya
+
+Detail: [release/4.72.0.md](../release/4.72.0.md).
+
 ## [4.71.2] - 2026-11-27
 
 ### Fixed
