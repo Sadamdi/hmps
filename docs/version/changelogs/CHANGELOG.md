@@ -9,6 +9,16 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.74.0] - 2026-11-27
+
+### Added
+- `karya`: kategori otomatis dari 3 bahasa terbanyak repo (peta ±240 bahasa GitHub Linguist; bahasa serbaguna butuh bukti lain)
+- `karya`: klasifikasi ulang bertahap untuk karya lama + `POST /api/karya/admin/projects/reclassify`
+- `karya`: halaman publik memakai bilah filter seperti Berita (tombol Filter, chip aktif)
+
+### Fixed
+- `karya`: repo GitHub yang di-rename/dipindah (301) kini tetap terbaca
+
 ## [4.73.2] - 2026-11-27
 
 ### Changed

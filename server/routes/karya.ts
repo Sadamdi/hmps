@@ -9,6 +9,7 @@
  * Semua kepemilikan diambil dari sesi server (studentId), tidak pernah dari input client.
  * Fitur ini hanya untuk situs utama (bukan tenant komunitas).
  */
+import { classifyStaleProjects } from '../services/karya-classify';
 import crypto from 'crypto';
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import mongoose from 'mongoose';
@@ -58,6 +59,8 @@ import {
 if (process.env.NODE_ENV !== 'test') {
 	setTimeout(() => void syncStaleContributors(15).catch(() => null), 60_000).unref?.();
 	setInterval(() => void syncStaleContributors(15).catch(() => null), 6 * 3_600_000).unref?.();
+	setTimeout(() => void classifyStaleProjects(15).catch(() => null), 120_000).unref?.();
+	setInterval(() => void classifyStaleProjects(15).catch(() => null), 3 * 3_600_000).unref?.();
 }
 
 /** Deskripsi HTML disimpan apa adanya; domain embed di dalamnya dianalisis di background (sekali per domain). */
@@ -1325,6 +1328,7 @@ router.post('/me/repo-preview', requireEnabled, authenticateStudent, repoLimiter
 		const readme = await fetchReadmeInsights(info.url).catch(() => null);
 		const detected = inferKaryaStack({
 			languages: info.languages?.length ? info.languages : info.language ? [info.language] : [],
+			languageShares: info.languageShares,
 			files: info.files || [],
 			topics: info.topics,
 			text: `${info.description} ${readme?.summary || ''} ${String(readme?.descriptionHtml || '').replace(/<[^>]+>/g, ' ')}`,
@@ -1883,6 +1887,14 @@ router.post('/admin/contributors/sync', ...adminManage, async (req, res) => {
 	const r = await syncStaleContributors(limit, all ? 0 : 7 * 86_400_000);
 	logKarya(req, 'update', 'Sinkron kontributor karya', 'contributors', r);
 	ok(res, r, `${r.checked} karya diperiksa, ${r.added} kontributor ditambahkan`);
+});
+
+/** Klasifikasi ulang kategori/tag karya dari bahasa & isi repo (bertahap). */
+router.post('/admin/projects/reclassify', ...adminManage, async (req, res) => {
+	const limit = Math.max(1, Math.min(100, Number(req.body?.limit) || 30));
+	const r = await classifyStaleProjects(limit, req.body?.force === true ? 0 : 30 * 86_400_000);
+	logKarya(req, 'update', 'Klasifikasi ulang karya', 'projects', r);
+	ok(res, r, `${r.checked} karya diperiksa, ${r.changed} diperbarui`);
 });
 
 router.post('/admin/students/:id/warn', ...adminManage, async (req, res) => {

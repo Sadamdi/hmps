@@ -199,6 +199,8 @@ const projectSchema = new Schema(
 		warnings: { type: [warningSchema], default: [] },
 		contributors: { type: [contributorSchema], default: [] },
 		contributorsSyncedAt: { type: Date, default: null },
+		/** Terakhir diklasifikasi otomatis dari bahasa/isi repo */
+		autoClassifiedAt: { type: Date, default: null },
 		/** Pernah disetujui; versi tayang terakhir dipakai sampai revisi disetujui lagi */
 		publishedAt: { type: Date, default: null },
 		featured: { type: Boolean, default: false },

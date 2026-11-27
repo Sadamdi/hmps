@@ -23,7 +23,15 @@ async function getJson(url: string, headers: Record<string, string> = {}): Promi
 	const ctrl = new AbortController();
 	const t = setTimeout(() => ctrl.abort(), 8000);
 	try {
-		const r = await fetch(url, { headers: { 'User-Agent': 'himatif-encoder-karya', Accept: 'application/json', ...headers }, signal: ctrl.signal, redirect: 'error' });
+		const init = { headers: { 'User-Agent': 'himatif-encoder-karya', Accept: 'application/json', ...headers }, signal: ctrl.signal, redirect: 'manual' as const };
+		let r = await fetch(url, init);
+		// Repo yang di-rename/dipindah: ikuti satu kali, hanya ke origin API yang sama.
+		if ([301, 302, 307, 308].includes(r.status)) {
+			const loc = r.headers.get('location') || '';
+			const next = loc ? new URL(loc, url) : null;
+			if (!next || next.origin !== new URL(url).origin) return { status: 404, body: null };
+			r = await fetch(next.toString(), init);
+		}
 		const text = await r.text();
 		if (text.length > 2_000_000) return { status: 502, body: null };
 		let body: any = null;
@@ -67,13 +75,17 @@ export async function fetchPublicRepo(rawUrl: string): Promise<KaryaRepoInfo> {
 				getJson(`https://api.github.com/repos/${encodeURIComponent(p.owner)}/${encodeURIComponent(p.name)}/languages`, headers).catch(() => null),
 				getJson(`https://api.github.com/repos/${encodeURIComponent(p.owner)}/${encodeURIComponent(p.name)}/contents`, headers).catch(() => null),
 			]);
-			const languages = langR && langR.status === 200 && langR.body && typeof langR.body === 'object'
-				? Object.entries(langR.body as Record<string, number>).sort((a, c) => Number(c[1]) - Number(a[1])).map(([k]) => str(k, 40)).slice(0, 10)
+			const langEntries = langR && langR.status === 200 && langR.body && typeof langR.body === 'object'
+				? Object.entries(langR.body as Record<string, number>).sort((a, c) => Number(c[1]) - Number(a[1])).slice(0, 10)
 				: [];
+			const langTotal = langEntries.reduce((n, [, v]) => n + (Number(v) || 0), 0) || 1;
+			const languages = langEntries.map(([k]) => str(k, 40));
+			const languageShares = langEntries.map(([, v]) => Math.round(((Number(v) || 0) / langTotal) * 1000) / 1000);
 			const files = rootR && rootR.status === 200 && Array.isArray(rootR.body) ? rootR.body.map((x: any) => str(x?.name, 100)).slice(0, 200) : [];
 			info = {
 				host: 'github',
 				languages,
+				languageShares,
 				files,
 				owner: str(b.owner?.login, 100),
 				name: str(b.name, 100),
