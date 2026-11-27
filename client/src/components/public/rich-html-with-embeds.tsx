@@ -374,9 +374,11 @@ export default function RichHtmlWithEmbeds({
 						<RefreshCw className="h-3.5 w-3.5" /> Muat ulang
 					</button>
 				) : null}
+				{tone !== 'blocked' ? (
 				<a href={url} target="_blank" rel="noopener noreferrer nofollow" className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
 					<ExternalLink className="h-3.5 w-3.5" /> Buka
 				</a>
+				) : null}
 			</div>
 		);
 	};

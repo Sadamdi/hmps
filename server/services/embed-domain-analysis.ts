@@ -328,6 +328,31 @@ async function runAndStore(host: string, url: string) {
  * (upsert) lalu dianalisis sekali; host yang sudah punya keputusan langsung dikembalikan.
  * waitMs: berapa lama menunggu analisis baru selesai sebelum mengembalikan "pending".
  */
+/** Migrasi teks lama (sebelum penamaan Enco) di data yang sudah tersimpan. Sekali per proses, idempoten. */
+let migratedEnco = false;
+async function migrateLegacyAiWording() {
+	if (migratedEnco) return;
+	migratedEnco = true;
+	try {
+		const rows: any[] = await EmbedDomain.find({ $or: [{ reason: /Analisis AI/ }, { checks: /^AI:/ }] }).select('_id reason checks').lean();
+		for (const r of rows) {
+			await EmbedDomain.updateOne(
+				{ _id: r._id },
+				{
+					$set: {
+						reason: String(r.reason || '').replace(/Analisis AI/g, 'Penilaian Enco'),
+						checks: (r.checks || []).map((c: string) => String(c).replace(/^AI:/, 'Enco:')),
+					},
+				},
+			);
+		}
+		if (rows.length) console.log(`[embed] ${rows.length} catatan lama "Analisis AI" → "Penilaian Enco"`);
+	} catch {
+		migratedEnco = false;
+	}
+}
+setTimeout(() => void migrateLegacyAiWording(), 30_000).unref?.();
+
 export async function resolveEmbedUrls(urls: string[], opts: { waitMs?: number; analyze?: boolean } = {}): Promise<Record<string, { status: EmbedDomainStatus; reason: string }>> {
 	const byHost = new Map<string, string>();
 	for (const raw of urls.slice(0, 20)) {
