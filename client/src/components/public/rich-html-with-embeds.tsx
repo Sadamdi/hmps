@@ -325,9 +325,13 @@ export default function RichHtmlWithEmbeds({
 
 	if (!content || segments.length === 0) return null;
 
-	const proseClass =
+	/** Konten README/HTML tidak boleh melebarkan halaman di HP: tabel, kode, gambar, iframe menggulir/menyusut di dalam kotaknya. */
+	const fitClass =
+		'min-w-0 max-w-full break-words [overflow-wrap:anywhere] [&_table]:block [&_table]:max-w-full [&_table]:overflow-x-auto [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_img]:max-w-full [&_img]:h-auto [&_iframe]:max-w-full [&_video]:max-w-full';
+	const proseClass = `${
 		className ??
-		'prose prose-sm max-w-none dark:prose-invert prose-p:text-foreground prose-headings:text-foreground';
+		'prose prose-sm max-w-none dark:prose-invert prose-p:text-foreground prose-headings:text-foreground'
+	} ${fitClass}`;
 
 	if (segments.length === 1 && segments[0].kind === 'html') {
 		return (

@@ -416,7 +416,7 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 	};
 
 	return (
-		<form onSubmit={save} className="grid gap-6 lg:grid-cols-[1fr_320px]">
+		<form onSubmit={save} className="grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
 			<Card>
 				<CardHeader>
 					<CardTitle>Profil publik</CardTitle>

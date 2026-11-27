@@ -4,7 +4,7 @@
  * (ukuran og:image standar) dan di-cache di memori per (slug, updatedAt, tema).
  */
 import sharp from 'sharp';
-import { KARYA_CATEGORIES } from '../../shared/karya';
+import { karyaCategoryLabel } from '../../shared/karya';
 
 const cache = new Map<string, Buffer>();
 
@@ -38,7 +38,7 @@ export async function renderKaryaCover(o: { key: string; title: string; category
 	const fg = dark ? '#ffffff' : '#0f172a';
 	const muted = dark ? '#94a3b8' : '#475569';
 	const accent = dark ? '#38bdf8' : '#2563eb';
-	const cat = KARYA_CATEGORIES.find((c) => c.id === o.category)?.label || 'Karya';
+	const cat = karyaCategoryLabel(o.category || 'lainnya');
 	const lines = wrap(o.title);
 	const titleSvg = lines.map((l, i) => `<text x="80" y="${270 + i * 78}" font-size="64" font-weight="700" fill="${fg}" font-family="Arial, Helvetica, sans-serif">${esc(l)}</text>`).join('');
 	const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">

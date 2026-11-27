@@ -223,6 +223,10 @@ export function usePublicStudents(params: { q?: string; angkatan?: number; page?
 	return useQuery({ queryKey: ['karya-public-students', qs], queryFn: () => karyaGetList<KaryaStudentListItem>(`/public/students?${qs}`), staleTime: 30_000, enabled });
 }
 
+export function usePublicCategories() {
+	return useQuery<{ id: string; count: number }[]>({ queryKey: ['karya-categories'], queryFn: async () => (await getData<{ id: string; count: number }[]>('/public/categories')) || [], staleTime: 60_000 });
+}
+
 export function usePublicTags() {
 	return useQuery<{ tag: string; count: number }[]>({ queryKey: ['karya-tags'], queryFn: async () => (await getData<{ tag: string; count: number }[]>('/public/tags')) || [], staleTime: 60_000 });
 }
