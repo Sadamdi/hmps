@@ -9,6 +9,19 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.68.0] - 2026-11-27
+
+### Added
+- `karya`: admin bisa memperingatkan akun mahasiswa atau karya (draf/menunggu/tayang) + email opsional; banner peringatan di Ruang Mahasiswa dengan "Saya mengerti"
+- `karya`: dialog detail mahasiswa di dashboard (akun, peringatan, semua karya termasuk draf, shortlink); `GET /api/karya/admin/students/:id`
+- `karya`: README profil gaya GitHub (editor rich text, unggah README.md, impor dari repo username/username) tampil di profil publik
+
+### Fixed
+- `karya`: halaman Edit karya Error 500 (TinyMCE serialize sebelum siap; chunk basi setelah deploy → reload otomatis)
+- `karya`: deskripsi README tidak lagi berubah jadi kotak "Domain belum diizinkan untuk embed" / teks `alt=...` nyasar; embed dari domain https apa pun di halaman karya
+
+Detail: [release/4.68.0.md](../release/4.68.0.md).
+
 ## [4.67.0] - 2026-11-27
 
 ### Added

@@ -123,12 +123,21 @@ function classifyUrl(url: string, allowedHosts?: Set<string>): Segment | null {
 	return null;
 }
 
+/** Hanya tautan "telanjang" (teks = URL) yang dijadikan embed; tautan berteks/bergambar tetap tautan biasa. */
 function replaceAnchorEmbedsWithMarkers(html: string): string {
-	return html.replace(ANCHOR_EMBED_RE, (_, url: string) => {
+	return html.replace(ANCHOR_EMBED_RE, (full: string, url: string) => {
 		const u = url.replace(/&amp;/g, '&');
+		const inner = full.replace(/^<a[^>]*>/i, '').replace(/<\/a>$/i, '');
+		if (/<img\b/i.test(inner)) return full;
+		const text = inner.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').trim();
+		const norm = (x: string) => x.replace(/^https?:\/\//, '').replace(/\/$/, '');
+		if (text && norm(text) !== norm(u)) return full;
 		return `${MARKER_PREFIX}${encodeURIComponent(u)}${MARKER_SUFFIX}`;
 	});
 }
+
+/** Host yang menolak di-iframe (X-Frame-Options) → selalu kartu tautan. */
+const NO_FRAME_HOSTS = /(^|\.)(github\.com|gitlab\.com|bitbucket\.org|codeberg\.org|linkedin\.com|facebook\.com|x\.com|twitter\.com|google\.com|npmjs\.com|stackoverflow\.com)$/i;
 
 function splitStandaloneUrls(
 	html: string,
@@ -144,7 +153,11 @@ function splitStandaloneUrls(
 		if (!seg) continue;
 
 		const pre = html.slice(Math.max(0, m.index - 8), m.index);
-		if (/\bhref\s*=\s*["']$/i.test(pre)) continue;
+		if (/=\s*["']?$/i.test(pre)) continue;
+		// URL di dalam tag (atribut src/srcset/dll) atau teks tautan: jangan dipotong.
+		const head = html.slice(0, m.index);
+		if (head.lastIndexOf('<') > head.lastIndexOf('>')) continue;
+		if (/<a\b[^>]*>[^<]*$/i.test(head.slice(-400))) continue;
 
 		const before = html.slice(lastIndex, m.index);
 		if (before) segments.push({ kind: 'html', html: before });
@@ -232,6 +245,8 @@ interface RichHtmlWithEmbedsProps {
 	className?: string;
 	/** Extra hosts that are allowed for iframe embedding (from admin settings) */
 	allowedEmbedHosts?: string[];
+	/** Izinkan iframe dari domain https apa pun (kecuali host yang menolak framing → kartu tautan). */
+	allowAnyHost?: boolean;
 }
 
 function useEmbedAllowedHosts(): string[] {
@@ -246,6 +261,7 @@ export default function RichHtmlWithEmbeds({
 	content,
 	className,
 	allowedEmbedHosts,
+	allowAnyHost,
 }: RichHtmlWithEmbedsProps) {
 	const hostsFromSettings = useEmbedAllowedHosts();
 	if (!content) return null;
@@ -273,6 +289,7 @@ export default function RichHtmlWithEmbeds({
 
 	const isAllowed = (host: string) => {
 		const bare = host.replace(/^www\./, '');
+		if (allowAnyHost) return true;
 		return (
 			DEFAULT_EMBED_HOSTS.has(host) ||
 			DEFAULT_EMBED_HOSTS.has(bare) ||
@@ -324,6 +341,16 @@ export default function RichHtmlWithEmbeds({
 								type="auto"
 								className="w-full rounded-lg overflow-hidden min-h-[200px]"
 							/>
+						</div>
+					);
+				}
+				if (seg.kind === 'external' && allowAnyHost && NO_FRAME_HOSTS.test(seg.host)) {
+					return (
+						<div key={i} className="not-prose my-4 flex items-center gap-3 rounded-lg border border-border bg-card p-4 text-sm">
+							<p className="min-w-0 flex-1 truncate font-medium text-foreground">{seg.url.replace(/^https?:\/\//, '')}</p>
+							<a href={seg.url} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 rounded-md bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
+								<ExternalLink className="h-3.5 w-3.5" /> Buka
+							</a>
 						</div>
 					);
 				}

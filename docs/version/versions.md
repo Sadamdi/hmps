@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.67.0`  
+**Current version:** `4.68.0`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.67.0`](./release/4.67.0.md) | 2026-11-27 | README pintar, sinkron profil GitHub/Google, pratinjau profil, shortlink, fix redirect login | MINOR | 1 | **Current** |
+| [`4.68.0`](./release/4.68.0.md) | 2026-11-27 | Peringatan admin & detail mahasiswa, README profil gaya GitHub, render README utuh + embed domain apa pun, fix Edit 500 | MINOR | 1 | **Current** |
+| [`4.67.0`](./release/4.67.0.md) | 2026-11-27 | README pintar, sinkron profil GitHub/Google, pratinjau profil, shortlink, fix redirect login | MINOR | 1 |  |
 | [`4.66.1`](./release/4.66.1.md) | 2026-11-27 | Tombol kirim ulang verifikasi (mahasiswa & pembeli), kode baru membatalkan yang lama | PATCH | 1 |  |
 | [`4.66.0`](./release/4.66.0.md) | 2026-11-27 | OTP + link sekali pakai, aktivasi, login satu pintu, Karya TI batch 2 | MINOR | 1 |  |
 | [`4.65.1`](./release/4.65.1.md) | 2026-11-26 | Posisi default Karya TI setelah Toko (sebelum Media) di beranda, navbar, Settings | PATCH | 2 |  |

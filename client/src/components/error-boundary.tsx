@@ -1,3 +1,4 @@
+import { isStaleChunkError, reloadForStaleChunk } from '@/lib/stale-chunk-reload';
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { ErrorPage } from '@/components/ui/error-page';
 import { reportClientError } from '@/lib/error-monitor';
@@ -25,6 +26,8 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 	}
 
 	componentDidCatch(error: Error, info: ErrorInfo): void {
+		// File halaman versi lama (setelah deploy) → muat ulang sekali ke versi terbaru
+		if (isStaleChunkError(error) && reloadForStaleChunk()) return;
 		reportClientError({
 			name: error?.name || 'Error',
 			message: error?.message,

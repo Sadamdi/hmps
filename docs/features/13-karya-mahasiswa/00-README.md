@@ -8,7 +8,7 @@
 **Tenant-Aware**: No — situs utama saja (blok beranda & navbar `karya` disaring dari tenant; slug `karya`/`go` dicadangkan)  
 **Permission Scope**: Public / Mahasiswa (akun terpisah) / Admin (`karya.view`, `karya.manage`)  
 **Since version**: 4.65.0  
-**Last documented version**: 4.67.0  
+**Last documented version**: 4.68.0  
 
 ---
 
@@ -67,6 +67,14 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 ```
 
 ---
+
+## Pembaruan 4.68.0
+
+- **Deskripsi/README tampil utuh:** `RichHtmlWithEmbeds` hanya menjadikan embed untuk tautan "telanjang" (teks = URL); tautan berteks/bergambar tetap tautan biasa; URL di dalam atribut (`src` gambar) tidak lagi dipotong (sebelumnya memunculkan teks `" alt=... />`). Prop `allowAnyHost` (dipakai halaman karya & README profil): iframe dari domain https apa pun (mis. *.vercel.app); host yang menolak framing (github.com, gitlab.com, linkedin.com, dll.) tampil sebagai kartu tautan. Gambar di deskripsi README kini boleh dari domain https mana pun (media galeri tetap host repo saja).
+- **Fix Edit 500:** TinyMCE `serialize` crash saat konten diset sebelum editor siap (konten disimpan di ref lalu diset saat init); error chunk basi setelah deploy (`Failed to fetch dynamically imported module`) memuat ulang halaman otomatis sekali (`client/src/lib/stale-chunk-reload.ts`).
+- **Peringatan pengurus:** admin (owner/ketua/wakil/medinfo, izin kelola) bisa memperingatkan akun mahasiswa atau karya (status apa pun) dengan pesan + email opsional (`sendKaryaWarningEmail`). Peringatan tampil sebagai banner merah di Ruang Mahasiswa sampai ditekan "Saya mengerti"; tercatat di log aktivitas dan riwayat review karya.
+- **Detail mahasiswa (admin):** dialog berisi status akun, bio, peringatan, semua karya termasuk draf (sampul, status, catatan), dan shortlink; dibuka dari tabel mahasiswa atau kartu karya.
+- **README profil:** field `profileReadme` (HTML tersanitasi, maks 60 KB) di editor Profil (rich text), unggah `README.md` (dikonversi server, badge/statistik dipertahankan), dan "Impor dari GitHub" mengisi dari repo `username/username`. Profil publik menampilkan kartu `username / README.md` gaya GitHub + baris jumlah karya & tag teratas.
 
 ## Pembaruan 4.67.0
 

@@ -1,8 +1,9 @@
+import RichHtmlWithEmbeds from '@/components/public/rich-html-with-embeds';
 import { KaryaAvatar, KaryaCard } from '@/components/karya/karya-card';
 import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
 import { Button } from '@/components/ui/button';
 import { KARYA_PATHS, usePublicStudent } from '@/hooks/use-karya';
-import { BadgeCheck, FileText, Github, Globe, Instagram, Link2, Linkedin, Loader2 } from 'lucide-react';
+import { BadgeCheck, BookOpen, FileText, FolderGit2, Github, Globe, Instagram, Link2, Linkedin, Loader2 } from 'lucide-react';
 import { useEffect, type ReactNode } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
 import type { KaryaProjectCard, KaryaSocialLinks, KaryaStudentPublic } from '@shared/karya';
@@ -64,6 +65,9 @@ export function StudentProfileView({ s, projects }: { s: KaryaStudentPublic & { 
 	const featured = projects.find((p) => p.featured) || projects[0];
 	const rest = projects.filter((p) => p !== featured);
 	const socials = SOCIAL.filter((x) => s.social?.[x.key]);
+	const tagCount = new Map<string, number>();
+	for (const p of projects) for (const t of p.tags || []) tagCount.set(t, (tagCount.get(t) || 0) + 1);
+	const topTags = Array.from(tagCount.entries()).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
 	return (
 		<>
@@ -112,6 +116,26 @@ export function StudentProfileView({ s, projects }: { s: KaryaStudentPublic & { 
 				</aside>
 
 				<section className="min-w-0 space-y-6 lg:pt-20">
+					<div className="flex flex-wrap items-center gap-2 border-b border-border pb-3 text-sm">
+						<span className="inline-flex items-center gap-1.5 rounded-md bg-muted px-3 py-1.5 font-medium text-foreground">
+							<FolderGit2 className="h-4 w-4" aria-hidden /> {projects.length} karya
+						</span>
+						{topTags.map(([t, n]) => (
+							<Link key={t} href={KARYA_PATHS.tag(t)} className="rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground hover:border-primary hover:text-primary">
+								#{t} <span className="opacity-70">{n}</span>
+							</Link>
+						))}
+					</div>
+					{s.profileReadme ? (
+						<article className="overflow-hidden rounded-xl border border-border bg-card">
+							<div className="flex items-center gap-2 border-b border-border bg-muted/40 px-4 py-2.5 text-xs font-medium text-muted-foreground">
+								<BookOpen className="h-4 w-4" aria-hidden /> {s.username} / README.md
+							</div>
+							<div className="p-5 sm:p-6">
+								<RichHtmlWithEmbeds allowAnyHost content={s.profileReadme} className="prose prose-sm max-w-none dark:prose-invert [&_img]:inline-block [&_img]:my-1 [&_p[align=center]]:text-center [&_div[align=center]]:text-center" />
+							</div>
+						</article>
+					) : null}
 					<div className="flex flex-wrap items-baseline justify-between gap-2">
 						<h2 className="text-xl font-semibold text-foreground">Portofolio ({projects.length})</h2>
 					</div>

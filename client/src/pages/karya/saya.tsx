@@ -1,3 +1,4 @@
+import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { KaryaAvatar } from '@/components/karya/karya-card';
 import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -20,13 +21,14 @@ import {
 	useStudent,
 	type KaryaOwnProject,
 	type KaryaStudentAccount,
+	type KaryaWarning,
 } from '@/hooks/use-karya';
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorText, queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
 import { formatBytes, KARYA_STATUS_LABEL, type KaryaStatus } from '@shared/karya';
 import { useQuery } from '@tanstack/react-query';
-import { Camera, Copy, ExternalLink, Eye, Loader2, LogOut, MonitorSmartphone, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Camera, Check, Copy, ExternalLink, Eye, FileUp, Loader2, LogOut, MonitorSmartphone, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Link, useLocation } from 'wouter';
 
@@ -105,6 +107,7 @@ export default function KaryaDashboardPage() {
 				</div>
 
 				<ActivationBanner student={student} />
+				<WarningsBanner student={student} />
 
 				<Tabs value={tab} onValueChange={setTab}>
 					<TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
@@ -309,7 +312,25 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 		skills: student.skills.join(', '),
 		profilePublic: student.profilePublic,
 		social: { ...(student.social as Record<string, string>) },
+		profileReadme: student.profileReadme || '',
 	});
+	const mdRef = useRef<HTMLInputElement>(null);
+	/** Unggah README.md → dikonversi server ke HTML tersanitasi, lalu bisa diedit lagi di editor. */
+	const uploadReadme = async (f: File | undefined) => {
+		if (!f) return;
+		if (f.size > 60_000) return toast({ title: 'File terlalu besar', description: 'README maks 60 KB', variant: 'destructive' });
+		try {
+			const md = await f.text();
+			const r = await karyaApi<{ student: KaryaStudentAccount }>('PATCH', '/me/profile', { profileReadmeMarkdown: md });
+			setForm((x) => ({ ...x, profileReadme: r.student.profileReadme || '' }));
+			refreshStudent();
+			toast({ title: 'README profil diunggah', description: 'Silakan edit lalu Simpan profil bila perlu.' });
+		} catch (e) {
+			toast({ title: 'Gagal mengunggah README', description: apiErrorText(e, 'Coba lagi'), variant: 'destructive' });
+		} finally {
+			if (mdRef.current) mdRef.current.value = '';
+		}
+	};
 
 	const save = async (e: FormEvent) => {
 		e.preventDefault();
@@ -335,12 +356,13 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 		if (!ghUser.trim()) return toast({ title: 'Isi username GitHub dulu', variant: 'destructive' });
 		setImporting(true);
 		try {
-			const g = await karyaApi<{ username: string; name: string; bio: string; website: string; avatarUrl: string; githubUrl: string }>('POST', '/me/profile/import-github', { username: ghUser.trim() });
+			const g = await karyaApi<{ username: string; name: string; bio: string; website: string; avatarUrl: string; githubUrl: string; profileReadmeHtml?: string }>('POST', '/me/profile/import-github', { username: ghUser.trim() });
 			setForm((f) => ({
 				...f,
 				name: f.name || g.name,
 				bio: f.bio || g.bio,
 				headline: f.headline || (g.bio ? g.bio.split(/[.\n]/)[0].slice(0, 120) : ''),
+				profileReadme: f.profileReadme || g.profileReadmeHtml || '',
 				social: { ...f.social, github: g.githubUrl, ...(g.website && !f.social.website ? { website: g.website } : {}) },
 			}));
 			if (g.avatarUrl && !student.avatarUrl) {
@@ -443,6 +465,17 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 						))}
 					</div>
 					<p className="text-xs text-muted-foreground">Tautan wajib https://. GitHub, GitLab, LinkedIn, dan Instagram hanya menerima domain resminya.</p>
+					<div className="space-y-2 rounded-lg border border-border p-3">
+						<div className="flex flex-wrap items-center gap-2">
+							<Label className="flex-1 font-semibold">README profil (gaya profil GitHub)</Label>
+							<input ref={mdRef} type="file" accept=".md,.markdown,text/markdown,text/plain" className="sr-only" onChange={(e) => uploadReadme(e.target.files?.[0])} />
+							<Button type="button" size="sm" variant="outline" onClick={() => mdRef.current?.click()}>
+								<FileUp className="mr-1 h-3.5 w-3.5" /> Unggah README.md
+							</Button>
+						</div>
+						<p className="text-xs text-muted-foreground">Tampil di profil publik di bawah bio, seperti README di github.com/username. "Impor dari GitHub" otomatis mengisi dari repo <code>username/username</code> bila ada. Gambar &amp; statistik (mis. github-readme-stats) dari domain https apa pun ikut tampil.</p>
+						<RichTextEditor value={form.profileReadme} onChange={(v) => setForm((x) => ({ ...x, profileReadme: v }))} height={420} placeholder="Tentang aku, tech stack, statistik GitHub…" uploadEndpoint="/api/karya/me/content-image" />
+					</div>
 				</CardContent>
 			</Card>
 
@@ -595,6 +628,43 @@ type Session = { id: string; device: string; browser: string; os: string; ip: st
 const fmtTime = (d: string) => new Date(d).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
 
 /** Banner aktivasi email: belum aktivasi → karya terkunci privat. Kode dari email atau klik link di email. */
+/** Peringatan pengurus (akun & karya) yang belum ditandai dibaca. */
+function WarningsBanner({ student }: { student: KaryaStudentAccount }) {
+	const { toast } = useToast();
+	const { data: projects } = useMyProjects();
+	const list: Array<KaryaWarning & { target: string }> = [
+		...(student.warnings || []).map((w) => ({ ...w, target: 'Akun kamu' })),
+		...((projects || []) as KaryaOwnProject[]).flatMap((p) => (p.warnings || []).map((w) => ({ ...w, target: `Karya "${p.title}"` }))),
+	].filter((w) => !w.acknowledgedAt);
+	if (!list.length) return null;
+	const ack = async (id: string) => {
+		try {
+			await karyaApi('POST', `/me/warnings/${id}/ack`);
+			refreshStudent();
+			queryClient.invalidateQueries({ queryKey: ['karya-my-projects'] });
+		} catch (e) {
+			toast({ title: 'Gagal', description: apiErrorText(e, 'Coba lagi'), variant: 'destructive' });
+		}
+	};
+	return (
+		<div className="mb-6 space-y-2" role="alert">
+			{list.map((w) => (
+				<div key={w.id} className="flex flex-wrap items-start gap-3 rounded-xl border border-red-500/40 bg-red-500/10 p-4 text-sm">
+					<AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-red-500" />
+					<div className="min-w-0 flex-1">
+						<p className="font-semibold text-foreground">Peringatan pengurus · {w.target}</p>
+						<p className="mt-1 whitespace-pre-line text-foreground/90">{w.message}</p>
+						<p className="mt-1 text-xs text-muted-foreground">{w.byName} · {new Date(w.at).toLocaleString('id-ID')}</p>
+					</div>
+					<Button size="sm" variant="outline" onClick={() => ack(w.id)}>
+						<Check className="mr-1 h-3.5 w-3.5" /> Saya mengerti
+					</Button>
+				</div>
+			))}
+		</div>
+	);
+}
+
 export function ActivationBanner({ student }: { student: KaryaStudentAccount }) {
 	const { toast } = useToast();
 	// Kode aktivasi dari pendaftaran barusan (email sudah terkirim) → langsung bisa diisi

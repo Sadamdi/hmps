@@ -51,6 +51,10 @@ export function normalizeStudentEmail(v: unknown): string {
 	return String(v || '').trim().toLowerCase().slice(0, 200);
 }
 
+export function warningOut(w: any) {
+	return { id: w.id, message: w.message, byName: w.byName || 'Pengurus', at: w.at, acknowledgedAt: w.acknowledgedAt || null };
+}
+
 /** Data akun untuk pemiliknya (tanpa hash password / token). */
 export function ownStudent(s: any) {
 	if (!s) return null;
@@ -64,6 +68,8 @@ export function ownStudent(s: any) {
 		name: s.name || '',
 		headline: s.headline || '',
 		bio: s.bio || '',
+		profileReadme: s.profileReadme || '',
+		warnings: (s.warnings || []).slice(-20).map(warningOut),
 		avatarUrl: s.avatarUrl || '',
 		skills: s.skills || [],
 		social: s.social || {},

@@ -20,6 +20,19 @@ const socialSchema = new Schema(
 	{ _id: false },
 );
 
+/** Peringatan dari pengurus (akun atau karya). Tampil ke mahasiswa sampai ditandai sudah dibaca. */
+const warningSchema = new Schema(
+	{
+		id: { type: String, required: true },
+		message: { type: String, required: true },
+		byUserId: { type: String, default: '' },
+		byName: { type: String, default: '' },
+		at: { type: Date, default: Date.now },
+		acknowledgedAt: { type: Date, default: null },
+	},
+	{ _id: false },
+);
+
 const studentSchema = new Schema(
 	{
 		email: { type: String, required: true, unique: true, lowercase: true, trim: true },
@@ -35,6 +48,9 @@ const studentSchema = new Schema(
 		name: { type: String, default: '' },
 		headline: { type: String, default: '' },
 		bio: { type: String, default: '' },
+		/** README profil (HTML tersanitasi) — gaya profil GitHub; bisa diimpor dari repo <user>/<user> atau unggah .md */
+		profileReadme: { type: String, default: '' },
+		warnings: { type: [warningSchema], default: [] },
 		avatarUrl: { type: String, default: '' },
 		avatarSize: { type: Number, default: 0 },
 		skills: { type: [String], default: [] },
@@ -158,6 +174,7 @@ const projectSchema = new Schema(
 		status: { type: String, enum: ['draft', 'pending', 'approved', 'revision', 'hidden'], default: 'draft', index: true },
 		reviewNote: { type: String, default: '' },
 		reviewLog: { type: [reviewLogSchema], default: [] },
+		warnings: { type: [warningSchema], default: [] },
 		/** Pernah disetujui; versi tayang terakhir dipakai sampai revisi disetujui lagi */
 		publishedAt: { type: Date, default: null },
 		featured: { type: Boolean, default: false },

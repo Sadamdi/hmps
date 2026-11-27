@@ -19,12 +19,151 @@ import { useAuth } from '@/lib/auth';
 import { apiErrorText, apiRequest } from '@/lib/queryClient';
 import { KARYA_STATUS_LABEL, formatBytes, type KaryaStatus } from '@shared/karya';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, CheckCircle2, ExternalLink, EyeOff, Loader2, PauseCircle, Search, Star, Trash2, UserPlus } from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, ExternalLink, EyeOff, Loader2, PauseCircle, Search, Star, Trash2, UserPlus, UserRound } from 'lucide-react';
 import { useState } from 'react';
-import type { KaryaOwnProject, KaryaStudentAccount } from '@/hooks/use-karya';
+import type { KaryaOwnProject, KaryaStudentAccount, KaryaWarning } from '@/hooks/use-karya';
 
 type AdminStudent = KaryaStudentAccount & { status: string; suspendedUntil: string | null; moderationReason: string; lastLoginAt: string | null; projectCount?: number };
 type AdminProject = KaryaOwnProject & { reviewLog: { action: string; note: string; byName: string; at: string }[]; student: AdminStudent | null };
+type WarnTarget = { kind: 'students' | 'projects'; id: string; label: string };
+
+/** Dialog kirim peringatan ke mahasiswa (akun) atau karya (draf/menunggu/tayang). */
+function WarnDialog({ target, onClose }: { target: WarnTarget | null; onClose: () => void }) {
+	const { toast } = useToast();
+	const qc = useQueryClient();
+	const [message, setMessage] = useState('');
+	const [notifyEmail, setNotifyEmail] = useState(true);
+	const [busy, setBusy] = useState(false);
+	const send = async () => {
+		if (!target) return;
+		setBusy(true);
+		try {
+			await adminSend('POST', `/${target.kind}/${target.id}/warn`, { message: message.trim(), notifyEmail });
+			toast({ title: 'Peringatan dikirim', description: notifyEmail ? 'Tampil di Ruang Mahasiswa + email.' : 'Tampil di Ruang Mahasiswa.' });
+			qc.invalidateQueries({ queryKey: ['karya-admin-projects'] });
+			qc.invalidateQueries({ queryKey: ['karya-admin-students'] });
+			qc.invalidateQueries({ queryKey: ['karya-admin-student'] });
+			setMessage('');
+			onClose();
+		} catch (e) {
+			toast({ title: 'Gagal', description: apiErrorText(e, 'Coba lagi'), variant: 'destructive' });
+		} finally {
+			setBusy(false);
+		}
+	};
+	return (
+		<Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent>
+				<DialogHeader>
+					<DialogTitle>Kirim peringatan</DialogTitle>
+					<DialogDescription>{target?.label}. Peringatan tampil di Ruang Mahasiswa sampai ditandai dibaca, dan tercatat di log.</DialogDescription>
+				</DialogHeader>
+				<div className="space-y-1.5">
+					<Label htmlFor="warn-msg">Pesan (wajib)</Label>
+					<Textarea id="warn-msg" rows={4} maxLength={1000} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Contoh: gambar sampul memuat konten pihak lain tanpa izin, mohon diganti dalam 3 hari." />
+				</div>
+				<label className="flex items-center gap-2 text-sm">
+					<Checkbox checked={notifyEmail} onCheckedChange={(v) => setNotifyEmail(v === true)} /> Kirim juga lewat email
+				</label>
+				<DialogFooter>
+					<Button variant="outline" onClick={onClose}>Batal</Button>
+					<Button className="bg-red-600 text-white hover:bg-red-700" disabled={busy || message.trim().length < 5} onClick={send}>
+						{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <AlertTriangle className="mr-2 h-4 w-4" />} Kirim peringatan
+					</Button>
+				</DialogFooter>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+function WarningList({ list }: { list?: KaryaWarning[] }) {
+	if (!list?.length) return null;
+	return (
+		<details className="mt-1 text-xs">
+			<summary className="cursor-pointer text-red-600">Peringatan ({list.length}{list.some((w) => !w.acknowledgedAt) ? `, ${list.filter((w) => !w.acknowledgedAt).length} belum dibaca` : ''})</summary>
+			<ul className="mt-1 space-y-0.5 text-muted-foreground">
+				{list.map((w) => (
+					<li key={w.id}>{new Date(w.at).toLocaleString('id-ID')} · {w.byName} — {w.message} {w.acknowledgedAt ? '✓ dibaca' : '· belum dibaca'}</li>
+				))}
+			</ul>
+		</details>
+	);
+}
+
+type StudentDetail = { student: AdminStudent & { profileVisible: boolean; warnings?: KaryaWarning[] }; projects: (KaryaOwnProject & { cover?: { url: string } })[]; shortlinks: { id: string; slug: string; targetUrl: string; status: string; clicks: number }[] };
+
+/** Detail mahasiswa: akun + semua karya (termasuk draf) + shortlink. */
+function StudentDetailDialog({ id, onClose, canManage, onWarn }: { id: string | null; onClose: () => void; canManage: boolean; onWarn: (t: WarnTarget) => void }) {
+	const { data, isLoading } = useQuery({ queryKey: ['karya-admin-student', id], queryFn: () => adminGet<StudentDetail>(`/students/${id}`), enabled: !!id });
+	const d = data?.data;
+	return (
+		<Dialog open={!!id} onOpenChange={(o) => !o && onClose()}>
+			<DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto">
+				<DialogHeader>
+					<DialogTitle>{d?.student.name || 'Detail mahasiswa'}</DialogTitle>
+					<DialogDescription>{d ? `${d.student.email} · @${d.student.username}${d.student.nim ? ` · NIM ${d.student.nim}` : ''}` : 'Memuat…'}</DialogDescription>
+				</DialogHeader>
+				{isLoading || !d ? (
+					<div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin" /></div>
+				) : (
+					<div className="space-y-5 text-sm">
+						<div className="flex flex-wrap gap-2">
+							<Badge variant="outline">{d.student.status}</Badge>
+							<Badge variant="outline">{d.student.emailVerified ? 'Email terverifikasi' : 'Belum verifikasi'}</Badge>
+							<Badge variant="outline">{d.student.profileVisible ? 'Profil publik' : 'Profil tidak tampil'}</Badge>
+							<Badge variant="outline">{formatBytes(d.student.storageUsedBytes)}</Badge>
+							{d.student.profileVisible ? (
+								<a href={`/karya/mahasiswa/${d.student.username}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">Buka profil <ExternalLink className="h-3 w-3" /></a>
+							) : null}
+							{canManage ? (
+								<Button size="sm" variant="outline" className="ml-auto text-red-600" onClick={() => onWarn({ kind: 'students', id: d.student.id, label: `Akun ${d.student.name || d.student.email}` })}>
+									<AlertTriangle className="mr-1 h-3.5 w-3.5" /> Peringatkan akun
+								</Button>
+							) : null}
+						</div>
+						{d.student.headline ? <p className="font-medium">{d.student.headline}</p> : null}
+						{d.student.bio ? <p className="whitespace-pre-line text-muted-foreground">{d.student.bio}</p> : null}
+						<WarningList list={d.student.warnings} />
+						<div>
+							<h3 className="mb-2 font-semibold">Karya ({d.projects.length})</h3>
+							{!d.projects.length ? <p className="text-muted-foreground">Belum ada karya.</p> : null}
+							<ul className="space-y-2">
+								{d.projects.map((p) => (
+									<li key={p.id} className="flex flex-wrap items-start gap-3 rounded-lg border p-3">
+										{p.cover?.url ? <img src={p.cover.url} alt="" className="h-14 w-24 shrink-0 rounded object-cover" loading="lazy" /> : null}
+										<div className="min-w-0 flex-1">
+											<p className="font-medium">{p.title}</p>
+											<div className="mt-1 flex flex-wrap items-center gap-2"><StatusBadge status={p.status} visibility={p.visibility} /><span className="text-xs text-muted-foreground">{p.viewCount} dilihat · diubah {new Date(p.updatedAt as unknown as string).toLocaleDateString('id-ID')}</span></div>
+											{p.reviewNote ? <p className="mt-1 text-xs text-orange-600">Catatan: {p.reviewNote}</p> : null}
+											<WarningList list={p.warnings} />
+										</div>
+										<div className="flex gap-1">
+											{p.status === 'approved' ? <Button asChild size="sm" variant="ghost"><a href={`/karya/${p.slug}`} target="_blank" rel="noopener noreferrer" aria-label="Buka karya"><ExternalLink className="h-3.5 w-3.5" /></a></Button> : null}
+											{canManage ? (
+												<Button size="sm" variant="outline" className="text-red-600" onClick={() => onWarn({ kind: 'projects', id: p.id, label: `Karya "${p.title}"` })}><AlertTriangle className="h-3.5 w-3.5" /></Button>
+											) : null}
+										</div>
+									</li>
+								))}
+							</ul>
+						</div>
+						{d.shortlinks.length ? (
+							<div>
+								<h3 className="mb-2 font-semibold">Shortlink ({d.shortlinks.length})</h3>
+								<ul className="space-y-1 text-xs">
+									{d.shortlinks.map((l) => (
+										<li key={l.id}>/go/{l.slug} → <span className="break-all text-muted-foreground">{l.targetUrl}</span> · {l.status} · {l.clicks} klik</li>
+									))}
+								</ul>
+							</div>
+						) : null}
+					</div>
+				)}
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 type AdminShortlink = { id: string; slug: string; targetUrl: string; status: string; clicks: number; reviewNote: string; student: { name: string; email: string; username: string } | null };
 type Settings = { enabled: boolean; registrationOpen: boolean; reviewMode: 'manual' | 'auto'; shortlinkReview: boolean; uploadsEnabled: boolean };
 
@@ -129,6 +268,8 @@ function ProjectsPanel({ canManage }: { canManage: boolean }) {
 	const key = ['karya-admin-projects', status, q, page];
 	const { data, isLoading } = useQuery({ queryKey: key, queryFn: () => adminGet<AdminProject[]>(`/projects?status=${status === 'all' ? '' : status}&q=${encodeURIComponent(q)}&page=${page}`) });
 	const [dialog, setDialog] = useState<{ p: AdminProject; action: ReviewAction | 'delete' } | null>(null);
+	const [warn, setWarn] = useState<WarnTarget | null>(null);
+	const [detailId, setDetailId] = useState<string | null>(null);
 	const [note, setNote] = useState('');
 	const [busy, setBusy] = useState(false);
 
@@ -210,6 +351,7 @@ function ProjectsPanel({ canManage }: { canManage: boolean }) {
 										{p.media.length ? <span className="text-muted-foreground">{p.media.length} file ({formatBytes(p.media.reduce((a, m) => a + m.size, 0))})</span> : null}
 									</div>
 									{p.description ? <details className="mt-2 text-sm"><summary className="cursor-pointer text-muted-foreground">Deskripsi</summary><p className="mt-1 whitespace-pre-line">{p.description}</p></details> : null}
+									<WarningList list={p.warnings} />
 									{p.reviewLog?.length ? (
 										<details className="mt-1 text-xs text-muted-foreground">
 											<summary className="cursor-pointer">Riwayat review ({p.reviewLog.length})</summary>
@@ -238,8 +380,12 @@ function ProjectsPanel({ canManage }: { canManage: boolean }) {
 									) : (
 										<Button size="sm" variant="outline" className="text-orange-600" onClick={() => setDialog({ p, action: 'hide' })}><EyeOff className="mr-1 h-4 w-4" /> Suspend</Button>
 									)}
+									<Button size="sm" variant="outline" className="text-red-600" onClick={() => setWarn({ kind: 'projects', id: p.id, label: `Karya "${p.title}"` })}><AlertTriangle className="mr-1 h-4 w-4" /> Peringatkan</Button>
+									{p.student?.id ? <Button size="sm" variant="ghost" onClick={() => setDetailId(p.student!.id)}><UserRound className="mr-1 h-4 w-4" /> Detail mahasiswa</Button> : null}
 									<Button size="sm" variant="ghost" className="text-destructive" onClick={() => setDialog({ p, action: 'delete' })}><Trash2 className="mr-1 h-4 w-4" /> Hapus</Button>
 								</div>
+							) : p.student?.id ? (
+								<div className="border-t pt-3"><Button size="sm" variant="ghost" onClick={() => setDetailId(p.student!.id)}><UserRound className="mr-1 h-4 w-4" /> Detail mahasiswa</Button></div>
 							) : null}
 						</CardContent>
 					</Card>
@@ -252,6 +398,8 @@ function ProjectsPanel({ canManage }: { canManage: boolean }) {
 				</div>
 			) : null}
 
+			<WarnDialog target={warn} onClose={() => setWarn(null)} />
+			<StudentDetailDialog id={detailId} onClose={() => setDetailId(null)} canManage={canManage} onWarn={setWarn} />
 			<Dialog open={!!dialog} onOpenChange={(o) => !o && setDialog(null)}>
 				<DialogContent>
 					<DialogHeader>
@@ -286,6 +434,8 @@ function StudentsPanel({ canManage }: { canManage: boolean }) {
 	const { data, isLoading } = useQuery({ queryKey: ['karya-admin-students', q, status], queryFn: () => adminGet<AdminStudent[]>(`/students?q=${encodeURIComponent(q)}&status=${status === 'all' ? '' : status}`) });
 	const [mod, setMod] = useState<{ s: AdminStudent; action: 'suspend' | 'unsuspend' | 'block' | 'unblock' | 'logout' | 'delete' } | null>(null);
 	const [days, setDays] = useState('7');
+	const [warn, setWarn] = useState<WarnTarget | null>(null);
+	const [detailId, setDetailId] = useState<string | null>(null);
 	const [reason, setReason] = useState('');
 	const [create, setCreate] = useState(false);
 	const [newAcc, setNewAcc] = useState({ name: '', email: '', allowNonUin: false });
@@ -367,7 +517,7 @@ function StudentsPanel({ canManage }: { canManage: boolean }) {
 							{data.data.map((s) => (
 								<tr key={s.id} className="border-t align-top">
 									<td className="p-3">
-										<p className="font-medium">{s.name || '—'}</p>
+										<button type="button" className="font-medium text-left text-primary hover:underline" onClick={() => setDetailId(s.id)}>{s.name || '—'}</button>
 										<p className="text-xs text-muted-foreground">{s.email}</p>
 										{s.createdByAdmin ? <p className="text-xs text-muted-foreground">dibuat admin{!s.verifiedTi ? ' · non-UIN' : ''}</p> : null}
 										{s.moderationReason ? <p className="text-xs text-orange-600">Alasan: {s.moderationReason}</p> : null}
@@ -389,10 +539,14 @@ function StudentsPanel({ canManage }: { canManage: boolean }) {
 												) : (
 													<Button size="sm" variant="outline" className="text-destructive" onClick={() => setMod({ s, action: 'block' })}><Ban className="mr-1 h-3.5 w-3.5" /> Blokir</Button>
 												)}
+												<Button size="sm" variant="outline" onClick={() => setDetailId(s.id)}><UserRound className="mr-1 h-3.5 w-3.5" /> Detail</Button>
+												<Button size="sm" variant="outline" className="text-red-600" onClick={() => setWarn({ kind: 'students', id: s.id, label: `Akun ${s.name || s.email}` })}><AlertTriangle className="mr-1 h-3.5 w-3.5" /> Peringatkan</Button>
 												<Button size="sm" variant="ghost" onClick={() => setMod({ s, action: 'logout' })}>Logout paksa</Button>
 												<Button size="sm" variant="ghost" className="text-destructive" onClick={() => setMod({ s, action: 'delete' })} aria-label={`Hapus akun ${s.email}`}><Trash2 className="h-3.5 w-3.5" /></Button>
 											</div>
-										) : null}
+										) : (
+											<Button size="sm" variant="outline" onClick={() => setDetailId(s.id)}><UserRound className="mr-1 h-3.5 w-3.5" /> Detail</Button>
+										)}
 									</td>
 								</tr>
 							))}
@@ -401,6 +555,8 @@ function StudentsPanel({ canManage }: { canManage: boolean }) {
 				</div>
 			)}
 
+			<WarnDialog target={warn} onClose={() => setWarn(null)} />
+			<StudentDetailDialog id={detailId} onClose={() => setDetailId(null)} canManage={canManage} onWarn={setWarn} />
 			<Dialog open={!!mod} onOpenChange={(o) => !o && setMod(null)}>
 				<DialogContent>
 					<DialogHeader>

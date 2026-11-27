@@ -12,7 +12,17 @@ import type {
 	KaryaVisibility,
 } from '@shared/karya';
 
+export interface KaryaWarning {
+	id: string;
+	message: string;
+	byName: string;
+	at: string;
+	acknowledgedAt: string | null;
+}
+
 export interface KaryaStudentAccount {
+	profileReadme?: string;
+	warnings?: KaryaWarning[];
 	id: string;
 	email: string;
 	emailVerified: boolean;
@@ -54,6 +64,7 @@ export interface KaryaOwnProject {
 	visibility: KaryaVisibility;
 	status: KaryaStatus;
 	reviewNote: string;
+	warnings?: KaryaWarning[];
 	featured: boolean;
 	viewCount: number;
 	publishedAt: string | null;

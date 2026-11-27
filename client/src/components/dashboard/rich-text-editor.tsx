@@ -47,6 +47,9 @@ export default function RichTextEditor({
 	const { theme } = useTheme();
 	const dark = theme === 'dark';
 	const editorRef = useRef<HTMLDivElement>(null);
+	// Nilai terbaru (konten bisa datang setelah editor dibuat, mis. data karya / README dimuat belakangan)
+	const valueRef = useRef(value);
+	valueRef.current = value;
 	const editorIdRef = useRef(
 		`tinymce-editor-${Math.random().toString(36).slice(2, 11)}`,
 	);
@@ -433,7 +436,7 @@ export default function RichTextEditor({
 						});
 
 						editor.on('init', () => {
-							editor.setContent(value || '');
+							editor.setContent(valueRef.current || '');
 						});
 
 						editor.on('Change KeyUp', () => {
@@ -511,8 +514,12 @@ export default function RichTextEditor({
 	useEffect(() => {
 		if ((window as any).tinymce && editorRef.current) {
 			const editor = (window as any).tinymce.get(editorRef.current.id);
-			if (editor && editor.getContent() !== value) {
-				editor.setContent(value || '');
+			// Belum selesai inisialisasi → konten dipasang oleh handler 'init' (valueRef); jangan sentuh serializer
+			if (!editor || !editor.initialized || editor.removed) return;
+			try {
+				if (editor.getContent() !== value) editor.setContent(value || '');
+			} catch {
+				/* editor sedang dibuat ulang (mis. ganti tema) */
 			}
 		}
 	}, [value]);

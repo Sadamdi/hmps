@@ -30,13 +30,15 @@ import {
 	getStudent,
 	normalizeStudentEmail,
 	ownStudent,
+	warningOut,
 	startStudentSession,
 	studentAccessBlock,
 	uniqueUsername,
 	validUsername,
 } from '../services/karya-auth';
 import { fetchPublicRepo, isDrivePublic, RepoFetchError } from '../services/karya-repo';
-import { fetchReadmeInsights, README_IMAGE_HOSTS } from '../services/karya-readme';
+import { fetchReadmeInsights, markdownToHtml, README_IMAGE_HOSTS } from '../services/karya-readme';
+import { sendKaryaWarningEmail } from '../services/email';
 import { deleteKaryaMediaFile, karyaMediaMiddleware, uploadKaryaMedia } from '../upload';
 import { sanitizeCmsHtml } from '../utils/cms-html';
 import { renderKaryaCover } from '../services/karya-cover';
@@ -573,6 +575,9 @@ const profileSchema = z.object({
 	profilePublic: z.boolean().optional(),
 	/** Avatar eksternal hanya dari GitHub/Google (hasil impor) */
 	avatarUrl: z.string().max(500).optional(),
+	/** README profil HTML (dari editor) atau Markdown (unggah .md) */
+	profileReadme: z.string().max(80000).optional(),
+	profileReadmeMarkdown: z.string().max(60000).optional(),
 });
 
 router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, async (req, res) => {
@@ -603,6 +608,8 @@ router.patch('/me/profile', requireEnabled, authenticateStudent, writeLimiter, a
 	if (d.skills !== undefined) set.skills = cleanKaryaTags(d.skills, KARYA_LIMITS.maxSkills);
 	if (d.social !== undefined) set.social = cleanSocialLinks(d.social);
 	if (d.profilePublic !== undefined) set.profilePublic = d.profilePublic;
+	if (d.profileReadmeMarkdown !== undefined) set.profileReadme = sanitizeCmsHtml(await markdownToHtml(d.profileReadmeMarkdown, { keepBadges: true }), 60000);
+	else if (d.profileReadme !== undefined) set.profileReadme = sanitizeCmsHtml(d.profileReadme, 60000);
 	if (d.avatarUrl !== undefined) {
 		const url = cleanHttpsUrl(d.avatarUrl);
 		const host = url ? new URL(url).hostname.toLowerCase() : '';
@@ -632,6 +639,8 @@ router.post('/me/profile/import-github', requireEnabled, authenticateStudent, re
 		if (r.status === 404) return fail(res, 404, 'Akun GitHub tidak ditemukan', 'NOT_FOUND');
 		if (!r.ok) return fail(res, 429, 'GitHub sedang membatasi akses. Coba lagi nanti.', 'REPO_RATE_LIMITED');
 		const g: any = await r.json();
+		const login = String(g.login || raw);
+		const readme = await fetchReadmeInsights(`https://github.com/${login}/${login}`, { keepBadges: true }).catch(() => null);
 		const blog = cleanHttpsUrl(/^https?:\/\//.test(String(g.blog || '')) ? String(g.blog).replace(/^http:/, 'https:') : g.blog ? `https://${g.blog}` : '');
 		ok(res, {
 			username: String(g.login || raw),
@@ -642,10 +651,23 @@ router.post('/me/profile/import-github', requireEnabled, authenticateStudent, re
 			avatarUrl: /^https:\/\/avatars\.githubusercontent\.com\//.test(String(g.avatar_url || '')) ? String(g.avatar_url) : '',
 			githubUrl: `https://github.com/${String(g.login || raw)}`,
 			publicRepos: Number(g.public_repos) || 0,
+			/** README profil GitHub (repo <user>/<user>), sudah disanitasi; kosong bila tidak ada */
+			profileReadmeHtml: readme?.descriptionHtml ? sanitizeCmsHtml(readme.descriptionHtml, 60000) : '',
 		});
 	} catch {
 		fail(res, 500, 'Gagal menghubungi GitHub', 'INTERNAL');
 	}
+});
+
+/** Tandai peringatan (akun atau karya) sudah dibaca. */
+router.post('/me/warnings/:id/ack', requireEnabled, authenticateStudent, writeLimiter, async (req, res) => {
+	const wid = String(req.params.id || '').slice(0, 40);
+	const me = await getStudent(req);
+	const now = new Date();
+	const a = await KaryaStudent.updateOne({ _id: me._id, 'warnings.id': wid }, { $set: { 'warnings.$.acknowledgedAt': now } });
+	const b = a.matchedCount ? null : await KaryaProject.updateOne({ studentId: me._id, 'warnings.id': wid }, { $set: { 'warnings.$.acknowledgedAt': now } });
+	if (!a.matchedCount && !b?.matchedCount) return fail(res, 404, 'Peringatan tidak ditemukan', 'NOT_FOUND');
+	ok(res, null, 'Peringatan ditandai sudah dibaca');
 });
 
 /** Multer + tangkap error ukuran file dengan pesan yang jelas. */
@@ -702,6 +724,7 @@ function ownProject(p: any) {
 		visibility: p.visibility,
 		status: p.status,
 		reviewNote: p.reviewNote || '',
+		warnings: (p.warnings || []).slice(-20).map(warningOut),
 		featured: !!p.featured,
 		viewCount: p.viewCount || 0,
 		publishedAt: p.publishedAt,
@@ -1350,6 +1373,7 @@ function publicStudent(s: any): KaryaStudentPublic {
 		social: s.social || {},
 		verifiedTi: !!s.verifiedTi,
 		profileVisible: profileVisible(s),
+		profileReadme: s.profileReadme || '',
 	};
 }
 
@@ -1461,8 +1485,62 @@ function adminStudent(s: any) {
 		suspendedUntil: s.suspendedUntil || null,
 		moderationReason: s.moderationReason || '',
 		lastLoginAt: s.lastLoginAt || null,
+		warnings: (s.warnings || []).map(warningOut),
 	};
 }
+
+const warnSchema = z.object({ message: z.string().min(5).max(1000), notifyEmail: z.boolean().optional() });
+
+async function pushWarning(req: Request, kind: 'student' | 'project', doc: any, student: any, message: string, notifyEmail: boolean) {
+	const w = { id: crypto.randomBytes(8).toString('hex'), message, byUserId: adminId(req), byName: adminName(req), at: new Date(), acknowledgedAt: null };
+	const Model: any = kind === 'student' ? KaryaStudent : KaryaProject;
+	await Model.updateOne({ _id: doc._id }, { $push: { warnings: { $each: [w], $slice: -50 } } });
+	if (kind === 'project') {
+		await KaryaProject.updateOne({ _id: doc._id }, { $push: { reviewLog: { $each: [{ action: 'warn', note: message, byUserId: w.byUserId, byName: w.byName, at: w.at }], $slice: -50 } } });
+	}
+	if (notifyEmail && student?.email && student.status !== 'deleted') {
+		sendKaryaWarningEmail({ to: student.email, name: student.name || 'Mahasiswa', target: kind === 'student' ? 'akunmu' : `karya "${doc.title}"`, message, adminName: w.byName || 'Pengurus' }).catch(() => null);
+	}
+	logKarya(req, 'update', kind === 'student' ? `Peringatan akun ${student?.email}` : `Peringatan karya ${doc.title}`, String(doc._id), { action: 'warn', message });
+	return w;
+}
+
+/** Detail mahasiswa untuk admin: akun + semua karyanya (draft, menunggu, tayang, revisi, disembunyikan). */
+router.get('/admin/students/:id', ...adminView, async (req, res) => {
+	if (!isId(req.params.id)) return fail(res, 404, 'Akun tidak ditemukan', 'NOT_FOUND');
+	const s: any = await KaryaStudent.findById(req.params.id).lean();
+	if (!s || s.status === 'deleted') return fail(res, 404, 'Akun tidak ditemukan', 'NOT_FOUND');
+	const [projects, shortlinks] = await Promise.all([
+		KaryaProject.find({ studentId: s._id }).sort({ updatedAt: -1 }).lean(),
+		KaryaShortlink.find({ studentId: s._id }).sort({ createdAt: -1 }).lean(),
+	]);
+	ok(res, {
+		student: { ...adminStudent(s), profileVisible: profileVisible(s) },
+		projects: projects.map((p: any) => ({ ...ownProject(p), cover: coverOf(p) })),
+		shortlinks: shortlinks.map((l: any) => ({ id: String(l._id), slug: l.slug, targetUrl: l.targetUrl, status: l.status, clicks: l.clicks || 0 })),
+	});
+});
+
+router.post('/admin/students/:id/warn', ...adminManage, async (req, res) => {
+	if (!isId(req.params.id)) return fail(res, 404, 'Akun tidak ditemukan', 'NOT_FOUND');
+	const parsed = warnSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Tulis pesan peringatan (min. 5 karakter)', 'VALIDATION_ERROR');
+	const s: any = await KaryaStudent.findById(req.params.id).lean();
+	if (!s || s.status === 'deleted') return fail(res, 404, 'Akun tidak ditemukan', 'NOT_FOUND');
+	const w = await pushWarning(req, 'student', s, s, cleanText(parsed.data.message, 1000), parsed.data.notifyEmail !== false);
+	ok(res, warningOut(w), 'Peringatan dikirim');
+});
+
+router.post('/admin/projects/:id/warn', ...adminManage, async (req, res) => {
+	if (!isId(req.params.id)) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
+	const parsed = warnSchema.safeParse(req.body || {});
+	if (!parsed.success) return fail(res, 400, 'Tulis pesan peringatan (min. 5 karakter)', 'VALIDATION_ERROR');
+	const p: any = await KaryaProject.findById(req.params.id).lean();
+	if (!p) return fail(res, 404, 'Karya tidak ditemukan', 'NOT_FOUND');
+	const s: any = await KaryaStudent.findById(p.studentId).lean();
+	const w = await pushWarning(req, 'project', p, s, cleanText(parsed.data.message, 1000), parsed.data.notifyEmail !== false);
+	ok(res, warningOut(w), 'Peringatan dikirim');
+});
 
 router.get('/admin/overview', ...adminView, async (_req, res) => {
 	const [byStatus, students, shortPending, settings] = await Promise.all([

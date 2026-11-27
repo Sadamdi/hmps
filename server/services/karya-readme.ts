@@ -84,10 +84,44 @@ function plain(md: string): string {
 		.trim();
 }
 
-export async function fetchReadmeInsights(repoUrl: string): Promise<ReadmeInsights> {
+/** Gambar di deskripsi HTML: https apa pun (README sering memakai gambar dari vercel.app, shields, dll). */
+function anyHttpsImage(url: string): boolean {
+	return /^https:\/\//i.test(url);
+}
+
+/** Markdown → HTML (belum disanitasi; pemanggil wajib sanitizeCmsHtml). keepBadges untuk README profil. */
+export async function markdownToHtml(md: string, opts: { rawBase?: string; blobBase?: string; keepBadges?: boolean } = {}): Promise<string> {
+	const rawBase = opts.rawBase || '';
+	const blobBase = opts.blobBase || '';
+	const mdClean = (opts.keepBadges
+		? md
+		: md
+				.replace(/\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/g, '')
+				.replace(/!\[[^\]]*\]\(([^)]*)\)/g, (all, url) => (BADGE_RE.test(String(url)) ? '' : all))
+	).slice(0, 60_000);
+	let html = '';
+	try {
+		html = String(await marked.parse(mdClean, { gfm: true, async: true }));
+	} catch {
+		return '';
+	}
+	return html
+		.replace(/(<img[^>]*\ssrc=)(["'])([^"']+)\2/gi, (_a, pre, q, src) => {
+			const u = rawBase ? resolveUrl(src, rawBase, blobBase) : /^https:\/\//i.test(src) ? src : '';
+			return u && anyHttpsImage(u) ? `${pre}${q}${u}${q}` : `${pre}${q}${q}`;
+		})
+		.replace(/<img[^>]*\ssrc=(["'])\1[^>]*>/gi, '')
+		.replace(/(<a[^>]*\shref=)(["'])([^"']+)\2/gi, (_a, pre, q, href) => {
+			if (/^(https?:|mailto:|#)/i.test(href)) return `${pre}${q}${href}${q}`;
+			if (!blobBase) return `${pre}${q}#${q}`;
+			return `${pre}${q}${blobBase}/${href.replace(/^\.\//, '').replace(/^\//, '')}${q}`;
+		});
+}
+
+export async function fetchReadmeInsights(repoUrl: string, opts: { keepBadges?: boolean } = {}): Promise<ReadmeInsights> {
 	const p = parseRepoUrl(repoUrl);
 	if (!p || p.host === 'bitbucket') return EMPTY;
-	const key = `${p.host}/${p.owner}/${p.name}`.toLowerCase();
+	const key = `${p.host}/${p.owner}/${p.name}/${opts.keepBadges ? 'b' : ''}`.toLowerCase();
 	const hit = cache.get(key);
 	if (hit && Date.now() - hit.at < 30 * 60_000) return hit.data;
 
@@ -162,26 +196,7 @@ export async function fetchReadmeInsights(repoUrl: string): Promise<ReadmeInsigh
 	}
 
 	// ── deskripsi HTML: buang badge, perbaiki URL relatif ──
-	const mdClean = md
-		.replace(/\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)/g, '')
-		.replace(/!\[[^\]]*\]\(([^)]*)\)/g, (all, url) => (BADGE_RE.test(String(url)) ? '' : all))
-		.slice(0, 60_000);
-	let html = '';
-	try {
-		html = String(await marked.parse(mdClean, { gfm: true, async: true }));
-	} catch {
-		html = '';
-	}
-	html = html
-		.replace(/(<img[^>]*\ssrc=)(["'])([^"']+)\2/gi, (_a, pre, q, src) => {
-			const u = resolveUrl(src, rawBase, blobBase);
-			return u && allowedImage(u) ? `${pre}${q}${u}${q}` : `${pre}${q}${q}`;
-		})
-		.replace(/<img[^>]*\ssrc=(["'])\1[^>]*>/gi, '')
-		.replace(/(<a[^>]*\shref=)(["'])([^"']+)\2/gi, (_a, pre, q, href) => {
-			if (/^(https?:|mailto:|#)/i.test(href)) return `${pre}${q}${href}${q}`;
-			return `${pre}${q}${blobBase}/${href.replace(/^\.\//, '').replace(/^\//, '')}${q}`;
-		});
+	const html = await markdownToHtml(md, { rawBase, blobBase, keepBadges: opts.keepBadges });
 
 	const data: ReadmeInsights = { summary, descriptionHtml: html, images: imgs.slice(0, 8), youtube: youtube.slice(0, 3), videoFiles: video.slice(0, 3) };
 	cache.set(key, { at: Date.now(), data });
