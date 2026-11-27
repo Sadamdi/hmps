@@ -39,7 +39,7 @@ import {
 import { fetchPublicRepo, isDrivePublic, RepoFetchError } from '../services/karya-repo';
 import { fetchReadmeInsights, markdownToHtml, README_IMAGE_HOSTS } from '../services/karya-readme';
 import { sendKaryaWarningEmail } from '../services/email';
-import { cleanKaryaCategories, karyaCategoriesOf } from '@shared/karya';
+import { cleanKaryaCategories, karyaCategoriesOf, normalizeCustomCategory } from '@shared/karya';
 import { canonicalKaryaTag, inferKaryaStack } from '@shared/karya-tags';
 import { preAnalyzeEmbedsInHtml } from '../services/embed-domain-analysis';
 
@@ -1360,7 +1360,8 @@ router.get('/public/projects', requireEnabled, publicLimiter, async (req, res) =
 	const limit = Math.max(1, Math.min(48, Number(req.query.limit) || 12));
 	const filter: any = { ...PUBLIC_PROJECT_BASE, ...(await visibleStudentFilter()) };
 	if (tag) filter.tags = tag;
-	if (KARYA_CATEGORIES.some((c) => c.id === category)) filter.$and = [{ $or: [{ category }, { categories: category }] }];
+	const catNorm = normalizeCustomCategory(category);
+	if (catNorm) filter.$and = [{ $or: [{ category: catNorm }, { categories: catNorm }] }];
 	if (q) {
 		const rx = new RegExp(escapeRegex(q), 'i');
 		const authorIds = (await KaryaStudent.find({ $or: [{ name: rx }, { username: rx }] }).select('_id').limit(200).lean()).map((s: any) => s._id);
@@ -1378,6 +1379,19 @@ router.get('/public/projects', requireEnabled, publicLimiter, async (req, res) =
 	]);
 	res.set('Cache-Control', 'public, max-age=10, stale-while-revalidate=30');
 	ok(res, await toCards(rows), 'OK', { page, limit, total });
+});
+
+/** Kategori yang dipakai karya tayang (bawaan + buatan mahasiswa) beserta jumlahnya. */
+router.get('/public/categories', requireEnabled, publicLimiter, async (_req, res) => {
+	const rows: any[] = await KaryaProject.aggregate([
+		{ $match: { ...PUBLIC_PROJECT_BASE } },
+		{ $project: { cats: { $cond: [{ $gt: [{ $size: { $ifNull: ['$categories', []] } }, 0] }, '$categories', ['$category']] } } },
+		{ $unwind: '$cats' },
+		{ $group: { _id: '$cats', count: { $sum: 1 } } },
+		{ $sort: { count: -1 } },
+		{ $limit: 60 },
+	]);
+	ok(res, rows.filter((r) => r._id).map((r) => ({ id: String(r._id), count: r.count })));
 });
 
 router.get('/public/tags', requireEnabled, publicLimiter, async (_req, res) => {

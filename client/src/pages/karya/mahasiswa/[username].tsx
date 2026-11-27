@@ -72,7 +72,7 @@ export function StudentProfileView({ s, projects }: { s: KaryaStudentPublic & { 
 	return (
 		<>
 			<div className="h-32 sm:h-40 bg-gradient-to-r from-blue-600 via-cyan-700 to-background" aria-hidden />
-			<div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 pb-14 grid gap-8 lg:grid-cols-[320px_1fr]">
+			<div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 -mt-16 pb-14 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[320px_minmax(0,1fr)]">
 				<aside className="space-y-4 self-start rounded-xl border border-border bg-card p-6 shadow-sm">
 					<KaryaAvatar name={s.name} url={s.avatarUrl} className="h-24 w-24 border-4 border-background text-2xl" />
 					<div>

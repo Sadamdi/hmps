@@ -544,6 +544,7 @@ POST   /api/karya/me/profile/import-github       # {username} → name, bio, web
 POST   /api/karya/me/warnings/:id/ack            # tandai peringatan pengurus (akun/karya) sudah dibaca
 GET    /api/karya/me/username-available?u=       # {username, valid, available} — onboarding username
 POST   /api/karya/me/profile/import              # {source: link/username GitHub|GitLab|Bitbucket, provider?} → profil + suggestedUsername/suggestedAvailable (tidak menyimpan)
+GET    /api/karya/public/categories              # kategori yang dipakai karya tayang (bawaan + buatan mahasiswa) + jumlah
 GET    /api/karya/public/students?q=&angkatan=&page=  # direktori profil publik (tanpa email/NIM) + projectCount, topTags
 POST   /api/karya/me/avatar                      # multipart file (gambar ≤5 MB → WebP 400px)
 POST   /api/karya/me/content-image               # multipart file: gambar deskripsi rich text (ikut kuota)

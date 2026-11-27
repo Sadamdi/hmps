@@ -92,6 +92,16 @@ export const KARYA_CATEGORIES = [
 	{ id: 'uiux', label: 'UI/UX' },
 	{ id: 'desktop', label: 'Desktop' },
 	{ id: 'security', label: 'Keamanan' },
+	{ id: 'cloud', label: 'Cloud & DevOps' },
+	{ id: 'sistem-informasi', label: 'Sistem Informasi' },
+	{ id: 'bot', label: 'Bot & Otomasi' },
+	{ id: 'ar-vr', label: 'AR / VR' },
+	{ id: 'blockchain', label: 'Blockchain & Web3' },
+	{ id: 'robotika', label: 'Robotika' },
+	{ id: 'jaringan', label: 'Jaringan' },
+	{ id: 'multimedia', label: 'Multimedia & Animasi' },
+	{ id: 'tools', label: 'Tools, CLI & Library' },
+	{ id: 'riset', label: 'Riset / Paper' },
 	{ id: 'lainnya', label: 'Lainnya' },
 ] as const;
 export type KaryaCategoryId = (typeof KARYA_CATEGORIES)[number]['id'];
@@ -358,9 +368,33 @@ export interface KaryaProjectCard {
 }
 
 /** Normalisasi daftar kategori: hanya id valid, unik, maks 3; kosong → ['lainnya']. */
+/** Kategori buatan mahasiswa: huruf kecil, 2–30 karakter (huruf, angka, spasi, -, /, &). */
+export function normalizeCustomCategory(raw: unknown): string {
+	const v = String(raw || '')
+		.toLowerCase()
+		.replace(/[^a-z0-9 &/-]/g, '')
+		.replace(/\s+/g, ' ')
+		.trim()
+		.slice(0, 30);
+	if (v.length < 2) return '';
+	const byLabel = KARYA_CATEGORIES.find((c) => c.label.toLowerCase() === v || c.id === v);
+	return byLabel ? byLabel.id : v;
+}
+
+export function isBuiltinKaryaCategory(id: string): boolean {
+	return KARYA_CATEGORIES.some((c) => c.id === id);
+}
+
+/** Label tampilan kategori (bawaan atau buatan mahasiswa). */
+export function karyaCategoryLabel(id: string): string {
+	const b = KARYA_CATEGORIES.find((c) => c.id === id);
+	if (b) return b.label;
+	return String(id || 'Lainnya').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 export function cleanKaryaCategories(raw: unknown, fallback?: string): string[] {
 	const ids = new Set<string>(KARYA_CATEGORIES.map((c) => c.id));
-	const list = (Array.isArray(raw) ? raw : raw ? [raw] : []).map((x) => String(x || '').trim()).filter((x) => ids.has(x) && x !== 'lainnya');
+	const list = (Array.isArray(raw) ? raw : raw ? [raw] : []).map((x) => normalizeCustomCategory(x)).filter((x) => !!x && x !== 'lainnya');
 	const out = Array.from(new Set(list)).slice(0, 3);
 	if (!out.length && fallback && ids.has(fallback)) out.push(fallback);
 	return out.length ? out : ['lainnya'];

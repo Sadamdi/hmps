@@ -175,7 +175,7 @@ export default function KaryaLoginPage() {
 				{ label: 'Karya TI', href: KARYA_PATHS.index },
 				{ label: mode === 'register' ? 'Daftar' : 'Masuk' },
 			]}>
-			<div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14 grid gap-8 lg:grid-cols-[1fr_420px] items-start">
+			<div className="max-w-5xl mx-auto px-4 sm:px-6 py-10 sm:py-14 grid grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(0,1fr)_420px] items-start">
 				<section className="hidden lg:block pt-4">
 					<span className="inline-flex items-center gap-2 px-3 py-1 mb-4 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase">
 						<ShieldCheck className="h-3.5 w-3.5" /> Khusus mahasiswa TI

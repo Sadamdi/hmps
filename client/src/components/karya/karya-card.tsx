@@ -3,7 +3,7 @@ import { cn } from '@/lib/utils';
 import { Code2, Star } from 'lucide-react';
 import { Link } from 'wouter';
 import type { KaryaProjectCard as Card } from '@shared/karya';
-import { KARYA_CATEGORIES, karyaCategoriesOf } from '@shared/karya';
+import { karyaCategoriesOf, karyaCategoryLabel } from '@shared/karya';
 import { karyaTagToneClass } from '@shared/karya-tags';
 import { KARYA_PATHS } from '@/hooks/use-karya';
 import { useTheme } from '@/lib/theme';
@@ -35,7 +35,7 @@ export function KaryaAvatar({ name, url, className }: { name: string; url?: stri
 	);
 }
 
-export const categoryLabel = (id: string) => KARYA_CATEGORIES.find((c) => c.id === id)?.label || 'Lainnya';
+export const categoryLabel = (id: string) => karyaCategoryLabel(id);
 
 /** Kartu karya publik: sampul, label media, judul, ringkasan, tag, pembuat. */
 export function KaryaCard({ item, className }: { item: Card; className?: string }) {

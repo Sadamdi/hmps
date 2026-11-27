@@ -132,7 +132,7 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 	};
 
 	return (
-		<article className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_320px] lg:px-8">
+		<article className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)] gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8">
 			<div className="min-w-0 space-y-6">
 				{p.preview ? (
 					<div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
@@ -267,7 +267,7 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 				) : null}
 			</div>
 
-			<aside className="space-y-4 self-start lg:sticky lg:top-24">
+			<aside className="min-w-0 space-y-4 self-start lg:sticky lg:top-24">
 				{p.author.profileVisible ? (
 					<Link href={KARYA_PATHS.student(p.author.username)} className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 hover:border-primary/40">
 						<AuthorBox p={p} />

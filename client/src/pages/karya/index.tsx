@@ -4,11 +4,11 @@ import { PublicSectionHeader } from '@/components/public/section-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { KARYA_PATHS, useKaryaConfig, usePublicProjects, usePublicStudents, usePublicTags, type KaryaStudentListItem } from '@/hooks/use-karya';
+import { KARYA_PATHS, useKaryaConfig, usePublicCategories, usePublicProjects, usePublicStudents, usePublicTags, type KaryaStudentListItem } from '@/hooks/use-karya';
 import { karyaTagToneClass } from '@shared/karya-tags';
 import { KaryaTutorialVideo } from '@/components/karya/karya-tutorial-video';
 import { cn } from '@/lib/utils';
-import { KARYA_CATEGORIES } from '@shared/karya';
+import { KARYA_CATEGORIES, karyaCategoryLabel } from '@shared/karya';
 import { Code2, FolderGit2, Search, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
@@ -35,6 +35,12 @@ export default function KaryaIndexPage() {
 	const [state, setState] = useState(initial);
 	const { data: config } = useKaryaConfig();
 	const { data: tags } = usePublicTags();
+	const { data: usedCats } = usePublicCategories();
+	const catCount = new Map((usedCats || []).map((c) => [c.id, c.count]));
+	const catOptions = [
+		...KARYA_CATEGORIES.map((c) => ({ id: c.id, label: c.label })),
+		...(usedCats || []).filter((c) => !KARYA_CATEGORIES.some((k) => k.id === c.id)).map((c) => ({ id: c.id, label: karyaCategoryLabel(c.id) })),
+	];
 	const { data, isLoading, isError } = usePublicProjects({ q: state.q, tag: state.tag, category: state.category, sort: state.sort, angkatan: state.angkatan, page: state.page, limit: PAGE_SIZE });
 	const studentsQ = usePublicStudents({ q: state.q, angkatan: state.angkatan, page: state.page, limit: PAGE_SIZE }, state.view === 'students');
 
@@ -133,9 +139,10 @@ export default function KaryaIndexPage() {
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="all">Semua kategori</SelectItem>
-							{KARYA_CATEGORIES.map((c) => (
+							{catOptions.map((c) => (
 								<SelectItem key={c.id} value={c.id}>
 									{c.label}
+									{catCount.get(c.id) ? <span className="ml-1 opacity-60">({catCount.get(c.id)})</span> : null}
 								</SelectItem>
 							))}
 						</SelectContent>

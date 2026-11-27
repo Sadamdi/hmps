@@ -8,7 +8,7 @@
 **Tenant-Aware**: No — situs utama saja (blok beranda & navbar `karya` disaring dari tenant; slug `karya`/`go` dicadangkan)  
 **Permission Scope**: Public / Mahasiswa (akun terpisah) / Admin (`karya.view`, `karya.manage`)  
 **Since version**: 4.65.0  
-**Last documented version**: 4.69.2  
+**Last documented version**: 4.70.0  
 
 ---
 
@@ -74,6 +74,7 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 - **Onboarding username:** akun baru (`usernameSet=false`) wajib memilih username: tulis sendiri (cek ketersediaan langsung) atau impor dari link/username GitHub · GitLab · Bitbucket (`POST /me/profile/import`) → username Karya TI = username akun Git, nama/bio/foto/README kosong ikut terisi. Username tetap bisa diganti (link lama dialihkan). Login tetap email + password.
 - **Kategori ganda + deteksi stack:** `categories[]` (maks 3, mis. Mobile + Web); `category` = kategori utama untuk kompatibilitas. Impor repo GitHub membaca bahasa (`/languages`), file root (`pubspec.yaml`, `next.config.*`, `android/`, dll.), topics, dan README (`inferKaryaStack` di `shared/karya-tags.ts`) untuk mengisi kategori & tag otomatis.
 - **Taksonomi tag:** ±330 tag kanonik dalam 15 grup (bahasa, frontend, backend, mobile, runtime, database, AI/ML/LLM, data, cloud/DevOps, game, IoT, desain, keamanan, testing, topik) + alias (`nextjs`→`next.js`, `js`→`javascript`). Editor: penjelajah tag per grup; publik: chip berwarna per grup.
+- **Kategori (4.70.0):** 19 kategori bawaan + kategori buatan mahasiswa (`normalizeCustomCategory`: huruf kecil 2–30 karakter; label bawaan otomatis dipetakan ke id-nya). Kategori buatan yang sudah dipakai karya tayang muncul di editor & filter publik (`GET /public/categories`).
 - **Tag buatan sendiri (4.69.2):** tag di luar taksonomi tetap boleh; penjelajah tag menampilkan grup "Tag lainnya" dari tag yang sudah dipakai karya tayang (`/public/tags`) + kolom "+ Tambah tag".
 - **Tautan berlabel:** preset nama tautan (Link Download, Download APK, Google Play, Dokumentasi, Desain Figma, …) atau nama bebas; halaman karya menampilkan tombol dengan ikon sesuai jenis.
 - **Direktori profil mahasiswa:** tab "Profil mahasiswa" di `/karya?lihat=mahasiswa` (cari nama/username/headline/skill, filter angkatan).

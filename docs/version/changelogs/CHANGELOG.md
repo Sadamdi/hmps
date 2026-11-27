@@ -9,6 +9,17 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.70.0] - 2026-11-27
+
+### Added
+- `karya`: 10 kategori bawaan baru (Cloud & DevOps, Sistem Informasi, Bot & Otomasi, AR/VR, Blockchain & Web3, Robotika, Jaringan, Multimedia & Animasi, Tools/CLI/Library, Riset/Paper)
+- `karya`: mahasiswa bisa membuat kategori sendiri (maks 3 kategori per karya); kategori buatan yang sudah dipakai tampil sebagai pilihan di editor dan filter publik; `GET /api/karya/public/categories`
+
+### Fixed
+- `karya`: di HP, halaman detail karya dan profil mahasiswa melebar keluar layar (grid tanpa template kolom + tabel/gambar README lebar). Grid kini `minmax(0,1fr)`, dan tabel/kode/gambar/iframe di konten HTML menggulir atau menyusut di dalam kotaknya
+
+Detail: [release/4.70.0.md](../release/4.70.0.md).
+
 ## [4.69.2] - 2026-11-27
 
 ### Changed

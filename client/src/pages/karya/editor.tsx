@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { KARYA_PATHS, karyaApi, refreshStudent, useKaryaConfig, useMyProject, usePublicTags, useStudent, type KaryaOwnProject } from '@/hooks/use-karya';
+import { KARYA_PATHS, karyaApi, refreshStudent, useKaryaConfig, useMyProject, usePublicCategories, usePublicTags, useStudent, type KaryaOwnProject } from '@/hooks/use-karya';
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { RepoHostIcon } from './[slug]';
 import { useCoverUrl } from '@/components/karya/karya-card';
@@ -14,6 +14,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiErrorText, queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
 import { KARYA_TAG_GROUPS, KARYA_TAGS, canonicalKaryaTag, karyaTagToneClass } from '@shared/karya-tags';
+import { karyaCategoryLabel, normalizeCustomCategory } from '@shared/karya';
 import { classifyKaryaLink, cleanKaryaTags, formatBytes, KARYA_CATEGORIES, KARYA_LINK_PRESETS, KARYA_REPO_HOSTS, type KaryaRepoInfo } from '@shared/karya';
 import { ArrowLeft, Github, ImagePlus, Link2, Loader2, Lock, Plus, Star, Trash2, Upload, Globe2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -47,6 +48,8 @@ export default function KaryaEditorPage() {
 	const catTouched = useRef(false);
 	const [tagGroup, setTagGroup] = useState<string>('language');
 	const [newTag, setNewTag] = useState('');
+	const [newCat, setNewCat] = useState('');
+	const { data: usedCategories } = usePublicCategories();
 	const [detectNote, setDetectNote] = useState('');
 	const [tags, setTags] = useState('');
 	const [year, setYear] = useState('');
@@ -319,7 +322,7 @@ export default function KaryaEditorPage() {
 				{ label: 'Ruang Mahasiswa', href: KARYA_PATHS.dashboard },
 				{ label: project ? 'Edit karya' : 'Karya baru' },
 			]}>
-			<div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid gap-6 lg:grid-cols-[1fr_340px] items-start">
+			<div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 grid grid-cols-[minmax(0,1fr)] gap-6 lg:grid-cols-[minmax(0,1fr)_340px] items-start">
 				<div className="min-w-0 space-y-5">
 					<div className="flex flex-wrap items-center gap-3">
 						<Button asChild variant="ghost" size="sm">
@@ -451,7 +454,13 @@ export default function KaryaEditorPage() {
 								<div className="space-y-1.5 sm:col-span-3">
 									<Label>Kategori <span className="text-destructive">*</span> <span className="text-xs font-normal text-muted-foreground">(boleh lebih dari satu, maks 3 — mis. Web + Mobile)</span></Label>
 									<div className="flex flex-wrap gap-1.5" role="group" aria-label="Kategori karya">
-										{KARYA_CATEGORIES.map((c) => {
+										{[
+											...KARYA_CATEGORIES,
+											// Kategori buatan mahasiswa yang sudah dipakai karya lain + yang dipilih di karya ini
+											...Array.from(new Set([...(usedCategories || []).map((x) => x.id), ...categories]))
+												.filter((id) => !KARYA_CATEGORIES.some((k) => k.id === id))
+												.map((id) => ({ id, label: karyaCategoryLabel(id) })),
+										].map((c) => {
 											const on = categories.includes(c.id);
 											return (
 												<button
@@ -471,6 +480,38 @@ export default function KaryaEditorPage() {
 												</button>
 											);
 										})}
+									</div>
+									<div className="flex max-w-md gap-1.5">
+										<Input
+											aria-label="Kategori baru"
+											value={newCat}
+											maxLength={30}
+											onChange={(e) => setNewCat(e.target.value)}
+											onKeyDown={(e) => {
+												if (e.key !== 'Enter') return;
+												e.preventDefault();
+												const v = normalizeCustomCategory(newCat);
+												if (!v) return;
+												catTouched.current = true;
+												setCategories((cur) => [...cur.filter((x) => x !== 'lainnya' && x !== v), v].slice(-3));
+												setNewCat('');
+											}}
+											placeholder="Tidak ada yang cocok? Buat kategori baru, mis. Fintech"
+											className="h-9 text-sm"
+										/>
+										<Button
+											type="button"
+											variant="outline"
+											className="h-9 shrink-0"
+											disabled={normalizeCustomCategory(newCat).length < 2}
+											onClick={() => {
+												const v = normalizeCustomCategory(newCat);
+												catTouched.current = true;
+												setCategories((cur) => [...cur.filter((x) => x !== 'lainnya' && x !== v), v].slice(-3));
+												setNewCat('');
+											}}>
+											+ Kategori
+										</Button>
 									</div>
 									{detectNote ? <p className="text-xs text-emerald-600 dark:text-emerald-400">{detectNote}</p> : null}
 								</div>
