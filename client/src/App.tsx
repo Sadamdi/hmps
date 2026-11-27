@@ -98,8 +98,22 @@ function RedirectTo({ to }: { to: string }) {
 
 function RouteLoadingFallback() {
 	return (
-		<div className="min-h-[50vh] flex items-center justify-center">
-			<div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+		<div data-route-loading aria-busy="true" aria-label="Memuat halaman" className="route-skeleton">
+			<div className="route-progress" aria-hidden />
+			<div className="mx-auto w-full max-w-7xl px-4 pt-10 sm:px-6 lg:px-8">
+				<div className="skeleton-line mx-auto h-3 w-40" />
+				<div className="skeleton-line mx-auto mt-5 h-9 w-3/4 max-w-xl" />
+				<div className="skeleton-line mx-auto mt-4 h-3 w-2/3 max-w-lg" />
+				<div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+					{[0, 1, 2, 3, 4, 5].map((i) => (
+						<div key={i} className="skeleton-card" style={{ animationDelay: `${i * 70}ms` }}>
+							<div className="skeleton-line h-36 w-full rounded-xl" />
+							<div className="skeleton-line mt-4 h-4 w-3/4" />
+							<div className="skeleton-line mt-2 h-3 w-1/2" />
+						</div>
+					))}
+				</div>
+			</div>
 		</div>
 	);
 }
@@ -446,6 +460,32 @@ function App() {
 	useEffect(() => {
 		AOS.init();
 		initPageTransitions();
+		// Muat diam-diam kode halaman publik utama saat browser senggang → pindah halaman tanpa spinner.
+		const prefetch = () => {
+			const pages = [
+				() => import('@/pages/index'),
+				() => import('@/pages/berita/index'),
+				() => import('@/pages/berita/[id]'),
+				() => import('@/pages/profil'),
+				() => import('@/pages/kelembagaan'),
+				() => import('@/pages/prodi'),
+				() => import('@/pages/events/index'),
+				() => import('@/pages/karya/index'),
+				() => import('@/pages/karya/[slug]'),
+				() => import('@/pages/karya/mahasiswa/[username]'),
+				() => import('@/pages/karya/masuk'),
+				() => import('@/pages/daftar'),
+			];
+			let i = 0;
+			const next = () => {
+				if (i >= pages.length) return;
+				pages[i++]().catch(() => null).finally(() => window.setTimeout(next, 120));
+			};
+			next();
+		};
+		const ric = (window as any).requestIdleCallback as ((cb: () => void, o?: { timeout: number }) => number) | undefined;
+		const conn = (navigator as any).connection;
+		if (!conn?.saveData) ric ? ric(prefetch, { timeout: 4000 }) : window.setTimeout(prefetch, 2500);
 	}, []);
 
 	return (

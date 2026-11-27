@@ -179,6 +179,25 @@ body {
 	.reveal-ready [data-aos] { opacity: 1 !important; transform: none !important; }
 }
 
+/* ── Kerangka halaman saat kode/data halaman belum siap (pengganti spinner) ── */
+.route-skeleton { min-height: 70vh; animation: skel-in 220ms ease-out both; }
+.route-progress {
+	position: fixed; left: 0; top: 0; z-index: 60; height: 2px; width: 100%;
+	transform-origin: 0 50%; background: hsl(var(--primary));
+	box-shadow: 0 0 10px hsl(var(--primary) / 0.6);
+	animation: route-progress 1.6s cubic-bezier(0.1, 0.7, 0.2, 1) both;
+}
+.skeleton-card { border-radius: 1rem; border: 1px solid hsl(var(--border) / 0.6); padding: 1rem; animation: skel-in 320ms ease-out both; }
+.skeleton-line {
+	border-radius: 0.5rem;
+	background: linear-gradient(90deg, hsl(var(--muted) / 0.55) 0%, hsl(var(--muted) / 0.95) 40%, hsl(var(--muted) / 0.55) 80%);
+	background-size: 220% 100%;
+	animation: skel-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes route-progress { from { transform: scaleX(0); } to { transform: scaleX(0.92); } }
+@keyframes skel-shimmer { from { background-position: 120% 0; } to { background-position: -100% 0; } }
+@keyframes skel-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
+
 /* ── Transisi antarhalaman (View Transitions API, lihat lib/page-transitions.ts) ── */
 .site-header { view-transition-name: site-header; }
 ::view-transition-group(site-header) { animation: none; }

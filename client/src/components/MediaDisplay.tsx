@@ -111,7 +111,7 @@ const LazyThumbnail = ({
 			) : (
 				<div className="w-full h-full bg-gray-100 flex items-center justify-center">
 					{inView ? (
-						<img
+						<img decoding="async" loading="lazy"
 							src={thumbnailUrl}
 							alt={`${alt} ${index + 1}`}
 							className={`w-full h-full object-cover transition-opacity duration-300 ${
@@ -146,7 +146,7 @@ export default function MediaDisplay({
 	// Simple single image display for organization members (only for non-GDrive URLs)
 	if (type === 'image' && src && !src.includes('drive.google.com')) {
 		return (
-			<img
+			<img decoding="async" loading="lazy"
 				src={src}
 				alt={alt}
 				className={className}
@@ -782,7 +782,7 @@ export default function MediaDisplay({
 		return (
 			<div
 				className={`${frameCn} flex justify-center items-center bg-gray-50 rounded relative group`}>
-				<img
+				<img decoding="async"
 					src={currentUrl}
 					alt={alt}
 					className="w-full h-full max-h-[min(75vh,56rem)] object-contain cursor-pointer"
@@ -984,7 +984,7 @@ export default function MediaDisplay({
 							);
 						})()
 					) : (
-						<img
+						<img decoding="async" loading="lazy"
 							src={currentUrl}
 							alt={alt}
 							className="max-w-full max-h-full object-contain"
