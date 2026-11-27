@@ -13,6 +13,8 @@
  * framing, lalu klasifikasi AI (Gemini) dari judul + cuplikan teks bila key tersedia.
  */
 import dns from 'dns/promises';
+import { lookup as dnsLookupCb } from 'dns';
+import { Agent } from 'undici';
 import { isIP } from 'net';
 import mongoose, { Schema } from 'mongoose';
 import type { Content } from '@google/generative-ai';
@@ -88,6 +90,27 @@ async function resolvesPublic(host: string): Promise<boolean> {
 	}
 }
 
+/**
+ * Agent fetch yang memvalidasi IP SAAT koneksi dibuat (bukan hanya sebelumnya), sehingga
+ * DNS rebinding (publik saat dicek → 127.0.0.1 saat fetch) tidak bisa menembus jaringan internal.
+ */
+const publicOnlyAgent = new Agent({
+	connect: {
+		lookup(hostname: string, options: any, cb: any) {
+			dnsLookupCb(hostname, { ...options, all: true }, (err: any, addrs: any) => {
+				if (err) return cb(err);
+				const list: { address: string; family: number }[] = Array.isArray(addrs) ? addrs : [{ address: addrs, family: options?.family || 4 }];
+				const bad = list.find((a) => isPrivateAddress(a.address));
+				if (!list.length || bad) return cb(new Error('Alamat tujuan bukan IP publik'));
+				if (options?.all) return cb(null, list);
+				return cb(null, list[0].address, list[0].family);
+			});
+		},
+	},
+	headersTimeout: 8000,
+	bodyTimeout: 8000,
+});
+
 interface FetchProbe {
 	ok: boolean;
 	status: number;
@@ -112,6 +135,8 @@ async function probe(url: string): Promise<FetchProbe> {
 			res = await fetch(u.toString(), {
 				redirect: 'manual',
 				signal: ctrl.signal,
+				// @ts-expect-error dispatcher undici (fetch bawaan Node)
+				dispatcher: publicOnlyAgent,
 				headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HimatifEmbedCheck/1.0; +https://himatif-encoder.com)', Accept: 'text/html,*/*' },
 			});
 		} catch (e: any) {

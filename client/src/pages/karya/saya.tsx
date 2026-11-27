@@ -1,6 +1,6 @@
 import RichTextEditor from '@/components/dashboard/rich-text-editor';
 import { PasswordInput } from '@/components/ui/password-input';
-import { KaryaAvatar } from '@/components/karya/karya-card';
+import { KaryaAvatar, useCoverUrl } from '@/components/karya/karya-card';
 import { UsernameOnboarding } from '@/components/karya/username-onboarding';
 import { KaryaTutorialVideo } from '@/components/karya/karya-tutorial-video';
 import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
@@ -29,7 +29,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorText, queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
-import { formatBytes, KARYA_STATUS_LABEL, type KaryaStatus } from '@shared/karya';
+import { formatBytes, KARYA_STATUS_LABEL, karyaCategoriesOf, karyaCategoryLabel, type KaryaStatus } from '@shared/karya';
 import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Camera, Check, Copy, ExternalLink, Eye, FileUp, Loader2, LogOut, MonitorSmartphone, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
@@ -226,57 +226,9 @@ function ProjectsTab({ student }: { student: KaryaStudentAccount }) {
 					</CardContent>
 				</Card>
 			) : (
-				<div className="space-y-3">
+				<div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
 					{projects.map((p) => (
-						<Card key={p.id}>
-							<CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
-								<div className="min-w-0 flex-1">
-									<div className="flex flex-wrap items-center gap-2">
-										<p className="truncate font-semibold text-foreground">{p.title}</p>
-										<StatusBadge status={p.status} visibility={p.visibility} />
-										{p.featured ? <Badge className="bg-amber-400 text-slate-900 hover:bg-amber-400">Unggulan</Badge> : null}
-									</div>
-									<p className="mt-1 text-xs text-muted-foreground">
-										{p.visibility === 'public' ? 'Publik' : 'Privat — hanya kamu, tidak diindeks Google'} · diperbarui{' '}
-										{new Date(p.updatedAt).toLocaleDateString('id-ID', { dateStyle: 'medium' })}
-										{p.status === 'approved' ? (
-											<>
-												{' '}
-												· <Eye className="inline h-3 w-3" aria-hidden /> {p.viewCount}
-											</>
-										) : null}
-									</p>
-									{p.reviewNote && (p.status === 'revision' || p.status === 'hidden') ? (
-										<p className="mt-2 rounded-md bg-orange-500/10 px-3 py-2 text-sm text-foreground">
-											<strong>Catatan pengurus:</strong> {p.reviewNote}
-										</p>
-									) : null}
-									{p.status === 'pending' ? <p className="mt-1 text-xs text-muted-foreground">Belum tampil publik sampai disetujui pengurus.</p> : null}
-								</div>
-								<div className="flex gap-2">
-									{p.status === 'approved' ? (
-										<Button asChild variant="outline" size="sm">
-											<Link href={KARYA_PATHS.project(p.slug)}>Lihat</Link>
-										</Button>
-									) : null}
-									{p.status !== 'approved' ? (
-										<Button asChild variant="ghost" size="sm">
-											<Link href={KARYA_PATHS.preview(p.id)}>
-												<Eye className="mr-1 h-3.5 w-3.5" /> Pratinjau
-											</Link>
-										</Button>
-									) : null}
-									<Button asChild variant="outline" size="sm">
-										<Link href={KARYA_PATHS.editProject(p.id)}>
-											<Pencil className="mr-1 h-3.5 w-3.5" /> Edit
-										</Link>
-									</Button>
-									<Button variant="ghost" size="sm" className="text-destructive" onClick={() => setToDelete(p)} aria-label={`Hapus ${p.title}`}>
-										<Trash2 className="h-4 w-4" />
-									</Button>
-								</div>
-							</CardContent>
-						</Card>
+						<MyProjectCard key={p.id} p={p} onDelete={() => setToDelete(p)} />
 					))}
 				</div>
 			)}
@@ -716,6 +668,72 @@ function MyContributions() {
 						</Button>
 					</div>
 				))}
+			</CardContent>
+		</Card>
+	);
+}
+
+/** Kartu karya di dashboard: sampul, status, kategori, statistik, aksi (gaya kartu berita). */
+function MyProjectCard({ p, onDelete }: { p: KaryaOwnProject; onDelete: () => void }) {
+	const cover = useCoverUrl(p.coverUrl || '', p.coverGenerated);
+	const isRepoOg = /opengraph\.githubassets\.com/.test(cover);
+	const href = p.status === 'approved' ? KARYA_PATHS.project(p.slug) : KARYA_PATHS.preview(p.id);
+	return (
+		<Card className="group flex flex-col overflow-hidden transition-shadow hover:shadow-lg">
+			<Link href={href} className="relative block aspect-[16/9] overflow-hidden bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+				{cover ? (
+					<img src={cover} alt="" loading="lazy" className={cn('h-full w-full transition-transform duration-300 group-hover:scale-[1.03]', isRepoOg ? 'bg-white object-contain p-2' : 'object-cover')} />
+				) : (
+					<div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-primary/15 via-background to-accent/15 text-sm text-muted-foreground">Belum ada sampul</div>
+				)}
+				<div className="absolute left-2.5 top-2.5 flex flex-wrap gap-1.5">
+					<StatusBadge status={p.status} visibility={p.visibility} />
+					{p.featured ? <Badge className="bg-amber-400 text-slate-900 hover:bg-amber-400">Unggulan</Badge> : null}
+				</div>
+			</Link>
+			<CardContent className="flex flex-1 flex-col gap-2 p-4">
+				<div className="flex flex-wrap gap-1">
+					{karyaCategoriesOf(p).map((c) => (
+						<span key={c} className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+							{karyaCategoryLabel(c)}
+						</span>
+					))}
+				</div>
+				<Link href={href} className="line-clamp-2 font-semibold leading-snug text-foreground hover:text-primary">
+					{p.title}
+				</Link>
+				{p.summary ? <p className="line-clamp-2 text-sm text-muted-foreground">{p.summary}</p> : null}
+				{p.reviewNote && (p.status === 'revision' || p.status === 'hidden') ? (
+					<p className="rounded-md bg-orange-500/10 px-3 py-2 text-xs text-foreground">
+						<strong>Catatan pengurus:</strong> {p.reviewNote}
+					</p>
+				) : null}
+				{p.status === 'pending' ? <p className="text-xs text-muted-foreground">Menunggu persetujuan pengurus.</p> : null}
+				<p className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-xs text-muted-foreground">
+					<span>{p.visibility === 'public' ? 'Publik' : 'Privat'}</span>
+					<span>Diperbarui {new Date(p.updatedAt).toLocaleDateString('id-ID', { dateStyle: 'medium' })}</span>
+					{p.status === 'approved' ? (
+						<span className="inline-flex items-center gap-1">
+							<Eye className="h-3 w-3" aria-hidden /> {p.viewCount}
+						</span>
+					) : null}
+					{p.contributors?.length ? <span>{p.contributors.length + 1} pembuat</span> : null}
+				</p>
+				<div className="flex gap-2 border-t border-border/60 pt-3">
+					<Button asChild variant="outline" size="sm" className="flex-1">
+						<Link href={KARYA_PATHS.editProject(p.id)}>
+							<Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+						</Link>
+					</Button>
+					<Button asChild variant="ghost" size="sm" className="flex-1">
+						<Link href={href}>
+							<Eye className="mr-1 h-3.5 w-3.5" /> {p.status === 'approved' ? 'Lihat' : 'Pratinjau'}
+						</Link>
+					</Button>
+					<Button variant="ghost" size="sm" className="text-destructive" onClick={onDelete} aria-label={`Hapus ${p.title}`}>
+						<Trash2 className="h-4 w-4" />
+					</Button>
+				</div>
 			</CardContent>
 		</Card>
 	);

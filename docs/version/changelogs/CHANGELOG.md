@@ -9,6 +9,26 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.71.0] - 2026-11-27
+
+### Added
+- `ruang-mahasiswa`: alamat halaman mahasiswa `/ruang-mahasiswa/*` (Karya publik, profil, dashboard, masuk/daftar) dengan 301 dari `/karya*`
+- `karya`: kontributor (manual Karya TI/GitHub + otomatis dari contributor repo), tim pembuat di detail, karya tampil di profil kontributor, sembunyikan dari profil; 5 endpoint
+- `karya`: profil publik 2 tab (Ringkasan: README, Sedang aktif, Terpopuler · Portofolio: cari/filter/urut)
+
+### Changed
+- `karya`: "Karya saya" di dashboard dan daftar karya di dashboard admin berupa kartu bersampul; admin meninjau lewat panel dengan deskripsi ter-render
+- `navbar`: item "Karya TI" → "Ruang Mahasiswa"
+- `editor`: TinyMCE mengikuti tema gelap/terang
+
+### Security
+- Analisis domain embed: IP divalidasi saat koneksi (undici `lookup`) — menutup DNS rebinding ke jaringan internal
+- Host `embedAllowedHosts` divalidasi ketat sebelum masuk header CSP `frame-src` (cegah injeksi directive) — di middleware dan saat simpan Settings
+- Kontributor: key `gh:` dari klien divalidasi format login GitHub
+- Dependensi: mongoose 8.24.11 (GHSA-gg4r-jv3p-qx3c, GHSA-wr5m-5jph-8m96, GHSA-8332-j7wj-wjw4, GHSA-6972-9mcm-vhwj), ag-psd 34.2.3 (GHSA-6w3r-6hpr-hp6p, GHSA-qfx6-q44v-9qqw) — `npm audit --omit=dev`: 0
+
+Detail: [release/4.71.0.md](../release/4.71.0.md).
+
 ## [4.70.0] - 2026-11-27
 
 ### Added

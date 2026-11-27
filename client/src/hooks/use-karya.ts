@@ -49,6 +49,8 @@ export interface KaryaStudentAccount {
 }
 
 export interface KaryaOwnProject {
+	coverUrl?: string;
+	coverGenerated?: boolean;
 	contributors?: import('@/components/karya/contributors-editor').ContributorRow[];
 	id: string;
 	slug: string;

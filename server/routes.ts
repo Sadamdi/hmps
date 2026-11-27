@@ -6257,7 +6257,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					const merged = new Set<string>();
 					for (const h of [...body.embedAllowedHosts, ...kept.map((d) => d.host)]) {
 						const v = String(h || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
-						if (v && !blockedSet.has(v)) merged.add(v);
+						// Hostname murni saja (mencegah injeksi ke header CSP frame-src)
+						if (v && !blockedSet.has(v) && /^(?:\*\.)?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(v)) merged.add(v);
 					}
 					body.embedAllowedHosts = Array.from(merged).slice(0, 500);
 				}

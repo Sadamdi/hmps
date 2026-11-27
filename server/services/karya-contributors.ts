@@ -103,13 +103,13 @@ function studentCandidate(s: any): ContributorCandidate {
 
 /**
  * Tebak kontributor dari input bebas:
- * "budi" / "@budi" / "himatif-encoder.com/karya/mahasiswa/budi" → akun Karya TI
+ * "budi" / "@budi" / "himatif-encoder.com/ruang-mahasiswa/mahasiswa/budi" → akun Karya TI
  * "github.com/budi" / "budi" (bila bukan akun Karya TI) → GitHub (tertaut ke akun Karya TI bila ada).
  */
 export async function resolveContributorInput(raw: string): Promise<ContributorCandidate | null> {
 	const input = String(raw || '').trim().slice(0, 200);
 	if (!input) return null;
-	const karyaUrl = input.match(/\/karya\/mahasiswa\/([a-z0-9-]{3,40})/i);
+	const karyaUrl = input.match(/\/(?:karya|ruang-mahasiswa)\/mahasiswa\/([a-z0-9-]{3,40})/i);
 	const ghUrl = input.match(/^(?:https?:\/\/)?(?:www\.)?github\.com\/([A-Za-z0-9-]{1,39})\/?$/i);
 	const plain = input.replace(/^@/, '');
 	if (karyaUrl || (!ghUrl && /^[a-z0-9-]{3,40}$/i.test(plain))) {
@@ -182,6 +182,8 @@ export async function buildContributorEntries(
 		if (x.key.startsWith('s:')) s = byId.get(x.key.slice(2));
 		else if (x.key.startsWith('gh:')) {
 			login = x.key.slice(3).toLowerCase();
+			// Key dari klien: hanya format login GitHub yang sah (menolak gh:../../x dsb.)
+			if (!GH_LOGIN.test(login)) continue;
 			s = byLogin.get(login) || null;
 		}
 		if (!s && !login) continue;

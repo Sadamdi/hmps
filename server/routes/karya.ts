@@ -926,7 +926,10 @@ router.post('/me/avatar', requireEnabled, authenticateStudent, writeLimiter, kar
 // ═════════════════════════════ KARYA MILIK SENDIRI ═════════════════════════════
 
 function ownProject(p: any) {
+	const cover = coverOf(p);
 	return {
+		coverUrl: cover.url,
+		coverGenerated: cover.generated,
 		id: String(p._id),
 		slug: p.slug,
 		title: p.title,
