@@ -179,21 +179,7 @@ export default function KaryaIndexPage() {
 				) : null}
 
 				{state.view === 'projects' && tags?.length ? (
-					<div className="mb-8 flex flex-wrap gap-2" aria-label="Tag populer">
-						{tags.slice(0, 24).map((t) => (
-							<button
-								key={t.tag}
-								type="button"
-								aria-pressed={state.tag === t.tag}
-								onClick={() => setState((s) => ({ ...s, tag: s.tag === t.tag ? '' : t.tag, page: 1 }))}
-								className={cn(
-									'min-h-[36px] rounded-full border px-3 text-sm transition-colors',
-									state.tag === t.tag ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
-								)}>
-								#{t.tag} <span className="opacity-60">{t.count}</span>
-							</button>
-						))}
-					</div>
+					<TagStrip tags={tags} active={state.tag} onPick={(t) => setState((s) => ({ ...s, tag: s.tag === t ? '' : t, page: 1 }))} />
 				) : null}
 
 				{state.view === 'projects' ? (
@@ -327,5 +313,43 @@ function StudentDirectory({ q, page, setPage }: { q: ReturnType<typeof usePublic
 				</nav>
 			) : null}
 		</>
+	);
+}
+
+/** Tag populer: 10 teratas (+ tag aktif), sisanya bisa dibuka/diciutkan. Di HP saat ciut: satu baris geser. */
+const TAG_COLLAPSED = 10;
+function TagStrip({ tags, active, onPick }: { tags: { tag: string; count: number }[]; active: string; onPick: (t: string) => void }) {
+	const [open, setOpen] = useState(false);
+	const all = tags.slice(0, 60);
+	const top = all.slice(0, TAG_COLLAPSED);
+	const shown = open ? all : active && !top.some((t) => t.tag === active) ? [...(all.filter((t) => t.tag === active)), ...top] : top;
+	const hidden = all.length - top.length;
+	return (
+		<div className="mb-8" aria-label="Tag populer">
+			<div className={cn('flex gap-2', open ? 'flex-wrap' : 'flex-nowrap overflow-x-auto pb-1 sm:flex-wrap sm:overflow-visible [scrollbar-width:none]')}>
+				{shown.map((t) => (
+					<button
+						key={t.tag}
+						type="button"
+						aria-pressed={active === t.tag}
+						onClick={() => onPick(t.tag)}
+						className={cn(
+							'min-h-[36px] shrink-0 rounded-full border px-3 text-sm transition-colors',
+							active === t.tag ? 'border-primary bg-primary/15 text-primary' : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground',
+						)}>
+						#{t.tag} <span className="opacity-60">{t.count}</span>
+					</button>
+				))}
+				{hidden > 0 ? (
+					<button
+						type="button"
+						aria-expanded={open}
+						onClick={() => setOpen((v) => !v)}
+						className="min-h-[36px] shrink-0 rounded-full px-3 text-sm font-medium text-primary hover:underline">
+						{open ? 'Sembunyikan' : `+${hidden} tag lainnya`}
+					</button>
+				) : null}
+			</div>
+		</div>
 	);
 }

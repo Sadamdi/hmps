@@ -19,6 +19,7 @@ import {
 	adminDeleteEmbedDomain,
 	adminReanalyzeEmbedDomain,
 	adminSetEmbedDomain,
+	adminUndoEmbedDecision,
 	normalizeEmbedHost,
 	resolveEmbedUrls,
 } from '../services/embed-domain-analysis';
@@ -78,6 +79,7 @@ router.get('/', authenticate, requirePermission('settings.view'), async (req, re
 				analysisCount: d.analysisCount || 0,
 				analyzedAt: d.analyzedAt,
 				seenCount: d.seenCount || 0,
+				history: (d.history || []).slice(-10).reverse(),
 				lastSeenAt: d.lastSeenAt,
 			})),
 			meta: Object.fromEntries(counts.map((c: any) => [c._id, c.n])),
@@ -98,6 +100,19 @@ router.post('/:host/decision', authenticate, requirePermission('settings.edit'),
 		res.json({ success: true, message: 'Keputusan domain disimpan', data: doc });
 	} catch (e) {
 		sendRouteError(res, e, 'Embed domain decision error');
+	}
+});
+
+router.post('/:host/undo', authenticate, requirePermission('settings.edit'), async (req, res) => {
+	const host = normalizeEmbedHost(String(req.params.host || ''));
+	if (!host) return res.status(400).json({ success: false, message: 'Host tidak valid', error: { code: 'VALIDATION_ERROR' } });
+	try {
+		const r: any = await adminUndoEmbedDecision(host, adminName(req));
+		if (!r) return res.status(404).json({ success: false, message: 'Domain belum pernah tercatat', error: { code: 'NOT_FOUND' } });
+		if (r.error) return res.status(400).json({ success: false, message: r.error, error: { code: 'NOTHING_TO_UNDO' } });
+		res.json({ success: true, message: 'Keputusan dibatalkan', data: r });
+	} catch (e) {
+		sendRouteError(res, e, 'Embed domain undo error');
 	}
 });
 

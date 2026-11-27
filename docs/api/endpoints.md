@@ -544,6 +544,7 @@ POST   /api/karya/me/profile/import-github       # {username} → name, bio, web
 POST   /api/karya/me/warnings/:id/ack            # tandai peringatan pengurus (akun/karya) sudah dibaca
 GET    /api/karya/me/username-available?u=       # {username, valid, available} — onboarding username
 POST   /api/karya/me/profile/import              # {source: link/username GitHub|GitLab|Bitbucket, provider?} → profil + suggestedUsername/suggestedAvailable (tidak menyimpan)
+POST   /api/karya/me/link-preview              # {url https} → title, description, siteName, images[{url,sig}], source, categories, tags (Open Graph / oEmbed YouTube-Vimeo; anti-SSRF)
 POST   /api/karya/me/contributors/resolve        # {input: username/link Karya TI | username/link GitHub} → kandidat kontributor (akun Karya TI bila tertaut)
 POST   /api/karya/me/projects/:id/contributors/sync  # ambil ulang contributor repo GitHub karya sendiri
 GET    /api/karya/me/contributions               # karya orang lain tempat aku kontributor
@@ -667,6 +668,7 @@ Sitemap helper: `server/services/seo-sitemap.ts` (image/video namespaces for Goo
 POST   /api/embed-domains/resolve                # publik, rate-limit 30/menit/IP · {urls[≤20]} → {host: {status, reason}}; host baru dianalisis SEKALI
 GET    /api/embed-domains?status=&q=             # settings.view · daftar hasil analisis + meta jumlah per status
 POST   /api/embed-domains/:host/decision         # settings.edit · {status: allowed|blocked|noframe, reason?}
+POST   /api/embed-domains/:host/undo             # settings.edit · kembalikan ke keputusan sebelumnya (riwayat `history`)
 POST   /api/embed-domains/:host/reanalyze        # settings.edit · analisis ulang manual
 DELETE /api/embed-domains/:host                  # settings.edit · hapus catatan (+ keluar dari allowlist)
 ```

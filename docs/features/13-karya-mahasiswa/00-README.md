@@ -8,7 +8,7 @@
 **Tenant-Aware**: No — situs utama saja (blok beranda & navbar `karya` disaring dari tenant; slug `karya`/`go` dicadangkan)  
 **Permission Scope**: Public / Mahasiswa (akun terpisah) / Admin (`karya.view`, `karya.manage`)  
 **Since version**: 4.65.0  
-**Last documented version**: 4.71.0  
+**Last documented version**: 4.73.0  
 
 ---
 
@@ -67,6 +67,11 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 ```
 
 ---
+
+## Pembaruan 4.73.0
+
+- **Mulai dari link** (editor, kartu pertama): link karya apa pun → judul, ringkasan, kategori, tag, tautan berlabel, gambar pratinjau (dipilih, jadi galeri & sampul tanpa kuota). Sumber dikenali di `shared/karya-sources.ts`; situs lain via Open Graph; YouTube/Vimeo via oEmbed. Server: `server/services/karya-link-preview.ts`.
+- **Tag ringkas** di halaman Karya: 10 teratas + "+N tag lainnya".
 
 ## Pembaruan 4.71.0
 

@@ -1719,7 +1719,7 @@ export default function SettingsPage() {
 															/>
 															{embedAuto.get(host)?.decidedBy === 'auto' ? (
 																<span title={embedAuto.get(host)?.reason} className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-300">
-																	otomatis · AI
+																	otomatis · Enco
 																</span>
 															) : null}
 															<Button

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "HMPS API",
-    "version": "4.72.0",
+    "version": "4.73.0",
     "description": "Dokumentasi API otomatis (Swagger UI) dengan reusable error response, security scheme, dan contoh payload."
   },
   "servers": [
@@ -36107,6 +36107,168 @@
             }
           }
         }
+      }
+    },
+    "/api/karya/me/link-preview": {
+      "post": {
+        "tags": [
+          "karya"
+        ],
+        "summary": "POST /api/karya/me/link-preview",
+        "operationId": "post__api_karya_me_link_preview",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "message": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericRequestBody"
+              },
+              "examples": {
+                "default": {
+                  "value": {
+                    "url": "https://www.figma.com/design/xxxx/nama"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/embed-domains/{host}/undo": {
+      "post": {
+        "tags": [
+          "karya"
+        ],
+        "summary": "POST /api/embed-domains/:host/undo",
+        "operationId": "post__api_embed_domains_host_undo",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Berhasil",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessResponse"
+                },
+                "examples": {
+                  "default": {
+                    "value": {
+                      "message": "OK"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "422": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "429": {
+            "$ref": "#/components/responses/TooManyRequests"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenericRequestBody"
+              },
+              "examples": {
+                "default": {
+                  "value": {}
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "host",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
       }
     }
   }

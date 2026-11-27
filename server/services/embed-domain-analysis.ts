@@ -10,7 +10,8 @@
  *
  * Pemeriksaan: https wajib, bukan IP/localhost, DNS harus ke IP publik (anti-SSRF, dicek ulang tiap
  * redirect), heuristik nama domain (judi/dewasa/phishing/shortener/punycode), respons HTTP, header
- * framing, lalu klasifikasi AI (Gemini) dari judul + cuplikan teks bila key tersedia.
+ * framing, lalu penilaian Enco (AI Himatif, model Gemini) dari judul + cuplikan teks bila key tersedia.
+ * Setiap keputusan (Enco/admin) dicatat di `history` dan bisa dibatalkan admin ke keputusan sebelumnya.
  */
 import dns from 'dns/promises';
 import { lookup as dnsLookupCb } from 'dns';
@@ -40,6 +41,20 @@ const embedDomainSchema = new Schema(
 		analyzedAt: { type: Date, default: null },
 		lastSeenAt: { type: Date, default: Date.now },
 		seenCount: { type: Number, default: 0 },
+		/** Riwayat keputusan (terbaru di akhir, maks 30) — dasar tombol "Batalkan" di panel admin */
+		history: {
+			type: [
+				{
+					_id: false,
+					at: { type: Date, default: Date.now },
+					from: { type: String, default: '' },
+					to: { type: String, default: '' },
+					by: { type: String, default: 'Enco' },
+					reason: { type: String, default: '' },
+				},
+			],
+			default: [],
+		},
 	},
 	{ timestamps: true },
 );
@@ -81,7 +96,7 @@ function isPrivateAddress(ip: string): boolean {
 	);
 }
 
-async function resolvesPublic(host: string): Promise<boolean> {
+export async function resolvesPublic(host: string): Promise<boolean> {
 	try {
 		const addrs = await dns.lookup(host, { all: true });
 		return addrs.length > 0 && addrs.every((a) => !isPrivateAddress(a.address));
@@ -94,7 +109,7 @@ async function resolvesPublic(host: string): Promise<boolean> {
  * Agent fetch yang memvalidasi IP SAAT koneksi dibuat (bukan hanya sebelumnya), sehingga
  * DNS rebinding (publik saat dicek → 127.0.0.1 saat fetch) tidak bisa menembus jaringan internal.
  */
-const publicOnlyAgent = new Agent({
+export const publicOnlyAgent = new Agent({
 	connect: {
 		lookup(hostname: string, options: any, cb: any) {
 			dnsLookupCb(hostname, { ...options, all: true }, (err: any, addrs: any) => {
@@ -250,10 +265,10 @@ export async function analyzeEmbedUrl(url: string): Promise<AnalysisResult> {
 		const v = await aiVerdict(host, p.title, p.text);
 		if (v) {
 			verdictText = `${v.safe ? 'aman' : 'tidak aman'}: ${v.reason}`;
-			checks.push(`AI: ${v.safe ? 'aman' : 'tidak aman'}`);
-			if (!v.safe) return { status: 'blocked', reason: `Analisis AI: ${v.reason || 'konten tidak aman'}`, checks, pageTitle: p.title, aiVerdict: verdictText };
+			checks.push(`Enco: ${v.safe ? 'aman' : 'tidak aman'}`);
+			if (!v.safe) return { status: 'blocked', reason: `Penilaian Enco: ${v.reason || 'konten tidak aman'}`, checks, pageTitle: p.title, aiVerdict: verdictText };
 		} else {
-			checks.push('AI: tidak tersedia (heuristik saja)');
+			checks.push('Enco: tidak tersedia (heuristik saja)');
 		}
 	} else {
 		checks.push('hosting proyek tepercaya');
@@ -296,9 +311,14 @@ async function runAndStore(host: string, url: string) {
 	const r = await analyzer(url).catch(
 		(): AnalysisResult => ({ status: 'blocked', reason: 'Analisis gagal dijalankan', checks: [], pageTitle: '', aiVerdict: '' }),
 	);
+	const prev: any = await EmbedDomain.findOne({ host }).select('status').lean();
 	await EmbedDomain.updateOne(
 		{ host },
-		{ $set: { status: r.status, reason: r.reason, checks: r.checks, pageTitle: r.pageTitle, aiVerdict: r.aiVerdict, analyzedAt: new Date(), decidedBy: 'auto' }, $inc: { analysisCount: 1 } },
+		{
+			$set: { status: r.status, reason: r.reason, checks: r.checks, pageTitle: r.pageTitle, aiVerdict: r.aiVerdict, analyzedAt: new Date(), decidedBy: 'auto', decidedByName: 'Enco' },
+			$inc: { analysisCount: 1 },
+			$push: { history: { $each: [{ at: new Date(), from: prev?.status || 'pending', to: r.status, by: 'Enco', reason: r.reason }], $slice: -30 } },
+		},
 	);
 	if (r.status === 'allowed') await addToSettingsAllowlist(host);
 }
@@ -390,9 +410,15 @@ export function preAnalyzeEmbedsInHtml(html: string) {
 export async function adminSetEmbedDomain(host: string, status: 'allowed' | 'blocked' | 'noframe', adminName: string, reason?: string) {
 	const h = normalizeEmbedHost(host);
 	if (!h) return null;
+	const prev: any = await EmbedDomain.findOne({ host: h }).select('status').lean();
+	const why = reason || (status === 'allowed' ? 'Diizinkan admin' : status === 'blocked' ? 'Diblokir admin' : 'Kartu tautan (admin)');
 	await EmbedDomain.updateOne(
 		{ host: h },
-		{ $set: { status, decidedBy: 'admin', decidedByName: adminName, reason: reason || (status === 'allowed' ? 'Diizinkan admin' : status === 'blocked' ? 'Diblokir admin' : 'Kartu tautan (admin)'), analyzedAt: new Date() }, $setOnInsert: { host: h } },
+		{
+			$set: { status, decidedBy: 'admin', decidedByName: adminName, reason: why, analyzedAt: new Date() },
+			$setOnInsert: { host: h },
+			$push: { history: { $each: [{ at: new Date(), from: prev?.status || 'pending', to: status, by: adminName || 'admin', reason: why }], $slice: -30 } },
+		},
 		{ upsert: true },
 	);
 	if (status === 'allowed') await addToSettingsAllowlist(h);
@@ -417,4 +443,16 @@ export async function adminDeleteEmbedDomain(host: string) {
 	await EmbedDomain.deleteOne({ host: h });
 	await removeFromSettingsAllowlist(h);
 	return true;
+}
+
+
+/** Batalkan keputusan terakhir: kembalikan status sebelum keputusan itu (dicatat sebagai keputusan admin baru). */
+export async function adminUndoEmbedDecision(host: string, adminName: string) {
+	const h = normalizeEmbedHost(host);
+	if (!h) return null;
+	const doc: any = await EmbedDomain.findOne({ host: h }).lean();
+	const last = doc?.history?.[doc.history.length - 1];
+	if (!doc || !last || !last.from || last.from === 'pending' || last.from === doc.status) return { error: 'Tidak ada keputusan sebelumnya yang bisa dikembalikan' };
+	const target = last.from as 'allowed' | 'blocked' | 'noframe';
+	return adminSetEmbedDomain(h, target, adminName, `Dibatalkan: kembali ke "${target}" (sebelumnya oleh ${last.by})`);
 }

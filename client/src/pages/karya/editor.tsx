@@ -66,6 +66,11 @@ export default function KaryaEditorPage() {
 	const [repoPreview, setRepoPreview] = useState<KaryaRepoInfo[]>([]);
 	/** Gambar dari README repo yang dipilih untuk galeri (disimpan sebagai media eksternal, tanpa kuota) */
 	const [readmeImages, setReadmeImages] = useState<{ url: string; use: boolean }[]>([]);
+	/** Mulai dari link non-repo (Figma, Behance, itch.io, YouTube, situs apa pun) */
+	const [srcInput, setSrcInput] = useState('');
+	const [srcBusy, setSrcBusy] = useState(false);
+	const [srcNote, setSrcNote] = useState('');
+	const [linkImages, setLinkImages] = useState<{ url: string; sig: string; use: boolean }[]>([]);
 	const [readmeNote, setReadmeNote] = useState('');
 	const [links, setLinks] = useState<LinkRow[]>([]);
 	const [linkInput, setLinkInput] = useState('');
@@ -188,6 +193,55 @@ export default function KaryaEditorPage() {
 		}
 	};
 
+	const addFromLink = async () => {
+		const url = srcInput.trim();
+		if (!/^https:\/\//i.test(url)) return setError('Link wajib diawali https://');
+		setError('');
+		setSrcBusy(true);
+		try {
+			type Preview = {
+				url: string;
+				finalUrl: string;
+				title: string;
+				description: string;
+				siteName: string;
+				images: { url: string; sig: string }[];
+				source: { id: string; label: string; linkLabel: string } | null;
+				categories: string[];
+				tags: string[];
+			};
+			const pv = await karyaApi<Preview>('POST', '/me/link-preview', { url });
+			const filled: string[] = [];
+			if (!title.trim() && pv.title) {
+				setTitle(pv.title.slice(0, 120));
+				filled.push('judul');
+			}
+			if (!summary.trim() && pv.description) {
+				setSummary(pv.description.slice(0, 240));
+				filled.push('ringkasan');
+			}
+			if (pv.categories.length) {
+				setCategories((cur) => (catTouched.current ? Array.from(new Set([...cur.filter((c) => c !== 'lainnya'), ...pv.categories])).slice(0, 3) : pv.categories.slice(0, 3)));
+				filled.push('kategori');
+			}
+			if (pv.tags.length) setTags((t) => cleanKaryaTags([...cleanKaryaTags(t), ...pv.tags]).join(', '));
+			if (!links.some((l) => l.url === url)) {
+				setLinks((l) => [...l, { url, label: pv.source?.linkLabel || `Lihat di ${pv.siteName}` }]);
+				filled.push('tautan');
+			}
+			if (pv.images.length) {
+				setLinkImages((cur) => [...cur, ...pv.images.filter((im) => !cur.some((c) => c.url === im.url)).map((im) => ({ ...im, use: true }))]);
+				filled.push('gambar pratinjau');
+			}
+			setSrcNote(`${pv.source ? pv.source.label : pv.siteName}: ${filled.length ? `terisi ${filled.join(', ')}` : 'info ditambahkan'}. Kolom yang sudah kamu isi tidak diubah.`);
+			setSrcInput('');
+		} catch (e) {
+			setError(apiErrorText(e, 'Link tidak bisa diambil'));
+		} finally {
+			setSrcBusy(false);
+		}
+	};
+
 	const addLink = () => {
 		const url = linkInput.trim();
 		if (!/^https:\/\//i.test(url)) return setError('Link wajib diawali https://');
@@ -231,6 +285,7 @@ export default function KaryaEditorPage() {
 		action,
 		...(project ? { coverMediaId: project.coverMediaId } : {}),
 		externalMedia: readmeImages.filter((x) => x.use).map((x) => x.url),
+		externalMediaSigned: linkImages.filter((x) => x.use).map((x) => ({ url: x.url, sig: x.sig })),
 	});
 
 	/** Simpan; untuk karya baru kembalikan id agar media bisa diunggah. */
@@ -372,7 +427,7 @@ export default function KaryaEditorPage() {
 					<Card>
 						<CardHeader>
 							<CardTitle className="flex items-center gap-2 text-base">
-								<Github className="h-5 w-5" /> 1. Mulai dari repo <span className="text-xs font-normal text-muted-foreground">(opsional, paling cepat)</span>
+								<Github className="h-5 w-5" /> 1. Mulai dari repo atau link <span className="text-xs font-normal text-muted-foreground">(opsional, paling cepat)</span>
 							</CardTitle>
 							<CardDescription className="space-y-2">
 								<span className="flex flex-wrap gap-3" aria-label="Platform yang didukung">
@@ -398,6 +453,50 @@ export default function KaryaEditorPage() {
 								<Button type="button" onClick={addRepo} disabled={busy === 'repo' || !repoInput.trim()} className="h-11">
 									{busy === 'repo' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Ambil info repo
 								</Button>
+							</div>
+							<div className="space-y-2 border-t border-border/60 pt-3">
+								<p className="text-sm font-medium text-foreground">
+									Bukan kode? Mulai dari link karyamu{' '}
+									<span className="text-xs font-normal text-muted-foreground">— desain, game, 3D, animasi, video, paper, atau situs apa pun</span>
+								</p>
+								<div className="flex flex-wrap gap-1.5 text-[11px] text-muted-foreground">
+									{['Figma', 'Behance', 'Dribbble', 'Canva', 'itch.io', 'Google Play', 'ArtStation', 'Sketchfab', 'YouTube', 'Kaggle', 'Hugging Face', 'Notion'].map((x) => (
+										<span key={x} className="rounded-full border border-border px-2 py-0.5">
+											{x}
+										</span>
+									))}
+								</div>
+								<div className="flex flex-wrap gap-2">
+									<Input
+										aria-label="Link karya"
+										placeholder="https://www.figma.com/… · https://nama.itch.io/game · https://youtu.be/…"
+										value={srcInput}
+										onChange={(e) => setSrcInput(e.target.value)}
+										onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addFromLink())}
+										className="h-11 min-w-[220px] flex-1"
+									/>
+									<Button type="button" variant="outline" onClick={addFromLink} disabled={srcBusy || !srcInput.trim()} className="h-11">
+										{srcBusy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Ambil info link
+									</Button>
+								</div>
+								{srcNote ? <p className="rounded-md bg-primary/10 px-3 py-2 text-xs text-foreground">{srcNote}</p> : null}
+								{linkImages.length ? (
+									<div className="space-y-1.5">
+										<p className="text-xs font-semibold text-foreground">Gambar pratinjau link — klik untuk memilih/batal (jadi galeri & sampul, tanpa kuota)</p>
+										<div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+											{linkImages.map((im) => (
+												<button
+													key={im.url}
+													type="button"
+													aria-pressed={im.use}
+													onClick={() => setLinkImages((cur) => cur.map((c) => (c.url === im.url ? { ...c, use: !c.use } : c)))}
+													className={cn('relative aspect-video overflow-hidden rounded-md border-2 bg-muted', im.use ? 'border-primary' : 'border-transparent opacity-50')}>
+													<img src={im.url} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
+												</button>
+											))}
+										</div>
+									</div>
+								) : null}
 							</div>
 							{readmeNote ? <p className="rounded-md bg-primary/10 px-3 py-2 text-xs text-foreground">{readmeNote}</p> : null}
 							{readmeImages.length ? (
