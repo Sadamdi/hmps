@@ -1,4 +1,4 @@
-import AOS from 'aos';
+import AOS from '@/lib/reveal';
 import { useEffect } from 'react';
 
 /** Pastikan elemen [data-aos] lazy-mount ter-animate setelah masuk DOM. */

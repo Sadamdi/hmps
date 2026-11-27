@@ -1435,10 +1435,9 @@ export default function Navbar({
 		<>
 			{/* ============ DESKTOP HEADER BAR ============ */}
 			<header
-				className={`sticky top-0 z-[55] border-b transition-all duration-300 events-navbar-header ${
-					scrolled
-						? 'h-12 border-border bg-background shadow-sm'
-						: 'h-16 border-border/60 bg-background/95 backdrop-blur-md shadow-[0_2px_12px_rgba(0,0,0,0.06)]'
+				// Tinggi tetap & blur selalu aktif: hanya warna/bayangan yang berganti (tanpa reflow seluruh halaman saat mulai scroll).
+				className={`site-header sticky top-0 z-[55] h-16 border-b bg-background/95 backdrop-blur-md transition-[box-shadow,border-color,background-color] duration-300 ease-out events-navbar-header ${
+					scrolled ? 'border-border shadow-[0_4px_18px_rgba(0,0,0,0.18)]' : 'border-border/60 shadow-[0_2px_12px_rgba(0,0,0,0.06)]'
 				}`}>
 				<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
 					<div className="flex justify-between items-center h-full">

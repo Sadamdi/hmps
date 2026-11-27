@@ -23,7 +23,7 @@ import {
 } from '@/lib/library-display';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import AOS from 'aos';
+import AOS from '@/lib/reveal';
 import { BookOpen, Calendar, ChevronDown, ChevronLeft, ChevronRight, Eye, Filter, Search, Tag, User } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'wouter';

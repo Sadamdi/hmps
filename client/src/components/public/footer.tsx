@@ -332,6 +332,47 @@ function FeedbackCarousel({ cards, enabled, onCardClick }: { cards: PublicFeedba
 	);
 }
 
+/** Peta Google dimuat saat footer mendekati layar (bukan saat sudah terlihat) lalu memudar masuk setelah selesai dimuat. */
+function DeferredMap({ title, src }: { title: string; src: string }) {
+	const ref = useRef<HTMLDivElement>(null);
+	const [mount, setMount] = useState(false);
+	const [loaded, setLoaded] = useState(false);
+	useEffect(() => {
+		const el = ref.current;
+		if (!el || mount) return;
+		if (!('IntersectionObserver' in window)) return setMount(true);
+		const io = new IntersectionObserver(
+			(es) => {
+				if (es.some((e) => e.isIntersecting)) {
+					io.disconnect();
+					const go = () => setMount(true);
+					const ric = (window as any).requestIdleCallback as ((cb: () => void, o?: { timeout: number }) => number) | undefined;
+					ric ? ric(go, { timeout: 800 }) : window.setTimeout(go, 150);
+				}
+			},
+			{ rootMargin: '900px 0px' },
+		);
+		io.observe(el);
+		return () => io.disconnect();
+	}, [mount]);
+	return (
+		<div ref={ref} className="relative h-full w-full bg-muted/40">
+			{!loaded && <div className="absolute inset-0 animate-pulse bg-muted/50" aria-hidden />}
+			{mount && (
+				<iframe
+					title={title}
+					src={src}
+					loading="lazy"
+					referrerPolicy="no-referrer-when-downgrade"
+					onLoad={() => setLoaded(true)}
+					className={`h-full w-full border-0 transition-opacity duration-500 ease-out ${loaded ? 'opacity-100' : 'opacity-0'}`}
+					allowFullScreen
+				/>
+			)}
+		</div>
+	);
+}
+
 export default function Footer() {
 	const { data: settings } = useQuery<Settings>({ queryKey: ['/api/settings'], staleTime: 1000, refetchOnWindowFocus: true });
 
@@ -666,7 +707,7 @@ export default function Footer() {
 						<h3 className="text-lg font-semibold mb-4">Lokasi</h3>
 						{address || mapsEmbedUrl ? (
 						<div className="w-full h-48 md:h-56 lg:h-64 rounded-lg overflow-hidden border border-border shadow-md">
-							<iframe title={`Lokasi ${address || 'organisasi'}`} src={mapsEmbedUrl || 'https://www.google.com/maps?q=' + encodeURIComponent(address) + '&output=embed'} loading="lazy" referrerPolicy="no-referrer-when-downgrade" className="w-full h-full border-0" allowFullScreen />
+							<DeferredMap title={`Lokasi ${address || 'organisasi'}`} src={mapsEmbedUrl || 'https://www.google.com/maps?q=' + encodeURIComponent(address) + '&output=embed'} />
 						</div>
 						) : (
 							<p className="text-sm text-muted-foreground">Alamat belum diatur.</p>

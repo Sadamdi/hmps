@@ -153,17 +153,41 @@ body {
 	}
 }
 
+/* ── Animasi masuk (pengganti AOS, lihat lib/reveal.ts): hanya opacity + transform ── */
+.reveal-ready [data-aos]:not([data-aos='']) {
+	opacity: 0;
+	transition-property: opacity, transform;
+	transition-duration: 380ms;
+	transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+	will-change: opacity, transform;
+}
+.reveal-ready [data-aos='fade-up'] { transform: translate3d(0, 14px, 0); }
+.reveal-ready [data-aos='fade-left'] { transform: translate3d(22px, 0, 0); }
+.reveal-ready [data-aos='fade-right'] { transform: translate3d(-22px, 0, 0); }
+.reveal-ready [data-aos='zoom-in'] { transform: scale(0.96); }
+.reveal-ready [data-aos][data-aos-in] { opacity: 1; transform: none; }
+.reveal-ready [data-aos][data-aos-done],
+.reveal-ready [data-aos][data-aos-in='i'] { will-change: auto; }
+.reveal-ready [data-aos][data-aos-in='i'] { transition: none !important; }
 @media (max-width: 767px) {
-	[data-aos] {
-		transition-duration: 280ms !important;
-		transition-delay: 0ms !important;
-	}
+	.reveal-ready [data-aos] { transition-duration: 300ms; }
+	.reveal-ready [data-aos='fade-left'],
+	.reveal-ready [data-aos='fade-right'] { transform: translate3d(0, 14px, 0); }
+	.reveal-ready [data-aos][data-aos-in] { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+	.reveal-ready [data-aos] { opacity: 1 !important; transform: none !important; }
+}
 
-	/* Safety net: jangan biarkan section lazy-load tetap invisible jika AOS belum refresh */
-	[data-aos]:not(.aos-animate) {
-		opacity: 1 !important;
-		transform: none !important;
-	}
+/* ── Transisi antarhalaman (View Transitions API, lihat lib/page-transitions.ts) ── */
+.site-header { view-transition-name: site-header; }
+::view-transition-group(site-header) { animation: none; }
+::view-transition-old(root) { animation: vt-out 160ms cubic-bezier(0.4, 0, 1, 1) both; }
+::view-transition-new(root) { animation: vt-in 280ms cubic-bezier(0.22, 0.75, 0.2, 1) both; }
+@keyframes vt-out { to { opacity: 0; } }
+@keyframes vt-in { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+@media (max-width: 767px) {
+	::view-transition-new(root) { animation-duration: 220ms; }
 }
 
 @layer components {
