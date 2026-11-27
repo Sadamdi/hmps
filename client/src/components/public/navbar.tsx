@@ -285,6 +285,11 @@ export default function Navbar({
 		'unknown' | 'active' | 'inactive' | 'denied' | 'unsupported'
 	>('unknown');
 	const [notifModalOpen, setNotifModalOpen] = useState(false);
+	useEffect(() => {
+		const open = () => setNotifModalOpen(true);
+		window.addEventListener('hmps:open-notif-settings', open);
+		return () => window.removeEventListener('hmps:open-notif-settings', open);
+	}, []);
 	const openDropdownIdRef = useRef<string | null>(null);
 	// Tracks whether the current scroll was triggered programmatically by a navbar click
 	// (smooth scroll to section). While true, scroll events must NOT close the dropdown.
@@ -2153,7 +2158,22 @@ const TOPIC_LABELS: Record<string, string> = {
 	commentReply: 'Balasan Komentar',
 	feedbackReply: 'Balasan Feedback',
 	bugReply: 'Balasan Bug Report',
+	karyaNew: 'Karya mahasiswa baru',
+	karyaStatus: 'Status karyaku (disetujui / revisi)',
+	scholarship: 'Info beasiswa',
+	internship: 'Info PKL / magang',
+	announcement: 'Pengumuman kampus lain',
+	storeOrder: 'Status pesanan Encoder Store',
 };
+/** Topik baru yang preferensinya disimpan per perangkat (berlaku untuk semua akun di perangkat ini). */
+const DEVICE_TOPICS = new Set(['karyaNew', 'karyaStatus', 'scholarship', 'internship', 'announcement', 'storeOrder']);
+const TOPIC_GROUPS: { title: string; hint?: string; keys: string[] }[] = [
+	{ title: 'Kabar Himatif', keys: ['news', 'event'] },
+	{ title: 'Ruang Mahasiswa', hint: 'Status karya terkirim ke perangkat tempat akun mahasiswamu login.', keys: ['karyaNew', 'karyaStatus'] },
+	{ title: 'Info kampus', keys: ['scholarship', 'internship', 'announcement'] },
+	{ title: 'Encoder Store', hint: 'Untuk akun pembeli yang login di perangkat ini (email tetap dikirim).', keys: ['storeOrder'] },
+	{ title: 'Balasan', keys: ['commentReply', 'feedbackReply', 'bugReply'] },
+];
 const ANON_WEBPUSH_PREF_KEY = 'anon-webpush-prefs-v1';
 const ANON_DEFAULT_PREFS: Record<string, { webPush: boolean }> = {
 	news: { webPush: true },
@@ -2161,7 +2181,18 @@ const ANON_DEFAULT_PREFS: Record<string, { webPush: boolean }> = {
 	commentReply: { webPush: true },
 	feedbackReply: { webPush: true },
 	bugReply: { webPush: false },
+	karyaNew: { webPush: true },
+	karyaStatus: { webPush: true },
+	scholarship: { webPush: true },
+	internship: { webPush: true },
+	announcement: { webPush: false },
+	storeOrder: { webPush: true },
 };
+
+/** Buka pengaturan notifikasi dari halaman mana saja (Ruang Mahasiswa, akun Encoder Store, dll.). */
+export function openNotifSettings() {
+	window.dispatchEvent(new CustomEvent('hmps:open-notif-settings'));
+}
 
 function NotifSettingsModal({
 	pushStatus,
@@ -2212,23 +2243,43 @@ function NotifSettingsModal({
 		},
 	});
 
+	const [linked, setLinked] = useState<{ student?: boolean; buyer?: boolean } | null>(null);
 	useEffect(() => {
-		if (isLoggedIn) return;
 		try {
 			const raw = localStorage.getItem(ANON_WEBPUSH_PREF_KEY);
-			if (!raw) return;
-			const parsed = JSON.parse(raw);
-			setAnonPrefs({ ...ANON_DEFAULT_PREFS, ...parsed });
+			if (raw) setAnonPrefs({ ...ANON_DEFAULT_PREFS, ...JSON.parse(raw) });
 		} catch {}
+		// Preferensi perangkat yang tersimpan di server (sumber kebenaran) + akun yang tertaut
+		void (async () => {
+			try {
+				if (!('serviceWorker' in navigator)) return;
+				const reg = await navigator.serviceWorker.ready;
+				const sub = await reg.pushManager.getSubscription();
+				if (!sub) return;
+				const r = await fetch(`/api/notifications/webpush/subscription-status?endpoint=${encodeURIComponent(sub.endpoint)}`, { credentials: 'include' });
+				if (!r.ok) return;
+				const j = await r.json();
+				setLinked(j.linked || null);
+				if (j.preferences) {
+					const fromServer: Record<string, { webPush: boolean }> = {};
+					for (const k of Object.keys(ANON_DEFAULT_PREFS)) {
+						const v = j.preferences?.[k]?.webPush;
+						if (typeof v === 'boolean') fromServer[k] = { webPush: v };
+					}
+					setAnonPrefs((cur) => ({ ...cur, ...fromServer }));
+				}
+			} catch {}
+		})();
 	}, [isLoggedIn]);
 
 	const topics = (isLoggedIn
 		? Object.keys(TOPIC_LABELS)
 		: Object.keys(TOPIC_LABELS).filter((k) => k !== 'bugReply')) as Array<keyof typeof TOPIC_LABELS>;
+	/** Nilai topik: topik perangkat dari langganan, topik lama dari akun admin (bila login) */
+	const valueOf = (k: string) =>
+		DEVICE_TOPICS.has(k) || !isLoggedIn ? anonPrefs?.[k]?.webPush !== false : (prefs as any)?.[k]?.webPush !== false;
 	const activePrefSource = isLoggedIn ? (prefs as any) : anonPrefs;
-	const allWebPushOn = activePrefSource
-		? topics.every((k) => activePrefSource?.[k]?.webPush !== false)
-		: true;
+	const allWebPushOn = topics.every((k) => valueOf(k));
 
 	const syncAnonPrefsToServer = async (nextPrefs: Record<string, { webPush: boolean }>) => {
 		if (!('serviceWorker' in navigator)) return;
@@ -2251,7 +2302,7 @@ function NotifSettingsModal({
 	};
 
 	const toggleTopic = (key: string) => {
-		if (isLoggedIn) {
+		if (isLoggedIn && !DEVICE_TOPICS.has(key)) {
 			if (!prefs) return;
 			const current = (prefs as any)[key]?.webPush !== false;
 			prefMut.mutate({ [key]: { webPush: !current } });
@@ -2261,7 +2312,7 @@ function NotifSettingsModal({
 		const next = {
 			...anonPrefs,
 			[key]: { webPush: !current },
-			bugReply: { webPush: false },
+			...(isLoggedIn ? {} : { bugReply: { webPush: false } }),
 		};
 		setAnonPrefs(next);
 		try {
@@ -2278,7 +2329,16 @@ function NotifSettingsModal({
 		const body: Record<string, { webPush: boolean }> = {};
 		for (const k of topics) body[k] = { webPush: newVal };
 		if (isLoggedIn) {
-			prefMut.mutate(body);
+			const accountBody: Record<string, { webPush: boolean }> = {};
+			for (const k of topics) if (!DEVICE_TOPICS.has(k)) accountBody[k] = { webPush: newVal };
+			prefMut.mutate(accountBody);
+			const deviceNext = { ...anonPrefs };
+			for (const k of topics) if (DEVICE_TOPICS.has(k)) deviceNext[k] = { webPush: newVal };
+			setAnonPrefs(deviceNext);
+			try {
+				localStorage.setItem(ANON_WEBPUSH_PREF_KEY, JSON.stringify(deviceNext));
+			} catch {}
+			void syncAnonPrefsToServer(deviceNext).catch(() => {});
 			return;
 		}
 		const next = { ...anonPrefs, ...body, bugReply: { webPush: false } };
@@ -2298,7 +2358,7 @@ function NotifSettingsModal({
 				className="absolute inset-0 bg-black/50 backdrop-blur-sm"
 				onClick={onClose}
 			/>
-			<div className="relative w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95 duration-200">
+			<div className="relative max-h-[88vh] w-full max-w-md overflow-y-auto rounded-xl border border-border bg-card p-5 shadow-2xl animate-in zoom-in-95 duration-200">
 				<div className="flex items-center justify-between mb-4">
 					<h3 className="text-base font-semibold flex items-center gap-2">
 						<Bell className="h-5 w-5 text-primary" />
@@ -2355,6 +2415,13 @@ function NotifSettingsModal({
 					</div>
 				</div>
 
+				{pushStatus === 'active' && linked ? (
+					<p className="mb-3 text-xs text-muted-foreground">
+						Perangkat ini tertaut ke:{' '}
+						{[isLoggedIn ? 'akun pengurus' : '', linked.student ? 'akun mahasiswa' : '', linked.buyer ? 'akun pembeli Encoder Store' : ''].filter(Boolean).join(', ') || 'pengunjung (tanpa akun)'}
+						. Satu pengaturan berlaku untuk semuanya.
+					</p>
+				) : null}
 				{/* Per-topic toggles — login + anonim, namun anonim tanpa bug-reply */}
 				{pushStatus === 'active' && (
 					<div className="space-y-2">
@@ -2373,25 +2440,31 @@ function NotifSettingsModal({
 								<span className="h-5 w-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
 							</div>
 						) : (
-							topics.map((key) => {
-								const on = activePrefSource?.[key]?.webPush !== false;
+							TOPIC_GROUPS.map((g) => {
+								const keys = g.keys.filter((k) => topics.includes(k as keyof typeof TOPIC_LABELS));
+								if (!keys.length) return null;
 								return (
-									<div
-										key={key}
-										className="flex items-center justify-between py-1.5 px-1">
-										<span className="text-sm">{TOPIC_LABELS[key]}</span>
-										<button
-											onClick={() => toggleTopic(key)}
-											disabled={prefMut.isPending || anonPrefsSaving}
-											className={`relative w-9 h-5 rounded-full transition-colors ${
-												on ? 'bg-primary' : 'bg-muted-foreground/30'
-											} disabled:opacity-50`}>
-											<span
-												className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${
-													on ? 'translate-x-4' : ''
-												}`}
-											/>
-										</button>
+									<div key={g.title} className="rounded-lg border border-border/70 p-2.5">
+										<p className="px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{g.title}</p>
+										{g.hint ? <p className="px-1 pt-0.5 text-[11px] text-muted-foreground">{g.hint}</p> : null}
+										{keys.map((key) => {
+											const on = valueOf(key);
+											return (
+												<div key={key} className="flex items-center justify-between py-1.5 px-1">
+													<span className="text-sm">{TOPIC_LABELS[key]}</span>
+													<button
+														type="button"
+														role="switch"
+														aria-checked={on}
+														aria-label={TOPIC_LABELS[key]}
+														onClick={() => toggleTopic(key)}
+														disabled={prefMut.isPending || anonPrefsSaving}
+														className={`relative w-9 h-5 shrink-0 rounded-full transition-colors ${on ? 'bg-primary' : 'bg-muted-foreground/30'} disabled:opacity-50`}>
+														<span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${on ? 'translate-x-4' : ''}`} />
+													</button>
+												</div>
+											);
+										})}
 									</div>
 								);
 							})

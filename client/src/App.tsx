@@ -1,4 +1,5 @@
 import ForgotPassword from '@/components/auth/forgot-password';
+import { FloatingBackButton } from '@/components/public/floating-back-button';
 import LoginForm from '@/components/auth/login-form';
 import ProtectedRoute from '@/components/auth/protected-route';
 import { Toaster } from '@/components/ui/toaster';
@@ -462,6 +463,7 @@ function App() {
 			<ThemeProvider>
 				<AuthProvider>
 					<Router />
+					<FloatingBackButton />
 					<PublicNotifPrompt />
 					<PublicNotifStream />
 					<Toaster />

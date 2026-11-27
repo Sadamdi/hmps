@@ -549,6 +549,10 @@ POST   /api/karya/me/projects/:id/contributors/sync  # ambil ulang contributor r
 GET    /api/karya/me/contributions               # karya orang lain tempat aku kontributor
 POST   /api/karya/me/contributions/:id/visibility  # {hidden} sembunyikan/tampilkan di profilku
 POST   /api/karya/admin/contributors/sync        # karya.manage · {limit?, force?} backfill kontributor karya lama
+# Notifikasi web push (4.72.0): /api/notifications/webpush/subscribe kini menautkan perangkat ke sesi mahasiswa
+# (studentId) & pembeli (customerId) bila ada, dan menerima preferences: storeOrder, karyaStatus, karyaNew,
+# scholarship, internship, announcement (selain news/event/commentReply/feedbackReply/bugReply). Hanya kunci
+# yang dikirim yang diubah. /webpush/subscription-status menambah linked {student,buyer,admin} & preferences.
 GET    /api/karya/public/categories              # kategori yang dipakai karya tayang (bawaan + buatan mahasiswa) + jumlah
 GET    /api/karya/public/students?q=&angkatan=&page=  # direktori profil publik (tanpa email/NIM) + projectCount, topTags
 POST   /api/karya/me/avatar                      # multipart file (gambar ≤5 MB → WebP 400px)

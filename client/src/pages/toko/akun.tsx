@@ -1,4 +1,6 @@
 import AIChat from '@/components/public/ai-chat';
+import { openNotifSettings } from '@/components/public/navbar';
+import { useLinkPushIdentity } from '@/lib/push-identity';
 import { PasswordInput } from '@/components/ui/password-input';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -18,7 +20,7 @@ import { useTenant } from '@/lib/tenant-context';
 import { formatStoreMoney } from '@shared/store-currency';
 import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { useQuery } from '@tanstack/react-query';
-import { Clock, Loader2, LogOut, PackageSearch, Plus, ShoppingBag, Star, Wallet } from 'lucide-react';
+import { BellRing, Clock, Loader2, LogOut, PackageSearch, Plus, ShoppingBag, Star, Wallet } from 'lucide-react';
 import { OrderReviewDialog } from '@/components/toko/store-reviews';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
@@ -277,6 +279,7 @@ export default function TokoBuyerAccountPage() {
 	const [, navigate] = useLocation();
 	const { toast } = useToast();
 	const { buyer, loading } = useBuyer();
+	useLinkPushIdentity(buyer ? `buyer:${(buyer as { id?: string; email: string }).id || buyer.email}` : null);
 	const { storeHref, storeLabel, loginHref, accountHref } = useStorePaths();
 	const [filter, setFilter] = useState<Filter>('all');
 	const [claimLink, setClaimLink] = useState('');
@@ -361,10 +364,16 @@ export default function TokoBuyerAccountPage() {
 									</a>
 								</p>
 							</div>
-							<Button variant="outline" size="sm" className="gap-2" onClick={logout}>
-								<LogOut className="h-4 w-4" />
-								Keluar
-							</Button>
+							<div className="flex flex-wrap gap-2">
+								<Button variant="outline" size="sm" className="gap-2" onClick={openNotifSettings}>
+									<BellRing className="h-4 w-4" />
+									Notifikasi pesanan
+								</Button>
+								<Button variant="outline" size="sm" className="gap-2" onClick={logout}>
+									<LogOut className="h-4 w-4" />
+									Keluar
+								</Button>
+							</div>
 						</div>
 
 						<Tabs defaultValue="ringkasan">

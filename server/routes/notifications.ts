@@ -97,7 +97,7 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 				? hashGuestKey(guestSecret.trim())
 				: '';
 		const sanitizeWebPushPref = (src: any) => {
-			const keys = ['news', 'event', 'commentReply', 'feedbackReply', 'bugReply'] as const;
+			const keys = ['news', 'event', 'commentReply', 'feedbackReply', 'bugReply', 'storeOrder', 'karyaStatus', 'karyaNew', 'scholarship', 'internship', 'announcement'] as const;
 			const out: Record<string, { webPush: boolean }> = {};
 			for (const key of keys) {
 				const val = src?.[key]?.webPush;
@@ -106,6 +106,15 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 			return out;
 		};
 		const normalizedPrefs = sanitizeWebPushPref(preferences);
+		// Tautkan perangkat ke akun mahasiswa & pembeli yang sedang login (satu langganan untuk semua identitas)
+		const [{ getStudent }, { getBuyerId }] = await Promise.all([import('../services/karya-auth'), import('../services/buyer-auth')]);
+		const student: any = await getStudent(req).catch(() => null);
+		const customerId = await getBuyerId(req).catch(() => null);
+		const identity: Record<string, unknown> = {};
+		if (student?._id) identity.studentId = student._id;
+		if (customerId) identity.customerId = customerId;
+		const prefSet: Record<string, unknown> = {};
+		for (const [k, v] of Object.entries(normalizedPrefs)) prefSet[`preferences.${k}.webPush`] = v.webPush;
 		await WebPushSubscription.findOneAndUpdate(
 			{ endpoint },
 			{
@@ -118,9 +127,8 @@ router.post('/webpush/subscribe', authenticateOptional, async (req, res) => {
 					vapidPublicKey: currentVapidPublic,
 					isActive: true,
 					lastSeenAt: new Date(),
-					...(Object.keys(normalizedPrefs).length > 0
-						? { preferences: normalizedPrefs }
-						: {}),
+					...identity,
+					...prefSet,
 				},
 			},
 			{ upsert: true },
@@ -198,6 +206,8 @@ router.get('/webpush/subscription-status', authenticateOptional, async (req, res
 			tenantSlug: row?.tenantSlug || '',
 			userId: row?.userId ? String(row.userId) : null,
 			hasGuest: !!row?.guestKeyHash,
+			linked: { student: !!row?.studentId, buyer: !!row?.customerId, admin: !!row?.userId },
+			preferences: row?.preferences || null,
 			lastSeenAt: row?.lastSeenAt || null,
 			vapidMatchesCurrent: row ? String(row.vapidPublicKey || '') === String(currentVapid) : null,
 			endpointSuffix: endpointSuffix(endpoint),

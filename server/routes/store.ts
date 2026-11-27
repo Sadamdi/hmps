@@ -194,11 +194,54 @@ function safeBaseUrl(req: any): string {
 const ONCE_EMAIL_KINDS = new Set<StoreEmailKind>(['order_created', 'status_confirmed', 'status_preorder', 'status_paid', 'status_shipped', 'status_completed', 'cancelled']);
 const EMAIL_SEND_ATTEMPTS = 3;
 
+/** Judul notifikasi web push pembeli per jenis kabar pesanan. */
+const BUYER_PUSH_TITLE: Partial<Record<StoreEmailKind, string>> = {
+	order_created: 'Pesanan diterima',
+	proof_received: 'Bukti bayar diterima',
+	payment_verified: 'Pembayaran terverifikasi',
+	payment_rejected: 'Bukti bayar ditolak',
+	status_confirmed: 'Pesanan dikonfirmasi',
+	status_preorder: 'Pesanan masuk pre-order',
+	status_paid: 'Pesanan lunas',
+	status_shipped: 'Pesanan dikirim',
+	status_completed: 'Pesanan selesai',
+	cancelled: 'Pesanan dibatalkan',
+	remind_cancel: 'Segera bayar pesananmu',
+	remind_settle: 'Pengingat pelunasan',
+	cancel_requested: 'Permintaan pembatalan dikirim',
+};
+
+/** Web push ke perangkat akun pembeli (selain email). Mengikuti preferensi perangkat & akun. */
+function pushBuyerOrder(req: any, o: any, kind: StoreEmailKind) {
+	const title = BUYER_PUSH_TITLE[kind];
+	if (!title || !o?.buyerId) return;
+	void (async () => {
+		try {
+			const acc: any = await (mainDbModels as any).Customer.findById(o.buyerId).select('notifyPrefs').lean();
+			if (String(kind).startsWith('status_') && acc?.notifyPrefs?.orderStatus === false) return;
+			if (String(kind).startsWith('remind_') && acc?.notifyPrefs?.paymentReminders === false) return;
+			const settings: any = await ensureSettings(req);
+			const storePath = normalizeStorePath(settings?.navbarPath);
+			const { dispatchIdentityPush } = await import('../services/notification-orchestrator');
+			await dispatchIdentityPush({ customerId: String(o.buyerId) }, 'store_order_buyer', {
+				title: `${title} · ${o.orderNo}`,
+				description: `Encoder Store — ketuk untuk melihat detail pesanan.`,
+				actionUrl: `${storePath}/order/${encodeURIComponent(o.orderNo)}`,
+				tag: `order-${o.orderNo}`,
+			});
+		} catch (err) {
+			console.warn('[store] push pembeli gagal:', (err as Error)?.message);
+		}
+	})();
+}
+
 function sendBuyerEmail(req: any, orderNo: string, kind: StoreEmailKind, extra: Partial<StoreEmailCtx> = {}, dedupeKey?: string) {
 	void (async () => {
 		try {
 			const { StoreOrder } = resolveModels(req);
 			const o: any = await StoreOrder.findOne({ orderNo }).lean();
+			// Web push ke akun pembeli tetap dikirim walau pesanan tanpa email
+			if (o && !(dedupeKey && (o.emailLog || []).some((e: any) => e.key === dedupeKey))) pushBuyerOrder(req, o, kind);
 			if (!o || !EMAIL_RE.test(normalizeEmail(o.customerEmail))) return;
 			const settings: any = await ensureSettings(req);
 			if (settings?.notifyBuyerEmail === false) return;

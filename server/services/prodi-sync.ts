@@ -2263,6 +2263,8 @@ export async function runProdiSyncScoped(
 				const { runStudentResourcesSync } = await import('./prodi-student-resources');
 				const existingHub = existingContent?.studentHub || {};
 				const { hub, summary: hubSummary } = await runStudentResourcesSync(existingHub);
+				// Item pengumuman baru (dibanding sinkron sebelumnya) → notifikasi beasiswa / PKL / pengumuman
+				void import('./info-notifications').then((m) => m.notifyNewAnnouncements(existingHub?.announcements || [], hub?.announcements || [])).catch(() => null);
 				if (scope === 'academicCalendar') {
 					crawledContent.studentHub = {
 						...existingHub,

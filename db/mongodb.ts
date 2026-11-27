@@ -2503,6 +2503,10 @@ const webPushSubscriptionSchema = new mongoose.Schema(
 			default: null,
 		},
 		guestKeyHash: { type: String, default: '' },
+		/** Akun mahasiswa (Ruang Mahasiswa) yang memakai perangkat ini — notifikasi status karya */
+		studentId: { type: mongoose.Schema.Types.ObjectId, default: null },
+		/** Akun pembeli Encoder Store yang memakai perangkat ini — notifikasi status pesanan */
+		customerId: { type: mongoose.Schema.Types.ObjectId, default: null },
 		endpoint: { type: String, required: true },
 		keys: {
 			p256dh: { type: String, required: true },
@@ -2520,6 +2524,18 @@ const webPushSubscriptionSchema = new mongoose.Schema(
 			feedbackReply: { webPush: { type: Boolean, default: true } },
 			// Untuk visitor anonim tidak ada alur bug-reply, default false.
 			bugReply: { webPush: { type: Boolean, default: false } },
+			/** Status pesanan Encoder Store (pembeli) */
+			storeOrder: { webPush: { type: Boolean, default: true } },
+			/** Status karya sendiri (disetujui / perlu revisi) */
+			karyaStatus: { webPush: { type: Boolean, default: true } },
+			/** Karya mahasiswa baru tayang */
+			karyaNew: { webPush: { type: Boolean, default: true } },
+			/** Info beasiswa baru (feed kampus & kementerian) */
+			scholarship: { webPush: { type: Boolean, default: true } },
+			/** Info PKL / magang */
+			internship: { webPush: { type: Boolean, default: true } },
+			/** Pengumuman prodi/kampus lain (skripsi, wisuda, UKT, kalender, KKM) */
+			announcement: { webPush: { type: Boolean, default: false } },
 		},
 	},
 	{ timestamps: true },
@@ -2527,6 +2543,8 @@ const webPushSubscriptionSchema = new mongoose.Schema(
 webPushSubscriptionSchema.index({ endpoint: 1 }, { unique: true });
 webPushSubscriptionSchema.index({ userId: 1, isActive: 1 });
 webPushSubscriptionSchema.index({ guestKeyHash: 1, isActive: 1 });
+webPushSubscriptionSchema.index({ studentId: 1, isActive: 1 });
+webPushSubscriptionSchema.index({ customerId: 1, isActive: 1 });
 
 const WebPushSubscription =
 	mongoose.models.WebPushSubscription ||

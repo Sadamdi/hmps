@@ -31,8 +31,10 @@ import { apiErrorText, queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
 import { formatBytes, KARYA_STATUS_LABEL, karyaCategoriesOf, karyaCategoryLabel, type KaryaStatus } from '@shared/karya';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Camera, Check, Copy, ExternalLink, Eye, FileUp, Loader2, LogOut, MonitorSmartphone, Pencil, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, BellRing, Camera, Check, Copy, ExternalLink, Eye, FileUp, Loader2, LogOut, MonitorSmartphone, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { openNotifSettings } from '@/components/public/navbar';
+import { useLinkPushIdentity } from '@/lib/push-identity';
 import { Link, useLocation } from 'wouter';
 
 const STATUS_STYLE: Record<KaryaStatus, string> = {
@@ -51,6 +53,7 @@ export function StatusBadge({ status, visibility }: { status: KaryaStatus; visib
 export default function KaryaDashboardPage() {
 	const [, navigate] = useLocation();
 	const { student, loading } = useStudent();
+	useLinkPushIdentity(student?.id ? `student:${student.id}` : null);
 	const tabFromUrl = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') || 'karya' : 'karya';
 	const [tab, setTab] = useState(tabFromUrl);
 
@@ -102,6 +105,9 @@ export default function KaryaDashboardPage() {
 							<Link href={KARYA_PATHS.student(student.username)}>
 								<ExternalLink className="mr-2 h-4 w-4" /> Profil publik
 							</Link>
+						</Button>
+						<Button variant="ghost" onClick={openNotifSettings}>
+							<BellRing className="mr-2 h-4 w-4" /> Notifikasi
 						</Button>
 						<Button variant="ghost" onClick={logout}>
 							<LogOut className="mr-2 h-4 w-4" /> Keluar
