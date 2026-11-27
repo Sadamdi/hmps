@@ -11,7 +11,7 @@ import { getDefaultEmbedHostSet } from '@shared/embed-default-hosts';
 import { detectMediaSource } from '@shared/mediaUtils';
 import { useQuery } from '@tanstack/react-query';
 import { ExternalLink, Loader2, RefreshCw, ShieldX } from 'lucide-react';
-import { apiRequest, queryClient } from '@/lib/queryClient';
+import { apiRequest } from '@/lib/queryClient';
 import MediaDisplay from '../MediaDisplay';
 
 type Segment =
@@ -247,12 +247,19 @@ interface RichHtmlWithEmbedsProps {
 	allowedEmbedHosts?: string[];
 }
 
+/**
+ * Host tambahan dari Settings, DIKUNCI saat pertama kali termuat di tab ini: CSP frame-src halaman
+ * dibuat saat halaman dimuat, jadi host yang baru diizinkan setelahnya baru bisa di-iframe setelah
+ * muat ulang (ditampilkan kartu "Muat ulang", bukan iframe kosong).
+ */
+let hostsAtPageLoad: string[] | null = null;
 function useEmbedAllowedHosts(): string[] {
 	const { data } = useQuery<{ embedAllowedHosts?: string[] }>({
 		queryKey: ['/api/settings'],
 		staleTime: 60_000,
 	});
-	return data?.embedAllowedHosts ?? [];
+	if (data && hostsAtPageLoad === null) hostsAtPageLoad = data.embedAllowedHosts ?? [];
+	return hostsAtPageLoad ?? [];
 }
 
 type EmbedDomainStatus = 'pending' | 'allowed' | 'noframe' | 'blocked';
@@ -413,7 +420,6 @@ export default function RichHtmlWithEmbeds({
 					const st = statusOf(seg.host);
 					if (st === 'allowed' && !isAllowedAtLoad(seg.host)) {
 						// Baru saja lolos analisis: CSP halaman ini belum memuat host tsb → perlu muat ulang sekali.
-						queryClient.invalidateQueries({ queryKey: ['/api/settings'] });
 						return linkCard(i, seg.url, 'reload', `Embed ${seg.host} siap ditampilkan`, 'Domain baru lolos pemeriksaan keamanan — muat ulang untuk menampilkannya');
 					}
 					if (st === 'allowed') {

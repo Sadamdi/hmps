@@ -9,6 +9,13 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.69.1] - 2026-11-27
+
+### Fixed
+- `embed`: daftar host Settings dikunci saat halaman dimuat (sesuai CSP frame-src halaman), sehingga domain yang baru lolos analisis tampil sebagai kartu "Muat ulang" alih-alih iframe kosong yang diblokir CSP; tidak ada lagi refetch `/api/settings` dari dalam render
+
+Detail: [release/4.69.1.md](../release/4.69.1.md).
+
 ## [4.69.0] - 2026-11-27
 
 ### Added
