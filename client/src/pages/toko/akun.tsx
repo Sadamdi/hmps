@@ -1,4 +1,5 @@
 import AIChat from '@/components/public/ai-chat';
+import { PasswordInput } from '@/components/ui/password-input';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import { StorePublicHeaderRow } from '@/components/public/store-public-header';
@@ -243,7 +244,7 @@ function ProfileTab({ onDeleted, onLogout }: { onDeleted: () => void; onLogout: 
 							</div>
 							<div className="space-y-1">
 								<Label htmlFor="p-pw">Password baru</Label>
-								<Input id="p-pw" type="password" minLength={8} value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" />
+								<PasswordInput id="p-pw" minLength={8} value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" />
 							</div>
 							<Button
 								disabled={busy === 'pw' || pw.length < 8 || pwCode.length !== 6}

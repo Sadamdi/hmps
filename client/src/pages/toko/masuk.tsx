@@ -1,4 +1,5 @@
 import AIChat from '@/components/public/ai-chat';
+import { PasswordInput } from '@/components/ui/password-input';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
 import { PageBreadcrumb } from '@/components/public/page-breadcrumb';
@@ -298,7 +299,7 @@ export default function TokoBuyerLoginPage() {
 							{(mode === 'login' || mode === 'register' || mode === 'reset') && (
 								<div className="space-y-1">
 									<Label htmlFor="b-pass">{mode === 'reset' ? 'Password baru' : 'Password'}</Label>
-									<Input id="b-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'login' ? 1 : 8} required />
+									<PasswordInput id="b-pass" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'login' ? 1 : 8} required />
 									{mode !== 'login' && <p className="text-[11px] text-muted-foreground">Minimal 8 karakter.</p>}
 								</div>
 							)}

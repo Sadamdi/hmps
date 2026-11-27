@@ -82,7 +82,7 @@ Public discovery (SSR / sitemap): [`02-public-content/04-ssr-sitemap.md`](./02-p
 Total feature category folders: **13**  
 Total markdown docs in `docs/features`: **114**  
 Total numbered feature docs: **100**  
-Total OpenAPI operations: **452**  
+Total OpenAPI operations: **460**  
 Total OpenAPI tags: **36**
 
 ---

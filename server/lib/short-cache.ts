@@ -17,6 +17,10 @@ export class ShortJsonCache {
 		return e.value;
 	}
 
+	clear(): void {
+		this.map.clear();
+	}
+
 	set(key: string, value: string): void {
 		while (this.map.size >= this.maxKeys) {
 			const first = this.map.keys().next().value as string | undefined;

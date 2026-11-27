@@ -9,6 +9,27 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.69.0] - 2026-11-27
+
+### Added
+- `embed`: allowlist pintar — domain embed baru dianalisis sekali (keamanan jaringan, kata terlarang, framing, AI) lalu otomatis diizinkan/diblokir; panel hasil di Settings → Domain Embed; `/api/embed-domains/*`
+- `karya`: onboarding username wajib (tulis sendiri atau impor GitHub/GitLab/Bitbucket dari link/username)
+- `karya`: kategori ganda + deteksi stack otomatis dari repo; taksonomi ±330 tag dalam 15 grup
+- `karya`: tautan berlabel dengan preset (Link Download, APK, Play Store, …) tampil sebagai tombol
+- `karya`: direktori profil mahasiswa di halaman publik; video tutorial (YouTube + fallback Drive) diatur admin
+- `auth`: tombol lihat password di semua form login/daftar
+
+### Changed
+- `karya`: embed "domain https apa pun" (4.68.0) diganti allowlist pintar; kartu karya menampilkan semua kategori & sampul repo utuh
+
+### Fixed
+- `server`: error klien tidak lagi tercatat 500 — ValidationError/CastError/JSON rusak/request terputus/URIError → 4xx (handler global + route berita, event, library, chat, komentar); handler global tidak lagi melempar ulang error
+- `chat`: pesan hanya-lampiran tidak gagal simpan; `toLowerCase` pada konten kosong
+- `berita`: tag non-JSON dipisah koma; pembersihan gambar tidak gagal EISDIR pada subfolder
+- `prodi`: kegagalan sumber preview → 502 (bukan 500)
+
+Detail: [release/4.69.0.md](../release/4.69.0.md).
+
 ## [4.68.0] - 2026-11-27
 
 ### Added

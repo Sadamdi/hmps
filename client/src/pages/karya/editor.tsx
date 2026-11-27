@@ -13,7 +13,8 @@ import { useCoverUrl } from '@/components/karya/karya-card';
 import { useToast } from '@/hooks/use-toast';
 import { apiErrorText, queryClient } from '@/lib/queryClient';
 import { cn } from '@/lib/utils';
-import { classifyKaryaLink, cleanKaryaTags, formatBytes, KARYA_CATEGORIES, KARYA_REPO_HOSTS, type KaryaRepoInfo } from '@shared/karya';
+import { KARYA_TAG_GROUPS, KARYA_TAGS, canonicalKaryaTag, karyaTagToneClass } from '@shared/karya-tags';
+import { classifyKaryaLink, cleanKaryaTags, formatBytes, KARYA_CATEGORIES, KARYA_LINK_PRESETS, KARYA_REPO_HOSTS, type KaryaRepoInfo } from '@shared/karya';
 import { ArrowLeft, Github, ImagePlus, Link2, Loader2, Lock, Plus, Star, Trash2, Upload, Globe2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'wouter';
@@ -41,7 +42,11 @@ export default function KaryaEditorPage() {
 	const [tagInput, setTagInput] = useState('');
 	const { data: tagSuggestions } = usePublicTags();
 	const [role, setRole] = useState('');
-	const [category, setCategory] = useState('web');
+	const [categories, setCategories] = useState<string[]>(['web']);
+	/** true setelah mahasiswa memilih kategori sendiri → impor repo hanya menambah, tidak mengganti */
+	const catTouched = useRef(false);
+	const [tagGroup, setTagGroup] = useState<string>('language');
+	const [detectNote, setDetectNote] = useState('');
 	const [tags, setTags] = useState('');
 	const [year, setYear] = useState('');
 	const [repoUrls, setRepoUrls] = useState<string[]>([]);
@@ -52,6 +57,7 @@ export default function KaryaEditorPage() {
 	const [readmeNote, setReadmeNote] = useState('');
 	const [links, setLinks] = useState<LinkRow[]>([]);
 	const [linkInput, setLinkInput] = useState('');
+	const [linkLabel, setLinkLabel] = useState('');
 	const [related, setRelated] = useState<RelatedRow[]>([]);
 	const [relatedInput, setRelatedInput] = useState('');
 	const [visibility, setVisibility] = useState<'public' | 'private'>('public');
@@ -74,7 +80,8 @@ export default function KaryaEditorPage() {
 		setDescription(p.description);
 		setDescriptionFormat(p.descriptionFormat === 'html' ? 'html' : p.description ? 'text' : 'html');
 		setRole(p.role);
-		setCategory(p.category);
+		setCategories(p.categories?.length ? p.categories : [p.category]);
+		catTouched.current = true;
 		setTags(p.tags.join(', '));
 		setYear(p.year ? String(p.year) : '');
 		setRepoUrls(p.repos.map((r) => r.url));
@@ -95,7 +102,7 @@ export default function KaryaEditorPage() {
 		setBusy('repo');
 		try {
 			type Readme = { summary: string; descriptionHtml: string; images: string[]; youtube: string[]; videoFiles: string[] };
-			const info = await karyaApi<KaryaRepoInfo & { readme?: Readme | null }>('POST', '/me/repo-preview', { url });
+			const info = await karyaApi<KaryaRepoInfo & { readme?: Readme | null; detected?: { categories: string[]; tags: string[] } }>('POST', '/me/repo-preview', { url });
 			setRepoUrls((r) => (r.includes(info.url) ? r : [...r, info.url]));
 			setRepoPreview((r) => (r.some((x) => x.url === info.url) ? r : [...r, info]));
 			// Isi otomatis pintar: hanya kolom yang masih kosong (tidak menimpa tulisanmu)
@@ -115,10 +122,24 @@ export default function KaryaEditorPage() {
 				setDescriptionFormat('html');
 				filled.push('deskripsi dari README');
 			}
-			if (!tags && info.topics.length) {
-				setTags(info.topics.slice(0, 8).join(', '));
-				filled.push('tag');
+			// Deteksi stack dari bahasa, file root, topics, dan README (mis. Flutter + Next.js → Mobile + Web)
+			const det = info.detected;
+			if (det?.categories.length) {
+				setCategories((cur) => {
+					const next = catTouched.current ? Array.from(new Set([...cur.filter((c) => c !== 'lainnya'), ...det.categories])).slice(0, 3) : det.categories.slice(0, 3);
+					return next.length ? next : cur;
+				});
+				filled.push(`kategori (${det.categories.map((c) => KARYA_CATEGORIES.find((k) => k.id === c)?.label || c).join(' + ')})`);
 			}
+			const autoTags = (det?.tags.length ? det.tags : info.topics).map(canonicalKaryaTag);
+			if (autoTags.length) {
+				const merged = cleanKaryaTags([...cleanKaryaTags(tags), ...autoTags]);
+				if (merged.join(',') !== cleanKaryaTags(tags).join(',')) {
+					setTags(merged.join(', '));
+					filled.push('tag');
+				}
+			}
+			setDetectNote(det?.categories.length ? `Terdeteksi dari repo: ${det.tags.slice(0, 8).join(', ')}` : '');
 			const newLinks: { url: string; label: string }[] = [];
 			if (info.homepage) newLinks.push({ url: info.homepage, label: 'Demo' });
 			(rd?.youtube || []).forEach((u, i) => newLinks.push({ url: u, label: `Video ${i + 1} (README)` }));
@@ -150,8 +171,9 @@ export default function KaryaEditorPage() {
 			setRepoInput(url);
 			return setError('Itu link repo — pakai kolom "Mulai dari GitHub" agar infonya terambil.');
 		}
-		setLinks((l) => [...l, { url, label: '' }]);
+		setLinks((l) => [...l, { url, label: linkLabel.trim().slice(0, 80) }]);
 		setLinkInput('');
+		setLinkLabel('');
 		setError('');
 	};
 
@@ -169,7 +191,8 @@ export default function KaryaEditorPage() {
 		description,
 		descriptionFormat,
 		role,
-		category,
+		category: categories[0] || 'lainnya',
+		categories,
 		tags,
 		year: year ? Number(year) : null,
 		repoUrls,
@@ -424,26 +447,37 @@ export default function KaryaEditorPage() {
 								<Textarea id="e-role" rows={2} value={role} maxLength={300} onChange={(e) => setRole(e.target.value)} placeholder="Contoh: backend & integrasi MQTT (tim 3 orang)" />
 							</div>
 							<div className="grid gap-4 sm:grid-cols-3">
-								<div className="space-y-1.5">
-									<Label>Kategori <span className="text-destructive">*</span></Label>
-									<Select value={category} onValueChange={setCategory}>
-										<SelectTrigger aria-label="Kategori">
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											{KARYA_CATEGORIES.map((c) => (
-												<SelectItem key={c.id} value={c.id}>
+								<div className="space-y-1.5 sm:col-span-3">
+									<Label>Kategori <span className="text-destructive">*</span> <span className="text-xs font-normal text-muted-foreground">(boleh lebih dari satu, maks 3 — mis. Web + Mobile)</span></Label>
+									<div className="flex flex-wrap gap-1.5" role="group" aria-label="Kategori karya">
+										{KARYA_CATEGORIES.map((c) => {
+											const on = categories.includes(c.id);
+											return (
+												<button
+													key={c.id}
+													type="button"
+													aria-pressed={on}
+													onClick={() => {
+														catTouched.current = true;
+														setCategories((cur) => {
+															if (on) return cur.length > 1 ? cur.filter((x) => x !== c.id) : cur;
+															if (c.id === 'lainnya') return ['lainnya'];
+															return [...cur.filter((x) => x !== 'lainnya'), c.id].slice(-3);
+														});
+													}}
+													className={cn('min-h-[36px] rounded-full border px-3 text-sm transition-colors', on ? 'border-primary bg-primary text-primary-foreground' : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground')}>
 													{c.label}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+												</button>
+											);
+										})}
+									</div>
+									{detectNote ? <p className="text-xs text-emerald-600 dark:text-emerald-400">{detectNote}</p> : null}
 								</div>
-								<div className="space-y-1.5 sm:col-span-2">
+								<div className="space-y-1.5 sm:col-span-3">
 									<Label htmlFor="e-tags">Tag <span className="text-xs font-normal text-muted-foreground">(opsional, maks 8 — Enter/koma untuk menambah)</span></Label>
 									<div className="flex min-h-[44px] flex-wrap items-center gap-1.5 rounded-md border border-input bg-background px-2 py-1.5 focus-within:ring-2 focus-within:ring-ring">
 										{cleanKaryaTags(tags).map((t) => (
-											<span key={t} className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+											<span key={t} className={cn('inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs', karyaTagToneClass(t))}>
 												#{t}
 												<button type="button" aria-label={`Hapus tag ${t}`} onClick={() => setTags(cleanKaryaTags(tags).filter((x) => x !== t).join(', '))}>
 													<X className="h-3 w-3" />
@@ -480,10 +514,35 @@ export default function KaryaEditorPage() {
 											}}
 										/>
 										<datalist id="karya-tag-suggest">
-											{(tagSuggestions || []).map((t) => (
-												<option key={t.tag} value={t.tag} />
+											{Array.from(new Set([...(tagSuggestions || []).map((t) => t.tag), ...KARYA_TAGS.map((t) => t.tag)])).map((t) => (
+												<option key={t} value={t} />
 											))}
 										</datalist>
+									</div>
+									<div className="rounded-lg border border-border p-2.5">
+										<div className="flex flex-wrap gap-1">
+											{KARYA_TAG_GROUPS.map((g) => (
+												<button key={g.id} type="button" onClick={() => setTagGroup(g.id)} className={cn('rounded-md px-2 py-1 text-xs', tagGroup === g.id ? 'bg-primary/15 font-medium text-primary' : 'text-muted-foreground hover:text-foreground')}>
+													{g.label}
+												</button>
+											))}
+										</div>
+										<div className="mt-2 flex max-h-32 flex-wrap gap-1.5 overflow-y-auto">
+											{KARYA_TAGS.filter((t) => t.group === tagGroup).map((t) => {
+												const on = cleanKaryaTags(tags).includes(t.tag);
+												return (
+													<button
+														key={t.tag}
+														type="button"
+														aria-pressed={on}
+														onClick={() => setTags((on ? cleanKaryaTags(tags).filter((x) => x !== t.tag) : cleanKaryaTags([...cleanKaryaTags(tags), t.tag])).join(', '))}
+														className={cn('rounded-full border px-2 py-0.5 text-xs transition-colors', on ? 'border-transparent ' + karyaTagToneClass(t.tag) : 'border-border text-muted-foreground hover:border-primary/40 hover:text-foreground')}>
+														{on ? '✓ ' : '+ '}
+														{t.tag}
+													</button>
+												);
+											})}
+										</div>
 									</div>
 									<p className="text-xs text-muted-foreground">Pakai tag yang sudah ada bila cocok (muncul saran) agar karyamu satu halaman tag dengan karya serupa.</p>
 								</div>
@@ -524,6 +583,21 @@ export default function KaryaEditorPage() {
 							{mediaTab === 'link' ? (
 								<div className="space-y-3">
 									<p className="text-xs font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Direkomendasikan</p>
+									<div className="space-y-1.5">
+										<Label className="text-xs">Nama tautan (tampil sebagai tombol di halaman karya)</Label>
+										<div className="flex flex-wrap gap-1.5">
+											{KARYA_LINK_PRESETS.map((p) => (
+												<button
+													key={p}
+													type="button"
+													onClick={() => setLinkLabel(p)}
+													className={cn('rounded-full border px-2.5 py-1 text-xs transition-colors', linkLabel === p ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:border-primary/40')}>
+													{p}
+												</button>
+											))}
+										</div>
+										<Input aria-label="Nama tautan" placeholder="Atau tulis sendiri, mis. Link Download, Demo Admin, Buku Panduan" value={linkLabel} maxLength={80} onChange={(e) => setLinkLabel(e.target.value)} className="h-9" />
+									</div>
 									<div className="flex flex-wrap gap-2">
 										<Input
 											aria-label="Tempel link"
@@ -537,7 +611,7 @@ export default function KaryaEditorPage() {
 											<Plus className="mr-1 h-4 w-4" /> Tambah
 										</Button>
 									</div>
-									<p className="text-xs text-muted-foreground">YouTube tampil sebagai video. Google Drive wajib "Siapa saja yang memiliki link" — dicek saat menyimpan.</p>
+									<p className="text-xs text-muted-foreground">Bisa lebih dari satu tautan (maks {config?.limits.maxLinksPerProject ?? 10}), masing-masing dengan nama sendiri. YouTube tampil sebagai video. Google Drive wajib "Siapa saja yang memiliki link" — dicek saat menyimpan.</p>
 								</div>
 							) : config?.uploadsEnabled === false ? (
 								<p className="text-sm text-muted-foreground">Unggah file sedang dinonaktifkan administrator. Pakai link YouTube / Google Drive.</p>
@@ -569,7 +643,7 @@ export default function KaryaEditorPage() {
 													</button>
 												</div>
 												<p className="truncate text-muted-foreground">{l.url}</p>
-												<Input aria-label="Label link" placeholder="Label (opsional)" value={l.label} maxLength={80} className="h-8 text-xs" onChange={(e) => setLinks((x) => x.map((y, j) => (j === i ? { ...y, label: e.target.value } : y)))} />
+												<Input aria-label="Label link" placeholder="Nama tautan, mis. Link Download" value={l.label} maxLength={80} className="h-8 text-xs" onChange={(e) => setLinks((x) => x.map((y, j) => (j === i ? { ...y, label: e.target.value } : y)))} />
 											</div>
 										);
 									})}

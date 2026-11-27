@@ -1,3 +1,4 @@
+import { sendRouteError } from '../lib/http-error';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { Router } from 'express';
@@ -235,8 +236,7 @@ router.get('/all', async (req, res) => {
 		});
 		res.json({ chats: summaries });
 	} catch (error) {
-		console.error('Error getting all chats:', error);
-		res.status(500).json({ error: 'Internal server error' });
+		sendRouteError(res, error, 'Error getting all chats', { key: 'error' });
 	}
 });
 
@@ -251,8 +251,7 @@ router.post('/new', chatSessionRateLimiter, async (req, res) => {
 		const { apiKeySlot, apiKey, ...safeChat } = chat.toObject() as any;
 		res.json({ chat: safeChat });
 	} catch (error) {
-		console.error('Error creating new chat:', error);
-		res.status(500).json({ error: 'Internal server error' });
+		sendRouteError(res, error, 'Error creating new chat', { key: 'error' });
 	}
 });
 
@@ -272,8 +271,7 @@ router.delete('/:id', chatSessionRateLimiter, async (req, res) => {
 		}
 		res.json({ message: 'Chat deleted successfully' });
 	} catch (error) {
-		console.error('Error deleting chat:', error);
-		res.status(500).json({ error: 'Internal server error' });
+		sendRouteError(res, error, 'Error deleting chat', { key: 'error' });
 	}
 });
 
@@ -298,8 +296,7 @@ router.get('/:id/messages', async (req, res) => {
 		}
 		res.json({ messages: chat.messages || [] });
 	} catch (error) {
-		console.error('Error getting chat messages:', error);
-		res.status(500).json({ error: 'Internal server error' });
+		sendRouteError(res, error, 'Error getting chat messages', { key: 'error' });
 	}
 });
 
@@ -319,8 +316,7 @@ router.get('/history', async (req, res) => {
 		// Don't send chat object, only messages history
 		res.json({ history });
 	} catch (error) {
-		console.error('Error getting chat history:', error);
-		res.status(500).json({ error: 'Internal server error' });
+		sendRouteError(res, error, 'Error getting chat history', { key: 'error' });
 	}
 });
 
@@ -603,8 +599,7 @@ router.delete('/', chatSessionRateLimiter, async (req, res) => {
 		res.clearCookie('userId');
 		res.json({ message: 'All chats deleted successfully' });
 	} catch (error) {
-		console.error('Error deleting all chats:', error);
-		res.status(500).json({ error: 'Internal server error' });
+		sendRouteError(res, error, 'Error deleting all chats', { key: 'error' });
 	}
 });
 

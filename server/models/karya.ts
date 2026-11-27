@@ -41,6 +41,8 @@ const studentSchema = new Schema(
 		nim: { type: String, default: '' },
 		/** Handle publik unik untuk URL profil /karya/mahasiswa/:username */
 		username: { type: String, required: true, unique: true, lowercase: true, trim: true },
+		/** true setelah mahasiswa memilih/mengonfirmasi username sendiri (onboarding). Username awal dibuat otomatis dari nama. */
+		usernameSet: { type: Boolean, default: false },
 		/** Username lama (setelah diganti) → dialihkan 301 ke username sekarang agar link lama tidak putus */
 		previousUsernames: { type: [String], default: [], index: true },
 		passwordHash: { type: String, default: '' },
@@ -163,6 +165,8 @@ const projectSchema = new Schema(
 		descriptionFormat: { type: String, enum: ['text', 'html'], default: 'text' },
 		role: { type: String, default: '' },
 		category: { type: String, default: 'lainnya' },
+		/** Semua kategori (mis. web + mobile). category = kategori utama (elemen pertama), dipertahankan untuk kompatibilitas. */
+		categories: { type: [String], default: [], index: true },
 		tags: { type: [String], default: [], index: true },
 		year: { type: Number, default: null },
 		repos: { type: [repoSchema], default: [] },
@@ -213,6 +217,9 @@ const settingsSchema = new Schema(
 		shortlinkReview: { type: Boolean, default: true },
 		/** Upload media mandiri diizinkan (bila false hanya link YouTube/Drive/GitHub) */
 		uploadsEnabled: { type: Boolean, default: true },
+		/** Video tutorial Karya TI: YouTube utama, Google Drive cadangan (fallback otomatis seperti video profil) */
+		tutorialYoutubeUrl: { type: String, default: '' },
+		tutorialGdriveUrl: { type: String, default: '' },
 		updatedBy: { type: String, default: '' },
 	},
 	{ timestamps: true },
@@ -226,6 +233,8 @@ export async function getKaryaSettings(): Promise<{
 	reviewMode: 'manual' | 'auto';
 	shortlinkReview: boolean;
 	uploadsEnabled: boolean;
+	tutorialYoutubeUrl: string;
+	tutorialGdriveUrl: string;
 }> {
 	const d: any = (await KaryaSettings.findOne({ key: 'main' }).lean()) || {};
 	return {
@@ -234,6 +243,8 @@ export async function getKaryaSettings(): Promise<{
 		reviewMode: d.reviewMode === 'auto' ? 'auto' : 'manual',
 		shortlinkReview: d.shortlinkReview !== false,
 		uploadsEnabled: d.uploadsEnabled !== false,
+		tutorialYoutubeUrl: d.tutorialYoutubeUrl || '',
+		tutorialGdriveUrl: d.tutorialGdriveUrl || '',
 	};
 }
 

@@ -65,6 +65,7 @@ export function ownStudent(s: any) {
 		nim: s.nim || '',
 		angkatan: angkatanFromNim(s.nim),
 		username: s.username,
+		usernameSet: !!s.usernameSet,
 		name: s.name || '',
 		headline: s.headline || '',
 		bio: s.bio || '',

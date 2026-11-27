@@ -1,4 +1,5 @@
 import { GoogleSignInButton } from '@/components/auth/google-sign-in-button';
+import { PasswordInput } from '@/components/ui/password-input';
 import { KaryaPublicLayout } from '@/components/karya/karya-public-layout';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -278,13 +279,13 @@ export default function KaryaLoginPage() {
 							{mode === 'login' || mode === 'register' || mode === 'reset' || mode === 'onboard' ? (
 								<div className="space-y-1.5">
 									<Label htmlFor="k-pass">{mode === 'login' ? 'Password' : 'Password (min. 8 karakter)'}</Label>
-									<Input id="k-pass" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 8} />
+									<PasswordInput id="k-pass" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required minLength={mode === 'login' ? 1 : 8} />
 								</div>
 							) : null}
 							{mode === 'register' || mode === 'onboard' ? (
 								<div className="space-y-1.5">
 									<Label htmlFor="k-confirm">Ulangi password</Label>
-									<Input id="k-confirm" type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required />
+									<PasswordInput id="k-confirm" value={confirm} onChange={(e) => setConfirm(e.target.value)} autoComplete="new-password" required />
 								</div>
 							) : null}
 

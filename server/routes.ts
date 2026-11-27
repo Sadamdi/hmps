@@ -55,6 +55,8 @@ import chatRouter from './routes/chat';
 import { createPublicRateLimiter as createIdentifyRateLimiter } from './middleware/public-rate-limit';
 import buyerRouter from './routes/buyer';
 import karyaRouter from './routes/karya';
+import embedDomainsRouter from './routes/embed-domains';
+import { setEmbedAllowlistChangeHook } from './services/embed-domain-analysis';
 import verifyRouter from './routes/verify';
 import aiEnhanceRouter from './routes/ai-enhance';
 import commentRouter from './routes/comments';
@@ -112,6 +114,7 @@ import {
 import { getPublisherDisplayName } from './user-display';
 import rateLimit from 'express-rate-limit';
 import { lookupGeo, getRealClientIp } from './lib/geoip';
+import { sendRouteError } from './lib/http-error';
 import { getSystemHealth, getStorageBreakdown } from './lib/system-health';
 import { getProcessSnapshot, type ProcessRow } from './lib/process-monitor';
 import {
@@ -151,6 +154,7 @@ const beritaListPublicCache = new ShortJsonCache(API_BERITA_LIST_CACHE_MS, 48);
 
 const API_SETTINGS_CACHE_MS = envIntRoutes('API_SETTINGS_CACHE_MS', 30000);
 const settingsPublicCache = new ShortJsonCache(API_SETTINGS_CACHE_MS, 32);
+setEmbedAllowlistChangeHook(() => settingsPublicCache.clear());
 
 const API_HOME_IMAGES_ACTIVE_CACHE_MS = envIntRoutes(
 	'API_HOME_IMAGES_ACTIVE_CACHE_MS',
@@ -3637,9 +3641,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				if (req.body.tags) {
 					try {
 						tags = JSON.parse(req.body.tags);
-					} catch (error) {
-						console.error('Error parsing tags:', error);
-						tags = [];
+					} catch {
+						// Bukan JSON (mis. "STATIK 2025, lomba"): pakai pemisah koma.
+						tags = String(req.body.tags).split(',').map((t) => t.trim()).filter(Boolean).slice(0, 30);
 					}
 				}
 
@@ -4079,8 +4083,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						if (Array.isArray(parsed)) {
 							tags = parsed;
 						}
-					} catch (error) {
-						console.error('Error parsing tags on update:', error);
+					} catch {
+						tags = String(req.body.tags).split(',').map((t) => t.trim()).filter(Boolean).slice(0, 30);
 					}
 				}
 
@@ -4366,8 +4370,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 			} catch (error) {
-				console.error('Update berita error:', error);
-				res.status(500).json({ message: 'Internal server error' });
+				sendRouteError(res, error, 'Update berita error');
 			}
 		},
 	);
@@ -5065,8 +5068,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 			} catch (error) {
-				console.error('Create library item error:', error);
-				res.status(500).json({ message: 'Internal server error' });
+				sendRouteError(res, error, 'Create library item error');
 			}
 		},
 	);
@@ -6245,6 +6247,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 				delete body.lastSocialFeedSyncAt;
 				delete body.socialFeedLogs;
 
+				// Allowlist embed pintar: domain yang diizinkan lewat analisis/panel admin tidak boleh hilang
+				// hanya karena form Settings yang terbuka memakai daftar lama. Hapus domain lewat panel (Blokir).
+				if (Array.isArray(body.embedAllowedHosts)) {
+					const { EmbedDomain } = await import('./services/embed-domain-analysis');
+					const kept: any[] = await EmbedDomain.find({ status: 'allowed' }).select('host').lean();
+					const blocked: any[] = await EmbedDomain.find({ status: { $in: ['blocked', 'noframe'] } }).select('host').lean();
+					const blockedSet = new Set(blocked.map((d) => d.host));
+					const merged = new Set<string>();
+					for (const h of [...body.embedAllowedHosts, ...kept.map((d) => d.host)]) {
+						const v = String(h || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+						if (v && !blockedSet.has(v)) merged.add(v);
+					}
+					body.embedAllowedHosts = Array.from(merged).slice(0, 500);
+				}
+
 				// Auto-convert mapsLocationInput → mapsEmbedUrl
 				if (typeof body.mapsLocationInput === 'string') {
 					const input = body.mapsLocationInput.trim();
@@ -6630,7 +6647,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					.json({ message: 'Timeout saat mengambil dokumen preview' });
 			}
 			console.error('Prodi preview proxy error:', error);
-			return res.status(500).json({ message: 'Gagal memuat preview dokumen' });
+			return res.status(502).json({ message: 'Gagal memuat preview dokumen' });
 		}
 	});
 
@@ -9014,6 +9031,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 	app.use('/api/buyer', buyerRouter);
 	// Karya Mahasiswa TI (akun mahasiswa terpisah dari staf & pembeli; situs utama saja)
 	app.use('/api/karya', karyaRouter);
+	app.use('/api/embed-domains', embedDomainsRouter);
 	// Info link verifikasi email (kode + link sekali pakai)
 	app.use('/api/verify', verifyRouter);
 	// Shortlink mahasiswa /go/:slug → 302 (hanya yang aktif, pemilik aktif, fitur aktif). Tidak ada → lanjut ke SPA (404).
@@ -10643,7 +10661,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 					}
 				}
 			} catch (error) {
-				console.error('Error creating event:', error);
 				if (createdEventId) {
 					try {
 						await resolveStorage(req).deleteEvent(createdEventId);
@@ -10664,7 +10681,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 						);
 					} catch {}
 				}
-				res.status(500).json({ message: 'Internal server error' });
+				sendRouteError(res, error, 'Error creating event');
 			}
 		},
 	);

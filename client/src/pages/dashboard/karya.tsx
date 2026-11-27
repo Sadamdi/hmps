@@ -20,7 +20,7 @@ import { apiErrorText, apiRequest } from '@/lib/queryClient';
 import { KARYA_STATUS_LABEL, formatBytes, type KaryaStatus } from '@shared/karya';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Ban, CheckCircle2, ExternalLink, EyeOff, Loader2, PauseCircle, Search, Star, Trash2, UserPlus, UserRound } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { KaryaOwnProject, KaryaStudentAccount, KaryaWarning } from '@/hooks/use-karya';
 
 type AdminStudent = KaryaStudentAccount & { status: string; suspendedUntil: string | null; moderationReason: string; lastLoginAt: string | null; projectCount?: number };
@@ -165,7 +165,7 @@ function StudentDetailDialog({ id, onClose, canManage, onWarn }: { id: string | 
 }
 
 type AdminShortlink = { id: string; slug: string; targetUrl: string; status: string; clicks: number; reviewNote: string; student: { name: string; email: string; username: string } | null };
-type Settings = { enabled: boolean; registrationOpen: boolean; reviewMode: 'manual' | 'auto'; shortlinkReview: boolean; uploadsEnabled: boolean };
+type Settings = { enabled: boolean; registrationOpen: boolean; reviewMode: 'manual' | 'auto'; shortlinkReview: boolean; uploadsEnabled: boolean; tutorialYoutubeUrl?: string; tutorialGdriveUrl?: string };
 
 async function adminGet<T>(path: string): Promise<{ data: T; meta?: { total: number; page: number; limit: number } }> {
 	const r = await fetch(`/api/karya/admin${path}`, { credentials: 'include', headers: { Accept: 'application/json' } });
@@ -714,11 +714,49 @@ function SettingsPanel({ canManage }: { canManage: boolean }) {
 					</CardContent>
 				</Card>
 			))}
+			<TutorialVideoSettings data={data} canManage={canManage} onSave={update} />
 			<Card className="lg:col-span-2">
 				<CardContent className="p-4 text-sm text-muted-foreground">
 					Tampilan di beranda (sembunyikan, urutan, gabung menu navbar) diatur di <strong>Settings → Beranda</strong> lewat blok "Karya Mahasiswa TI" dan item navbar "Karya TI".
 				</CardContent>
 			</Card>
 		</div>
+	);
+}
+
+/** Video tutorial Karya TI: dua sumber (YouTube + Google Drive) dengan fallback otomatis, seperti video profil. */
+function TutorialVideoSettings({ data, canManage, onSave }: { data: Settings; canManage: boolean; onSave: (p: Partial<Settings>) => Promise<void> }) {
+	const [yt, setYt] = useState(data.tutorialYoutubeUrl || '');
+	const [gd, setGd] = useState(data.tutorialGdriveUrl || '');
+	useEffect(() => {
+		setYt(data.tutorialYoutubeUrl || '');
+		setGd(data.tutorialGdriveUrl || '');
+	}, [data.tutorialYoutubeUrl, data.tutorialGdriveUrl]);
+	const dirty = yt !== (data.tutorialYoutubeUrl || '') || gd !== (data.tutorialGdriveUrl || '');
+	return (
+		<Card className="lg:col-span-2">
+			<CardHeader>
+				<CardTitle>Video tutorial Karya TI</CardTitle>
+				<CardDescription>
+					Tampil di halaman Karya TI dan Ruang Mahasiswa. Isi salah satu atau keduanya: YouTube diputar duluan, dan bila gagal dimuat
+					(diblokir/jaringan) otomatis pindah ke Google Drive. Drive wajib "Siapa saja yang memiliki link".
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="grid gap-3 sm:grid-cols-2">
+				<div className="space-y-1.5">
+					<Label htmlFor="ks-tut-yt">Link YouTube</Label>
+					<Input id="ks-tut-yt" value={yt} disabled={!canManage} onChange={(e) => setYt(e.target.value.trim())} placeholder="https://youtu.be/…" />
+				</div>
+				<div className="space-y-1.5">
+					<Label htmlFor="ks-tut-gd">Link Google Drive (cadangan)</Label>
+					<Input id="ks-tut-gd" value={gd} disabled={!canManage} onChange={(e) => setGd(e.target.value.trim())} placeholder="https://drive.google.com/file/d/…/view" />
+				</div>
+				<div className="sm:col-span-2">
+					<Button disabled={!canManage || !dirty} onClick={() => onSave({ tutorialYoutubeUrl: yt, tutorialGdriveUrl: gd })}>
+						Simpan video tutorial
+					</Button>
+				</div>
+			</CardContent>
+		</Card>
 	);
 }

@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react';
+import { PasswordInput } from '@/components/ui/password-input';
 import { GraduationCap, Loader2, ShieldCheck, ShoppingBag, UserCog } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -197,12 +198,12 @@ export function UnifiedGoogleDialog({
 							</div>
 							<div className="space-y-1">
 								<Label htmlFor="ob-pw">Password</Label>
-								<Input id="ob-pw" type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={8} required />
+								<PasswordInput id="ob-pw" value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" minLength={8} required />
 								<p className="text-[11px] text-muted-foreground">Minimal 8 karakter. Dipakai juga untuk masuk dengan email.</p>
 							</div>
 							<div className="space-y-1">
 								<Label htmlFor="ob-pw2">Konfirmasi password</Label>
-								<Input id="ob-pw2" type="password" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" required />
+								<PasswordInput id="ob-pw2" value={pw2} onChange={(e) => setPw2(e.target.value)} autoComplete="new-password" required />
 							</div>
 							{error && (
 								<p className="text-sm text-destructive" role="alert">

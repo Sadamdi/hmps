@@ -21,6 +21,8 @@ export interface KaryaWarning {
 }
 
 export interface KaryaStudentAccount {
+	/** false = belum menyelesaikan onboarding username */
+	usernameSet?: boolean;
 	profileReadme?: string;
 	warnings?: KaryaWarning[];
 	id: string;
@@ -54,6 +56,7 @@ export interface KaryaOwnProject {
 	descriptionFormat?: 'text' | 'html';
 	role: string;
 	category: string;
+	categories?: string[];
 	tags: string[];
 	year: number | null;
 	repos: KaryaRepoInfo[];
@@ -78,6 +81,8 @@ export interface KaryaConfig {
 	registrationOpen: boolean;
 	reviewMode: 'manual' | 'auto';
 	uploadsEnabled: boolean;
+	tutorialYoutubeUrl?: string;
+	tutorialGdriveUrl?: string;
 	shortlinkReview: boolean;
 	googleEnabled: boolean;
 	limits: {
@@ -101,6 +106,7 @@ export interface KaryaProjectDetail {
 	description: string;
 	role: string;
 	category: string;
+	categories?: string[];
 	tags: string[];
 	year: number | null;
 	repos: KaryaRepoInfo[];
@@ -195,6 +201,26 @@ export function usePublicProjects(params: { q?: string; tag?: string; category?:
 	});
 	const qs = sp.toString();
 	return useQuery({ queryKey: ['karya-public', qs], queryFn: () => karyaGetList<KaryaProjectCard>(`/public/projects?${qs}`), staleTime: 30_000 });
+}
+
+export interface KaryaStudentListItem {
+	username: string;
+	name: string;
+	angkatan: number | null;
+	headline: string;
+	avatarUrl: string;
+	skills: string[];
+	projectCount: number;
+	topTags: string[];
+}
+
+export function usePublicStudents(params: { q?: string; angkatan?: number; page?: number; limit?: number }, enabled = true) {
+	const sp = new URLSearchParams();
+	Object.entries(params).forEach(([k, v]) => {
+		if (v !== undefined && v !== '' && v !== 0) sp.set(k, String(v));
+	});
+	const qs = sp.toString();
+	return useQuery({ queryKey: ['karya-public-students', qs], queryFn: () => karyaGetList<KaryaStudentListItem>(`/public/students?${qs}`), staleTime: 30_000, enabled });
 }
 
 export function usePublicTags() {

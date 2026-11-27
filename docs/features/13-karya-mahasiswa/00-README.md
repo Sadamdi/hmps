@@ -8,7 +8,7 @@
 **Tenant-Aware**: No — situs utama saja (blok beranda & navbar `karya` disaring dari tenant; slug `karya`/`go` dicadangkan)  
 **Permission Scope**: Public / Mahasiswa (akun terpisah) / Admin (`karya.view`, `karya.manage`)  
 **Since version**: 4.65.0  
-**Last documented version**: 4.68.0  
+**Last documented version**: 4.69.0  
 
 ---
 
@@ -67,6 +67,18 @@ edit karya approved lalu kirim (manual) → pending sampai disetujui ulang
 ```
 
 ---
+
+## Pembaruan 4.69.0
+
+- **Allowlist embed pintar (menggantikan "domain apa pun" di 4.68.0):** domain iframe di luar daftar bawaan/Settings dianalisis SEKALI oleh server (`server/services/embed-domain-analysis.ts`): https, bukan IP/localhost, DNS harus ke IP publik (dicek ulang tiap redirect, anti-SSRF), kata terlarang (judi/dewasa/crack), penyingkat URL & punycode diblokir, respons HTTP, header framing (`X-Frame-Options`/`frame-ancestors`), lalu klasifikasi AI (Gemini) dari judul + cuplikan halaman (dilewati untuk hosting proyek tepercaya seperti *.vercel.app, *.github.io). Hasil disimpan di koleksi `EmbedDomain`: `allowed` otomatis masuk `Settings.embedAllowedHosts` (CSP ikut terbuka), `noframe` → kartu tautan, `blocked` → kartu merah + tampil di **Settings → Domain Embed** untuk ditinjau (Izinkan / Blokir / Kartu tautan / Analisis ulang / Hapus). Domain yang sudah diputuskan tidak dianalisis ulang. Simpan Settings dengan daftar lama tidak menghapus domain yang sudah diizinkan; blokir menghapusnya dari allowlist. Konten karya & README profil dipra-analisis saat disimpan.
+- **Onboarding username:** akun baru (`usernameSet=false`) wajib memilih username: tulis sendiri (cek ketersediaan langsung) atau impor dari link/username GitHub · GitLab · Bitbucket (`POST /me/profile/import`) → username Karya TI = username akun Git, nama/bio/foto/README kosong ikut terisi. Username tetap bisa diganti (link lama dialihkan). Login tetap email + password.
+- **Kategori ganda + deteksi stack:** `categories[]` (maks 3, mis. Mobile + Web); `category` = kategori utama untuk kompatibilitas. Impor repo GitHub membaca bahasa (`/languages`), file root (`pubspec.yaml`, `next.config.*`, `android/`, dll.), topics, dan README (`inferKaryaStack` di `shared/karya-tags.ts`) untuk mengisi kategori & tag otomatis.
+- **Taksonomi tag:** ±330 tag kanonik dalam 15 grup (bahasa, frontend, backend, mobile, runtime, database, AI/ML/LLM, data, cloud/DevOps, game, IoT, desain, keamanan, testing, topik) + alias (`nextjs`→`next.js`, `js`→`javascript`). Editor: penjelajah tag per grup; publik: chip berwarna per grup.
+- **Tautan berlabel:** preset nama tautan (Link Download, Download APK, Google Play, Dokumentasi, Desain Figma, …) atau nama bebas; halaman karya menampilkan tombol dengan ikon sesuai jenis.
+- **Direktori profil mahasiswa:** tab "Profil mahasiswa" di `/karya?lihat=mahasiswa` (cari nama/username/headline/skill, filter angkatan).
+- **Video tutorial:** `KaryaSettings.tutorialYoutubeUrl` + `tutorialGdriveUrl` (Dashboard → Karya → Pengaturan); tampil di `/karya` dan Ruang Mahasiswa memakai komponen video profil (YouTube → fallback Google Drive otomatis).
+- **Kartu karya:** badge semua kategori; gambar pratinjau repo (OG GitHub) tidak lagi terpotong.
+- **Tombol lihat password** di semua form login/daftar/ganti password (mahasiswa, pembeli Encoder Store, verifikasi, onboarding Google).
 
 ## Pembaruan 4.68.0
 

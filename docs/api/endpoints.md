@@ -542,6 +542,9 @@ POST   /api/karya/auth/delete                    # {challengeId, code} → hapus
 PATCH  /api/karya/me/profile                     # name, username, headline, bio, skills[], social{github,gitlab,linkedin,instagram,website,cv}, profilePublic, avatarUrl (hanya avatars.githubusercontent.com / *.googleusercontent.com)
 POST   /api/karya/me/profile/import-github       # {username} → name, bio, website, avatarUrl, githubUrl, profileReadmeHtml (README repo username/username) — tidak menyimpan otomatis
 POST   /api/karya/me/warnings/:id/ack            # tandai peringatan pengurus (akun/karya) sudah dibaca
+GET    /api/karya/me/username-available?u=       # {username, valid, available} — onboarding username
+POST   /api/karya/me/profile/import              # {source: link/username GitHub|GitLab|Bitbucket, provider?} → profil + suggestedUsername/suggestedAvailable (tidak menyimpan)
+GET    /api/karya/public/students?q=&angkatan=&page=  # direktori profil publik (tanpa email/NIM) + projectCount, topTags
 POST   /api/karya/me/avatar                      # multipart file (gambar ≤5 MB → WebP 400px)
 POST   /api/karya/me/content-image               # multipart file: gambar deskripsi rich text (ikut kuota)
 GET    /api/karya/me/projects/:id/preview        # pratinjau karya sendiri (noindex)
@@ -646,3 +649,16 @@ Sitemap helper: `server/services/seo-sitemap.ts` (image/video namespaces for Goo
 ---
 
 *Terakhir diperbarui: 2026-11-26*
+
+
+## Embed Domains (allowlist pintar, 4.69.0)
+
+```text
+POST   /api/embed-domains/resolve                # publik, rate-limit 30/menit/IP · {urls[≤20]} → {host: {status, reason}}; host baru dianalisis SEKALI
+GET    /api/embed-domains?status=&q=             # settings.view · daftar hasil analisis + meta jumlah per status
+POST   /api/embed-domains/:host/decision         # settings.edit · {status: allowed|blocked|noframe, reason?}
+POST   /api/embed-domains/:host/reanalyze        # settings.edit · analisis ulang manual
+DELETE /api/embed-domains/:host                  # settings.edit · hapus catatan (+ keluar dari allowlist)
+```
+
+Status: `allowed` (otomatis masuk `Settings.embedAllowedHosts` → CSP frame-src), `noframe` (aman tapi menolak iframe → kartu tautan), `blocked` (gagal pemeriksaan → tampil di Settings → Domain Embed), `pending`.

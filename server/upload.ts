@@ -1375,7 +1375,11 @@ export async function cleanupBeritaImages(
 		try {
 			if (!fs.existsSync(cleanupDir)) continue;
 
-			const files = fs.readdirSync(cleanupDir);
+			// Hanya file; subfolder (mis. attachments/) dikelola terpisah — unlink folder = EISDIR.
+			const files = fs
+				.readdirSync(cleanupDir, { withFileTypes: true })
+				.filter((d) => d.isFile())
+				.map((d) => d.name);
 			console.log(`📂 Found ${files.length} files in ${cleanupDir}`);
 
 			if (usedImageUrls.length === 0) {

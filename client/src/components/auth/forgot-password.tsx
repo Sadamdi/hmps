@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/button';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
@@ -349,9 +350,8 @@ export default function ForgotPassword() {
 									className="text-sm font-medium">
 									Konfirmasi Password
 								</Label>
-								<Input
+								<PasswordInput
 									id="confirmPassword"
-									type="password"
 									value={confirmPassword}
 									onChange={(e) => setConfirmPassword(e.target.value)}
 									placeholder="Masukkan ulang password"
