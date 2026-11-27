@@ -136,7 +136,7 @@ export function KaryaDetailView({ p }: { p: KaryaProjectDetail }) {
 			<div className="min-w-0 space-y-6">
 				{p.preview ? (
 					<div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
-						<strong>Pratinjau</strong> — hanya kamu yang melihat halaman ini. Status: {p.status ? KARYA_STATUS_LABEL[p.status] : '-'}, {p.visibility === 'public' ? 'Publik' : 'Privat'}.
+						<strong>Pratinjau.</strong> Halaman ini hanya terlihat oleh Anda. Status: {p.status ? KARYA_STATUS_LABEL[p.status] : '-'}, {p.visibility === 'public' ? 'Publik' : 'Privat'}.
 					</div>
 				) : null}
 				<header className="space-y-3">

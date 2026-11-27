@@ -131,7 +131,7 @@ export default function VerifikasiPage() {
 							<Alert variant="destructive">
 								<AlertTriangle className="h-4 w-4" />
 								<AlertTitle>Link tidak valid</AlertTitle>
-								<AlertDescription>Salin ulang link dari email, atau masukkan kode 6 digit di halaman tempat kamu memintanya.</AlertDescription>
+								<AlertDescription>Salin ulang link dari email, atau masukkan kode 6 digit di halaman tempat Anda memintanya.</AlertDescription>
 							</Alert>
 						) : null}
 						{!validParams ? (
@@ -160,7 +160,7 @@ export default function VerifikasiPage() {
 								<AlertTitle>{info.state === 'replaced' ? 'Link ini sudah diganti yang lebih baru' : info.state === 'used' ? 'Kode/link ini sudah dipakai' : info.state === 'locked' ? 'Terlalu banyak percobaan salah' : 'Link sudah kedaluwarsa'}</AlertTitle>
 								<AlertDescription>
 									{info.state === 'replaced'
-										? 'Kamu sudah meminta kode/link baru, jadi yang ini tidak berlaku. Buka email paling baru — atau kirim ulang di bawah.'
+										? 'Kode atau tautan ini sudah digantikan oleh yang lebih baru. Gunakan email terbaru atau kirim ulang.'
 										: info.state === 'used'
 										? 'Kode dan link hanya bisa dipakai sekali; memakai salah satunya membatalkan yang lain. Bila prosesnya belum selesai, minta kode/link baru.'
 										: 'Minta kode/link baru di bawah.'}
@@ -169,7 +169,7 @@ export default function VerifikasiPage() {
 						) : direct ? (
 							<form onSubmit={run} className="space-y-4">
 								<p className="text-sm text-muted-foreground">
-									Kamu akan {info.action}. Link ini berlaku sampai <strong className="text-foreground">{wib(info.expiresAt)}</strong> dan hanya bisa dipakai sekali.
+									Anda akan {info.action}. Link ini berlaku sampai <strong className="text-foreground">{wib(info.expiresAt)}</strong> dan hanya bisa dipakai sekali.
 								</p>
 								{direct.kind === 'password' ? (
 									<>
@@ -201,13 +201,13 @@ export default function VerifikasiPage() {
 						) : origin ? (
 							<div className="space-y-4">
 								<p className="text-sm text-muted-foreground">
-									Proses ini diselesaikan di halaman asalnya: <strong className="text-foreground">{origin.where}</strong>. Tekan tombol di bawah — kode akan terisi otomatis di tab yang masih terbuka.
+									Proses ini diselesaikan di halaman asalnya: <strong className="text-foreground">{origin.where}</strong>. Tekan tombol di bawah untuk melanjutkan di tab tersebut.
 								</p>
 								{stashed ? (
 									<Alert>
 										<CheckCircle2 className="h-4 w-4" />
 										<AlertTitle>Kode dikirim ke tab asal</AlertTitle>
-										<AlertDescription>Kembali ke tab tempat kamu meminta kode; kolom kode sudah terisi. Tab asal sudah tertutup? Buka halamannya lalu minta kode baru.</AlertDescription>
+										<AlertDescription>Kembali ke tab tempat Anda meminta kode; kolom kode sudah terisi. Tab asal sudah tertutup? Buka halamannya lalu minta kode baru.</AlertDescription>
 									</Alert>
 								) : (
 									<Button className="h-11 w-full bg-gradient-to-r from-blue-500 to-cyan-500 text-white hover:opacity-90" onClick={sendToOrigin}>
@@ -219,7 +219,7 @@ export default function VerifikasiPage() {
 								</Button>
 							</div>
 						) : (
-							<p className="text-sm text-muted-foreground">Masukkan kode 6 digit dari email di halaman tempat kamu memintanya.</p>
+							<p className="text-sm text-muted-foreground">Masukkan kode 6 digit dari email di halaman tempat Anda memintanya.</p>
 						)}
 						{validParams && !isLoading && !done && (infoErr || !info || info.state !== 'ready') ? <ResendVerification purpose={info?.purpose || null} /> : null}
 					</CardContent>
@@ -314,7 +314,7 @@ function ResendVerification({ purpose }: { purpose: string | null }) {
 				{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MailCheck className="mr-2 h-4 w-4" />} Kirim ulang verifikasi
 			</Button>
 			<p className="text-xs text-muted-foreground">
-				Akun sudah aktif? <Link href="/login" className="text-primary hover:underline">Masuk di sini</Link>. Kode & link baru otomatis membatalkan yang lama — selalu pakai email paling baru. Berlaku 24 jam (mahasiswa) / 60 menit (pembeli).
+				Akun sudah aktif? <Link href="/login" className="text-primary hover:underline">Masuk di sini</Link>. Kode dan tautan baru membatalkan yang lama; gunakan email terbaru. Berlaku 24 jam (mahasiswa) / 60 menit (pembeli).
 			</p>
 		</form>
 	);

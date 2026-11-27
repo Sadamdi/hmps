@@ -19,8 +19,8 @@ type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'onboard';
 
 const BENEFITS = [
 	'Profil portofolio pribadi yang bisa ditemukan di Google',
-	'Isi otomatis dari repo GitHub, GitLab, atau Bitbucket publik',
-	'Shortlink pribadi himatif-encoder.com/go/nama-kamu',
+	'Ambil info dari repo publik GitHub, GitLab, atau Bitbucket',
+	'Shortlink pribadi himatif-encoder.com/go/nama-Anda',
 ];
 
 export default function KaryaLoginPage() {
@@ -53,7 +53,7 @@ export default function KaryaLoginPage() {
 	const done = (created?: boolean, student?: KaryaStudentAccount) => {
 		setStudentCache(student);
 		refreshStudent();
-		toast({ title: created ? 'Akun dibuat' : 'Berhasil masuk', description: created ? 'Lengkapi profil lalu tambahkan karya pertamamu.' : undefined });
+		toast({ title: created ? 'Akun dibuat' : 'Berhasil masuk', description: created ? 'Lengkapi profil, lalu tambahkan karya pertama Anda.' : undefined });
 		navigate(next);
 	};
 
@@ -120,7 +120,7 @@ export default function KaryaLoginPage() {
 				if (r?.activation) sessionStorage.setItem('karya-activation', JSON.stringify(r.activation));
 				setStudentCache(r?.student);
 				refreshStudent();
-				toast({ title: 'Akun dibuat', description: 'Cek email kampusmu untuk aktivasi (kode atau link, berlaku 24 jam). Sebelum aktivasi, karya hanya bisa disimpan privat.' });
+				toast({ title: 'Akun dibuat', description: 'Cek email kampus Anda untuk aktivasi (kode atau link, berlaku 24 jam). Sebelum aktivasi, karya hanya bisa disimpan privat.' });
 				navigate(next);
 			});
 		}
@@ -140,7 +140,7 @@ export default function KaryaLoginPage() {
 			});
 		}
 		if (mode === 'reset') {
-			if (!challengeId) return setError('Email tidak terdaftar atau kode belum dikirim. Periksa email kamu.');
+			if (!challengeId) return setError('Email tidak terdaftar atau kode belum dikirim. Periksa email Anda.');
 			return run(async () => {
 				const r = await karyaApi<{ student?: KaryaStudentAccount }>('POST', '/auth/password/reset', { challengeId, code, newPassword: password });
 				done(false, r?.student);
@@ -156,12 +156,12 @@ export default function KaryaLoginPage() {
 	};
 
 	const titles: Record<Mode, { t: string; d: string }> = {
-		login: { t: 'Masuk mahasiswa TI', d: 'Kelola profil, karya, dan shortlink kamu.' },
+		login: { t: 'Masuk mahasiswa TI', d: 'Kelola profil, karya, dan shortlink Anda.' },
 		register: { t: 'Daftar akun mahasiswa TI', d: `Khusus email kampus NIM@${KARYA_STUDENT_EMAIL_DOMAIN}. Setelah daftar, aktivasi lewat email untuk mempublikasikan karya.` },
 		verify: { t: 'Verifikasi email', d: `Masukkan kode 6 digit yang dikirim ke ${email}.` },
-		forgot: { t: 'Lupa / atur password', d: 'Kami kirim kode dan link sekali pakai ke email akunmu (berlaku 10 menit). Pakai salah satunya.' },
+		forgot: { t: 'Lupa / atur password', d: 'Kami kirim kode dan link sekali pakai ke email akun Anda (berlaku 10 menit). Pakai salah satunya.' },
 		reset: { t: 'Password baru', d: `Masukkan kode dari email ${email} dan password baru.` },
-		onboard: { t: 'Lengkapi akun', d: 'Akun Google kamu cocok. Buat password untuk masuk tanpa Google juga.' },
+		onboard: { t: 'Lengkapi akun', d: 'Akun Google Anda cocok. Buat password untuk masuk tanpa Google juga.' },
 	};
 
 	const registrationClosed = config?.registrationOpen === false;
@@ -180,7 +180,7 @@ export default function KaryaLoginPage() {
 					<span className="inline-flex items-center gap-2 px-3 py-1 mb-4 text-xs font-semibold tracking-widest rounded-full bg-primary/10 border border-primary/30 text-primary uppercase">
 						<ShieldCheck className="h-3.5 w-3.5" /> Khusus mahasiswa TI
 					</span>
-					<h1 className="text-3xl font-bold tracking-tight text-foreground">Pajang karyamu di website Himatif Encoder</h1>
+					<h1 className="text-3xl font-bold tracking-tight text-foreground">Pajang karya Anda di website Himatif Encoder</h1>
 					<p className="mt-3 text-muted-foreground leading-7">
 						Akun ini terpisah dari akun pengurus dan akun toko. Hanya mahasiswa Teknik Informatika UIN Malang (angkatan berapa pun) dengan email kampus
 						yang bisa mendaftar.
@@ -213,8 +213,8 @@ export default function KaryaLoginPage() {
 
 						{params.get('google') === '1' && mode === 'register' ? (
 							<Alert>
-								<AlertTitle>Email kampusmu belum punya akun Karya</AlertTitle>
-								<AlertDescription>Tekan "Daftar dengan Google kampus" untuk membuat akun (otomatis terverifikasi).</AlertDescription>
+								<AlertTitle>Email kampus Anda belum punya akun Karya</AlertTitle>
+								<AlertDescription>Tekan "Daftar dengan Google kampus" untuk membuat akun yang langsung terverifikasi.</AlertDescription>
 							</Alert>
 						) : null}
 

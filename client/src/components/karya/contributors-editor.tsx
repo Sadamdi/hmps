@@ -70,7 +70,7 @@ export function ContributorsEditor({
 			if (rows.some((r) => r.key === c.key)) setMsg({ ok: false, text: `${c.name} sudah ada di daftar` });
 			else {
 				onChange([...rows, candidateToRow(c, 'manual')]);
-				setMsg({ ok: true, text: c.hasAccount ? `${c.name} ditambahkan — karya ini akan muncul di profil Karya TI-nya` : `${c.name} (GitHub) ditambahkan — otomatis tertaut bila nanti membuat akun Karya TI` });
+				setMsg({ ok: true, text: c.hasAccount ? `${c.name} ditambahkan. Karya ini akan tampil di profilnya.` : `${c.name} (GitHub) ditambahkan. Akan tertaut bila ia membuat akun.` });
 				setInput('');
 			}
 		} catch (e) {
@@ -150,7 +150,7 @@ export function ContributorsEditor({
 				</ul>
 			) : (
 				<p className="text-xs text-muted-foreground">
-					Belum ada kontributor. {hasGithubRepo ? 'Contributor repo GitHub otomatis ditambahkan saat info repo diambil.' : 'Kerja tim? Tambahkan teman satu timmu di sini.'}
+					Belum ada kontributor. {hasGithubRepo ? 'Kontributor repo GitHub ditambahkan saat info repo diambil.' : 'Tambahkan anggota tim bila karya dibuat bersama.'}
 				</p>
 			)}
 		</div>

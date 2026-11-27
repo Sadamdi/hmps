@@ -106,7 +106,7 @@ export function UsernameOnboarding({ student }: { student: KaryaStudentAccount }
 			const extra = imported && tab === 'import' ? buildProfilePatchFromImport(imported, student) : {};
 			await karyaApi('PATCH', '/me/profile', { ...extra, username: u });
 			refreshStudent();
-			toast({ title: 'Username disimpan', description: `Profil publikmu: /ruang-mahasiswa/mahasiswa/${u}` });
+			toast({ title: 'Username disimpan', description: `Profil publik Anda: /ruang-mahasiswa/mahasiswa/${u}` });
 		} catch (e) {
 			toast({ title: 'Gagal menyimpan', description: apiErrorText(e, 'Coba username lain'), variant: 'destructive' });
 		} finally {
@@ -121,7 +121,7 @@ export function UsernameOnboarding({ student }: { student: KaryaStudentAccount }
 			: check.checking
 				? { ok: null, text: 'Memeriksa…' }
 				: check.available === false
-					? { ok: false, text: 'Sudah dipakai — coba variasi lain' }
+					? { ok: false, text: 'Username sudah dipakai' }
 					: check.available
 						? { ok: true, text: 'Tersedia' }
 						: null;
@@ -136,7 +136,7 @@ export function UsernameOnboarding({ student }: { student: KaryaStudentAccount }
 					value={username}
 					onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, '-'))}
 					className="h-9 min-w-0 flex-1 bg-transparent px-1 outline-none"
-					placeholder="username-kamu"
+					placeholder="username-Anda"
 					autoComplete="off"
 					maxLength={30}
 				/>
@@ -154,9 +154,9 @@ export function UsernameOnboarding({ student }: { student: KaryaStudentAccount }
 		<Dialog open={open} onOpenChange={() => { /* wajib diselesaikan */ }}>
 			<DialogContent className="w-[calc(100vw-2rem)] max-w-lg [&>button.absolute]:hidden" onEscapeKeyDown={(e) => e.preventDefault()} onPointerDownOutside={(e) => e.preventDefault()}>
 				<DialogHeader>
-					<DialogTitle>Buat username dulu, yuk</DialogTitle>
+					<DialogTitle>Atur username</DialogTitle>
 					<DialogDescription>
-						Username jadi alamat profil publikmu dan bisa diganti kapan saja di tab Profil (link lama otomatis dialihkan). Login tetap
+						Username menjadi alamat profil publik dan dapat diubah di tab Profil; alamat lama akan dialihkan. Login tetap
 						memakai <strong>email kampus + password</strong>, bukan username.
 					</DialogDescription>
 				</DialogHeader>
@@ -168,7 +168,7 @@ export function UsernameOnboarding({ student }: { student: KaryaStudentAccount }
 					<TabsContent value="import" className="space-y-3 pt-2">
 						<p className="text-xs text-muted-foreground">
 							Tempel link profil (github.com/…, gitlab.com/…, bitbucket.org/…) atau ketik username dan pilih layanannya. Username Karya TI
-							otomatis sama dengan username akunmu, dan nama/bio/foto/README yang masih kosong ikut terisi.
+							mengikuti username akun tersebut. Nama, bio, foto, dan README yang masih kosong ikut diisi.
 						</p>
 						<div className="flex gap-1.5">
 							{(['github', 'gitlab', 'bitbucket'] as Provider[]).map((p) => (

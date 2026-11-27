@@ -235,7 +235,7 @@ export function BuyerSessionsSection({ onLogout }: { onLogout?: () => void }) {
 				<div>
 					<CardTitle className="text-base">Perangkat yang masuk</CardTitle>
 					<CardDescription>
-						Keluarkan perangkat yang tidak kamu kenali. Akun dibuat {fmtDate(buyer?.createdAt)} · login sebelumnya {buyer?.previousLoginAt ? fmtDate(buyer.previousLoginAt) : 'ini login pertamamu'}.
+						Keluarkan perangkat yang tidak Anda kenali. Akun dibuat {fmtDate(buyer?.createdAt)} · login sebelumnya {buyer?.previousLoginAt ? fmtDate(buyer.previousLoginAt) : 'ini login pertamamu'}.
 					</CardDescription>
 				</div>
 				{data.length > 1 && (

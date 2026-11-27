@@ -27,7 +27,7 @@ export default function KaryaProfilePreviewPage() {
 					<div className="mx-auto max-w-6xl px-4 pt-6 sm:px-6 lg:px-8">
 						<div className="flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">
 							<span className="flex-1">
-								<strong>Pratinjau</strong> — begini profilmu terlihat oleh pengunjung.{' '}
+								<strong>Pratinjau.</strong> Tampilan profil Anda bagi pengunjung.{' '}
 								{data.visible
 									? 'Profil sudah tampil publik.'
 									: student && !student.emailVerified

@@ -204,7 +204,7 @@ function ProjectsTab({ student }: { student: KaryaStudentAccount }) {
 
 			{profileScore < 5 ? (
 				<div className="rounded-xl border border-primary/30 bg-primary/5 p-4 text-sm text-foreground">
-					Lengkapi profil (foto, headline, bio, skill, tautan) agar profilmu menarik saat tampil publik.
+					Lengkapi profil (foto, headline, bio, skill, tautan) agar profil Anda menarik saat tampil publik.
 				</div>
 			) : null}
 
@@ -225,7 +225,7 @@ function ProjectsTab({ student }: { student: KaryaStudentAccount }) {
 				<Card>
 					<CardContent className="py-12 text-center">
 						<p className="font-semibold text-foreground">Belum ada karya</p>
-						<p className="mt-1 text-sm text-muted-foreground">Mulai dari link repo GitHub atau video YouTube proyekmu.</p>
+						<p className="mt-1 text-sm text-muted-foreground">Mulai dari link repo GitHub atau video YouTube proyek Anda.</p>
 						<Button asChild className="mt-4">
 							<Link href={KARYA_PATHS.newProject}>Tambah karya pertama</Link>
 						</Button>
@@ -395,7 +395,7 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 						<Button type="button" size="sm" variant="ghost" onClick={useGithubAvatar} disabled={!ghUser.trim()}>
 							Pakai foto GitHub
 						</Button>
-						<span className="w-full text-xs text-muted-foreground">Mengisi kolom yang masih kosong (nama, bio, headline, website, link GitHub). Masuk dengan Google kampus otomatis memakai foto Google bila belum ada foto.</span>
+						<span className="w-full text-xs text-muted-foreground">Mengisi kolom yang masih kosong: nama, bio, headline, website, dan tautan GitHub.</span>
 					</div>
 					<CardDescription>
 						Alamat profil: /ruang-mahasiswa/mahasiswa/{form.username || student.username}. Tampil publik bila diset Publik dan email sudah diaktivasi, walau belum ada karya.
@@ -448,14 +448,14 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 								<FileUp className="mr-1 h-3.5 w-3.5" /> Unggah README.md
 							</Button>
 						</div>
-						<p className="text-xs text-muted-foreground">Tampil di profil publik di bawah bio, seperti README di github.com/username. "Impor dari GitHub" otomatis mengisi dari repo <code>username/username</code> bila ada. Gambar &amp; statistik (mis. github-readme-stats) dari domain https apa pun ikut tampil.</p>
+						<p className="text-xs text-muted-foreground">Tampil di profil publik di bawah bio, seperti README di github.com/username. "Impor dari GitHub" mengambil isi dari repo <code>username/username</code> bila tersedia. Gambar &amp; statistik (mis. github-readme-stats) dari domain https apa pun ikut tampil.</p>
 						<RichTextEditor value={form.profileReadme} onChange={(v) => setForm((x) => ({ ...x, profileReadme: v }))} height={420} placeholder="Tentang aku, tech stack, statistik GitHub…" uploadEndpoint="/api/karya/me/content-image" />
 						</div>
 						<AlertDialog open={!!readmeFile} onOpenChange={(o) => { if (!o) { setReadmeFile(null); if (mdRef.current) mdRef.current.value = ''; } }}>
 							<AlertDialogContent>
 								<AlertDialogHeader>
 									<AlertDialogTitle>Timpa README profil?</AlertDialogTitle>
-									<AlertDialogDescription>README profilmu sudah berisi. Mengunggah {readmeFile?.name} akan menggantikan seluruh isinya.</AlertDialogDescription>
+									<AlertDialogDescription>README profil Anda sudah berisi. Mengunggah {readmeFile?.name} akan menggantikan seluruh isinya.</AlertDialogDescription>
 								</AlertDialogHeader>
 								<AlertDialogFooter>
 									<AlertDialogCancel>Batal</AlertDialogCancel>
@@ -474,7 +474,7 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 						<Button type="button" variant="outline" onClick={() => fileRef.current?.click()} disabled={uploading}>
 							{uploading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Camera className="mr-2 h-4 w-4" />} Ganti foto
 						</Button>
-						<p className="text-center text-xs text-muted-foreground">JPG/PNG/WebP maks 5 MB, otomatis dikompres.</p>
+						<p className="text-center text-xs text-muted-foreground">JPG, PNG, atau WebP, maks. 5 MB.</p>
 					</CardContent>
 				</Card>
 				<Card>
@@ -483,7 +483,7 @@ function ProfileTab({ student }: { student: KaryaStudentAccount }) {
 							<Label htmlFor="p-public" className="font-semibold">
 								Profil publik
 							</Label>
-							<p className="text-xs text-muted-foreground">Publik: siapa pun bisa membuka profilmu walau belum ada karya. Privat: profil tersembunyi (karya publik tetap tampil, tanpa link ke profil).</p>
+							<p className="text-xs text-muted-foreground">Publik: siapa pun bisa membuka profil Anda walau belum ada karya. Privat: profil tersembunyi (karya publik tetap tampil, tanpa link ke profil).</p>
 						</div>
 						<Switch id="p-public" checked={form.profilePublic} onCheckedChange={(v) => setForm({ ...form, profilePublic: v })} />
 					</CardContent>
@@ -535,8 +535,8 @@ function ShortlinkTab() {
 				<CardHeader>
 					<CardTitle>Buat shortlink</CardTitle>
 					<CardDescription className="space-y-2">
-						<span className="block">Shortlink = alamat pendek <strong>himatif-encoder.com/go/nama-kamu</strong> yang langsung mengalihkan pengunjung ke URL tujuanmu (CV, LinkedIn, portofolio, demo).</span>
-						<span className="block">Cara kerja: kamu buat → {config?.shortlinkReview ? 'menunggu persetujuan pengurus →' : ''} aktif → siapa pun yang membuka alamat pendek itu dialihkan ke tujuan, dan jumlah klik tercatat. Shortlink aktif pertama juga tampil di profil publikmu. Pengurus bisa menonaktifkan shortlink yang melanggar.</span>
+						<span className="block">Shortlink = alamat pendek <strong>himatif-encoder.com/go/nama-Anda</strong> yang langsung mengalihkan pengunjung ke URL tujuan Anda (CV, LinkedIn, portofolio, demo).</span>
+						<span className="block">Cara kerja: Dibuat → {config?.shortlinkReview ? 'menunggu persetujuan pengurus →' : ''} aktif → siapa pun yang membuka alamat pendek itu dialihkan ke tujuan, dan jumlah klik tercatat. Shortlink aktif pertama juga tampil di profil publik Anda. Pengurus bisa menonaktifkan shortlink yang melanggar.</span>
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -555,7 +555,7 @@ function ShortlinkTab() {
 						<Button type="submit" className="w-full" disabled={busy}>
 							{busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null} Buat shortlink
 						</Button>
-						<p className="text-xs text-muted-foreground">Maks {config?.limits.maxShortlinksPerStudent ?? 10} shortlink. Shortlink pertama yang aktif tampil di profil publikmu.</p>
+						<p className="text-xs text-muted-foreground">Maks {config?.limits.maxShortlinksPerStudent ?? 10} shortlink. Shortlink pertama yang aktif tampil di profil publik Anda.</p>
 					</form>
 				</CardContent>
 			</Card>
@@ -620,7 +620,7 @@ function WarningsBanner({ student }: { student: KaryaStudentAccount }) {
 	const { toast } = useToast();
 	const { data: projects } = useMyProjects();
 	const list: Array<KaryaWarning & { target: string }> = [
-		...(student.warnings || []).map((w) => ({ ...w, target: 'Akun kamu' })),
+		...(student.warnings || []).map((w) => ({ ...w, target: 'Akun Anda' })),
 		...((projects || []) as KaryaOwnProject[]).flatMap((p) => (p.warnings || []).map((w) => ({ ...w, target: `Karya "${p.title}"` }))),
 	].filter((w) => !w.acknowledgedAt);
 	if (!list.length) return null;
@@ -669,8 +669,8 @@ function MyContributions() {
 	return (
 		<Card className="mt-6">
 			<CardHeader>
-				<CardTitle className="text-base">Karya tempat kamu jadi kontributor</CardTitle>
-				<CardDescription>Ditambahkan pemilik karya atau otomatis dari contributor repo GitHub (lewat link GitHub di profilmu). Karya yang tayang ikut tampil di profilmu.</CardDescription>
+				<CardTitle className="text-base">Karya tempat Anda jadi kontributor</CardTitle>
+				<CardDescription>Ditambahkan oleh pemilik karya atau dari daftar kontributor repo GitHub. Karya yang sudah tayang tampil di profil Anda.</CardDescription>
 			</CardHeader>
 			<CardContent className="space-y-2">
 				{data.map((r) => (
@@ -871,7 +871,7 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 								run('pw', async () => {
 									const r = await karyaApi<{ challengeId: string; expiresAt: string }>('POST', '/auth/password/change', { currentPassword: pw.current, newPassword: pw.next });
 									setChange({ challengeId: r.challengeId, expiresAt: r.expiresAt, code: '' });
-									toast({ title: 'Cek email kamu', description: 'Masukkan kode atau klik link konfirmasi. Password belum berubah sampai dikonfirmasi.' });
+									toast({ title: 'Cek email Anda', description: 'Masukkan kode atau klik link konfirmasi. Password belum berubah sampai dikonfirmasi.' });
 								});
 							}}>
 							<div className="space-y-1.5">
@@ -906,7 +906,7 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 								});
 							}}>
 							<p className="text-sm text-foreground">
-								Kode dikirim ke <strong>{student.email}</strong>, berlaku sampai <strong>{fmtTime(change.expiresAt)}</strong>. Klik link di email juga bisa — memakai salah satunya membatalkan yang lain.
+								Kode dikirim ke <strong>{student.email}</strong>, berlaku sampai <strong>{fmtTime(change.expiresAt)}</strong>. Anda juga dapat menggunakan tautan di email. Setelah salah satu dipakai, yang lain tidak berlaku.
 							</p>
 							<Input aria-label="Kode konfirmasi" inputMode="numeric" maxLength={6} placeholder="Kode 6 digit" value={change.code} onChange={(e) => setChange({ ...change, code: e.target.value.replace(/\D/g, '') })} required />
 							<div className="flex flex-wrap gap-2">
@@ -921,7 +921,7 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 					) : null}
 					<div className="space-y-3 border-t border-border pt-4">
 						<p className="text-sm text-muted-foreground">
-							{student.hasPassword ? 'Lupa password lama?' : 'Akunmu belum punya password (masuk via Google / dibuat pengurus).'} Atur lewat kode atau link ke {student.email} (10 menit).
+							{student.hasPassword ? 'Lupa password lama?' : 'Akun Anda belum punya password (masuk via Google / dibuat pengurus).'} Atur lewat kode atau link ke {student.email} (10 menit).
 						</p>
 						{!reset.challengeId ? (
 							<Button
@@ -964,7 +964,7 @@ function AccountTab({ student, onDeleted }: { student: KaryaStudentAccount; onDe
 					<CardTitle className="flex items-center gap-2">
 						<MonitorSmartphone className="h-5 w-5" /> Perangkat yang masuk
 					</CardTitle>
-					<CardDescription>Periksa perangkat yang sedang masuk ke akunmu. Tidak kenal? Keluarkan, lalu ganti password.</CardDescription>
+					<CardDescription>Periksa perangkat yang sedang masuk ke akun Anda. Tidak kenal? Keluarkan, lalu ganti password.</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3">
 					{(sessions || []).map((s) => (
