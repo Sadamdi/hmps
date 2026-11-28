@@ -113,7 +113,8 @@ export default function Hero({
 	const [showBanner, setShowBanner] = useState(false);
 	const [showPerson, setShowPerson] = useState(false);
 	const [isHeroVisible, setIsHeroVisible] = useState(true);
-	const [combinedAssetsReady, setCombinedAssetsReady] = useState(false);
+	// Menyimpan daftar URL yang sudah siap (bukan boolean) agar status lama tidak terbaca saat daftar baru datang.
+	const [readyAssetsKey, setReadyAssetsKey] = useState<string | null>(null);
 	const [combinedIntroStarted, setCombinedIntroStarted] = useState(false);
 	const [combinedIntroWaveIndex, setCombinedIntroWaveIndex] = useState(-1);
 	const combinedRafRef = useRef(0);
@@ -176,11 +177,6 @@ export default function Hero({
 		refetchInterval: 60000,
 		refetchOnWindowFocus: false,
 		staleTime: 60 * 1000,
-		placeholderData: {
-			berita: 50,
-			libraryItems: 100,
-			organizationMembers: 500,
-		},
 	});
 
 	const slotOrder = useMemo(() => {
@@ -238,6 +234,10 @@ export default function Hero({
 		return Array.from(new Set(urls));
 	}, [desktopMode, slotOrder, versionedBanners, versionedPeople]);
 
+	const combinedAssetsKey = combinedAssetUrls.join('|');
+	const combinedAssetsReady =
+		desktopMode !== 'combined' || readyAssetsKey === combinedAssetsKey;
+
 	const TOP_THRESHOLD = 80;
 
 	// Set isAtTop setelah layout (termasuk scroll ke hash di parent) agar hero tidak animate saat masuk ke section
@@ -274,25 +274,15 @@ export default function Hero({
 	// Preload semua asset combined; cached agar URL yang sudah dimuat
 	// tidak di-fetch ulang saat dependency berubah reference.
 	useEffect(() => {
+		if (desktopMode !== 'combined') return;
 		let cancelled = false;
-		if (desktopMode !== 'combined') {
-			setCombinedAssetsReady(true);
-			return;
-		}
-		if (combinedAssetUrls.length === 0) {
-			setCombinedAssetsReady(true);
-			return;
-		}
-
 		const uncached = combinedAssetUrls.filter(
 			(u) => !preloadCacheRef.current.has(u),
 		);
 		if (uncached.length === 0) {
-			setCombinedAssetsReady(true);
+			setReadyAssetsKey(combinedAssetsKey);
 			return;
 		}
-
-		setCombinedAssetsReady(false);
 		const preloadOne = (src: string) =>
 			new Promise<void>((resolve) => {
 				const img = new Image();
@@ -314,13 +304,13 @@ export default function Hero({
 			});
 
 		Promise.all(uncached.map(preloadOne)).then(() => {
-			if (!cancelled) setCombinedAssetsReady(true);
+			if (!cancelled) setReadyAssetsKey(combinedAssetsKey);
 		});
 
 		return () => {
 			cancelled = true;
 		};
-	}, [desktopMode, combinedAssetUrls]);
+	}, [desktopMode, combinedAssetUrls, combinedAssetsKey]);
 
 	// After containers become visible, wait for browser to paint items in hidden+offset
 	// state, then flip combinedIntroStarted to kick off per-item CSS transitions.
@@ -418,9 +408,8 @@ export default function Hero({
 		if (desktopMode === 'combined' && !combinedAssetsReady) return;
 		if (hasAnimatedRef.current) return;
 
-		hasAnimatedRef.current = true;
-
 		if (reduceIntroMotion) {
+			hasAnimatedRef.current = true;
 			setShowBanner(true);
 			setShowPerson(true);
 			setShowText(true);
@@ -453,6 +442,7 @@ export default function Hero({
 
 		if (isCombinedMode) {
 			const t0 = setTimeout(() => {
+				hasAnimatedRef.current = true;
 				setShowBanner(true);
 				setShowPerson(true);
 				// Muncul barengan dengan animasi masuk visual utama.
@@ -474,6 +464,7 @@ export default function Hero({
 
 		// Text box dan scroll indicator muncul 600ms setelah banner
 		const textTimer = setTimeout(() => {
+			hasAnimatedRef.current = true;
 			setShowText(true);
 			setTextMoveUp(true);
 		}, 600);
@@ -501,6 +492,23 @@ export default function Hero({
 		onIntroSettled,
 		reduceIntroMotion,
 	]);
+
+	// Jaring pengaman: apa pun yang terjadi (gambar lambat, sudah ter-scroll, intro terpotong), hero tidak boleh kosong.
+	useEffect(() => {
+		if (showText && showBanner && showPerson) return;
+		const t = setTimeout(() => {
+			hasAnimatedRef.current = true;
+			for (const el of [bannerRef.current, textRef.current, personRef.current]) {
+				if (el) el.style.opacity = '1';
+			}
+			setShowBanner(true);
+			setShowPerson(true);
+			setShowText(true);
+			setTextMoveUp(true);
+			onIntroSettled?.();
+		}, 2500);
+		return () => clearTimeout(t);
+	}, [showText, showBanner, showPerson, onIntroSettled]);
 
 	return (
 		<div

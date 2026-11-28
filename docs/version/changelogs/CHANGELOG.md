@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.76.1] - 2026-11-28
+
+### Fixed
+- `beranda`: hero desktop tidak lagi kosong saat kunjungan ulang / gambar lambat
+- `beranda`: statistik versi HP tidak lagi menampilkan angka karangan
+
 ## [4.76.0] - 2026-11-28
 
 ### Added
