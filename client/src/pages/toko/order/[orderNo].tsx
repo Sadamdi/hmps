@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -153,7 +154,7 @@ export default function TokoOrderInvoicePage() {
 	};
 
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	return (

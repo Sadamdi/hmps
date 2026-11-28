@@ -462,6 +462,8 @@ function App() {
 		initPageTransitions();
 		// Muat diam-diam kode halaman publik utama saat browser senggang → pindah halaman tanpa spinner.
 		const prefetch = () => {
+			// Data gambar hero beranda disiapkan agar kembali ke beranda langsung tampil.
+			void queryClient.prefetchQuery({ queryKey: ['/api/home-images/active'], staleTime: 30_000 });
 			const pages = [
 				() => import('@/pages/index'),
 				() => import('@/pages/berita/index'),

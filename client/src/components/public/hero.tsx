@@ -101,12 +101,17 @@ export default function Hero({
 	onIntroSettled,
 }: HeroProps) {
 	const { isTenant } = useTenant();
+	// Datang lewat transisi halaman: tampilkan hero langsung, tanpa intro bertahap (agar tidak sempat kosong).
+	const [arrivedInApp] = useState(
+		() => typeof document !== 'undefined' && document.documentElement.hasAttribute('data-vt'),
+	);
 	const reduceIntroMotion = useMemo(
 		() =>
+			arrivedInApp ||
 			typeof window !== 'undefined' &&
 			(window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
 				window.matchMedia('(max-width: 1023px)').matches),
-		[],
+		[arrivedInApp],
 	);
 	const [showText, setShowText] = useState(false);
 	const [textMoveUp, setTextMoveUp] = useState(false);
@@ -405,7 +410,7 @@ export default function Hero({
 	// Trigger animasi intro hanya saat data sudah ready dan scroll di paling atas
 	useEffect(() => {
 		if (!assetsLoaded || !introKey || !isAtTop || !dataReady) return;
-		if (desktopMode === 'combined' && !combinedAssetsReady) return;
+		if (desktopMode === 'combined' && !combinedAssetsReady && !arrivedInApp) return;
 		if (hasAnimatedRef.current) return;
 
 		if (reduceIntroMotion) {

@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -35,7 +36,7 @@ export function KaryaPublicLayout({
 
 	return (
 		<div className="min-h-screen bg-background relative flex flex-col">
-			<Navbar activeSection="karya" scrollToSection={(id) => (window.location.href = `/#${id}`)} />
+			<Navbar activeSection="karya" scrollToSection={(id) => (softNavigate(`/#${id}`))} />
 			{breadcrumb?.length ? (
 				<div className="bg-card border-b border-border pt-16">
 					<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">

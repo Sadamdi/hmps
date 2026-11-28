@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import { openNotifSettings } from '@/components/public/navbar';
 import { useLinkPushIdentity } from '@/lib/push-identity';
@@ -341,7 +342,7 @@ export default function TokoBuyerAccountPage() {
 	};
 
 	const scrollToSection = (id: string) => {
-		window.location.href = basePath ? `${basePath}/#${id}` : `/#${id}`;
+		softNavigate(basePath ? `${basePath}/#${id}` : `/#${id}`);
 	};
 
 	return (

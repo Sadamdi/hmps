@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import CommentThread from '@/components/public/comment-thread';
 import {
@@ -103,7 +104,7 @@ export default function EventDetailPage() {
 	const [attachmentPreview, setAttachmentPreview] = useState<EventAttachmentPreviewItem | null>(null);
 	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	useEffect(() => {

@@ -9,6 +9,12 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.76.3] - 2026-11-28
+
+### Fixed
+- `ui`: menu navbar dan tombol tidak lagi memuat ulang halaman; tombol kembali/maju beranimasi
+- `ui`: animasi pindah halaman diganti fade through yang halus; hero beranda langsung tampil
+
 ## [4.76.2] - 2026-11-28
 
 ### Security

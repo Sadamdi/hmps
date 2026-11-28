@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import AIChat from '@/components/public/ai-chat';
@@ -57,7 +58,7 @@ export default function EventsYearPicker() {
 	const { basePath } = useTenant();
 	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	return (

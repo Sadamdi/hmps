@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import {
 	HubResourceSection,
 	KalenderSection,
@@ -220,7 +221,7 @@ export default function ProdiPage() {
 	}, []);
 
 	const scrollToSection = (sectionId: string) => {
-		window.location.href = `/#${sectionId}`;
+		softNavigate(`/#${sectionId}`);
 	};
 
 	const profile = data?.profile;

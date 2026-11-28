@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import CommentThread from '@/components/public/comment-thread';
 import EventAttachmentPreviewDialog, {
@@ -89,7 +90,7 @@ export default function BeritaDetail() {
 			? slug
 			: undefined;
 	const scrollToSection = (sectionId: string) => {
-		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
+		softNavigate(bp ? `${bp}/#${sectionId}` : `/#${sectionId}`);
 	};
 
 	const [attachmentPreview, setAttachmentPreview] =

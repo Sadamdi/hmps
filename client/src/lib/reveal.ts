@@ -115,7 +115,8 @@ export function initReveal() {
 				const el = e.target as HTMLElement;
 				if (!el.dataset.aosDelay) el.dataset.aosDelay = String(Math.min(i, 6) * 45 / 0.4);
 				i++;
-				show(el, true);
+				// Saat transisi halaman berjalan, halaman baru sudah dianimasikan utuh: jangan animasikan dobel.
+				show(el, !document.documentElement.hasAttribute('data-vt'));
 			}
 		},
 		{ rootMargin: '0px 0px 4% 0px', threshold: 0 },

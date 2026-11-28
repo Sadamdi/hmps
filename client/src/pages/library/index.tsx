@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import { LibraryGalleryCard, deriveItemYear } from '@/components/public/library';
@@ -26,7 +27,7 @@ export default function LibraryPage() {
 	const { basePath } = useTenant();
 	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	const {
