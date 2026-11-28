@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import { Button } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/pagination';
 import AIChat from '@/components/public/ai-chat';
@@ -89,7 +90,7 @@ export default function EventsYearPage() {
 	const { basePath } = useTenant();
 	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	if (error || (data === undefined && !isLoading)) {

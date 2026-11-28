@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import { activeVariants, productAsVariant, type StoreVariant } from '@shared/store-variants';
 import { safeHtml } from '@/lib/safe-html';
 import { StoreChatPanel } from '@/components/toko/store-chat-panel';
@@ -179,7 +180,7 @@ export default function TokoProductDetailPage() {
 	}, [product]);
 
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	const [qty, setQty] = useState(1);

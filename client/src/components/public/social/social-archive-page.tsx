@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import { ArchiveHeader } from '@/components/public/archive/archive-header';
 import Footer from '@/components/public/footer';
@@ -54,7 +55,7 @@ export default function SocialArchivePage({ platform }: { platform: SocialPlatfo
 	const { documentTitle } = usePublicBrand();
 	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	const { data, isLoading, isError, isFetching, refetch } = useQuery<ItemsResponse>({

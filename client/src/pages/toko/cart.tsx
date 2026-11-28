@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import { storeOrderStatusLabel } from '@shared/store-order-status';
 import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { StoreWaAdminPicker, needsAdminChoice } from '@/components/toko/store-wa-admin-picker';
@@ -227,7 +228,7 @@ export default function TokoCartPage() {
 	);
 
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	const checkoutMutation = useMutation({

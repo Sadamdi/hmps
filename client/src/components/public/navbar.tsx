@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -1223,7 +1224,7 @@ export default function Navbar({
 				target
 			) {
 				// Klik kedua dalam waktu 1s → redirect ke beranda section terkait (fallback ke subItem jika parent hidden)
-				window.location.href = bp ? `${bp}/#${target}` : `/#${target}`;
+				softNavigate(bp ? `${bp}/#${target}` : `/#${target}`);
 				lastParentClickRef.current = null;
 				return;
 			}
@@ -1254,7 +1255,7 @@ export default function Navbar({
 			if (id === 'home') {
 				navigate('/');
 			} else {
-				window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+				softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 			}
 			return;
 		}
@@ -1304,13 +1305,13 @@ export default function Navbar({
 		}
 
 		// Skenario lain: navigasi ke halaman lain, animasi scroll from-top ditangani di halaman tujuan
-		window.location.href = href;
+		softNavigate(href);
 	};
 
 	const handleDropdownMonthClick = (month: number) => {
 		if (!isHomeLikePath) {
 			sessionStorage.setItem('eventsScrollToMonth', String(month));
-			window.location.href = bp ? `${bp}/#events` : '/#events';
+			softNavigate(bp ? `${bp}/#events` : '/#events');
 		} else {
 			programmaticScrollRef.current = true;
 			if (programmaticScrollTimerRef.current)

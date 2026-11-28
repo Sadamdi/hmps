@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Pagination } from '@/components/ui/pagination';
@@ -77,7 +78,7 @@ export default function AllBerita() {
 	const { documentTitle, siteName, isTenant } = usePublicBrand();
 	const bp = basePath || '';
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	const filters = useArchiveFilters<BeritaItem>({

@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import { PasswordInput } from '@/components/ui/password-input';
 import Footer from '@/components/public/footer';
@@ -208,7 +209,7 @@ export default function TokoBuyerLoginPage() {
 	};
 
 	const scrollToSection = (id: string) => {
-		window.location.href = basePath ? `${basePath}/#${id}` : `/#${id}`;
+		softNavigate(basePath ? `${basePath}/#${id}` : `/#${id}`);
 	};
 
 	return (

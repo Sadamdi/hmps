@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import { AboutVideoEmbed } from '@/components/public/about-video-embed';
 import { safeHtml } from '@/lib/safe-html';
 import AIChat from '@/components/public/ai-chat';
@@ -29,7 +30,7 @@ export default function ProfilPage() {
 	const [introExpanded, setIntroExpanded] = useState(false);
 
 	const scrollToSection = (sectionId: string) => {
-		window.location.href = bp ? `${bp}/#${sectionId}` : `/#${sectionId}`;
+		softNavigate(bp ? `${bp}/#${sectionId}` : `/#${sectionId}`);
 	};
 
 	const { data: settings, isLoading } = useQuery<Settings>({

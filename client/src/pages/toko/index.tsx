@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import MediaDisplay from '@/components/MediaDisplay';
@@ -182,7 +183,7 @@ export default function TokoIndexPage() {
 	});
 
 	const scrollToSection = (id: string) => {
-		window.location.href = bp ? `${bp}/#${id}` : `/#${id}`;
+		softNavigate(bp ? `${bp}/#${id}` : `/#${id}`);
 	};
 
 	const blocks = storeSettings?.layoutBlocks || [];

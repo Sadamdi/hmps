@@ -1,6 +1,6 @@
 # HMPS Versions
 
-**Current version:** `4.76.2`  
+**Current version:** `4.76.3`  
 **Policy:** setiap selesai satu unit kerja, bump SemVer dan tulis release note **lengkap** dari [version-template.md](./version-template.md).
 
 ## Structure
@@ -25,7 +25,8 @@ docs/version/
 
 | Version | Date | Title | Bump | Commits | Status |
 |---------|------|-------|------|---------|--------|
-| [`4.76.2`](./release/4.76.2.md) | 2026-11-28 | Batas login seragam untuk pengurus, pembeli, dan mahasiswa | PATCH | 1 | **Current** |
+| [`4.76.3`](./release/4.76.3.md) | 2026-11-28 | Pindah halaman halus di semua menu, tautan, dan tombol kembali | PATCH | 1 | **Current** |
+| [`4.76.2`](./release/4.76.2.md) | 2026-11-28 | Batas login seragam untuk pengurus, pembeli, dan mahasiswa | PATCH | 1 | Released |
 | [`4.76.1`](./release/4.76.1.md) | 2026-11-28 | Hero beranda tidak lagi kosong, statistik tanpa angka karangan | PATCH | 1 | Released |
 | [`4.76.0`](./release/4.76.0.md) | 2026-11-28 | Transisi halaman tanpa spinner, skeleton + progress bar, animasi masuk otomatis, decode foto async | MINOR | 1 | Released |
 | [`4.75.1`](./release/4.75.1.md) | 2026-11-28 | Transisi pindah halaman dengan kedalaman 3D halus | PATCH | 1 | Superseded |

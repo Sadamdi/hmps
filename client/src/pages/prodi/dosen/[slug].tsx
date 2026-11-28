@@ -1,3 +1,4 @@
+import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
 import Navbar from '@/components/public/navbar';
@@ -31,7 +32,7 @@ export default function DosenDetailPage() {
 	}, [person]);
 
 	const scrollToSection = (sectionId: string) => {
-		window.location.href = `/#${sectionId}`;
+		softNavigate(`/#${sectionId}`);
 	};
 
 	return (
