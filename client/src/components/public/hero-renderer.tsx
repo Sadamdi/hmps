@@ -621,19 +621,19 @@ export function HeroMobileSlideshow({
 						<div className="grid grid-cols-3 gap-4 max-w-sm mx-auto">
 							<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
 								<div className="text-xl font-bold text-blue-200 mb-1">
-									{stats.organizationMembers || 500}+
+									{stats.organizationMembers ?? 0}+
 								</div>
 								<div className="text-xs text-white/80">Anggota</div>
 							</div>
 							<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
 								<div className="text-xl font-bold text-cyan-200 mb-1">
-									{stats.berita || 50}+
+									{stats.berita ?? 0}+
 								</div>
 								<div className="text-xs text-white/80">Berita</div>
 							</div>
 							<div className="text-center p-3 bg-slate-950/35 backdrop-blur-sm rounded-lg shadow-lg border border-blue-300/30">
 								<div className="text-xl font-bold text-indigo-200 mb-1">
-									{stats.libraryItems || 100}+
+									{stats.libraryItems ?? 0}+
 								</div>
 								<div className="text-xs text-white/80">Media</div>
 							</div>
