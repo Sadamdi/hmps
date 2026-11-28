@@ -1,3 +1,4 @@
+import { ContentSkeleton } from '@/components/ui/content-skeleton';
 import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -13,7 +14,7 @@ import { useApiUrl } from '@/lib/tenant-context';
 import { useTenant } from '@/lib/tenant-context';
 import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency';
 import { useQuery } from '@tanstack/react-query';
-import { Copy, Loader2 } from 'lucide-react';
+import { Copy } from 'lucide-react';
 import { FaWhatsapp } from 'react-icons/fa';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'wouter';
@@ -171,9 +172,7 @@ export default function TokoOrderInvoicePage() {
 				/>
 
 				{isLoading && (
-					<div className="flex justify-center py-16">
-						<Loader2 className="h-8 w-8 animate-spin text-primary" />
-					</div>
+					<ContentSkeleton variant="list" count={4} />
 				)}
 				{reviewOpen && <OrderReviewDialog orderNo={String(order?.orderNo || orderNo)} storeBasePath={bp} inv={invQuery} open onOpenChange={setReviewOpen} />}
 				{error && (

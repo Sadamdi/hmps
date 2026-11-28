@@ -1,3 +1,4 @@
+import { ContentSkeleton } from '@/components/ui/content-skeleton';
 import { softNavigate } from '@/lib/page-transitions';
 import { storeOrderStatusLabel } from '@shared/store-order-status';
 import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
@@ -353,7 +354,7 @@ export default function TokoCartPage() {
 				<h1 className="text-2xl font-bold mb-6">Keranjang</h1>
 
 				{isLoading ? (
-					<Loader2 className="h-8 w-8 animate-spin mx-auto" />
+					<ContentSkeleton variant="list" />
 				) : !cart?.items?.length ? (
 					<p className="text-muted-foreground">Keranjang kosong.</p>
 				) : (

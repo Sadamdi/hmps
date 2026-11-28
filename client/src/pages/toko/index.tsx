@@ -1,3 +1,4 @@
+import { ContentSkeleton } from '@/components/ui/content-skeleton';
 import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import Footer from '@/components/public/footer';
@@ -17,7 +18,7 @@ import { apiErrorText, apiRequest } from '@/lib/queryClient';
 import { useApiUrl } from '@/lib/tenant-context';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { flyStoreCartIcon } from '@/lib/store-cart-fly';
-import { ChevronDown, ChevronLeft, ChevronRight, Filter, Heart, Loader2, Package, Search, ShoppingCart } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, Filter, Heart, Package, Search, ShoppingCart } from 'lucide-react';
 import { useStoreFavorites } from '@/hooks/use-store-favorites';
 import { useTenant } from '@/lib/tenant-context';
 import { useEffect, useMemo, useState } from 'react';
@@ -324,7 +325,7 @@ export default function TokoIndexPage() {
 					)}
 
 					{loadingSettings ? (
-						<Loader2 className="h-8 w-8 animate-spin text-muted-foreground mx-auto" />
+						<ContentSkeleton />
 					) : categoryFilter === '__bundle' ? null : (
 						sortedBlocks.map((block: any) => {
 							if (block.visible === false) return null;
@@ -346,9 +347,7 @@ export default function TokoIndexPage() {
 								return (
 									<section key={block.id}>
 										{loadingProducts ? (
-											<div className="flex justify-center py-16">
-												<Loader2 className="h-8 w-8 animate-spin" />
-											</div>
+											<ContentSkeleton />
 										) : (
 											<>
 											{products.length === 0 && (
