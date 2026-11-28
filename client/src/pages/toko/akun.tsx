@@ -1,3 +1,4 @@
+import { ContentSkeleton } from '@/components/ui/content-skeleton';
 import { softNavigate } from '@/lib/page-transitions';
 import AIChat from '@/components/public/ai-chat';
 import { openNotifSettings } from '@/components/public/navbar';
@@ -351,7 +352,7 @@ export default function TokoBuyerAccountPage() {
 			<main className="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
 				<StorePublicHeaderRow items={[{ label: 'Beranda', href: '/' }, { label: storeLabel, href: storeHref }, { label: 'Akun saya' }]} />
 				{loading || !buyer ? (
-					<Loader2 className="h-8 w-8 animate-spin mx-auto my-16 text-muted-foreground" />
+					<ContentSkeleton variant="list" />
 				) : (
 					<>
 						<div className="flex flex-wrap items-center justify-between gap-3 mb-6">
@@ -422,7 +423,7 @@ export default function TokoBuyerAccountPage() {
 									</CardHeader>
 									<CardContent className="space-y-2">
 										{ordersLoading ? (
-											<Loader2 className="h-6 w-6 animate-spin mx-auto my-6 text-muted-foreground" />
+											<ContentSkeleton variant="list" count={2} />
 										) : orders.length === 0 ? (
 											<div className="text-center py-6 text-sm text-muted-foreground">
 												<PackageSearch className="h-10 w-10 mx-auto mb-2 opacity-40" />
@@ -447,7 +448,7 @@ export default function TokoBuyerAccountPage() {
 									))}
 								</div>
 								{ordersLoading ? (
-									<Loader2 className="h-6 w-6 animate-spin mx-auto my-6 text-muted-foreground" />
+									<ContentSkeleton variant="list" count={2} />
 								) : filtered.length === 0 ? (
 									<p className="text-sm text-muted-foreground py-6 text-center">Tidak ada pesanan pada filter ini.</p>
 								) : (

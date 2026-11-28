@@ -1,3 +1,4 @@
+import { ContentSkeleton } from '@/components/ui/content-skeleton';
 import { softNavigate } from '@/lib/page-transitions';
 import { orderLineVariantText } from '@shared/store-variants';
 import AIChat from '@/components/public/ai-chat';
@@ -17,7 +18,7 @@ import { formatStoreMoney, normalizeStoreCurrency } from '@shared/store-currency
 import { STORE_PAYMENT_STATUS_LABEL } from '@shared/store-payment';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, PackageSearch } from 'lucide-react';
+import { PackageSearch } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'wouter';
 
@@ -125,9 +126,7 @@ export default function TokoOrdersHistoryPage() {
 				</div>
 
 				{isLoading ? (
-					<div className="flex justify-center py-16">
-						<Loader2 className="h-8 w-8 animate-spin text-primary" />
-					</div>
+					<ContentSkeleton variant="list" />
 				) : filtered.length === 0 ? (
 					<div className="flex flex-col items-center justify-center py-16 text-center space-y-3">
 						<PackageSearch className="h-12 w-12 text-muted-foreground/50" />

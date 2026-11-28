@@ -1,3 +1,4 @@
+import { ContentSkeleton } from '@/components/ui/content-skeleton';
 import { softNavigate } from '@/lib/page-transitions';
 import { activeVariants, productAsVariant, type StoreVariant } from '@shared/store-variants';
 import { safeHtml } from '@/lib/safe-html';
@@ -472,9 +473,7 @@ export default function TokoProductDetailPage() {
 							{ label: 'Memuat…' },
 						]}
 					/>
-					<div className="flex justify-center py-20">
-						<Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-					</div>
+					<ContentSkeleton variant="detail" />
 				</main>
 				<Footer />
 			</div>

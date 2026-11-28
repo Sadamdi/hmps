@@ -9,6 +9,11 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.76.4] - 2026-11-28
+
+### Changed
+- `toko`: spinner halaman diganti kerangka konten berkilau
+
 ## [4.76.3] - 2026-11-28
 
 ### Fixed
