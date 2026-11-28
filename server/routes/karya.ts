@@ -21,6 +21,7 @@ import { logLoginAttempt } from '../models/login-attempt';
 import { logActivity } from '../models/activity';
 import { accountLockRemaining, recordAccountLoginFailure, resetAccountLoginFailures } from '../middleware/account-login-throttle';
 import { createPublicRateLimiter } from '../middleware/public-rate-limit';
+import { createLoginLimiter } from '../security';
 import { createOtpChallenge, verifyOtpChallenge, OtpError, RateLimitError } from '../services/otp';
 import { getKaryaSettings, KaryaProject, KaryaSettings, KaryaShortlink, KaryaStudent, KaryaStudentSession } from '../models/karya';
 import {
@@ -95,6 +96,7 @@ const authLimiter = createPublicRateLimiter('karya-auth', [
 	{ windowMs: 10 * 60_000, maxPerIp: 30, maxPerDevice: 15, label: '10 menit' },
 	{ windowMs: 24 * 60 * 60_000, maxPerIp: 300, maxPerDevice: 100, label: '1 hari' },
 ]);
+const loginGuard = createLoginLimiter();
 const writeLimiter = createPublicRateLimiter('karya-write', [
 	{ windowMs: 10 * 60_000, maxPerIp: 120, maxPerDevice: 80, label: '10 menit' },
 ]);
@@ -230,14 +232,14 @@ router.post('/auth/register/verify', requireEnabled, authLimiter, async (req, re
 
 const loginSchema = z.object({ email: z.string().min(3).max(200), password: z.string().min(1).max(200) });
 
-router.post('/auth/login', requireEnabled, authLimiter, async (req, res) => {
+router.post('/auth/login', requireEnabled, loginGuard, async (req, res) => {
 	const parsed = loginSchema.safeParse(req.body || {});
 	if (!parsed.success) return fail(res, 400, 'Email dan password wajib diisi', 'VALIDATION_ERROR');
 	const email = normalizeStudentEmail(parsed.data.email);
 	const ip = getRealClientIp(req);
-	const throttleKey = `student:${email}:${ip}`;
-	const globalKey = `student-all:${email}`;
-	const lockedFor = Math.max(accountLockRemaining(throttleKey), accountLockRemaining(globalKey));
+	// Kunci per AKUN, sama dengan login pengurus: 10 gagal / 15 menit dari IP mana pun
+	const throttleKey = `student-all:${email}`;
+	const lockedFor = accountLockRemaining(throttleKey);
 	if (lockedFor > 0) {
 		void logLoginAttempt({ ip, email, success: false, reason: 'locked', scope: 'student' });
 		return res.status(429).json({ success: false, message: 'Terlalu banyak percobaan login. Coba lagi nanti.', retryAfter: lockedFor, error: { code: 'ACCOUNT_LOGIN_THROTTLED' } });
@@ -246,7 +248,6 @@ router.post('/auth/login', requireEnabled, authLimiter, async (req, res) => {
 	const passOk = !!s?.passwordHash && (await verifyPassword(parsed.data.password, s.passwordHash));
 	if (!s || !passOk) {
 		recordAccountLoginFailure(throttleKey);
-		recordAccountLoginFailure(globalKey);
 		void logLoginAttempt({ ip, email, success: false, reason: s ? 'invalid_password' : 'not_found', scope: 'student' });
 		// Email di luar UIN/TI dan belum punya akun → beri tahu aturan aksesnya (bukan rahasia)
 		if (!s && !checkStudentEmail(email).ok) return notEligible(res);
@@ -273,13 +274,15 @@ async function verifyGoogle(res: Response, idToken: string) {
 	}
 }
 
-router.post('/auth/google', requireEnabled, authLimiter, async (req, res) => {
+router.post('/auth/google', requireEnabled, loginGuard, async (req, res) => {
 	const parsed = googleSchema.safeParse(req.body || {});
 	if (!parsed.success) return fail(res, 400, 'Permintaan login Google tidak valid', 'VALIDATION_ERROR');
 	const g = await verifyGoogle(res, parsed.data.idToken);
 	if (!g) return;
 	try {
 		const email = normalizeStudentEmail(g.email);
+		const lockedFor = accountLockRemaining(`student-all:${email}`);
+		if (lockedFor > 0) return res.status(429).json({ success: false, message: 'Terlalu banyak percobaan login. Coba lagi nanti.', retryAfter: lockedFor, error: { code: 'ACCOUNT_LOGIN_THROTTLED' } });
 		const s: any = (await KaryaStudent.findOne({ googleSub: g.uid })) || (await KaryaStudent.findOne({ email }));
 		if (s && s.status !== 'pending' && s.status !== 'deleted') {
 			const block = studentAccessBlock(s);

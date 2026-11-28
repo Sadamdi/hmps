@@ -15,6 +15,7 @@ import { getRealClientIp } from '../lib/geoip';
 import { logLoginAttempt } from '../models/login-attempt';
 import { accountLockRemaining, recordAccountLoginFailure, resetAccountLoginFailures } from '../middleware/account-login-throttle';
 import { createPublicRateLimiter } from '../middleware/public-rate-limit';
+import { createLoginLimiter } from '../security';
 import { createOtpChallenge, verifyOtpChallenge, OtpError, RateLimitError } from '../services/otp';
 import {
 	authenticateBuyer,
@@ -34,6 +35,8 @@ const authLimiter = createPublicRateLimiter('buyer-auth', [
 	{ windowMs: 10 * 60_000, maxPerIp: 30, maxPerDevice: 15, label: '10 menit' },
 	{ windowMs: 24 * 60 * 60_000, maxPerIp: 300, maxPerDevice: 100, label: '1 hari' },
 ]);
+
+const loginGuard = createLoginLimiter();
 
 const fail = (res: Response, status: number, message: string, code: string) =>
 	res.status(status).json({ success: false, message, error: { code } });
@@ -63,21 +66,6 @@ const isStaffBound = async (c: any) => {
 	const { resolveLinkedStaff } = await import('../services/unified-login');
 	return !!(await resolveLinkedStaff(c));
 };
-
-/** Hitung gagal login lintas IP untuk satu akun; kunci setelah 60 kegagalan dalam jendela yang sama. */
-const globalFails = new Map<string, { n: number; at: number }>();
-function recordGlobalBuyerFailure(key: string) {
-	const now = Date.now();
-	const r = globalFails.get(key);
-	const cur = !r || now - r.at > 15 * 60_000 ? { n: 0, at: now } : r;
-	cur.n++;
-	globalFails.set(key, cur);
-	if (cur.n >= 60) {
-		// pakai penghitung kunci akun yang sama agar accountLockRemaining berlaku
-		for (let i = 0; i < 10; i++) recordAccountLoginFailure(key);
-	}
-	if (globalFails.size > 2000) globalFails.clear();
-}
 
 const reqIp = (req: Request) => String((req as any).ip || '').slice(0, 64);
 const PASSWORD_MIN = 8;
@@ -162,15 +150,13 @@ router.post('/register/verify', authLimiter, async (req, res) => {
 // ── Masuk ──
 const loginSchema = z.object({ email: z.string().min(3).max(200), password: z.string().min(1).max(200) });
 
-router.post('/login', authLimiter, async (req, res) => {
+router.post('/login', loginGuard, async (req, res) => {
 	const parsed = loginSchema.safeParse(req.body || {});
 	if (!parsed.success) return fail(res, 400, 'Email dan password wajib diisi', 'VALIDATION_ERROR');
 	const email = normalizeBuyerEmail(parsed.data.email);
-	// Throttle per AKUN (sama seperti login pengurus): tahan tebak password terdistribusi lintas IP
-	const ipKey = getRealClientIp(req);
-	const throttleKey = `buyer:${email}:${ipKey}`; // percobaan dari satu IP ke satu akun: 10x
-	const globalKey = `buyer-all:${email}`; // semua IP ke satu akun: 60x (tebak terdistribusi)
-	const lockedFor = Math.max(accountLockRemaining(throttleKey), accountLockRemaining(globalKey));
+	// Kunci per AKUN, sama dengan login pengurus: 10 gagal / 15 menit dari IP mana pun
+	const throttleKey = `buyer-all:${email}`;
+	const lockedFor = accountLockRemaining(throttleKey);
 	if (lockedFor > 0) {
 		void logLoginAttempt({ ip: getRealClientIp(req), email, success: false, reason: 'locked', scope: 'buyer' });
 		return res.status(429).json({ success: false, message: 'Terlalu banyak percobaan login untuk akun ini. Coba lagi nanti.', retryAfter: lockedFor, error: { code: 'ACCOUNT_LOGIN_THROTTLED' } });
@@ -179,7 +165,6 @@ router.post('/login', authLimiter, async (req, res) => {
 	const ok = !!c?.passwordHash && (await verifyPassword(parsed.data.password, c.passwordHash));
 	if (!c || !ok) {
 		recordAccountLoginFailure(throttleKey);
-		for (let i = 0; i < 1; i++) recordGlobalBuyerFailure(globalKey);
 		void logLoginAttempt({ ip: getRealClientIp(req), email, success: false, reason: c ? 'invalid_password' : 'not_found', scope: 'buyer' });
 		return fail(res, 401, 'Email atau password salah', 'INVALID_CREDENTIALS');
 	}
@@ -195,7 +180,7 @@ router.post('/login', authLimiter, async (req, res) => {
 // ── Masuk dengan Google (Firebase; verifikasi yang sama dengan login staf) ──
 const googleSchema = z.object({ idToken: z.string().min(100).max(8192) });
 
-router.post('/google', authLimiter, async (req, res) => {
+router.post('/google', loginGuard, async (req, res) => {
 	const parsed = googleSchema.safeParse(req.body || {});
 	if (!parsed.success) return fail(res, 400, 'Permintaan login Google tidak valid', 'VALIDATION_ERROR');
 	const { verifyGoogleIdToken, GoogleLoginError } = await import('../services/google-login');
@@ -209,6 +194,8 @@ router.post('/google', authLimiter, async (req, res) => {
 	}
 	try {
 		const email = normalizeBuyerEmail(g.email);
+		const lockedFor = accountLockRemaining(`buyer-all:${email}`);
+		if (lockedFor > 0) return res.status(429).json({ success: false, message: 'Terlalu banyak percobaan login untuk akun ini. Coba lagi nanti.', retryAfter: lockedFor, error: { code: 'ACCOUNT_LOGIN_THROTTLED' } });
 		let c: any = (await Customer.findOne({ googleSub: g.uid })) || (await Customer.findOne({ email }));
 		if (c && c.status === 'blocked') return fail(res, 403, 'Akun ini diblokir. Hubungi admin toko.', 'BUYER_BLOCKED');
 		let created = false;

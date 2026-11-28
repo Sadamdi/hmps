@@ -1768,6 +1768,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
 			return res.status(500).json({ success: false, message: 'Gagal memverifikasi login Google' });
 		}
 
+		// Kunci akun sama seperti login password
+		const lockedFor = accountLockRemaining(email);
+		if (lockedFor > 0) {
+			void logLoginAttempt({ ip: clientIp, email, success: false, reason: 'locked' });
+			return res.status(429).json({
+				success: false,
+				message: 'Terlalu banyak percobaan login untuk akun ini. Coba lagi nanti.',
+				retryAfter: lockedFor,
+				error: { code: 'ACCOUNT_LOGIN_THROTTLED' },
+			});
+		}
+
 		return staffLoginByVerifiedEmail(req, res, email, parsed.data.loginTarget);
 	});
 
