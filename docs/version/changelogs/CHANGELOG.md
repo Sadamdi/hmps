@@ -9,6 +9,11 @@ SemVer per **unit kerja**. Detail lengkap: [release/](../release/) · Template: 
 
 _Tidak ada._
 
+## [4.76.2] - 2026-11-28
+
+### Security
+- `auth`: batas login pembeli, mahasiswa, dan Google disamakan dengan login password pengurus
+
 ## [4.76.1] - 2026-11-28
 
 ### Fixed

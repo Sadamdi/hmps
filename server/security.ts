@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import type { RequestHandler } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import hpp from 'hpp';
@@ -38,6 +39,13 @@ export const apiLimiter = rateLimit({
 	keyGenerator: (req) => getClientIp(req),
 });
 
+const LOGIN_LIMIT_BODY = {
+	success: false,
+	message: 'Terlalu banyak percobaan login. Silakan coba lagi dalam 1 menit.',
+	error: 'Terlalu banyak percobaan login. Silakan coba lagi dalam 1 menit.',
+	retryAfter: 60,
+};
+
 export const loginLimiter = rateLimit({
 	windowMs: 60 * 1000, // 1 menit
 	max: 5, // Maksimal 5 percobaan login per IP per menit
@@ -52,6 +60,27 @@ export const loginLimiter = rateLimit({
 	// Gabungkan IP + device untuk pembatasan yang lebih akurat
 	keyGenerator: (req) => `${getClientIp(req)}:${getDeviceId(req)}`,
 });
+
+/**
+ * Batas login seragam untuk pembeli & mahasiswa, sama dengan login pengurus:
+ * 10/menit per IP dan 5/menit per IP + perangkat. Penghitung terpisah per jenis akun.
+ */
+export const createLoginLimiter = (): RequestHandler => {
+	const make = (max: number, keyGenerator: (req: any) => string) =>
+		rateLimit({
+			windowMs: 60 * 1000,
+			max,
+			message: LOGIN_LIMIT_BODY,
+			standardHeaders: true,
+			legacyHeaders: false,
+			keyGenerator,
+		});
+	const perIp = make(10, (req) => getClientIp(req));
+	const perDevice = make(5, (req) => `${getClientIp(req)}:${getDeviceId(req)}`);
+	return (req, res, next) => {
+		perIp(req, res, (err?: unknown) => (err ? next(err) : perDevice(req, res, next)));
+	};
+};
 
 export const uploadLimiter = rateLimit({
 	windowMs: 60 * 1000, // 1 menit
